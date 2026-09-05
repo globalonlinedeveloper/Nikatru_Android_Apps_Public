@@ -61,7 +61,22 @@
     "probe set — api-auth.nikatru.com has no surface that probe can call healthy, measured. The full",
     "reasoning is in that file under `_notInThisRegister`; a first attempt on 2026-09-03 made them rows",
     "and had to be reverted. So THIS list is the only place a delete of any of the three fails a guard,",
-    "which is exactly what an id-keyed canary is for."
+    "which is exactly what an id-keyed canary is for.",
+    "",
+    "📌 AND IT WENT INCOMPLETE AGAIN ON 2026-09-05, WHICH IS WHY 'complete as of' CARRIES A DATE RATHER",
+    "THAN A TICK. Phase 3a created two more heartbeats on the same instance — 22 `Cloudflare D1/KV backup",
+    "pull` and 23 `Box B restic` — and for a few hours this list named twelve of fourteen. Both are now",
+    "listed. ⚠️ NOTE THE FAILURE MODE THIS FILE CANNOT CATCH BY ITSELF: limb D fails when a LISTED id is",
+    "absent from the live instance, and says nothing about a LIVE id that is absent from this list. That",
+    "asymmetry is deliberate — a canary that reddened on every newly created monitor would be red for the",
+    "minutes between creating one and declaring it, and people turn that kind of guard off — but it means",
+    "completeness here is maintained by whoever creates a monitor, not enforced. Both new ids also carry a",
+    "duty row in tooling/ops/register.json (`duty.cloudflare-backup-pull`, `duty.restic-snapshot`) whose",
+    "`recordQuery` reads the monitor by id on every CI run, so a delete of either now fails TWO guards.",
+    "",
+    "⛔ 23's NAME CARRIES A BOX NAME, WHICH THIS SECTION'S OWN RULE FORBIDS. It is recorded and not",
+    "renamed: the id is the identity, a rename here is reported and never failed, and the register row",
+    "carries the same note. The rule is for the NEXT monitor somebody creates."
   ],
   "expectedMonitors": [
     {
@@ -111,6 +126,14 @@
     {
       "id": 19,
       "name": "Supabase backup chain"
+    },
+    {
+      "id": 22,
+      "name": "Cloudflare D1/KV backup pull"
+    },
+    {
+      "id": 23,
+      "name": "Box B restic"
     }
   ],
   "chainsObserved": {
@@ -118,7 +141,31 @@
       "date": "2026-08-05",
       "monitor": "Laptop daily backup",
       "how": "Shrank the heartbeat window to 60s so the production fetch() saw no heartbeat inside it, then enqueued the production perform_checks task — the same task dispatch_checks enqueues. Real Down transition 08:56:20Z, real recovery 08:57:01Z after a real POST to the heartbeat endpoint. Interval restored to 43200s; endpoint_id never changed, so the laptop's heartbeat URL still works.",
-      "evidence": "Two Resend delivery records to support@nikatru.com, both status=delivered: 4133761a-4c83-48eb-88e0-7af79aa2e8cc ('GlitchTip: Laptop daily backup is down', 08:56:23Z) and d87ac960-78df-4dce-b56a-f9c44efd6df8 ('… is back up', 08:57:03Z)"
+      "evidence": "Two Resend delivery records to support@nikatru.com, both status=delivered: 4133761a-4c83-48eb-88e0-7af79aa2e8cc ('GlitchTip: Laptop daily backup is down', 08:56:23Z) and d87ac960-78df-4dce-b56a-f9c44efd6df8 ('… is back up', 08:57:03Z)",
+      "🔴 aSecondRecipientLandedOn2026-09-05, andItIsNotASecondCHAIN": [
+        "The `ops` alert rule (id 2, `uptime: true`, quantity 1 / timespan 1) gained a WEBHOOK recipient,",
+        "id 3, pointing at the self-hosted ntfy on the topic `nikatru-page`. Every monitor filed under `ops`",
+        "— 6, 16, 19 and now 22 and 23 — therefore reaches a PHONE as well as a mailbox on a Down",
+        "transition. The email recipient (id 2) kept its original primary key through the PUT, which is the",
+        "strongest available evidence that the recipient list was ADDED TO rather than replaced: this file",
+        "exists because a notification path silently lost its recipients once already.",
+        "",
+        "🔴 IT DOES NOT CLOSE `_notObservable` BELOW, AND READING IT AS A SECOND PROVIDER WOULD BE THE",
+        "WORST MISREADING OF THIS ENTRY. ntfy runs on the SAME BOX as GlitchTip, the alert evaluation and",
+        "the Resend hop. A box death silences the monitor, the evaluation, the mail and the push in one",
+        "instant. Two recipients on one machine is redundancy against a mail-delivery failure, which is not",
+        "the failure [pipeline E-9b] names.",
+        "",
+        "⚠️ AND IT IS CIRCULAR FOR EXACTLY ONE ALARM: an alert about ntfy being down cannot be delivered by",
+        "ntfy. The email recipient is what covers that case, which is one more reason it was added to and",
+        "not swapped.",
+        "",
+        "⚠️ THE MESSAGE BODY IS RAW WEBHOOK JSON. GlitchTip's `webhook` recipient type emits one fixed",
+        "payload shape with no title line, so what lands on the phone is the envelope verbatim. Legible",
+        "enough to act on, ugly enough that somebody will want to 'fix' it — it is not a defect, it is the",
+        "only shape that recipient type emits."
+      ],
+      "ntfyRouteEvidence": "2026-09-05 — proven end to end, not wired: a synthetic event fired into the `ops` DSN at 13:18:39 arrived on the `nikatru-page` topic at 13:19:37, 58 seconds later. Read back out of the topic's cache, not inferred from a 200. The webhook recipient is id 3 on alert rule id 2; the pre-existing email recipient id 2 survived the PUT unchanged."
     },
     "subly": {
       "date": "2026-08-05",
@@ -163,6 +210,21 @@
     "than a change of state. The box became the Hostinger box (Box B) on 2026-09-02 — the same move",
     "whose rename is the subject of _expectedMonitorsWhy above, and the same move that put monitors 17,",
     "18 and 19 on the instance. It is still ONE box, so E-9b is exactly as open as it was; naming the",
-    "old text is how a reader can tell a correction from a resolution."
+    "old text is how a reader can tell a correction from a resolution.",
+    "",
+    "🔴 AND THERE IS A SECOND ALERTING PATH ON THAT BOX THIS LEDGER DOES NOT COVER AT ALL — recorded",
+    "2026-09-05 so 'absent from this file' cannot be mistaken for 'does not exist'. Beszel (the host-metrics",
+    "hub, `/opt/beszel`) carries SIX alerts of its own — disk > 80%, memory > 85%, system down 2 min, on each",
+    "of the two boxes — and they route straight to the same ntfy topic through shoutrrr, never touching",
+    "GlitchTip. So a box going down has two independent detectors and this file can only ever speak for one",
+    "of them. The Beszel route was proven with a REAL outage rather than a test button: `docker stop",
+    "beszel-agent` for 270 s produced ntfy message 1788617561 'Connection to box-b-hostinger is down' and",
+    "1788617681 '… is up' on restart.",
+    "",
+    "⚠️ IT IS NOT A ROW HERE AND SHOULD NOT BECOME ONE. Every limb of verify-alarm-chains.mjs is a query",
+    "against the GlitchTip API — projects, alert rules, recipients, monitors — and Beszel has none of those.",
+    "A row for it would be a claim this script cannot re-check, which is the config-shaped coverage this",
+    "whole file was written against. What it IS: a second detector on the same box, which narrows nothing",
+    "about E-9b, because Beszel, its alerts and ntfy all die with that box too."
   ]
 }
