@@ -313,3 +313,97 @@ describe('assert-update-coverage — a manager may only name a datasource somebo
     }
   });
 });
+
+// ── U13 · THE FOUR SECURITY SCANNERS ────────────────────────────────────────
+// Added 2026-09-06, with the change that moved `gitleaks`, `zizmor`,
+// `osv_scanner` and `trivy` out of ci.yml's `security-scan` job `env:` block and
+// into tooling/versions.json.
+//
+// 🔴 WHY THESE FOUR GET A NAMED TEST WHEN THE ELEVEN OTHER PINS DO NOT. Before
+// the move they were pinned INSIDE A WORKFLOW, which is a place this guard
+// cannot see: F-2's declaration file is its whole domain, so four security
+// scanners were advanced by nobody and no check in the tree could say so. That
+// is the same shape as `wrangler` in 2026-08, and the same shape as the five
+// customManagers that matched nothing — with one difference that makes it worse.
+// A stale test framework goes red. A stale SCANNER goes QUIET: it keeps exiting
+// 0 while its rule set ages out from under the thing it is scanning, and a
+// silent gate is the failure mode this whole directory exists to refuse.
+//
+// So the property under test is not "versions.json parses". It is: IF ONE OF
+// THESE FOUR PINS LOSES ITS UPDATE MANAGER, THE BUILD GOES RED. Proven by
+// mutating the REAL committed pair of files rather than a fixture, because a
+// fixture proves only that the fixture matches itself — the lesson this file's
+// own header records against `pub`.
+describe('assert-update-coverage — the four security scanners stay reachable by Renovate', () => {
+  const SCANNERS = ['gitleaks', 'zizmor', 'osv_scanner', 'trivy'];
+
+  /** The real renovate.json + the real tooling/versions.json, copied into a
+   *  scratch root so a mutation never touches the worktree. */
+  function realPairIn(dir) {
+    mkdirSync(join(dir, 'tooling'), { recursive: true });
+    const versions = readFileSync(join(REPO, 'tooling/versions.json'), 'utf8');
+    writeFileSync(join(dir, 'renovate.json'), readFileSync(join(REPO, 'renovate.json'), 'utf8'));
+    writeFileSync(join(dir, 'tooling/versions.json'), versions);
+    return versions;
+  }
+
+  test('THE GREEN CONTROL — the real pair, copied unmutated, exits 0', () => {
+    const root = join(TMP, `s${seq++}`);
+    realPairIn(root);
+    const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    // And the four are really in the covered set, not merely absent from the
+    // error list: a pin nobody declared would also produce no error.
+    for (const key of SCANNERS) {
+      assert.match(
+        r.stdout,
+        new RegExp(`"${key}"`.replace(/"/g, '')),
+        `${key} is not visible in the guard's own output`,
+      );
+    }
+  });
+
+  for (const key of SCANNERS) {
+    test(`U13 · dropping the \`${key}\` pin leaves its customManager capturing nothing, and FAILS`, () => {
+      const root = join(TMP, `s${seq++}`);
+      const versions = realPairIn(root);
+      const parsed = JSON.parse(versions);
+      assert.ok(parsed[key], `${key} is not pinned in the real tooling/versions.json — this test is measuring nothing`);
+
+      // The mutation is applied to the TEXT, and land-checked before the guard
+      // is believed: a replace that silently matched nothing would leave the
+      // file green and the test would report the guard working when it had not
+      // been asked anything (TRAPS agents-05).
+      const line = new RegExp(`^\\s*"${key}":\\s*"[^"]*",?\\n`, 'm');
+      assert.match(versions, line, `the \`${key}\` pin is not on a line of its own — the mutation cannot be applied`);
+      const mutated = versions.replace(line, '');
+      assert.notEqual(mutated, versions, 'the mutation did not apply');
+      assert.ok(!JSON.parse(mutated)[key], `${key} survived the mutation`);
+      writeFileSync(join(root, 'tooling/versions.json'), mutated);
+
+      const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+      assert.equal(r.status, 1, `dropping ${key} left the guard green:\n${r.stdout}\n${r.stderr}`);
+      assert.match(
+        `${r.stdout}\n${r.stderr}`,
+        new RegExp(`${key} — its pattern matched`),
+        'the failure must name the manager that stopped capturing, not just fail',
+      );
+    });
+
+    test(`U13 · dropping the \`${key}_sha256\` exemption leaves the digest owned by nobody, and FAILS`, () => {
+      const root = join(TMP, `s${seq++}`);
+      const versions = realPairIn(root);
+      const parsed = JSON.parse(versions);
+      assert.ok(
+        parsed.$updateExemptions?.some((e) => e.key === `${key}_sha256`),
+        `${key}_sha256 has no written exemption — this test is measuring nothing`,
+      );
+      parsed.$updateExemptions = parsed.$updateExemptions.filter((e) => e.key !== `${key}_sha256`);
+      writeFileSync(join(root, 'tooling/versions.json'), JSON.stringify(parsed, null, 2));
+
+      const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+      assert.equal(r.status, 1, `dropping the ${key}_sha256 waiver left the guard green`);
+      assert.match(`${r.stdout}\n${r.stderr}`, new RegExp(`${key}_sha256\`? is pinned|\`${key}_sha256\``));
+    });
+  }
+});

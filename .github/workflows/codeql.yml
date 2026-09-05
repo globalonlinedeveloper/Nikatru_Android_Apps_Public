@@ -1,0 +1,109 @@
+name: CodeQL
+run-name: "CodeQL (${{ github.event_name }})"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CodeQL — semantic analysis of the JavaScript and TypeScript this repository
+# actually ships and runs. [ADR 067] decision 4, phase 2 unit ci-security-lanes.
+#
+# 🔴 WHAT WAS MISSING, AND IT IS NOT WHAT THE EXISTING SCANNERS COVER. The
+# `security-scan` job in ci.yml runs four tools and NONE of them reads this
+# repository's own code as code:
+#   · gitleaks     — looks for SECRETS in bytes. It does not parse anything.
+#   · zizmor       — reads WORKFLOWS. Its subject is .github/, not services/.
+#   · OSV-Scanner  — reads LOCKFILES. Its subject is what we depend on.
+#   · Trivy        — reads dependencies and misconfiguration, not data flow.
+# All four ask "is something we imported known-bad?" or "is a file shaped
+# wrongly?". None of them can answer "does attacker-controlled input reach a
+# dangerous sink in code we wrote", which is the question that matters for
+# services/platform and services/subly-api — Workers that take unauthenticated
+# HTTP, hold a D1 binding and sit in front of the identity stack.
+#
+# Measured on the day this landed (2026-09-06): 583 tracked .ts/.js/.mjs files —
+# 376 under tooling/, 104 under extensions/, 97 under services/, 3 contracts/,
+# 2 sites/, 1 packages/. So the subject set is real, and the extensions subtree
+# ([ADR 067] decision 1) is inside it: extensions ship BUILD-FREE, meaning the
+# source in this repository is the source that is submitted to a store, so
+# analysing it here is analysing the shipped artefact rather than a proxy for it.
+#
+# ⚠️ WHAT THIS DOES NOT COVER, stated rather than implied: DART. The `javascript-
+# typescript` pack does not read Flutter code, and CodeQL ships no Dart support
+# at all, so apps/ and packages/ are outside this lane by construction — not by
+# an omission somebody can quietly fix by adding a language to the matrix. The
+# Dart surface is covered by `melos run analyze` and the format gate in ci.yml.
+#
+# ⚠️ AND THIS IS AN ALERT SINK, NOT A MERGE GATE. Findings land in the repository
+# Security tab; nothing here fails `ci-gate`, and that is deliberate. A scanner
+# whose first false positive blocks every merge is a scanner that gets switched
+# off, which is the reasoning ci.yml's Trivy step already records in prose. If a
+# finding ever needs to block, the way to do it is a named, reviewed rule — not
+# turning this whole lane into a required check.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # 🔴 THE SLOT IS COMPUTED, NOT EYEBALLED — TRAPS ci-16. Across every workflow
+    # in this repository the daily slots were 00:30 02:30 03:00 03:17 04:30 07:30
+    # 08:50 11:00 12:30 15:30 17:30 19:30 22:30 UTC, whose WORST gap — measured
+    # circularly, including the wrap past midnight, which a sorted list never
+    # shows — was 3.00h at 04:30 → 07:30. 05:23 splits that one into 0.88h and
+    # 2.12h. Not on the hour and not on the half hour on purpose: those are the
+    # minutes every other repository on GitHub also picks, and a scheduler
+    # measured at 10.1% on-time delivery does not need the extra queue.
+    - cron: '23 5 * * *' # 05:23 UTC daily — splits the 04:30 → 07:30 hole
+  workflow_dispatch:
+
+# The workflow-level floor is READ-ONLY. The one elevated scope this lane needs
+# — `security-events: write`, which is what lets the analysis upload a SARIF
+# result to the Security tab — is granted ON THE JOB and nowhere else, because
+# tooling/ci/assert-workflow-hardening.mjs is right about where a write scope
+# belongs: a workflow-level grant is held by every job in the file, including any
+# job somebody adds later without thinking about it. There is one job today, so
+# the difference costs nothing now and is exactly the kind of thing that stops
+# being free once it is a habit.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze JavaScript and TypeScript
+    runs-on: ubuntu-24.04
+    # A job-level block REPLACES the workflow-level one outright, so `contents:
+    # read` is restated here rather than inherited — dropping it would leave the
+    # checkout unable to read a repository this job must read.
+    permissions:
+      contents: read
+      security-events: write
+    # Bounded, like every other job in this repository: an omitted
+    # `timeout-minutes` inherits GitHub's default of SIX HOURS, and
+    # tooling/ci/assert-workflow-hardening.mjs limb 4 refuses one.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # zizmor `artipacked`: a checkout leaves GITHUB_TOKEN in .git/config
+          # for the rest of the job unless this is set. Nothing here pushes,
+          # tags or commits, so the credential is not needed.
+          persist-credentials: false
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: javascript-typescript
+          # `security-and-quality` over the default `security-extended`: this
+          # repository's own guards are written in .mjs and are the largest part
+          # of the subject set, so the quality queries are reading the code that
+          # decides whether every other check is honest.
+          queries: security-and-quality
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          category: /language:javascript-typescript

@@ -293,6 +293,60 @@
   ],
   "glitchtip_cli": "1.0.0",
   "glitchtip_cli_sha256": "de1c035aa61931a6265d7b29b1614781dfee925466142a907508cb097082dfef",
+
+  "$scanners_comment": [
+    "THE FOUR SECURITY SCANNERS, MOVED HERE 2026-09-06 ([ADR 067] decision 4, phase 2 unit",
+    "ci-security-lanes). Until this block existed all four were written as `env:` literals inside the",
+    "`security-scan` job of .github/workflows/ci.yml and NOWHERE ELSE, which is three separate",
+    "defects wearing one shape:",
+    "",
+    "1. THEY WERE OUTSIDE F-2. tooling/versions.json is 'THE SINGLE DECLARATION of every version the",
+    "   build depends on', and four of them were not in it. Nothing was drifting yet only because",
+    "   each literal happened to be written exactly once — a property of today's file, not a",
+    "   mechanism, and the identical state `wrangler` was in until 2026-08-02.",
+    "",
+    "2. THEY WERE OUTSIDE THE UPDATE MECHANISM. [pipeline 14]O-9 says every pinned input is advanced",
+    "   by something on a cadence or carries a written exemption, and",
+    "   tooling/ci/assert-update-coverage.mjs enforces exactly that — over the keys IN THIS FILE. A",
+    "   pin in a workflow's `env:` block is invisible to it, so these four were advanced by nobody",
+    "   and no guard could say so. That is strictly worse than not pinning them, and it is the",
+    "   sentence assert-update-coverage.mjs already prints about any key it cannot reach. Each now",
+    "   has a `customManagers` entry in renovate.json against the `github-releases` datasource.",
+    "",
+    "3. THE SCANNERS ARE THE LANE THAT FINDS EVERYTHING ELSE. A stale gitleaks does not go red — it",
+    "   goes QUIET, which is this repository's most-recorded failure shape. OSV-Scanner is also the",
+    "   only scanner in the stack that reads pubspec.lock, and Play Console blocks updates on",
+    "   vulnerable SDK versions, so its currency has a store consequence.",
+    "",
+    "⚠️ EACH VERSION CARRIES ITS OWN sha256, AND THE DIGEST IS PART OF THE PIN. Same reasoning as",
+    "$glitchtip_cli_comment: a version names a release, the digest names the BYTES. ci.yml reads both",
+    "halves at run time with `node -p` — the idiom deploy-web.yml already uses for glitchtip_cli and",
+    "wrangler — so there is no literal left in a workflow to drift, and assert-version-consistency.mjs",
+    "correctly carries no rule for these keys: a drift rule whose scan has no target is an assertion",
+    "that cannot fail, and this repository deletes those instead of counting them.",
+    "",
+    "🔴 SO A RENOVATE BUMP OF ANY OF THESE FOUR ARRIVES RED at ci.yml's `sha256sum -c` step until a",
+    "human downloads the new asset and writes its digest here. That failure IS the mechanism, not a",
+    "gap in it — exactly as recorded for glitchtip_cli. ⛔ Do NOT 'fix' a red bump by deleting a",
+    "checksum step.",
+    "",
+    "⚠️ AND THE ASSET NAMES ARE NOT UNIFORM, which is why ci.yml still spells each URL out rather",
+    "than templating one. gitleaks ships `gitleaks_<ver>_linux_x64.tar.gz` (the version appears TWICE",
+    "and there is no leading `v` inside the filename); zizmor ships a target-triple name",
+    "`zizmor-x86_64-unknown-linux-gnu.tar.gz` with no version in it at all; osv-scanner ships a bare",
+    "binary `osv-scanner_linux_amd64`; trivy ships `trivy_<ver>_Linux-64bit.tar.gz` with a capital L.",
+    "A single templated URL would have to invent three of those four and would break silently on the",
+    "next vendor whose naming differs."
+  ],
+  "gitleaks": "8.30.1",
+  "gitleaks_sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+  "zizmor": "1.28.0",
+  "zizmor_sha256": "e87b67160194884e375a46a12c57ccc904f762b53845f254fab7f17d98809c09",
+  "osv_scanner": "2.5.1",
+  "osv_scanner_sha256": "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be",
+  "trivy": "0.74.0",
+  "trivy_sha256": "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a",
+
   "runner_ubuntu": "ubuntu-24.04",
   "runner_windows": "windows-2025",
   "runner_macos": "macos-26",
@@ -331,6 +385,22 @@
     {
       "key": "glitchtip_cli_sha256",
       "why": "NOT A VERSION — it is the sha256 of the bytes `glitchtip_cli` names, and it is exempt because no datasource on https://docs.renovatebot.com/modules/datasource/ resolves a file checksum: a checksum is not published as a version series, it is computed from a download. It is pinned here anyway, beside the version it belongs to, because the release asset is a GitLab JOB ARTIFACT URL rather than an immutable tag object — see $glitchtip_cli_comment. It advances with `glitchtip_cli` and only with it: a Renovate bump of that key lands RED at deploy-web.yml's `sha256sum --check` until a human downloads the new asset and writes its digest here. That failure is the mechanism, not a gap in it. ⛔ Do NOT 'fix' a red bump by deleting the checksum step."
+    },
+    {
+      "key": "gitleaks_sha256",
+      "why": "A DIGEST, NOT A VERSION — same class as `glitchtip_cli_sha256` above and exempt for the identical, already-verified reason: no datasource on https://docs.renovatebot.com/modules/datasource/ resolves a file checksum, because a checksum is computed from a download rather than published as a version series. It advances with `gitleaks` and only with it, and a Renovate bump of that key lands RED at ci.yml's `sha256sum -c` step until a human downloads the new release asset and writes the digest here. ⛔ That red is the mechanism; do NOT 'fix' it by deleting the checksum step. Declared 2026-09-06 with the pin it belongs to."
+    },
+    {
+      "key": "zizmor_sha256",
+      "why": "A DIGEST, NOT A VERSION — see `gitleaks_sha256` directly above; the reason is identical and is restated rather than cross-referenced because assert-update-coverage.mjs reads each `why` on its own and a pointer to a neighbour is a reason that survives its neighbour's deletion. ⚠️ ONE THING IS SHARPER HERE: zizmor's release asset is named `zizmor-x86_64-unknown-linux-gnu.tar.gz` with NO version in the filename, so the URL differs between releases only in its `/v<ver>/` path segment and the bytes are the only thing that distinguishes them. The digest is doing more work on this lane than on the other three. Declared 2026-09-06."
+    },
+    {
+      "key": "osv_scanner_sha256",
+      "why": "A DIGEST, NOT A VERSION — see `gitleaks_sha256`; no Renovate datasource resolves a checksum. ⚠️ AND THIS ONE GUARDS A BARE BINARY, not a tarball: the asset is `osv-scanner_linux_amd64`, downloaded and `chmod +x`'d directly, so the digest is the ONLY integrity check between the download and an executable running over the whole tree with the workspace mounted. Declared 2026-09-06."
+    },
+    {
+      "key": "trivy_sha256",
+      "why": "A DIGEST, NOT A VERSION — see `gitleaks_sha256`; no Renovate datasource resolves a checksum. It advances with `trivy` and only with it, and a bump arrives RED at ci.yml's `sha256sum -c` until the new digest is written here. Declared 2026-09-06."
     },
     {
       "key": "xcode",

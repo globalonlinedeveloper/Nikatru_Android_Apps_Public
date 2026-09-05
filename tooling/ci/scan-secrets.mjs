@@ -436,8 +436,9 @@ rmSync(reportDir, { recursive: true, force: true });
  *  the volume floor below stops applying, and every scan afterwards passes with
  *  the coverage claim quietly missing — the floor does not fail, it evaporates.
  *
- *  So the parse is VERSIONED. This is the version ci.yml pins and
- *  checksum-verifies (.github/workflows/ci.yml, GITLEAKS_VERSION), which is what
+ *  So the parse is VERSIONED. This is the version ci.yml installs and
+ *  checksum-verifies (tooling/versions.json, `gitleaks` — the pin moved out of
+ *  ci.yml's `env:` block on 2026-09-06 so Renovate could reach it), which is what
  *  makes the comparison worth making: the message this parses is the message CI
  *  will get, and a mismatch is a real signal rather than local drift. */
 const VALIDATED_AGAINST = '8.30.1';

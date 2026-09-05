@@ -1211,6 +1211,78 @@
       "verifiedHow": "2026-09-03 — the workflow was added with the action pinned to renovatebot/github-action@39b914146caeff8cd512e61c8992f1d5913af85c (v46.2.5, published 2026-08-31), RENOVATE_TOKEN set as a repository secret, and both repositories named explicitly in RENOVATE_REPOSITORIES rather than left to autodiscover — which for a classic PAT would reach every private repository on the account."
     },
     {
+      "id": "duty.workflow.codeql.yml",
+      "kind": "duty",
+      "what": "CodeQL semantic analysis of every tracked .ts/.js/.mjs file — 583 of them on 2026-09-06 (376 tooling/, 104 extensions/, 97 services/, 3 contracts/, 2 sites/, 1 packages/) — on every pull request, on every push to main, and daily at 05:23 UTC. Arrived 2026-09-06 with [ADR 067] decision 4, phase 2 unit ci-security-lanes.",
+      "detector": "A red check on the pull request that caused it for the PR lane, attended by definition. For the daily lane, the run history for codeql.yml filtered to event = schedule, plus the findings themselves in the repository Security tab.",
+      "response": "🔴 READ THE FINDING BEFORE RE-RUNNING ANYTHING. This lane is an ALERT SINK, not a merge gate: nothing in ci-gate needs it, deliberately, because a scanner whose first false positive blocks every merge is a scanner somebody switches off — the reasoning ci.yml's Trivy step already carries in prose. A red run means the ANALYSIS failed (a toolchain or quota problem); a finding means a query matched and lives in the Security tab. The two are different events and the second one is the reason the lane exists.",
+      "cadence": "7d",
+      "mechanism": {
+        "substrate": "github-actions",
+        "anchor": ".github/workflows/codeql.yml",
+        "record": "GitHub Actions run history for codeql.yml, filtered to event = schedule",
+        "failingValue": "no scheduled success inside the window",
+        "readBy": "nothing in-tree reads this cadence specifically — see `freshnessGap` below rather than inferring a reader from the [14]O-3 limb, which queries this record but is not a guard about it",
+        "recordQuery": {
+          "reader": "github-run-history",
+          "workflow": "codeql.yml",
+          "event": "schedule",
+          "headBranch": "main",
+          "firstDue": "2026-09-12T00:00:00Z",
+          "firstDueWhy": "⚠️ THE BOOTSTRAP, AND IT EXPIRES BY ARITHMETIC RATHER THAN BY SOMEBODY REMEMBERING. TRAPS ci-18: this guard holds `watched workflows === .github/workflows/*.yml` in BOTH directions, so codeql.yml cannot land without this row — and a workflow's run history does not exist until the file is on the DEFAULT BRANCH, so on the day it merges the recordQuery below has nothing to find. `firstDue` is the only sanctioned bridge across that deadlock and the guard refuses one more than a single cadence window ahead, which is what stops it becoming a permanent waiver. Dated 2026-09-12, six days after the file was written and comfortably inside this row's own [7d x 1.5 = 252h] window. ⬜ ITS EXIT CONDITION, STATED SO NOBODY HAS TO DERIVE IT: DELETE BOTH THIS FIELD AND `firstDue` once one scheduled run has succeeded on main. Leaving them is not neutral — a spent bootstrap is a waiver wearing a wait's clothes, which is why duty.workflow.renovate.yml's was removed on 2026-09-05 with the removal written down.",
+          "why": "🔴 `event: schedule` STAYS, EVEN THOUGH THIS WORKFLOW ALSO RUNS ON EVERY PULL REQUEST, and the two claims must not be confused. A PR run proves somebody opened a pull request; it is not a cadence claim, and accepting it here would make freshness green on the repository being busy. It would also be the widest possible filter, because a pull_request run can come from ANY branch — which is what `headBranch: main` is stated against. Nothing dispatches this workflow from the Cloudflare cron (services/platform/src/scheduled.ts names e2e.yml and ops-watch.yml, not this one), so there is no `timer` limb to split the claim onto and the schedule filter carries the whole of it. ⬜ WHAT WOULD IMPROVE IT: add codeql.yml to GITHUB_DISPATCH_TARGETS and split this row the way e2e.yml's is split. GitHub delivers this repository's crons 10.1% on time, which is why the cron fires DAILY against a weekly window rather than weekly against a weekly one (TRAPS ci-19) — the margin is given to the EVIDENCE, not to the duty."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "github-actions",
+        "what": "Nothing outside GitHub watches this workflow's absence.",
+        "ownerGated": true,
+        "gap": "⚠️ THE SAME CIRCULARITY EVERY WORKFLOW ROW IN THIS REGISTER CARRIES, stated rather than implied: the duty runs on GitHub Actions and the only record of it is GitHub Actions' own run history, so a provider outage removes the failure and the evidence in one instant. It is TOLERABLE HERE on the same terms as duty.workflow.renovate.yml and for the same reason — nothing gates a merge or a deploy on CodeQL having run, so a silent CodeQL costs FRESHNESS, not the ability to ship. It is NOT tolerable in the way it would be for the alarm chain itself, and this row must not be read as saying it is. Closing it properly is research/76 §C: a Worker cron writes its own record to D1 and the register reads that. OWNER_QUEUE S-8."
+      },
+      "freshnessGap": "🔴 NO DEDICATED IN-TREE FRESHNESS READER, AND IT IS A CHOICE. build-platforms.yml has assert-platform-proof-fresh.mjs and e2e.yml has assert-e2e-proof-fresh.mjs because a stale six-platform build or a stale nightly means the thing they PROVE is unproven and a merge should stop. Nothing gates a merge or a deploy on CodeQL having run, so a blocking guard here would buy a red build for a duty whose failure costs freshness rather than correctness — and this repository has twice paid for a blocking guard on an unreliable schedule (~18h on 2026-08-10, ~46h on 2026-09-02). The mitigation is MARGIN rather than a waiver: the workflow fires DAILY against a [7d x 1.5 = 252h] window, so the evidence has roughly ten chances to exist instead of one on a scheduler measured at 10.1% on-time delivery (TRAPS ci-19). ⚠️ The residual risk is stated plainly and not softened: CodeQL can stop for a fortnight and the only thing that says so is the [14]O-3 line in CI output. Declared 2026-09-06.",
+      "accessProviders": [
+        "github"
+      ],
+      "source": "verified",
+      "verifiedHow": "2026-09-06 — the workflow was added with both actions SHA-pinned (github/codeql-action/init and /analyze at cdf488f595d80d6e07e03d4674febd5ab45fa938, the commit the v4 tag resolved to, dereferenced through the annotated tag object rather than read off a label), `security-events: write` granted ON THE JOB and not at the workflow level, `contents: read` as the workflow-level floor, `persist-credentials: false` on the checkout, and a 30-minute job timeout. Verified locally before the push: assert-workflow-hardening exit 0 over 16 workflows with no workflow-level write scope reported, scan-workflows (zizmor at medium/high) exit 0, and a duplicate-key-rejecting YAML loader read the file as 1 job and 4 triggers — TRAPS ci-33, because GitHub refuses a duplicate-key workflow by producing ZERO jobs and no message any API returns."
+    },
+    {
+      "id": "duty.workflow.trufflehog.yml",
+      "kind": "duty",
+      "what": "A verified-credential sweep of the FULL git history (fetch-depth: 0), daily at 13:41 UTC. Arrived 2026-09-06 with [ADR 067] decision 4, phase 2 unit ci-security-lanes.",
+      "detector": "The run history for trufflehog.yml filtered to event = schedule, and the job's own non-zero exit when a VERIFIED credential is found.",
+      "response": "🔴 A VERIFIED FINDING IS AN INCIDENT, NOT A BUILD TO RE-RUN. `--results=verified` means the issuing provider was asked and answered that the credential authenticates, and this repository is PUBLIC (C-REPO-STAYS-PUBLIC), so the credential is readable by anyone and must be treated as compromised from the moment it was pushed. Rotate first, then remove; removing it from the tree does not remove it from the history, from any fork, or from anyone's clone. docs/runbooks/ carries the rotation order. A red run with NO finding is the scan itself failing — a different event with a different response.",
+      "cadence": "7d",
+      "mechanism": {
+        "substrate": "github-actions",
+        "anchor": ".github/workflows/trufflehog.yml",
+        "record": "GitHub Actions run history for trufflehog.yml, filtered to event = schedule",
+        "failingValue": "no scheduled success inside the window",
+        "readBy": "nothing in-tree reads this cadence specifically — see `freshnessGap` below",
+        "recordQuery": {
+          "reader": "github-run-history",
+          "workflow": "trufflehog.yml",
+          "event": "schedule",
+          "headBranch": "main",
+          "firstDue": "2026-09-12T00:00:00Z",
+          "firstDueWhy": "⚠️ THE BOOTSTRAP, ON THE SAME TERMS AND FOR THE SAME REASON AS duty.workflow.codeql.yml's — restated here rather than cross-referenced, because a shared note is one that gets edited for one row and read for two. TRAPS ci-18: the both-directions coverage limb refuses a workflow with no duty row, and a run history does not exist until the file is on the default branch, so the row and the record cannot both be true on the day of the merge. Dated 2026-09-12, inside this row's own [7d x 1.5 = 252h] window, which is the bound the guard enforces and the only thing that stops the field becoming permanent. ⬜ DELETE THIS FIELD AND `firstDue` once one scheduled run has succeeded on main.",
+          "why": "🔴 `event: schedule` — this workflow has no pull_request trigger at all, so the filter is not narrowing a busy history; it is refusing `workflow_dispatch`, which is indistinguishable from a person pressing the button and is therefore the opposite of a cadence claim. `headBranch: main` is stated anyway rather than left implied by GitHub firing schedules only on the default branch: that guarantee belongs to GitHub's behaviour, not to this register, and it must not vanish silently if the event filter is ever widened."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "github-actions",
+        "what": "Nothing outside GitHub watches this workflow's absence.",
+        "ownerGated": true,
+        "gap": "⚠️ THE WATCHER IS ON THE PROVIDER IT WATCHES — the same circularity as every other workflow row here, and worth sizing honestly rather than rounding in either direction. It DOES catch the likeliest silent death: GitHub disables scheduled workflows in inactive public repositories, and the [14]O-3 limb reads this record on every CI run, so a schedule that stops eventually shows. It does NOT catch GitHub Actions ceasing to run this repository's jobs at all, because then the reader stops with the thing it reads. ⚠️ AND THE EXPOSURE IS ASYMMETRIC HERE IN A WAY IT IS NOT FOR CodeQL: what this lane looks for is a credential that is already public. Every day it does not run is a day a live key could be readable by anyone with no signal anywhere. That is stated as a gap and not dressed as coverage. Closing it needs a heartbeat on a second provider: OWNER_QUEUE S-8."
+      },
+      "freshnessGap": "🔴 NO DEDICATED IN-TREE FRESHNESS READER. Same choice as duty.workflow.codeql.yml and duty.workflow.renovate.yml: nothing gates a merge on this having run, and a blocking guard on a scheduler measured at 10.1% on-time delivery has already cost this repository ~18h and ~46h of frozen merge queue in one month. The mitigation is MARGIN — TRAPS ci-19 applied deliberately: the duty is declared WEEKLY (`cadence: 7d`, window 252h) and the cron fires DAILY, so the evidence gets about ten chances instead of one or two. ⚠️ The residual is stated: this lane can stop for a fortnight and the only thing that says so is a line of CI output. Declared 2026-09-06.",
+      "accessProviders": [
+        "github"
+      ],
+      "source": "verified",
+      "verifiedHow": "2026-09-06 — the workflow was added with trufflesecurity/trufflehog pinned to 363923b901c911a9164f50b6c423f47c15372b1c (the commit tag v3.97.4 resolves to, read from the git ref API rather than off a label), `contents: read` and nothing else, `persist-credentials: false`, `fetch-depth: 0` (without which the scan would read ONE commit and duplicate the working-tree scan gitleaks already does in ci.yml), and a 20-minute job timeout. Verified locally before the push: assert-workflow-hardening exit 0, scan-workflows (zizmor at medium/high) exit 0, and a duplicate-key-rejecting YAML loader read the file as 1 job and 2 triggers (TRAPS ci-33). ⚠️ NOT VERIFIED: that the scan finds a real historic credential — no positive control has been run against this repository's history, so this row claims the lane RUNS, never that it has ever caught anything."
+    },
+    {
       "id": "duty.renovate",
       "kind": "duty",
       "what": "Advances every pinned input — actions, npm, pub, and the toolchain versions in tooling/versions.json — by proposal, never by memory.",

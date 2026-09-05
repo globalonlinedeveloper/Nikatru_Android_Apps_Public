@@ -373,45 +373,63 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - uses: ./.github/actions/setup-node
-      - name: Install gitleaks (pinned + checksum-verified)
-        env:
-          GITLEAKS_VERSION: 8.30.1
-          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      # 🔴 THE VERSION AND THE DIGEST ARE READ FROM tooling/versions.json, NOT
+      # WRITTEN HERE. Until 2026-09-06 all four scanners below carried their pin
+      # as an `env:` literal in this job and nowhere else, which put them outside
+      # BOTH mechanisms this repository has for a pinned input: F-2's single
+      # declaration, and [pipeline 14]O-9's update coverage. A pin inside a
+      # workflow is invisible to tooling/ci/assert-update-coverage.mjs, so these
+      # four were advanced by nobody and no guard could say so — the exact state
+      # `wrangler` was in until 2026-08-02, with one thing that makes it worse: a
+      # stale test framework goes red, and a stale SCANNER goes quiet.
+      # The `node -p` idiom is deploy-web.yml's, already used for glitchtip_cli
+      # and wrangler. Nothing here is a literal, so assert-version-consistency.mjs
+      # correctly carries no rule for these keys — a drift rule whose scan has no
+      # target is an assertion that cannot fail.
+      - name: Install gitleaks (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          tarball="${RUNNER_TEMP}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          ver="$(node -p "require('./tooling/versions.json').gitleaks")"
+          sum="$(node -p "require('./tooling/versions.json').gitleaks_sha256")"
+          tarball="${RUNNER_TEMP}/gitleaks_${ver}_linux_x64.tar.gz"
           wget -q -O "$tarball" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  ${tarball}" | sha256sum -c -
+            "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz"
+          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
           tar -xzf "$tarball" -C "${RUNNER_TEMP}" gitleaks
           "${RUNNER_TEMP}/gitleaks" version
       - name: Secret scan (self-tests, then scans)
         run: node tooling/ci/scan-secrets.mjs . --gitleaks "${RUNNER_TEMP}/gitleaks"
-      - name: Install zizmor (pinned + checksum-verified)
-        env:
-          ZIZMOR_VERSION: 1.28.0
-          ZIZMOR_SHA256: e87b67160194884e375a46a12c57ccc904f762b53845f254fab7f17d98809c09
+      # ⚠️ THE ASSET NAME CARRIES NO VERSION — `zizmor-x86_64-unknown-linux-gnu.tar.gz`
+      # is the same string at every release, and only the `/v${ver}/` path segment
+      # differs. So on this lane the digest is not a second opinion about the
+      # bytes, it is the only thing that distinguishes one release's bytes from
+      # another's.
+      - name: Install zizmor (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          tarball="${RUNNER_TEMP}/zizmor_${ZIZMOR_VERSION}_linux_x64.tar.gz"
+          ver="$(node -p "require('./tooling/versions.json').zizmor")"
+          sum="$(node -p "require('./tooling/versions.json').zizmor_sha256")"
+          tarball="${RUNNER_TEMP}/zizmor_${ver}_linux_x64.tar.gz"
           wget -q -O "$tarball" \
-            "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
-          echo "${ZIZMOR_SHA256}  ${tarball}" | sha256sum -c -
+            "https://github.com/zizmorcore/zizmor/releases/download/v${ver}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
           tar -xzf "$tarball" -C "${RUNNER_TEMP}" zizmor
           "${RUNNER_TEMP}/zizmor" --version
       - name: Workflow static analysis (self-tests, then scans)
         run: node tooling/ci/scan-workflows.mjs . --zizmor "${RUNNER_TEMP}/zizmor"
 
-      - name: Install OSV-Scanner (pinned + checksum-verified)
-        env:
-          OSV_VERSION: '2.5.1'
-          OSV_SHA256: 'f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be'
+      # ⚠️ A BARE BINARY, NOT A TARBALL — downloaded and `chmod +x`'d directly, so
+      # the digest is the ONLY integrity check standing between the download and
+      # an executable that then walks the whole workspace.
+      - name: Install OSV-Scanner (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').osv_scanner")"
+          sum="$(node -p "require('./tooling/versions.json').osv_scanner_sha256")"
           bin="${RUNNER_TEMP}/osv-scanner"
           wget -q -O "$bin" \
-            "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64"
-          echo "${OSV_SHA256}  ${bin}" | sha256sum -c -
+            "https://github.com/google/osv-scanner/releases/download/v${ver}/osv-scanner_linux_amd64"
+          printf '%s  %s\n' "$sum" "$bin" | sha256sum -c -
           chmod +x "$bin"
           "$bin" --version
       - name: Known-vulnerable dependencies, INCLUDING the Dart ones
@@ -427,16 +445,15 @@ jobs:
           # and ignores nothing for packages/tokens/package-lock.json.
           # Measured: run 33960900452.
           "${RUNNER_TEMP}/osv-scanner" scan source -r --config osv-scanner.toml .
-      - name: Install Trivy (pinned + checksum-verified)
-        env:
-          TRIVY_VERSION: '0.74.0'
-          TRIVY_SHA256: '2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a'
+      - name: Install Trivy (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          tarball="${RUNNER_TEMP}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          ver="$(node -p "require('./tooling/versions.json').trivy")"
+          sum="$(node -p "require('./tooling/versions.json').trivy_sha256")"
+          tarball="${RUNNER_TEMP}/trivy_${ver}_Linux-64bit.tar.gz"
           wget -q -O "$tarball" \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          echo "${TRIVY_SHA256}  ${tarball}" | sha256sum -c -
+            "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz"
+          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
           tar -xzf "$tarball" -C "${RUNNER_TEMP}" trivy
           "${RUNNER_TEMP}/trivy" --version
       - name: Vulnerabilities and misconfigurations in the filesystem

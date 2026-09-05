@@ -292,6 +292,100 @@
       "managerFilePatterns": [
         "/^tooling\\/versions\\.json$/"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "tooling/versions.json - gitleaks [pipeline F-2, 14]O-9",
+        "ADDED 2026-09-06 in the same change that moved the pin out of ci.yml's `env:` block, so",
+        "assert-update-coverage.mjs never sees it uncovered. Until then the secret scanner's version",
+        "was written inside a workflow, which is invisible to that guard: it was advanced by NOBODY",
+        "and no check in the tree could say so. A stale secret scanner does not go red, it goes",
+        "QUIET.",
+        "🔴 depNameTemplate AND packageNameTemplate DIFFER ON PURPOSE, exactly as for glitchtip_cli.",
+        "assert-update-coverage.mjs keys its coverage map on depNameTemplate, so that MUST be the",
+        "versions.json key; github-releases looks up an owner/repo, so packageName must be the repo.",
+        "Collapsing the two breaks precisely one of them, silently.",
+        "extractVersionTemplate strips the leading v: the project tags v8.30.1, this file declares",
+        "8.30.1, and ci.yml splices it back as v${ver} into the download URL.",
+        "⚠️ A BUMP FROM THIS MANAGER LANDS RED BY DESIGN - gitleaks_sha256 is the digest of the bytes",
+        "and Renovate cannot compute it. See $scanners_comment and the $updateExemptions entry."
+      ],
+      "matchStrings": [
+        "\"gitleaks\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "gitleaks",
+      "packageNameTemplate": "gitleaks/gitleaks",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "managerFilePatterns": [
+        "/^tooling\\/versions\\.json$/"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "tooling/versions.json - zizmor [pipeline F-2, 14]O-9",
+        "ADDED 2026-09-06 with the pin's move out of ci.yml. Same shape and same reasons as the",
+        "gitleaks manager above; restated rather than cross-referenced because a description that",
+        "points at a neighbour outlives the neighbour's deletion.",
+        "zizmor is the workflow static analyser this repository's OWN workflows are scanned by, so a",
+        "pin nothing advances is the one that stops catching the next tj-actions-class compromise."
+      ],
+      "matchStrings": [
+        "\"zizmor\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "zizmor",
+      "packageNameTemplate": "zizmorcore/zizmor",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "managerFilePatterns": [
+        "/^tooling\\/versions\\.json$/"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "tooling/versions.json - osv_scanner [pipeline F-2, 14]O-9",
+        "ADDED 2026-09-06 with the pin's move out of ci.yml.",
+        "🔴 THE KEY IS UNDERSCORED AND THE REPO IS HYPHENATED, and both spellings are load-bearing:",
+        "depNameTemplate must be `osv_scanner` because that is the versions.json key",
+        "assert-update-coverage.mjs looks for, and packageNameTemplate must be `google/osv-scanner`",
+        "because that is what GitHub resolves. This is the same trap the glitchtip_cli manager",
+        "records, one hyphen over.",
+        "OSV-Scanner is the ONLY scanner in this stack that reads pubspec.lock, and Play Console can",
+        "block updates on a vulnerable SDK version, so its currency has a store consequence."
+      ],
+      "matchStrings": [
+        "\"osv_scanner\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "osv_scanner",
+      "packageNameTemplate": "google/osv-scanner",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "managerFilePatterns": [
+        "/^tooling\\/versions\\.json$/"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "tooling/versions.json - trivy [pipeline F-2, 14]O-9",
+        "ADDED 2026-09-06 with the pin's move out of ci.yml. Same shape as the three managers above.",
+        "⚠️ THE matchString ANCHORS ON `\"trivy\":` WITH ITS CLOSING QUOTE, so it cannot capture",
+        "`\"trivy_sha256\":` — the digest key is exempted in $updateExemptions instead, because no",
+        "Renovate datasource resolves a checksum."
+      ],
+      "matchStrings": [
+        "\"trivy\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "trivy",
+      "packageNameTemplate": "aquasecurity/trivy",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "managerFilePatterns": [
+        "/^tooling\\/versions\\.json$/"
+      ]
     }
   ],
   "ignorePaths": [
