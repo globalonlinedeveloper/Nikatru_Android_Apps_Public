@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nikatru.com/tooling/app-yaml/schema/privacy.schema.json",
+  "title": "NIKATRU app privacy declaration",
+  "description": "apps/<id>/privacy.yaml — what this app collects, why, for how long, and who else touches it, written ONCE in the discipline the sworn store declarations already use: every row carries the basis it was decided on, the source that basis was read from, and the date it was read. The renderings that consume it (the Play data-safety answers, the Apple privacy manifest, the published policy) are NOT generated here yet — this file is the declaration those renderings will be derived from, and the guard that reads it today checks the declaration itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["app", "asOf", "networkAddress", "collects", "processors"],
+  "properties": {
+    "app": {
+      "description": "The app id. Must equal app.yaml's `id` — two files describing two different apps is the one mistake a per-app declaration makes easy.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "asOf": {
+      "description": "The date this declaration was last re-read against the code. Same {value, asOf, verify} discipline platform-state/ is built on.",
+      "type": "string",
+      "format": "date"
+    },
+    "networkAddress": {
+      "description": "The published no-IP promise, restated where a renderer would have to break it. C-NO-NETWORK-ADDRESS-COLUMN: no network-address column anywhere, IP addresses are not stored. The only value this may take is false, and the schema is what makes `true` unwritable rather than merely discouraged — the constraint is locked, and a declaration that could say otherwise is a declaration that will.",
+      "type": "boolean",
+      "const": false
+    },
+    "collects": {
+      "description": "One row per category of personal data the app actually collects. Derived from the app's own sworn declarations, each row naming which one and when it was read.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["category", "type", "purposes", "retentionClass", "basis", "source", "asOf"],
+        "properties": {
+          "category": {
+            "description": "The Play data-safety category this row belongs to. Kept in that vocabulary because the Play console is the surface with the narrowest, most consequential wording.",
+            "type": "string",
+            "minLength": 2
+          },
+          "type": { "type": "string", "minLength": 2 },
+          "purposes": {
+            "description": "Why it is collected, one purpose per entry. C-CONSENT-PER-PURPOSE: consent is recorded PER PURPOSE, append-only, so a purpose list is the unit a grant is checked against and never a single blanket answer.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 2 }
+          },
+          "retentionClass": {
+            "description": "Days, from the locked set. C-RETENTION-PERIODS / [ADR 045]: 400 (raw event-level), 730 (money rail), 1100 (the derived rollup). An enum rather than a number, so a convenience change cannot quietly extend how long personal data is kept.",
+            "type": "integer",
+            "enum": [400, 730, 1100]
+          },
+          "required": {
+            "description": "Whether the app is unusable without it — the Play console's own question, answered here so the two cannot disagree.",
+            "type": "boolean"
+          },
+          "shared": {
+            "description": "Whether it is shared with anybody outside the processors declared below.",
+            "type": "boolean"
+          },
+          "basis": {
+            "description": "Why this row says what it says, in a sentence somebody has to be willing to read aloud. The sworn files' discipline: an answer with no basis is a guess with a citation.",
+            "type": "string",
+            "minLength": 40
+          },
+          "source": {
+            "description": "Where the basis was read: a repository path, or an https URL for an external authority.",
+            "type": "string",
+            "anyOf": [{ "format": "repo-path" }, { "format": "https-url" }]
+          },
+          "asOf": { "type": "string", "format": "date" }
+        }
+      }
+    },
+    "processors": {
+      "description": "Everyone outside this repository who touches the data. Each `id` must be a row in tooling/legal/provider-register.json — the register is the ONE declaration of who they are, and a second spelling here would be the first to drift.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "purpose", "source", "asOf"],
+        "properties": {
+          "id": { "type": "string", "minLength": 2 },
+          "role": { "type": "string", "minLength": 2 },
+          "purpose": { "type": "string", "minLength": 10 },
+          "source": { "type": "string", "anyOf": [{ "format": "repo-path" }, { "format": "https-url" }] },
+          "asOf": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  }
+}

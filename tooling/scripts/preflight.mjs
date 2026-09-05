@@ -200,10 +200,20 @@ if (!FAST) {
         fmt.code = 0;
         fmt.out = `⬜ dart format disagrees on the stamped app, but local Flutter ${localVer} != the ci.yml pin ${ciPin}, so this machine's dart_style is not CI's. NOT failed. To make this leg trustworthy, match the pin: flutter version ${ciPin}.\n${fmt.out.split(/\r?\n/).slice(-3).join('\n')}`;
       }
-      // 🔴 THE STAMP MUTATES TWO TRACKED FILES — pubspec.yaml gains apps/probe as
-      // a workspace member and sites/_shared/_data/apps.json gains its row. Left
-      // behind, a later `git add -A` commits the throwaway probe's registration.
-      run('git', ['checkout', '--', 'pubspec.yaml', 'sites/_shared/_data/apps.json']);
+      // 🔴 THE STAMP MUTATES TRACKED FILES — pubspec.yaml gains apps/probe as a
+      // workspace member, and the stamp writes apps/probe/app.yaml and RENDERS
+      // catalog/apps.json from every declaration in the tree. Left behind, a
+      // later `git add -A` commits the throwaway probe's registration.
+      //
+      // 🔴 `catalog/apps.json` WAS MISSING FROM THIS LIST AND THAT IS TRAPS ci-30
+      // IN FULL: the stamp wrote the catalogue, this leg did not put it back, and
+      // leg 6 below — "the checks did not edit the tree behind you" — then
+      // reported the file THIS SCRIPT had just changed. A preflight that fails
+      // its own last leg for its own edit is read as a broken tree, and the two
+      // "failures" get dismissed together. `sites/_shared/_data/apps.json` is
+      // kept beside it: it is generated FROM the catalogue, and it was on this
+      // list while its own source was not.
+      run('git', ['checkout', '--', 'pubspec.yaml', 'catalog/apps.json', 'sites/_shared/_data/apps.json']);
       if (existsSync(resolve(ROOT, 'apps/probe'))) rmSync(resolve(ROOT, 'apps/probe'), { recursive: true, force: true });
       return fmt.code !== 0 || dod.code !== 0
         ? { code: 1, out: `${fmt.code !== 0 ? `dart format (stamped):\n${fmt.out}\n` : ''}${dod.code !== 0 ? `assert-app-dod:\n${dod.out}` : ''}` }
@@ -218,7 +228,7 @@ if (!FAST) {
 // is not the thing about to be pushed.
 step(
   'the checks did not edit the tree behind you',
-  'assert-guard-coverage rewrites coverage-manifest.json and the stamp edits pubspec.yaml + apps.json. Anything a CHECK wrote must be seen and committed deliberately, not carried along unnoticed.',
+  'assert-guard-coverage rewrites coverage-manifest.json and the stamp edits pubspec.yaml, the catalogue and the site feed. Anything a CHECK wrote must be seen and committed deliberately, not carried along unnoticed.',
   () => {
     // 🔴 THE DELTA, NOT THE STATE. The first version of this leg failed whenever
     // the tree was dirty — which is ALWAYS, because preflight is what you run

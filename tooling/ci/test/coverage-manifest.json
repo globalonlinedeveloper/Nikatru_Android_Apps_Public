@@ -9,6 +9,7 @@
   "android-target-sdk.test.mjs": 34,
   "app-dod.test.mjs": 32,
   "app-versioning.test.mjs": 51,
+  "app-yaml.test.mjs": 30,
   "appimage-signing.test.mjs": 73,
   "apple-privacy-manifest.test.mjs": 42,
   "apple-signing.test.mjs": 107,
