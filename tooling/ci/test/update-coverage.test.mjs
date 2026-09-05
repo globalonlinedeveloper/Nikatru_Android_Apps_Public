@@ -334,8 +334,24 @@ describe('assert-update-coverage — a manager may only name a datasource somebo
 // mutating the REAL committed pair of files rather than a fixture, because a
 // fixture proves only that the fixture matches itself — the lesson this file's
 // own header records against `pub`.
-describe('assert-update-coverage — the four security scanners stay reachable by Renovate', () => {
+describe('assert-update-coverage — the security scanners stay reachable by Renovate', () => {
+  /** The four that are DOWNLOADED AS RELEASE ASSETS by ci.yml and verified with
+   *  `sha256sum -c`, so each carries a sibling `<key>_sha256` digest with a
+   *  written exemption. */
   const SCANNERS = ['gitleaks', 'zizmor', 'osv_scanner', 'trivy'];
+  /** 🔴 THE FIFTH, ADDED 2026-09-06 AND SHAPED DIFFERENTLY ON PURPOSE.
+   *  trufflehog is not downloaded — it is a container tag handed to a composite
+   *  action that runs `docker run "${IMAGE}:${VERSION}"`. There is no local file
+   *  to checksum and the action exposes no way to pass a digest, so it has NO
+   *  `_sha256` sibling and must not be swept into the loop that requires one; a
+   *  test asserting a waiver that should not exist is the same class of error as
+   *  the vacuous limb this file's green control was rewritten to remove. It is
+   *  covered by the pin and manager cases exactly like the other four.
+   *  Its lane, .github/workflows/trufflehog.yml, shipped with the version input
+   *  omitted — the action then defaults to `latest` — which is the defect these
+   *  cases exist to keep closed. */
+  const CONTAINER_SCANNERS = ['trufflehog'];
+  const PINNED_SCANNERS = [...SCANNERS, ...CONTAINER_SCANNERS];
 
   /** The real renovate.json + the real tooling/versions.json, copied into a
    *  scratch root so a mutation never touches the worktree. */
@@ -347,23 +363,67 @@ describe('assert-update-coverage — the four security scanners stay reachable b
     return versions;
   }
 
+  /** The `N reached by a customManager` figure out of the guard's own summary
+   *  line. Returned as a number so a mutation can be measured against the
+   *  control rather than against a constant written here — a constant would go
+   *  stale the next time a pin is added, and a stale expectation in a green
+   *  control is exactly the failure this block was rewritten to remove. */
+  function reachedCount(stdout) {
+    const m = stdout.match(/(\d+) reached by a customManager/);
+    assert.ok(m, `the guard printed no coverage summary line:\n${stdout}`);
+    return Number(m[1]);
+  }
+
   test('THE GREEN CONTROL — the real pair, copied unmutated, exits 0', () => {
     const root = join(TMP, `s${seq++}`);
     realPairIn(root);
     const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
-    // And the four are really in the covered set, not merely absent from the
-    // error list: a pin nobody declared would also produce no error.
-    for (const key of SCANNERS) {
-      assert.match(
-        r.stdout,
-        new RegExp(`"${key}"`.replace(/"/g, '')),
-        `${key} is not visible in the guard's own output`,
-      );
-    }
+    // 🔴 WHAT THIS CONTROL MAY AND MAY NOT CLAIM. The previous version of these
+    // lines asserted `assert.match(r.stdout, /gitleaks/)` under a comment
+    // claiming it proved the four were "really in the covered set, not merely
+    // absent from the error list". It proved nothing of the kind:
+    // assert-update-coverage.mjs prints the count line and the EXEMPT lines and
+    // NEVER prints a covered key's name, so the only thing that could satisfy
+    // the match was the neighbouring `EXEMPT gitleaks_sha256` line. Measured by
+    // a reviewer on 2026-09-06: a scratch root with the `gitleaks`
+    // customManager DELETED and a `gitleaks` waiver added instead still printed
+    // that line, still exited 0, and the assertion still passed — an assertion
+    // that cannot fail for its stated reason, counted in the coverage ratchet.
+    //
+    // So this control now claims only what it can see: the summary line exists,
+    // and every declared manager reached something. MEMBERSHIP of the scanners
+    // in the covered set is proven positively by U14 below, which deletes each
+    // manager in turn and requires the guard to go red and the count to drop.
+    const reached = reachedCount(r.stdout);
+    const managers = JSON.parse(readFileSync(join(REPO, 'renovate.json'), 'utf8')).customManagers;
+    assert.ok(Array.isArray(managers) && managers.length > 0, 'renovate.json declares no customManagers');
+    assert.equal(
+      reached,
+      managers.length,
+      `${managers.length} customManager(s) are declared but only ${reached} reached a pin — one of them captures nothing`,
+    );
   });
 
   for (const key of SCANNERS) {
+    test(`U13 · dropping the \`${key}_sha256\` exemption leaves the digest owned by nobody, and FAILS`, () => {
+      const root = join(TMP, `s${seq++}`);
+      const versions = realPairIn(root);
+      const parsed = JSON.parse(versions);
+      assert.ok(
+        parsed.$updateExemptions?.some((e) => e.key === `${key}_sha256`),
+        `${key}_sha256 has no written exemption — this test is measuring nothing`,
+      );
+      parsed.$updateExemptions = parsed.$updateExemptions.filter((e) => e.key !== `${key}_sha256`);
+      writeFileSync(join(root, 'tooling/versions.json'), JSON.stringify(parsed, null, 2));
+
+      const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+      assert.equal(r.status, 1, `dropping the ${key}_sha256 waiver left the guard green`);
+      assert.match(`${r.stdout}\n${r.stderr}`, new RegExp(`${key}_sha256\`? is pinned|\`${key}_sha256\``));
+    });
+  }
+
+  for (const key of PINNED_SCANNERS) {
     test(`U13 · dropping the \`${key}\` pin leaves its customManager capturing nothing, and FAILS`, () => {
       const root = join(TMP, `s${seq++}`);
       const versions = realPairIn(root);
@@ -390,20 +450,46 @@ describe('assert-update-coverage — the four security scanners stay reachable b
       );
     });
 
-    test(`U13 · dropping the \`${key}_sha256\` exemption leaves the digest owned by nobody, and FAILS`, () => {
+    // 🔴 U14 · THE MEMBERSHIP PROOF THE GREEN CONTROL CANNOT GIVE. U13 deletes
+    // the PIN, which proves the manager stops capturing. This deletes the
+    // MANAGER and leaves the pin, which is the state a reviewer actually built
+    // by hand on 2026-09-06 and found the old control blind to: with the
+    // `gitleaks` customManager removed and a `gitleaks` waiver written instead,
+    // the guard exits 0, `gitleaks` is reached by nobody, and every assertion
+    // in the old control still passed.
+    //
+    // Here no waiver is added, so the guard MUST go red — and the count in its
+    // own summary line must fall by exactly one against the control. The count
+    // is the part an EXEMPT line cannot satisfy: it is the size of the covered
+    // map, and a waiver moves a key into `exempted`, never into `covered`.
+    test(`U14 · deleting the \`${key}\` customManager leaves the pin reached by nobody, and FAILS`, () => {
       const root = join(TMP, `s${seq++}`);
-      const versions = realPairIn(root);
-      const parsed = JSON.parse(versions);
-      assert.ok(
-        parsed.$updateExemptions?.some((e) => e.key === `${key}_sha256`),
-        `${key}_sha256 has no written exemption — this test is measuring nothing`,
+      realPairIn(root);
+      const control = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+      assert.equal(control.status, 0, `the control was not green:\n${control.stdout}\n${control.stderr}`);
+      const before = reachedCount(control.stdout);
+
+      const cfg = JSON.parse(readFileSync(join(root, 'renovate.json'), 'utf8'));
+      const kept = cfg.customManagers.filter((m) => m.depNameTemplate !== key);
+      // Land-check BEFORE the guard is believed: a filter that matched nothing
+      // would leave the file green and this test would report the guard working
+      // when it had not been asked anything (TRAPS agents-05).
+      assert.equal(
+        kept.length,
+        cfg.customManagers.length - 1,
+        `no customManager has depNameTemplate "${key}" — the mutation removed nothing`,
       );
-      parsed.$updateExemptions = parsed.$updateExemptions.filter((e) => e.key !== `${key}_sha256`);
-      writeFileSync(join(root, 'tooling/versions.json'), JSON.stringify(parsed, null, 2));
+      cfg.customManagers = kept;
+      writeFileSync(join(root, 'renovate.json'), JSON.stringify(cfg, null, 2));
 
       const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
-      assert.equal(r.status, 1, `dropping the ${key}_sha256 waiver left the guard green`);
-      assert.match(`${r.stdout}\n${r.stderr}`, new RegExp(`${key}_sha256\`? is pinned|\`${key}_sha256\``));
+      assert.equal(r.status, 1, `deleting the ${key} manager left the guard green:\n${r.stdout}\n${r.stderr}`);
+      assert.equal(reachedCount(r.stdout), before - 1, `the covered count did not fall when ${key}'s manager was deleted`);
+      assert.match(
+        `${r.stdout}\n${r.stderr}`,
+        new RegExp(`\`${key}\` is pinned in .* and no customManager extracts it`),
+        'the failure must name the pin that lost its manager',
+      );
     });
   }
 });

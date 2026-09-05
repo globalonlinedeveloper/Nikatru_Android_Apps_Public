@@ -1700,6 +1700,7 @@ describe('assert-version-consistency', () => {
     melos: '8.2.2',
     mason_cli: '0.1.3',
     wrangler: '4.114.0',
+    gitleaks: '8.30.1',
     runner_ubuntu: 'ubuntu-24.04',
     runner_windows: 'windows-2025',
     runner_macos: 'macos-26',
@@ -1760,6 +1761,23 @@ describe('assert-version-consistency', () => {
 
   const ANDROID = 'apps/demo/android/app/build.gradle.kts';
 
+  /** The secret scanner's own parser, and the ONLY place outside
+   *  tooling/versions.json where the `gitleaks` version is written. It is a
+   *  `.mjs`, not a manifest: the version lives in executable code as
+   *  `const VALIDATED_AGAINST = '<ver>'`, the release the `scanned ~N bytes`
+   *  parser was measured against.
+   *
+   *  🔴 IT IS A REQUIRED TARGET, so every fixture must carry it — the same
+   *  property as the brick package.json and the Android module above, and for
+   *  the same measured reason. `gitleaks` gained a Renovate customManager on
+   *  2026-09-06, so a bot can now advance the pin in versions.json while this
+   *  literal stays behind; a gated target would let deleting the file silence
+   *  the only comparison between the two copies while the guard still printed
+   *  `ok`. `scanBody` is the escape hatch used by the rewrite case below. */
+  const SCAN_SECRETS = 'tooling/ci/scan-secrets.mjs';
+  const scanSecrets = (ver = DECL.gitleaks) =>
+    `// the volume parser's dated re-measurement\nconst VALIDATED_AGAINST = '${ver}';\nexport default VALIDATED_AGAINST;\n`;
+
   const build = (name, opts = {}) => {
     const {
       wranglerPin = DECL.wrangler,
@@ -1771,6 +1789,8 @@ describe('assert-version-consistency', () => {
       java = DECL.java,
       gradleExtra = '',
       android = true,
+      gitleaksPin = DECL.gitleaks,
+      scanBody,
       ...wfOpts
     } = opts;
     const files = {
@@ -1780,6 +1800,7 @@ describe('assert-version-consistency', () => {
       // guard's required-target refusals.
       'pubspec.yaml': manifestBody === undefined ? rootManifest(melosPin) : manifestBody,
       'README.md': readmeBody === undefined ? readmeDoc(readmeMelos) : readmeBody,
+      [SCAN_SECRETS]: scanBody === undefined ? scanSecrets(gitleaksPin) : scanBody,
     };
     if (android) files[ANDROID] = androidModule(java, gradleExtra);
     if (brick) files[BRICK] = brickPkg(wranglerPin);
@@ -1838,9 +1859,10 @@ describe('assert-version-consistency', () => {
   test('FAILS its own coverage check when the scan finds almost nothing', () => {
     // Every REQUIRED target is present and yielding (their absence is a
     // DIFFERENT COVERAGE LOST, tested below), so the only failure here is the
-    // global MIN_OCCURRENCES floor itself. The 6 it does find are the brick's
-    // wrangler pin, melos in pubspec.yaml and README.md, and the Android
-    // module's three java literals — the workflow contributes nothing.
+    // global MIN_OCCURRENCES floor itself. The 7 it does find are the brick's
+    // wrangler pin, melos in pubspec.yaml and README.md, the Android module's
+    // three java literals, and scan-secrets.mjs's VALIDATED_AGAINST — the
+    // workflow contributes nothing.
     const dir = fixture('vc-cov', {
       'tooling/versions.json': JSON.stringify(DECL),
       '.github/workflows/ci.yml': `name: X\njobs:\n  j:\n    steps:\n      - run: echo hi\n`,
@@ -1848,10 +1870,11 @@ describe('assert-version-consistency', () => {
       'README.md': readmeDoc(),
       [ANDROID]: androidModule(),
       [BRICK]: brickPkg(DECL.wrangler),
+      [SCAN_SECRETS]: scanSecrets(),
     });
     const { code, out } = run('assert-version-consistency.mjs', { args: [dir] });
     assert.equal(code, 1);
-    assert.match(out, /COVERAGE LOST — matched 6 version reference\(s\), expected at least 10/);
+    assert.match(out, /COVERAGE LOST — matched 7 version reference\(s\), expected at least 10/);
   });
 
   // ── the two rules PR #79 added, untested until triage 2026-07-31 ───────────
@@ -1960,6 +1983,48 @@ describe('assert-version-consistency', () => {
     assert.match(out, /COVERAGE LOST — required target pubspec\.yaml is missing/);
   });
 
+  // ── the gitleaks pin's SECOND copy, in executable code ────────────────────
+  // tooling/ci/scan-secrets.mjs holds `const VALIDATED_AGAINST = '<ver>'`, the
+  // gitleaks release its `scanned ~N bytes` volume parser was measured against.
+  // That file states the cost of the two copies drifting in its own words: when
+  // gitleaks rewords the line the parser returns null, "the volume floor below
+  // stops applying, and every scan afterwards passes with the coverage claim
+  // quietly missing — the floor does not fail, it evaporates."
+  //
+  // 🔴 WHY THIS RULE EXISTS AT ALL, AND WHY IT DID NOT BEFORE 2026-09-06. While
+  // the pin lived in ci.yml's `env:` block no update mechanism reached it, so
+  // both copies could only move by the same hand. `gitleaks` now has a Renovate
+  // customManager, so a BOT advances one copy and the other is kept by memory.
+  // Mutation-proven on the REAL tree the day the rule landed, green control
+  // first: bumping versions.json `gitleaks` 8.30.1 -> 8.31.0 previously left
+  // assert-version-consistency AND assert-update-coverage both at exit 0 —
+  // nothing bit. It now names the file, the line and both values.
+  test('FAILS when scan-secrets.mjs VALIDATED_AGAINST disagrees with the gitleaks pin', () => {
+    const { code, out } = run('assert-version-consistency.mjs', { args: [build('vc-gitleaks-drift', { gitleaksPin: '8.29.0' })] });
+    assert.equal(code, 1);
+    assert.match(out, /scan-secrets\.mjs:\d+ gitleaks \(scan-secrets VALIDATED_AGAINST\) is "8\.29\.0" but versions\.json declares "8\.30\.1"/);
+  });
+
+  test('COVERAGE LOST when VALIDATED_AGAINST is rewritten past the rule instead of drifting', () => {
+    // The constant is still there and still declares a version; it is simply no
+    // longer a quoted literal the rule can read. That reads exactly like
+    // agreement, which is the whole reason REQUIRED_YIELD is per-file: the
+    // global MIN_OCCURRENCES floor is cleared ninety times over by the
+    // workflows and would never notice this one target going quiet.
+    const dir = build('vc-gitleaks-rewritten', {
+      scanBody: 'const PARTS = [8, 30, 1];\nconst VALIDATED_AGAINST = PARTS.join(String.fromCharCode(46));\nexport default VALIDATED_AGAINST;\n',
+    });
+    const { code, out } = run('assert-version-consistency.mjs', { args: [dir] });
+    assert.equal(code, 1);
+    assert.match(out, /COVERAGE LOST — tooling[\\/]ci[\\/]scan-secrets\.mjs yielded 0 `gitleaks` reference\(s\), expected at least 1/);
+  });
+
+  test('REFUSES when scan-secrets.mjs is missing — the comparison may not vanish quietly', () => {
+    const { code, out } = run('assert-version-consistency.mjs', { args: [build('vc-noscanner', { scanBody: null })] });
+    assert.equal(code, 1);
+    assert.match(out, /COVERAGE LOST — required target tooling[\\/]ci[\\/]scan-secrets\.mjs is missing/);
+  });
+
   // ── README.md is a real call site: a human copy-pastes its activate line ───
   test("FAILS when README's build block installs a melos the declaration does not name", () => {
     const { code, out } = run('assert-version-consistency.mjs', { args: [build('vc-readme-drift', { readmeMelos: '8.1.0' })] });
@@ -2033,6 +2098,7 @@ describe('assert-version-consistency', () => {
       'README.md': readmeDoc(),
       [ANDROID]: 'android {\n    compileOptions {\n        sourceCompatibility(JavaVersion.VERSION_17)\n    }\n}\n',
       [BRICK]: brickPkg(DECL.wrangler),
+      [SCAN_SECRETS]: scanSecrets(),
     });
     assert.equal(run('assert-version-consistency.mjs', { args: [dir] }).code, 0);
     const { code, out } = run('assert-version-consistency.mjs', { args: [alt] });

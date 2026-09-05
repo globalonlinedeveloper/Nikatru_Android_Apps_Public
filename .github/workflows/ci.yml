@@ -383,9 +383,21 @@ jobs:
       # `wrangler` was in until 2026-08-02, with one thing that makes it worse: a
       # stale test framework goes red, and a stale SCANNER goes quiet.
       # The `node -p` idiom is deploy-web.yml's, already used for glitchtip_cli
-      # and wrangler. Nothing here is a literal, so assert-version-consistency.mjs
-      # correctly carries no rule for these keys — a drift rule whose scan has no
-      # target is an assertion that cannot fail.
+      # and wrangler, so nothing in THIS FILE is a literal any more.
+      #
+      # 🔴 CORRECTED 2026-09-06, SAME DAY. This comment previously went on to say
+      # "Nothing here is a literal, so assert-version-consistency.mjs correctly
+      # carries no rule for these keys — a drift rule whose scan has no target is
+      # an assertion that cannot fail." The first half is true of this file and
+      # the conclusion was false of the tree: `git grep -n VALIDATED_AGAINST`
+      # finds tooling/ci/scan-secrets.mjs declaring `const VALIDATED_AGAINST =
+      # '8.30.1'`, a second live copy of the `gitleaks` value in executable code.
+      # It was dormant while nothing advanced either copy; giving `gitleaks` a
+      # Renovate customManager is what made it drift-able by machine. There is
+      # now a `gitleaks (scan-secrets VALIDATED_AGAINST)` rule in
+      # assert-version-consistency.mjs, with scan-secrets.mjs as a REQUIRED
+      # target. The other three keys have no second literal — measured, see
+      # $scanners_comment in tooling/versions.json for the command.
       - name: Install gitleaks (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail

@@ -86,6 +86,32 @@ const RULES = [
   // claimed the opposite. Now any range operator makes the captured string
   // unequal to the exact pin and fails.
   { key: 'wrangler', label: 'Wrangler (brick dep)', re: /"wrangler":\s*"([^"]+)"/g },
+  // 🔴 THE SECOND COPY OF THE gitleaks PIN, AND IT IS IN EXECUTABLE CODE.
+  // `tooling/ci/scan-secrets.mjs` declares `const VALIDATED_AGAINST = '8.30.1'`
+  // — the release its `scanned ~N bytes` parser was measured against — and that
+  // file states the consequence of the two drifting apart in its own words:
+  // when gitleaks rewords the line, "the volume floor below stops applying, and
+  // every scan afterwards passes with the coverage claim quietly missing — the
+  // floor does not fail, it evaporates."
+  //
+  // Until 2026-09-06 the pin lived in ci.yml's `env:` block, no update
+  // mechanism reached it, and the two copies could therefore only move by the
+  // same hand at the same time. That changed in the same commit as this rule:
+  // `gitleaks` now has a renovate.json customManager, so a BOT can advance
+  // tooling/versions.json while the parser's validated version stays behind. A
+  // second hand-kept copy with a machine moving the first is exactly what F-2
+  // ("one declaration, and nothing may disagree") and C-GUARDED-OR-DELETED
+  // exist to refuse.
+  //
+  // ⚠️ THIS IS NOT AN INSTRUCTION TO POINT `VALIDATED_AGAINST` AT versions.json.
+  // Reading the pin at run time would make scan-secrets.mjs's own mismatch check
+  // — installed gitleaks vs the version this parser was validated against —
+  // compare a value with itself, which is an assertion that cannot fail. The
+  // constant must stay a LITERAL and must move deliberately, together with the
+  // captured canary lines beside it, exactly as scan-secrets.mjs:518 instructs.
+  // What this rule adds is that forgetting to move it is now red instead of
+  // silent.
+  { key: 'gitleaks', label: 'gitleaks (scan-secrets VALIDATED_AGAINST)', re: /VALIDATED_AGAINST\s*=\s*'([0-9][^']*)'/g },
   { key: 'runner_ubuntu', label: 'Ubuntu runner', re: /runs-on:\s*(ubuntu-[^\s'"#]+)/g },
   { key: 'runner_windows', label: 'Windows runner', re: /runs-on:\s*(windows-[^\s'"#]+)/g },
   { key: 'runner_macos', label: 'macOS runner', re: /runs-on:\s*(macos-[^\s'"#]+)/g },
@@ -119,6 +145,27 @@ for (const rel of ['pubspec.yaml', 'README.md']) {
     console.error(`✗ COVERAGE LOST — required target ${rel} is missing under ${repoRoot}.`);
     console.error('  It is deliberately not existsSync-gated: a target that can vanish silently shrinks');
     console.error('  this scan while it still prints "ok". If the file moved, fix the path in the same change.');
+    process.exit(1);
+  }
+  TARGETS.push(rel);
+}
+// 🔴 THE SECRET SCANNER'S PARSER, REQUIRED AND NEVER existsSync-GATED. It holds
+// the only copy of the `gitleaks` pin outside tooling/versions.json (see the
+// "gitleaks (scan-secrets VALIDATED_AGAINST)" rule above), and it is a `.mjs`
+// rather than a workflow or a manifest — the first non-declarative target this
+// scan has ever carried. Gating it would reproduce the 2026-08-17 gradle hole
+// one file over: delete or rename it and the rule's ONLY target leaves the run,
+// MIN_OCCURRENCES is cleared ninety times over by the workflows alone, and the
+// guard prints `ok` having stopped comparing the two copies it was added for.
+// If scan-secrets.mjs is ever genuinely retired, delete the rule, this target
+// and the REQUIRED_YIELD entry below in the same commit — C-GUARDED-OR-DELETED.
+for (const rel of ['tooling/ci/scan-secrets.mjs']) {
+  if (!existsSync(join(repoRoot, rel))) {
+    console.error(`✗ COVERAGE LOST — required target ${rel} is missing under ${repoRoot}.`);
+    console.error('  It carries `const VALIDATED_AGAINST = <gitleaks version>`, the second live copy of the');
+    console.error('  `gitleaks` pin. With the file gone this guard no longer compares the two copies at all,');
+    console.error('  while Renovate keeps advancing the one in tooling/versions.json. If the scanner moved,');
+    console.error('  fix this path, the rule and the REQUIRED_YIELD entry in the same change.');
     process.exit(1);
   }
   TARGETS.push(rel);
@@ -316,6 +363,12 @@ const REQUIRED_YIELD = [
     key: 'java',
     min: 3,
     what: 'sourceCompatibility, targetCompatibility and the Kotlin jvmTarget',
+  },
+  {
+    where: /(^|[\\/])scan-secrets\.mjs$/,
+    key: 'gitleaks',
+    min: 1,
+    what: "the `const VALIDATED_AGAINST = '<version>'` the volume parser was measured against",
   },
 ];
 /** 🔴 COVERAGE LOSS IS COLLECTED, NOT THROWN — it is reported ALONGSIDE drift,

@@ -386,6 +386,36 @@
       "managerFilePatterns": [
         "/^tooling\\/versions\\.json$/"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "tooling/versions.json - trufflehog [pipeline F-2, 14]O-9",
+        "ADDED 2026-09-06, one commit after the lane itself, because the first version of",
+        ".github/workflows/trufflehog.yml pinned the ACTION by SHA and left the SCANNER floating.",
+        "🔴 THE SHA PINS A WRAPPER, NOT A TOOL. trufflesecurity/trufflehog is a composite action whose",
+        "real step is `docker run \"${IMAGE}:${VERSION}\"`, and its `version` input defaults to",
+        "\"latest\" - so passing only `path` and `extra_args` runs a floating third-party image on a",
+        "public repository's full history, outside F-2 and outside this guard's reach. That is the",
+        "identical defect the gitleaks/zizmor/osv_scanner/trivy managers above were added to close,",
+        "one workflow over.",
+        "⚠️ THE REGISTRY TAG HAS NO LEADING `v` AND THE GIT TAG DOES: ghcr.io publishes `3.97.4` and",
+        "404s on `v3.97.4`, while the release is tagged `v3.97.4`. extractVersionTemplate strips it,",
+        "and the workflow splices the bare value in after the colon.",
+        "⚠️ NO SIBLING DIGEST KEY: the action exposes only `image` and `version` joined by a colon, so",
+        "`image@sha256:...` is not expressible and a checksum here would be a pin nothing verifies.",
+        "See $trufflehog_comment in tooling/versions.json for the measurement behind that."
+      ],
+      "matchStrings": [
+        "\"trufflehog\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "trufflehog",
+      "packageNameTemplate": "trufflesecurity/trufflehog",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "managerFilePatterns": [
+        "/^tooling\\/versions\\.json$/"
+      ]
     }
   ],
   "ignorePaths": [

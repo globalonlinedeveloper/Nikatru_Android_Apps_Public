@@ -277,7 +277,28 @@ All eight values (four versions + four `sha256` digests) now live in
 `customManagers` entry in `renovate.json` against the `github-releases`
 datasource. `tooling/ci/test/update-coverage.test.mjs` U13 mutates the **real**
 committed pair of files — dropping each pin, and each digest's exemption — and
-requires exit 1 every time, with a green control first.
+requires exit 1 every time, with a green control first. **U14** does the harder
+half: it deletes each *customManager* and requires the guard to go red **and its
+covered count to fall by one**. That case exists because the first version of
+this change asserted membership with `assert.match(stdout, /gitleaks/)` under a
+comment claiming it proved the four were covered — and the guard never prints a
+covered key's name, so the only thing satisfying the match was the neighbouring
+`EXEMPT gitleaks_sha256` line. A reviewer built the excluded state by hand
+(manager deleted, waiver added instead) and the guard exited 0 with the assertion
+still passing. An assertion that cannot fail for its stated reason is worse than
+none, because it inflates apparent coverage.
+
+🔴 **The `gitleaks` pin has a second copy, and it is now guarded.**
+`tooling/ci/scan-secrets.mjs` declares `const VALIDATED_AGAINST = '<version>'` —
+the gitleaks release its `scanned ~N bytes` volume parser was measured against.
+While the pin lived in `ci.yml` nothing advanced either copy, so they could only
+move by the same hand; giving `gitleaks` a customManager is what made drift
+possible by machine. `assert-version-consistency.mjs` now carries a
+`gitleaks (scan-secrets VALIDATED_AGAINST)` rule with that file as a **required**
+target. ⛔ Do **not** "fix" a red bump by making the constant read
+`versions.json`: `scan-secrets.mjs` compares the *installed* gitleaks against it,
+so reading the pin at run time would make it compare a value with itself. It must
+stay a literal and move together with the captured canary lines beside it.
 
 🔴 **A Renovate bump of any of the four arrives RED**, at `ci.yml`'s
 `sha256sum -c` step, until a human downloads the new asset and writes its digest
@@ -297,8 +318,28 @@ sinks with a duty row in `tooling/ops/register.json`.
 | `codeql.yml` | this repository's **own JS/TS as code** — 583 tracked `.ts`/`.js`/`.mjs` files. gitleaks reads bytes, zizmor reads workflows, OSV-Scanner and Trivy read what we *depend on*; none of them can answer "does attacker-controlled input reach a dangerous sink in code we wrote". | PR, push to `main`, daily 05:23 UTC |
 | `trufflehog.yml` | the **full git history**, with each candidate credential checked against its issuing provider (`--results=verified`). A working-tree scan cannot see a secret that was committed and then removed — which stays fetchable forever in a public repository. | daily 13:41 UTC |
 
-Two things about these that are easy to get wrong:
+Three things about these that are easy to get wrong:
 
+- **A SHA on `trufflesecurity/trufflehog` pins the wrapper, not the scanner.**
+  That action is a *composite* whose real step is
+  `docker run "${IMAGE}:${VERSION}"`, and its `version` input **defaults to
+  `latest`**. The first version of this lane passed only `path` and
+  `extra_args`, so the executable actually scanning a public repository's whole
+  history was `ghcr.io/trufflesecurity/trufflehog:latest` — the repository's only
+  floating image tag, introduced by the very change that moved four other
+  scanners *out* of that state. The version now comes from
+  `tooling/versions.json` (`trufflehog`), has its own `customManagers` entry, and
+  is passed as `version:`. The registry tag carries no leading `v` even though
+  the git tag does. ⚠️ There is no sibling `sha256`: the action exposes only
+  `image` and `version`, joined by a colon, so a digest cannot be passed and one
+  written down would be a pin nothing verifies.
+- **`--json` must never go in `extra_args`.** The action already passes
+  `--github-actions`, whose printer emits file, line and detector name only.
+  `--json` *replaces* it with one that emits `Raw` and `RawV2` — the raw secret —
+  and there is no `--redact` flag to put back. This repository is public, so that
+  prints a live credential in cleartext into a world-readable Actions log: a
+  second public copy, made by the lane that exists to find the first (TRAPS
+  ci-09; `scan-secrets.mjs` states the rule as *"Report WHERE, never WHAT."*).
 - **`fetch-depth: 0` is the TruffleHog workflow**, not a detail. The default
   shallow clone fetches one commit, and a scan of one commit is the working-tree
   scan gitleaks already does — it would run green over a history it never opened.
