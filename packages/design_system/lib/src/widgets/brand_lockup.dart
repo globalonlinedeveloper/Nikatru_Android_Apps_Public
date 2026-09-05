@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../tokens/app_colors.dart';
 import '../tokens/app_text.dart';
+import '../tokens/brand_tokens.dart';
 import 'focusable_tap.dart';
 
 /// The publisher lockup and the publisher footer — the two pieces of BRAND
@@ -242,7 +243,11 @@ class _BrandFooterLink extends StatelessWidget {
       child: Text(
         link.label,
         style: TextStyle(
-          fontFamily: 'Manrope',
+          // Read from the contract, not typed. This is the PUBLISHER footer —
+          // the one piece of brand every app in the portfolio wears — so a
+          // literal here is the copy most likely to be missed when the brand
+          // face changes.
+          fontFamily: BrandTokens.fontBody,
           fontWeight: FontWeight.w700,
           fontSize: 12,
           color: color,

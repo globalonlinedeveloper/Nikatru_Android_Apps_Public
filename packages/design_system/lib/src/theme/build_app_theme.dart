@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../tokens/app_colors.dart';
+import '../tokens/brand_tokens.dart';
 import 'app_theme_x.dart';
 
 /// Builds the NIKATRU [ThemeData] for a [seed] colour and [brightness].
@@ -66,7 +67,13 @@ ThemeData _themeFrom({
     scaffoldBackgroundColor: scaffoldBackground,
     colorScheme: scheme,
     textTheme: base.textTheme.apply(
-      fontFamily: 'Manrope',
+      // The APP-WIDE text face, and it is a brand fact, so it is read from the
+      // contract rather than typed. It was the literal `'Manrope'` until
+      // 2026-09-05, one line away from `app_text.dart`, which had already been
+      // repointed — so a change to contracts/tokens/dtcg/font.json would have
+      // moved the six named styles and left every unnamed Material style on the
+      // old face. Half a repaint is worse than none: it looks deliberate.
+      fontFamily: BrandTokens.fontBody,
       bodyColor: ink,
       displayColor: ink,
     ),

@@ -248,13 +248,22 @@ void main() {
       // tabular figures and the label's tracking. That is exactly the kind of
       // regression nobody notices until money columns stop aligning.
       expect(s.fig.fontFeatures, AppText.fig.fontFeatures);
-      expect(s.fig.fontFamily, 'Space Grotesk');
+      // 🔴 READ FROM THE CONTRACT, NOT TYPED — corrected 2026-09-05. These two
+      // assertions were the string literals `'Space Grotesk'` and `'Manrope'`,
+      // against styles that now resolve through `BrandTokens`. That made a
+      // one-line change to contracts/tokens/dtcg/font.json a THREE-FILE change:
+      // the contract, its generated outputs, and this test — so the contract
+      // could not actually be edited alone, which is the whole point of it
+      // being a contract. The assertion still has teeth: it pins the dark
+      // branch to the same face the light branch declares, and it fails if the
+      // dark path builds a fresh `TextStyle` instead of `copyWith`.
+      expect(s.fig.fontFamily, BrandTokens.fontDisplay);
       expect(s.label.fontSize, 11);
       expect(s.label.letterSpacing, 0.8);
       expect(s.label.fontWeight, FontWeight.w700);
       expect(s.display.height, AppText.display.height);
       expect(s.display.letterSpacing, AppText.display.letterSpacing);
-      expect(s.body.fontFamily, 'Manrope');
+      expect(s.body.fontFamily, BrandTokens.fontBody);
       expect(s.muted.fontWeight, FontWeight.w500);
     });
 
