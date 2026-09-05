@@ -683,6 +683,62 @@ for (const [consumer, deps] of consumerDeps) {
     }
   }
 }
+/* (c) A `package: null` ROW'S CONSUMERS ARE PATHS, AND UNTIL 2026-09-05 NOTHING
+ *     READ THEM. Direction (a) above opens with `if (!cap.package) continue;` —
+ *     correctly, because a row with no pub name can appear in no pubspec — and
+ *     direction (b) walks pubspec dependencies, which such a row never appears
+ *     in either. Check 6 below is then satisfied by ANY non-empty `consumers`
+ *     array. So the one shape neither direction covers is exactly the shape a
+ *     build-step capability has: no package, and consumers that are the
+ *     COMMITTED OUTPUTS it writes.
+ *
+ *     Measured on this tree 2026-09-05, and this is why the limb exists:
+ *     replacing the `tokens` row's three output paths with the single string
+ *     `THIS/PATH/DOES/NOT/EXIST.txt` left this guard at exit 0 with no mention
+ *     of the row, before and after. A [C-2] waiver that had been explicit and
+ *     true (`unconsumedReason`) had been retired and replaced by silence backed
+ *     by strings nothing could check — which is strictly worse than the waiver,
+ *     because the waiver at least PRINTED on every passing run.
+ *
+ *     Two claims, both checkable, in place of one that was neither: every
+ *     consumer on such a row must be a non-empty FILE on disk, and the row must
+ *     say in `consumersNote` why it names paths rather than pubspecs. A path
+ *     that has stopped existing is the register describing an output the build
+ *     no longer writes — the same defect direction (a) catches for packages,
+ *     pointed at the other kind of row. */
+const pathConsumerRows = capabilities.filter((c) => !c.package && (c.consumers ?? []).length > 0);
+let pathConsumersChecked = 0;
+for (const cap of pathConsumerRows) {
+  if (!String(cap.consumersNote ?? '').trim()) {
+    problems.push(
+      `${cap.id} — \`package\` is null and \`consumers\` is non-empty, but there is no \`consumersNote\`. ` +
+        'On a row with no pub name a consumer cannot be a pubspec, so it is read as a path to a committed ' +
+        'output — and a reader has to be told that, in the register, rather than inferring it from the ' +
+        'shape of the strings. Say what these paths are and what gates them.',
+    );
+  }
+  for (const rel of cap.consumers) {
+    const abs = join(ROOT, rel);
+    if (!existsSync(abs)) {
+      problems.push(
+        `${cap.id} — claims consumer \`${rel}\`, which does not exist on disk. \`package\` is null on this ` +
+          'row, so its consumers are the committed OUTPUTS the capability writes; a path that is not there ' +
+          'is the register describing an output the build no longer produces. [C-2] This is the check that ' +
+          'replaced an `unconsumedReason` waiver — do not retire it back to prose.',
+      );
+      continue;
+    }
+    const st = statSync(abs);
+    if (!st.isFile() || st.size === 0) {
+      problems.push(
+        `${cap.id} — claims consumer \`${rel}\`, which is ${st.isFile() ? 'an EMPTY file' : 'not a file'}. ` +
+          'A committed output that is empty satisfies `existsSync` and delivers nothing.',
+      );
+      continue;
+    }
+    pathConsumersChecked++;
+  }
+}
 
 // ── 5. [C-3 widened] a registered seam may not be implemented in an app ──────
 const declaredViolations = new Map();
@@ -964,6 +1020,13 @@ for (const rel of appFiles) {
 }
 
 // ── 6. [C-2] a capability with no consumer is not built ──────────────────────
+// ⚠️ THIS CHECK IS SATISFIED BY ANY NON-EMPTY ARRAY, AND ON ITS OWN THAT IS NOT
+// ENOUGH. `consumers.length > 0` says a claim was WRITTEN, never that it is
+// true. For a row with a `package`, direction (a) of check 4 verifies each name
+// against a real pubspec; for a row with `package: null`, direction (c) verifies
+// each name as a path to a non-empty committed output. Retiring a waiver here by
+// filling this array is only an improvement because one of those two runs — see
+// direction (c)'s note for the day this was measured and it did not.
 const waived = [];
 for (const cap of capabilities) {
   if ((cap.consumers ?? []).length > 0) continue;
@@ -1270,6 +1333,14 @@ console.log(
   `ok  capability register — ${capabilities.length} capability(ies) over ${onDisk.length} package dir(s); ` +
     `${seamCount} seam symbol(s) verified in place, ${appFiles.length} app file(s) scanned for forks ` +
     `[${forkSplit}], ${declaredViolations.size} declared violation(s), ${waived.length} unconsumed with a reason`,
+);
+// THE PATH-CONSUMER LIMB'S OWN COUNT, printed for the same reason the waivers
+// are: its correct state is "nothing wrong", which is what a limb that reached
+// no rows also prints. A zero here on a tree that has a `package: null` row with
+// consumers means direction (c) stopped matching.
+console.log(
+  `    ${pathConsumerRows.length} row(s) with \`package: null\` declare consumers as PATHS; ` +
+    `${pathConsumersChecked} committed output(s) verified present and non-empty on disk`,
 );
 // WHICH BRANCH THE FLOORS TOOK, on every run rather than implied — a floor that
 // is silently skipped over a foreign root reads exactly like a floor that passed.

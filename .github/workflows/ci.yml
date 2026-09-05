@@ -483,19 +483,31 @@ jobs:
           test -s ../../sites/_shared/assets/tokens.css
           test -s ../design_system/lib/src/tokens/brand_tokens.dart
           test -s ../../extensions/core/tokens.json
-      # why: ONE LINE, no backslash continuations. assert-green-means-ran.mjs
-      # pairs every path this step diffs with an "rm -f" of the same path
-      # earlier in the job, and a line continuation makes it read the
-      # continuation character itself as the path. Measured 2026-09-05: written
-      # across three continued lines this guard failed with 'job "site-tokens"
-      # diffs [backslash] against HEAD, but no earlier step deletes it first'.
+      # why: ONE PATH PER LINE — and no backslash continuations either.
+      # assert-green-means-ran.mjs pairs every path a drift step diffs with an
+      # "rm -f" of that same path earlier in the same job, and its matcher
+      # captures ONE path per match. Three paths on a single line therefore
+      # pair only the FIRST with a deletion; the other two are diffed and never
+      # required to have been deleted at all. Measured 2026-09-05 on this file,
+      # one mutation at a time: with all three on one line, removing the
+      # "rm -f" of brand_tokens.dart or of extensions/core/tokens.json left the
+      # guard at exit 0, while removing the tokens.css one gave exit 1 — two of
+      # the three outputs could silently lose their delete-before-diff. Split
+      # one-per-line, removing any of the three gives exit 1 naming that file.
+      # A backslash continuation is the OTHER wrong answer: the matcher then
+      # reads the continuation character itself as the path, which is how the
+      # first draft failed with 'job "site-tokens" diffs [backslash] against
+      # HEAD, but no earlier step deletes it first'.
       # ⚠️ And the drift-lane phrase is deliberately NOT quoted anywhere in this
       # comment: green-means-ran.test.mjs counts its occurrences across every
       # workflow file to derive how many drift checks the guard must report, and
       # it counts comment text too — a comment quoting the phrase inflates that
       # count by one and reddens a test about something else entirely.
       - name: All three outputs must equal a fresh build
-        run: git diff --exit-code -- ../../sites/_shared/assets/tokens.css ../design_system/lib/src/tokens/brand_tokens.dart ../../extensions/core/tokens.json
+        run: |
+          git diff --exit-code -- ../../sites/_shared/assets/tokens.css
+          git diff --exit-code -- ../design_system/lib/src/tokens/brand_tokens.dart
+          git diff --exit-code -- ../../extensions/core/tokens.json
 
   site-shared:
     name: Shared site build

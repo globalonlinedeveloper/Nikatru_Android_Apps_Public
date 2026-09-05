@@ -4,6 +4,14 @@ library;
 
 export 'src/licences/vendored_asset_licences.dart';
 export 'src/tokens/app_colors.dart';
+// The GENERATED company brand tokens — the one Dart file emitted from
+// contracts/tokens/dtcg/ ([ADR 067] decision 1). It is on the barrel for the
+// same reason `app_colors.dart` is: measured 2026-09-05, every app reaches this
+// package through this file and nothing in apps/ imports a `src/` path, so a
+// token that is not exported here is a token no app can read — and the PR that
+// added it claimed a token change now reaches the Flutter apps while the
+// hand-written palette was on the public API and the generated one was not.
+export 'src/tokens/brand_tokens.dart';
 export 'src/tokens/app_text.dart';
 export 'src/tokens/app_spacing.dart';
 export 'src/theme/app_theme_x.dart';

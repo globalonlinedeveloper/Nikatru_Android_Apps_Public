@@ -135,13 +135,49 @@
 // Two more that a fixture reaches more cheaply than the tree — an emptied
 // `color` group, and `class BrandTokensDark` renamed — are in the test file.
 //
+// ── THE THIRD LIMB, ADDED 2026-09-05 ON A REVIEWER'S MEASUREMENT ────────────
+//
+//   4. A FOURTH THING IS IN THE SUBJECT: EVERY TRACKED `.dart` FILE, swept for
+//      the two brand FONT FAMILIES the contract declares. Only the generated
+//      `brand_tokens.dart` may name one; the hand-typed app-level copies are
+//      enumerated per file in `BRAND_FONT_DEBT` and may only shrink. (1)–(3)
+//      above are about a colour declared twice; this is about a brand FACE
+//      declared twice, which is the same defect in the half of the contract
+//      that actually reaches the Flutter apps today.
+//
+//      THE BRAND-FONT SWEEP. The token contract's README claimed "nothing else in the tree may declare a
+//      brand value". Measured FALSE in 28 places, every one a hand-typed
+//      `fontFamily:` string, and nothing forbade a 29th. Two of the 28 were in
+//      `packages/design_system` and now read `BrandTokens`; the rest are
+//      enumerated per file in `BRAND_FONT_DEBT` below, a list that may only
+//      shrink. The third limb, at the bottom of this file, sweeps every tracked
+//      `.dart` file for the family names THE CONTRACT DECLARES and allows them
+//      in exactly one place: the generated `brand_tokens.dart`.
+//      Negative-tested on the REAL tree the same day, each mutation restored
+//      from a file copy — NOT `git checkout --`, which also reverts the
+//      uncommitted change under test and silently invalidated two earlier
+//      measurements — with a green control before and after each:
+//        (k) `'Manrope'` appended to packages/design_system/lib/src/widgets/
+//            app_scaffold.dart ⇒ exit 1 naming it. That is the 29th copy.
+//        (l) a 5th literal in a file recorded at 4 ⇒ exit 1, "5 time(s); the
+//            recorded count is 4 … this list may only shrink".
+//        (m) one literal REMOVED from that file ⇒ exit 1, "3 time(s) … LOWER
+//            the number in the same change". A stale entry fails too.
+//        (n) a recorded file deleted from disk ⇒ exit 1, "this scan did not
+//            read it … remove its row in the same change".
+//        (o) both families renamed inside brand_tokens.dart ⇒ exit 2, the
+//            positive control: a scanner that cannot find a family in the file
+//            that declares them says nothing about any other file.
+//      A new `.dart` file, a family in a COMMENT, and a clean Dart file are
+//      reached in the test file instead.
+//
 // Usage:  node tooling/ci/assert-palette-consistent.mjs [repoRoot]
 // Exit:   0 = one palette · 1 = two sources disagree · 2 = the scan lost its
 //         coverage and refuses to report on a subject it did not read.
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
@@ -844,6 +880,231 @@ function dartKey(key) {
   if (scope === 'light' || scope === 'dark') return `${scope}.${dartIdent(name)}`;
   return key === 'font.display' ? 'font.display' : key;
 }
+
+/* ── ONE BRAND FACE: A SECOND DECLARATION OF A BRAND FONT IN DART ───────────
+ *
+ * The limb above proves the three GENERATED files still say what the contract
+ * says. This one asks the question that survives it: how many OTHER files say
+ * it too, without being generated from anything?
+ *
+ * ── WHY IT EXISTS ──────────────────────────────────────────────────────────
+ * `contracts/tokens/README.md` claimed "nothing else in the tree may declare a
+ * brand value". Measured 2026-09-05 by an independent reviewer: FALSE in 28
+ * places, and — the part that matters — nothing forbade a 29th. A claim no
+ * guard reads is the shape this corpus punishes hardest, and it had been
+ * written into the very document the contract ships with.
+ *
+ * Two of the 28 were inside `packages/design_system` and are now repointed at
+ * `BrandTokens`: the app-wide text theme in `build_app_theme.dart` and the
+ * publisher footer in `brand_lockup.dart`. The rest are in `apps/subly`, which
+ * this unit does not own and which the chassis-packages work ([ADR 067]
+ * decision 2) will move wholesale. So the truthful, checkable statement is not
+ * "nothing else declares one" — it is:
+ *
+ *   · under `packages/`, ONLY the generated file may name a brand family; and
+ *   · the app-level copies are ENUMERATED, per file, and may only SHRINK.
+ *
+ * A ratchet, not an allowlist. An allowlist forgives anything a reader adds to
+ * it; a per-file count fails on the 29th copy, in the file that gained it, and
+ * fails again the day one is removed without lowering the number — which keeps
+ * the list from silently describing a tree it no longer matches.
+ *
+ * ── WHAT IT SCANS FOR, AND WHERE THE NAMES COME FROM ───────────────────────
+ * The family names are READ FROM THE CONTRACT (`srcFont` above), never typed
+ * here. Change `contracts/tokens/dtcg/font.json` and this scan re-points
+ * itself — and every enumerated app file then reports 0 against its recorded
+ * count, which is the honest answer: the brand face moved and 26 hand-typed
+ * copies did not. A one-line contract edit that leaves those copies behind is a
+ * HALF repaint, and half a repaint looks deliberate. This limb is where that is
+ * said out loud instead of being discovered on a store screenshot.
+ */
+
+/** The one Dart file that may name a brand family: it is GENERATED from the
+ *  contract, and the limb above holds it equal to it. */
+const DART_DECLARING_FILE = DART_OUT;
+
+/** Hand-typed brand-font sites outside `packages/`, per file, measured
+ *  2026-09-05 with the comment-stripping scanner below.
+ *
+ *  🔴 EVERY NUMBER HERE MAY ONLY GO DOWN. Raising one is adding a copy of a
+ *  brand fact, which is the defect this limb exists to stop; the guard cannot
+ *  tell a raised number from a fixed one, so the rule is stated here and the
+ *  failure message repeats it. All of these belong to `apps/subly`, whose
+ *  screens the chassis work moves into packages — at which point the entries
+ *  come out one by one and this object empties. */
+const BRAND_FONT_DEBT = {
+  'apps/subly/lib/features/add/add_subscription_sheet.dart': 2,
+  'apps/subly/lib/features/calendar/calendar_screen.dart': 1,
+  'apps/subly/lib/features/cancel/cancel_sheet.dart': 1,
+  'apps/subly/lib/features/detail/subscription_detail_screen.dart': 6,
+  'apps/subly/lib/features/home/home_screen.dart': 4,
+  'apps/subly/lib/features/insights/insights_screen.dart': 1,
+  'apps/subly/lib/features/onboarding/onboarding_screen.dart': 4,
+  'apps/subly/lib/features/scan/scan_screen.dart': 1,
+  'apps/subly/lib/features/settings/settings_screen.dart': 1,
+  'apps/subly/lib/features/shared/widgets.dart': 4,
+  'apps/subly/lib/features/shell/app_shell.dart': 1,
+  'apps/subly/test/brand_footer_parity_test.dart': 8,
+  'apps/subly/test/shared_primitives_test.dart': 4,
+};
+
+/** Tracked `.dart` files on this tree, 2026-09-05. Applied ONLY when the root
+ *  being scanned is this repository — the fixtures in
+ *  `tooling/ci/test/palette-consistent.test.mjs` materialise the palette corpus
+ *  and a handful of Dart files, and a floor sized for the real tree would make
+ *  every one of them exit 2 for a reason none of them is testing. Same idiom,
+ *  and the same reason, as `SCANNING_OWN_REPO` in
+ *  `tooling/ci/assert-capability-register.mjs`. */
+const MIN_DART_FILES = 300;
+const SCANNING_OWN_REPO = (dirname(fileURLToPath(import.meta.url)) + sep).startsWith(ROOT + sep);
+
+/**
+ * Blank Dart comments but KEEP string literals, preserving offsets and lines.
+ *
+ * A regex cannot tell `//` inside a string from a comment, and the direction of
+ * that error is the dangerous one here: over-stripping HIDES a brand literal and
+ * prints ok. Restated rather than imported — every `.mjs` directly under
+ * tooling/ci is a guard to `assert-guard-coverage.mjs` and any `.mjs` in a
+ * subdirectory of it is a hard COVERAGE LOST, so there is nowhere shared to put
+ * it; `assert-adapter-capabilities.mjs` carries the same function for the same
+ * reason.
+ */
+function stripDartCommentsOnly(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  const b = (ch) => (ch === '\n' ? '\n' : ' ');
+  while (i < n) {
+    const c = src[i];
+    const c2 = src[i + 1];
+    if (c === '/' && c2 === '/') {
+      while (i < n && src[i] !== '\n') { out += ' '; i++; }
+      continue;
+    }
+    if (c === '/' && c2 === '*') {
+      let depth = 0;
+      while (i < n) {
+        if (src[i] === '/' && src[i + 1] === '*') { depth++; out += '  '; i += 2; continue; }
+        if (src[i] === '*' && src[i + 1] === '/') { depth--; out += '  '; i += 2; if (depth === 0) break; continue; }
+        out += b(src[i]); i++;
+      }
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      const q = c;
+      out += src[i++];
+      while (i < n && src[i] !== q) {
+        if (src[i] === '\\') out += src[i++];
+        if (i < n) out += src[i++];
+      }
+      if (i < n) out += src[i++];
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+const brandFamilies = [srcFont.get('display'), srcFont.get('body')].filter(Boolean);
+const dartFiles = tracked.filter((p) => p.endsWith('.dart'));
+
+if (SCANNING_OWN_REPO && dartFiles.length < MIN_DART_FILES) {
+  coverageLost([
+    `${dartFiles.length} tracked .dart file(s) are in the subject, expected at least ${MIN_DART_FILES}.`,
+    `This limb is a sweep for a hand-typed brand font family, and a sweep over a collapsed file set`,
+    `reports "no second declaration" for the same reason it would report it over a clean tree.`,
+  ]);
+}
+
+/** How many times a file names a brand family, in CODE. */
+const brandFontHits = (rel) => {
+  const code = stripDartCommentsOnly(readFileSync(join(ROOT, rel), 'utf8'));
+  return brandFamilies.reduce((n, fam) => n + code.split(fam).length - 1, 0);
+};
+
+if (!dartFiles.includes(DART_DECLARING_FILE)) {
+  coverageLost([
+    `${DART_DECLARING_FILE} is not in the tracked .dart set, so the one file allowed to name a brand`,
+    `family is not being read. Either the emitter's output path moved — in which case this limb is`,
+    `sweeping for a declaration whose home it no longer knows — or this is not a checkout of this repo.`,
+  ]);
+}
+// 🔴 AT LEAST ONE, NOT BOTH — AND THE DIFFERENCE IS A REAL ONE. The first draft
+// required both, which turned the guard's own recorded mutation (g) — the Dart
+// `fontBody` edited to `'Manrop'` — from the exit 1 it documents into an exit 2
+// about coverage. That mutation is a genuine FINDING, reported by the limb
+// above, and burying it under a refusal would trade a sharp message for a vague
+// one. What this control is actually for is the scanner going blind, or the
+// emitter's output being replaced by a file that declares no face at all; one
+// hit proves the scan can see a family in the file whose job is to name them.
+if (brandFontHits(DART_DECLARING_FILE) < 1) {
+  coverageLost([
+    `${DART_DECLARING_FILE} names NEITHER family the contract declares (${brandFamilies.join(', ')}).`,
+    `That is the positive control for this whole limb: if the scanner cannot find a brand family in the`,
+    `file that exists to declare them, its silence about every other file means nothing.`,
+  ]);
+}
+
+let debtSites = 0;
+const debtSeen = new Set();
+for (const rel of dartFiles) {
+  if (rel === DART_DECLARING_FILE) continue;
+  // Tracked but not on disk — a staged deletion, or a checkout mid-operation.
+  // Skipping is right and the file cannot then be missed silently: if it carried
+  // recorded debt, the loop below names it.
+  if (!existsSync(join(ROOT, rel))) continue;
+  const hits = brandFontHits(rel);
+  const recorded = BRAND_FONT_DEBT[rel];
+  if (recorded === undefined) {
+    if (hits === 0) continue;
+    problems.push(
+      [
+        `${rel} names a brand font family ${hits} time(s), and it is not the file that declares them.`,
+        `  The brand faces are ${brandFamilies.map((f) => `\`${f}\``).join(' and ')}, declared once in`,
+        `  ${DTCG_DIR}/font.json and emitted into ${DART_DECLARING_FILE}. Read them from there —`,
+        `  \`BrandTokens.fontDisplay\` / \`BrandTokens.fontBody\`, both on the design_system barrel — so a`,
+        `  brand change reaches this file. A typed copy is a second declaration of a brand fact, and the`,
+        `  next brand change will repaint the tree around it and leave it looking deliberate.`,
+      ].join('\n'),
+    );
+    continue;
+  }
+  debtSeen.add(rel);
+  if (hits !== recorded) {
+    problems.push(
+      [
+        `${rel} names a brand font family ${hits} time(s); the recorded count is ${recorded}.`,
+        hits > recorded
+          ? `  That is a NEW hand-typed copy of a brand fact. Read the face from \`BrandTokens\` instead.`
+          : `  If a copy was removed, LOWER the number in the same change — this list may only shrink, and a`,
+        hits > recorded
+          ? `  This list may only shrink; raising the number is how the 29th copy gets permission.`
+          : `  count that no longer matches the file stops being evidence about anything.`,
+        `  And if ${DTCG_DIR}/font.json has just changed the brand face, this is the other reading: the`,
+        `  contract moved and this file still names the old family. That is a HALF repaint.`,
+      ].join('\n'),
+    );
+    continue;
+  }
+  debtSites += hits;
+}
+for (const rel of Object.keys(BRAND_FONT_DEBT)) {
+  if (debtSeen.has(rel)) continue;
+  if (!SCANNING_OWN_REPO) continue;
+  problems.push(
+    `${rel} is recorded as holding ${BRAND_FONT_DEBT[rel]} hand-typed brand font site(s) and this scan did ` +
+      'not read it — it is not in the tracked .dart set, or not on disk. It was deleted or renamed; remove ' +
+      'its row in the same change. A debt entry for a file that is not there excuses nothing, and it hides ' +
+      'the day the debt was actually paid.',
+  );
+}
+
+prints.push(
+  `${dartFiles.length} tracked .dart file(s) swept for a hand-typed brand font family ` +
+    `(${brandFamilies.join(', ')}, read from ${DTCG_DIR}/font.json): only ${DART_DECLARING_FILE} may name one; ` +
+    `${debtSites} recorded legacy site(s) across ${debtSeen.size} app file(s), a list that may only shrink.`,
+);
 
 /* ── Report ────────────────────────────────────────────────────────────────── */
 

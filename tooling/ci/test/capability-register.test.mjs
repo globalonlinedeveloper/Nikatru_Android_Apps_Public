@@ -627,3 +627,73 @@ describe('check 5 — the fork scan knows which per-app roots it does not read',
     assert.match(out, /per-root floors NOT applied — this root is not a checkout of this repository/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// check 4 direction (c) — a `package: null` row's consumers are PATHS
+//
+// ⚠️ THE REAL TREE FIRST, AS ALWAYS. Three mutations were run against the real
+// repository on 2026-09-05 before these fixtures were written, each restored
+// from a file copy (NOT `git checkout --`, which also reverts the uncommitted
+// fix under test) with a green control before and after:
+//   · `tokens`'s three consumer paths replaced by `THIS/PATH/DOES/NOT/EXIST.txt`
+//     ⇒ exit 1 naming it. On the guard as it stood the SAME mutation exited 0
+//     with no mention of the row, which is why this direction exists.
+//   · `consumersNote` deleted from that row ⇒ exit 1.
+//   · `extensions/core/tokens.json` truncated to 0 bytes ⇒ exit 1, "an EMPTY
+//     file" — `existsSync` alone would have passed it.
+// These cases keep that closed against a fixture the guard cannot recognise.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('check 4 (c) — consumers on a package-less row are verified as paths', () => {
+  /** A build-step capability: no pub name, so its consumers are the committed
+   *  files it writes. `outputBody` empty means the output exists and is 0 bytes. */
+  function withBuildStep({ consumers = ['tooling/generated-output.txt'], note = 'paths, not pubspecs: the committed outputs this build step writes', outputBody = 'generated\n', writeOutput = true } = {}) {
+    return tree({
+      mutate: (reg, files, r) => {
+        reg.capabilities.push({
+          id: 'buildstep',
+          capability: 'a build step whose consumers are the files it emits',
+          owner: 'packages/core',
+          package: null,
+          seam: 'packages/core/lib/nikatru_core.dart',
+          consumers,
+          ...(note === null ? {} : { consumersNote: note }),
+        });
+        if (writeOutput) files[join(r, 'tooling', 'generated-output.txt')] = outputBody;
+      },
+    });
+  }
+
+  test('a real, non-empty output path passes, and the count is printed', () => {
+    const { code, out } = run(withBuildStep());
+    assert.equal(code, 0, out);
+    // Printed for the same reason the waivers are: "nothing wrong" and "this
+    // limb reached nothing" print identically unless the size is stated.
+    assert.match(out, /1 row\(s\) with `package: null` declare consumers as PATHS; 1 committed output\(s\) verified/);
+  });
+
+  test('fails when the claimed output does not exist — the mutation that used to exit 0', () => {
+    const { code, out } = run(withBuildStep({ consumers: ['THIS/PATH/DOES/NOT/EXIST.txt'], writeOutput: false }));
+    assert.equal(code, 1, out);
+    assert.match(out, /buildstep — claims consumer `THIS\/PATH\/DOES\/NOT\/EXIST\.txt`, which does not exist on disk/);
+  });
+
+  test('fails when the claimed output exists and is empty — existsSync is not enough', () => {
+    const { code, out } = run(withBuildStep({ outputBody: '' }));
+    assert.equal(code, 1, out);
+    assert.match(out, /which is an EMPTY file/);
+  });
+
+  test('fails when the row fills `consumers` without saying what those strings are', () => {
+    const { code, out } = run(withBuildStep({ note: null }));
+    assert.equal(code, 1, out);
+    assert.match(out, /`package` is null and `consumers` is non-empty, but there is no `consumersNote`/);
+  });
+
+  test('a row WITH a package is untouched by this direction — it is checked against pubspecs', () => {
+    // The limb must not widen onto the 11 rows that direction (a) already
+    // verifies, where a consumer is a consumerRoot and not a file at all.
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.match(out, /0 row\(s\) with `package: null` declare consumers as PATHS; 0 committed output\(s\)/);
+  });
+});

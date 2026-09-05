@@ -618,3 +618,95 @@ describe('the generated siblings (added 2026-09-05, [ADR 067] decision 1)', () =
     assert.match(r.out, /3 generated output\(s\) held equal to contracts\/tokens\/dtcg\/ on \d+ token\(s\)/);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE BRAND-FONT SWEEP (added 2026-09-05, on a reviewer's measurement)
+//
+// `contracts/tokens/README.md` claimed "nothing else in the tree may declare a
+// brand value". An independent reviewer measured it FALSE in 28 places and —
+// the part that mattered — nothing forbade a 29th. Two of the 28 were in
+// `packages/design_system` and are now repointed at `BrandTokens`; the rest are
+// enumerated per file in the guard, a list that may only shrink.
+//
+// 🔴 THE REAL TREE FIRST, SIX MUTATIONS, each restored from a file copy (NOT
+// `git checkout --`, which also reverts the uncommitted fix under test — that
+// mistake silently invalidated two measurements earlier the same day), with a
+// green control run before and after every one:
+//   · a `'Manrope'` literal appended to packages/design_system/lib/src/widgets/
+//     app_scaffold.dart ⇒ exit 1 naming that file. This is the 29th copy.
+//   · a 5th literal added to a file recorded at 4 ⇒ exit 1, "5 time(s); the
+//     recorded count is 4 … this list may only shrink".
+//   · one literal removed from that same file ⇒ exit 1, "3 time(s) … LOWER the
+//     number in the same change". The ratchet fails on a stale entry too, not
+//     only on a new copy.
+//   · the recorded file deleted from disk ⇒ exit 1, "this scan did not read it".
+//   · brand_tokens.dart `fontBody` → `'Manrop'` ⇒ still exit 1 from the
+//     comparison limb, NOT exit 2. The first draft of the positive control
+//     required BOTH families in the declaring file and turned that finding into
+//     a refusal; one hit is what proves the scanner can see.
+//   · both families renamed inside brand_tokens.dart ⇒ exit 2, the control.
+//
+// The fixtures below reach what the tree cannot cheaply reach: a NEW `.dart`
+// file, and a Dart file that is clean.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('one brand face — no second declaration of a brand font in Dart', () => {
+  test('a new Dart file naming a brand family fails, and is named', () => {
+    const root = add(
+      fixture(),
+      'packages/whatever/lib/thing.dart',
+      "const TextStyle s = TextStyle(fontFamily: 'Manrope');\n",
+    );
+    const r = run(root);
+    assert.equal(r.code, 1, r.all);
+    assert.match(r.err, /packages\/whatever\/lib\/thing\.dart names a brand font family 1 time\(s\)/);
+    // The remedy has to be IN the message: a reader who has just been told not
+    // to type the string needs the name of the thing to read instead.
+    assert.match(r.err, /BrandTokens\.fontDisplay/);
+  });
+
+  test('the same file with the family in a COMMENT passes — code, never prose', () => {
+    // The scanner blanks comments and keeps string literals. Both halves are
+    // load-bearing: a regex that cannot tell them apart either accuses a comment
+    // or, far worse, eats a `//` inside a string and hides a real literal.
+    const root = add(
+      fixture(),
+      'packages/whatever/lib/thing.dart',
+      "// the body face is Manrope, and this line is prose\nconst int x = 1;\n",
+    );
+    const r = run(root);
+    assert.equal(r.code, 0, r.all);
+  });
+
+  test('a Dart file that names no brand family is not accused', () => {
+    const root = add(fixture(), 'packages/whatever/lib/quiet.dart', 'const int x = 1;\n');
+    const r = run(root);
+    assert.equal(r.code, 0, r.all);
+  });
+
+  test('the generated file may name them — it is the declaration', () => {
+    // The one exemption, asserted rather than assumed: brand_tokens.dart names
+    // both families in every fixture and no case above may be firing on it.
+    const r = run(fixture());
+    assert.equal(r.code, 0, r.all);
+    assert.doesNotMatch(r.all, /brand_tokens\.dart names a brand font family/);
+  });
+
+  test('a declaring file that names NEITHER family is COVERAGE LOST, not a clean sweep', () => {
+    let root = patch(fixture(), DART_OUT, "'Manrope'", "'X1'");
+    root = patch(root, DART_OUT, "'Space Grotesk'", "'X2'");
+    const r = run(root);
+    assert.equal(r.code, 2, r.all);
+    assert.match(r.err, /names NEITHER family the contract declares/);
+  });
+
+  test('the passing run SAYS how many Dart files it swept and how much debt is recorded', () => {
+    // "No second declaration" and "I read nothing" print the same sentence
+    // unless the size of the sweep is on the line.
+    const r = run(REPO);
+    assert.equal(r.code, 0, r.all);
+    assert.match(r.out, /\d+ tracked \.dart file\(s\) swept for a hand-typed brand font family/);
+    assert.match(r.out, /\d+ recorded legacy site\(s\) across \d+ app file\(s\), a list that may only shrink/);
+  });
+});

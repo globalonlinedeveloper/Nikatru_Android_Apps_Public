@@ -71,10 +71,15 @@ void main() {
           dark.scaffoldBackgroundColor, isNot(light.scaffoldBackgroundColor));
     });
 
-    test('useMaterial3 and the Manrope text theme still apply', () {
+    test('useMaterial3 and the brand body text theme still apply', () {
       final ThemeData t = buildAppTheme(seed: const Color(0xFF0E7C6B));
       expect(t.useMaterial3, isTrue);
-      expect(t.textTheme.bodyMedium?.fontFamily, 'Manrope');
+      // The contract, not the literal — same correction as app_text_test.dart,
+      // and for the same reason: `buildAppTheme` now applies
+      // `BrandTokens.fontBody` to the app-wide text theme, so a literal here
+      // would redden the workspace on a legitimate one-line brand change and
+      // make the token contract un-editable on its own.
+      expect(t.textTheme.bodyMedium?.fontFamily, BrandTokens.fontBody);
       expect(t.extension<AppThemeX>(), isNotNull);
     });
   });

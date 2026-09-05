@@ -1,8 +1,34 @@
 # `contracts/tokens/` — one brand palette, three runtimes
 
 **The DTCG JSON in `dtcg/` is the source of truth for the NIKATRU company brand.**
-Nothing else in the tree may declare a brand value; three generated files carry
-it to the three runtimes, and a guard holds all three equal to this directory.
+Three generated files carry it to the three runtimes, and a guard holds all three
+equal to this directory.
+
+🔴 **THE NARROWER CLAIM, BECAUSE THE WIDE ONE WAS MEASURED FALSE.** This file said
+*"nothing else in the tree may declare a brand value"* until 2026-09-05, when an
+independent reviewer measured **28 places that did** — every one a hand-typed
+`fontFamily:` string — and, worse, found that **nothing forbade a 29th**. An
+unverifiable claim shipped in the contract's own README is the failure this
+corpus punishes hardest, so it is replaced by two statements a guard reads. What
+`tooling/ci/assert-palette-consistent.mjs` now enforces, on every run, over all
+369 tracked `.dart` files:
+
+- **Under `packages/`, only the generated `brand_tokens.dart` may name a brand
+  font family.** The two exceptions found in the measurement —
+  `build_app_theme.dart`'s app-wide text theme and `brand_lockup.dart`'s
+  publisher footer — now read `BrandTokens.fontBody`. A 29th anywhere under
+  `packages/` fails the build, in the file that gained it.
+- **The remaining app-level copies are enumerated per file and may only shrink** —
+  38 sites across 13 `apps/subly` files today, listed in `BRAND_FONT_DEBT` in
+  that guard. Adding one fails. Removing one without lowering the number *also*
+  fails, so the list cannot quietly stop describing the tree.
+
+For **colours** the enforced statement is different and narrower still: every
+`:root` block under `sites/` is compared with the generated `tokens.css` on every
+property they share (21 today, across 18 pages), and the three generated outputs
+are held equal to `dtcg/`. `packages/design_system/lib/src/tokens/app_colors.dart`
+is deliberately outside that — it is a **different palette**, not a copy of this
+one; see below.
 
 ```
 contracts/tokens/dtcg/*.json                        ← hand-authored DTCG JSON
@@ -41,7 +67,7 @@ and the exact extent of the change is:
 
 | Token | Reaches |
 |---|---|
-| `font.display`, `font.body` | **the Flutter apps, live.** `packages/design_system/lib/src/tokens/app_text.dart` reads `BrandTokens.fontDisplay` / `fontBody` in all six named `TextStyle`s, where `'Space Grotesk'` and `'Manrope'` were typed as literals until 2026-09-05. |
+| `font.display`, `font.body` | **the Flutter apps, live, in three places.** `app_text.dart`'s six named `TextStyle`s, `build_app_theme.dart`'s **app-wide** `textTheme` (every unnamed Material style in every stamped app), and `brand_lockup.dart`'s publisher footer all read `BrandTokens.fontDisplay` / `fontBody`. All three were string literals until 2026-09-05. `BrandTokens` is exported from `nikatru_design_system.dart`, so an app can read it too — nothing in `apps/` imports a `src/` path, so a token that is not on that barrel is a token no app can reach. |
 | every colour, `size.radius` | the two static sites (through `tokens.css` and the palette guard, which compares the 18 inline `:root` blocks against it) and the extension subtree (through `tokens.json`). They reach Dart **as constants**, and nothing paints with them yet — see below. |
 
 🔴 **A colour here is NOT an app's paint, and must not become one.** The app
@@ -66,6 +92,15 @@ two brands, not two copies.
 
 ## What is still owed
 
+- 🔴 **A brand-font change is NOT a one-line change yet, and the guard says so.**
+  `apps/subly` types the two families 38 times across 13 files — 26 in screens,
+  12 in test expectations. Edit `dtcg/font.json` alone and those 38 sites keep
+  the old face: a **half** repaint, which looks deliberate rather than broken.
+  The sweep in `assert-palette-consistent.mjs` fails on exactly those files with
+  their counts, so the work is enumerated rather than discovered on a store
+  screenshot. It is not done here because `apps/subly/**` belongs to the chassis
+  work ([ADR 067] decision 2), which moves those screens into packages; the
+  entries come out of `BRAND_FONT_DEBT` one file at a time as it lands.
 - 🟡 **`sites/nikatru/fullshot/privacy.html` still hand-codes four of these
   values in its own `:root`** — and it declares `primary` under a fourth name,
   `--accent`, which is why `assert-palette-consistent` cannot pin it the way it
