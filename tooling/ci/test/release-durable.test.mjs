@@ -136,7 +136,9 @@ const run = (root, ...flags) => {
 };
 
 // 🔴 `stdout` AND `stderr` ARE RETURNED SEPARATELY, NOT ONLY CONCATENATED.
-// build-platforms.yml:1313-1315 runs `for environment in $(… --emit-environments …)`,
+// build-platforms.yml:457-459 runs `for environment in $(… --emit-environments …)`,
+// (re-anchored 2026-09-06: that file's prose moved to docs/ci/build-platforms.md,
+//  so every line below it shifted; taken from a grep -n of the loop, not an offset)
 // so STDOUT is a word list fed straight to record-deployment.mjs and stderr is
 // not. A test asserting on `out` alone cannot tell an environment name from an
 // explanation, and the omission reason this increment adds would pass such a
@@ -583,7 +585,9 @@ describe('release-manifest.mjs — the derivations', () => {
 // and `…-subly.msix`:
 //     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subly
 //       → EXIT 0, stdout `subly-windows-direct`
-// build-platforms.yml:1313-1315 pipes that stdout into record-deployment.mjs, so
+// build-platforms.yml:457-459 pipes that stdout into record-deployment.mjs
+// (re-anchored 2026-09-06 by grep -n, after that file's prose moved to
+// docs/ci/build-platforms.md and every line below it shifted), so
 // the first tag writes a [10]D-9 record for a channel whose
 // `signing.codeSigningCertificate` still reads CODE-SIGNING-CERT-NOT-PURCHASED.
 // LATENT rather than live: `git tag` → 0 that day and the step is
@@ -1540,7 +1544,8 @@ describe('release-manifest.mjs — the expected-format set is DERIVED, not typed
   // OF IT. `expectedReleaseFormats` now takes a workflow and narrows the
   // lane-backed half to the rows that workflow emits — the "expectation narrows to
   // lanes that FEED the release" branch. What has NOT happened is the wiring:
-  // build-platforms.yml:1298 still runs plain `--verify dist`, so on the real lane
+  // build-platforms.yml:419 still runs plain `--verify dist` (re-anchored
+  // 2026-09-06 by grep -n after the prose strip), so on the real lane
   // the completeness question remains DERIVABLE and UNASKED.
   test('narrowed to the workflow that STAGES the dist, the .snap is not demanded of it', () => {
     const real = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
@@ -1705,7 +1710,8 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // name that matches no row empties the register's half, and "expected nothing,
   // found nothing" would exit 0 over a dist missing every platform. The floor is
   // the point of the flag, so it is tested before the flag's happy path.
-  // ⚠️ STILL UNWIRED: build-platforms.yml:1298 runs plain `--verify dist`.
+  // ⚠️ STILL UNWIRED: build-platforms.yml:419 runs plain `--verify dist`
+  // (re-anchored 2026-09-06 by grep -n after the prose strip).
   // ───────────────────────────────────────────────────────────────────────────
   const BUILD_PLATFORMS = ['subly-v1-app-release.apk', 'subly-v1-app-release.aab', 'subly-v1-subly.msix'];
 

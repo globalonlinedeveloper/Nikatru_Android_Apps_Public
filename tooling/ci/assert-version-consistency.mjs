@@ -46,7 +46,7 @@ const RULES = [
   { key: 'java', label: 'Java', re: /java-version:\s*'?([0-9][^\s'"#]*)'?/g },
   // 🔴 THE JAVA PIN IS WRITTEN IN EIGHT PLACES AND THE RULE ABOVE SAW THREE.
   // Mutation-proven on the REAL tree 2026-08-17: setting `java` to "21" in
-  // versions.json named build-platforms.yml:209 and submit-play.yml:180,297 —
+  // versions.json named build-platforms.yml:86 and submit-play.yml:68,160 —
   // and said nothing at all about the five literals below.
   // The workflow input only chooses which JDK is INSTALLED. These choose what is
   // actually PRODUCED: the Gradle pair fixes the class-file version of every

@@ -85,7 +85,7 @@
 // that case answerable at all, and it is unit-tested below.
 //
 // ── 📌 SECOND REFUSAL, ADDED 2026-08-27 — `gh release create` IS NOT IDEMPOTENT
-// `build-platforms.yml:1328` runs `gh release create "$RELEASE_TAG" …`. That
+// `build-platforms.yml:438` runs `gh release create "$RELEASE_TAG" …`. That
 // command has NO `--clobber` — MEASURED with gh 2.92.0: `gh release create
 // --help | grep -i clobber` exits 1, `gh release upload --help` exits 0, so
 // `--clobber` is an UPLOAD flag and `create` simply fails when a release already

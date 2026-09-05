@@ -2,37 +2,9 @@ name: "Store submit: Apple App Store"
 
 run-name: "Store submit: Apple App Store (dry run) by @${{ github.actor }}"
 
-# [pipeline D-10] limb (i) — "a submission script exists AND RESOLVES TO A STEP
-# IN A WORKFLOW, parsed not grepped". This workflow is the step it resolves to.
-# tooling/channel-register.json's ios-appstore and macos-appstore rows both name
-# this file and this job in their `submission` block, so deleting either is a
-# register that points at nothing rather than an unnoticed loss.
-#
-# 🔴 DISPATCH-ONLY, AND THAT IS THE CORRECT SHAPE WHILE `served: false`.
-# Both rows are owner-deferred behind OWNER_QUEUE A-4 (Apple Developer Program,
-# $99/yr, plus an Apple device). There is no account to submit TO.
-#
-# ⚠️ IT BUILDS WHAT CAN BE BUILT WITHOUT A CERTIFICATE, AND SAYS SO.
-# This is the one place this workflow deliberately differs from
-# submit-windows-store.yml. Microsoft re-signs the MSIX, so that job packages a
-# real, submittable artifact. Apple does not: a `.ipa` and a Mac App Store `.pkg`
-# require a distribution certificate and a provisioning profile that OWNER_QUEUE
-# A-4 gates. So the job builds UNSIGNED — `flutter build ios --no-codesign` and
-# `flutter build macos` — which proves the Apple toolchain path still compiles
-# this app, and then runs the dry run with `--allow-missing-artifact`, which
-# makes the script SAY it validated the listing and the bundle identifier and
-# NOT the package. A job that claimed to validate an artifact it cannot produce
-# would be the more dangerous shape.
-#
-# The script's `--submit` mode refuses with UNVERIFIED rather than guessing at
-# App Store Connect's endpoints.
-#
-# 🔴 SOURCED FLOOR, AND THE RUNNER LABEL DOES NOT PIN IT: uploads to App Store
-# Connect "must be built with Xcode 26 or later" (developer.apple.com/news/upcoming-requirements/,
-# in force 28 April 2026). `macos-26` names an image family; on run 32947213393
-# it carried Xcode 26.6 / macOS 26.5.2 / arm64. tooling/versions.json declares
-# `xcode: "26"`, so submit-appstore.mjs prints no floor warning here —
-# build-platforms.yml's assert-xcode-floor.mjs is what compares runner to key.
+# The measurements, retractions and traps behind this file are in
+# docs/ci/submit-appstore.md. Only `# why:` lines live here, and
+# docs/ci/README.md carries the rules every workflow has to obey.
 
 on:
   workflow_dispatch:
@@ -41,20 +13,13 @@ permissions:
   contents: read
   checks: read
 
-
 jobs:
-  # Same shape and same reason as build-platforms.yml's gate job: this workflow
-  # runs `flutter build --release`, and a release build from an ungated commit is
-  # [pipeline R-6]'s whole subject. assert-release-provenance.mjs walks the
-  # `needs` graph, so gating once here covers the job below.
   gate:
     name: Require ci-gate to have passed
     runs-on: ubuntu-24.04
-    # 25, not 10, and the number comes from the script rather than from the clock:
-    # assert-gate-passed.mjs POLLS for up to its own 1200 s default (this call
-    # leaves `--timeout-seconds` unset), so any bound at or under 20 kills it
-    # mid-poll and replaces "timed out waiting for ci-gate" with an opaque
-    # cancellation. Kept byte-identical in all five `gate:` jobs. [pipeline F-5b]
+    # why: 25, not 10. assert-gate-passed.mjs polls for up to its own 1200 s default,
+    # so any bound at or under 20 kills it mid-poll and replaces "timed out waiting
+    # for ci-gate" with an opaque cancellation. Byte-identical in all five gate jobs.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -69,9 +34,6 @@ jobs:
   dry-run:
     name: Validate the submission path
     runs-on: macos-26
-    # 30, and the number is headroom over a measurement rather than a neighbour:
-    # run 32947213393 (2026-08-26) completed this job in 12m04s with all 12
-    # steps green — iOS build 5m07s, macOS build 4m47s, no other step over 90s.
     timeout-minutes: 30
     needs: gate
     steps:
@@ -81,26 +43,11 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
-      # When an Apple build breaks the first question is "what toolchain was
-      # this?" — unrecoverable after the fact without this.
       - name: Toolchain under test
         run: |
           sw_vers
           xcodebuild -version
           uname -m
-      # UNSIGNED on purpose — see the header. This proves the app still compiles
-      # for both Apple platforms; it does not produce a submittable artifact and
-      # nothing here pretends it does.
-      # 🔴 UNSIGNED IS NOT THE SAME AS UNCONFIGURED, and until 2026-08-04 both
-      # steps were both. `AppConfig.isBackendLive` compares each define below
-      # against a PLACEHOLDER constant, so a build passing none of them resolves
-      # `MockAuthRepository` and `SeedApiClient` — the artifact this submission
-      # path validated was the DEMO build, with mock sign-in and seeded data, and
-      # no crash sink either. That was found on the Google Play lane and is the
-      # same defect on every store lane; deploy-web.yml had been passing all three
-      # from secrets that already existed. Graded by
-      # tooling/ci/assert-store-build-config.mjs, which derives the required set
-      # from `isBackendLive` and the lanes from each store row's own declaration.
       - name: Build iOS (unsigned — no distribution certificate exists)
         working-directory: apps/subly
         run: >
@@ -117,23 +64,16 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # The credentials do not exist yet — OWNER_QUEUE A-4 creates the Apple
-      # Developer account that issues the App Store Connect API key — and the
-      # script reports their ABSENCE as a printed gap rather than a failure.
-      # `secrets` are empty strings when unset, which is what the script's
-      # presence check reads. The .p8 key is never read by the script, only
-      # tested for presence.
       - name: Dry-run the App Store submission (iOS)
         env:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
           APP_STORE_CONNECT_APP_ID: ${{ secrets.APP_STORE_CONNECT_IOS_APP_ID }}
+        # why: --allow-missing-artifact here and NOT on the Windows lane. No distribution
+        # certificate exists, so there is no signed .ipa to validate; the Windows dry run
+        # builds and packages a real .msix first and must not be given this flag.
         run: node tooling/release/submit-appstore.mjs --dry-run --channel ios-appstore --app subly --allow-missing-artifact
-      # A SEPARATE step and a SEPARATE secret for the app id, because these are
-      # two App Store Connect records with independent review outcomes. Running
-      # them as one step would make one failure look like two channels broken,
-      # and one pass look like two channels validated.
       - name: Dry-run the App Store submission (macOS)
         env:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

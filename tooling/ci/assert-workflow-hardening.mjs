@@ -49,9 +49,13 @@
 //      and, just as important, for what it does not catch.
 //   6. every GitHub Actions expression outside a `run:` body opens with TWO
 //      braces. Added 2026-08-26, and unlike the five above it is not a
-//      hypothetical: `.github/workflows/submit-snap.yml:352` read
-//      `flutter-version: ${ env.FLUTTER_VERSION }` — ONE brace — while line 142
-//      of the same file, the dry-run lane's identical step, read `${{ … }}`.
+//      hypothetical: `.github/workflows/submit-snap.yml` read
+//      `flutter-version: ${ env.FLUTTER_VERSION }` — ONE brace — at :352, while
+//      :142, the dry-run lane's identical step, read `${{ … }}`. THOSE TWO LINE
+//      NUMBERS ARE THE FILE AS IT STOOD ON 2026-08-26 and are left as measured:
+//      that workflow now installs Flutter through .github/actions/setup-flutter
+//      and carries no `flutter-version:` key at all, so there is no live line to
+//      re-measure them onto. The account of the defect is what is load-bearing.
 //      GitHub does not interpolate a single brace, so the Snap Store PUBLISH
 //      job asked `subosito/flutter-action` to install a Flutter whose version
 //      is the 24-character literal `${ env.FLUTTER_VERSION }`. Nothing in
@@ -458,9 +462,15 @@ const refuse = (lines) => {
 // the two numbers are the same measurement read before and after the fold.)
 //
 // SO THE `run:` BODIES ARE SEPARATED BY THE SHARED READER, NEVER BY A RIVAL
-// PARSER. `parseWorkflow` blanks comments (a `${SNAP}` written in prose at
-// submit-snap.yml:259 and :456 explains a trap and must not be a finding) while
-// PRESERVING line numbers, and `joinBlockScalars` folds `run: |` / `run: >`
+// PARSER. `parseWorkflow` blanks comments (a single-brace `${…}` written in
+// PROSE explains a trap and must not be a finding). The two examples this line
+// used to name — `${SNAP}` at submit-snap.yml:259 and :456 — moved to
+// docs/ci/submit-snap.md on 2026-09-06 with the rest of that file's prose. THE
+// LIMB IS NOT VACUOUS: re-measured the same day, `grep -nE '^\s*#.*\$\{[^{]'`
+// over .github/workflows still returns ci.yml:415 and trufflehog.yml:97, so a
+// parser that stopped blanking comments would still redden two real files.
+// `parseWorkflow` blanks them WHILE PRESERVING line numbers, and
+// `joinBlockScalars` folds `run: |` / `run: >`
 // bodies up into the `run:` line they belong to — so after that fold a body line
 // is not a line any more, and every line that IS one can be judged by its own
 // key. Both come from workflow-scan.mjs for the reason that file's header gives:

@@ -119,7 +119,10 @@ const LEG = /^e2e[^A-Za-z0-9]/;
    beginning with a non-alphanumeric is discovered by the walk below (it skips
    only dot-names and LEG_SKIP), so that shape is reachable. LEG_WS is tried
    first and resolves it by taking the separator as WHITESPACE-DELIMITED, which
-   is what e2e.yml:84 actually emits; the greedy form stays as a fallback so an
+   is what extensions.yml:896 actually emits (it was line 84 of the pre-merge
+   extensions repository's own e2e workflow, a file that does not exist in this
+   tree; re-measured against extensions.yml 2026-09-06);
+   the greedy form stays as a fallback so an
    unspaced separator still parses. */
 const LEG_WS = /^e2e\s+(?:[^\sA-Za-z0-9]+\s+)?([A-Za-z0-9_].*?)\s*$/;
 const LEG_DIR = /^e2e[^A-Za-z0-9]+([A-Za-z0-9].*)$/;

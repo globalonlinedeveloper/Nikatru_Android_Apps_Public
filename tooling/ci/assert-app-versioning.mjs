@@ -209,7 +209,7 @@ if (emitApp) {
 // ── --tag: the tag must name the version the app declares ────────────────────
 //
 // THE HOLE. `RELEASE_TAG` comes straight from `github.ref_name`
-// (build-platforms.yml:1266-1272, `TAG="$REF_NAME"`) with nothing validating it,
+// (build-platforms.yml:380-384, `TAG="$REF_NAME"` at :381) with nothing validating it,
 // then renames every staged installer and titles the Release. Tag `subly-v9.9.9`
 // today and the lane publishes `subly-v9.9.9-app-release.aab` whose build name
 // is whatever pubspec says. The tag is the one claim a downloader reads BEFORE
@@ -227,7 +227,7 @@ if (emitApp) {
 //
 // 🔴 THE SKIP IS THE DANGEROUS HALF, SO IT IS THE NARROW HALF. No tag has ever
 // been pushed here (`git tag` → 0, measured 2026-08-27). The value a non-tag run
-// synthesises is `${APP}-untagged-<sha7>` (build-platforms.yml:1270); that
+// synthesises is `${APP}-untagged-<sha7>` (build-platforms.yml:383); that
 // exact shape is a no-op, so anything that is not the untagged shape must
 // resolve to an `X.Y.Z` or FAIL.
 const UNTAGGED_REF = /^[A-Za-z0-9._-]+-untagged-[0-9a-f]{7,40}$/;

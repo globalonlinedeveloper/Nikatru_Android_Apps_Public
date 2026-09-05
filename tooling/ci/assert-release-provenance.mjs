@@ -68,10 +68,10 @@
 //
 // IT WAS LATENT, NOT LIVE. Measured on this tree 2026-08-21, before writing it:
 // exactly 2 jobs invoke `--submit` — submit-play.yml "submit" and
-// submit-snap.yml "submit". Both commands are FOLDED (`run: >` at :406 and :510,
+// submit-snap.yml "submit". Both commands are FOLDED (`run: >` at submit-play.yml:197 and submit-snap.yml:241,
 // the `node …` text on the next line), which is why the REPORTED line is the
 // `run:` key's and not the command's; both jobs declare
-// `environment: store-publish` (submit-play.yml:335 and submit-snap.yml:344); and
+// `environment: store-publish` (submit-play.yml:122 and submit-snap.yml:141); and
 // both scripts carry the run-time read. The limb was green
 // on its first run and fixed nothing. It is a regression guard, and the honest
 // claim for it is that a THIRD submit lane is covered the day it appears, without
@@ -81,7 +81,7 @@
 // of this line said submit-appstore.yml and submit-windows-store.yml "are one job
 // away from being one" and that understates it. Each of those two workflows does
 // declare a `gate` job and a `dry-run` job, and each dry-run job does call its own
-// script (submit-appstore.yml:142,:153 and submit-windows-store.yml:108). But
+// script (submit-appstore.yml:76,:83 and submit-windows-store.yml:71). But
 // BOTH scripts PARSE `--submit` only to refuse it: submit-appstore.mjs:161 and
 // submit-windows-store.mjs:136 each print "FAIL --submit is NOT IMPLEMENTED, and
 // refusing is the implementation." So each lane is a submitting JOB *and* a real
@@ -161,8 +161,8 @@
 // verbatim, was:
 //     "and declares NO `environment:` at all; its
 //      only gate is a step-level `if: github.ref_type == 'tag'`."
-// Opened and read this session: build-platforms.yml:1174-1179 is the `needs:`
-// block, :1175 is `- gate`, and the job's only job-level keys are `name`,
+// Opened and read this session: build-platforms.yml:351-356 is the `needs:`
+// block, :352 is `- gate`, and the job's only job-level keys are `name`,
 // `runs-on`, `timeout-minutes`, `needs`, `permissions`, `strategy`, `steps` —
 // no `environment:` among them. The missing approval PAUSE is real and is the
 // gap; "its only gate" was not.
@@ -334,7 +334,7 @@ const NEUTRALIZING_IF = /\balways\s*\(|\bfailure\s*\(/;
 // enforcement — "a GitHub environment with a required reviewer".
 //
 // 🔴 `environment:` ON ITS OWN FAILS OPEN, and that is not a worry, it is
-// documented GitHub behaviour quoted verbatim at submit-play.yml:32-40:
+// documented GitHub behaviour quoted verbatim at docs/ci/submit-play.md:41-44:
 // "Running a workflow that references an environment that does not exist will
 // create an environment with the referenced name" — with no protection rules,
 // and the run history then shows a deployment that reads exactly like an
@@ -445,8 +445,8 @@ const SUBMIT_SCRIPT = /\bnode\b[\s\S]*?(\S+\.mjs)\b/;
  *  it must BUILD the environments API URL and READ the protection rules. Both,
  *  because a script that fetches the environment and never looks at its rules
  *  has confirmed only that the environment exists — which is the state
- *  submit-play.yml:42-45 records measuring on this very repo, where all three
- *  auto-created environments returned `"protection_rules": []`.
+ *  docs/ci/submit-play.md:51-55 records measuring on this very repo, where all
+ *  three auto-created environments returned `"protection_rules": []`.
  *
  *  🔴 THE TWO SLASHES ARE TWO CONDITIONS AND ARE NOW HELD SEPARATELY. Dropping
  *  either one ALONE left every case green while dropping the pair did not —
@@ -935,7 +935,7 @@ for (const wf of workflows) {
           problems.push(
             `${wf.rel}: job "${job.name}" invokes \`${call.script} --submit\` at :${call.n}, and that script never reads the deployment environment's protection rules ` +
               '(no `/environments/` API path AND `protection_rules` survives comment stripping in it). ' +
-              '`environment:` on its own FAILS OPEN — GitHub\'s own documentation, quoted at .github/workflows/submit-play.yml:32-40, says a workflow referencing an environment that does not exist CREATES it, unprotected, and runs. ' +
+              '`environment:` on its own FAILS OPEN — GitHub\'s own documentation, quoted at docs/ci/submit-play.md:41-44, says a workflow referencing an environment that does not exist CREATES it, unprotected, and runs. ' +
               'The run history then shows a deployment that reads exactly like an approval. So the YAML line is the pause and this read is the proof the pause was real; a lane with only the first has a gate that a typo silently removes.',
           );
         }

@@ -107,7 +107,7 @@
 // lane-backed half to the rows that workflow emits (`.aab`, `.msix`): the
 // narrowing the register's own `linux-snap` note asked somebody to choose.
 //
-// ⚠️ IT IS STILL UNWIRED AFTER THIS CHANGE. build-platforms.yml:1298 runs plain
+// ⚠️ IT IS STILL UNWIRED AFTER THIS CHANGE. build-platforms.yml:419 runs plain
 // `--verify dist`; that file belongs to another change, and until the flag is
 // added there the completeness question is DERIVABLE and NOT ASKED on the real
 // lane. Nothing here closes [pipeline G3].
@@ -188,7 +188,7 @@ export const EXTRA_INSTALLABLE = new Map([
  * EXITS 1 when no direct row matches at all rather than recording nothing, naming
  * the gap on stderr.
  * 🔴 THAT EXIT 1 DOES NOT REDDEN THE RELEASE LANE, AND THIS COMMENT SAID IT DID
- * UNTIL 2026-08-24. build-platforms.yml:1314 spends this command inside
+ * UNTIL 2026-08-24. build-platforms.yml:458 spends this command inside
  * `for environment in $(node … --emit-environments …)`. Measured 2026-08-24 with
  * the step's own `set -euo pipefail`: a substitution that exits 1 in a `for` word
  * list does NOT trip `set -e` — the loop iterates over nothing and the step
@@ -303,7 +303,7 @@ export function missingReleaseFormats(expected, assetNames) {
  * command:
  *     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subly
  *       → EXIT 0, stdout `subly-windows-direct`
- * `build-platforms.yml:1313-1315` feeds that stdout, unfiltered, into
+ * `build-platforms.yml:457-459` feeds that stdout, unfiltered, into
  * `record-deployment.mjs` — so the first tag writes a [10]D-9 deployment record
  * for `windows-direct` while that row's `signing.codeSigningCertificate` still
  * reads its own `notYetConfiguredSentinel`, "CODE-SIGNING-CERT-NOT-PURCHASED".
@@ -321,7 +321,7 @@ export function missingReleaseFormats(expected, assetNames) {
  * `git grep WINDOWS_SIGNING_POSTURE` over every tracked file returns FOUR hits
  * OUTSIDE THIS COMMENT — the command also matches the two lines you are reading,
  * so re-running it prints six. Measured 2026-08-21:
- * `.github/workflows/build-platforms.yml:794` (a comment
+ * `docs/ci/build-platforms.md:743` (a comment
  * recording that nothing consumes it) and three inside `windows-signing.mjs`
  * (`:12`, `:116`, and `:134`, its declaration). Zero readers outside the script
  * that publishes it — and it is set on the `windows` JOB, while this runs in
@@ -810,7 +810,7 @@ function main() {
   // 🔴 HOISTED ABOVE THE MODE DISPATCH — inside `--verify` it caught only the typo that
   // KEPT `--verify`. MEASURED 2026-08-27: `--write dist … --expect-formats --for-workflow
   // build-platforms.yml` exited 0 printing ok, two steps from the `--verify` that exits 1
-  // (build-platforms.yml:1295 and :1298); `--emit-assets` the same. `mode` is first-match.
+  // (build-platforms.yml:413 and :419); `--emit-assets` the same. `mode` is first-match.
   const mode = ['stage', 'write', 'verify', 'emit-assets', 'emit-environments'].find((m) => has(m)) ?? null;
   if (flag('for-workflow') !== null && !has('expect-formats')) {
     die(
@@ -1068,7 +1068,7 @@ function main() {
     // THE LANE, and it is corrected rather than deleted because the DECISION it
     // justified stands. It said "exiting 1 here would fail the release job AFTER
     // `gh release create` has already published". Measured 2026-08-24: it would
-    // not. build-platforms.yml:1314 spends this command as
+    // not. build-platforms.yml:458 spends this command as
     // `for environment in $(…)` under `set -euo pipefail`, and a substitution
     // exiting 1 in a `for` word list does not trip `set -e` — the step exits 0
     // either way. So neither exit code reddens that lane today; what differs is
