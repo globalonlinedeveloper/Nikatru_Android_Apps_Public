@@ -197,6 +197,26 @@
     ],
     "glitchtip-box-cron": "hostinger",
     "glitchtip-heartbeat": "hostinger",
+    "_selfhostBackupCronWhy": [
+      "⚠️ A SECOND CRON SUBSTRATE ON THE SAME HOST, ADDED 2026-09-05, AND IT IS NOT A DUPLICATE OF",
+      "`glitchtip-box-cron`. Both resolve to `hostinger` today and they are still two different roles:",
+      "`glitchtip-box-cron` is the crontab of the box that RUNS GLITCHTIP (the 02:00 dump, the 02:30 Drive",
+      "sync, the :41 liveness check, the :17 disk alert, and the 02:45 Cloudflare pull, all of them",
+      "`/opt/glitchtip/*` scripts); `selfhost-backup-cron` is the crontab of the box that HOLDS THE RESTIC",
+      "REPOSITORIES (`/opt/backup/restic-run.sh` at 04:00 and `/opt/backup/restic-liveness.sh` hourly).",
+      "",
+      "🔴 THE REASON IS THE ONE THIS MAP EXISTS FOR — a substrate names a ROLE, never a box. Folding restic",
+      "into `glitchtip-box-cron` would work exactly until GlitchTip moved and somebody edited that one",
+      "right-hand side: the restic rows would silently follow GlitchTip to a machine that does not hold their",
+      "repositories, and [14]O-4 would go on answering confidently about the wrong box. That is the failure",
+      "`_portabilityWhy` above records costing 46 hours of frozen deployments, in the direction where it is",
+      "hardest to notice, because both spellings would still resolve to a real host.",
+      "",
+      "The cost of the split is one extra line here on the day the backups move, and the map's own rule that",
+      "an entry no row reaches is DELETED keeps it from becoming clutter: this key is reached by",
+      "`duty.restic-snapshot` and by nothing else."
+    ],
+    "selfhost-backup-cron": "hostinger",
     "windows-task-scheduler": "laptop"
   },
   "_kinds": [
@@ -464,6 +484,8 @@
       "duty.oci.gt-drive-sync",
       "duty.oci.backup-liveness",
       "duty.oci.disk-alert",
+      "duty.cloudflare-backup-pull",
+      "duty.restic-snapshot",
       "duty.renovate",
       "expiring.domain.nikatru.com",
       "expiring.domain.rajasekarselvam.com",
@@ -1455,6 +1477,83 @@
       "verifiedHow": "2026-08-05 — proven end to end rather than installed: a threshold breach was forced, the event landed as OPS-1, and the mail was delivered to support@nikatru.com 42s later. That is a DIFFERENT code path from the uptime alerts proven the same day, which is exactly why it was tested rather than assumed. OPS-1 was synthetic and has been resolved."
     },
     {
+      "id": "duty.cloudflare-backup-pull",
+      "kind": "duty",
+      "what": "/opt/glitchtip/cf_backup_pull.sh, root cron 02:45 daily on the self-hosted services box (timezone Etc/UTC, so 02:45 is both UTC and box-local). It reads manifests/latest.json from the nikatru-backups R2 bucket, REFUSES anything that is not today's `complete` manifest, downloads every object, verifies every SHA-256 against the manifest, copies the set to oracleenc:cloudflare/<date>/ on the encrypted business Drive, prunes at 35 days, and only then POSTs its heartbeat. It is the leg that makes the nightly D1/KV export a copy OUTSIDE Cloudflare; the export itself is written by duty.platform-cron, which is a Cloudflare job writing into Cloudflare storage.",
+      "detector": "GlitchTip heartbeat monitor 22 'Cloudflare D1/KV backup pull', project `ops`, interval 86400s. The POST happens only after every digest has matched, so the beat asserts the OUTCOME — an off-vendor copy exists and is intact — rather than that the script reached its last line. A digest mismatch, a stale or partial manifest, an unconfigured `r2backups:` remote (exit 78) and a dead cron all produce the same POST-shaped silence, which is the point.",
+      "response": "Read the run's log on the box and re-run the script by hand; its exit codes name the leg. ⚠️ The heartbeat is a POST and only a POST — GlitchTip answers a heartbeat GET with 405, which is the defect found at cf_backup_pull.sh:131 on 2026-09-05 and fixed the same day (the old line is backed up beside it as .bak-20260905). Anyone re-deriving this endpoint with curl's default GET will read 405 as 'the monitor is broken' and it is not.",
+      "cadence": "1d",
+      "mechanism": {
+        "substrate": "glitchtip-box-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 22's check history, plus the dated object sets under oracleenc:cloudflare/ on the encrypted business Drive",
+        "failingValue": "no successful heartbeat inside the window — which is what a digest mismatch, a manifest that is not today's and complete, a missing rclone remote, and a cron that never fired all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 22,
+          "monitorName": "Cloudflare D1/KV backup pull — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; a rename must not redden a limb about the backup.",
+          "why": "🔴 THE RECORD IS OFF-BOX BY CONSTRUCTION, WHICH IS WHY THIS ROW IS READABLE AND THE FOUR `duty.oci.*` ROWS BESIDE IT ARE NOT. Their record is a file's mtime on a host nothing in CI can stat; this duty's record is a heartbeat check-history row in GlitchTip, and GLITCHTIP_TOKEN has been a repository secret since 2026-08-11 (tooling/channel-register.json). So the same reader that made duty.laptop.nikatru-daily-backup readable from a Linux runner reads this one, and `unreachable` was never the honest answer here. ⚠️ A NETWORK FAILURE HERE MUST NOT BLOCK A MERGE, and it does not: the probe catches the throw into `unreadable`, which prints and only fails once `_maxUnreadable` is exceeded."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 22, project `ops`, on the same box the cron runs on. The script POSTs on success; the monitor alarms on the POST NOT ARRIVING, and the project's alert rule (id 2, uptime) carries an email recipient AND, since 2026-09-05, the ntfy webhook recipient id 3 — so a Down transition reaches a phone as well as a mailbox. Both routes are recorded in tooling/ops/alarm-chains.json.",
+        "signal": "No heartbeat inside the monitor's interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "🔴 THE MARGIN IS 1.0x, NOT THE 1.5x THIS REGISTER'S OWN RULE ASKS FOR, AND IT CANNOT BE FIXED BY EDITING THE INTERVAL. Monitor 22's interval is 86400s against a 1d cadence. 1.5x would be 129600s and GlitchTip REFUSES it: the API answers `interval` above 86400 with HTTP 422 `Input should be less than or equal to 86400`, measured 2026-09-05 while creating monitor 23. So a run that finishes later than the previous day's marks the monitor Down for the minutes in between, and this row says so rather than letting a future reader discover it from a 03:00 alert. The repair is the shape duty.restic-snapshot already uses and this duty does not yet have: a second, hourly poster that beats while the newest good pull is younger than a stated threshold, with the monitor interval as a POLLING window instead of the cadence. That is on-box work, so it is carried in `absenceWatcher.gap` rather than pretended away here.",
+        "ownerGated": true,
+        "gap": "🔴 THE WATCHER IS ON THE MACHINE IT WATCHES — the same [pipeline E-9b] single point of failure the four `glitchtip-box-cron` rows above carry, and the ntfy hop does not close it: ntfy runs on that box too, so a box death silences the cron, the monitor, the alert evaluation, the mail hop AND the push in one instant, and the result is indistinguishable from a healthy night. ⚠️ AND THE SECOND HALF OF THE GAP IS THE MARGIN ABOVE: no hourly freshness poster exists for this duty, so the 1.0x interval is the whole of the watching. Both are on-box work this repository cannot do. 🔴 A THIRD THING IS MISSING AND THIS ROW REFUSES TO CARRY A `downTransitionDrill` FIELD BECAUSE OF IT: monitor 22's Down transition has NEVER been forced, so its delivery has never been observed. The field is deliberately absent rather than filled with the positive-arm evidence, because the guard PRINTS `down-transition observed <date>` for any row that carries one, and a line asserting an observation nobody made would be this register answering confidently about a chain it has not seen work — the defect monitor 6 embodied for nine days. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest thing to evidence this row has and is not the same claim. 📝 And one reading correction, recorded so it is not re-derived from the check history: the FIRST check on monitor 22, at 10:42:19 UTC on 2026-09-05, recorded a miss because the monitor was created before the first successful run — TRAPS ci-26's shape exactly — and the beat at 13:07:30 UTC cleared it. That miss is the bootstrap, not a flap."
+      },
+      "accessProviders": [
+        "hostinger",
+        "cloudflare",
+        "google"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule and the script are on a host this repository cannot reach; only the owner or an SSH session can change them. Two named pieces of on-box work are open and are enumerated here so they are countable rather than remembered: (1) an hourly freshness poster, so the 1.0x monitor margin stops being the whole of the watching — see `absenceWatcher.margin`; (2) nothing at all watches the ABSENCE of the watcher, [pipeline E-9b], which needs a signal hosted on a second provider.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured, not installed. The first run with the R2 S3 credential in place pulled 5 objects, verified every SHA-256 against the manifest, copied them to oracleenc:cloudflare/2026-09-05/, and the heartbeat arrived: monitor 22's check at 13:07:30 UTC is `isUp: true`. The SEND path has a measured negative arm too — the same script's heartbeat GET returned HTTP 405 from GlitchTip, which is the defect at cf_backup_pull.sh:131 and the reason the line is now a POST, with the pre-fix line kept beside it as .bak-20260905. ⚠️ TWO THINGS ARE NOT PROVEN AND ARE NOT COUNTED AS IF THEY WERE: a restore FROM the Drive copy (recovery.worker-d1-export owns the restore path and its drill covers the R2 side only), and the monitor's Down transition — see `absenceWatcher.gap`."
+    },
+    {
+      "id": "duty.restic-snapshot",
+      "kind": "duty",
+      "what": "/opt/backup/restic-run.sh, root cron 04:00 daily on the self-hosted services box (timezone Etc/UTC). It runs /opt/backup/sqlite-snapshot.py FIRST, then backs up the seven paths listed in /opt/backup/restic-sets.txt to BOTH restic repositories — the local /srv/restic and the off-box rclone:oracleenc:restic-boxb on the encrypted business Drive — tagged `boxb,daily`. On Sundays it also runs forget --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --prune on both, a structure `check` on the local and `check --read-data-subset=10%` on the remote. A second script, /opt/backup/restic-liveness.sh, runs hourly at :07 and posts the same heartbeat only while the newest local snapshot is younger than 26 hours.",
+      "detector": "GlitchTip heartbeat monitor 23 'Box B restic', project `ops`, interval 10800s. 🔴 THAT INTERVAL IS A POLLING WINDOW, NOT THE BACKUP CADENCE, and reading it as one is the single likeliest misreading of this row: the backup is DAILY. The grace lives in restic-liveness.sh's 26-hour freshness threshold (24h cadence + 2h grace), because GlitchTip has no grace field and refuses any interval above 86400s — measured 2026-09-05, HTTP 422 `Input should be less than or equal to 86400`. Net effect: a run that fails or never fires stops the beats ~26h after the last good snapshot, and the monitor goes Down within 3h of that.",
+      "response": "Read /opt/backup/restic-run.log on the box; the script's exit codes name the leg — 10 a listed path is missing, 15 a SQLite consistent copy failed, 20 backup failed, 30 forget/prune failed, 40 check failed, 50 heartbeat failed, 75 another run holds the flock. 🔴 A MISSING PATH IS A FAILURE, NOT A SKIP, and no heartbeat is sent on any of those limbs — a backup that silently stops covering something is the failure this chain exists to prevent.",
+      "cadence": "1d",
+      "mechanism": {
+        "substrate": "selfhost-backup-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 23's check history, plus the snapshot lists of the two restic repositories",
+        "failingValue": "no successful heartbeat inside the window — which is what a failed backup, a failed weekly check, a missing source path and a dead cron all look like, because the POST is the last thing the run does and only when every leg was green",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 23,
+          "monitorName": "Box B restic — carried for a HUMAN READER ONLY, never asserted. ⛔ IT ALSO BREAKS THIS FILE'S OWN RULE: `_substrateHosts._portabilityWhy` says never put a box name in a monitor name, and this monitor was created with one on 2026-09-05. It is recorded rather than renamed because the id is the identity — tooling/ops/alarm-chains.json keys by id since the 2026-09-03 freeze — and a rename is a live change with no benefit to this register. The wart is named so the next person to create a monitor does not copy it.",
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner exactly as monitors 6 and 22 are. ⚠️ WHAT THE BEAT ASSERTS IS NARROWER THAN 'THE BACKUP IS FINE', and the difference matters: TWO scripts post to this endpoint. restic-run.sh beats once a day after every leg has passed; restic-liveness.sh beats hourly while the newest LOCAL snapshot is under 26h old. So a fresh beat proves a good snapshot existed recently, and it does NOT prove the most recent nightly run touched the REMOTE repository — the local repository is on the same disk as the data. The remote leg is proven by the weekly `check --read-data-subset=10%` and by the restore drill in `verifiedHow`, not by this query."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 23, project `ops`, on the same box the cron runs on. Created AFTER the first proven snapshot and never before — TRAPS ci-26: an occurrence-anchored monitor with zero rows reads RED with no grace at all. The `ops` alert rule (id 2, uptime) carries an email recipient and, since 2026-09-05, the ntfy webhook recipient id 3, both recorded in tooling/ops/alarm-chains.json.",
+        "signal": "No heartbeat inside the 3h polling window -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic. A failed run, a missing source path, a torn SQLite copy and a box that is off all produce the same silence.",
+        "margin": "3h polling window against a 26h freshness threshold that itself is 24h + 2h. ⚠️ THIS IS NOT THE 1.5x RATIO check-heartbeats.mjs USES AND IT IS NOT MEANT TO BE — the ratio rule compares an interval with a cadence, and here the interval is a poll of a separate freshness assertion. The 1.5x claim lives in the 26h threshold: 24h cadence + 2h grace. Stated so nobody re-derives '10800s against 1d = 0.125x' and calls it a defect.",
+        "ownerGated": true,
+        "gap": "🔴 THE WATCHER IS ON THE MACHINE IT WATCHES, and for a BACKUP that is the sharpest instance of [pipeline E-9b] in this register: the thing being protected, the thing doing the protecting, the local repository, the checker, the monitor, the alert evaluation and both notification hops are one box. The off-box restic repository survives that box; nothing that WATCHES it does. Closing it needs an absence signal hosted on a second provider — the same move duty.workflow.ops-watch.yml needs. ⚠️ AND A SECOND GAP THAT IS NOT ABOUT WATCHING AT ALL: the restic password exists in exactly two places, /root/.restic-password on that box and one line in a gitignored plaintext vault file on one laptop, and both are things this backup exists to survive the loss of. restic has no escrow and no recovery mode. Paper escrow is an owner-hand item — research 17 §3 item 3, [ADR 067] decision 6. 🔴 AND THIS ROW CARRIES NO `downTransitionDrill` FIELD ON PURPOSE, because monitor 23's Down transition has never been forced and the guard PRINTS `down-transition observed <date>` for any row that carries one. What HAS been forced is the failure limb of the thing that feeds the beat, which is a different and weaker claim: a copy of the run script pointed at a sets file naming one non-existent path exited 10, logged `MISSING /opt/this-path-does-not-exist`, and sent NO heartbeat — captured as `CONTROL_EXIT (expect 10)` then `10` on its own line, with `2026-09-05T14:41:21Z FAIL nothing to back up` in its log; the control copy and its log were deleted afterwards. So the SILENCE this monitor alarms on is produced by the real failure path; what nobody has watched is GlitchTip turning that silence into a delivered message. Monitor 6's transition was forced, in this same project and through this same alert rule (id 2), and that is the nearest evidence there is."
+      },
+      "accessProviders": [
+        "hostinger",
+        "google"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, both scripts and both repositories are on a host this repository cannot reach. Three named items are open and are enumerated here so they are countable rather than remembered: (1) PAPER ESCROW of the restic password — see `absenceWatcher.gap`; (2) no third copy — research 17 §1.2 specifies R2 primary plus a Backblaze B2 write-only key and neither exists, though the R2 credential and the `r2backups:` rclone remote both do, which makes it one `restic init` plus one leg; (3) the remote repository has never been restored from DIFFERENT HARDWARE, so today's drill proves the repository and the password, not the recovery of the box.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — drilled, not installed, and with a control. Two files were restored from BOTH repositories and diffed against the live ones: /opt/ntfy/lib/user.db (118,784 bytes, sha256 345333a3f9ec…) and /opt/glitchtip/backups/gt-2026-09-05.dump (3,778,666 bytes, sha256 0047f026f744…), every diff exit 0 — and a NEGATIVE control (one byte appended to a copy) made the same diff exit 1, so the green diffs are evidence rather than a command that cannot fail. The four SQLite databases were restored from the REMOTE repository and each passed `PRAGMA integrity_check` and a real query. `check --read-data-subset=10%` on the remote returned `no errors were found`. Monitor 23's first five checks are all `isUp: true` — 14:35:34, 14:36:17, 14:40:59, 14:47:07 and 14:52:20 on 2026-09-05, three posted by restic-run.sh and two by restic-liveness.sh, so BOTH posters are proven and not just the nightly one. ⚠️ Retention has never actually DELETED a snapshot — `--prune` exiting 0 is proven, pruning a snapshot out is not, and will not be for 14 days."
+    },
+    {
       "id": "revert.worker.platform",
       "kind": "revert",
       "what": "Re-deploy the previous green SHA of the platform Worker.",
@@ -1815,7 +1914,7 @@
         "cloudflare"
       ],
       "ownerGated": true,
-      "ownerGap": "👤 ONE STEP REMAINS AND IT IS NOT THE EXPORT. The R2 side runs and is drilled; the OFF-VENDOR side does not, because Box B has no R2 credential. Minting one needs a token-creating token and the account token in the local vault is scoped without that permission (measured 2026-09-05: POST /accounts/:id/tokens -> HTTP 403). Create an R2 API token (Object Read-only, scoped to `nikatru-backups`) in the Cloudflare dashboard and add the `r2backups` rclone remote on Box B - the header of /opt/glitchtip/cf_backup_pull.sh carries the exact command. Until then that script exits 78 and its GlitchTip heartbeat (monitor 22) stays silent, which is the correct reading: the copy outside Cloudflare is NOT happening.",
+      "ownerGap": "👤 ONE STEP REMAINS AND IT IS NOT THE EXPORT. The R2 side runs and is drilled; the OFF-VENDOR side does not, because Box B has no R2 credential. Minting one needs a token-creating token and the account token in the local vault is scoped without that permission (measured 2026-09-05: POST /accounts/:id/tokens -> HTTP 403). Create an R2 API token (Object Read-only, scoped to `nikatru-backups`) in the Cloudflare dashboard and add the `r2backups` rclone remote on Box B - the header of /opt/glitchtip/cf_backup_pull.sh carries the exact command. Until then that script exits 78 and its GlitchTip heartbeat (monitor 22) stays silent, which is the correct reading: the copy outside Cloudflare is NOT happening. ✅ CLOSED 2026-09-05T13:07Z, AND THE WORDING ABOVE IS LEFT STANDING BECAUSE IT IS THE DATED RECORD OF THE GAP. The owner added an account-level Cloudflare token; R2 accepts an API token with R2 rights as S3 credentials (access key id = the token id, secret = SHA-256 of the token value), the `r2backups:` rclone remote now exists on the box, and the first run pulled 5 objects, verified every SHA-256 against the manifest and copied them to `oracleenc:cloudflare/2026-09-05/`. Monitor 22 is no longer silent: its check at 2026-09-05T13:07:30Z is `isUp: true`, and the pull is now a duty row of its own — `duty.cloudflare-backup-pull` — which reads that same heartbeat on every run of this guard. 🔴 THE CORRECTION IS MADE HERE RATHER THAN ANYWHERE ELSE BECAUSE THIS STRING PRINTS ON EVERY CI RUN. Leaving it would have had the register asking the owner, nightly, for work they had already done — the exact defect the two `retention.d1.*` gaps below record against themselves — while a NEW row two hundred lines up asserted the opposite. A register that contradicts itself is read top-down. ⚠️ WHAT IS STILL OPEN ON THIS ROW IS THE RESTORE, NOT THE EXPORT: the drill covers the R2 side, and no restore has ever been performed from the Drive copy the pull writes.",
       "source": "verified"
     },
     {
