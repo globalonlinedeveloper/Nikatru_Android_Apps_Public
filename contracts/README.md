@@ -1,7 +1,10 @@
 # `contracts/` — the things more than one runtime has to agree about
 
-**Status: SEEDED, NOT YET WIRED.** Read the "What is not true yet" section before
-you rely on anything here.
+**Status: WIRED (2026-09-05).** The entitlement contract is read by the platform
+Worker, vendored into the extension runtime, generated into Dart, and held
+together by one guard. The brand tokens are authored here and emitted into three
+runtimes. The legal text is rendered into both published copies and held together
+by a second guard. What is still open is listed at the bottom.
 
 [ADR 067] decision 1 created this directory: *"a top-level `contracts/`
 directory holds tokens, legal text, the entitlement contract and store
@@ -34,9 +37,29 @@ single repository. The failure this directory prevents has happened here once.
 
 | Path | What it is | Consumed by |
 |---|---|---|
-| `entitlement/` | the revocation-reason set, the money environments, and the JSON Schema that grades them | `services/platform` (TS), `extensions/**` (vanilla JS), `packages/purchases` (generated Dart) |
+| `entitlement/` | the revocation-reason set, the money environments, and the JSON Schema that grades them | `services/platform` imports `contract.js` directly; `extensions/core/v1/entitlement-contract.js` is a byte-identical vendored copy on the vendored surface; `packages/purchases` exports generated Dart |
 | `tokens/` | the DTCG brand-token source in `tokens/dtcg/` — see `tokens/README.md` | `sites/**` (generated CSS), the Flutter apps (generated Dart), `extensions/**` (generated JSON) |
-| `legal/` | the shared text of a published legal document | `sites/nikatru/**`, `extensions/**/publish/**` |
+| `legal/` | the shared text of a published legal document | `sites/nikatru/fullshot/privacy.html` and `extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY.html`, both RENDERED from it |
+
+## Who reads what, and what stops it drifting
+
+| Pair | Held equal by | Runs in |
+|---|---|---|
+| SQL seed ↔ `entitlement/contract.js` ↔ `contract.json` ↔ the vendored extension copy ↔ the generated Dart | `tooling/ci/assert-entitlement-contract.mjs` limb 4 — every copy against the SEED, never in a chain | `ci.yml` · guards-legal |
+| `services/platform/src/lib/mor/contract.ts` ↔ `entitlement/contract.js` | the same limb: the import must be present AND a restated array is a failure | `ci.yml` · guards-legal |
+| `extensions/core/v1/entitlement-contract.js` ↔ `entitlement/contract.js` | byte-identical, checked twice — limb 4 above, and `extensions/scripts/check-contracts-sync.mjs` | `ci.yml` · guards-legal, and `extensions.yml` |
+| the vendored surface ↔ each tool's `vendor/core/` | `extensions/scripts/check-core-sync.mjs`, the existing `sync-core.mjs` route | `extensions.yml` |
+| `contract.js` ↔ `contract.json` | `entitlement/generate.mjs --check` | the guard above reads the result |
+| `contract.js` ↔ the generated Dart | `entitlement/generate-dart.mjs --check` | the guard above reads the result |
+| `tokens/dtcg/*.json` ↔ the three generated outputs | `tooling/ci/assert-palette-consistent.mjs`, plus `ci.yml`'s `site-tokens` lane which deletes all three and re-derives them | `ci.yml` |
+| `legal/fullshot-privacy.md` ↔ both published HTML copies | `tooling/ci/assert-legal-text-parity.mjs` — two assertions, a 2,000-character floor, a printed count | `ci.yml` · guards-legal |
+
+**The platform Worker redeploys when the contract changes.** `contract.ts`
+imports `contract.js`, esbuild inlines it, so the bundle changes with no file
+under `services/` moving. `.github/workflows/deploy-workers.yml` names
+`contracts/entitlement/*.js` and `*.json` in BOTH its trigger list and the
+`platform` filter — scoped to those two extensions rather than `**`, because
+that filter once matched a README and redeployed a production Worker.
 
 ## The one rule about the form these take
 
@@ -51,43 +74,34 @@ byte**, and no tool touches either.
 
 Dart is the exception and is honest about it: Dart cannot import JavaScript, so
 Dart consumes **generated** Dart from the same JSON table — the pattern
-`packages/tokens` already uses to generate `sites/_shared/assets/tokens.css`
+`contracts/tokens` already uses to generate `sites/_shared/assets/tokens.css`
 from DTCG JSON.
 
-## What is not true yet
+## What is still open
 
-This directory is a **seed landed with the repo merge**, and saying so is the
-whole point of this section — a `contracts/` that looked authoritative while
-nothing read it would be a fourth copy of every fact in it, which is worse than
-no directory at all.
+- 🟡 **Store vocabulary is not here yet.** [ADR 067] decision 1 names it; the
+  channel and store rows still live in `tooling/channel-register.json`.
 
-- 🔴 **Nothing imports these files yet.** `services/platform` still reads its own
-  `src/lib/mor/contract.ts`; no extension imports anything from here.
-- 🔴 **`tooling/ci/assert-entitlement-contract.mjs` does not know this directory
-  exists.** Its limb 4 holds the SQL seed rows equal to `contract.ts` and to
-  nothing else. Until its target list names `contracts/entitlement/contract.js`,
-  a change made here and not there is invisible. That one-line extension is the
-  next step and it is owned by whoever owns that guard — it is deliberately not
-  made in the same change as the merge.
-- 🟡 What *is* already checked here: `contracts/entitlement/contract.json` is
-  generated from `contract.js` and `node contracts/entitlement/generate.mjs
-  --check` fails on drift between those two. So the copies inside this directory
-  cannot diverge from each other; it is the copy in `services/` that is still
-  joined by nothing.
+## Order of work — what was done, and what is left
 
-## Order of work, so the next session does not have to rediscover it
-
-1. Extend `assert-entitlement-contract.mjs` limb 4 to read
-   `contracts/entitlement/contract.js` alongside `contract.ts` and the SQL seed.
-2. Re-point `services/platform/src/lib/mor/contract.ts` to import the enums from
-   here rather than restate them, leaving it as the TypeScript-only surface
-   (interfaces, `decideSubscription`, `decideAdjustment`).
+1. ✅ `assert-entitlement-contract.mjs` limb 4 reads `contracts/entitlement/
+   contract.js` alongside the SQL seed — and the generated JSON, the vendored
+   extension copy and the generated Dart.
+2. ✅ `services/platform/src/lib/mor/contract.ts` imports the enums from here
+   instead of restating them, and keeps the interfaces, `decideSubscription` and
+   `decideAdjustment` as the TypeScript-only surface.
 3. ✅ **DONE 2026-09-05.** `packages/tokens/tokens/*.json` moved to
    `contracts/tokens/dtcg/`, the Style Dictionary build re-pointed, and the two
    emitters the move existed to make possible added — Dart constants for the
    apps and a JSON table for the extensions. See `tokens/README.md` for what a
    token change now reaches and what it deliberately does not.
-4. Make `sites/nikatru/fullshot/privacy.html` and
-   `extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY.html` renderings
-   of `legal/fullshot-privacy.md`, and add the guard that holds them equal (see
-   `legal/README.md`).
+4. ✅ `sites/nikatru/fullshot/privacy.html` and
+   `extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY.html` are
+   rendered from `legal/fullshot-privacy.md` by
+   `legal/render-fullshot-privacy.mjs`, and `tooling/ci/
+   assert-legal-text-parity.mjs` holds all three together.
+5. ✅ **DONE 2026-09-06.** The vendored contract sits on the `core/v1/`
+   VENDORED SURFACE (core `1.3.0`, module row in `core/core.json`, sim in
+   `core/test/`), so a tool's submitted zip carries it; and
+   `extensions/scripts/check-contracts-sync.mjs` is invoked by
+   `.github/workflows/extensions.yml`.
