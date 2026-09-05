@@ -32,9 +32,13 @@ import {
   CHASSIS_DIR,
   CHASSIS_PKG,
   chassisImportPaths,
+  chassisImportPrefix,
   dartCodeOnly,
+  declaredNamesOf,
   delegationOf,
+  delegationOfAbs,
   delegationsUnder,
+  delegationsUnderAbs,
   publicApiOf,
 } from '../chassis-delegation.mjs';
 
@@ -217,6 +221,128 @@ describe('🔴 THE USE CHECK — an import is a claim, a reference is evidence',
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE SECOND HALF OF THE USE CHECK, AND THE SECOND MEASURED EXPLOIT.
+//
+// The use check shipped on 2026-09-05 asked only "does the adapter's code
+// contain a name the target declares". A second independent review measured, on
+// the real tree and with `origin/main`'s guard calling the SAME TREE FAILED,
+// that a token THE ADAPTER ITSELF DECLARES satisfied it:
+//   · `assert-consent-withdrawal-surface` (DPDP §6(3)) — control deleted, one
+//     unused import of a chassis file declaring `class SettingsScreen` — EXIT 0.
+//   · `assert-no-seam-forks` parity limb ([ADR 066] constraint 2) — gate
+//     deleted, same shape with `class LoginScreen` — EXIT 0.
+//   · and a chassis file holding the single line `final l10n = 0;` answered for
+//     `settings_screen.dart`, `login_screen.dart` and `home_screen.dart` alike,
+//     so the check bound NOTHING on any brick screen in the tree.
+//
+// Every case below is one of those, pinned. The two `-control` cases are what
+// stops a resolver that simply refuses everything from passing this file: a
+// refusal with no green control beside it is not evidence of anything.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('🔴 SAME-NAME SHADOWING — the adapter\'s own names are not evidence', () => {
+  const SCREEN_TARGET =
+    'import "package:flutter/material.dart";\n\n' +
+    'class SettingsScreen extends StatelessWidget {\n' +
+    '  const SettingsScreen({super.key});\n' +
+    '  @override\n' +
+    '  Widget build(BuildContext context) => const SizedBox.shrink();\n' +
+    '}\n';
+
+  test('U6-shadow · the target declaring the SAME CLASS NAME the adapter declares is refused', () => {
+    // The naturally-occurring case, not a contrived one: [ADR 067] decision 2
+    // moves `SettingsScreen` itself into `package:nikatru_chassis_screens`.
+    const root = tree({
+      adapter: `${IMPORT}\nclass SettingsScreen extends StatelessWidget {\n  @override\n  Widget build(BuildContext c) => const SizedBox.shrink();\n}\n`,
+      target: SCREEN_TARGET,
+    });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'the adapter\'s own class must not be the reference');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES/);
+    assert.match(d.lost, /SettingsScreen/);
+  });
+
+  test('U6-shadow-control · the same target, an adapter that does NOT shadow it, resolves', () => {
+    const root = tree({
+      adapter: `${IMPORT}\nclass SettingsAdapter extends StatelessWidget {\n  @override\n  Widget build(BuildContext c) => const SettingsScreen();\n}\n`,
+      target: SCREEN_TARGET,
+    });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `must resolve, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'SettingsScreen');
+  });
+
+  test('U7-shadow · `final l10n = 0;` in the target, shadowed by the adapter\'s own local, is refused', () => {
+    // The measured one-line chassis file. `l10n` is a name every brick screen
+    // in the tree already spells, so accepting it bound nothing at all.
+    const root = tree({
+      adapter:
+        `${IMPORT}\nclass SettingsScreen extends StatelessWidget {\n` +
+        '  @override\n  Widget build(BuildContext context) {\n' +
+        '    final l10n = AppLocalizations.of(context)!;\n' +
+        '    return Text(l10n.settingsTitle);\n  }\n}\n',
+      target: 'final l10n = 0;\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a local the adapter declares must not be the reference');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES/);
+  });
+
+  test('U7-shadow-b · …and a MEMBER ACCESS (`context.l10n`) is not a reference either', () => {
+    // Here the adapter declares nothing called `l10n` — it only ever reads one
+    // off `context`. `context.l10n` names a member of `context`; the imported
+    // top-level `l10n` is a different thing spelled the same way.
+    const root = tree({
+      adapter:
+        `${IMPORT}\nclass SettingsScreen extends StatelessWidget {\n` +
+        '  @override\n  Widget build(BuildContext context) => Text(context.l10n.settingsTitle);\n}\n',
+      target: 'final l10n = 0;\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a member access must not satisfy the use check');
+    assert.match(d.lost, /never references anything it declares \(l10n\)/);
+  });
+
+  test('U7-shadow-control · a lowercase top-level name referenced BARE still resolves', () => {
+    const root = tree({
+      adapter: `${IMPORT}\nclass SettingsScreen {\n  void go() => openSettingsBody();\n}\n`,
+      target: 'void openSettingsBody() {\n  x();\n}\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `must resolve, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'openSettingsBody');
+  });
+
+  test('P1 · a PREFIXED import (`as chassis`) resolves through `chassis.SettingsBody`', () => {
+    // The member-access rule must not refuse the one honest way to write a
+    // prefixed delegation — that would be a COVERAGE LOST on a real one.
+    const root = tree({
+      adapter:
+        `import 'package:${CHASSIS_PKG}/settings_body.dart' as chassis;\n` +
+        '\nclass SettingsScreen {\n  Widget build(c) => const chassis.SettingsBody();\n}\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `must resolve, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'SettingsBody');
+    assert.equal(chassisImportPrefix(`import 'package:${CHASSIS_PKG}/settings_body.dart' as chassis;\n`), 'chassis');
+  });
+
+  test('D1 · declaredNamesOf takes the VARIABLE, never its type — evidence survives', () => {
+    // If the subtraction ate the type name, `final SettingsBody body = …` would
+    // remove the only symbol that could ever prove the delegation.
+    const names = declaredNamesOf('class S {\n  final SettingsBody body = const SettingsBody();\n}\n');
+    assert.ok(names.has('body'), [...names].join(','));
+    assert.equal(names.has('SettingsBody'), false, [...names].join(','));
+  });
+
+  test('D2 · declaredNamesOf sees locals and members, which publicApiOf deliberately does not', () => {
+    const src = 'class S {\n  Widget build(BuildContext c) {\n    final l10n = 0;\n    return X();\n  }\n}\n';
+    assert.equal(publicApiOf(src).has('l10n'), false);
+    assert.ok(declaredNamesOf(src).has('l10n'));
+    assert.ok(declaredNamesOf(src).has('build'));
+  });
+});
+
 describe('the walk, and what the caller owns', () => {
   test('W1 · delegationsUnder collects files AND hands every refusal to the caller', () => {
     const root = tree({
@@ -242,5 +368,30 @@ describe('the walk, and what the caller owns', () => {
 
   test('W3 · this module lives FLAT in tooling/ci, where the stray-.mjs check requires it', () => {
     assert.equal(join(CI_DIR, 'chassis-delegation.mjs').includes('test'), false);
+  });
+
+  // The absolute-path face shipped as THREE byte-identical copies in
+  // assert-consent-withdrawal-surface / assert-deletion-control /
+  // assert-no-price-literals — the same defect one level down from the one this
+  // module exists to end. Exported once; these are its cases.
+  test('X1 · delegationOfAbs answers exactly what delegationOf answers', () => {
+    const root = tree({ adapter: `${IMPORT}\nclass SettingsScreen {\n  Widget build(c) => const SettingsBody();\n}\n` });
+    const abs = delegationOfAbs(join(root, ...ADAPTER.split('/')), root);
+    assert.deepEqual(abs.files, [`${CHASSIS_DIR}/lib/settings_body.dart`]);
+    assert.equal(abs.usedSymbol, 'SettingsBody');
+  });
+
+  test('X2 · delegationsUnderAbs hands the caller the refusals, exactly as the relative face does', () => {
+    const root = tree({
+      adapter: `${IMPORT}\nclass SettingsScreen {\n  Widget build(c) => const SettingsBody();\n}\n`,
+      extra: {
+        'apps/subly/lib/features/settings/broken.dart': `import 'package:${CHASSIS_PKG}/nowhere.dart';\nclass B {}\n`,
+      },
+    });
+    const absDir = join(root, 'apps', 'subly', 'lib', 'features', 'settings');
+    const { files, lost } = delegationsUnderAbs(absDir, root);
+    assert.deepEqual(files, [`${CHASSIS_DIR}/lib/settings_body.dart`]);
+    assert.equal(lost.length, 1, lost.join('\n'));
+    assert.match(lost[0], /that file is not on disk/);
   });
 });

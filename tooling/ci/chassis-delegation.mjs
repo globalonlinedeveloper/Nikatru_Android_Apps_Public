@@ -62,6 +62,26 @@
 // code that looks exactly like a delegation, and reading it as "no delegation"
 // is the silent-pass shape this whole mechanism is built against.
 //
+// 🔴 …AND THE ADAPTER'S OWN NAMES ARE NOT EVIDENCE. The use check shipped on
+// 2026-09-05 asked only "does the adapter's code contain a name the target
+// declares", and a second independent review measured what that still allowed,
+// on the real tree, with `origin/main`'s guard calling the same tree FAILED:
+//   · give the chassis file the SAME CLASS NAME as the screen it replaces and
+//     the adapter's own `class SettingsScreen {` was accepted as the reference.
+//     That is not a contrived collision — [ADR 067] decision 2 moves exactly
+//     that name into the package, so it is the naturally-occurring case.
+//   · worse, a chassis file holding the single line `final l10n = 0;` declares
+//     `l10n`, a name every brick screen in the tree already spells, so the use
+//     check bound NOTHING on any screen.
+// So the evidence set is the target's public API MINUS every name the adapter
+// itself declares, at any depth — top-level, field or local — and a match that
+// is a MEMBER ACCESS (`context.l10n`) is not a reference to an imported name
+// either. When nothing survives the subtraction the answer is `{ lost }`: the
+// only reference available would be the adapter's own declaration.
+// `declaredNamesOf` is that subtraction; `chassis-delegation.test.mjs` cases
+// U6-shadow / U7-shadow / U7-shadow-b are the mutations that hold it, with A1
+// and S-CONTROL as the green controls that stop "refuse everything" passing.
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // IT SCANS NOTHING AND OWNS NO COVERAGE CLAIM. Pure functions plus the
 // directory listing its caller hands it: paths in, an answer out. "Did my scan
@@ -92,7 +112,8 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A FRESH regex every time. A module-level `/g` regex carries `lastIndex`
  *  between callers, and a shared one that eleven guards reach into is exactly
  *  the state bug that produces a different answer on the second call. */
-const importRe = () => new RegExp(`import\\s+'package:${escapeRe(CHASSIS_PKG)}/([^']+\\.dart)'`, 'g');
+const importRe = () =>
+  new RegExp(`import\\s+'package:${escapeRe(CHASSIS_PKG)}/([^']+\\.dart)'(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?`, 'g');
 const exportRe = () => /export\s+'([^':]+\.dart)'/g;
 
 /** Every distinct `package:nikatru_chassis_screens/<path>` a RAW source imports.
@@ -105,6 +126,17 @@ const exportRe = () => /export\s+'([^':]+\.dart)'/g;
  *  comment-and-literal-blanked `bodies` map on 2026-09-05 and its +83 lines of
  *  delegation handling could not fire at all. */
 export const chassisImportPaths = (rawSource) => [...new Set([...String(rawSource).matchAll(importRe())].map((m) => m[1]))];
+
+/** The `as <prefix>` an adapter gave its chassis import, or `null`.
+ *
+ *  A prefixed import is used as `chassis.SettingsBody(…)`, and the member-access
+ *  rule in `referencedSymbol` would otherwise refuse the ONE honest way to write
+ *  that — turning a real delegation into a COVERAGE LOST. Read RAW for the same
+ *  reason `chassisImportPaths` is: the directive is a string literal. */
+export const chassisImportPrefix = (rawSource) => {
+  for (const m of String(rawSource).matchAll(importRe())) if (m[2]) return m[2];
+  return null;
+};
 
 /** Dart source with comments, string literals (including `'''`/`"""` blocks and
  *  `r'…'` raw strings) and the import/export DIRECTIVES themselves blanked —
@@ -136,6 +168,11 @@ const DECL_PATTERNS = [
   /^(?:final|const|var)\s+(?:[A-Za-z_$][\w$<>,?\s.[\]]*\s+)?([a-z][\w$]*)\s*=/gm,
 ];
 
+/** Dart keywords a deliberately generous declaration pattern can pick up as a
+ *  "name". Subtracted from both directions: a keyword is neither public API nor
+ *  a name the adapter declares. */
+const KEYWORDS = ['if', 'for', 'while', 'switch', 'catch', 'return', 'assert', 'super', 'this', 'new', 'await', 'yield'];
+
 /** The PUBLIC top-level names a Dart source declares — what an adapter could
  *  legitimately name to prove it uses this file. Private (`_`-prefixed) names
  *  are excluded: they are unreachable from the adapter by construction, so
@@ -149,19 +186,61 @@ export function publicApiOf(rawSource) {
       if (name && !name.startsWith('_')) out.add(name);
     }
   }
-  // Dart keywords a generous pattern can pick up as a "name".
-  for (const kw of ['if', 'for', 'while', 'switch', 'catch', 'return', 'assert', 'super', 'this', 'new', 'await', 'yield']) out.delete(kw);
+  for (const kw of KEYWORDS) out.delete(kw);
+  return out;
+}
+
+/** Declarations that are NOT column-anchored: a field, a local or a member
+ *  function shadows an imported name exactly as well as a top-level one does,
+ *  and `final l10n = context.l10n;` inside `build` is the measured case. */
+const NESTED_DECL_PATTERNS = [
+  // `final l10n = …` · `const kFoo = …` · `var ref = …` · `late final X y = …`
+  // The optional type group is non-greedy, so `final SettingsBody body = …`
+  // yields `body` and leaves `SettingsBody` in the evidence set where it belongs.
+  /\b(?:final|const|late|var)\s+(?:[A-Za-z_$][\w$<>,?\s.[\]]*?\s+)?([A-Za-z_$][\w$]*)\s*(?==|;|,|\)|\bin\b)/g,
+  // Member and local functions/getters: `Widget build(…) {`, `void _open() =>`.
+  /^[ \t]+(?:[A-Za-z_$][\w$<>,?\s.[\]]*?\s+)([A-Za-z_$][\w$]*)\s*(?:<[^>\n]*>)?\s*\([^;()]*\)\s*(?:async\s*\*?\s*)?[{=]/gm,
+];
+
+/** Every name a source declares ITSELF, at any depth — its top-level API
+ *  (including the `_`-private names `publicApiOf` drops on purpose), its fields,
+ *  its locals and its member functions.
+ *
+ *  🔴 THIS IS THE SUBTRACTION, and it is the half the first use check lacked.
+ *  A name the adapter declares cannot be evidence that the adapter uses somebody
+ *  ELSE's file: its own declaration is the match. Measured 2026-09-05 — a
+ *  chassis file named `class SettingsScreen` (the name [ADR 067] decision 2
+ *  actually moves) and a chassis file holding only `final l10n = 0;` both
+ *  satisfied the check for every brick screen in the tree.
+ *
+ *  Deliberately over-collects: a name this wrongly claims the adapter declares
+ *  can only ever cost a LOUD refusal, never a silent pass. */
+export function declaredNamesOf(rawSource) {
+  const code = stripStringLiterals(stripSourceComments(String(rawSource), '.dart'));
+  const out = new Set();
+  for (const re of [...DECL_PATTERNS, ...NESTED_DECL_PATTERNS]) {
+    for (const m of code.matchAll(re)) if (m[1]) out.add(m[1]);
+  }
+  for (const kw of KEYWORDS) out.delete(kw);
   return out;
 }
 
 /** The first symbol of `symbols` that `rawAdapterSource` references in CODE, or
  *  `null`. Word-boundary matched: `SignInBody` must not be satisfied by
  *  `SignInBodyController` in another package, nor by the word inside a comment
- *  or a string, nor by the import line that named it. */
-export function referencedSymbol(rawAdapterSource, symbols) {
+ *  or a string, nor by the import line that named it.
+ *
+ *  🔴 A MEMBER ACCESS IS NOT A REFERENCE. `context.l10n` names a member of
+ *  `context`; the imported top-level `l10n` is a different thing that happens to
+ *  be spelled the same, and accepting it is how a chassis file holding one line
+ *  `final l10n = 0;` satisfied the use check for every screen in the tree. So a
+ *  match preceded by `.` is refused — EXCEPT after the import's own `as` prefix,
+ *  which is the one honest way to write `chassis.SettingsBody(…)`. */
+export function referencedSymbol(rawAdapterSource, symbols, { prefix = null } = {}) {
   const code = dartCodeOnly(rawAdapterSource);
   for (const s of symbols) {
-    if (new RegExp(`(?<![\\w$])${escapeRe(s)}(?![\\w$])`).test(code)) return s;
+    if (new RegExp(`(?<![\\w$.])${escapeRe(s)}(?![\\w$])`).test(code)) return s;
+    if (prefix && new RegExp(`(?<![\\w$.])${escapeRe(prefix)}\\s*\\.\\s*${escapeRe(s)}(?![\\w$])`).test(code)) return s;
   }
   return null;
 }
@@ -217,11 +296,27 @@ export function delegationOf(repoRoot, relFile, { describe = (r) => `\`${r}\`` }
         'nothing the adapter could be using — so there is no evidence the behaviour went there.',
     );
   }
-  const usedSymbol = referencedSymbol(raw, symbols);
+  // …MINUS every name the adapter declares itself. Its own declaration is not
+  // evidence that it uses somebody else's file — see `declaredNamesOf`.
+  const ownNames = declaredNamesOf(raw);
+  const shadowed = [...symbols].filter((s) => ownNames.has(s)).sort();
+  const candidates = [...symbols].filter((s) => !ownNames.has(s));
+  if (candidates.length === 0) {
+    return refuse(
+        `${describe(relFile)} imports \`package:${CHASSIS_PKG}/${paths[0]}\`, and EVERY name that target ` +
+        `declares (${shadowed.slice(0, 8).join(', ')}${shadowed.length > 8 ? ', …' : ''}) is a name THIS FILE ` +
+        'ALSO DECLARES. Its own declaration would be the only "reference" available, so nothing here is ' +
+        'evidence that the behaviour went to the package. This is not a corner case: [ADR 067] decision 2 ' +
+        'moves `SettingsScreen` INTO the chassis package, so the same-name collision is the naturally ' +
+        'occurring one — and it was MEASURED on 2026-09-05 turning a deleted DPDP withdrawal control and a ' +
+        'deleted caps gate from EXIT 1 into EXIT 0 on nothing but the adapter\'s own `class SettingsScreen`.',
+    );
+  }
+  const usedSymbol = referencedSymbol(raw, candidates, { prefix: chassisImportPrefix(raw) });
   if (!usedSymbol) {
     return refuse(
         `${describe(relFile)} imports \`package:${CHASSIS_PKG}/${paths[0]}\` but never references anything ` +
-        `it declares (${[...symbols].sort().slice(0, 8).join(', ')}${symbols.size > 8 ? ', …' : ''}). An import ` +
+        `it declares (${candidates.sort().slice(0, 8).join(', ')}${candidates.length > 8 ? ', …' : ''}). An import ` +
         'is a claim about where behaviour went; a reference is evidence. A resolvable import that is never ' +
         'used is dead code wearing a delegation\'s costume — and it was MEASURED, on 2026-09-05, turning a ' +
         'deleted DPDP withdrawal control and a deleted caps gate from EXIT 1 into EXIT 0.',
@@ -252,3 +347,33 @@ export function delegationsUnder(repoRoot, relDir, opts = {}) {
   walk(relDir);
   return { files, lost };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ABSOLUTE-PATH FACE OF THE SAME TWO FUNCTIONS.
+//
+// 🔴 IT LIVES HERE BECAUSE IT SHIPPED AS THREE COPIES. Three guards
+// (`assert-consent-withdrawal-surface`, `assert-deletion-control`,
+// `assert-no-price-literals`) walk trees as ABSOLUTE paths and each carried a
+// byte-identical thirteen-line adaptation — sha256
+// e187b8f1e9b8eff40849089409a022f0a05633420110b5dc6b02422a09cd2e06 at all three
+// sites — with nothing in the tree comparing them. That is the same shape, one
+// level down, that this module's own header records as the reason it exists,
+// and `assert-copy-parity.mjs:10-15` states the doctrine against it. One export,
+// no copies.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** An absolute path, as the repo-relative forward-slash path this module speaks. */
+export const relTo = (abs, repoRoot) => abs.slice(repoRoot.length + 1).replaceAll('\\', '/');
+
+/** `delegationOf` for a caller holding an ABSOLUTE file path. The answer is
+ *  unchanged — `null` · `{ lost }` · `{ files, symbols, usedSymbol }`, with
+ *  `files` repo-relative. `describe` defaults to the empty string because these
+ *  callers prefix the path themselves. */
+export const delegationOfAbs = (absFile, repoRoot, { describe = () => '' } = {}) =>
+  delegationOf(repoRoot, relTo(absFile, repoRoot), { describe });
+
+/** `delegationsUnder` for a caller holding an ABSOLUTE directory path.
+ *  `{ files, lost }` — `lost` is the list of refusals the CALLER must report,
+ *  because the coverage claim belongs to the caller, never to this module. */
+export const delegationsUnderAbs = (absDir, repoRoot, { describe = (r) => r } = {}) =>
+  delegationsUnder(repoRoot, relTo(absDir, repoRoot), { describe });

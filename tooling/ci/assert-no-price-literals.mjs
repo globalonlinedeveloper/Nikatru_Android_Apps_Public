@@ -33,7 +33,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
-import { delegationOf as resolveChassisDelegation, delegationsUnder } from './chassis-delegation.mjs';
+import { delegationOfAbs as delegationOf } from './chassis-delegation.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 const problems = [];
@@ -333,18 +333,10 @@ for (const a of ALLOW) {
 // control and a caps gate. `null` (no delegation) and `{ lost }` (one this
 // scan could not follow) stay DIFFERENT ANSWERS: everything below reports
 // `lost` as COVERAGE LOST and nothing reads it as "nothing to do".
-const relTo = (abs, repoRoot) => abs.slice(repoRoot.length + 1).replaceAll('\\', '/');
-
-/** The chassis file(s) an ABSOLUTE path delegates to, as REPO-RELATIVE paths. */
-function delegationOf(absFile, repoRoot) {
-  return resolveChassisDelegation(repoRoot, relTo(absFile, repoRoot), { describe: () => '' });
-}
-
-/** Every chassis file the .dart tree under `absDir` delegates to.
- *  `{ files, lost }` — `lost` is a list of refusals the CALLER must report. */
-function chassisDelegationsUnder(absDir, repoRoot) {
-  return delegationsUnder(repoRoot, relTo(absDir, repoRoot), { describe: (r) => r });
-}
+//
+// The ABSOLUTE-path face of it is `delegationOfAbs`, imported above and exported
+// by the module: it shipped here as one of THREE byte-identical copies, which is
+// the very defect the module exists to end.
 
 // ── B · the POSITIVE limb ───────────────────────────────────────────────────
 // Without this, deleting the price from the paywall entirely passes limb A.

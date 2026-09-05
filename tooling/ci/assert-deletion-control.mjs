@@ -184,7 +184,7 @@ import { join, resolve } from 'node:path';
 
 import { stripSourceComments } from './text-reductions.mjs';
 import { listDir } from './tree-walk.mjs';
-import { delegationOf as resolveChassisDelegation, delegationsUnder } from './chassis-delegation.mjs';
+import { delegationsUnderAbs as chassisDelegationsUnder } from './chassis-delegation.mjs';
 
 const ROOT = resolve(process.argv[2] ?? process.cwd());
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
@@ -373,18 +373,10 @@ const coverageLost = (lines) => {
 // control and a caps gate. `null` (no delegation) and `{ lost }` (one this
 // scan could not follow) stay DIFFERENT ANSWERS: everything below reports
 // `lost` as COVERAGE LOST and nothing reads it as "nothing to do".
-const relTo = (abs, repoRoot) => abs.slice(repoRoot.length + 1).replaceAll('\\', '/');
-
-/** The chassis file(s) an ABSOLUTE path delegates to, as REPO-RELATIVE paths. */
-function delegationOf(absFile, repoRoot) {
-  return resolveChassisDelegation(repoRoot, relTo(absFile, repoRoot), { describe: () => '' });
-}
-
-/** Every chassis file the .dart tree under `absDir` delegates to.
- *  `{ files, lost }` — `lost` is a list of refusals the CALLER must report. */
-function chassisDelegationsUnder(absDir, repoRoot) {
-  return delegationsUnder(repoRoot, relTo(absDir, repoRoot), { describe: (r) => r });
-}
+//
+// The ABSOLUTE-path face of it is `delegationsUnderAbs`, imported above and
+// exported by the module: it shipped here as one of THREE byte-identical
+// copies, which is the very defect the module exists to end.
 
 const readDartTree = (dir) => {
   const out = [];
