@@ -405,8 +405,8 @@ bool _writeAppDeclaration(
     ..writeln('listings:')
     ..writeln()
     ..writeln('legal:')
-    ..writeln('  privacyPolicyUrl: ${urls.$1}')
-    ..writeln('  supportUrl: ${urls.$2}');
+    ..writeln('  privacyPolicyUrl: ${urls.privacyUrl}')
+    ..writeln('  supportUrl: ${urls.supportUrl}');
   if (markets.isNotEmpty) {
     buffer
       ..writeln()
@@ -451,11 +451,11 @@ void _renderFromDeclarations(HookContext context, {required String id}) {
   context.logger.success('apps.json: added "$id" (SHOW-1) — rendered from apps/$id/app.yaml, with its store listing copy.');
 }
 
-/// `(privacyUrl, supportUrl)` from the channel register, or null with the reason
+/// The two portfolio listing URLs from the channel register, or null with the reason
 /// logged. Null makes the caller skip writing a declaration at all rather than
 /// write one carrying guessed URLs: an unanswered question caught at the gate
 /// beats a wrong answer shipped to a store reviewer.
-(String, String)? _portfolioUrls(HookContext context) {
+({String privacyUrl, String supportUrl})? _portfolioUrls(HookContext context) {
   const register = 'tooling/channel-register.json';
   final file = File(register);
   if (!file.existsSync()) {
@@ -484,7 +484,7 @@ void _renderFromDeclarations(HookContext context, {required String id}) {
     );
     return null;
   }
-  return (privacy, support);
+  return (privacyUrl: privacy, supportUrl: support);
 }
 
 /// The header line, kept in one place so the notice and the app it names cannot
