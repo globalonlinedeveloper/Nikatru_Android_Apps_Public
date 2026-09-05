@@ -261,6 +261,45 @@ const CLASSIFIED_ELSEWHERE = new Map([
       'it. Grading it would add a workflow to the denominator that can never move the answer.',
   ],
   [
+    // 🔴 CLASSIFIED, NOT GRADED, AND THE REASON IS THE ONE THIS MAP KEEPS
+    // REPEATING because it keeps being the right one: R-1 quantifies over the
+    // WORKSPACE APP SET — the Flutter apps in the root pubspec `workspace:` list
+    // — to prove a release lane names no app literally. This lane analyses
+    // JavaScript and TypeScript and produces no artefact at all: no build, no
+    // release, no upload to any channel. Graded, it would compare the app set
+    // against an empty set of resolved apps and report a permanent PASS that no
+    // change could ever move, which is the "assertion that cannot fail" shape
+    // this file exists to refuse.
+    //
+    // ⚠️ AND ITS GENERICITY IS NOT UNGOVERNED, which is the thing a reader of
+    // this map should actually want to know. `languages: javascript-typescript`
+    // is a LANGUAGE, not an app id, and CodeQL resolves its own subject set by
+    // walking the checkout — there is no per-app authoring here to go stale.
+    // The owning stage is stage 14 ops, through `duty.workflow.codeql.yml` in
+    // tooling/ops/register.json, which is what carries its cadence and what
+    // fails if the file lands with no duty row. [ADR 067] decision 4.
+    'codeql.yml',
+    'runs CodeQL over this repository\'s JavaScript and TypeScript and uploads SARIF to the Security tab. ' +
+      'It builds no app, produces no release artefact and names no app id — its subject is a LANGUAGE, ' +
+      'resolved by walking the checkout. R-1 quantifies over the workspace APP set, so this lane has ' +
+      'nothing for this guard to compare and would sit in the denominator as a permanent empty-set pass, ' +
+      'the same reason already written out for deploy-workers.yml, ops-watch.yml, renovate.yml and ' +
+      'site-drift-repair.yml. Owned by stage 14 ops through `duty.workflow.codeql.yml` in ' +
+      'tooling/ops/register.json. [ADR 067] decision 4.',
+  ],
+  [
+    // Same reasoning as codeql.yml immediately above, restated rather than
+    // cross-referenced: a classification that points at a neighbour is one that
+    // outlives the neighbour's deletion, and this map is read one entry at a
+    // time by whoever is trying to find out who owns a lane.
+    'trufflehog.yml',
+    'sweeps the full git HISTORY for verified live credentials. It builds no app, produces no release ' +
+      'artefact and names no app id; its subject is every commit this repository has ever had, which is ' +
+      'not an app set and cannot be compared with one. R-1 quantifies over the workspace APP set, so ' +
+      'grading it would add a lane to the denominator that no change could ever move. Owned by stage 14 ' +
+      'ops through `duty.workflow.trufflehog.yml` in tooling/ops/register.json. [ADR 067] decision 4.',
+  ],
+  [
     'renovate.yml',
     'runs Renovate self-hosted across both PUBLIC repositories. It opens dependency pull requests; it ' +
       'builds no app, produces no release artifact and names no app id. R-1 quantifies over the ' +

@@ -1,0 +1,147 @@
+name: TruffleHog
+run-name: "TruffleHog full-history secret sweep (${{ github.event_name }})"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TruffleHog — a VERIFIED-credential sweep of the whole git history.
+# [ADR 067] decision 4, phase 2 unit ci-security-lanes.
+#
+# 🔴 WHY THIS IS NOT A SECOND COPY OF gitleaks, AND THE DIFFERENCE IS THE WHOLE
+# REASON THE LANE EXISTS. ci.yml's `security-scan` job runs gitleaks over the
+# working tree through tooling/ci/scan-secrets.mjs, and that answers "does this
+# checkout contain something SHAPED LIKE a credential". It cannot answer either
+# of the two questions that actually decide whether this repository has leaked:
+#
+#   1. IS IT STILL LIVE? TruffleHog's `--only-verified` mode takes each candidate
+#      and asks the ISSUING PROVIDER whether it authenticates. A shape-match is a
+#      guess; a 200 from the provider is a fact. This repository is PUBLIC
+#      (C-REPO-STAYS-PUBLIC), so the difference between "looks like a token" and
+#      "is a working token anyone can read" is the entire incident.
+#
+#   2. WAS IT EVER COMMITTED? A working-tree scan sees the tree as it stands. A
+#      credential added in one commit and removed in the next is gone from the
+#      tree and permanently present in the history of a public repository, where
+#      it is fetchable by anybody forever — and this repository has already
+#      rewritten and force-pushed history at least once, which is exactly the
+#      operation that hides such a commit from every tree-shaped check while
+#      leaving it reachable through the reflog and every existing fork.
+#
+# ⚠️ WHAT IT DOES NOT DO. It does not gate a merge. It is a `schedule` +
+# `workflow_dispatch` lane whose failure is an alert, deliberately, for the same
+# reason ci.yml's Trivy step records in prose: a gate that goes red on something
+# nobody can act on right now gets switched off, and a switched-off gate is worse
+# than no gate. A VERIFIED finding here is an incident to be worked through
+# docs/runbooks/, not a build to be re-run.
+#
+# ⚠️ AND IT REACHES NO SECRET OF OURS. It is given `contents: read` and nothing
+# else. It needs no repository secret to do its work — the credentials it tests
+# are the ones it FINDS — and it is deliberately not handed one, because a job
+# whose purpose is to hunt live credentials is the last job that should be
+# holding any.
+#
+# ⚠️ THAT PARAGRAPH IS ABOUT WHAT COMES IN, AND THE HARDER QUESTION IS WHAT GOES
+# OUT. What this lane FINDS is by construction a live credential, and its log is
+# world-readable because the repository is public. So the printer matters as much
+# as the permissions: see the `--json` note on the scan step, which records why
+# that flag is refused rather than merely absent. The rule is scan-secrets.mjs's,
+# stated there in four words — "Report WHERE, never WHAT."
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # 🔴 FIRED DAILY, THOUGH THE DUTY IS DECLARED WEEKLY — TRAPS ci-19, and this
+    # is the sanctioned shape rather than a hedge. The duty row in
+    # tooling/ops/register.json declares `cadence: 7d`, so its freshness window
+    # is 7d x 1.5 = 252h. A WEEKLY cron gives that window ONE or TWO chances at a
+    # run on a scheduler this portfolio has measured delivering 10.1% of
+    # scheduled slots on time (899 of 8,928). A DAILY cron gives it about ten.
+    # The margin is given to the EVIDENCE, not to the duty — exactly what
+    # renovate.yml already does, and the same pattern as a 3h heartbeat monitor
+    # against an hourly post.
+    #
+    # 🔴 AND THE SLOT IS COMPUTED — TRAPS ci-16. The daily slots across this
+    # repository were 00:30 02:30 03:00 03:17 04:30 07:30 08:50 11:00 12:30
+    # 15:30 17:30 19:30 22:30 UTC. Measured CIRCULARLY, including the wrap past
+    # midnight that a sorted list never shows, there were three joint-worst 3.00h
+    # gaps: 04:30 → 07:30, 12:30 → 15:30 and 19:30 → 22:30. codeql.yml takes the
+    # first at 05:23; this takes the second at 13:41, leaving 1.18h and 1.82h.
+    - cron: '41 13 * * *' # 13:41 UTC daily — splits the 12:30 → 15:30 hole
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trufflehog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Verified secrets across the full history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # 🔴 `fetch-depth: 0` IS THE WORKFLOW, NOT A DETAIL. The default
+          # shallow clone fetches ONE commit, and a scan of one commit is the
+          # working-tree scan gitleaks already does in ci.yml — it would run
+          # green over a history it never opened, which is this repository's
+          # most-recorded failure shape. The whole point of this lane is the
+          # commits that are no longer in the tree.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 🔴 THE ACTION SHA AND THE SCANNER VERSION ARE TWO DIFFERENT PINS, AND
+      # PINNING ONE READS EXACTLY LIKE PINNING BOTH. `trufflesecurity/trufflehog`
+      # is a COMPOSITE action: the SHA below pins the wrapper, whose only real
+      # step is `docker run --rm -v .:/tmp -w /tmp "${IMAGE}:${VERSION}" …`, and
+      # whose `version` input DEFAULTS TO "latest" (read from action.yml at the
+      # pinned commit on 2026-09-06). The first version of this lane passed only
+      # `path` and `extra_args`, so the executable doing the scanning was
+      # ghcr.io/trufflesecurity/trufflehog:latest — resolved fresh from a
+      # third-party registry every run, with no version anywhere in this repo.
+      # It was the repository's ONLY floating image tag, introduced in a security
+      # lane by the same commit whose entire thesis is that unmanaged scanner
+      # versions are the defect: `grep -rn ':latest' .github/workflows/` returned
+      # nothing else. The version is now read from tooling/versions.json, where
+      # assert-update-coverage.mjs can see it and a Renovate customManager
+      # advances it — the same two mechanisms the four scanners in ci.yml use.
+      - name: Read the TruffleHog CLI pin from tooling/versions.json
+        id: pin
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').trufflehog")"
+          # why: an empty or missing key would otherwise pass `version:` an empty
+          # string, and the action would splice `IMAGE:` with nothing after the
+          # colon — which docker resolves as `latest`. The exact state this step
+          # exists to end would come back silently through a typo in the key.
+          case "$ver" in
+            ''|undefined|null) echo "::error::tooling/versions.json has no usable \`trufflehog\` pin"; exit 1 ;;
+          esac
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "TruffleHog CLI pinned to $ver"
+
+      - name: TruffleHog (verified findings only)
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
+        with:
+          path: ./
+          # The registry tag carries NO leading `v` — ghcr.io publishes `3.97.4`
+          # and 404s on `v3.97.4` — so the bare value from versions.json is what
+          # goes after the colon. Measured against the registry 2026-09-06.
+          version: ${{ steps.pin.outputs.version }}
+          # 🔴 `--json` IS DELIBERATELY ABSENT AND MUST NOT COME BACK. The action
+          # already passes `--github-actions`, which selects a printer that emits
+          # `::warning file=…,line=…::Found <verified> <DetectorType> result` and
+          # NO raw value. trufflehog's main.go evaluates the `--json` case BEFORE
+          # the github-actions case, so that one flag REPLACES that printer with
+          # JSONPrinter, whose record declares `Raw` ("the raw secret data") and
+          # `RawV2` and emits them unconditionally; there is no `--redact` flag to
+          # put back. This repository is PUBLIC (C-REPO-STAYS-PUBLIC), so a
+          # verified finding printed that way republishes a live credential in
+          # cleartext into a world-readable Actions log — a second public copy,
+          # created by the lane whose job is to find the first. TRAPS ci-09:
+          # never run a command whose output can contain a secret and rely on
+          # redacting it. It is also this repository's own written rule for its
+          # other secret scanner: tooling/ci/scan-secrets.mjs runs gitleaks with
+          # `--redact` and states it in words — "Report WHERE, never WHAT."
+          extra_args: --results=verified
