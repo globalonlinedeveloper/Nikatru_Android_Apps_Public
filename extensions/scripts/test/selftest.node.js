@@ -1690,7 +1690,7 @@ const E2E_WEEKLY = [
   ''
 ].join('\n');
 
-/* THE REAL LEG SHAPE. e2e.yml:84 names the matrix job `e2e · <Category>/<Tool>`,
+/* THE REAL LEG SHAPE. extensions.yml:896 names the matrix job `e2e · <Category>/<Tool>`,
    and the gate now parses that payload and compares it as a SET — so a fixture
    carrying a made-up name would prove nothing about the real one. The separator
    is the real U+00B7, written as itself so the character makes the whole trip:

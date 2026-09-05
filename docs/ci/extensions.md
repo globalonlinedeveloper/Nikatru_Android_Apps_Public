@@ -1,0 +1,1704 @@
+# `extensions.yml`
+
+The prose that used to live inside `.github/workflows/extensions.yml`. The workflow keeps a
+one-line `# why:` on each non-obvious decision; everything that explains,
+retracts or records a measurement is here. Read `docs/ci/README.md` first —
+it carries the rules every workflow in this repository has to obey.
+
+> **`ci.yml:NNN` below means the *pre-merge extensions repository's own*
+> `ci.yml`, not this repository's.** That workflow became
+> `.github/workflows/extensions.yml` when `Nikatru_Extensions_Public` was merged
+> in (ADR 067 decision 1), so those pointers name a file that no longer exists
+> under that name. They are dated measurements and are left exactly as measured
+> rather than renumbered onto some other real line: a citation is re-measured,
+> never offset, and there is nothing left to re-measure them against. Where the
+> text they name is still live, it is in `extensions.yml` — for example the
+> matrix job the e2e gate parses, `name: e2e · ${{ matrix.suite.dir }}`, was
+> line 84 of *that* `ci.yml` and is `extensions.yml:896` here (re-measured
+> 2026-09-06). This repository's own `ci.yml:84` is an unrelated line.
+
+## File header
+
+### above `on:`
+
+─────────────────────────────────────────────────────────────────────────────
+extensions.yml — the extension subtree's whole pipeline, in one workflow.
+
+THREE LANES LIVE HERE, and they were three files until 2026-09-05:
+`ci.yml`, `e2e.yml` and `release.yml` in what was a separate repository.
+[ADR 067] decision 1 moved that repository under `extensions/`. Their bodies
+are ported VERBATIM — including their comments, which are more than half of
+them and are the record of what each check was measured to get wrong. What
+changed is listed exhaustively at the bottom of this header, so a reader can
+diff this file against the originals in `git log extensions/.github/`.
+
+── WHY ONE FILE AND NOT A `paths:` FILTER ───────────────────────────────────
+🔴 NEVER PUT A WORKFLOW-LEVEL `paths:` FILTER ON A REQUIRED CHECK. GitHub's
+own troubleshooting page for required status checks says what happens: when a
+workflow is skipped by a path filter, "Associated checks stay in a 'Pending'
+state and block merging", and its guidance is "Avoid requiring workflows that
+can be skipped." That is the classic monorepo deadlock and it is entirely
+avoidable, because a conditionally-skipped JOB reports Success while a
+path-filtered WORKFLOW reports nothing at all.
+
+So change detection is job-level and it is done by `discover`, which this
+repository already owned: `extensions/scripts/discover.mjs` emits TOOL IDS,
+not paths, is diff-aware, widens to ALL tools on any ambiguity, and explains a
+zero answer out loud. Every per-tool job keys its `if:` on its output.
+
+── LANES, AND WHY EVERY JOB CARRIES A LANE GUARD ────────────────────────────
+Three trigger families in one file means every job needs to say which of them
+it belongs to, and an `if:` that is wrong makes a job SKIP — which reads as
+Success. That is the failure this repository names first, so it is not left to
+reading: `extensions-lane-accounting` at the bottom asserts that the set of
+jobs which actually ran matches the lane the event selected, and fails if a
+lane came out empty.
+
+  ci        push to main · pull_request · workflow_dispatch(lane=ci)
+  e2e       Monday cron · a PR labelled `run-e2e` · workflow_dispatch(lane=e2e)
+  release   a tag push `<tool>-v<x.y.z>` (never `core-v*`)
+            · workflow_dispatch(lane=release), which is a rehearsal and refuses
+              to publish
+
+── WHAT CHANGED FROM THE THREE ORIGINALS, EXHAUSTIVELY ──────────────────────
+ 1 `defaults.run.working-directory: extensions`, so every gate command below
+   is byte-identical to the one that ran when this tree was its own repository
+   — `node scripts/lint.mjs fullshot`, not a re-pathed variant. It is also what
+   makes `git subtree split --prefix=extensions` still produce a working repo.
+ 2 Job ids that collided across the three files are prefixed: e2e's `discover`
+   → `e2e-discover`, its `e2e` → `e2e-suite`, its `proof-fresh` →
+   `e2e-proof-record`. Their `needs:` references moved with them.
+ 3 One lane guard per job, and the accounting job that grades those guards.
+ 4 `gate-inventory` tests each gate's existence at `extensions/<path>`, because
+   the pattern it derives from this file is tree-relative and the runner's cwd
+   for a `- uses:`-free existence test is the repository root.
+ 5 The release lane's dry-run tripwire reads the RELEASE REGION of this file
+   rather than the whole of it, bounded by the two sentinel comments. Reading
+   the whole file would grade every CI step too and fail on
+   `actions/upload-artifact`, which is not a publishing surface.
+ 6a ⚠️ AND THE PORT'S OWN TRAP, RECORDED BECAUSE IT COST TWO CI RUNS: the
+   timeout-minutes above were added mechanically after each `runs-on:`, and two
+   e2e jobs ALREADY HAD ONE. A duplicate mapping key is silently merged by
+   every YAML library that reads this file locally — PyYAML, action-validator
+   and zizmor all reported it clean — and REFUSED by GitHub, which then creates
+   a run with ZERO JOBS and no message any API returns. The only local check
+   that saw it was a loader configured to reject duplicate keys. If this file is
+   ever edited by a script again, run that loader over it before pushing.
+ 6 Two platform-side jobs are added at the top, and they are the reason this
+   merge is allowed to be an improvement rather than a risk: `build-free`
+   (`tooling/ci/assert-extensions-build-free.mjs`) and `contracts`. Neither
+   existed while the extensions were a separate repository, because neither
+   could.
+
+⚠️ THIS WORKFLOW IS NOT A REQUIRED CHECK. `ci-gate` is. Adding this one to the
+protected-branch rules is a change to the ruleset, made deliberately and not
+as a side effect of a file landing.
+─────────────────────────────────────────────────────────────────────────────
+
+### above `push:`
+
+🔴 `push` IS TAGS-ONLY, AND `branches: [main]` WAS HERE UNTIL CI SAID WHY IT
+COULD NOT BE. tooling/ops/safe-rerun.mjs identifies a release re-run by
+inferring "this push was a TAG push" from the workflow's own trigger — the
+runs API carries no `ref_type`, so `releaseTagOf` returns null for any
+publishing workflow whose `on.push` is not tags-only, and the refusal that
+stops `gh release create` running twice at the same tag goes silently inert.
+`tooling/ci/test/safe-rerun.test.mjs` caught it the first time this file
+reached CI, through a positive control that pins how many publishers the
+tree has.
+
+⚠️ THE COST IS REAL AND IT IS THE PRICE OF ONE FILE: the extensions no
+longer get a CI run on a push to main. The three separate workflows this
+file replaces could have a tags-only release lane AND a main-push CI lane,
+because they were separate files. Here the PR run is the gate — `ci-gate` is
+the required check and a squash merge lands exactly the content it graded —
+and the safety of the one irreversible act outranks a duplicate run.
+
+### above `pull_request:`
+
+`labeled` is here for the e2e lane only; the CI jobs exclude it by lane
+guard, so labelling a PR does not re-run CI it has already run.
+
+### above `permissions:`
+
+Read-only by default, stated explicitly rather than inherited. Exactly one job
+below raises it, to `contents: write`, and only to create a release.
+
+### above `cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}`
+
+⚠️ NEVER CANCEL A TAG RUN. A cancelled release leaves a tag with no release
+behind it, which is indistinguishable from a release that was never started.
+
+### above `defaults:`
+
+🔴 EVERY `run:` BELOW EXECUTES INSIDE extensions/. This is what lets the ported
+job bodies stay byte-identical, and it is also the property that keeps the exit
+cheap: `git subtree split --prefix=extensions` reconstructs a standalone
+repository in which every one of these commands still resolves.
+
+## job `build-free`
+
+### above `build-free:`
+
+── THE TWO JOBS THAT COULD NOT EXIST BEFORE THE MERGE ─────────────────────
+Both read files on BOTH sides of what used to be a repository boundary. That
+is the whole argument for one repository, so they run first and they run on
+every lane, including a release.
+
+## job `defaults`
+
+### above `defaults:`
+
+🔴 NO LANE GUARD, DELIBERATELY. This is the check that stands between "we
+don't build the extensions" as a habit and as an invariant, and the lane
+it most needs to hold is the release one. A guard that skips on the event
+that ships bytes to a store is not a guard.
+
+## job `build-free`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### in step **And the guard can still fail**, above `shell: bash`
+
+A green guard is evidence of nothing unless the same run shows it
+reddening. This is the mutation the guard's own header records, run on
+every push rather than remembered from the day it landed.
+
+## job `contracts`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### in step **contract.json is what contract.js derives**, above `run: node contracts/entitlement/generate.mjs --check`
+
+⚠️ THIS DOES NOT YET HOLD contracts/ EQUAL TO services/platform. See
+contracts/entitlement/README.md — that pair is still joined by nothing,
+and extending assert-entitlement-contract.mjs's limb-4 target list is
+the next step. What this proves is that the two copies INSIDE
+contracts/ cannot diverge.
+
+## job `steps`
+
+### above `steps:`
+
+Deliberately NOT a `needs:` of anything. A gate that exists must still run
+and prove itself on this push even while another one is unwritten; making
+every job wait on a complete toolchain would mean the day one script lands
+nothing else has been exercised in weeks.
+
+## job `gate-inventory`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Every action is referenced at ONE ref across all workflows**
+
+── ONE REF PER ACTION, ACROSS EVERY WORKFLOW FILE ─────────────────────
+🔴 A PARTIAL BUMP IS INVISIBLE AND SELF-PERPETUATING, AND THIS REPOSITORY
+HAD ONE FOR MONTHS. 584ba1a ("ci: bump actions/setup-node from 4 to 7
+(#1)") rewrote eight of the nine setup-node refs in ci.yml and missed the
+ninth, in the `templates parse` job at the bottom of this file. Measured
+2026-08-25 at a564962, before the fix: 13 checkout@v7, 10 setup-node@v7,
+1 setup-node@v4, 3 upload-artifact@v7. Nothing was ever going to catch
+it — Dependabot already considers setup-node current at 7, so it will not
+open a second PR, and every other signal (a green CI, a clean diff) reads
+the same whether the tree is uniform or not. The stale ref runs a
+different Node-provisioning action on one job than on the other nine,
+which is precisely the kind of difference that shows up as one job
+behaving oddly and gets blamed on the job.
+
+THIS GRADES REF STRINGS, WHICH IS THE RIGHT UNIT HERE AND ONLY HERE.
+⚠️ It would report a 40-hex SHA and the tag it points at as a SPLIT,
+because it cannot resolve either — so every invocation of one action must
+use the SAME ref, whatever that ref is.
+
+🔴 THE POLICY THIS COMMENT USED TO STATE IS DEAD, AND IT WAS WRONG IN
+BOTH HALVES BY 2026-09-03. It read: "not an invitation to convert this
+repo to SHA pins: dependabot.yml's own comment says CI uses first-party
+actions referenced by major tag ... so the float is the written policy
+and SHA-pinning it would silently retire the updater."
+  · Half one died 2026-09-02: every action in this tree WAS converted to
+    a full commit SHA (32 of them), after research/76 §D recorded 76 of
+    77 tags on one popular action being force-pushed to an infostealer
+    in March 2026. A floating major tag is the hole, not the policy.
+  · Half two died 2026-09-03: dependabot.yml is retired. Renovate now
+    runs here from the sibling repository and `helpers:pinGitHubActionDigests`
+    keeps the SHAs current — so pinning does NOT retire the updater, it
+    is exactly what the updater is configured to maintain.
+Left in full rather than deleted, because the reasoning was sound when
+written and the next reader deserves to know WHICH premise expired.
+
+⚠️ WHAT THIS INPUT CLASS CANNOT EXPRESS: an action invoked from a file
+OUTSIDE .github/workflows — a composite action under .github/actions/, or
+a workflow kept elsewhere. Measured 2026-08-25, `find .github -maxdepth 2
+-type d` returns .github, .github/ISSUE_TEMPLATE and .github/workflows
+only, so there is nothing outside the sweep today; the day there is, this
+step will keep reporting ONE REF over a tree that has two.
+
+## job `discover`
+
+### above `with: { fetch-depth: 0, persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Cross-check discovery against the filesystem**
+
+The matrix below is derived, never listed. The failure mode of a derived
+matrix is the opposite of a hardcoded one: instead of tool #2 silently
+getting no CI, EVERY tool silently gets no CI when discovery breaks and
+the array comes back empty.
+
+So this is discovery's negative test — and it is a CROSS-CHECK, not a
+floor. Plain `find` counts the tool.json files; `discover.mjs --all` says
+how many tools it can see; a DISAGREEMENT fails the build. That catches
+the broken glob, which is the failure this exists for, without also
+failing on the one state that is real rather than broken: a repo whose
+tools have not been onboarded to tool.json yet. discover.mjs documents
+that state and exits 0 over it, and a guard that contradicts its own gate
+teaches people to distrust both.
+
+### before step **Issue templates list every tool id**
+
+Issue forms cannot be generated, so their dropdowns are the one place a
+new tool has to be added by hand — exactly the kind of step that gets
+forgotten. Checked here so it fails in the PR that adds the tool.
+
+### in step **Issue templates list every tool id**, above `- id: set`
+
+discover.mjs diffs against the base ref and widens to ALL tools when
+core/ or scripts/ changed, or when the base is unknown (the first push,
+where github.event.before is all-zeros).
+
+## job `secrets-scan`
+
+### above `runs-on: ubuntu-24.04`
+
+🔴 SCOPED TO extensions/, AND THE SCOPING IS THE POINT RATHER THAN A
+LEFTOVER. This scanner and the platform's `tooling/ci/scan-secrets.mjs` have
+different rule sets and different fixture conventions, and pointing this one
+at the whole merged tree was MEASURED before the merge: 7 findings, every one
+of them a false positive on the platform's own PII-scrubber test fixtures and
+its own scanner's sample table. Seven allowlist entries to make one scanner
+tolerate another scanner's samples is seven permanent holes.
+
+So each scanner keeps the subject it was written for: this one runs over
+extensions/ — which the `working-directory: extensions` default above makes
+the meaning of `.` here — and the platform's runs over the whole tree
+including extensions/, in ci.yml. Neither subject is unscanned; the stricter
+scanner simply does not grade fixtures it was not written against.
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+## job `catalogue`
+
+### above `name: catalogue`
+
+The catalogue is GENERATED, not hand-edited, and this job proves the
+generator can still produce it. The Nikatru_Storefront_Public consumer
+the sentence here used to name is gone, measured and recorded in
+publish-catalog.mjs (2026-08-19).
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Delete the catalogue so the publisher has to produce it**
+
+Delete-first. An `up to date` over a file nobody regenerated is the
+vacuous pass: --check would compare the committed bytes against a
+generator that was never asked to run.
+
+### before step **The catalogue describes something real**
+
+Two different questions, and neither implies the other: the lane above
+asks whether these bytes are what tool.json derives; this one asks whether
+what they DESCRIBE is sound. `--check` cannot see an empty catalogue and
+this cannot see a stale one.
+
+## job `core`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Lint + run core sims**
+
+core/ is vendored into tools, so a regression in it is N outages at
+once — hence the admission rule that every core module ships a Node sim
+in core/test/. If core/ does not exist yet this says so and stops; if it
+exists and ships no sims, that is a FAILURE, not a pass.
+
+core.json records this exact hazard in its own `gaps` list: "a CI job
+that loops over core/test/*.node.js runs zero files and reports success".
+This step is that sentence encoded. While core/test/ is empty the job is
+red on purpose, and the fix is sims — not a softer guard.
+
+## job `gates`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **The BUILT store packages carry the right add-on identity**
+
+── THE STORE GATE ON THE BUILT PACKAGE, NOT ON THE SOURCE ─────────────
+policy-check above compares publish/manifest.firefox.json's gecko.id to
+publish/identity.json and passes — correctly. What nothing asked until
+2026-08-20 is what is inside a package that was BUILT. Measured that day:
+six -firefox.zip in Extension/Full_Screen_Shot/publish/ carry
+`fullshot@REPLACE-WITH-YOUR-DOMAIN.example` while the source carries
+`fullshot@nikatru.com`. The placeholder PASSES AMO validation, and
+Mozilla's docs say a guid "cannot be restored and will forever be
+unusable for submission" — so the failure is an ACCEPTED upload that
+permanently misnames the add-on, not a rejected one somebody retries.
+
+⚠️ THIS STEP GRADES ZERO PACKAGES IN CI AND SAYS SO IN ITS OUTPUT.
+Extension/Full_Screen_Shot/.gitignore ignores `*.zip`, so a runner's
+checkout contains none. It is here for the run AFTER `package` builds
+them locally and for the honest zero — the gate prints the count on every
+run precisely so "0 packages, clean" cannot be misread as "12 clean".
+Its real enforcement surface is a developer machine; that is stated in
+the script's header rather than left to be discovered.
+
+### before step **One listing per store, and the store axis has not drifted**
+
+── THE STORE AXIS ─────────────────────────────────────────────────────
+🔴 TWO BUILDS, THREE STORES. `targets` is the build axis and has two
+entries; the chromium zip ships to Chrome AND Edge byte-identical, as
+two separate listings with different limits, different assets and
+different permanent ids. This grades the LISTING side: one directory per
+store, declared in tool.json, with the store vocabulary derived from
+scripts/schema/tool.schema.json so it cannot drift into a fourth list.
+
+It also holds the `target` field, which is what makes the shared
+chromium build a DECLARATION rather than a coincidence — three store
+rows cannot become three builds without `targets` gaining a third entry
+in the open.
+
+Nothing is `served` yet, so a missing listing directory PRINTS. What is
+owner-gated is CREATING a listing, not KEEPING one: an emptied field
+fails at any served state.
+
+### before step **The tool's own AMO submission gate (FullShot)**
+
+── THE TOOL'S OWN AMO SUBMISSION GATE ─────────────────────────────────
+🔴 UNTIL 2026-08-20 THIS RAN IN NO WORKFLOW AT ALL. It is the most
+detailed AMO gate in the repository — gecko id, the data-collection
+declaration, the Firefox background fallback, Chrome-only keys, manifest
+drift, and the packaged zip — and it was reachable only by a human who
+remembered to type it. It was also, by then, grading the WRONG DOCUMENT:
+publish/manifest.firefox.json became an RFC 7386 merge patch on
+2026-08-18 and the script still read it as a whole manifest, producing
+22 failures of which 19 were the misreading. Both are fixed; this is the
+wiring half.
+
+⚠️ NAMED EXPLICITLY, NOT DISCOVERED. The path is a literal so the
+`gate-inventory` job above can see it — that job derives its set from
+the workflow text, and a gate it cannot see is a gate that can vanish
+without anything failing. The `if:` is per-tool because this gate is
+tool-local by design: templates/tool ships a copy to every new tool, so
+a second tool adds a second line here rather than inheriting this one.
+Only tools with a `targets.firefox` need it at all.
+
+## job `sims`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Run tool sims**
+
+Runs exactly the commands in tool.json "tests". No npm install, ever —
+the sims load the real shipped source on bare Node.
+
+## job `steps`
+
+### above `steps:`
+
+The two targets are fixed here rather than read from tool.json, which is
+the one place in this workflow where the coupling surface is not tool.json.
+It is honest about the cost: a tool that cannot build a firefox package
+FAILS this leg rather than skipping it — and if it ever does fail, that is
+a finding, not a known state. The right fix would be the overlay, never a
+matrix that quietly stops building Firefox.
+
+⚠️ CORRECTED 2026-08-22, NOT DELETED — the sentence that stood here from
+before the conversion read: "Worth knowing today — FullShot's tool.json
+declares targets.firefox.overlay = null, because publish/
+manifest.firefox.json is still a full second manifest rather than the RFC
+7386 merge patch pack.mjs expects. Until that conversion lands, the firefox
+leg is red for a reason the tree already declares." Both halves measured
+FALSE on 2026-08-22: tool.json declares `"firefox": { "overlay":
+"publish/manifest.firefox.json" }`, and `node scripts/pack.mjs fullshot
+--target firefox --out <dir> --release` EXITS 0, printing that the overlay
+was applied as a merge patch with gecko.id fullshot@nikatru.com and 85
+entries. The conversion landed 2026-08-18 and is recorded ABOVE in this
+same file, in the `gates` job's AMO block — the paragraph beginning
+`publish/manifest.firefox.json became an RFC 7386 merge patch on` — so the
+file disagreed with itself, and the stale half was the one telling the next
+reader that a green leg is expected-red. That is precisely how a real red
+gets waved through.
+⚠️ CORRECTED 2026-08-22, SAME DAY — the sentence above said "recorded thirty
+lines ABOVE, in this same file, by the `gates` job". MEASURED 2026-08-22 on
+the delivered file: that record sat at ci.yml:369 and this comment at :442,
+so 73 lines, not thirty. A distance in lines is exactly the kind of number
+nothing recomputes, so it is replaced by a SENTENCE a reader can search for
+rather than by a corrected count that the next insert would rot again.
+⬜ AND THE POINTER IS ITSELF A HIT, WHICH IS WORTH SAYING OUT LOUD BECAUSE
+IT IS THE SAME TRAP ONE STEP DOWN. MEASURED 2026-08-22 after this paragraph
+was written: grepping the quoted sentence above returns 2 hits — the record
+and this reference to it — and `grep -c 2026-08-18` returns 3 rather than
+the 1 it returned before. Quoting a target is what makes an anchor
+searchable AND what makes it non-unique; the reader wants the FIRST hit, in
+the `gates` job. That is still strictly better than a line count, which
+drifts silently instead of announcing itself in the count.
+
+## job `package`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Reference integrity (inside the zip)**
+
+THE gate. Every manifest / HTML / importScripts / executeScript
+reference must resolve, case-exactly, to an entry INSIDE the zip. This
+is the check that caught a missing background.js before it shipped — an
+extension that could not have loaded at all.
+
+### before step **Determinism check (zip is byte-reproducible)**
+
+A reproducible zip is what turns "no network calls" from a claim into
+something a reviewer can verify: rebuild from the tag, compare hashes.
+
+### before step **The built package carries the right store identity**
+
+── THE STORE-IDENTITY GATE, ON THE ZIP THIS JOB JUST BUILT ────────────
+🔴 THIS IS THE ONE PLACE IN CI WHERE THE SUBJECT REALLY EXISTS. Store
+packages are gitignored, so the same guard in the `gates` job grades zero
+of them and says so; here `dist/` holds a package that was built four
+steps ago, so the check is about bytes rather than about a source file
+that describes them.
+
+It reads gecko.id out of the BUILT manifest and refuses the placeholder
+and any id that disagrees with publish/identity.json. pack.mjs already
+refuses to WRITE such a package (:478); this refuses to have written one,
+which is the half that survives somebody running a different packer —
+and publish/package.node.js, the tool-local packer, is exactly that, and
+is what produced the six stale zips this guard was written for.
+
+It runs on BOTH targets on purpose: the chromium leg asserts the package
+carries no Firefox-only key, and the same bytes go to Chrome AND Edge.
+
+### before step **The tool's own AMO submission gate, on the built zip (FullShot)**
+
+── THE AMO GATE AGAIN, THIS TIME WITH A PACKAGE UNDER IT ──────────────
+The `gates` job runs this same script BARE, and measured 2026-08-22 that
+run EXITS 0 printing `SOURCE PASSES — NO PACKAGE WAS GRADED`: zips are
+gitignored, so on a fresh checkout its package limb opens nothing. Here
+dist/ holds a Firefox zip built five steps ago, and pointing the gate at
+it adds seven assertions the source limb cannot make — reads as a zip,
+contains manifest.json, packaged manifest === the merged Firefox
+manifest, contains background.js, packaged background.js guards
+importScripts, no test/dev/scratch files.
+
+⚠️ THIS IS THE PR-TIME TWIN OF release.yml's step, AND THAT PAIRING IS
+THE POINT. The script exits 0 with no package, so both steps have to
+assert `ALL PASS` rather than trust the exit code. A tripwire that runs
+only when a tag fires has never been observed to work at the moment it
+first matters, and a tag cannot be re-run — so the same logic runs on
+every PR here, where being wrong is free.
+
+### in step **web-ext lint (Firefox only)**, above `- uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7`
+
+⚠️ THE PATH CARRIES `extensions/` BECAUSE `defaults.run.working-directory`
+DOES NOT REACH A `uses:` STEP. It applies to `run:` only, so every gate
+command above resolves inside extensions/ while this action resolves
+against the workspace root. Measured: the ubuntu legs failed with "No
+files were found with the provided path: dist/*.zip" while the windows
+legs passed, because only one of the four uploads had if-no-files-found:
+error — the other three would have shipped an EMPTY artifact silently.
+
+## job `selftest`
+
+### above `selftest:`
+
+Appended here rather than beside gate-inventory, where it belongs by
+meaning, for one reason: inserting a job above shifts every `ci.yml:NNN`
+citation below it, and this repository cites this file by line in prose that
+nothing recomputes. Job order has no effect on execution.
+
+## job `steps`
+
+### above `steps:`
+
+Like gate-inventory, deliberately NOT a `needs:` of anything, and not a
+step inside `gates`: this grades the GATES, not a tool. It has to run on a
+push that touches no tool at all — a scripts/-only change is exactly the
+push where a gate is most likely to have quietly stopped checking, and it
+is also the push where `gates` is skipped for having nothing to grade.
+
+It is one of the calls in these workflows that is NOT
+`node scripts/<name>.mjs`, which is why the inventory pattern above spells
+the extension out: a gate the inventory cannot see is a gate nobody
+notices the absence of.
+
+⚠️ CORRECTED 2026-08-22 — this line used to say "the ONE call", and that
+stopped being true on 2026-08-20, when the AMO gate in the `gates` job
+became the first `node Extension/<Tool>/publish/...` call. It is now one of
+three such calls (that one, and the two `--zip` runs in `package` here and
+in release.yml). The claim was never load-bearing, which is exactly why it
+went stale unnoticed while the sentence it explains stayed correct.
+
+The SAME correction was made to this file's header on the same day, and it
+is recorded here rather than there for a mechanical reason worth knowing:
+core/CHANGELOG.md, core/README.md, core/core.json, scripts/pack.mjs,
+scripts/run-tests.mjs and scripts/sha256.mjs cite this file by line number
+(23 citations, all at ci.yml:254-364), so ANY line added near the top
+invalidates every one of them. The header was therefore rewritten in place
+at exactly its old line count; what it used to say, in full, was: "Every
+gate here is a `node scripts/<name>.mjs` call and nothing else, so the
+identical command runs on a runner and in PowerShell on the owner's
+machine. That is the whole design: CI is a scheduler, the scripts are the
+gates." Measured 2026-08-22, "and nothing else" was false three times over.
+⬜ Those 23 citations are ALREADY stale — pack.mjs:16 cites ci.yml:364 for
+the web-ext lint step, which is nowhere near :364 — but they live in files
+this change does not own, and correcting them is a separate pass.
+
+✅ THAT SEPARATE PASS RAN ON 2026-08-22, AND THE CONSTRAINT ABOVE IS NOW
+LIFTED. Every `ci.yml:NNN` and `release.yml:NNN` pointer in those six files
+was replaced with a searchable anchor — a `- name:` step title, or the
+distinctive line of the body being described. Measured after that pass:
+`grep -rnoIE "(ci|release)\.yml:[0-9]+" --exclude-dir=.git .` returns hits
+only inside CORRECTION RECORDS that quote what the old pointer used to say,
+in scripts/pack.mjs, core/CHANGELOG.md and this file. Not one live citation
+into either workflow is addressed by line any more, so ADDING LINES NEAR
+THE TOP OF THIS FILE NO LONGER INVALIDATES ANYTHING, and the header above
+was rewritten longer rather than squeezed to its old line count. One of the
+eight was stale in substance as well as position — pack.mjs described a
+`release.yml` invocation of `pack.mjs --target chromium --release` with no
+`--out`, which release.yml does not make; that form survives only inside
+the release-notes text as a reproduce-it-yourself command. A pointer nobody
+can follow hides a claim nobody can check.
+
+⚠️ CORRECTED 2026-08-22, NOT DELETED — the two lines above read: "Those 23
+citations are ALREADY stale by roughly ninety lines — pack.mjs cites
+ci.yml:364 for the web-ext lint step, which now sits at :495". BOTH numbers
+were false on the day they were typed, inside the paragraph whose whole
+subject is line-number rot. The one anchor that cannot rot is HEAD, so use
+it: `git show HEAD:.github/workflows/ci.yml | grep -n 'web-ext@8 lint'` →
+485, MEASURED 2026-08-22. The citation says :364. So it was already 121
+lines short AT HEAD, before this round added a line — and every working-tree
+number quoted for it since has been larger and shorter-lived than that.
+No current-file number is written here on purpose: `grep -n 'web-ext@8
+lint' .github/workflows/ci.yml` answers for whatever day it is run on, and
+a number in prose is the thing nothing recomputes. Which is the same lesson
+as the block above, arriving one paragraph later than it should.
+
+⚠️ CORRECTED 2026-08-22 (second pass) — THE HEADER WAS REWRITTEN AGAIN, AND
+THE VERSION THIS NOTE DESCRIBES ABOVE IS ITSELF SUPERSEDED. What it said,
+in full, was: "Every gate here is one command — `node scripts/<name>.mjs`,
+or a tool's own `node Extension/<Tool>/publish/<name>.node.js` — so the
+identical command runs on a runner and in PowerShell on the owner's
+machine. CI is only a scheduler." That corrected a stale claim into a fresh
+one: MEASURED 2026-08-22, `grep -c 'shell: bash' .github/workflows/ci.yml`
+is 7 — ⚠️ AND IT IS 16 TODAY, for exactly the reason the ⬜ paragraph two
+blocks down predicted: the unanchored form counts this file's own prose,
+and the prose about it has since grown. Read that paragraph before
+believing this number; the anchored form is the one that means anything.
+Those seven are multi-line inline blocks that no PowerShell runs
+and that no `node scripts/<name>.mjs` describes — plus one more `run: |`
+with no `shell:` at all. Correcting a stale sentence into an inaccurate one
+is worse than leaving it, because the correction buys it another year of
+trust. The header now states the rule AND that it has exceptions, and names
+the grep that lists them rather than line numbers that rot. It was again
+rewritten at exactly its old line count, for the reason two paragraphs up.
+Collapsing those seven blocks into scripts/ is the real fix and is open.
+
+⬜ THE GREP IN THE HEADER IS ANCHORED — `grep -cE "^        shell: bash$"`,
+not `grep -c 'shell: bash'` — AND THAT IS NOT FUSSINESS. The unanchored form
+was written into the header first, and it counts this file's PROSE as well
+as its steps: measured 2026-08-22, it returned 7 before this correction was
+written and more than that afterwards, because the correction itself says
+`shell: bash` several times over. The anchored form returns 7 either way,
+and did again on 2026-08-22 after the header rewrite two paragraphs of
+prose later — while the unanchored form had by then climbed to 16. A
+count that its own explanation moves is this round's lesson in miniature,
+and it was caught only because every number here was re-taken after the
+last edit instead of at the moment it was first written.
+
+The suite mutates a throwaway tree under os.tmpdir() and points each gate
+at it with --repo-root, so it writes nothing into the checkout.
+
+## job `selftest`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+## job `templates`
+
+### above `templates:`
+
+Appended for the same reason `selftest` above is appended, and stated again
+so the next person does not "tidy" it upward: inserting a job higher in this
+file shifts every `ci.yml:NNN` citation below it, and this repository cites
+this file by line in prose that nothing recomputes. Job order has no effect
+on execution.
+
+## job `steps`
+
+### above `steps:`
+
+Deliberately NOT a `needs:` of anything, and deliberately outside the
+per-tool matrix: templates/ is not a tool. It is the thing a tool is
+stamped FROM, it ships nothing, and it has no id — which is exactly why
+nothing was reading it.
+
+🔴 EVERY SCRIPT IN HERE RAN IN NO WORKFLOW AND WAS PARSED BY NO GATE, and
+the exclusion was FOURFOLD — every layer of it correct on its own terms,
+and the four together adding up to nobody looking:
+  · scripts/discover.mjs lists `templates/` among its excluded prefixes,
+    so the CI matrix never names it;
+  · both `find` sweeps in this file — the discovery cross-check and the
+    issue-template check — pass `-not -path './templates/*'`;
+  · e2e.yml puts `templates` in its SKIP list;
+  · scripts/test/selftest.node.js only WRITES a synthetic templates/tool
+    into os.tmpdir() to test new-tool.mjs's precedence rule. It never
+    executes, or reads, the real files.
+
+⚠️ THIS IS A FLOOR, NOT A FIX, AND SAYING SO IS THE POINT. Measured
+2026-08-22 by hand before this job existed: checked=20 failed=0 — every
+file parses today. What is being closed is a COVERAGE gap, not an outage,
+and the day it goes red is the day it has earned its place. It matters
+because new-tool.mjs stamps this tree into every future tool: a break here
+is invisible until tool #2 fails on its first day, and is then attributed
+to the new tool rather than to the skeleton.
+
+⚠️ `new-tool.mjs` IS WRITTEN WITHOUT ITS `scripts/` PREFIX HERE AND BELOW,
+ON PURPOSE — the same convention the discovery cross-check above already
+follows. The `gate-inventory` job derives its set by grepping this file's
+TEXT, so a prose mention of `scripts/<name>.mjs` enters the inventory as
+though a workflow called it. Measured 2026-08-22: writing it with the
+prefix took the inventory from 17 entries to 18, adding a script no
+workflow invokes. It is PRESENT today, so nothing goes red — but the day
+that file is renamed the build would fail over a comment, which is exactly
+the failure the inventory's own header says it was kept narrow to avoid.
+
+⚠️ NOT `node scripts/lint.mjs templates`, WHICH WAS TRIED FIRST: measured
+2026-08-22, that EXITS 2 with 'CANNOT RUN — no tool named "templates"'.
+lint.mjs takes a tool id, a Category/Tool_Dir, "core", "scripts", or
+nothing at all, and templates/ is none of those. Teaching lint.mjs a
+`templates` target is the better long-term home for this check — it would
+inherit the REQUIRED_COVERAGE machinery instead of restating it — but that
+is an edit to scripts/lint.mjs, and until it lands an unparsed skeleton is
+a worse outcome than an inline loop.
+
+## job `templates`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### above `- uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7`
+
+⚠️ THIS LINE READ `@v4` UNTIL 2026-08-25, AND IT WAS THE LAST ONE THAT
+DID. 584ba1a ("ci: bump actions/setup-node from 4 to 7 (#1)") converted
+eight of the nine refs in this file and left this one behind. Measured
+2026-08-25: `git show 584ba1a^:.github/workflows/ci.yml | grep -oE
+'setup-node@v[0-9]+' | sort | uniq -c` -> 9 v4; the same command at
+584ba1a -> 1 v4 and 8 v7; and it was still 1 v4 / 8 v7 at a564962.
+The straggler was SELF-PERPETUATING: Dependabot already considers
+setup-node current at 7, so it will never open a second PR to finish the
+job, and nothing else was looking. What is looking now is the
+"Every action is referenced at ONE ref" step in the `gate-inventory` job
+at the top of this file — the durable half, because fixing one ref
+without it just resets the clock until the next partial bump.
+
+## job `ci-required`
+
+### above `ci-required:`
+
+═════════════════════════════════════════════════════════════════════════
+THE ONE CHECK NAME BRANCH PROTECTION CAN REQUIRE.
+
+🔴 THE NAME IS THE DELIVERABLE, AND IT IS `ci-required`. A required status
+check is configured by its STRING. Three of the jobs above name themselves
+from the matrix — `gates · <tool>`, `sims · <tool> · node <n>`,
+`package · <tool> · <target> · <os>` — so their check names are a function
+of what discovery selected on that push, and there is no stable string to
+type into a protection rule for them. Measured 2026-08-25 at a564962:
+`grep -cE '^    name:.*matrix\.' .github/workflows/ci.yml` -> 3, and
+`git grep -nE 'required check|required status|branch protection' a564962 --
+'*.md' '*.yml'` -> exit 1, no output, i.e. nothing in the repository had
+ever written down what to require. That pathspec is not vacuous: the same
+invocation with a pattern that must hit selects 55 files at that commit,
+ci.yml / e2e.yml / release.yml among them. BOTH COMMANDS ARE PINNED TO A
+COMMIT ON PURPOSE. Run the second one against the WORKING TREE instead and
+it matches lines inside this very job -- this paragraph among them, since
+the paragraph now contains the literal it searches for -- so a tree-relative
+form of it would hand the reader the opposite of the result it is cited for.
+This job is the answer: one job, one fixed name, and it waits on all of them.
+
+🔴 AND HERE IS THE TRAP IT EXISTS TO AVOID, WHICH IS ALSO THE OBVIOUS WAY TO
+WRITE IT. The three matrix jobs carry `if: needs.discover.outputs.count !=
+'0'`, so on a push that touches no tool they SKIP — and GitHub counts a
+SKIPPED required check as SATISFIED. The zero path is reachable and exits 0:
+measured 2026-08-25, `node scripts/discover.mjs --base HEAD --out <file>`
+prints "selected: NONE (0 file(s) changed and none of them are inside a tool
+directory ...)", exits 0, and writes `tools=[]` / `count=0`. So requiring
+those names directly would be a rule that is satisfied by nothing running.
+The aggregator would recreate that defect EXACTLY if it were written as
+`result == 'success' || result == 'skipped'`, because 'skipped' is not one
+outcome: it is "nothing to do" and "an upstream job died and took me with
+it" wearing the same word. 'skipped' is therefore LICENSED here — allowed
+only when discover itself SUCCEEDED and reported count == '0' — and RED in
+every other circumstance. 'failure' and 'cancelled' are always RED, and an
+outcome nobody enumerated is RED rather than ignored.
+
+⚠️ NOT A BEHAVIOUR CHANGE TO THE ZERO PATH. The `Show the matrix` step in
+`discover` prints "::notice::no tool was affected by this change — the
+per-tool jobs below are skipped on purpose, not by accident", and that stays
+a notice. Turning a zero matrix into a build failure is an owner decision,
+not a side effect of adding a required check; this job agrees with that
+notice rather than overriding it.
+
+⚠️ WHAT THIS CANNOT EXPRESS: jobs in the OTHER workflow files. e2e.yml and
+release.yml publish their own check names and are not aggregated here — this
+job's structural check below reads THIS file only, and says so in its own
+output rather than leaving the reader to assume repo-wide coverage.
+
+### above `DISCOVER_COUNT: ${{ needs.discover.outputs.count }}`
+
+Read into the environment rather than into the shell body, so the body
+below is a plain bash program: the SAME function grades the built-in
+cases and this run's real outcomes. A rule that is only ever executed by
+GitHub's expression engine cannot be exercised before it is relied on.
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+## job `e2e-proof-fresh`
+
+### above `e2e-proof-fresh:`
+
+Appended at the bottom for the reason written above `templates`: inserting a
+job higher in this file shifts every `ci.yml:NNN` citation below it.
+
+## job `permissions`
+
+### above `permissions:`
+
+e2e.yml's own `proof-fresh` job already asks this, but only from INSIDE
+e2e.yml — which fires on its weekly cron, on dispatch, or on a `run-e2e`
+label this repository does not define. A dead cron therefore silences its
+own alarm. This asks the same question on every push to main and every PR.
+
+⚠️ ADVISORY, AND SAYING SO IS THE POINT. main here has no branch
+protection and no rulesets, so a red from this reddens a check on the
+checks page and blocks nothing. That is an owner action, not this job's.
+
+The workflow-level block at the top of this file is `contents: read`, and
+a job-level block REPLACES it wholly rather than adding to it.
+
+## job `e2e-proof-fresh`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+## job `e2e-discover`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### above `- id: set`
+
+Derived, not listed — the same rule as the CI matrix. A tool joins the
+e2e run by having test/e2e/package.json, not by being named here.
+
+### before step **A run that found nothing is not a pass**
+
+An empty matrix is a skipped job, and a skipped job looks exactly like a
+passing one on the checks list. At least one tool ships an e2e suite
+today, so zero means discovery broke — or the suites were deleted, in
+which case delete this workflow too rather than leaving it green.
+
+## job `e2e-suite`
+
+### above `if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (gith…`
+
+`result == 'success'` is stated rather than left implicit: on a PR without
+the label the discover job is skipped, its outputs are empty strings, and
+`'' != '0'` is TRUE — a condition that reads as "there is work" at the
+exact moment there is none, and fromJSON('') would then error inside the
+matrix rather than in a step anyone can read.
+
+### above `timeout-minutes: 75`
+
+45 until 2026-08-25, when it was sized for ONE suite. The five wired
+suites total 685s (11m25s) on the author machine — run.mjs 122s,
+claim-reduction 79s, reduction-corpus 451s, batch-artifact 15s,
+v3acts-probe 18s — so 75 leaves a two-core runner room to be three times
+slower and still finish, dependency install included. It is the BACKSTOP
+and not the hang detector: the per-suite cap inside the run step below is
+the finer instrument, and it names the suite that hung.
+
+2026-08-26 — SIX wired suites, not five: giveup-verify.mjs came off the
+quarantine list below after three green re-measurements, and it is 113s
+on the same machine. The total is 798s (13m18s).
+
+2026-08-27 — SEVEN wired suites, not six: privacy-verify.mjs came off
+the quarantine list below. The backstop is unchanged, for the reason the
+sentence below gives.
+
+🔴 READ THE HEADROOM ON THE BASIS THE SENTENCE ABOVE USES — DEPENDENCY
+INSTALL INCLUDED. That is where its "three times" came from: 75 min
+against 685s is 6.6x raw, and roughly half the budget is reserved for
+npm ci and the Chromium download, which leaves the ~3x it quotes.
+Against 798s the same arithmetic is 5.6x raw and about 2.8x once install
+is reserved the same way. SO THE HEADROOM WENT DOWN — three times slower
+to 2.8 times slower — because the suite total went UP. An earlier version
+of this paragraph printed 5.6 here, which is 75*60/798 with install
+EXCLUDED: the method changed mid-comment, in the looser direction, and
+the printed figure rose while the thing it measures fell. A ratio here is
+meaningless without its basis beside it, so: 2.8x, INSTALL INCLUDED.
+The number below is unchanged deliberately — raising a backstop is how a
+hang stops being a NAMED per-suite failure and becomes an unreadable job
+timeout instead — but 2.8x is the figure to re-measure against when the
+seventh suite is wired, not 5.6x.
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **Run every suite in test/e2e (derived, not listed)**
+
+The runner loads the extension straight from the tool directory — no
+build step, which is also the repo's law for the extensions themselves.
+
+🔴 `run: node run.mjs` WAS THIS ENTIRE STEP UNTIL 2026-08-25, AND THAT IS
+WHY A GREEN E2E TICK PROVED LESS THAN ANY READER WOULD TAKE IT FOR.
+Measured that day in Extension/Full_Screen_Shot/test/e2e: twelve `.mjs`
+files — two libraries and TEN runnable entrypoints, of which NINE had
+never executed in this workflow once. It is the same disease the `A run
+that found nothing is not a pass` step above exists to prevent, one
+level down: not a job that ran nothing, but a job that ran a tenth of
+the directory it names and reported success for all of it.
+
+DERIVED, NOT LISTED — the rule the discover job already follows. A
+sibling `.mjs` is a LIBRARY when another file in the same directory
+imports it by relative path (today claim-lib.mjs and png.mjs, and no
+others) and a SUITE otherwise. Ten names typed here would recreate the
+defect the day an eleventh landed, silently, which is exactly how this
+one was made. The classifier prints what it decided on every run, and
+the package.json cross-check exists because a classifier that swallows a
+real suite fails in the one direction nobody looks.
+
+ONE STEP RATHER THAN A SECOND MATRIX DIMENSION, on purpose. The suites
+bind fixed localhost ports (8907 · 8911 · 8913 twice · 8915 · 8917 ·
+8921 · 8127 · 8131 · 8145 — two of them collide, so the set was never
+safe to run concurrently on one machine anyway) and they all write into
+the single `out/` directory the upload step below collects. Ten legs
+would mean ten partial `out/`s under one artifact name, and ten Chromium
+downloads for suites measured at fifteen seconds to seven and a half
+minutes each.
+
+2026-08-26 — the "8913 twice" above is still true of the DEFAULTS, and
+that pair is claim-reduction.mjs and adversarial-claim.mjs. The second
+of them now reads `PORT` from the environment (giveup-verify.mjs and
+v3acts-probe.mjs already did), so the collision — and an orphaned
+listener from a killed run, which is the same symptom — is escapable
+without editing a suite. claim-reduction.mjs still hard-codes it.
+
+EVERY SUITE RUNS EVEN AFTER ONE FAILS, AND THE JOB STILL GOES RED. The
+step collects failures and exits non-zero at the end. That is the
+opposite of `continue-on-error`: stopping at the first red would hide
+the state of the others behind whichever one broke first, and
+`continue-on-error` would hide all of them behind a green tick.
+
+⚠️ EXPECT THE FIRST RUNS OF THIS STEP TO BE RED, AND READ THE RED BEFORE
+BLAMING THE STEP. Measured 2026-08-25 on the author machine: run alone
+TWICE, before and after, reduction-corpus.mjs is 1196 pass / 0 fail and
+exit 0 both times (451s on the first, which is the timed one) — that is
+the control, and it is why the sentence below is a claim about the
+SEQUENCE rather than about the suite; run THIRD in this
+step, on the same tree the same afternoon, it is 612 pass / 25 fail in
+301s — and EIGHTEEN of those twenty-five are one assertion repeated on
+eighteen fixtures, `A0 requested records the setting that was actually
+on`, answering false; the other seven are the counters that follow from
+it. Nothing about redaction changed between the two: the suite asks
+for `redactPII: true` as soon as the service worker appears, and
+background.js's `chrome.runtime.onInstalled` handler writes the whole
+DEFAULTS object (in which redactPII is false) on `install`. Whichever
+write lands second wins, so a busier machine silently captures with
+redaction OFF and every claim-lib suite grades a pass that never ran.
+The repair belongs in test/e2e/claim-lib.mjs — its `setSettings` should
+read the patch back and not return until it has stuck — and NOT here: a
+sleep in this step, or a retry around a failing suite, would convert a
+race that CI has just exposed back into a green tick. A two-core runner
+is the slow machine this favours.
+
+## job `e2e-proof-record`
+
+### above `e2e-proof-record:`
+
+── PROOF FRESHNESS ALARM — ADDED 2026-08-26, COLLAPSED TO ONE FILE 2026-08-27 ─
+A RED WEEKLY RUN AND A DEAD CRON LOOK IDENTICAL, AND BOTH LOOK LIKE NOTHING.
+Every check above this line runs INSIDE the weekly run, so none of them says
+anything when the weekly run stops happening — or when it happens, goes red,
+and lands in a list nobody opens. Six wired suites can be red every Monday
+for months and no build anywhere turns a colour.
+
+This job asks the two questions the run cannot ask about itself: did the
+TIMER fire, and was the last thing it produced GREEN.
+
+🔴 THE ANSWERS LIVE IN scripts/assert-e2e-proof-fresh.mjs AND NOT HERE. This
+step was 179 lines of inline `node -e` until 2026-08-27, and ci.yml called a
+script that was a documented PORT of it. They were not independent: the runs
+query, the ceiling, the walk-back and the leg matcher were byte-identical —
+the two runs-query lines compared equal once de-indented. The DERIVED
+expected leg count was added to this inline copy after the port was taken,
+propagated by nothing and asserted by nothing. So the copy that runs on
+every push was the weaker one.
+At 42962e9 this file's line 1080 read `EXPECT_LEGS > 0 && legs.length ===
+EXPECT_LEGS && …` and the script's line 154 read `legs.length > 0 && …`.
+One file now carries both limbs and both call sites run it, and the case
+that separates them is in the self-test: with the count mutated back out it
+returns exit 0 over `legs=1/2  GREEN`. The script's header carries the
+reasoning that used to live here — the three divergences from the
+Platform_Public siblings, and why MAX_AGE_DAYS is 15 and not 14 — and
+scripts/test/selftest.node.js holds the red/green cases for it. NO COUNT IS
+WRITTEN HERE — one was, as `eleven`, and it had rotted. Ask the file:
+  grep -cE "script:.*assert-e2e-proof-fresh" scripts/test/selftest.node.js
+
+⚠️ THE CALL SITE IS WHAT STAYS DOUBLED, NOT THE CODE. A dead cron silences
+THIS job, because it lives in the workflow it watches and otherwise fires only
+on dispatch or on a `run-e2e` label this repository does not define. A quiet
+main silences ci.yml's. The two silences are complementary, so both jobs stay.
+⛔ Its red CANNOT be cleared by pressing the button. `workflow_dispatch` runs
+are excluded by the query, so a hand-press REVEALS a dead cron instead of
+renewing it — the scar both siblings record.
+⛔ It never weakens the suites: it can add a red and can remove none.
+⛔ DO NOT RENAME THIS JOB INTO THE `e2e` PREFIX. The GREEN limb counts jobs of
+PAST runs of this workflow whose name matches /^e2e[^A-Za-z0-9]/, so a job
+here called `e2e proof freshness` would be counted as a matrix leg — and
+counted in every future run. Measured 2026-08-27 on injected history against
+a one-suite checkout: legs=2/1, not-green, exit 1. It fails LOUD rather than
+silent, but `Weekly proof freshness` is what keeps it from failing at all.
+
+### above `if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (gith…`
+
+Same gate as `discover`: on a PR this is silent unless somebody asks for
+e2e by label. It deliberately does NOT `needs: e2e` — it grades PAST runs,
+so waiting ~798s for this run would only delay the alarm.
+
+## job `permissions`
+
+### above `permissions:`
+
+The workflow-level block is `contents: read`, and a job block replaces it
+wholly, so both lines are needed. `actions: read` is what reads run history.
+
+## job `e2e-proof-record`
+
+### above `with: { persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+## job `release`
+
+### above `release:`
+
+>>> RELEASE LANE >>>  — the region the dry-run tripwire below reads. Moving,
+                        renaming or re-indenting either sentinel empties that
+                        check, which is why it counts what it read and refuses
+                        a count that is too small to be real.
+
+## job `steps`
+
+### above `steps:`
+
+A `permissions:` block makes every scope it does
+not name `none`.
+
+🔴 THIS COMMENT USED TO NAME THE SCRIPT, AND THAT
+MADE IT A PHANTOM CALL SITE. deployment-record.mjs's
+RECORD_CALL reads the environment off any line
+naming the script, so `record-deployment.mjs writes`
+parsed as a deployment to an environment called
+`writes` — a call site with no step behind it,
+reported as unclaimed by the channel register.
+Prose about a guard is inside that guard's subject.
+⬜ RESIDUAL, STATED RATHER THAN GLOSSED, 2026-08-25. A dispatch writes
+nothing — the one step that would is fenced off — but the job token it
+runs under still carries this `write`, because `permissions:` takes no
+expression: there is no supported spelling of "read on a dispatch,
+write on a tag push" at job level. Narrowing it for real means splitting
+the publish step into a second job with its own `permissions:` and an
+`if:` of its own, which moves `dist/` across a job boundary through
+upload-artifact and changes what "the exact bytes this gate opened" can
+mean. That is a decision with a cost, not a cleanup, and it is left
+here as a named gap rather than half-done. What DOES hold today: no
+step reachable on a dispatch uses the token to write.
+
+## job `release`
+
+### before step **A dispatch is a rehearsal, so dry_run must stay checked**
+
+⚠️ FIRST, AND BEFORE THE CHECKOUT ON PURPOSE — it needs no repository to
+answer, and it is the answer to "may this run publish". `inputs` is
+empty on a `push`, so `inputs.dry_run != true` is null != true, i.e.
+TRUE — which is why this whole step is fenced behind the event name.
+Without that fence every tag push would hit this refusal and no release
+could ever be cut.
+
+### in step **A dispatch is a rehearsal, so dry_run must stay checked**, above `with: { fetch-depth: 0, persist-credentials: false }`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and leaves it there for the whole job, where any step that
+packages the workspace ships the token inside the artifact. The platform's
+tooling/ci/scan-workflows.mjs blocks `artipacked` by name for exactly that
+reason; it is a rule this tree cleaned up once and does not regress.
+
+### before step **The gate passed for this exact commit**
+
+── THE DRY RUN'S GUARD IS ASSERTED, NOT ASSUMED ─────────────────────────
+The refusal above is one half. The other half is the `if:` on the
+publishing step at the bottom of this file, and an `if:` is one line
+that a future edit can drop without any test noticing — the publishing
+step has never run, so nothing downstream of it can go red when its
+guard goes missing. This step is what notices.
+
+It reads THIS FILE and requires that `if:` on every step that is a
+`uses:` the exemption list does not name, or whose body carries a
+store-publish command or a store upload URL.
+
+⚠️ THE PATTERN IS BUILT BY ALTERNATION SO NO LINE OF THIS BODY IS ITSELF
+A LITERAL PUBLISHING COMMAND. `gh release (create|upload|edit|delete)`
+does not match the text `gh release (create|upload|edit|delete)` — after
+`gh release ` the subject line has `(`, not `c`. Written the obvious way,
+as the four literals, this tripwire would count its own body as four
+unguarded publishes and could never go green. A check that quotes the
+string it counts counts itself.
+
+⚠️ COMMENT LINES ARE EXCLUDED BY STRIPPING INDENTATION AND TESTING THE
+FIRST CHARACTER, not by an anchored regex. `^ {6,}[^#[:space:]].*<pat>`
+is the obvious spelling and it is WRONG: the greedy run of spaces
+backtracks to the last one, `[^#[:space:]]` then eats the `g` of `gh`,
+and `.*<pat>` has to find a SECOND copy further along the line. Measured
+2026-08-25 against this file: that form returns nothing on
+`          gh release create "$GITHUB_REF_NAME" \` while a bare
+`grep -nE 'gh release (create|upload|edit|delete)'` returns it plus the
+prose mention in the Checksums comment — so the anchored form would have
+reported "0 unguarded" over a file it had not actually read.
+
+🔴 GRADING `run:` BODY TEXT WAS THE WHOLE CHECK UNTIL 2026-08-26, AND A
+STEP SPELLED `uses:` HAS NO BODY TO GRADE. Measured in a scratch tree on
+2026-08-26 against the old body: a step `uses: <org>/chrome-extension-
+upload@v5` appended with NO `if:` at all, and separately a `curl -X PUT`
+at a store upload URL, each printed `1 publishing command(s), all 1
+guarded` and EXIT 0. Both would have EXECUTED during a dry_run=true
+rehearsal — the one event this guard exists to make safe. So `uses:` is
+now DEFAULT-DENY: anything not on the exemption list must carry the
+guard, which is a rule an unfamiliar action name cannot walk past.
+
+⚠️ AND EACH EXEMPTION MUST BE USED, because an exemption outlives the
+step it was written for and is then a standing pre-authorisation for
+whatever takes that name next.
+
+⚠️ BUILTINS, NOT A `grep` PER LINE. The per-line spawn form measured
+over 200s on a Windows checkout of this file — too slow to rehearse by
+hand, and a check nobody can run by hand is a check nobody checks.
+`[[ =~ ]]` and `case` need `shell: bash`, which is declared above.
+-- THE THREE PLATFORM RELEASE-INTEGRITY CALLS -------------------------
+🔴 THESE ARE NOT DECORATION AND THEY ARE NOT A CHOICE. Three of the
+platform's guards read this file the moment it landed at the repository
+root, and all three refused it. Measured 2026-09-05, before any of the
+three steps below existed:
+
+  assert-release-provenance  "job \"release\" performs a GitHub Release
+                              publish and never calls record-deployment"
+                             "...without any assert-gate-passed call in
+                              itself or a job it needs"
+  assert-release-durable     "...and never runs release-manifest --write.
+                              A release published without SHA256SUMS is a
+                              set of downloads nobody can check against
+                              anything"
+
+No guard in either repository could say that while the extensions were a
+separate repository, and none did. This is the merge earning its keep on
+the one lane that ships bytes to users.
+
+⚠️ EACH RUNS AT THE REPOSITORY ROOT, not in extensions/, so each carries
+its own `working-directory: .` against this workflow's default.
+
+### in step **The gate passed for this exact commit**, above `working-directory: .`
+
+BEFORE the build, deliberately: a gate consulted after the build has
+verified nothing, because the artifact already exists. The guard checks
+that line order and says so when it is wrong.
+
+### before step **Preflight — every gate this release runs must exist**
+
+Derived from this file, not listed beside it: whatever this workflow
+actually calls is what gets checked, so the two can never disagree.
+
+🔴 THE PATTERN WAS WIDENED 2026-08-22 AND IT HAD TO BE, IN THE SAME
+CHANGE THAT ADDED THE AMO STEP BELOW. It used to read
+`(scripts)/[a-z0-9][a-z0-9./-]*\.(mjs|node\.js)` — lowercase-only and
+anchored on `scripts/` — so it could not match an `Extension/<Tool>/
+publish/...` path at ALL: an uppercase directory fails the character
+class twice over. The release would have gained a gate its own existence
+check was structurally blind to, which is worse than not having the
+gate, because the preflight would keep printing a complete inventory
+over an incomplete one. Measured before the widening: 12 paths found,
+none of them the Extension one.
+
+This is ci.yml's pattern verbatim -- the `called=$(grep -rhoE ...)` line in
+its "Every gate script these workflows call must exist" step -- and the
+narrowness there is
+deliberate and inherited with it: a general `<something>/publish/
+*.node.js` match also hits PROSE — tool-relative paths that do not
+resolve from the repo root — and the preflight would then fail a release
+over a sentence. Requiring the full `Extension/<Tool>/publish/` prefix
+cannot match that.
+
+### before step **Parse tag  (fullshot-v1.10.1 → id + version)**
+
+⚠️ ON A DISPATCH, GITHUB_REF_NAME IS `main`. It is the ref the workflow
+was dispatched from, not a tag, so the split below would hand every gate
+an id of `main` and a version of `main` and the rehearsal would fail six
+steps down for a reason that has nothing to do with the release. The
+`tag` input carries the tag instead, and the two sources are read in
+separate branches so neither can silently stand in for the other.
+
+🔴 THE INPUT IS VALIDATED BEFORE IT BECOMES `steps.tag.outputs.*`, AND
+THAT IS A SHELL-INJECTION FIX, NOT TIDINESS. Those outputs are
+interpolated as `${{ }}` straight into the `run:` bodies of six later
+steps — check-version, policy-check, check-core-sync, lint,
+check-store-metadata, the pack calls, changelog-section — where GitHub
+substitutes them as TEXT before bash ever sees the script. On a `push`
+the value comes from a ref that already matched the tag filters above,
+so it cannot carry a metacharacter. On a dispatch it is whatever the
+dispatcher typed. The regex below admits only `[a-z0-9-]` before the
+`-v` and digits and dots after it, so nothing that survives it can close
+a quote or open a subshell. The value is read through `env:` rather than
+interpolated into this body for the same reason — at the moment it is
+first handled it is still untrusted.
+
+`core-v*` is excluded here as well as in the tag filters: the filter
+cannot see a dispatch, and the header at the top of this file explains
+why core must not take this path.
+
+### before step **Tag must be reachable from main**
+
+Fetched explicitly so the ancestry check below can only fail for the
+real reason (the tag is off-main) and never because the ref was absent.
+
+### before step **ci graded THIS commit, so its gate results can be trusted**
+
+🔴 ANCESTRY IS NOT A GRADE. The step above proves this commit is on
+main; it does not prove anything ever graded it. `scripts/test/
+selftest.node.js` — the gate that grades whether the gates still bite —
+runs in ci.yml and NOWHERE ELSE, and this repository's main carries no
+branch protection and no rulesets (re-measured 2026-08-27: protection
+404, rulesets []), so a commit can reach main without ci ever completing
+on it and a tag can then point at it. Every gate below would run and go
+green over gates nobody had checked still bite.
+
+🔴 AND A RUN'S CONCLUSION IS NOT A GRADE EITHER. Until 2026-08-27 this
+step counted ci.yml runs at the head SHA whose conclusion was `success`
+and stopped there. ci.yml's `gates`, `sims` and `package` jobs each carry
+`if: needs.discover.outputs.count != '0'`, and `ci-required` LICENSES
+them as skipped when discover succeeds and selects zero tools — correctly,
+for a scripts-only push. Such a run concludes `success` having built and
+graded no package at all, so the old test cleared a tag over bytes whose
+per-tool gates and whose windows-2022 pack leg had never run on them.
+The question is not whether a run succeeded but whether THESE LEGS RAN,
+so the jobs of the run are read and graded by name.
+
+Deliberately carries NO `if:`: a dispatch rehearsal must exercise it too,
+or this becomes one more step in this lane that has never executed. Each
+`gh api` call is checked separately from its answer, because "I could not
+ask" is not "it is fine" — and an EMPTY answer is refused on its own line,
+because a jobs list read as zero not-successes is the exact shape this
+step would go quietly wrong in.
+
+⚠️ THE REHEARSAL IS TOLERATED AND THE TOLERANCE CANNOT REACH A TAG. A
+dispatch rehearses at main's head, whose ci run may legitimately be a
+zero-matrix one, so there this reports and continues rather than
+reddening the only mechanism this lane has for exercising itself. All
+three of its conditions are false on a `push`, and `push` is the only
+event that can publish — see the `if:` on Publish GitHub Release.
+
+🔴 THE RULE IS EXERCISED BEFORE IT IS TRUSTED, the same way ci-required's
+is. No tag has ever been pushed in this repository and no release has
+ever been published from one, so nothing but reading would ever have told
+anyone this grader was wrong; the built-in cases below run on every
+execution, the rehearsal included.
+
+### before step **Gates (manifest == CHANGELOG == tag, policy, core sync, lint, store metadata, catalogue)**
+
+🔴 A RELEASE USED TO RUN FEWER GATES THAN A PULL REQUEST. Measured
+2026-08-20 by diffing the `node scripts/*.mjs` calls in the two files:
+NINE things ci.yml runs did not run here, on the one path that actually
+ships bytes to users. A gate that grades every PR and not the release is
+a gate the release does not have.
+
+⚠️ FIVE OF THE NINE ARE ADDED. The other four are named below rather
+than quietly omitted, because "not run here" and "forgotten" look
+identical six months on:
+  · discover.mjs        computes WHICH tools a push changed, to build
+                       ci's matrix. A tag names exactly one tool and this
+                       job already parsed it. Nothing to discover.
+  · publish-catalog.mjs writes the catalogue for the site. It is a
+                       publishing act of its own, on its own trigger; a
+                       release must not silently republish it.
+  · selftest.node.js   grades THE GATES, not the artifact. It answers
+                       "do these checks still bite", which is a question
+                       about the repository and is ci's to ask on every
+                       push — including this one.
+  · sha256.mjs         NOT missing. Its own header says so: "release.yml
+                       publishes the digests with coreutils `sha256sum`",
+                       which the Checksums step below does. sha256.mjs is
+                       ci's DETERMINISM helper — it hashes two independent
+                       builds and compares them. Adding the binary here
+                       without that second build would publish a digest
+                       twice and prove nothing new.
+    ⬜ The determinism CHECK itself is still ci-only. Re-running it here
+       would re-prove reproducibility on the exact bytes being shipped,
+       which is the strongest form of that claim. It is not added in this
+       change because it doubles the pack step, and that is a decision
+       with a cost rather than an oversight.
+
+🔴 THE 2026-08-20 PARITY SURVEY ABOVE COUNTED NINE, AND IT MISSED A
+TENTH — through its own method, not through carelessness. It found the
+gap by diffing the `node scripts/*.mjs` calls in the two files, and the
+tool's own AMO gate is a `node Extension/<Tool>/publish/*.node.js` call,
+so the pattern that defined the survey's subject could not see it. It was
+the single largest instance of the very thing the survey was written to
+find: a gate ci ran on every PR and the release did not run at all. It is
+added below, and the count above is left as it was measured — the nine
+were nine `scripts/` gates and still are.
+
+Same shape as the preflight's lowercase-only pattern, and the same
+lesson: in this repository a check's blind spot is its `grep`, and the
+thing hiding in it is reliably the tool-local gate.
+
+### before step **Secret scan (full tree)**
+
+Full tree, no tool argument — the same invocation ci.yml makes. A
+credential committed since the last PR reaches users through THIS path.
+
+### before step **The built packages are uploadable**
+
+⚠️ AFTER THE PACK, AND POINTED AT `dist` ON PURPOSE. This gate reads
+the BUILT archives — gecko.id, update_url, the localised store fields —
+and its DEFAULT_DIRS are ['publish', 'dist'], so run before the pack it
+would grade whatever stale zips happened to sit in publish/ and report on
+a release it never opened. These are the exact bytes the next step
+uploads.
+🔴 AND IT RAN BARE, SO ITS EXIT CODE WAS THE VERDICT — WHICH THE
+SCRIPT ITSELF SAYS IT IS NOT. MEASURED 2026-08-25 from the repo root
+with no dist/: `node scripts/check-store-packages.mjs fullshot --dir
+dist` prints "0 store package(s) opened and graded, 0 unreadable,
+across 2 declared target(s).", then "ZERO PACKAGES WERE PRESENT, so
+this run proved nothing about any artifact." and "Read this line rather
+than the exit code." — and EXITS 0. Its `die()` fires only when ZERO
+TARGETS are declared, which is a fact about tool.json, not about dist.
+
+This is the same defect class the AMO step below already carries a
+wrapper for, so the wrapper here is deliberately the same shape:
+capture with `|| code=$?` so `-e` cannot pre-empt the report, print the
+output, fail on a nonzero code, and only THEN assert the positive.
+
+🔴 THE POSITIVE IS `graded == declared`, NOT `graded > 0`, AND THAT IS
+THE WHOLE FIX. `> 0` passes the realistic failure, which is not an empty
+dist but a half-built one: the pack step above wrote the chromium zip
+and not the firefox one, so ONE package across TWO declared targets is
+graded and every assertion that ran, passed. MEASURED 2026-08-25
+against a real `--release` build of both FullShot packages, then with
+dist/fullshot-firefox.zip removed / corrupted:
+
+  dist state            the script says                 bare EXIT  this step
+  both zips             2 graded / 2 declared, 5 passed      0      EXIT 0
+  chromium zip only     1 graded / 2 declared, 3 passed      0      EXIT 1
+  dist present, empty   0 graded / 2 declared, 0 passed      0      EXIT 1
+  firefox zip corrupt   3 passed · 1 FAILED                  1      EXIT 1
+
+With the assertion weakened to `[ "$graded" -lt 1 ]` the chromium-only
+row goes EXIT 0 on the same fixture — so the equality is what bites,
+and a naive non-emptiness check would have cleared a half-built release
+with a green tick.
+
+⚠️ NOT KEYED ON THE "ZERO PACKAGES WERE PRESENT" WORDING, on purpose.
+That is the script's FAILURE text, and the AMO step's comment below
+spells out why a tripwire on failure wording is worthless: it goes
+quietly green the day the wording changes. The tally line read here is
+printed on every run that reaches the end, pass or not.
+
+⚠️ AND THIS IS THE GENERAL FIX. A missing firefox zip is caught today
+for exactly one tool, by the `if: steps.tag.outputs.id == 'fullshot'`
+AMO step below. This step carries no tool-id condition.
+
+── APPENDED CORRECTION, 2026-08-25 — the block above is left as written ─
+🔴 `[ "$graded" -ne "$declared" ]`, WHICH THE BLOCK ABOVE DESCRIBES AND
+WHICH THIS STEP NO LONGER USES, IS A COUNT IDENTITY, NOT A PER-TARGET
+ASSERTION. It compares the script's packagesGraded to its targetsGraded.
+Two totals agreeing says nothing about WHICH target each package
+belonged to, so it passes a run where one target got two packages and
+another got none — which is the same half-built release the block above
+set out to catch.
+
+DISPROOF FIXTURE, measured 2026-08-25 off-runner. dist held a real
+`--release` build of both FullShot packages with
+`browser_specific_settings` stripped from the firefox zip's
+manifest.json — a packer regression this repo gates against elsewhere.
+check-store-packages.mjs then classifies that zip as chromium and
+prints, verbatim:
+    PASS  target "chromium" — 2 package(s) graded  — Extension/Full_Screen_Shot
+    target "firefox" (Extension/Full_Screen_Shot): no built package found
+    in <dir> — nothing to grade for it in this checkout.
+    2 store package(s) opened and graded, 0 unreadable, across 2 declared target(s).
+graded == declared == 2. The step body lifted out of THIS FILE by
+yaml.safe_load and run under `bash --noprofile --norc` printed
+"graded 2 of 2 declared target(s)." and EXIT 0 — a green tick on a
+release with no Firefox package in it.
+
+THE REPLACEMENT COUNTS THE SCRIPT'S OWN POSITIVE PER-TARGET LINE.
+check-store-packages.mjs:350-358 emits exactly one line per declared
+target: `  PASS  target "<t>" — N package(s) graded` when N > 0, and an
+8-space-indented note carrying no `PASS` when N == 0. So counting the
+PASS form and requiring that count == declared IS the per-target
+property, and `covered` can never exceed `declared`.
+Same harness, same two fixtures, measured 2026-08-25:
+  firefox zip stripped  → covered=1 declared=2, EXIT 1
+  both zips intact      → covered=2 declared=2, EXIT 0
+Keyed on the POSITIVE wording on purpose — the ⚠️ note above says why a
+tripwire keyed on the "no built package found" failure text is worthless.
+
+### before step **The tool's own AMO submission gate, on the built zip (FullShot)**
+
+── THE TOOL'S OWN AMO GATE, ON THE BYTES THIS TAG SHIPS ───────────────
+🔴 THE RELEASE PATH HAD NEVER OPENED THIS GATE AT ALL. Measured
+2026-08-22: `grep -n 'Extension/' .github/workflows/release.yml` returned
+ZERO hits, while ci.yml ran the same script in the `gates` job, in its step
+named "The tool's own AMO submission gate (FullShot)" —
+on a checkout where Extension/Full_Screen_Shot/.gitignore ignores *.zip,
+so it printed `SOURCE PASSES — NO PACKAGE WAS GRADED` and EXITED 0. The
+repository's most detailed AMO gate therefore graded no package on any
+path, and least of all on the one that ships one.
+
+Measured the same day against a freshly built dist zip, `--zip` EXITS 0
+and adds seven assertions the source limb cannot make: reads as a zip
+(85 entries), contains manifest.json, packaged manifest === the merged
+Firefox manifest at 1.10.2, contains background.js, packaged
+background.js guards importScripts, and no test/dev/scratch files.
+
+⚠️ THE SCRIPT EXITS 0 WITH NO PACKAGE, SO THIS STEP CANNOT SIMPLY CALL
+IT. Its final line is `process.exit(FAILS ? 1 : 0)` and the missing-zip
+branch sets no FAILS — a vanished dist/fullshot-firefox.zip would take
+the source-only branch and clear the release with a green tick. Both
+halves below are the gate: the file must exist, AND the run must print
+`ALL PASS`, which the script emits only when it actually opened a
+package. Asserting the positive is deliberate — a tripwire keyed on the
+failure wording goes quietly green if that wording changes, and this one
+goes loudly red instead.
+
+⚠️ "LOUDLY" WAS FALSE WHEN IT WAS WRITTEN, AND THE FIX IS ONE LINE BELOW.
+The body used to open `set -uo pipefail`, which does not clear the `-e`
+GitHub already set, so the `out=$(node ... )` capture aborted the shell
+the instant the gate failed. MEASURED 2026-08-22 on this exact body
+against a corrupt dist/fullshot-firefox.zip: under the runner's real
+flags, `bash --noprofile --norc -eo pipefail <body>`, EXIT 1 having
+printed 0 BYTES — no gate output, and not one word of the `::error::`
+two paragraphs below about bytes that cannot be taken back. Under a bare
+`bash <body>`, the shell the implementer actually tested in, EXIT 1 and
+4163 bytes. So it went red, and it went SILENTLY red, which on a tag is
+the difference between "the AMO gate failed, here is which assertion"
+and a red X over an empty log at the one moment nothing can be re-run.
+Re-measured after the fix, same corrupt zip, same runner flags: EXIT 1
+and 4163 bytes, ending in that `::error::`. Against the real zip built
+by `pack.mjs fullshot --target firefox --release` (written without its
+`scripts/` prefix on purpose — the preflight above derives its set by
+grepping this file's TEXT), EXIT 0 and
+4242 bytes ending `ALL PASS` — so it still discriminates and was not
+merely quieted. The sentence above is true now; it is left standing
+rather than deleted because the design goal it states was always right —
+only the shell flags were wrong.
+
+The `if:` is per-tool, mirroring ci.yml's "The tool's own AMO submission
+gate (FullShot)" step, and that is deliberate
+rather than lazy: templates/tool ships a copy of this script into every
+new tool, so a second tool adds a second step here instead of inheriting
+this one, and only tools with a `targets.firefox` need it at all. The
+path is a literal so the preflight above can see it — which is why that
+preflight's pattern had to be widened in this same change.
+
+### before step **web-ext lint**
+
+web-ext reads the unpacked tree pack.mjs leaves behind. Checked first so
+a packer that stopped emitting it fails with that sentence rather than
+with web-ext's "source directory not found", which reads like a lint bug.
+
+### before step **Checksums**
+
+🔴 THIS STEP DECLARED NO `shell:` AND ITS ONLY COMMAND WAS A PIPE, SO
+ITS STATUS WAS `tee`'s AND NEVER `sha256sum`'s. GitHub runs a bare
+`run:` as `bash -e {0}` — `-e` but NOT `-o pipefail` — and there is no
+`defaults:` block in this file to supply one (`grep -n '^defaults:'
+.github/workflows/release.yml` -> no match; `grep -n 'shell:'` found it
+only on the preflight and AMO steps). MEASURED 2026-08-25 on the old
+one-liner body in a temp tree, three dist fixtures, both shells:
+
+  dist fixture              bash -e  (the old flags)   -eo pipefail
+  0 zips                    EXIT 0, file 0 bytes       EXIT 1
+  1 hashable zip of 2       EXIT 0, file 1 line        EXIT 1
+  2 hashable zips of 2      EXIT 0, file 2 lines       EXIT 0
+
+⚠️ THE ZERO-ZIP ROW IS NOT THE REACHABLE ONE, and saying otherwise
+would overstate this. "Reference integrity + leak check on every
+artifact" above already exits 1 when `dist/*.zip` matches nothing, so a
+wholly empty dist never gets here. The reachable row is the middle one:
+a PARTIAL failure, where the glob matches N zips and sha256sum can hash
+fewer, and the step went green having published a SHORT list.
+
+Short is the whole problem, because that list is a published claim.
+"Release notes from CHANGELOG" below appends "Artifacts are
+byte-reproducible: rebuild from this tag ... and compare
+SHA256SUMS.txt", and `gh release create` uploads dist/SHA256SUMS.txt to
+a PUBLIC release with no `--draft`. A digest file missing a zip makes
+that sentence a claim about bytes it does not cover, on an artifact
+that cannot be un-published.
+
+`shell: bash` alone fixes the DIRECTION — it makes GitHub run
+`bash --noprofile --norc -eo pipefail {0}` — and the middle row above is
+the proof. `set -euo pipefail` is spelled out anyway for the reason
+given at the preflight step: the flag a reader sees should be the flag
+that is running.
+
+The count check below is the POSITIVE half, and it deliberately does
+not key on sha256sum's error wording — same rule as the AMO step's
+`grep -q '^ALL PASS$'`: a tripwire keyed on failure text goes quietly
+green the day that text changes. MEASURED 2026-08-25 with pipefail
+removed from BOTH the body and the shell, so this check was the only
+thing that could bite: 1-of-2 fixture EXIT 1, 2-of-2 fixture EXIT 0.
+Weakened to the naive `[ "$listed" -lt 1 ]` on those same fixtures, the
+1-of-2 goes EXIT 0 — so it is the EQUALITY that bites, not the
+non-emptiness.
+
+### before step **The integrity record the platform requires of every release**
+
+Store submission stays manual and owner-gated. This publishes the
+GitHub Release only; nothing here talks to a store.
+
+── THIS IS THE ONE STEP A DRY RUN MUST NOT REACH ────────────────────────
+🔴 IT IS ALSO THE ONLY ONE. Measured 2026-08-25 across this whole file:
+the executable lines carrying a publishing command are exactly one, the
+`gh release (create)` below — there is no store upload step and no AMO
+SUBMISSION step in this lane at all. The AMO step above is a verifier
+that opens the built zip; it uploads nothing. So the entire publishing
+surface of the release lane is this `if:` and this step. "Every
+publishing step carries the dry-run guard" near the top of the job is
+what keeps that sentence true as the file changes, and what will go red
+the day a store upload is added without one.
+
+BOTH LIMBS ARE LOAD-BEARING, AND THEY FAIL DIFFERENTLY:
+  · `github.event_name == 'push'` — the total guard. No dispatch can
+    reach this step under any input. Remove it and a dispatch with
+    dry_run unchecked publishes a release named `main`, carrying every
+    zip and SHA256SUMS.txt, to a PUBLIC repository. (The first step of
+    the job refuses that combination, so this limb is the second of two
+    independent things that would both have to be removed.)
+  · `inputs.dry_run != true` — the declared switch, and the one the
+    guard step above asserts by text. Remove it and a dispatch still
+    cannot publish, but the file stops SAYING it cannot: the property
+    survives only as an event-name coincidence that reads like a
+    restriction on which tags are allowed. It is also what turns the
+    dry-run guard step red, which is the only automated notice this
+    file's publishing surface has.
+
+⚠️ `inputs.dry_run` IS NULL ON A PUSH, not false — the `inputs` context
+is empty for any event but a dispatch. `!= true` is therefore the
+correct comparison and `== false` is NOT: null == false is false, and a
+tag push would stop publishing releases entirely.
+
+### in step **The integrity record the platform requires of every release**, above `working-directory: .`
+
+⚠️ THIS DOES NOT REPLACE dist/SHA256SUMS.txt AND MUST NOT. That file is
+this lane's OWN claim: scripts/sha256.mjs writes it over a zip that was
+built TWICE and compared, which is what makes it a reproducibility claim
+rather than a checksum. `SHA256SUMS` (no extension) is the platform
+release-manifest format, carrying the app id, the tag and the commit in
+its header, and it is what assert-release-durable reads. Two files, two
+different claims, both shipped.
+
+Verified locally 2026-09-05 against two real extension zips: exit 0,
+"SHA256SUMS written for 2 asset(s)".
+
+### in step **And the integrity record is re-checked, both ways**, above `working-directory: .`
+
+`--write` is a CLAIM; `--verify` re-hashes every file and fails in both
+directions — a named file that is absent, and a file in the directory the
+manifest does not name. Only the second direction can catch a zip that
+was built and then not recorded, which is the shape of a release that
+looks verified and is not.
+
+### in step **The register must be able to name where this ships**, above `if: github.event_name == 'push'`
+
+🔴 BEFORE THE PUBLISH, DELIBERATELY, AND IT REFUSES TODAY.
+`--emit-environments` derives the destinations from
+tooling/channel-register.json, and that register carries no
+chrome-webstore / edge-addons / amo row yet — measured, and named as
+outstanding work by the 2026-09-05 monorepo research (report 16 §5.2,
+§8.3). Its own refusal says why that matters: "publishing while
+recording nothing is [10]D-9's unrecorded deploy wearing a release
+badge — the artifacts would exist and nothing could say what shipped."
+
+⚠️ SO A TAG PUSH FAILS HERE UNTIL THOSE ROWS EXIST, AND THAT IS THE
+POINT. It fails BEFORE `gh release create`, so nothing is published
+that cannot be recorded — rather than after, which is the failure the
+test above describes. `git tag` is 0 and no extension has ever been
+released, so this costs nothing today and cannot be forgotten later.
+Writing those register rows is a store-vocabulary and purchase-rail
+decision ([ADR 039] D1 covers app stores, not extension stores) and is
+deliberately not made inside a repository merge.
+
+### in step **Publish GitHub Release**, above `working-directory: .`
+
+⚠️ AT THE REPOSITORY ROOT, AND THE PATHS ARE WHY. assert-release-durable
+requires the publish command to NAME the directory the integrity record
+describes: "the release would then be assembled from somewhere the
+integrity record does not describe, which is worse than no record — it
+looks verified." The manifest is written for extensions/dist, so the
+upload says extensions/dist, and the two are the same directory in text
+as well as in fact.
+
+### in step **The release must carry the assets this job just built**, above `if: github.event_name == 'push' && inputs.dry_run != true`
+
+⬜ [14]O-7, the same read-back build-platforms.yml performs, over the
+same manifest format. It asserts the RELEASE CARRIES THESE FILES WITH
+THESE HASHES, in both directions — a release published last month
+answers "does a release exist" exactly as well as one published ten
+seconds ago, which is why that is not the question being asked.
+
+🔴 THIS REPLACES A _deploySmokeExemptions ENTRY WRITTEN EARLIER TODAY.
+That entry named the probe that would retire it, and the probe already
+existed — `release-manifest.mjs --write` above already produces the
+SHA256SUMS it reads. An exemption whose remedy is one existing step is
+an exemption that should never have been taken.
+
+### in step **Record what shipped, per channel this release is the origin for**, above `if: github.event_name == 'push' && inputs.dry_run != true`
+
+AFTER the publish, and the order is checked: a ledger written before
+the thing it records says something that was not yet true. It carries
+the same two-limb guard as the publish itself, because writing a
+Deployment is an outward-facing act and a rehearsal must not perform one.
+
+🔴 THE SET IS DERIVED FROM tooling/channel-register.json, NOT NAMED HERE.
+The first spelling of this step named it — `extension-$TOOL_ID`, a value
+no register row claims — and tooling/ci/test/deployment-record.test.mjs
+refused it in the words that matter: "an unclaimed one turns a SUCCESSFUL
+deploy into a red job after the upload already happened." It also named
+the one shape it accepts: a loop fed by `release-manifest.mjs
+--emit-environments`, which reads the register. So an extension channel
+joins this loop by being given a register row, not by anybody editing
+this file.
+
+⚠️ THE URL IS BUILT FROM ENVIRONMENT VARIABLES, NOT FROM `${{ … }}` IN
+THE SHELL BODY. A tag name is chosen by whoever pushed the tag, and an
+expression expanded into a `run:` body is substituted BEFORE the shell
+sees it, so a tag carrying shell metacharacters would be executed rather
+than quoted — `tooling/ci/scan-workflows.mjs` caught exactly that here
+on this lane's first run through it (`template-injection`, medium/high).
+
+### before step **Rehearsal complete — nothing was published**
+
+The counterpart, so a rehearsal ends in a sentence rather than in the
+absence of one. A skipped step is rendered the same way whether it was
+skipped on purpose or skipped because an earlier step died, and this
+lane's whole problem is that nobody has ever watched it run.
+
+## job `extensions-lane-accounting`
+
+### above `extensions-lane-accounting:`
+
+<<< RELEASE LANE <<<
+

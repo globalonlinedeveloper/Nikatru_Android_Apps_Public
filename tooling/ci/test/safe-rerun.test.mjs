@@ -576,7 +576,8 @@ describe('decide() — the judgement, without a network or a token', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 THE SECOND REFUSAL — `gh release create` IS NOT IDEMPOTENT.
-// `build-platforms.yml:1328` runs `gh release create "$RELEASE_TAG" …`.
+// `build-platforms.yml:438` runs `gh release create "$RELEASE_TAG" …`
+// (re-anchored 2026-09-06 by grep -n after that file's prose moved to docs/ci/).
 // Re-running a tagged build that already published fails there.
 //
 // ⚠️ THE VACUOUS SHAPE THIS SET EXISTS TO AVOID, because it is the obvious

@@ -827,7 +827,7 @@ if (outsideDeclaredLanes.length > 0) {
   // 🔴 THE PARENTHETICAL HERE ASSERTED SOMETHING THIS SCAN NEVER READ, AND IT WAS
   // WRONG ABOUT A REAL LINE. Until 2026-08-26 it said these calls "are
   // `serviceEnvironments` — backend Workers, not release channels". Two of the
-  // three are. `build-platforms.yml:1351` records `{app}-windows-direct`, which
+  // three are. `build-platforms.yml:458` records `{app}-windows-direct`, which
   // tooling/channel-register.json declares as a `channels` row with
   // `kind: "direct"` — a RELEASE channel. The flat read finds a LINE: it never
   // parsed the argument, so it had no basis for the claim, and the claim it made

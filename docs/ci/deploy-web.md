@@ -1,0 +1,589 @@
+# `deploy-web.yml`
+
+The prose that used to live inside `.github/workflows/deploy-web.yml`. The workflow keeps a
+one-line `# why:` on each non-obvious decision; everything that explains,
+retracts or records a measurement is here. Read `docs/ci/README.md` first —
+it carries the rules every workflow in this repository has to obey.
+
+## File header
+
+### above `on:`
+
+Builds EVERY app in the pub workspace for web with the real Flutter SDK on
+GitHub's runners, then uploads each built site to its own Cloudflare Pages
+project (Direct Upload) via wrangler.
+
+── [10]D-2b · THE WEB DELIVERY PATH TAKES ANY APP ID FROM THE SPEC ──────────
+🔴 UNTIL 2026-08-07 THIS FILE NAMED ONE APP SIX TIMES ON THE EXECUTABLE PATH:
+the `paths:` filter, `defaults.run.working-directory`, `--emit apps/subly`,
+the launch smoke's bundle path, wrangler's `workingDirectory` and
+`--project-name=`, the post-deploy smoke's URL and the deployment record's
+environment. Shipping app #2's web build therefore meant COPYING THIS FILE and
+editing eight lines — the per-app workflow authoring D-2b exists to abolish,
+on the one lane that reaches users.
+
+Every one of those is now a matrix leg over
+`assert-release-lane-generic.mjs --emit-apps` — the same emitter
+`build-platforms.yml` and `e2e.yml` already iterate, and the same emitter that
+GRADES this lane. One function, one file: this lane cannot drift from the
+workspace without the guard's own reading drifting with it. A second pubspec
+reader inlined here would be the copy that quietly stops reading what it
+thinks it reads, which is this repository's most repeated failure.
+
+⚠️ `${{ matrix.app }}` IS ONLY SAFE BECAUSE `strategy.matrix.app` IS DECLARED
+BELOW. GitHub expands an UNDECLARED matrix context to the EMPTY STRING rather
+than erroring, so a bare `apps/${{ matrix.app }}` with no matrix builds
+`apps/` on every run while reading as fully generic. That exact stand-in is
+what limb A′ of assert-release-lane-generic.mjs checks, and deleting the
+`matrix:` block below is its recorded failing case.
+
+### above `paths:`
+
+🔴 A PATH FILTER IS A CLAIM ABOUT WHAT CHANGES THE ARTIFACT, and this list
+named only the SOURCE (2026-08-01 full-corpus review, #30). The build step
+is `flutter pub get --enforce-lockfile` inside a Melos 8 workspace: the
+root pubspec.yaml (the `workspace:` list) and the single root pubspec.lock
+are what decide every dependency version that ends up in build/web. So a
+dependency bump — including a security patch landing in the lockfile with
+no source change at all — produced a main commit that built differently
+and deployed nothing, silently, with CI green. tooling/versions.json is on
+the list for the same reason one level up: it is the single declaration
+the Flutter and wrangler pins below are held to.
+
+`apps/**` rather than `apps/<id>/**` is [10]D-2b: the filter is the FIRST
+place a lane names one app, and a filter naming app #1 means app #2 ships
+only when somebody remembers to edit this line. A path filter is evaluated
+before any job exists, so it is the one field on the deploy path that
+cannot be a matrix expression — the generic form is the wildcard.
+
+The tooling/ci scripts are here because the steps below EXECUTE them and
+none of their behaviour is visible in the source tree this filters on:
+assert-release-lane-generic.mjs --emit-apps produces the MATRIX, so it
+decides which apps this lane ships at all;
+assert-app-versioning.mjs --emit produces the release line that becomes
+--build-name AND the APP_VERSION stamped on every analytics row;
+assert-gate-passed.mjs decides whether the deploy happens at all;
+assert-catalog-reachable.mjs --emit-url resolves the app's published
+origin, which is both what the post-deploy smoke probes and what the
+deployment record names;
+record-deployment.mjs writes the marker that answers "what is live". They
+are listed INDIVIDUALLY rather than as tooling/ci/** on purpose — guard
+work is frequent and unrelated to this artifact, and a filter that
+redeploys production on every guard edit is one that gets narrowed back in
+a hurry.
+
+Enforced by tooling/ci/assert-deploy-triggers.mjs, which derives the script
+list from this file's own steps — so adding a step adds its path or fails
+the build. A list nobody checks drifts back the moment a new input appears.
+
+### above `- 'tooling/smoke/smoke-web-artifact.mjs'`
+
+[pipeline 9]R-13's launch smoke. Listed for the same reason as the ones
+above — this lane EXECUTES it, and it is the one step that can stop a
+publish. assert-deploy-triggers.mjs derives its requirement from
+`tooling/ci/**` only, so this entry is deliberate rather than enforced:
+a smoke that changed and never ran again would be a gate that quietly
+stopped gating, which is this repository's most repeated failure.
+
+### above `- 'tooling/ops/post-deploy-smoke.mjs'`
+
+[pipeline 14]O-7's post-deploy smoke, listed for the same reason and
+subject to the same non-enforcement: it is the step that decides whether
+this lane goes green. (Until 2026-08-09 it also decided whether the
+deployment record got written; it no longer does — the record follows
+the DEPLOY step, see the block on it at the bottom of this file.)
+
+### above `permissions:`
+
+Least privilege. It deploys via a Cloudflare token, not GITHUB_TOKEN. [pipeline F-5b]
+
+🔴 SCOPED DOWN 2026-08-07, AND THE REASON IS THE [10]D-2b REFACTOR ITSELF.
+This block used to carry `checks: read` and `deployments: write` too, which was
+correct while this lane was ONE job: workflow-level and job-level were the same
+grant. Splitting it into `prepare` + `deploy-web` silently widened both — a job
+that only emits an app list inherited the right to write GitHub Deployments.
+`zizmor` caught it as `excessive-permissions` (high confidence) on the first CI
+run after the merge, and it is a real finding, not noise: `prepare` runs a node
+script whose input is repository content, on a lane that holds
+CLOUDFLARE_API_TOKEN.
+
+📌 The generalisable point: SPLITTING A JOB WIDENS EVERY WORKFLOW-LEVEL GRANT,
+and nothing about the diff looks like a permissions change. The grants now sit
+on the job that uses them — `checks: read` for assert-gate-passed, and
+`deployments: write` for record-deployment.mjs — so the next split cannot
+repeat this.
+
+## job `prepare`
+
+### above `prepare:`
+
+── which apps does this factory hold? ──────────────────────────────────────
+[10]D-2b, and identical to `prepare` in build-platforms.yml and e2e.yml on
+purpose — deliberately reading through the SAME emitter, because
+assert-release-lane-generic.mjs is the guard that grades all three lanes, so
+the set they iterate and the set they are graded against cannot diverge.
+
+It emits nothing on an empty workspace — it exits 1 — because a matrix of
+`[]` runs zero legs and REPORTS SUCCESS. On a lane that deploys, that shape
+is worse than a red build: it is a green tick over a production deploy that
+never happened, which is the exact absence assert-deploy-triggers.mjs was
+written against one level up.
+
+## job `deploy-web`
+
+### above `timeout-minutes: 35`
+
+35 because this job carries BOTH halves: assert-gate-passed.mjs polls for up
+to its own 1200 s default before the build starts (a shorter bound would kill
+the poll and hide why the gate never arrived), and the build+deploy behind it
+has been observed at 9m03s. 20 + 9 with a little air. [pipeline F-5b]
+
+## job `permissions`
+
+### above `permissions:`
+
+The two grants the workflow level no longer makes, held by the only job
+that uses them: `checks: read` for assert-gate-passed.mjs (it reads
+ci-gate's verdict) and `deployments: write` for record-deployment.mjs.
+`contents: read` is restated because naming any permission here replaces
+the workflow-level set outright rather than adding to it.
+
+## job `strategy`
+
+### above `strategy:`
+
+`fail-fast: false` because each leg is an independent DELIVERY, not a
+stage of one: app #2 failing to build is no reason to cancel a deploy of
+app #1 that has already uploaded and is waiting to be smoked and recorded.
+With one app in the workspace this changes nothing.
+
+## job `concurrency`
+
+### above `concurrency:`
+
+⚠️ PER-APP, AND IT MOVED FROM THE WORKFLOW LEVEL TO GET THERE. A single
+workflow-level `group: deploy-web` puts every matrix leg in ONE group with
+`cancel-in-progress`, so app #2's leg would cancel app #1's mid-upload —
+a half-published Pages project with a green-ish log. The group has to
+carry the dimension the matrix iterates, and only a job-level
+`concurrency:` can read `matrix`.
+
+## job `with`
+
+### above `with:`
+
+persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
+into .git/config and LEAVES it there for the whole job. Any later step that
+packages the workspace (or anything containing .git/) ships the token inside
+the artifact, and on a PUBLIC repo artifacts are downloadable. Nothing here
+does git push/tag/commit, so none of these checkouts need the credential.
+[zizmor artipacked] Verified 2026-07-27: no current artifact path includes
+.git/ — so this closes a FUTURE mistake, not a live leak.
+
+## job `deploy-web`
+
+### before step **Require ci-gate to have passed for this commit**
+
+MUST be first. This workflow triggers on push to main with no dependency
+on CI, so without this the deploy and the tests race — and the deploy
+(~3 min) finishes first (~6 min). Also gates the manual redeploy button,
+which previously consulted nothing at all. Fails closed. [pipeline F-5b]
+
+### before step **Derive the release line from pubspec**
+
+The version is DERIVED, never typed. `apps/<id>/pubspec.yaml` declares
+the release line (`major.minor`) — the part a human owns — and this step
+reads it with the SAME parser the guard uses, so the number that gets
+built and the number that gets asserted cannot disagree. Before this
+existed the workflow carried its own copy of "1.0.0", free to drift from
+pubspec.
+
+### before step **Build web (release, no service worker)**
+
+VERSIONING. `github.run_number` supplies BOTH the patch and the build
+number, because it is the only monotonic value the lane has. Re-running a
+run does not bump it, so the same commit rebuilds to the same version.
+
+⚠️ IT IS PER-WORKFLOW-FILE AND SHARED ACROSS MATRIX LEGS. Every app
+deployed by one run therefore carries the same build number. That is
+correct for the two things it feeds — the kill-switch floor compares
+`major.minor.patch` per app against that app's own `min_supported_
+version`, and version.json is per Pages project — and it is why the
+post-deploy smoke below can join on it. It also means renaming this FILE
+restarts the counter at 1 for every app at once; see the note in
+assert-app-versioning.mjs before ever doing that.
+
+Why the PATCH and not just the build number: version_gate.dart:32 splits
+the running version on `+` and compares only `major.minor.patch` against
+`min_supported_version`. While the patch was frozen at 0 there was no
+floor the owner could set that separated an old client from a new one —
+the CFG-1 force-update kill-switch was inert on the only live channel.
+--build-number is the same value, and is what Play reads as versionCode;
+it must strictly increase or a second upload is rejected outright.
+
+APP_VERSION is not decoration: it is the `app_version` field on every
+analytics row and every consent artifact. Without it the build defaults
+to 'dev', so production data would be indistinguishable from a developer
+laptop and no regression could ever be attributed to a release. It keeps
+the short SHA in the build metadata after `+` — a SHA is traceable but
+NOT ORDERED, so it can identify a build and never rank two of them. Its
+version core is the same string as --build-name on purpose: the number the
+store shows and the number the kill-switch compares must be one number.
+
+RELEASE_CHANNEL is [pipeline 9]R-10's third limb and it stays COMPILE-TIME
+on purpose, unlike `update_url` which owner decision #19 moved to runtime.
+The two look alike and are opposites: an update DESTINATION baked into a
+binary means shipping an update to change where updates come from, while
+the CHANNEL is a fact about the binary — the same commit built for `web`
+and for `windows-store` differs in nothing else, so a runtime value could
+not tell the two artifacts apart. Every value passed here must resolve to
+a row id in tooling/channel-register.json; assert-channel-register.mjs
+fails the build on `webb`, which is the one failure mode a free-text
+string has. It is the CHANNEL, not the app, so it is a literal here and
+correctly so: this whole file is the web channel.
+
+⬜ `--pwa-strategy=none` is [ADR 023] (LOCKED 2026-07-31), not an
+oversight: no service worker, no offline support, and the HTTP cache is
+therefore the whole update mechanism on this channel — which is why
+`apps/<id>/web/_headers` exists and why assert-web-cache-policy.mjs
+asserts it. ADR 023 explicitly REJECTS guarding this flag in CI as
+over-encoding; this citation is the consequence it did ask for.
+
+### in step **Build web (release, no service worker)**, above `- uses: ./.github/actions/setup-node`
+
+── [pipeline 9]R-13 · THE ARTIFACT IS STARTED ONCE, BEFORE PUBLICATION ──
+Every other gate in this repository proves a build COMPLETES and stops
+there. Until this step existed nothing in the tree had EVER run a built
+artifact: build-platforms.yml uploads six builds without launching one,
+ci.yml analyzes and unit-tests a stamped app without starting it, and
+e2e.yml drives a DEBUG `web-server` target — not the released bundle. So
+a build producing a non-starting artifact was green everywhere: a wrong
+`base href`, an asset declared in pubspec and missing from build/web, an
+exception thrown in main() before the first frame. Each fails at first
+launch and NOWHERE EARLIER.
+
+⚠️ IT SITS HERE, BETWEEN THE BUILD AND THE DEPLOY, AND THAT PLACEMENT IS
+THE REQUIREMENT. R-13's subject is the artifact BEFORE publication, where
+there is nothing to roll back because nothing has shipped; smoking after
+the deploy is `[14]O-7`'s question, asked of users. Duplicate D-14 was
+re-confirmed on that distinction, and assert-launch-smoke.mjs fails the
+build if this step ever moves below the deploy.
+
+The signal is `flutter-first-frame`, dispatched by the engine once the
+first frame has been RASTERIZED — so it is true only after main() ran to
+completion and runApp produced a frame. Not a zero exit code (headless
+Chrome exits 0 on a page that rendered nothing) and not a DOM node the
+engine creates during bootstrap (those exist even when the app's first
+build throws).
+
+No new action and no chromedriver: the script speaks the DevTools
+Protocol over Node's built-in WebSocket and finds the Chrome the runner
+image already ships — the same binary e2e.yml drives nightly. `setup-node`
+is explicit because that WebSocket needs Node >= 22 and the smoke must
+never fail for the harness's own reasons.
+
+### before step **Install glitchtip-cli (pinned by version AND by digest)**
+
+── SOURCE MAPS · INSTALL AND INJECT, BEFORE THE ARTIFACT IS SMOKED ─────
+🔴 WHAT THIS PAIR OF STEPS BUYS, MEASURED 2026-09-03 AND NOT INFERRED.
+`GET /api/0/organizations/nikatru/releases/{version}/files/` answered 200
+with a ZERO-LENGTH list for ALL TWELVE releases GlitchTip holds for
+`subly`, and `dsyms` was `[]`. Nothing had ever been uploaded, and
+nothing could have been: `flutter build web --release` emits no source
+maps at all. Two OPEN, UNRESOLVED production issues are the bill —
+`minified:a0X: GoError: There is nothing to pop` (4 occurrences, level
+fatal) and `minified:ng: AuthException(...)` — whose frames read
+`main.dart.js k7.er 63099`, `aQU.$0 130674`, `JY.hG 116903`. That is a
+crash sink that receives everything and explains nothing.
+
+⚠️ THEY SIT ABOVE THE SMOKE ON PURPOSE, AND THAT IS [pipeline 9]R-13's
+RULE, NOT A PREFERENCE. `sourcemaps inject` REWRITES `main.dart.js` —
+it prepends a debug-id snippet and adds a `//# debugId=` trailer — so
+running it after the smoke would publish an artifact that was never
+launched. R-13's subject is the bytes that ship; anything that edits
+them belongs above it. The upload and the deletion below edit nothing
+the browser executes, so they sit under it.
+
+### before step **Inject debug ids into the web bundle**
+
+Debug ids are the STRONGEST key GlitchTip has: `DebugSymbolBundle` is
+unique on `(organization, debug_id)`, and unlike a release string a
+debug id cannot drift from what the SDK reports — it is derived from the
+bytes. Without one the server falls back to `(release, file name)`,
+which still works and is why the upload below passes `--release`
+regardless. This is the one part of glitchtip-cli's source-map support
+that is purely local and provably correct; see the header of
+tooling/ops/upload-web-sourcemaps.mjs for why `sourcemaps upload` is not
+used and what it does instead of uploading.
+
+### before step **Create and finalize the GlitchTip release**
+
+── SOURCE MAPS · THE RELEASE EXISTS BEFORE ANY FILE IS HUNG OFF IT ─────
+glitchtip-backend#299 ("release not found error on sourcemap file
+upload") is the failure this closes. The assemble endpoint does
+`Release.objects.get_or_create`, so this is belt AND braces rather than
+strictly required — but a release created as a side effect of an upload
+has no `dateReleased`, and the deploys/finalize path is what puts one
+there. It is idempotent: creating a release that exists is a no-op.
+
+⚠️ THE SERVER ADDRESS IS DERIVED FROM THE DSN, NEVER TYPED. The maps have
+to land on the SAME instance the shipped bundle reports to; a second
+literal is a second thing to drift, and the drift would be silent —
+uploads succeeding against a server that never sees the events. The DSN
+already reaches this job (the build step passes it as a --dart-define),
+and its origin is exactly that server.
+
+🔴 AND IT GOES IN AS `SENTRY_URL`, NOT AS `--url`. Measured by running
+the binary on 2026-09-03: `glitchtip-cli releases new --url` is
+"Optional URL for this release" and SHADOWS the global server flag, so
+passing the address there posts the release to sentry.io instead. The
+environment variable is not shadowed by anything.
+
+### before step **Upload the source maps to GlitchTip**
+
+── SOURCE MAPS · UPLOADED, AND PROVEN UPLOADED ─────────────────────────
+⛔ DO NOT REPLACE THIS WITH `glitchtip-cli sourcemaps upload`. It was
+tried first and it does not work against this server: it POSTs a gzipped
+single file where the backend expects a zip artifact bundle, the
+assemble endpoint answers `{"state":"created"}` before the async task
+runs, and the task then logs "not a valid zip archive" and deletes
+everything — a green step that stores nothing, which is the same defect
+as the sentry-cli reports (glitchtip#38, backend#299) that sent us to
+the CLI in the first place. The full citation, read from both projects'
+sources and reproduced against a protocol stub, is in the header of
+tooling/ops/upload-web-sourcemaps.mjs.
+
+THE SCRIPT ENDS BY READING BACK `GET .../releases/{version}/files/` —
+the exact call whose empty answer is the defect — and exits non-zero
+while it stays empty. So this step cannot be green over an empty sink.
+
+### before step **Delete the source maps from the bundle that gets published**
+
+── ⛔ THE MAPS ARE UPLOADED, THEY ARE NOT PUBLISHED ─────────────────────
+`wrangler pages deploy build/web` uploads EVERY file in that directory,
+so without this step `main.dart.js.map` would be served from
+https://<app>.nikatru.com/main.dart.js.map to anyone who asks. A Dart
+source map carries `sourcesContent` — the ORIGINAL SOURCE of every
+compiled library, this app's `lib/` included. That is a publication
+decision nobody made, and it is not covered by `_headers`, which sets
+cache policy and cannot remove a file from a deploy.
+
+DELETION, NOT AN IGNORE FILE, AND THE DIFFERENCE IS THE POINT. Pages
+honours no `.gitignore`, and whether a given wrangler honours an
+`.assetsignore` for a Direct Upload project is a property of the version
+the action installs. A file that is not on disk cannot be uploaded by
+any version of anything, so this is the only form of the rule that
+cannot quietly stop applying.
+
+It runs AFTER the upload and BEFORE the deploy, which is the only window
+where both are true. The `//# sourceMappingURL=` comment stays in
+main.dart.js and will 404 for anyone who opens devtools against
+production; that is deliberate and harmless — the map is meant to be
+readable by GlitchTip, not by the page.
+
+### before step **Ensure the Pages project exists (Direct Upload, idempotent)**
+
+── [10]D-2b limb (b) · THE PAGES PROJECT IS CREATED, NOT ASSUMED ────────
+🔴 THE PREVIOUS VERSION OF THIS FILE SAID "uploads the built site to the
+EXISTING Cloudflare Pages project" — and that word was the whole gap.
+`wrangler pages deploy --project-name=<id>` against a project that does
+not exist fails at the API, so app #2's very first deploy died on a
+console step nothing in this repository named. A delivery path that
+"takes any app id" has to be able to run TWICE for a NEW id: once to
+make the target, once to fill it.
+
+⚠️ DIRECT UPLOAD, NEVER GIT-CONNECTED, and this is an architectural cap
+rather than a preference: Cloudflare allows a limited number of
+Git-connected Pages projects per repository, and this monorepo already
+spends them on the static sites. A Git-connected project per app does
+not reach app #6. `pages project create` with no `--github`/`--gitlab`
+flag creates exactly a Direct Upload project, which is what the deploy
+step below uploads into.
+
+IDEMPOTENT BY CONSTRUCTION. `create` on an existing project answers with
+a "already exists" error, which on every run after the first is the
+CORRECT state and must not fail the job. Any OTHER non-zero exit —
+a bad token, a quota, an account id typo — still fails, so this is not a
+`continue-on-error` in disguise: the tolerated case is enumerated and
+everything else is red.
+
+TWO STRANDS, EITHER ONE SUFFICIENT. The `|` in the match below is the
+design, not an accident. The English substring goes stale the day
+Cloudflare rewords or localises the message; the numeric code goes stale
+the day the API renumbers it. Neither is trusted to outlive the other,
+so each alternative is written to carry the whole tolerance ALONE — an
+"already exists" line with the code absent still passes, and the code
+with a completely reworded message still passes.
+
+🔴 WHERE 8000002 COMES FROM, AND WHY IT IS THE ONLY CODE HERE.
+SOURCE: observed run 32962146010, job "Build & deploy web to Cloudflare
+Pages (subly)", THIS step's log —
+    A project with this name already exists. Choose a different project
+    name. [code: 8000002]
+That run is the ONLY source. Cloudflare publishes no error-code table
+for Pages — the developers.cloudflare.com "API error codes" reference
+covers AI Search, and the Pages docs enumerate nothing — so this literal
+is grounded in an observation, not a document. That is precisely why the
+message strand above has to keep standing on its own: if a later API
+version renumbers this, the reworded-message case is what survives.
+
+8000007 WAS REMOVED, AND IT WAS NOT FICTION — IT IS A REAL PAGES CODE
+FOR THE OPPOSITE CONDITION: "Project not found. The specified project
+name does not match any of your existing projects." (reported against
+`pages deploy` in cloudflare/workers-sdk #12203). Tolerating it HERE
+would have turned a genuinely ABSENT project green. It never did harm
+only because `project create` cannot raise it — which is also why
+nothing in this repo ever cited it: `grep -rn 8000007` found this line
+and nothing else. A code that can only ever mis-fire is not spare
+coverage, it is a trap for the next reader.
+
+8000000 IS DELIBERATELY NOT ENUMERATED. Older wrangler surfaced this
+same already-exists conflict as 8000000 (workers-sdk #3527), so a reader
+who searches will be tempted to add it as a second tolerated code. Do
+not. 8000000 is Cloudflare's generic "an unknown error occurred" bucket
+— it is also what control-plane 500s and Pages outages return. Adding
+it would swallow exactly the failures the paragraph above promises stay
+red. If a future run shows the conflict arriving as 8000000 again, the
+answer is the message strand, not a wider code list.
+
+⚠️ THE APP ID GOES THROUGH `env:`, NOT INTO THE SCRIPT BODY. A
+`${{ }}` interpolated straight into a `run:` block is the template
+injection zizmor flags; the value is ours today, and the habit is what
+survives the day it is not.
+
+The wrangler version is READ FROM tooling/versions.json rather than
+written here. A second literal would be a second thing to drift, and
+assert-version-consistency.mjs only polices `wranglerVersion:` inputs —
+an `npx wrangler@<literal>` would sit outside its rules entirely, which
+is how production ended up on 3.90.0 while the repo declared 4.114.0.
+
+### before step **Resolve this app's published origin from the catalogue**
+
+── the published origin, RESOLVED from the catalogue ────────────────────
+`sites/_shared/_data/apps.json` is the stamp's own output ([3]S-7) and is
+already the SSoT `tooling/monitor-register.json` derives every watched
+hostname from (`_derivation.appCatalogue`). So it is where "where does
+app <id> live" is answered, and the emitter is the guard that ASSERTS
+those URLs answer — assert-catalog-reachable.mjs. Same discipline as the
+matrix above: the reader that grades the fact and the reader that uses it
+are one function in one file.
+
+It runs BEFORE the deploy on purpose. If the catalogue does not know this
+app's origin, the run must stop while nothing has shipped — resolving it
+afterwards would leave a published bundle that cannot be smoked and
+cannot be recorded, which is precisely the un-probed publish [14]O-7
+exists to end.
+
+### before step **Deploy to Cloudflare Pages**
+
+`id:` IS LOAD-BEARING, NOT DECORATION. The record step at the bottom of
+this job keys off `steps.deploy.outcome`, so the bytes reaching
+Cloudflare is the fact that decides whether a provenance record gets
+written. Renaming or removing this id silently turns that condition into
+`steps..outcome == 'success'` — an expression GitHub evaluates to false
+rather than erroring — so the record would stop being written and the run
+would still be green. tooling/ci/assert-publish-records.mjs refuses a
+record step whose `if:` names a step id that this job does not declare.
+
+### in step **Deploy to Cloudflare Pages**, above `wranglerVersion: '4.120.0'`
+
+PINNED 2026-07-28. Without this the action resolves wrangler from the
+package.json in workingDirectory — and a Flutter app has none, so it
+installed the version baked into the action's own bundle
+(3.90.0, live-proven in run 30292045671) while both Workers locked 4.114.0.
+Must equal tooling/versions.json "wrangler"; assert-version-consistency
+fails the build if it drifts, or if this line disappears. [pipeline F-2, F-11]
+
+### before step **Smoke — the live site serves THIS build**
+
+── [pipeline 14]O-7 · THE DEPLOY IS NOT TRUSTED UNTIL THE SITE AGREES ──
+🔴 BEFORE THIS STEP, THE LAST THING EVERY DEPLOY JOB DID WAS WRITE A
+CLAIM. `record-deployment.mjs` below records "<app>-web is live at
+<sha>" — and no workflow in this repository had ever performed a single
+request against a surface it had just deployed. An upload that went to
+the wrong project, shipped nothing, or was rolled back by the platform
+produced a green tick AND a deployment record naming the new SHA.
+
+IT STILL RUNS BEFORE THE RECORD, BUT IT NO LONGER GATES IT — AMENDED
+2026-08-09. This note used to read "recording first and verifying second
+would leave a marker asserting a state that was never true", and the
+ordering is unchanged. What changed is the CONDITION on the record step
+below: it now keys off the DEPLOY step's outcome, so a smoke that fails
+after the bytes shipped no longer erases the ledger entry for them. Run
+144 (2026-08-08) is why — see the long block on that step. The two
+questions are genuinely different: this one asks "does the live surface
+answer with this build YET", the record answers "which bytes are on that
+origin". A propagation race can make the first false while the second
+stays true, and the marker that goes missing in that window is the one
+an incident needs.
+
+⚠️ THE JOIN KEY IS THE RUN NUMBER, NOT THE SHA. `version.json` carries
+`build_number`; the SHA appears only inside `main.dart.js`. The build
+step above passes `--build-number=${{ github.run_number }}`, so this
+asserts against the field that is actually there rather than the one it
+would be tidier to have.
+
+⚠️ THIS IS NOT A SECOND COPY OF [9]R-13's LAUNCH SMOKE, and the two must
+not be merged. R-13 serves `build/web` on loopback BEFORE the deploy and
+requires `flutter-first-frame` — it answers "do these bytes RUN?". This
+answers "did those bytes REACH PRODUCTION?", over the network, after the
+upload. Each is green in the exact situation the other catches: a bundle
+that starts perfectly and was uploaded to the wrong project, and a
+correct upload of a bundle that throws in `main()`. They compose, and
+the order — launch smoke, deploy, post-deploy smoke — is the composition.
+
+### before step **Record the deployed SHA**
+
+"What is live right now?" must be answerable without inference.
+CLAUDE.md: never assert done/live/working from memory. [pipeline F-5b]
+
+`<app>-web` is the channel register's `deploymentEnvironment` template
+(`{app}-web`) expanded over this leg — the same expansion
+assert-publish-records.mjs performs to decide which environments a served
+channel's lane MUST record. The `-web` half is a literal because this
+file IS the web channel; the `{app}` half never is.
+
+── 🔴 THE RECORD FOLLOWS THE DEPLOY, NOT THE SMOKE (2026-08-09) ─────────
+MEASURED FAILURE, run 144 (2026-08-08): `Deploy to Cloudflare Pages`
+SUCCEEDED at 16:08:58Z, the post-deploy smoke above gave up 51 s later
+while the CDN was still propagating, and this step — on the default
+`success()` condition every step inherits — was therefore SKIPPED. The
+bundle was live and served real users (a consent artifact and two events
+carrying 1.0.144+40c0787 arrived 42 minutes later), and nothing in the
+ledger said so. Runs 145/146 were concurrency-cancelled, so that
+unrecorded build stayed live, and the daily provenance monitor correctly
+reported real people's rows as unattributable. Repairing it took a
+retroactive attestation (PR #266) — a hand-written entry standing in for
+a machine record that a five-word condition would have produced.
+
+📌 THE GENERALISABLE POINT: A PROVENANCE RECORD MUST BE CONDITIONED ON
+THE ACT IT DESCRIBES, NEVER ON A LATER VERDICT ABOUT THAT ACT. This step
+answers "which bytes are on that origin" — a question the wrangler upload
+settles by itself. The smoke answers a different question ("do those
+bytes ANSWER yet") and may be wrong about the first one, because a smoke
+can fail for reasons that have nothing to do with what was uploaded:
+propagation, a flaky DNS hop, an edge cache. Making the record wait on it
+meant every such failure produced the one state this whole ledger exists
+to abolish — something live that nothing can name.
+
+⚠️ IT DOES NOT SOFTEN THE SMOKE. A failed step still fails the job; an
+`if: always()` step running afterwards cannot rescue it. So the run is
+still RED and still demands a human, and the difference is only that the
+red run now leaves a traceable deploy behind instead of an orphan.
+
+⚠️ IT IS A STRICT WIDENING, WHICH IS WHY IT IS SAFE. The default
+condition is `success()` — every preceding step green, WHICH INCLUDES
+`deploy`. So every run that recorded before still records, plus the runs
+that deployed and then failed later. There is no input on which this
+records LESS. `steps.deploy.outcome` (not `conclusion`) is the raw result
+before any `continue-on-error` rewriting; the two are identical here
+because that step carries none, and `outcome` is the form e2e.yml's purge
+steps already use.
+
+⚠️ `always()` INCLUDES CANCELLATION, and that is wanted here rather than
+tolerated. The job-level `concurrency: cancel-in-progress` above means a
+newer push can cancel this leg mid-run — and runs 145 and 146 were
+cancelled exactly that way on 2026-08-08 while 144's bundle stayed live.
+A leg cancelled AFTER its upload succeeded has still published something,
+so it must still say what. `!cancelled()` would re-open the hole.
+

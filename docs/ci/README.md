@@ -382,3 +382,59 @@ six-hour window against a scheduler like that meant Renovate could go weeks
 without ever opening a pull request, and nothing would say so. The workflow
 fires **daily** and `renovate.json`'s own schedule decides when it does work:
 give the *evidence* margin, not the duty.
+
+---
+
+## 9. One page per workflow
+
+`ci.yml`'s prose moved here first. On 2026-09-06 the other twelve followed. They
+carried **5,179 comment lines against 9,322 lines of file** and now carry
+**500** — the `# why:` lines this repository keeps in a workflow, plus the 336
+shell comments inside `run:` bodies, which are executable context and were not
+touched. Nothing was summarised: every paragraph moved verbatim, under a heading
+naming the job it belonged to and the line it sat above.
+
+| page | workflow | what it covers |
+| [`build-platforms.md`](build-platforms.md) | `.github/workflows/build-platforms.yml` | the six-platform build, and the durable release artifacts |
+| [`deploy-web.md`](deploy-web.md) | `.github/workflows/deploy-web.yml` | the Pages deploy, the source maps, and why a 200 proves nothing here |
+| [`e2e.md`](e2e.md) | `.github/workflows/e2e.yml` | the nightly run against live Supabase, the live Worker and live D1 |
+| [`extensions.md`](extensions.md) | `.github/workflows/extensions.yml` | the build-free extensions subtree: gates, sims, packaging, e2e |
+| [`ops-watch.md`](ops-watch.md) | `.github/workflows/ops-watch.yml` | the alarm clock, twelve cron slots and one durable issue |
+| [`renovate.md`](renovate.md) | `.github/workflows/renovate.yml` | dependency updates, and why the cron is daily against a weekly duty |
+| [`site-drift-repair.md`](site-drift-repair.md) | `.github/workflows/site-drift-repair.yml` | the post-merge sitemap repair no pre-merge lane can do |
+| [`store-screenshots.md`](store-screenshots.md) | `.github/workflows/store-screenshots.yml` | the live Play capture, proposed for review rather than pushed |
+| [`submit-appstore.md`](submit-appstore.md) | `.github/workflows/submit-appstore.yml` | the Apple dry run, unsigned until the account exists |
+| [`submit-play.md`](submit-play.md) | `.github/workflows/submit-play.yml` | the only lane in the tree that uploads to a public store |
+| [`submit-snap.md`](submit-snap.md) | `.github/workflows/submit-snap.yml` | the Snap upload, and the read-after-upload it cannot have |
+| [`submit-windows-store.md`](submit-windows-store.md) | `.github/workflows/submit-windows-store.yml` | the Microsoft Store path, dispatch-only while `served: false` |
+
+**The parsed YAML did not change.** Each of the twelve was loaded before and
+after with a duplicate-key-rejecting loader and the two documents compared: all
+twelve are byte-identical as parsed. Only prose moved. `zizmor` reports the same
+424 findings on the same 16 files as it did before.
+
+### 9.1 What this did to every `<workflow>.yml:NNN` citation
+
+Moving 4,843 YAML comment lines out of twelve files (164 `# why:` lines were
+written back) shifts every line below them, and
+**most shifted pointers land on some other real line and are accepted in
+silence** — TRAPS `git-08`, and `ci-22`'s rule that *a citation is re-measured,
+never offset*. So every pointer into these twelve was re-derived with `grep -n`
+on the **cited text**, after the last edit to the cited file, in that order.
+Three outcomes, and which one applies is stated at each site:
+
+- **The text is still in the workflow** — the number is the one `grep -n`
+  returned. Nothing here was computed by adding a delta to a previous number.
+- **The text moved to this directory** — the pointer now names the page and the
+  line here (for example `assert-release-provenance.mjs` quotes GitHub's
+  environments documentation, which is now `docs/ci/submit-play.md:41-44`).
+- **The text names a state that no longer exists anywhere** — the dated record
+  is kept, exactly as measured, and stamped as historical. Line 352 of
+  `submit-snap.yml` AS IT STOOD ON 2026-08-26 is the worked example: it recorded a one-brace `flutter-version:` typo on
+  2026-08-26, and that workflow no longer carries a `flutter-version:` key at
+  all, so there is no live line to re-measure onto and inventing one would be
+  the exact failure the rule exists to stop.
+
+Pointers into `ci.yml` and `deploy-workers.yml` from inside the moved prose were
+re-measured the same way, because a dead pointer republished into a brand-new
+file is a fresh-looking stale citation — the failure mode `ADR 053` rule 2 names.

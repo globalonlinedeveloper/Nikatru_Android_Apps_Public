@@ -2,109 +2,32 @@ name: Build apps
 
 run-name: "Build apps on ${{ github.ref_name }} (${{ github.event_name }}) by @${{ github.actor }}"
 
-# Proves the portfolio's core claim — ONE codebase, SIX platforms — on real
-# runners. Deliberately NOT on every push: six builds is minutes of runner time
-# and the per-push signal is already covered by `ci.yml`. Run it on demand, and
-# before any release.
-#
-# WHY THIS EXISTS AT ALL: three of the six cannot be built on the owner's
-# Windows box.
-#   • macOS + iOS  — impossible on Windows, full stop. Needs Apple toolchain.
-#   • Android      — BROKEN locally: `java.io.IOException: Unable to establish
-#                    loopback connection`, fails at Gradle startup in ~4s and
-#                    persists with the daemon disabled. Environmental.
-#   • Windows      — blocked locally until the VS ATL component is installed
-#                    (`atlstr.h` missing → flutter_secure_storage_windows won't
-#                    compile). Green here because GitHub's runner ships ATL.
-# Web and Linux do build locally; they run here too so one green run answers
-# "does it build everywhere" without caveats.
+# The measurements, retractions and traps behind this file are in
+# docs/ci/build-platforms.md. Only `# why:` lines live here, and
+# docs/ci/README.md carries the rules every workflow has to obey.
 
 on:
   workflow_dispatch:
-  # Also gate release tags, where "it built on my machine" is not good enough.
-  #
-  # `<app>-v*`, not `subly-v*` — widened 2026-08-06 with the matrix refactor for
-  # [9]R-1. The old glob was the last app-specific string left in this file after
-  # every path became a matrix value, and it is the half nobody would notice:
-  # tagging `probe-v1.0.0` would have produced NO six-platform proof and no
-  # error, because a tag that matches no filter is simply not a trigger. The
-  # widening is strictly additive — every `subly-v*` tag still matches — and
-  # `android-signing.mjs` derives "this is a release" from the `refs/tags/`
-  # PREFIX, never from the app slug, so the signing posture is unchanged.
   push:
     tags: ['*-v*']
-  # WEEKLY, added 2026-07-27 for [pipeline F-4]. Until this existed the workflow
-  # ran only when a human clicked it, so the "all 6 platforms build" claim was
-  # true but UNDATED — found eight commits stale, and green again only because
-  # someone dispatched it by hand. An undated proof is a requirement that cannot
-  # fail, which is the exact defect this stage exists to remove.
-  #
-  # The timer alone is NOT the fix. GitHub disables scheduled workflows in public
-  # repos after a long inactive stretch, and a renamed branch or quota change does
-  # the same — so a dead cron looks identical to a healthy one. tooling/ci/
-  # assert-platform-proof-fresh.mjs reads the AGE of the newest green run on every
-  # build and fails past 14 days, which is what turns this silence into a signal.
+  # why: TWO weekly slots against a duty declared weekly. The freshness window is
+  # cadence x 1.5 and GitHub delivers this repository's scheduled runs 10.1% on
+  # time, so one slot a week is one chance; the margin is given to the evidence.
   schedule:
     - cron: '0 6 * * 1'   # Mondays 06:00 UTC
-    # SECOND CHANCE, added 2026-08-26. ONE weekly slot gives the 14-day ceiling
-    # in assert-platform-proof-fresh.mjs exactly ONE chance per fortnight to be
-    # renewed, and a miss reddens `ci-gate` REPO-WIDE until a SCHEDULED run
-    # succeeds — `gh workflow run` cannot clear it, because the guard counts only
-    # `event === 'schedule'`. Measured on this very workflow: the anchor run
-    # 32003607931 landed 2026-08-17T06:55:35Z, so the ceiling expires
-    # 2026-08-31T06:55:35Z and the Monday slot fires 06:00Z — 55 minutes of
-    # margin. GitHub's measured queue drift HERE was +56, +59, +102 and +226
-    # minutes on the last four scheduled runs: THREE OF FOUR WOULD HAVE MISSED.
-    # A second weekday costs one extra build a week and turns a single point of
-    # failure into two independent ones. It does NOT touch MAX_AGE_DAYS, which
-    # stays 14 — raising the ceiling would hide rot, whereas firing more often
-    # proves the timer more often. That is the whole difference.
     - cron: '0 6 * * 4'   # Thursdays 06:00 UTC
 
-
-# Least privilege. These jobs only read the repo — they publish nothing through
-# GITHUB_TOKEN. Without this every job ran at the repository-default scope, which
-# on a public repo is a standing hand-out to any compromised action. [pipeline F-11]
-# `checks: read` is the one addition the gate job below needs: it asks the API
-# for ci-gate's verdict and reads nothing else.
 permissions:
   contents: read
   checks: read
 
 jobs:
-  # ── the gate, once, for all three platform jobs ────────────────────────────
-  # This workflow produces the ONLY 6-platform proof this factory has, and
-  # `assert-platform-proof-fresh.mjs` feeds that proof back into `ci-gate` as
-  # evidence. Ungated, it would build from any dispatched ref — including one
-  # whose gate is RED — and the resulting green run would be consumed as proof
-  # that the six platforms build at a commit that never passed its own tests.
-  # It also triggers on `push: tags: <app>-v*`, which is a release trigger by
-  # any reading.
-  #
-  # ONE job rather than a first step in each of the three: the verdict is the
-  # same for all of them, `assert-gate-passed.mjs` POLLS (ci-gate is often still
-  # running), and three parallel polls of one API for one answer is waste. The
-  # cost is one extra runner-minute; the benefit is that a red gate skips all
-  # three builds instead of racing them.
-  #
-  # Since the matrix refactor the three build jobs reach this gate THROUGH
-  # `prepare` (`gate → prepare → builds`) instead of naming it directly. A red
-  # gate skips `prepare`, and a skipped `prepare` skips all three — the same
-  # outcome by the same mechanism, one edge further along. See the note on
-  # `prepare` for why the edge is written that way.
-  #
-  # ⚠️ `all_platforms` must `needs:` this job too — `assert-channel-register.mjs`
-  # asserts the aggregator covers every other job, so forgetting it fails CI
-  # rather than silently narrowing what "all platforms green" means.
-  # [pipeline R-6, F-5b]
   gate:
     name: Require ci-gate to have passed
     runs-on: ubuntu-24.04
-    # 25, not 10, and the number comes from the script rather than from the clock:
-    # assert-gate-passed.mjs POLLS for up to its own 1200 s default (this call
-    # leaves `--timeout-seconds` unset), so any bound at or under 20 kills it
-    # mid-poll and replaces "timed out waiting for ci-gate" with an opaque
-    # cancellation. Kept byte-identical in all five `gate:` jobs. [pipeline F-5b]
+    # why: 25, not 10. assert-gate-passed.mjs polls for up to its own 1200 s default,
+    # so any bound at or under 20 kills it mid-poll and replaces "timed out waiting
+    # for ci-gate" with an opaque cancellation. Byte-identical in all five gate jobs.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -116,42 +39,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node tooling/ci/assert-gate-passed.mjs ${{ github.sha }}
 
-  # ── which apps does this factory hold? ──────────────────────────────────────
-  # [pipeline 9]R-1: "adding an app requires no new or edited workflow file."
-  # Every build job below is a MATRIX over this job's output, so the answer to
-  # "which apps get built" is the root pubspec's `workspace:` list and nothing
-  # else — the same list `melos run gate` resolves and `assert-workspace-
-  # coverage.mjs` already polices. Adding an app to that list adds three matrix
-  # legs here; no line in this file mentions any app by name.
-  #
-  # 🔴 THE EMITTER IS assert-release-lane-generic.mjs ITSELF, and that is the
-  # point rather than a shortcut. That guard grades this workflow by comparing
-  # the apps it covers against the workspace, and it now PRODUCES the set the
-  # matrix iterates. One function, one file: a lane cannot drift from the
-  # workspace without the guard's own reading drifting with it. Two readers of
-  # one pubspec is the copy that quietly stops reading what it thinks it reads,
-  # which is this repository's single most repeated failure.
-  #
-  # It fails loudly on an empty answer. A `matrix: []` runs ZERO jobs and reports
-  # success, and `all_platforms` below would then aggregate nothing and print
-  # "All 6 platforms built" — green over an empty set, exactly the shape
-  # assert-green-means-ran.mjs exists for.
-  #
-  # ⚠️ IT SITS BETWEEN `gate` AND THE BUILDS, and the chain is `gate → prepare →
-  # {linux_web_android, windows, apple}` rather than each build job needing both.
-  # Two reasons, and the second one is not cosmetic:
-  #   · a matrix job can only read `needs.<job>.outputs`, so `prepare` HAS to be
-  #     a direct dependency of every job that iterates it;
-  #   · `assert-platform-proof-fresh.mjs` reads the aggregator's `needs:` with a
-  #     whole-file `/needs:\s*\[([^\]]+)\]/` — the FIRST flow-form list in the
-  #     file. Giving the platform jobs `needs: [gate, prepare]` puts a flow list
-  #     above the aggregator's and that guard then reports the platform jobs as
-  #     unwired: a false COVERAGE LOST on a correctly wired workflow. Keeping the
-  #     scalar form leaves its reading untouched. (The fragility is that guard's,
-  #     not this file's, and it is recorded here because the next person to add a
-  #     second dependency to a build job will hit it again.)
-  # The gating posture is unchanged: a red ci-gate skips `prepare`, which skips
-  # all three build jobs, which is what it did when they named `gate` directly.
   prepare:
     name: Derive the app set from the pub workspace
     runs-on: ubuntu-24.04
@@ -159,51 +46,18 @@ jobs:
     needs: gate
     outputs:
       apps: ${{ steps.workspace.outputs.apps }}
-      # ── the release line's build metadata, derived ONCE for the whole run ────
-      # [9]R-2. Every lane's APP_VERSION ends `+<short sha>`, because a version
-      # has to be ORDERED (the run number) *and* TRACEABLE (the commit), and one
-      # number cannot be both — a SHA identifies a build and can never rank two.
-      #
-      # ⚠️ IT IS DERIVED HERE, IN THE ONE JOB THAT RUNS ON UBUNTU, AND THAT IS
-      # THE POINT. `${GITHUB_SHA::7}` is bash parameter expansion. deploy-web.yml
-      # writes it inline because every step of that lane is bash; the `windows`
-      # job below runs pwsh, where the same characters are a syntax error, and
-      # `${{ github.sha }}` is the full 40 chars — 54 rendered, past the 32 the
-      # platform Worker stores app_version in (assert-app-versioning.mjs
-      # APP_VERSION_MAX). One derivation on the one shell that has the expansion,
-      # consumed by both platform jobs as an expression, is what makes the three
-      # lanes carry the SAME string rather than three spellings of it.
-      #
-      # The output is NAMED `GITHUB_SHA_SHORT` rather than `sha7`: assert-app-
-      # versioning.mjs asserts APP_VERSION's build metadata is derived from the
-      # commit by looking for `GITHUB_SHA` or `github.sha` in it, and a name that
-      # hides the provenance from the guard would be a version that reads as
-      # untraceable the day one of these rows flips to `served: true`.
       GITHUB_SHA_SHORT: ${{ steps.workspace.outputs.GITHUB_SHA_SHORT }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      # ── the tag is read BEFORE six platforms are built ───────────────────────
-      # `--tag` compares the version the tag NAMES against the build name
-      # apps/<slug>/pubspec.yaml DECLARES. Here that is an EARLY FAIL and nothing
-      # more: a tag naming a version the app does not carry stops in the FIRST
-      # job after `gate`, instead of after three build jobs each declaring
-      # `timeout-minutes: 30`. The AUTHORITATIVE copy is in `release`, on the
-      # exact string that renames the installers.
-      #
-      # ⚠️ NO `--app` ON PURPOSE. Without it the guard derives `apps/<slug>` from
-      # the tag itself, which is what keeps its app-existence and exact-leaf
-      # (casefold) limbs live — `--app` would answer that question for it.
-      #
-      # `github.ref_name` goes through `env:`: a ref name is attacker-influenced
-      # text and `${{ }}` inside a `run:` is substituted before bash ever sees it.
-      # [zizmor template-injection]
       - name: The tag must name the version the app declares
         if: github.ref_type == 'tag'
         env:
           REF_NAME: ${{ github.ref_name }}
         run: node tooling/ci/assert-app-versioning.mjs --tag "$REF_NAME"
+      # why: DERIVED, NOT LISTED. A hand-written app list here is a second copy of the
+      # workspace, and the copy is the one that rots.
       - name: The matrix comes from the workspace, never from this file
         id: workspace
         run: |
@@ -218,23 +72,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: prepare
-    # `fail-fast: false` because each leg is an independent PROOF, not a stage of
-    # one build: app #2 failing to compile says nothing about app #1, and
-    # cancelling app #1's run destroys the evidence that would have told them
-    # apart. With one app in the workspace this changes nothing.
     strategy:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.prepare.outputs.apps) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        # persist-credentials: false — actions/checkout otherwise writes GITHUB_TOKEN
-        # into .git/config and LEAVES it there for the whole job. Any later step that
-        # packages the workspace (or anything containing .git/) ships the token inside
-        # the artifact, and on a PUBLIC repo artifacts are downloadable. Nothing here
-        # does git push/tag/commit, so none of these checkouts need the credential.
-        # [zizmor artipacked] Verified 2026-07-27: no current artifact path includes
-        # .git/ — so this closes a FUTURE mistake, not a live leak.
         with:
           persist-credentials: false
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
@@ -242,116 +85,22 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: ./.github/actions/setup-flutter
-      # GTK + ninja are the Linux desktop toolchain.
-      #
-      # libsecret-1-dev + libjsoncpp-dev are NOT optional: flutter_secure_storage
-      # (our SecureStore impl, ADR 005) binds a NATIVE secure-storage library on
-      # every desktop platform, and the runner image ships none of them. Without
-      # it CMake fails with `libsecret-1>=0.18.4 not found` from
-      # flutter_secure_storage_linux/linux/CMakeLists.txt:15.
-      #
-      # Same root cause as the Windows failure on the owner's box, where the
-      # equivalent dependency is the VS ATL component (atlstr.h). One package
-      # choice, two platform-native prerequisites.
-      #
-      # libmpv/libasound are NOT needed today (ADR 013 keeps media_kit off
-      # Linux) — add them the moment a Linux media build is attempted, or CMake
-      # fails on PkgConfig::mpv with an equally misleading message.
-      # libcurl4-openssl-dev is the THIRD instance of the same lesson, found
-      # 2026-07-31 by dispatching this workflow after touching it: `sentry_flutter`
-      # (packages/telemetry, [pipeline G3]) vendors **sentry-native**, which is C
-      # and does its own `find_package(CURL)`. Without the dev headers CMake dies
-      # with `Could NOT find CURL (missing: CURL_LIBRARY CURL_INCLUDE_DIR)` from
-      # `_deps/sentry-native-src/CMakeLists.txt:501`, and the failure names sentry,
-      # not Flutter, so it reads as a telemetry bug rather than a missing package.
-      #
-      # 🔴 THE LANE HAD BEEN RED SINCE THE TELEMETRY WORK LANDED AND NOTHING SAID
-      # SO: this workflow runs only on dispatch, a release tag, and a weekly cron,
-      # so a break here is invisible until someone looks. Last green was 2026-07-26.
-      # `assert-platform-proof-fresh.mjs` would have turned it into a ci-gate
-      # failure around 2026-08-09 — 14 days after that green — which is precisely
-      # the "silence is not a signal" job it was built for, working as designed but
-      # nine days slower than a human dispatching the workflow once.
       - name: Linux build deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
             libsecret-1-dev libjsoncpp-dev libcurl4-openssl-dev
-      # apps/subly is a pub WORKSPACE member: resolution happens at the repo
-      # root, not in the app directory.
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
-      # ── [9]R-2 · THE RELEASE LINE, DERIVED, NEVER TYPED ─────────────────────
-      # The same step deploy-web.yml runs, reading the same pubspec with the same
-      # parser the guard uses — so the number that gets BUILT and the number that
-      # gets ASSERTED cannot disagree. Until this existed, this workflow had no
-      # release line at all, which is why the two notes below used to say a
-      # `--build-name` here would have to be a literal: a literal would be a
-      # second copy of the version, free to drift from pubspec, and that is the
-      # defect [9]R-2 exists for rather than a step toward fixing it.
-      #
-      # The step `id:` is load-bearing: assert-app-versioning.mjs finds the emit
-      # line, walks back for an `id:`, and then requires `steps.<id>.outputs.
-      # release_line` to appear somewhere in the file — a lane that derives the
-      # version and then versions itself from somewhere else is the shape it
-      # exists to catch.
       - name: Derive the release line from pubspec
         id: ver
         run: node tooling/ci/assert-app-versioning.mjs --emit apps/${{ matrix.app }} >> "$GITHUB_OUTPUT"
-      # ── every artifact this job produces carries the crash sink ─────────────
-      # [pipeline 11]E-7. TelemetryBootstrap falls back to a NoOp client when the
-      # DSN is empty — correct behaviour, and INDISTINGUISHABLE FROM WORKING. So
-      # until this line existed, every artifact this workflow uploaded shipped
-      # with crashes reaching nobody, while assert-seams-wired.mjs printed ok:
-      # that guard read the filename `deploy-web.yml` and nothing else, so it
-      # answered "does the WEB deploy supply the DSN" rather than the question
-      # the requirement asks. It now derives the set of jobs that must supply it
-      # from the `lane` of every row in tooling/channel-register.json — this job
-      # is the lane of `android-play` — so a new channel acquires the obligation
-      # by being given a lane.
-      #
-      # ⚠️ On a fork PR `secrets.GLITCHTIP_DSN` is empty and the build falls back
-      # to the NoOp client. That is the correct outcome for an untrusted build,
-      # and it is why the guard checks the DEFINE rather than a non-empty value:
-      # a check on the value could only ever run where the secret exists.
-      #
-      # ✅ RELEASE ATTRIBUTION IS SUPPLIED FROM HERE ON — [9]R-2, closed 2026-08-08.
-      # This note used to read "⬜ RELEASE ATTRIBUTION IS NOT SUPPLIED HERE",
-      # because `release: 'subly@${AppConfig.appVersion}'` (apps/subly/lib/
-      # main.dart:25) needs an APP_VERSION and this workflow had no release line
-      # to derive one from — so every crash from every artifact it produced
-      # reached GlitchTip under the compiled-in default. The `ver` step above is
-      # that release line, and each STORE-lane build below now carries it.
-      #
-      # ⬜ THE WEB BUILD IN THIS JOB IS THE ONE EXCEPTION, and it is deliberate.
-      # It uploads nothing (see the `path:` list at the end of this job) and it
-      # is not the web CHANNEL — deploy-web.yml is, and it stamps its own
-      # APP_VERSION and `RELEASE_CHANNEL=web`. Stamping a channel here would put
-      # a second lane's identity on an artifact nobody receives. What this build
-      # proves is that web COMPILES, which needs no release id.
       - name: Build web
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build web --release
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ⬜ `RELEASE_CHANNEL=linux-appimage` IS THE CLOSEST TRUE ANSWER, NOT AN
-      # EXACT ONE, and it is written down rather than left to be inferred. What
-      # this step produces is a DESKTOP BUNDLE, and no `.AppImage` is packaged
-      # anywhere in this repository today: `linux-appimage` is `kind: direct`,
-      # `served: false`, and its `lane` is null. The stamp says which
-      # distribution channel this binary is FOR — and for a Linux desktop build
-      # from this factory the register names exactly one direct download channel.
-      # The alternative is the compiled-in default `dev`, which makes a crash
-      # from a released Linux bundle indistinguishable from one on a developer's
-      # laptop, and that is the defect the define exists to remove. When an
-      # AppImage lane lands it inherits this row and this line unchanged; if a
-      # different Linux channel ever ships first, this value moves with it.
-      #
-      # No `--build-number`: it is Play's versionCode and nothing else reads it,
-      # and adding it here would put a monotonic counter on a lane no store
-      # consumes. APP_VERSION — the string version_gate.dart and every analytics
-      # row actually read — is identical to the store lanes'.
       - name: Build linux
         working-directory: apps/${{ matrix.app }}
         run: >
@@ -360,59 +109,10 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=linux-appimage
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── the linux-appimage channel's SIGNING KEY ─────────────────────────────
-      # The Linux half of the pair `android-signing.mjs` forms for Play, wired in
-      # the same shape and for the same reason. The `linux-appimage` row of
-      # tooling/channel-register.json has declared `APPIMAGE_SIGNING_KEY_B64`
-      # since PR #202 and a tree-wide grep for that name returned THE REGISTER
-      # AND NOTHING ELSE — a correct declaration with no consumer, which is the
-      # Android state of 2026-08-04 exactly, and on the Android side it meant
-      # every .aab this factory produced was debug-signed while every
-      # configuration check stayed green.
-      #
-      # ⬜ NO .AppImage IS PACKAGED IN THIS REPOSITORY TODAY, and this step says
-      # that out loud rather than implying otherwise. What it decides is the
-      # POSTURE: with the secret absent it exports `unsigned-build-proof` and
-      # PRINTS the gap in capitals (the row wants a detached Ed25519 signature
-      # and no key has been generated); with the secret supplied it materialises
-      # the key, self-verifies a sign/verify round trip, and exports
-      # `release-signed`. Wiring it before the packaging step exists is the
-      # point — the day an AppImage is packaged, the key already arrives through
-      # a path somebody reviewed rather than one added in the release commit.
-      #
-      # Key material is written to $RUNNER_TEMP, never the workspace, for the
-      # reason recorded on the Android key step below: every `upload-artifact`
-      # path in this file is workspace-relative and this repo is PUBLIC, so a
-      # private key inside the tree is one broad `path:` away from publication.
       - name: Prepare the AppImage signing key
         env:
           APPIMAGE_SIGNING_KEY_B64: ${{ secrets.APPIMAGE_SIGNING_KEY_B64 }}
         run: node tooling/ci/appimage-signing.mjs --app ${{ matrix.app }}
-      # ── the snapcraft recipe, DERIVED from the bundle just built ─────────────
-      # [pipeline D-10] / [ADR 015] §3. `tooling/release/submit-snap.mjs` §4 has
-      # printed "NO SNAPCRAFT RECIPE — nothing in this repo can build a .snap
-      # today" on every run since it was written, and nothing could fail on it.
-      #
-      # The recipe is GENERATED rather than committed because a committed one is
-      # a SECOND COPY of five facts that already have one home each — the snap
-      # name, the summary, the description, the licence and the Linux binary
-      # identity — and a second copy is the copy that goes stale. [10]D-5's whole
-      # claim is "the listing lives in the repo and the dashboard is a copy of
-      # it"; a hand-written snapcraft.yaml would make the recipe a third party to
-      # that agreement, free to disagree with both.
-      #
-      # `--version` is the SAME string the linux build above carries, from the
-      # same `ver` step. The Snap Store orders revisions by it, and a recipe
-      # versioned differently from the binary it packages is two release lines
-      # wearing one name.
-      #
-      # ⬜ NO .snap IS BUILT HERE, AND THAT IS NOW A CHOICE RATHER THAN A LIMIT.
-      # ⚠️ This said "snapcraft IS NOT INSTALLED — on this runner or on the
-      # owner's box … packing a real .snap is the follow-up". As of 2026-08-09
-      # submit-snap.yml installs it and packs one with `--destructive-mode`.
-      # It is not done HERE because this job is the weekly six-platform proof,
-      # and a snap no lane consumes would charge every run for it. What this
-      # step proves is that the recipe is DERIVABLE from the tree.
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
@@ -420,54 +120,11 @@ jobs:
           --bundle apps/${{ matrix.app }}/build/linux/x64/release/bundle
           --out "$RUNNER_TEMP/snapcraft-${{ matrix.app }}"
           --version ${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
-      # A GENERATOR THAT HAS STOPPED READING THE TREE STILL WRITES A FILE. It
-      # writes a shorter one, or one carrying its own idea of the values, and
-      # with no committed recipe to diff against and no snapcraft anywhere to
-      # reject the result, nothing downstream could tell. So the file that was
-      # just emitted is read back and graded: it parses, its `name` is the one
-      # apps/*/store/linux-snap/snap-name.txt claims, it carries no absolute host
-      # paths, `confinement` is `strict` (`classic` needs a manual store review
-      # nobody has argued for), and `stage-packages` EQUALS the apt list the
-      # "Linux build deps" step above installs — a retyped list, a list truncated
-      # at the first line continuation, and a workflow that grew a package the
-      # recipe did not are one failure: the snap builds and the app does not
-      # start.
       - name: The generated recipe is complete and still derived from the tree
         run: >
           node tooling/ci/assert-snapcraft-generable.mjs
           --emitted "$RUNNER_TEMP/snapcraft-${{ matrix.app }}/snap/snapcraft.yaml"
           --app ${{ matrix.app }}
-      # ── the Android UPLOAD KEY ───────────────────────────────────────────────
-      # 🔴 THIS STEP IS THE FIX FOR THE DEFECT THAT WOULD HAVE FAILED THE FIRST
-      # PLAY SUBMISSION. apps/subly/android/app/build.gradle.kts has read a real
-      # keystore from `android/key.properties` or from four environment variables
-      # for weeks, falling back to the debug signing config when none is supplied.
-      # NOTHING IN CI SUPPLIED THEM — the comment that used to sit here said so in
-      # its last sentence — so every .aab this workflow has ever produced was
-      # DEBUG-SIGNED, which Google Play rejects. Every check stayed green because
-      # every check was reading the configuration, and the configuration was right.
-      #
-      # ⚠️ THERE IS NO "this is a release" FLAG HERE, ON PURPOSE. The script
-      # DERIVES it from `GITHUB_REF` (a tag push) and from the submission workflow
-      # tooling/channel-register.json declares — because a hand-written flag in a
-      # workflow is precisely the kind of switch this whole change exists to stop
-      # relying on. Deleting a YAML line must not be able to turn a release lane
-      # back into a build proof.
-      #
-      # For THIS workflow the answer is: a `push: tags: <app>-v*` run requires
-      # signing, and the weekly/dispatch runs do not. That scoping is deliberate
-      # rather than cautious — those runs produce the six-platform proof that
-      # assert-platform-proof-fresh.mjs feeds back into ci-gate, and it FAILS the
-      # gate once the proof is 14 days old, so demanding secrets there would let
-      # one missing secret take out every merge in the repository.
-      #
-      # The step exports the four variables Gradle reads (plus the posture the
-      # signature check below compares against) into $GITHUB_ENV, so both build
-      # steps and tooling/release/submit-play.mjs all see one complete, consistent
-      # set. The keystore itself is written to $RUNNER_TEMP — outside the
-      # workspace, where none of the `upload-artifact` paths in this file can
-      # reach it, which matters more here than usual because this repo is PUBLIC
-      # and its artifacts are downloadable.
       - name: Prepare the Android upload key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -475,42 +132,6 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: node tooling/ci/android-signing.mjs --app ${{ matrix.app }}
-      # The APK is built from the same `release` buildType and therefore carries
-      # the same signature as the bundle. It is NOT checked below — see the note
-      # on the signature step: this repo's checker reads JAR (v1) signatures, and
-      # an .apk can legitimately carry a v2/v3-only block instead.
-      #
-      # ⚠️ THE .apk IS NOT THE PLAY ARTIFACT AND IS KEPT ANYWAY. An .aab is a
-      # publishing format — Google re-splits it per device and you cannot install
-      # one on a handset. The .apk is the only artifact a human can sideload to
-      # look at the build, and Android cannot be built on the owner's box at all
-      # (CLAUDE.md: java.nio Selector.open() is broken Windows-socket-wide), so
-      # this upload is the ONLY way an Android build gets touched today.
-      # ── 🔴 THE BACKEND DEFINES ARE NOT OPTIONAL ON A STORE LANE ──────────────
-      # Found 2026-08-04 alongside the debug-signing defect and it is the same
-      # failure wearing different clothes. `AppConfig.isBackendLive` is
-      # `isSupabaseConfigured && isApiConfigured`, and both compare a dart-define
-      # against a PLACEHOLDER constant (app_config.dart). Passing only
-      # GLITCHTIP_DSN left all three at their placeholders, so the artifact
-      # intended for Google Play resolved `MockAuthRepository()` and
-      # `SeedApiClient()` — mock sign-in, seeded data, inert analytics. The .aab
-      # was debug-signed AND a demo build; signing was half the reason that upload
-      # would have been wrong.
-      #
-      # Demo mode is the CORRECT default — it is what lets a stranger clone this
-      # repo and see every screen with no backend — which is exactly why nothing
-      # noticed. The secrets already existed; deploy-web.yml has passed all three
-      # since it was written. tooling/ci/assert-store-build-config.mjs now derives
-      # the required set from `isBackendLive` itself and grades every build step a
-      # `kind: store` row declares, so a fourth requirement added to that getter
-      # cannot silently escape any store lane.
-      #
-      # ⬜ NO `--build-number` ON THE .apk, ON PURPOSE. That flag is Play's
-      # versionCode and the .apk is never uploaded to Play, so the only thing it
-      # would change is a number nothing reads. What MUST match the bundle is
-      # APP_VERSION — the string version_gate.dart compares and every analytics
-      # row carries — and it does, character for character, because both come
-      # from the same `ver` step and the same run number.
       - name: Build android (apk — sideloadable build proof)
         working-directory: apps/${{ matrix.app }}
         run: >
@@ -522,47 +143,6 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=android-play
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── the android-play channel's artifact ─────────────────────────────────
-      # THIS JOB IS THE `lane` OF tooling/channel-register.json's `android-play`
-      # row, and this step is why. Before it, the register printed a FORMAT GAP
-      # on every guard run — the row accepts ".aab" and the only Android artifact
-      # the tree produced was a ".apk", so the green "Android builds" tick was a
-      # proof about an artifact Google Play does not take.
-      # developer.android.com/guide/app-bundle: "From August 2021, new apps are
-      # required to publish with the Android App Bundle on Google Play."
-      #
-      # The register recorded that contradiction IN PROSE from the day it was
-      # written; it became something a build could fail on when [pipeline F-2]'s
-      # hardening taught assert-channel-register.mjs to compare a row's
-      # artifactFormats to what its lane emits, and it is closed here.
-      #
-      # 🔴 `--build-number` COSTS ONE LINE AND REMOVES THE ONLY IRREVERSIBLE
-      # FAILURE IN STAGE 9. Play reads it as `versionCode`. A versionCode must
-      # strictly increase and CAN NEVER BE REUSED — so the first .aab uploaded
-      # under the pubspec default of `+1` burns `1` forever, and the second
-      # upload is rejected with nothing in the app to explain it. Passing
-      # `github.run_number` here while nothing ships is free; retrofitting it
-      # after the first upload is not possible at all.
-      #
-      # ⚠️ `github.run_number` COUNTS RUNS OF THIS WORKFLOW FILE. Rename or
-      # replace build-platforms.yml and the counter restarts at 1, below a code
-      # Play has already consumed. If this file is ever renamed, the number has
-      # to be offset past the old file's high-water mark in the same commit.
-      # Recorded in tooling/ci/assert-app-versioning.mjs beside MAX_RUN_DIGITS.
-      #
-      # ✅ `--build-name` IS HERE NOW — [9]R-2, closed 2026-08-08. This note used
-      # to read "⬜ NO `--build-name` HERE, deliberately", and its reasoning was
-      # right for the tree it was written against: `--build-name` is the number
-      # version_gate.dart compares, a literal would be a second copy of pubspec's
-      # version free to drift from it, and this workflow had no release-line step
-      # to derive one from. It has one now — `ver`, above — so the value is
-      # DERIVED by the same script and the same parser that assert it, and the
-      # objection the note recorded does not apply to a derived value.
-      #
-      # The version core here is the same string as APP_VERSION's, on purpose:
-      # the number Play shows and the number the kill-switch compares must be one
-      # number. `--build-number` is UNCHANGED and must stay that way — see the
-      # versionCode note above.
       - name: Build android (aab — the Google Play artifact)
         working-directory: apps/${{ matrix.app }}
         run: >
@@ -575,78 +155,18 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=android-play
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── READ THE SIGNATURE OUT OF THE BUNDLE, not out of the config ──────────
-      # The step above says what was ARRANGED. This one says what HAPPENED, and
-      # the whole reason the debug-signing defect survived is that nothing in the
-      # tree asked the second question: submit-play.mjs, the channel register and
-      # the Gradle header all described a correct configuration while every built
-      # artifact was debug-signed.
-      #
-      # It fails when the signer is the Android debug key, when the bundle is
-      # unsigned, when the certificate is not the fingerprint pinned in
-      # tooling/channel-register.json, or when the real signature disagrees with
-      # the posture the step above exported — that last one is what catches Gradle
-      # silently not using secrets that were supplied.
-      #
-      # ⚠️ THE .aab AND NOT THE .apk. An app bundle always carries a JAR (v1)
-      # signature, which is what `keytool -printcert -jarfile` reads. An .apk may
-      # carry a v2/v3-only APK Signing Block and no v1 block at all, which this
-      # checker would report as UNSIGNED — a false red on a correct artifact.
-      # Reading v2 needs `apksigner`; that branch is deliberately unwritten rather
-      # than written and never exercised.
       - name: The .aab must be signed by the upload key, not the debug key
         run: >
           node tooling/ci/assert-artifact-signed.mjs
           apps/${{ matrix.app }}/build/app/outputs/bundle/release/app-release.aab
-      # ── 🔴 THE UPLOAD BELOW CANNOT TELL YOU WHAT IT IS CARRYING ─────────────
-      # `if-no-files-found: error` fails the step when the WHOLE `path:` set
-      # matches nothing. The set below is a union of two globs and a DIRECTORY,
-      # so the directory alone satisfies it: the .aab could be absent, the .apk
-      # could be absent, both could be zero bytes, and the upload is green, the
-      # job is green, and the artifact downloads with a hole in it. Every guard
-      # in this repository that reads this file reads its TEXT — and the text
-      # still names all three paths, which is exactly why none of them caught it.
-      #
-      # This step asserts each path ON ITS OWN, on the runner, against the disk,
-      # AFTER the builds and BEFORE the upload — the only position where the
-      # answer is a fact rather than a promise. The extensions it expects are
-      # derived from tooling/channel-register.json through the same
-      # `installableExtensions()` the release lane stages with, so a channel that
-      # gains a format gains an assertion here or the guard reports COVERAGE LOST.
       - name: Every artifact this lane claims exists, and is not empty
         run: >
           node tooling/ci/assert-artifact-shape.mjs
           --app ${{ matrix.app }} --platform linux_web_android
-      # ── THE PLAY STORE GATE FOR THIS ENVIRONMENT ────────────────────────────
-      # 🔴 IT RUNS HERE AND NOWHERE ELSE, BECAUSE ONLY HERE DOES THE SUBJECT
-      # EXIST. `ci.yml` never builds Android, so this guard in that workflow
-      # could only ever report COVERAGE LOST. This is what "one job per
-      # environment, each carrying its own store gates on top of the shared
-      # ones" means in practice: the shared gates ran at `gate`, and the gates
-      # that need a built artifact run in the lane that built it.
-      #
-      # It reads the ELF program headers of every 64-bit `.so` inside the bundle
-      # and refuses a LOAD segment under 16 KB. Nothing in this repository had
-      # ever opened a `.so`, and the alignment is set by the NDK and by linker
-      # flags Flutter passes — there is no line in this tree to review, which is
-      # why a toolchain move can change it with no diff. Placed AFTER the shape
-      # check, so a missing or empty .aab is reported as a missing .aab rather
-      # than as an unreadable archive.
       - name: Every native library is aligned for a 16 KB memory page
         run: >
           node tooling/ci/assert-elf-page-alignment.mjs
           apps/${{ matrix.app }}/build/app/outputs/bundle/release/app-release.aab
-      # 🔴 THE POSTURE IS IN THE ARTIFACT NAME, and that is the "labelled, not
-      # indistinguishable" half of the fix. A downloaded `subly-linux-web-android`
-      # said nothing about whether its .aab could be uploaded anywhere; a
-      # `…-debug-signed-build-proof` cannot be mistaken for a release by anyone
-      # reading the run's artifact list.
-      #
-      # THE APP PREFIX IS NOT COSMETIC EITHER. `upload-artifact@v4` rejects a
-      # second upload under a name that already exists in the run, so a matrix
-      # over two apps with a fixed artifact name is not "two artifacts, confusing
-      # names" — it is a HARD FAILURE on the second leg. Parameterising the name
-      # is what makes the matrix run at all.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.app }}-linux-web-android-${{ env.ANDROID_SIGNING_POSTURE }}
@@ -673,75 +193,10 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
-      # ── [9]R-2 · the same derivation as the Android lane, same script ────────
-      # ⚠️ `shell: bash` ON THIS STEP AND ONLY THIS STEP. This runner's default
-      # shell is pwsh, and `>> "$GITHUB_OUTPUT"` is bash syntax — in PowerShell
-      # `$GITHUB_OUTPUT` is an unset variable, so the redirect writes the emitted
-      # lines to a file called nothing and `steps.ver.outputs.release_line`
-      # resolves to the empty string. The build would then take `--build-name=
-      # .<run>`, which is a version with no release line and NO ERROR ANYWHERE.
-      #
-      # The step runs `node` and nothing else. `node` is a real .exe on PATH, so
-      # Git Bash resolves it exactly as pwsh does — no flutter, no Gradle, no
-      # msix, nothing whose Windows path handling is worth arguing about. The
-      # build steps below stay on the default shell for the same reason.
       - name: Derive the release line from pubspec
         id: ver
         shell: bash
         run: node tooling/ci/assert-app-versioning.mjs --emit apps/${{ matrix.app }} >> "$GITHUB_OUTPUT"
-      # ── the windows-direct channel's CODE-SIGNING CERTIFICATE ───────────────
-      # The Windows half of the pair `android-signing.mjs` forms for Play, wired
-      # in exactly the same shape: a step that ARRANGES the credential, exports a
-      # POSTURE, and leaves reading the signature back out of the binary to a
-      # separate check. The `windows-direct` row of
-      # tooling/channel-register.json has declared WINDOWS_CODESIGN_PFX_BASE64
-      # and WINDOWS_CODESIGN_PFX_PASSWORD since PR #202 with no consumer anywhere
-      # in the tree — the same silence that let every .aab this factory produced
-      # be debug-signed for weeks while every configuration check stayed green.
-      #
-      # ⚠️ IT ARMS THE DIRECT-DOWNLOAD CHANNEL, NOT THE STORE ONE, and the two
-      # must not be conflated. `windows-store` is `keyKind: "none"` — Microsoft
-      # re-signs what it accepts, `msix_config` sets `store: true`, and the .msix
-      # packaged below is deliberately unsigned. What Microsoft Store Policies
-      # §10.2.9 needs a trusted-root certificate for is the DIRECT download, and
-      # that is the row this step reads.
-      #
-      # ⬜ NO CERTIFICATE HAS BEEN PURCHASED (the row's pin is a sentinel that
-      # cannot be mistaken for a thumbprint), so every run today exports
-      # `unsigned-build-proof` and PRINTS the gap in capitals. Wiring it before
-      # the purchase is the point: the day the .pfx arrives it flows through a
-      # path that already exists and has already been reviewed, instead of being
-      # written in the same commit as the first release.
-      #
-      # Key material goes to $RUNNER_TEMP for the reason recorded on the Android
-      # key step in the job above — this repo is PUBLIC and its artifacts are
-      # downloadable by anyone.
-      # [pipeline 11]E-7, and this job is the lane of the `windows-store` row.
-      # ⚠️ WINDOWS GETS THE DART LAYER ONLY. sentry_flutter's Windows support is
-      # the Dart error handler; a native crash in the C++ runner or in a plugin's
-      # native half is NOT captured, so "Windows crashes reach GlitchTip" is true
-      # of Dart exceptions and false of access violations. Written here and in
-      # tooling/channel-register.json so nobody reads the six green ticks as six
-      # covered platforms. Same fork-PR and release-attribution caveats as the
-      # linux_web_android job above.
-      # `--build-number` for the same reason as the .aab lane below-left: the
-      # MSIX packaged from this build carries the version, and the Microsoft
-      # Store rejects a submission whose version is not higher than the last
-      # accepted one. `dart run msix:create` reads what `flutter build` produced,
-      # so the number has to arrive here rather than at packaging time.
-      #
-      # ✅ `--build-name` IS HERE NOW — [9]R-2, closed 2026-08-08. The note that
-      # used to sit on this line said "No `--build-name` — see the note on the
-      # appbundle step for why a literal would be a second copy of pubspec's
-      # version", and that was correct while the only option was a literal. The
-      # `ver` step above derives it from pubspec with the guard's own parser, so
-      # the Store version and the version version_gate.dart compares are the same
-      # string arrived at the same way.
-      #
-      # The backend defines, for the reason recorded on the android apk step
-      # above: this job is the `windows-store` row's declared LANE, the .msix
-      # below is packaged from exactly these binaries, and without them the
-      # package Microsoft would receive is the demo build.
       - name: Build windows
         working-directory: apps/${{ matrix.app }}
         run: >
@@ -754,68 +209,11 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=windows-store
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── the windows-store channel's artifact ────────────────────────────────
-      # THIS JOB IS THE `lane` OF tooling/channel-register.json's `windows-store`
-      # row, and this step is why. Before it, the register printed a FORMAT GAP
-      # on every guard run — the row accepts ".msix" and the only Windows artifact
-      # the tree produced was a ".exe" bundle directory, so the green "Windows
-      # builds" tick was a proof about an artifact the Microsoft Store does not
-      # take. Same shape as the .apk/.aab gap recorded one row up for Play.
-      #
-      # `msix_config` in apps/subly/pubspec.yaml sets `store: true`, so this
-      # produces an UNSIGNED store package: the register's keyKind for this row is
-      # "none" because the Store re-signs. Nothing here holds a certificate and
-      # nothing here needs one — which is what makes this the cheapest real store
-      # channel we have.
-      #
-      # ⬜ THE ONE THING THE MATRIX CANNOT CARRY, recorded rather than forced.
-      # `msix_config` lives in each app's OWN pubspec — identity_name, publisher,
-      # and `output_name`, which is what the produced file is called. There is no
-      # workflow-level expression that can name it, because the fact is not in
-      # this file and not in the matrix; it is in the app. So the upload below
-      # globs `*.msix` under the app's msix output_path instead of naming
-      # `subly.msix`. That is generic AND honest: `if-no-files-found: error`
-      # still fails the leg if an app's msix_config produced nothing. What stays
-      # app-specific is the CONTENT of msix_config, and `assert-store-metadata.mjs`
-      # already compares the identity a channel row declares against what each
-      # apps/*/pubspec.yaml packages with — the right place for it.
-      #
-      # ⬜ The package identity is still `PARTNER-CENTER-PENDING` (OWNER_QUEUE
-      # A-2). The .msix therefore BUILDS and is NOT SUBMITTABLE; that is the
-      # point of building it anyway — the packaging path is proven before the
-      # account exists, so registration day is minutes rather than archaeology.
-      # `build_windows: false` keeps msix from rebuilding: this packages the
-      # exact binaries the step above produced and the upload below proves.
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/${{ matrix.app }}
         run: dart run msix:create
-      # ── WHAT msix:create ACTUALLY WROTE ────────────────────────────
-      # 🔴 TWO GUARDS ALREADY COMPARE THIS IDENTITY AND NEITHER HAS EVER OPENED
-      # THE PACKAGE. assert-store-metadata.mjs compares channel-register.json's
-      # `packageIdentity` against the pubspec's `msix_config` — declaration
-      # against declaration. Between that and the shipped bytes sits the step
-      # above, and nothing has ever asked what it wrote.
-      #
-      # Partner Center binds the identity to the PRODUCT, not to the upload, so
-      # a package built under the wrong one submits cleanly and is
-      # UNRECOVERABLE once published. It also asserts the package carries NO
-      # AppxSignature.p7x, which is the positive evidence that `store: true`
-      # took effect — `store: false` silently re-introduces a test certificate
-      # nobody owns.
-      # 🔴 UPLOAD THE PACKAGE BEFORE ANYTHING JUDGES IT, AND UPLOAD IT EVEN WHEN
-      # THE JUDGEMENT FAILS. The artifact upload at the end of this job carries
-      # no `if:`, so it defaults to `success()` — meaning on 2026-08-25, three
-      # consecutive runs failed at the guard below and NOT ONE of them left the
-      # .msix anywhere a human could fetch it. The bytes that would explain the
-      # failure are destroyed by the failure. Two of those runs were spent
-      # inferring the package's shape from a stack trace because of it.
-      #
-      # `if: always()` rather than `success()`, and a SEPARATE upload from the
-      # one at the end of the job, so this cannot be broken by someone changing
-      # what that one collects. `if-no-files-found: warn` is deliberate HERE and
-      # would be wrong there: if `msix:create` produced nothing, the step above
-      # already failed and this upload has nothing to add — turning that into a
-      # second red would report one defect twice.
+      # why: the artifact is preserved BEFORE the identity check that can reject it. A
+      # refusal must leave the evidence behind, not delete it.
       - name: Keep the .msix even if what follows refuses it
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -829,37 +227,6 @@ jobs:
         run: >
           node tooling/ci/assert-artifact-signed-msix.mjs
           apps/${{ matrix.app }}/build/windows/msix/${{ matrix.app }}.msix
-      # ── THE CERTIFICATE, AND THE READ-BACK IT EXISTS FOR ────────────────
-      # 🔴 THIS STEP RAN BEFORE `Build windows` UNTIL 2026-08-20, AND WAS NEVER
-      # GIVEN `--artifact`. Both halves of that were defects and the second is
-      # the one that mattered: with no `--artifact`, windows-signing.mjs:804
-      # falls back to a SAMPLE path, prints the `signtool sign` and `signtool
-      # verify /pa` commands it WOULD run, and reports at :829
-      # `READ-BACK NOT PERFORMED`. The lane has therefore never read a signature
-      # out of a real Windows binary — it printed a plausible command about a
-      # file it never opened, on every run, in green.
-      #
-      # It now runs AFTER the build and the packaging, where the binaries exist.
-      # Verified safe to move rather than assumed:
-      #   · NOTHING consumes `WINDOWS_SIGNING_POSTURE` — no workflow, no guard.
-      #     (Its Apple counterpart IS consumed, by assert-artifact-signed-apple,
-      #     which is why that one must stay ahead of its builds.)
-      #   · NOTHING consumes `WINDOWS_CODESIGN_PFX_PATH` between the old and new
-      #     positions.
-      #   · `msix:create` SKIPS SIGNING ENTIRELY in this repo — the Store
-      #     re-signs, so apps/*/pubspec.yaml holds no certificate and needs none.
-      #     Had it signed, moving the cert materialisation after it would have
-      #     produced an unsigned package with every check still green.
-      #
-      # ⚠️ `shell: bash` IS LOAD-BEARING, for the reason written out on the
-      # `Derive the release line` step above: this job's default shell is pwsh,
-      # which does not expand a wildcard into a native executable's arguments.
-      # Under pwsh `node … --artifact 'Release/*.exe'` hands node the literal
-      # string, and windows-signing.mjs does not glob — `optAll('artifact')`
-      # takes argv values as paths. The read-back would then fail to find a file
-      # whose name contains an asterisk, which reads as a missing artifact
-      # rather than as a shell that never expanded. It runs `node` and nothing
-      # else, so bash is safe here on the same grounds as that step.
       - name: Prepare the Windows code-signing certificate, and read the signature back
         shell: bash
         env:
@@ -870,19 +237,6 @@ jobs:
           $(for f in apps/${{ matrix.app }}/build/windows/x64/runner/Release/*.exe
           apps/${{ matrix.app }}/build/windows/x64/runner/Release/*.dll; do
           if [ -e "$f" ]; then printf -- '--artifact %s ' "$f"; fi; done)
-      # ── 🔴 THIS IS THE LANE THE UNION TRAP WAS FOUND ON ─────────────────────
-      # The upload below sets `if-no-files-found: error` and it does NOT do what
-      # that name suggests on a multi-path set: it fails only when the WHOLE set
-      # matches nothing. `…/runner/Release` is a directory and `flutter build
-      # windows` has already made it, so the .msix glob matching NOTHING is
-      # accepted — silently, on the only Microsoft Store package this factory
-      # produces, on the lane the `windows-store` row points at. `msix:create`
-      # writing no file, `output_path` moving in an app's pubspec, or the whole
-      # step being deleted all land in exactly the same green.
-      #
-      # This step asks the disk instead, before the upload, and names the path
-      # that is missing. Its recorded failing case is that exact tree: Release/
-      # populated, .msix deleted (tooling/ci/test/artifact-shape.test.mjs).
       - name: Every artifact this lane claims exists, and is not empty
         run: >
           node tooling/ci/assert-artifact-shape.mjs
@@ -912,74 +266,15 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
-      # KEPT, not temporary. `tooling/versions.json` pins the runner LABEL, the
-      # Flutter version and — since the `xcode` key landed — an Xcode floor of
-      # "26". A label names an image FAMILY, not an immutable image, so the image
-      # can move its default Xcode without this repo noticing. When the macOS
-      # build breaks, the first question is "what toolchain was this?", and
-      # without these three lines the answer is unrecoverable after the fact.
-      # It cost one CI cycle to learn that on 2026-07-31; it costs 2 seconds here.
-      #
-      # 🔴 THIS COMMENT SAID "NOTHING pins Xcode" UNTIL 2026-08-20, AND THE PIN
-      # HAD ALREADY LANDED. Worse, the pin is still not ENFORCED: nothing
-      # compares the runner's actual Xcode to versions.json's, and
-      # submit-appstore.mjs decides whether to warn about it with
-      # `hasOwnProperty('xcode')` — the KEY'S PRESENCE, nothing more. Adding the
-      # key silenced the warning and left the risk it described exactly where it
-      # was. `xcodebuild -version` below PRINTS the answer and asserts nothing.
-      # A guard that compares them is the next change.
       - name: Toolchain under test
         run: |
           sw_vers
           xcodebuild -version
           flutter --version
-      # ── AND THE FLOOR IS ASSERTED, NOT MERELY PRINTED ──────────────────
-      # The step above PRINTS the toolchain and asserts nothing about it, which
-      # is exactly right for a forensic record and useless as a gate. This
-      # compares what `xcodebuild` just reported against versions.json's `xcode`
-      # floor. Absent xcodebuild is COVERAGE LOST, never a pass — which is why
-      # this is here, on the macOS runner, and deliberately NOT in ci.yml.
       - name: The Xcode floor is met, not just declared
         run: node tooling/ci/assert-xcode-floor.mjs
-      # ⚠️ If this ever aborts with `AOT snapshotter exited with code -6` again,
-      # add --verbose BEFORE diagnosing anything: gen_snapshot's stderr is not in
-      # the step log and not in `gh run view --log-failed`. That flag is the only
-      # thing that turns "exit -6" into an actual error message.
-      # See $flutter_comment in tooling/versions.json for the 3.44.9 case.
-      #
-      # The patch step is the flutter/flutter#188060 workaround: gen_snapshot
-      # SIGABRTs because the tree shaker drops _window_macos.dart's private FFI
-      # structs while instances survive in the snapshot. @pragma('vm:entry-point')
-      # on those five classes keeps them. PROVEN on probe run 30645902458 — the
-      # first fully green 6-platform run since 2026-07-26, ConsentGate intact.
-      # The script fails LOUDLY if the SDK layout moves; drop it when upstream
-      # fixes #188060.
       - name: Patch the SDK for flutter/flutter#188060 (macOS AOT abort)
         run: python3 tooling/ci/patch-flutter-macos-aot.py "$FLUTTER_ROOT"
-      # ── the APPLE DISTRIBUTION IDENTITY, arranged before anything is built ───
-      # The macOS/iOS half of the pair `android-signing.mjs` forms for Play.
-      # PR #202 declared four Apple secrets on the `ios-appstore` and
-      # `macos-appstore` rows of tooling/channel-register.json; a tree-wide grep
-      # for APPLE_DIST_CERT_P12_BASE64 on 2026-08-08 returned THE REGISTER AND
-      # NOTHING ELSE. That is the Android state of 2026-08-04 exactly, and the
-      # Apple version of the silence is worse in one respect: the iOS build below
-      # passes `--no-codesign`, so this lane's UNSIGNED-ness is real and correct
-      # today, and the day somebody removes that flag there would be nothing
-      # anywhere to notice the secrets were never wired.
-      #
-      # All four supplied → a per-run keychain, the decoded provisioning
-      # profiles and an ExportOptions.plist, posture `release-signed`. None
-      # supplied → posture `unsigned-build-proof` with the gap PRINTED in
-      # capitals and named (Apple Developer account, OWNER_QUEUE A-4). SOME
-      # supplied → FAIL, on every lane: three of four is an artifact nobody can
-      # explain, and Apple's version of "correctly signed but wrong identity" is
-      # rejected at upload, after the account is spent.
-      #
-      # ⚠️ THERE IS NO "this is a release" FLAG HERE, ON PURPOSE. The script
-      # derives that from GITHUB_REF and from the submission workflow the
-      # register declares, for the reason recorded on the Android key step:
-      # deleting a YAML line must not be able to turn a release lane back into a
-      # build proof.
       - name: Prepare the Apple distribution identity
         env:
           APPLE_DIST_CERT_P12_BASE64: ${{ secrets.APPLE_DIST_CERT_P12_BASE64 }}
@@ -995,38 +290,10 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── READ THE SIGNATURE OUT OF THE BUNDLE, not out of the config ──────────
-      # The step above says what was ARRANGED. This one says what HAPPENED, and
-      # the Android pair is two files for exactly this reason: a step that
-      # arranges a credential and then reports its own success is the "green
-      # means ran" failure with extra stages. `codesign -dvv` is run against the
-      # .app that was just produced and the verdict is the PARSED output, never
-      # the exit status — the Android guard shipped after discovering `keytool`
-      # exits 0 on an unsigned archive.
-      #
-      # It fails when the posture says `release-signed` and the bundle is
-      # unsigned or AD-HOC (a real, locally-valid signature with no identity and
-      # no team behind it — the Apple equivalent of the Android debug key, and
-      # the reason a check that merely asked "is it signed" would have passed the
-      # defect), when the leaf is a development or Developer-ID certificate
-      # rather than a distribution one, when the team is not the one the register
-      # pins, and — in the other direction — when an identity reached an
-      # `unsigned-build-proof` build through a path this lane never arranged.
-      #
-      # ⚠️ THE .app AND NOT AN .ipa. `flutter build ios --no-codesign` below
-      # produces no .ipa at all, and `codesign` could not read one anyway: it is
-      # a ZIP, and pointing this guard at one would report UNSIGNED for a
-      # correctly signed app. Such a path is REFUSED BY NAME rather than read as
-      # unsigned — "the tool cannot read this" and "this file is not signed" must
-      # never share an exit code. The iOS half of this lane closes when something
-      # produces an artifact, not when somebody edits this line away.
       - name: The macOS bundle is signed by the identity this lane intended
         run: >
           node tooling/ci/assert-artifact-signed-apple.mjs
           apps/${{ matrix.app }}/build/macos/Build/Products/Release/*.app
-      # --no-codesign: this proves the code COMPILES for iOS without needing an
-      # Apple Developer account or provisioning profile. Signing is a separate,
-      # owner-gated step and must not block build verification.
       - name: Build ios (no codesign)
         working-directory: apps/${{ matrix.app }}
         run: >
@@ -1035,51 +302,10 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      # ── READ THE SIGNATURE OUT OF THE iOS BUNDLE TOO ───────────────────
-      # The macOS half above has had this since it existed; the iOS half could
-      # not, because nothing it could read outlived the job. It does now.
-      #
-      # ⚠️ A .app, NEVER AN .ipa. `UNREADABLE_SUFFIXES` in that guard is
-      # ['.ipa','.pkg','.zip','.dmg'] — an .ipa is a ZIP, and `codesign` pointed
-      # at one reports UNSIGNED for a correctly signed app. The guard REFUSES
-      # such a path BY NAME rather than reading it as unsigned, because "the
-      # tool cannot read this" and "this is not signed" must never share an exit
-      # code. A `.app` is readable, which is why this step is possible at all.
-      #
-      # WHAT IT ASSERTS TODAY, under posture `unsigned-build-proof`: that the
-      # bundle is unsigned, LOUDLY and on purpose — and, in the other direction,
-      # that NO identity reached this build through a path the lane never
-      # arranged (a leftover keychain, an inherited environment). That second
-      # direction is the whole value of running it before an Apple account
-      # exists: an artifact nobody can attribute is the thing that must never
-      # reach a store, and it is exactly what an unwatched lane accumulates.
-      # When the four Apple secrets land, the posture flips to `release-signed`
-      # and the same step starts demanding a distribution identity and the
-      # pinned team — no edit here.
       - name: The iOS bundle is signed by the identity this lane intended
         run: >
           node tooling/ci/assert-artifact-signed-apple.mjs
           apps/${{ matrix.app }}/build/ios/iphoneos/*.app
-      # ── the same question, asked of the macOS bundle ──────────────────────
-      # The macOS upload's `path:` is a SINGLE directory, so `if-no-files-found:
-      # error` is not being fooled by a union there — but a `Release/` holding a
-      # .plist and no .app satisfies it just as happily, and a macOS .app is a
-      # DIRECTORY whose size on disk says nothing about whether it can launch.
-      # The guard checks that a `*.app` bundle exists and has contents.
-      #
-      # ⬜ IT ASSERTS NOTHING ABOUT iOS, and the guard PRINTS that gap on every
-      # run of this lane rather than passing over it. `flutter build ios
-      # --no-codesign` produces an unsigned .app and no `.ipa`; the
-      # `ios-appstore` row accepts ".ipa" and has no lane at all.
-      #
-      # 🔴 THE REASON FOR THAT GAP CHANGED TODAY (2026-08-20) and the sentence
-      # that used to sit here — "and no step uploads it" — is gone with it. Until
-      # this commit an assertion over the iOS bundle would have ranged over an
-      # artifact that did not outlive the job: it could never fail, and a check
-      # that cannot fail adds apparent coverage and no coverage. The step below
-      # now retains that bundle for 90 days, so there IS something to look at.
-      # What is missing is the assertion, and that is the next change. The gap
-      # closes when somebody writes it — not when somebody edits the line away.
       - name: Every artifact this lane claims exists, and is not empty
         run: >
           node tooling/ci/assert-artifact-shape.mjs
@@ -1090,36 +316,6 @@ jobs:
           path: apps/${{ matrix.app }}/build/macos/Build/Products/Release
           retention-days: 90
           if-no-files-found: error
-      # ── THE iOS BUNDLE, RETAINED — the artifact this lane has never had ─────
-      # `flutter build ios --release --no-codesign` above writes
-      # build/ios/iphoneos/*.app and, until this step, NOTHING UPLOADED IT. The
-      # runner is ephemeral, so the bundle's retention was zero seconds: it was
-      # compiled, proven to compile, and destroyed. 33 guards in this repository
-      # name ios or macos and not one of them could ever see an iOS artifact,
-      # because none existed for longer than the job.
-      #
-      # 🔴 THIS IS THE UNBLOCKER, NOT THE FEATURE. Six of the nine stages the
-      # ios-appstore channel is measured on — SIGN, VERIFY-SIGNATURE, the shape
-      # assertion, PACKAGE, SUBMIT, RELEASE — cannot be worked on at all while
-      # the thing they operate on does not outlive the job. Every one of them is
-      # reachable from here; none was before.
-      #
-      # THE POSTURE IS IN THE NAME, for the reason recorded on the Android
-      # upload above: `subly-ios-unsigned-build-proof` cannot be mistaken for a
-      # submittable build by anyone reading the run's artifact list, and today
-      # it is exactly what it says — apple-signing.mjs exports
-      # `unsigned-build-proof` when the four Apple secrets are absent, which
-      # they are. The app prefix is not cosmetic either: upload-artifact@v4
-      # rejects a second upload under a name already used in the run, so a
-      # matrix over two apps with a fixed name is a hard failure on the second
-      # leg, not a naming inconvenience.
-      #
-      # ⚠️ AN UNSIGNED .app IS NOT AN .ipa AND MUST NEVER BE READ AS ONE. The
-      # ios-appstore row accepts `.ipa` and its artifactGlob names
-      # build/ios/ipa/*.ipa, which this does not produce and does not claim to.
-      # What is retained here is a BUILD PROOF. It becomes a release candidate
-      # when an Apple account exists and something signs and packages it — not
-      # when somebody widens this path.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.app }}-ios-${{ env.APPLE_SIGNING_POSTURE }}
@@ -1131,24 +327,12 @@ jobs:
     name: all-platforms
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # `release` is in this list for the same reason every other job is:
-    # assert-channel-register.mjs asserts the aggregator `needs` EVERY other job
-    # in the file, so a durable-release job outside it could fail while "All 6
-    # platforms built" still printed. It is also why `release` carries NO
-    # job-level `if:` — a conditional job resolves to `skipped`, and this
-    # aggregator (correctly) treats `skipped` as not-green. The tag-only part of
-    # that job is therefore a STEP-level condition, which leaves the job itself
-    # running on every trigger and its result meaningful. [pipeline R-5, 9]R-4
+    # why: this aggregate treats 'skipped' as not-green as well as failure and
+    # cancelled. A job-level if: on any platform job would otherwise let it print
+    # "All 6 platforms built" over a platform that never built.
     needs: [gate, prepare, linux_web_android, windows, apple, release]
     if: always()
     steps:
-      # A matrix job's `result` is the ROLL-UP of every leg: one red leg makes
-      # the whole `needs.linux_web_android.result` a failure, so "all 6 platforms
-      # built" keeps meaning all six FOR EVERY APP without this step learning
-      # what a matrix is. `prepare` is in `needs` for the same reason the others
-      # are — assert-channel-register.mjs asserts the aggregator covers every
-      # other job in the file, and a `prepare` that failed to emit an app set is
-      # precisely the run that must not print success.
       - name: Require every platform green
         run: |
           echo "gate=${{ needs.gate.result }} prepare=${{ needs.prepare.result }} linux_web_android=${{ needs.linux_web_android.result }} windows=${{ needs.windows.result }} apple=${{ needs.apple.result }} release=${{ needs.release.result }}"
@@ -1160,64 +344,10 @@ jobs:
           fi
           echo "All 6 platforms built"
 
-  # ── THE DURABLE HALF — [pipeline 9]R-4 ──────────────────────────────────────
-  # "A release artifact outlives the run that made it. Every artifact intended
-  # for a user is published to a durable, addressable location with an integrity
-  # record, not left as a workflow-scoped artifact."
-  #
-  # 🔴 WHAT THIS JOB REPLACES, MEASURED 2026-08-06 BEFORE IT EXISTED: `git tag`
-  # returned 0, `git ls-remote --tags origin` returned 0, no `gh release create`
-  # appeared anywhere in the repository, and FIVE jobs ended at
-  # `actions/upload-artifact` with `retention-days: 7`. A release artifact
-  # outlived its run by SEVEN DAYS, which is the requirement's negation rather
-  # than a weak form of it.
-  #
-  # THE MECHANISM IS THREE THINGS, because the acceptance names three properties
-  # and no single artefact carries all three:
-  #   · DURABLE      — a GitHub Release. Not a preference: Private/requirements/
-  #                    zero-cost-stack.md:46-47 is LOCKED ("GitHub Releases =
-  #                    artifact origin for every installer/APK"). A release asset
-  #                    has no retention clock; an upload-artifact has a 7-day one.
-  #   · ADDRESSABLE  — the git TAG this workflow ALREADY triggers on
-  #                    (`push: tags: ['*-v*']`, above). One trigger now does two
-  #                    jobs: it demands the six-platform proof AND names the
-  #                    release. Nothing app-specific is added — the glob names no
-  #                    app and neither does anything below.
-  #   · INTEGRITY    — SHA256SUMS, written and re-verified by
-  #                    tooling/ci/release-manifest.mjs, carrying the GATED
-  #                    COMMIT SHA in its own header. `sha256sum -c` skips
-  #                    `#`-prefixed lines (verified on GNU coreutils 8.32), so
-  #                    the provenance rides inside the file a downloader already
-  #                    knows how to check.
-  #
-  # ⚠️ THE JOB RUNS ON EVERY TRIGGER; ONLY THE PUBLISH IS TAG-ONLY. Two reasons,
-  # and the first is not stylistic:
-  #   · a job-level `if:` resolves to `skipped`, and `all_platforms` above
-  #     (correctly) fails on `skipped` — a conditional job here would turn every
-  #     weekly cron and every dispatch red.
-  #   · staging, checksumming and RE-VERIFYING on every run is what stops this
-  #     lane's first exercise being release day. The half that can fail today
-  #     fails today; only `gh release create` waits for a tag.
-  #
-  # ⬜ UNPROVEN UNTIL SOMETHING IS PUBLISHED, stated rather than implied: no tag
-  # has ever been pushed and no release has ever been created, so the `gh release
-  # create` step and the deployment records below have NEVER RUN. What IS proven
-  # is everything up to them — staging, the manifest and `--verify` — which is
-  # exactly the part a dry run can prove. Creating a real release is a public,
-  # outward-facing act and belongs to the owner.
   release:
     name: Durable release artifacts
     runs-on: ubuntu-24.04
-    # Only the staging + manifest half has ever run (max 1m41s). Everything from
-    # `gh release create` down is tag-only and has NEVER executed — see the ⬜ in
-    # the header — so 20 is headroom for an unmeasured publish, not an estimate.
     timeout-minutes: 20
-    # Block form deliberately. tooling/ci/assert-platform-proof-fresh.mjs reads
-    # the aggregator's dependencies with a WHOLE-FILE `needs:\s*\[([^\]]+)\]` —
-    # the first FLOW-form list in the file — so a second flow list here would be
-    # read as the aggregator's and report the platform jobs unwired. Same trap
-    # the `prepare` note above records; block form sidesteps it, and this job
-    # sitting AFTER `all_platforms` is the belt to that braces.
     needs:
       - gate
       - prepare
@@ -1225,19 +355,6 @@ jobs:
       - windows
       - apple
     permissions:
-      # The three scopes this lane needs, at JOB level so no other job in the
-      # file holds them. [pipeline F-11]
-      #   contents    — create the release and upload its assets
-      #   deployments — write the [10]D-9 record at the end of this job
-      #   actions     — download this run's own artifacts
-      #
-      # ⚠️ NAMED IN FULL-LINE COMMENTS, NOT TRAILING ONES. deployment-record.test.mjs
-      # scans every workflow for `record-deployment.mjs <environment>` and strips
-      # only comments that START a line, while its `\s+` crosses newlines — so an
-      # inline `deployments: write # …record-deployment.mjs` made it read the NEXT
-      # key as an environment name and fail with `environment: 'actions'`. Found
-      # 2026-08-06 by running that suite; recorded here because the trap is
-      # invisible at the call site and the failure names a key nobody wrote.
       contents: write
       deployments: write
       actions: read
@@ -1249,25 +366,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      # This run's own artifacts, by the per-app names the build jobs uploaded
-      # under. `pattern` keeps a matrix leg to its own app: with two apps in the
-      # workspace, leg #1 must not publish app #2's binaries under app #1's tag.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: downloads
           pattern: ${{ matrix.app }}-*
-      # ── assemble ────────────────────────────────────────────────────────────
-      # `--stage` MOVES every installable file (extensions derived from
-      # tooling/channel-register.json, never typed) out of the download tree into
-      # `dist/`, under a name that survives a year in a downloads folder. What
-      # REMAINS is then archived whole, one .tar.gz per platform artifact —
-      # desktop bundles, the web build, anything else the run produced — so
-      # "outlives the run" covers the artifact SET rather than just the
-      # installers. Moving first is what stops the .apk existing twice.
-      #
-      # Expressions go through `env:` rather than into the shell body: a ref name
-      # is attacker-influenced text and `${{ }}` in a `run:` is substituted before
-      # bash ever sees it. [zizmor template-injection]
       - name: Stage the installers and archive the rest
         env:
           APP: ${{ matrix.app }}
@@ -1303,11 +405,6 @@ jobs:
             tar -czf "dist/${TAG}-${n}.tar.gz" -C "$d" .
             echo "archived  ${TAG}-${n}.tar.gz"
           done
-      # ── the integrity record, and the proof it describes THIS directory ──────
-      # `--write` then `--verify`, always in that order and always both. `--write`
-      # alone would be a claim; `--verify` re-hashes every file and fails in BOTH
-      # directions — a named file that is absent, and a file in dist/ the manifest
-      # does not name. The second is the one the acceptance's wording turns on.
       - name: Write the checksum manifest, naming the gated commit
         env:
           APP: ${{ matrix.app }}
@@ -1315,42 +412,12 @@ jobs:
         run: >
           node tooling/ci/release-manifest.mjs --write dist
           --app "$APP" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA" --run-url "$RUN_URL"
-      # `--expect-formats` is the COMPLETENESS half, and it is a DIFFERENT
-      # question from the one above. `--verify` alone asks whether dist/ and
-      # SHA256SUMS agree, so a dist missing a whole platform verifies clean —
-      # measured 2026-08-27 on a fixture holding the .apk and .aab and no .msix:
-      # plain `--verify` exits 0 printing `ok  2 asset(s) verified`.
-      #
-      # 🔴 `--for-workflow` IS NOT DECORATION HERE. Unnarrowed, the expected set
-      # is derived from EVERY lane-bearing channel row and so includes `.snap`,
-      # which `submit-snap.yml` emits and this workflow never does; measured
-      # 2026-08-27, that spelling exits 1 naming `.snap` even on a dist carrying
-      # all three formats this lane produces. Narrowed to this file the set is
-      # `.aab .apk .msix` — exactly the three the upload-artifact steps above
-      # carry with `if-no-files-found: error`, on every run and not only on tags.
-      #
-      # 🔴 ON `--verify`, NEVER ON THE `--write` STEP ABOVE — `--verify` is the
-      # only mode that reads these flags, so on `--write` they would run the
-      # named mode and ask nothing. release-manifest.mjs refuses that spelling
-      # outright today ("--expect-formats is read by --verify alone", exit 1,
-      # measured 2026-08-27), so the misplacement is loud rather than silent —
-      # but the placement is the reason it works, not that refusal.
+      # why: written and then re-read. A manifest checked only by the process that wrote
+      # it proves the writer was self-consistent, not that the assets on disk match.
       - name: Re-verify every asset against the manifest
         run: >
           node tooling/ci/release-manifest.mjs --verify dist
           --expect-formats --for-workflow .github/workflows/build-platforms.yml
-      # ── publish ─────────────────────────────────────────────────────────────
-      # 🔴 `gh release create` IS WRITTEN HERE, IN THE WORKFLOW, ON PURPOSE.
-      # assert-release-provenance.mjs classifies a publish from the workflow TEXT
-      # and then demands the publishing job be gated and record what shipped.
-      # Moving this line into release-manifest.mjs would make a real publish
-      # invisible to the guard that exists to hold it — a helper that disarms a
-      # check is worse than no helper. The gate is satisfied through `needs: gate`
-      # (walked transitively by that guard); the record is the step below.
-      #
-      # The asset list comes from `--emit-assets`, which puts SHA256SUMS FIRST and
-      # refuses an empty set, so a release cannot be created without the one file
-      # that makes it verifiable.
       - name: Publish the GitHub Release (tag pushes only)
         if: github.ref_type == 'tag'
         env:
@@ -1370,36 +437,6 @@ jobs:
           } > dist-notes.md
           gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes-file dist-notes.md $(node tooling/ci/release-manifest.mjs --emit-assets dist)
           echo "RELEASE_URL=$(gh release view "$RELEASE_TAG" --json url --jq .url)" >> "$GITHUB_ENV"
-      # ── the read-back — [14]O-7, IN THIS JOB, ON WHAT THIS JOB UPLOADED ─────
-      # 🔴 THE FINDING THAT PUT IT HERE, 2026-08-26. This job was INVISIBLE to
-      # [14]O-7 until today. The shared workflow reader could not match a QUOTED
-      # SHELL VARIABLE, so the ledger call at the end of this job matched nothing,
-      # the job dropped out of that limb's domain in silence, and the census
-      # printed "7 deploy job(s)" without it. Widening the reader made the job
-      # appear — and it failed the rule immediately, because it published a
-      # GitHub Release and read NOTHING back.
-      #
-      # WHAT THE PROBE JOINS ON, and it is deliberately not "a release exists at
-      # this tag": the GitHub API reports every release asset's `digest` as
-      # `sha256:<hex>`, MEASURED 2026-08-26 to be exactly the sha256 of the bytes
-      # the release serves — cli/cli v2.92.0's checksums asset read back through
-      # the API and hashed with `sha256sum` agreed to the character. dist/SHA256SUMS
-      # already carries that same number for every asset this run staged, so the
-      # probe asserts THE RELEASE CARRIES THESE FILES WITH THESE HASHES, in both
-      # directions. A release published last month answers "does a release exist"
-      # exactly as well as one published ten seconds ago, which is why that is not
-      # the question being asked.
-      #
-      # ⬜ NOT YET LOAD-BEARING, WHICH IS PRECISELY WHY IT IS BEING CLOSED NOW:
-      # with a staged `dist`, `release-manifest.mjs --emit-environments` omits
-      # `subly-windows-direct` while that channel's signing posture is SENTINEL, so
-      # the loop in the step below iterates over nothing and no ledger row is
-      # written today — the blind spot arms itself the day the code-signing pin is
-      # filled in, and closing it then costs a release.
-      #
-      # ⚠️ IT RUNS BEFORE THE LEDGER STEP AND DOES NOT GUARD IT — the ordering
-      # submit-play.yml:submit uses, for the same reason. A red here still fails
-      # the job; a release that IS published must still be recorded as published.
       - name: The release must carry the assets this job just uploaded
         if: github.ref_type == 'tag'
         env:
@@ -1409,18 +446,6 @@ jobs:
           set -euo pipefail
           echo "⬜ [14]O-7 reading back the release ${REPO}@${RELEASE_TAG}"
           node tooling/ops/post-deploy-smoke.mjs --release-repo "$REPO" --release-tag "$RELEASE_TAG" --release-manifest dist/SHA256SUMS
-      # ── record what shipped — [10]D-9, through the script that already does it ─
-      # 🔴 EXTENDED, NOT DUPLICATED. tooling/ci/record-deployment.mjs already
-      # writes the [10]D-9 ledger entry and already resolves an environment
-      # against the channel register; nothing about that was rewritten here. What
-      # is new is the SET it is called over, and that set is DERIVED at run time:
-      # every `kind: "direct"` row whose declared artifactFormats this release
-      # actually carries. Today it resolves to `<app>-windows-direct` and nothing
-      # else — store rows are excluded because a GitHub Release is a download
-      # ORIGIN and not a store submission ([ADR 015] §4), and record-deployment
-      # would rightly refuse a store row with no --state and no --listing-url.
-      # Nothing is hardcoded, so an AppImage lane joins this loop by being given a
-      # register row, not by anybody editing this file.
       - name: Record what shipped, per channel this release is the origin for
         if: github.ref_type == 'tag'
         env:
