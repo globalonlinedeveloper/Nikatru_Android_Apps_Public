@@ -158,6 +158,20 @@
   },
   {
     "claims": [
+      "ADR 067"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-store"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-app-yaml.mjs",
+    "references": [
+      "D-5"
+    ],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "G-49"
     ],
     "invokedBy": [

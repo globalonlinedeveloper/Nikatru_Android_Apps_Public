@@ -34,7 +34,9 @@
 //
 // ── ONLY `live` ENTRIES ARE BINDING ──────────────────────────────────────────
 // `[3]S-7a` decided the stamp writes `status: "preview"` until an app actually
-// answers, and post_gen.dart:153 does. `preview` is a promise nobody has made
+// answers, and post_gen.dart:388 does (RE-MEASURED 2026-09-05: the number here
+// read :153 and the literal has been at :364 or beyond for some time — a
+// citation is re-measured, never offset). `preview` is a promise nobody has made
 // yet, so it is skipped — but the count of skipped entries is PRINTED on every
 // run, because marking everything `preview` is the one way to quietly empty this
 // guard's domain, and a shrink nobody can see is the failure this repo keeps

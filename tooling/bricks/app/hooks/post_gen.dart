@@ -5,13 +5,24 @@ import 'package:mason/mason.dart';
 
 import 'brand_assets.dart';
 
-/// After a stamp: (1) append the app to catalog/apps.json (SHOW-1, automated),
-/// then (2) print the owner's manual, non-automatable checklist.
+/// After a stamp: (1) write the app's DECLARATION and render the catalogue and
+/// its store listing copy from it (SHOW-1, automated), then (2) print the
+/// owner's manual, non-automatable checklist.
 ///
-/// 🔴 THE CATALOGUE IS THE PUBLISHED RECORD; THE SITE'S DATA FILE IS DERIVED
-/// FROM IT. `sites/_shared/_data/apps.json` is no longer hand-kept — it is
-/// generated from `catalog/apps.json`, so this hook writing anywhere else is a
-/// row the website never sees.
+/// 🔴 THE DECLARATION IS THE SOURCE AND EVERYTHING ELSE IS DERIVED FROM IT
+/// ([ADR 067] decision 2 — "an app is app.yaml + its own screens"). The chain is
+/// one direction only:
+///
+///     apps/<id>/app.yaml  ──▶  catalog/apps.json  ──▶  sites/_shared/_data/apps.json
+///                         └─▶  apps/<id>/store/<channel>/{title,short-description,
+///                              category,privacy-policy-url,support-url}.txt
+///
+/// This hook writes the FIRST file in that chain and runs
+/// `tooling/app-yaml/render.mjs` for the rest. It used to write the catalogue
+/// row directly, which is why the listing text and the catalogue agreed: two
+/// templates spelled the same words, and no mechanism could tell that apart from
+/// a generator. Writing anywhere else in the chain is a row the website never
+/// sees, or a listing field nobody can regenerate.
 void run(HookContext context) {
   final v = context.vars;
   final id = (v['app_id'] ?? '').toString();
@@ -28,27 +39,45 @@ void run(HookContext context) {
   // and these two disagreeing is precisely the divergence S-8 exists to stop.
   final webHost = subdomain.isEmpty ? '$id.nikatru.com' : subdomain;
 
+  // 🔴 THE PLATFORM CLAIM STAYS A DART LITERAL IN THIS FILE. It is written into
+  // the app's declaration now rather than straight into the catalogue row, but
+  // assert-stamp-platforms.mjs parses the platform entry below out of THIS file
+  // and holds it in BOTH directions against the folders the brick stamps and the
+  // `flutter build` steps ci.yml runs. Its own header records why: the criterion
+  // S-3 shipped with iterated this array, so shrinking it to an empty list made
+  // zero builds run, green.
+  //
+  // ⚠️ AND THAT GUARD READS THIS FILE RAW, COMMENTS AND ALL — it takes the FIRST
+  // match in the file. A comment above quoting the pattern therefore BECOMES the
+  // claim: written out here in prose, this block measured the claim as EMPTY and
+  // failed both directions at once. Do not spell the literal in a comment.
+  const Map<String, List<String>> claim = <String, List<String>>{
+    'platforms': <String>['web'],
+  };
+
   // [pipeline 10]D-5 — pre_gen owns the split now and writes `short_name` back
   // into the vars mason hands both the templates and this hook, so the
   // catalogue `name` and every `store/*/title.txt` are the SAME string by
   // construction. The fallback is for a hook invoked without pre_gen having run
   // (nothing in this repo does that) and computes nothing of its own.
-  _appendToAppsJson(
+  final wrote = _writeAppDeclaration(
     context,
     id: id,
     name: (v['short_name'] ?? displayName).toString(),
     tagline: tagline,
-    url: 'https://$webHost',
+    category: (v['category'] ?? '').toString(),
+    webHost: webHost,
     // A client-only app has NO API host of its own — it calls the shared
     // platform Worker. Writing `api-<app>.nikatru.com` here would publish a
     // hostname that will never resolve into a PUBLIC catalog ([ADR 020]).
-    api: (!needsBackend || apiDomain.isEmpty) ? '' : 'https://$apiDomain',
+    apiHost: (!needsBackend || apiDomain.isEmpty) ? '' : apiDomain,
+    platforms: claim['platforms']!,
     // [pipeline K-1 · K-16] THE DECLARATION HAS TO OUTLIVE THE STAMP. pre_gen
     // refuses a spec with no market and normalises what survives; if the value
     // stopped there, "every app declares the markets it is offered in" would be
-    // true for the length of one command. The catalogue row is where it belongs:
-    // it is the public record of what this app IS, and it is the file a person
-    // asking "where is this offered, and who to?" already opens.
+    // true for the length of one command. The declaration is where it belongs:
+    // it is the record of what this app IS, and the catalogue row is rendered
+    // from it.
     markets: (v['markets'] ?? '')
         .toString()
         .split(',')
@@ -57,6 +86,7 @@ void run(HookContext context) {
         .toList(),
     audience: (v['audience'] ?? '').toString(),
   );
+  if (wrote) _renderFromDeclarations(context, id: id);
 
   _registerInWorkspace(context, id: id);
 
@@ -296,120 +326,143 @@ void _registerInWorkspace(HookContext context, {required String id}) {
   context.logger.success('pubspec.yaml: added "apps/$id" to the workspace.');
 }
 
-/// SHOW-1: append `id` to the shared apps catalog if not already present.
-/// Idempotent; leaves the file untouched when the slug already exists.
-void _appendToAppsJson(
+/// [ADR 067] decision 2 — WRITE THE DECLARATION, THEN RENDER FROM IT.
+///
+/// 🔴 THIS FUNCTION USED TO APPEND A ROW TO `catalog/apps.json`, AND THAT WAS
+/// THE DEFECT, NOT THE IMPLEMENTATION. The catalogue is a RENDERING: the site's
+/// data file is generated from it, every store listing field is compared to it,
+/// and `assert-store-metadata.mjs` opens by quoting the requirement that store
+/// listing metadata is "GENERATED from the spec" — while recording, in its own
+/// header, that the only tree it had was one a human wrote by hand. A stamp that
+/// writes the RENDERING keeps that true: the listing text agreed with the
+/// catalogue because two templates spelled the same words, and nothing anywhere
+/// could tell that apart from a generator.
+///
+/// So the stamp now writes `apps/<id>/app.yaml` — the app's own declaration —
+/// and calls `tooling/app-yaml/render.mjs`, which writes the catalogue row and
+/// the five derived listing files in every store channel the app carries. The
+/// stamp is still TOTAL: when it returns, the catalogue lists the app.
+///
+/// Returns whether the declaration was written; a `false` means the render step
+/// is skipped, and the reason has already been logged.
+bool _writeAppDeclaration(
   HookContext context, {
   required String id,
   required String name,
   required String tagline,
-  required String url,
-  required String api,
+  required String category,
+  required String webHost,
+  required String apiHost,
+  required List<String> platforms,
   required List<String> markets,
   required String audience,
 }) {
-  // The basename is deliberately still `apps.json`. assert-input-contract.mjs
-  // allowlists the BASENAMES it scrapes out of these hooks, and the log phrases
-  // below are read by assert-stamp-platforms.mjs — both survive the move only
-  // because the file is still called apps.json.
-  final file = File('catalog/apps.json');
+  // 🔴 THE TWO LISTING URLS ARE READ, NOT TYPED. They are declared once, in
+  // tooling/channel-register.json's `storeMetadataContract.portfolioUrls`, and
+  // assert-store-metadata.mjs compares every app's rendered
+  // privacy-policy-url.txt and support-url.txt back to that block. A literal
+  // here would be a second declaration and the first to drift — the same
+  // reasoning that moved `keyKinds` out of assert-channel-register.mjs.
+  final urls = _portfolioUrls(context);
+  if (urls == null) return false;
 
-  // 🔴 CREATE IT, DO NOT SKIP. This branch used to `warn` and return, which was
-  // defensible while the catalogue was hand-written and therefore always
-  // committed: absent meant "wrong working directory", and writing a stray file
-  // was worse than doing nothing. It is NOT defensible now. The catalogue is the
-  // published record of what this factory ships, and a stamp that SUCCEEDS while
-  // the app is never listed is exactly the failure this inversion exists to
-  // remove — the stamp reports clean, CI passes, and nikatru.com silently never
-  // lists the app. A warning is that failure with a log line in front of it.
-  // So the stamp is TOTAL: when it returns, the catalogue lists the app.
-  final created = !file.existsSync();
-  List<dynamic> rows;
-  if (created) {
-    rows = <dynamic>[];
-  } else {
-    final decoded = jsonDecode(file.readAsStringSync());
-    if (decoded is! List) {
-      // Deliberately NOT repaired by overwriting. An unparseable-as-array
-      // catalogue still holds bytes somebody wrote, and replacing them with a
-      // fresh one-row array would destroy every other app to publish this one.
-      // tooling/ci/assert-catalog-contract.mjs fails the gate on this shape,
-      // so the gap is caught rather than carried.
-      context.logger.warn(
-        'apps.json is not a JSON array; "$id" was NOT added to ${file.path}.',
-      );
-      return;
+  final buffer = StringBuffer()
+    ..writeln('# ${_generatedNotice(id)}')
+    ..writeln('#')
+    ..writeln('# THIS FILE IS THE SOURCE. catalog/apps.json and every')
+    ..writeln('# store/<channel>/{title,short-description,category,privacy-policy-url,')
+    ..writeln('# support-url}.txt are RENDERED from it. Change a value here, then run:')
+    ..writeln('#')
+    ..writeln('#     node tooling/app-yaml/render.mjs')
+    ..writeln('#')
+    ..writeln('# The sworn declarations under store/ are NOT rendered from anything and')
+    ..writeln('# never will be: they are statements about the real code of this app.')
+    ..writeln()
+    ..writeln('id: $id')
+    ..writeln('name: ${_yamlQuoted(name)}')
+    ..writeln('tagline: ${_yamlQuoted(tagline)}')
+    ..writeln('category: ${_yamlQuoted(_titleCase(category))}')
+    // [3]S-7a — a stamp writes `preview`, never `live`. `preview` is a promise
+    // nobody has made yet, and assert-catalog-reachable.mjs skips it for exactly
+    // that reason while PRINTING how many it skipped.
+    ..writeln('status: preview')
+    ..writeln()
+    ..writeln('hosts:')
+    ..writeln('  web: $webHost');
+  if (apiHost.isNotEmpty) buffer.writeln('  api: $apiHost');
+  buffer
+    ..writeln()
+    ..writeln('platforms:');
+  for (final p in platforms) {
+    buffer.writeln('  - $p');
+  }
+  buffer
+    ..writeln()
+    // A stamp cannot know a store listing URL — the store issues it, months
+    // later, after a review — and inventing a plausible one publishes a link a
+    // stranger follows into a 404. An empty block renders every storefront key
+    // as null, which is the honest answer.
+    ..writeln('listings:')
+    ..writeln()
+    ..writeln('legal:')
+    ..writeln('  privacyPolicyUrl: ${urls.privacyUrl}')
+    ..writeln('  supportUrl: ${urls.supportUrl}');
+  if (markets.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('markets:');
+    for (final m in markets) {
+      buffer.writeln('  - ${_yamlQuoted(m)}');
     }
-    rows = decoded;
   }
-  if (rows.any((e) => e is Map && e['slug'] == id)) {
-    context.logger.info('apps.json already lists "$id"; left unchanged.');
-    return;
+  if (audience.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('audience: ${_yamlQuoted(audience)}');
   }
-  // [ADR 055] The storefront block. DERIVED — see _deriveListings. A null here
-  // means the vocabulary could not be read, and the row is written WITHOUT the
-  // field rather than with a guessed one: assert-catalog-contract.mjs fails on
-  // the absence, so the gap reaches the gate instead of the public catalogue.
-  final listings = _deriveListings(context, url: url);
-  rows.add(<String, dynamic>{
-    'slug': id,
-    'name': name,
-    'tagline': tagline,
-    'url': url,
-    'api': api,
-    if (listings != null) 'listings': listings,
-    'platforms': <String>['web'],
-    'markets': markets,
-    'audience': audience,
-    'status': 'preview',
-  });
+
+  final file = File('apps/$id/app.yaml');
   file.parent.createSync(recursive: true);
-  file.writeAsStringSync('${_encodeCatalogue(rows)}\n');
-  context.logger.success(
-    created
-        ? 'apps.json: created ${file.path} and added "$id" (SHOW-1).'
-        : 'apps.json: added "$id" (SHOW-1).',
-  );
+  file.writeAsStringSync(buffer.toString());
+  context.logger.success('app.yaml: wrote ${file.path} — the declaration the catalogue and the listing copy are rendered from.');
+  return true;
 }
 
-/// [ADR 055] Build the row's `listings` block — the ONE field the storefront's
-/// product-page buttons, its `/<store>/apps` collection pages and its
-/// `/get/<store>/<slug>` redirects all read.
-///
-/// 🔴 THE KEY SET IS NOT TYPED HERE, AND THAT IS THE WHOLE POINT. [ADR 055]'s
-/// property is that "adding a store becomes data, not code". A literal
-/// `{'play': null, 'appstore': null, …}` in this hook would be a SECOND
-/// declaration of which storefronts exist, free to drift from the first
-/// (tooling/channel-register.json) in the direction that reports clean: a store
-/// added to the register would never reach a stamped row, and every guard would
-/// stay green because the row it graded was the row this hook wrote. So the keys
-/// are the non-null `storefrontKey` values in the register, in its row order,
-/// and tooling/ci/assert-catalog-contract.mjs derives the vocabulary it grades
-/// against from that same field.
-///
-/// EVERY VALUE IS `null` EXCEPT THE ONE THE FACTORY ACTUALLY KNOWS. A stamp
-/// cannot know a store listing URL — the store issues it, months later, after a
-/// review — and inventing a plausible one would publish a link a stranger
-/// follows into a 404. The web channel is the exception and it is DERIVED too:
-/// the row whose `kind` is `web` is our own site, whose address this hook has
-/// already computed as `url`. That makes `listings.web` and `url` two spellings
-/// of one fact, so assert-catalog-contract.mjs asserts they are byte-equal.
-///
-/// Returns null when the register cannot be read or names no storefront. The
-/// caller then omits the field entirely rather than publishing a guess — an
-/// unanswered question, caught at the gate, beats a wrong answer shipped.
-Map<String, dynamic>? _deriveListings(
-  HookContext context, {
-  required String url,
-}) {
+/// Run the renderer. The catalogue row and the listing copy are its output, so a
+/// failure here is a stamp that succeeded while the app is listed nowhere —
+/// which is precisely the silent gap the inversion exists to remove. It is
+/// reported as an ERROR and left for the gate: `assert-catalog-contract.mjs`,
+/// `assert-store-metadata.mjs` and `assert-app-yaml.mjs` all fail on the result,
+/// so the gap is caught rather than carried.
+void _renderFromDeclarations(HookContext context, {required String id}) {
+  final result = Process.runSync(
+    'node',
+    <String>['tooling/app-yaml/render.mjs'],
+    runInShell: Platform.isWindows,
+  );
+  if (result.exitCode != 0) {
+    context.logger.err(
+      'apps.json: the renderer exited ${result.exitCode}, so "$id" was NOT added to catalog/apps.json '
+      'and no listing copy was written. Run `node tooling/app-yaml/render.mjs` and read what it says.\n'
+      '${result.stdout}${result.stderr}',
+    );
+    return;
+  }
+  context.logger.success('apps.json: added "$id" (SHOW-1) — rendered from apps/$id/app.yaml, with its store listing copy.');
+}
+
+/// The two portfolio listing URLs from the channel register, or null with the reason
+/// logged. Null makes the caller skip writing a declaration at all rather than
+/// write one carrying guessed URLs: an unanswered question caught at the gate
+/// beats a wrong answer shipped to a store reviewer.
+({String privacyUrl, String supportUrl})? _portfolioUrls(HookContext context) {
   const register = 'tooling/channel-register.json';
   final file = File(register);
   if (!file.existsSync()) {
     context.logger.err(
-      'listings: $register is missing, so the [ADR 055] storefront key set '
-      'cannot be derived. The row is written WITHOUT `listings` rather than '
-      'with a guessed one — tooling/ci/assert-catalog-contract.mjs fails on the '
-      'absent field, so this reaches the gate instead of the public catalogue.',
+      'app.yaml: $register is missing, so the two portfolio listing URLs cannot be read and no '
+      'declaration was written. They are declared there once and compared back to it by '
+      'tooling/ci/assert-store-metadata.mjs; typing them here would be the second declaration.',
     );
     return null;
   }
@@ -417,71 +470,40 @@ Map<String, dynamic>? _deriveListings(
   try {
     decoded = jsonDecode(file.readAsStringSync());
   } catch (e) {
-    context.logger.err('listings: $register is not valid JSON ($e); `listings` was NOT written.');
+    context.logger.err('app.yaml: $register is not valid JSON ($e); no declaration was written.');
     return null;
   }
-  final channels = (decoded is Map ? decoded['channels'] : null);
-  if (channels is! List) {
-    context.logger.err('listings: $register declares no `channels` list; `listings` was NOT written.');
-    return null;
-  }
-  final out = <String, dynamic>{};
-  for (final c in channels) {
-    if (c is! Map) continue;
-    final key = c['storefrontKey'];
-    if (key is! String || key.isEmpty) continue; // null = not a storefront.
-    // The web row is our own site; every store row is unknown until a real
-    // listing URL exists. `kind`, not the key's spelling, decides which — the
-    // key is a name the storefront chose and could be renamed in the register.
-    out[key] = c['kind'] == 'web' ? url : null;
-  }
-  if (out.isEmpty) {
+  final contract = decoded is Map ? decoded['storeMetadataContract'] : null;
+  final urls = contract is Map ? contract['portfolioUrls'] : null;
+  final privacy = urls is Map ? urls['privacyUrl'] : null;
+  final support = urls is Map ? urls['supportUrl'] : null;
+  if (privacy is! String || privacy.isEmpty || support is! String || support.isEmpty) {
     context.logger.err(
-      'listings: $register names no `storefrontKey`, so the key set is empty. '
-      'An empty `listings` block would satisfy nothing and advertise nothing; '
-      'the field was NOT written.',
+      'app.yaml: $register declares no storeMetadataContract.portfolioUrls.{privacyUrl,supportUrl}; '
+      'no declaration was written.',
     );
     return null;
   }
-  return out;
+  return (privacyUrl: privacy, supportUrl: support);
 }
 
-/// Serialise the catalogue the way the catalogue is actually written.
-///
-/// 🔴 `JsonEncoder.withIndent('  ')` IS NOT THE FORMAT ON DISK, AND THIS HOOK
-/// USED IT. Measured against the committed catalogue: the real file is 235
-/// bytes and carries `"platforms": ["web"]` INLINE on one line; the standard
-/// encoder expands that array to three lines and produces 247 bytes. So the
-/// producer and the bytes it maintains have disagreed all along, and the first
-/// stamp of a real app would have reformatted the whole file — which now flows
-/// straight through to `sites/_shared/_data/apps.json`, the file the live site
-/// reads. This encoder reproduces all 235 bytes exactly (verified against the
-/// real file before it was written).
-///
-/// The rule is: two-space indent, and an array whose elements are ALL scalars
-/// stays on one line. Arrays holding maps or lists stay expanded.
-///
-/// ⚠️ The obvious one-liner for the inline case — `jsonEncode(v).replaceAll(',',
-/// ', ')` — is WRONG and its wrongness is invisible on today's data: it rewrites
-/// commas inside string values too, turning `["a,b"]` into `["a, b"]`. Both
-/// forms agree byte-for-byte on every row in the catalogue today, so a test
-/// against the current file cannot tell them apart. Encoding each element and
-/// joining is comma-safe by construction.
-String _encodeCatalogue(Object? value, [String indent = '']) {
-  if (value is List) {
-    if (value.every((e) => e is! Map && e is! List)) {
-      return '[${value.map(jsonEncode).join(', ')}]';
-    }
-    final inner = '$indent  ';
-    return '[\n${value.map((e) => '$inner${_encodeCatalogue(e, inner)}').join(',\n')}\n$indent]';
-  }
-  if (value is Map) {
-    if (value.isEmpty) return '{}';
-    final inner = '$indent  ';
-    return '{\n${value.entries.map((e) => '$inner${jsonEncode(e.key)}: '
-        '${_encodeCatalogue(e.value, inner)}').join(',\n')}\n$indent}';
-  }
-  return jsonEncode(value);
+/// The header line, kept in one place so the notice and the app it names cannot
+/// disagree.
+String _generatedNotice(String id) => 'Generated by the app brick for "$id". Reviewed and edited BY HAND from here on.';
+
+/// Mason renders `{{category.titleCase()}}` into the store templates; this is the
+/// same transform for the declaration, so the two cannot spell one category two
+/// ways. pre_gen refuses anything outside a closed list of single lowercase
+/// words, which is why one capital is the whole job.
+String _titleCase(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+/// A double-quoted YAML scalar. Always quoted, never bare: a listing line is
+/// free text and this repo has already paid for `&`, `'`, `/`, `"` and `:`
+/// surviving a stamp — `_probe_vars.json`'s description carries all five on
+/// purpose. tooling/app-yaml/yaml.mjs reads exactly this escaping.
+String _yamlQuoted(String s) {
+  final escaped = s.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  return '"$escaped"';
 }
 
 /// [pipeline S-14] Generate the app's web icons from its spec.
