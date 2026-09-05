@@ -217,6 +217,36 @@
       "`duty.restic-snapshot` and by nothing else."
     ],
     "selfhost-backup-cron": "hostinger",
+    "_supabaseBoxCronWhy": [
+      "🔴 A THIRD CRON SUBSTRATE, ADDED 2026-09-06, AND UNTIL THAT DAY THIS MAP HAD NO ENTRY FOR THE ONE BOX",
+      "THE PRODUCT CANNOT SURVIVE LOSING. `sudo crontab -l` on the auth box has held five root jobs since",
+      "2026-09-02 and NOT ONE of them had a row in this register: measured 2026-09-03 and again on 2026-09-06,",
+      "zero rows mentioned `/opt/supabase`. The consequence was the opposite of convenient — a Box A move had",
+      "no declaration to update BECAUSE IT HAD NONE, so the crons would have travelled silently and nothing",
+      "here would have noticed any of them failing to come back.",
+      "",
+      "⚠️ AND THE IDS ALREADY IN THIS FILE ACTIVELY MISLEAD ON THAT POINT. The five `duty.oci.*` rows read as",
+      "though they cover the Oracle box; every one of them describes an `/opt/glitchtip/*` script on the",
+      "SERVICES box. A reader scanning ids would have concluded the auth box was covered. It was not. The new",
+      "rows are named for their ROLE (`duty.supabase-*`) precisely so the next reader cannot make that",
+      "inference from a name, which is what `_portabilityWhy` above has been asking for since 2026-09-03.",
+      "",
+      "⚠️ TWO SCRIPTS SHARE A NAME ACROSS THE TWO BOXES AND THE COLLISION IS THE TRAP. BOTH boxes run a",
+      "`disk-alert.py` hourly at :17 and BOTH run a `backup-liveness.py`. `duty.oci.disk-alert` and",
+      "`duty.oci.backup-liveness` are the SERVICES box's; `duty.supabase-disk-alert` and",
+      "`duty.supabase-backup-liveness` are this one's. Do not assume a row about \"the disk alert\" is about the",
+      "machine you have in mind.",
+      "",
+      "🔴 AND THE :17 IS NOT THE SAME INSTANT ON THE TWO BOXES. The services box runs Etc/UTC; the auth box",
+      "runs Asia/Kolkata (+0530), measured with `timedatectl` on 2026-09-06. So its `17 * * * *` fires at :47",
+      "UTC and its `47 * * * *` at :17 UTC — which is exactly where monitor 19's hourly checks have been",
+      "landing since 2026-09-02, and is the arithmetic that corrects Private/runbooks/boxes/oracle.md's cron",
+      "table from a UTC heading to an IST one.",
+      "",
+      "This key is reached by the five `duty.supabase-*` rows and by nothing else. It resolves to `oci` today;",
+      "the whole point of the map is that a move is this one right-hand side and nothing else."
+    ],
+    "supabase-box-cron": "oci",
     "windows-task-scheduler": "laptop"
   },
   "_kinds": [
@@ -288,7 +318,7 @@
       "only by editing this file on a host that has just read a success, which the guard then demands."
     ],
     "_maxUnreachable": 5,
-    "_maxUnreadable": 4,
+    "_maxUnreadable": 9,
     "_maxUnreadableWhy": [
       "🔴 RATCHETED 7 -> 3 ON 2026-09-02, AND THE RATCHET IS THE POINT — this key exists to fall as credentials",
       "and platforms arrive, never to rise when a row goes dark. What changed is that the last reader needing a",
@@ -328,7 +358,21 @@
       "on Windows) and printed. That is a real change and it is stated rather than discovered: run this guard",
       "with `.claude/secrets.env` sourced, or through tooling/scripts/preflight.mjs, which is the same remedy",
       "the repo already applies to every other credentialed guard. `I could not look` must not read as `I looked",
-      "and it was fine` on a laptop either."
+      "and it was fine` on a laptop either.",
+      "",
+      "⚫ RE-DERIVED 4 -> 9 ON 2026-09-06, AND — AS ON 2026-09-04 — THE NUMBER ROSE BECAUSE THE DOMAIN GREW,",
+      "NOT BECAUSE THE STANDARD SLIPPED. Five `duty.supabase-*` rows landed, each read through",
+      "`glitchtip-heartbeat`, taking that provider from 3 rows to 8. N is still exactly `worst provider + 1`,",
+      "the guard still RE-DERIVES it and still fails when the constant and the rows disagree, and nothing about",
+      "the rule was touched to make this number fit. Cloudflare is now the second-largest at 3.",
+      "",
+      "🔴 AND THE THING TO READ HONESTLY: GLITCHTIP IS NOW THE LARGEST NON-GITHUB PROVIDER, so a services-box",
+      "outage costs 8 printed lines and stays under the ceiling — by construction, because that is what the",
+      "'headroom for ONE provider going dark' rule buys, and it is why the ceiling must never be ratcheted to",
+      "the count measured on a good day. What it does NOT mean is that eight duties are covered while the box",
+      "is down: it means eight rows print `unreadable` and the merge queue keeps moving. The duties themselves",
+      "are covered by their monitors going Down, which is a different mechanism on the same box — and the fact",
+      "that nothing off-host watches THAT box is [pipeline E-9b], still open."
     ],
     "_windowMultiplier": 1.5,
     "_windowMultiplierWhy": "The same 1.5x the absence watcher uses and for the same reason, written down once in tooling/ops/check-heartbeats.mjs: a window EQUAL to the cadence has zero margin and reports a duty dead on a single late run. One missed run is not an alarm; two are.",
@@ -486,6 +530,11 @@
       "duty.oci.disk-alert",
       "duty.cloudflare-backup-pull",
       "duty.restic-snapshot",
+      "duty.supabase-dump",
+      "duty.supabase-drive-sync",
+      "duty.supabase-second-copy",
+      "duty.supabase-backup-liveness",
+      "duty.supabase-disk-alert",
       "duty.renovate",
       "expiring.domain.nikatru.com",
       "expiring.domain.rajasekarselvam.com",
@@ -1624,6 +1673,198 @@
       "ownerGap": "The schedule, both scripts and both repositories are on a host this repository cannot reach. Three named items are open and are enumerated here so they are countable rather than remembered: (1) PAPER ESCROW of the restic password — see `absenceWatcher.gap`; (2) no third copy — research 17 §1.2 specifies R2 primary plus a Backblaze B2 write-only key and neither exists, though the R2 credential and the `r2backups:` rclone remote both do, which makes it one `restic init` plus one leg; (3) the remote repository has never been restored from DIFFERENT HARDWARE, so today's drill proves the repository and the password, not the recovery of the box.",
       "source": "verified",
       "verifiedHow": "2026-09-05 — drilled, not installed, and with a control. Two files were restored from BOTH repositories and diffed against the live ones: /opt/ntfy/lib/user.db (118,784 bytes, sha256 345333a3f9ec…) and /opt/glitchtip/backups/gt-2026-09-05.dump (3,778,666 bytes, sha256 0047f026f744…), every diff exit 0 — and a NEGATIVE control (one byte appended to a copy) made the same diff exit 1, so the green diffs are evidence rather than a command that cannot fail. The four SQLite databases were restored from the REMOTE repository and each passed `PRAGMA integrity_check` and a real query. `check --read-data-subset=10%` on the remote returned `no errors were found`. Monitor 23's first five checks are all `isUp: true` — 14:35:34, 14:36:17, 14:40:59, 14:47:07 and 14:52:20 on 2026-09-05, three posted by restic-run.sh and two by restic-liveness.sh, so BOTH posters are proven and not just the nightly one. ⚠️ Retention has never actually DELETED a snapshot — `--prune` exiting 0 is proven, pruning a snapshot out is not, and will not be for 14 days."
+    },
+    {
+      "id": "duty.supabase-dump",
+      "kind": "duty",
+      "what": "/opt/supabase/backup.sh, root cron `15 0,6,12,18` on the auth box, via /opt/supabase/hb-run.sh. It writes FOUR artefacts, not one — globals, the `postgres` database, the SECOND database `_supabase` (which `pg_dump -d postgres` never sees) and the pgsodium root key from inside the db-config volume — plus a copy of .env for JWT_SECRET, then refuses to leave a truncated dump looking like a good one (a 500-byte floor on globals, 20,000 on each dump) and prunes at 14 days. THE BOX IS ON Asia/Kolkata (IST, +0530), NOT UTC — measured with `timedatectl` on 2026-09-06, and it is the single easiest thing to get wrong here. Every cron field below is IST. The corroboration is monitor 19's own check history: `47 * * * *` IST lands at :17 UTC, and every one of its hourly checks is stamped HH:17Z. /opt/supabase/hb-run.sh runs the job, preserves its exit code, and POSTs the heartbeat ONLY when the job exited 0 — so the beat asserts the OUTCOME, not that cron reached the line. It is `#!/bin/sh` (dash on this box) with no bash arrays, appends to its log and never redirects onto a load-bearing file, and the beat is a POST because GlitchTip answers a heartbeat GET with 405.",
+      "detector": "GlitchTip heartbeat monitor 24 'Supabase dump', project `ops`, interval 32400s (6h cadence x 1.5). The POST happens only after every size floor has held and the pgsodium key has come back at least 16 bytes, so the beat asserts a RESTORABLE set exists — a failed pg_dump, an empty gzip, a 0-byte root key and a dead cron all produce the same POST-shaped silence, which is the point.",
+      "response": "Read the run on the box; `set -e` aborts at the first failing leg and the FATAL lines name it. /opt/supabase/hb-run.log records `FAIL sb-dump exited <code> - NO heartbeat sent` for every run that did not beat, so the silence can be told apart from a network fault at the beat itself.",
+      "cadence": "6h",
+      "mechanism": {
+        "substrate": "supabase-box-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 24's check history, plus the dated sb-* artefacts in /opt/supabase/backups",
+        "failingValue": "no successful heartbeat inside the window — which is what a failed dump, a truncated artefact, a missing pgsodium root key and a cron that never fired all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 24,
+          "monitorName": "Supabase dump — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; a rename must not redden a limb about the auth backup.",
+          "why": "🔴 THE RECORD IS OFF-BOX BY CONSTRUCTION, WHICH IS THE WHOLE REASON THIS ROW EXISTS AT ALL. Until 2026-09-06 not one register row mentioned /opt/supabase: the five crons on the box that decides whether anyone can log in were unenumerable, so a Box A move had no declaration to update. Their record is now a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner exactly as monitors 6, 22 and 23 are. ⚠️ A NETWORK FAILURE HERE MUST NOT BLOCK A MERGE, and it does not: the probe catches the throw into `unreadable`, which prints and only fails once `_maxUnreadable` is exceeded."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 24 'Supabase dump', project `ops`, on the SERVICES box — genuinely off-host from the duty, which is what makes this set different from every other cron row in this register. The alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient id 3; both are recorded in tooling/ops/alarm-chains.json. Created 2026-09-05 and BEATEN BEFORE the row was written — TRAPS ci-26: a watched job with zero rows grades absent, which is RED with no grace.",
+        "signal": "No heartbeat inside the monitor's 32400s interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "32400s against a 6h cadence is exactly the 1.5x this register asks for: one late or missed slot is absorbed, two are not. Unlike monitor 22 the ceiling is not in the way here — GlitchTip refuses an interval above 86400s and 6h x 1.5 is well under it.",
+        "ownerGated": true,
+        "gap": "⬜ THE DOWN TRANSITION HAS NEVER BEEN FORCED FOR THIS MONITOR, so no `downTransitionDrill` field is carried — the guard PRINTS that field for any row that has one, and a line asserting an observation nobody made is this register answering confidently about a chain it has not seen work, which is the defect monitor 6 embodied for nine days. What HAS been observed is the negative arm of the thing that feeds the beat (see `verifiedHow`) — a failed job produces silence, and the silence is real. What nobody has watched is GlitchTip turning that silence into a delivered message for THIS monitor. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest evidence there is and is not the same claim. 🔴 AND ONE THING IS BETTER HERE THAN ANYWHERE ELSE IN THIS FILE AND MUST NOT BE READ AS THE USUAL GAP: the watcher is NOT on the machine it watches. Box A dying leaves the monitor, the alert evaluation and both notification hops alive on the other box. The residual [pipeline E-9b] is the mirror image — nothing off-host watches the SERVICES box — and it is carried by the rows that live there."
+      },
+      "accessProviders": [
+        "oci",
+        "hostinger"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, the wrapper and the five scripts are on a host CI cannot reach; only the owner or an SSH session can change them. Two named items are open so they are countable rather than remembered: (1) the down transition has never been forced for this monitor — see `absenceWatcher.gap`; (2) hb-run.sh is not in any backup set. sb_drive_sync.sh copies /opt/supabase through an INCLUDE allowlist that names docker-compose.override.yml, backup.sh and sb_drive_sync.sh and nothing else, so a rebuild restores the jobs without the wrapper and every one of these five duties comes back silent. The wrapper is reproduced verbatim in Private/runbooks/backup-restore.md against exactly that day.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured, not installed. The first run through the installed wrapper printed `supabase backup ok 2026-09-06-0404`, exited 0, and monitor 24 recorded `isUp: true` at 22:34:29.332Z — its first check ever, and an ok rather than the bootstrap miss monitor 22 took, because the beat arrived inside the interval the monitor was created in. The wrapper carries a recorded FAILING case, run on the box on 2026-09-05 against a throwaway monitor (created and deleted, id 28, burnt): a job exiting 1, a job exiting 42, an absent endpoint file and a malformed duty name each produced the job's own code / 91 / 90 and NO check at all, while `/bin/true` produced exit 0 and an `isUp: true` check. Two arms, one monitor, two checks — 22:32:50.475Z and 22:33:12.214Z — and four failures that wrote nothing. A beat that could not fail would be worse than none."
+    },
+    {
+      "id": "duty.supabase-drive-sync",
+      "kind": "duty",
+      "what": "/opt/supabase/sb_drive_sync.sh, root cron `35 0,6,12,18` on the auth box, via /opt/supabase/hb-run.sh. It rclone-COPIES (never `sync`: local dumps are pruned at 14 days and a sync would propagate those deletions) every sb-* artefact to `oracleenc:postgres/` on the encrypted business Drive, plus the stack config and the cloudflared ingress whose path split is a security control. THE BOX IS ON Asia/Kolkata (IST, +0530), NOT UTC — measured with `timedatectl` on 2026-09-06, and it is the single easiest thing to get wrong here. Every cron field below is IST. The corroboration is monitor 19's own check history: `47 * * * *` IST lands at :17 UTC, and every one of its hourly checks is stamped HH:17Z. /opt/supabase/hb-run.sh runs the job, preserves its exit code, and POSTs the heartbeat ONLY when the job exited 0 — so the beat asserts the OUTCOME, not that cron reached the line. It is `#!/bin/sh` (dash on this box) with no bash arrays, appends to its log and never redirects onto a load-bearing file, and the beat is a POST because GlitchTip answers a heartbeat GET with 405.",
+      "detector": "GlitchTip heartbeat monitor 25 'Supabase Drive sync', project `ops`, interval 32400s (6h cadence x 1.5). The script runs under `set -euo pipefail` and the beat is the last thing that happens, so a refused OAuth grant, an expired refresh token and a dead cron all read as the same silence.",
+      "response": "Re-run the script by hand on the box and read rclone's INFO log. ⚠️ The likeliest cause is the Drive OAuth grant rather than anything on this box — `expiring.drive-refresh-token-non-use` is the row for that clock. /opt/supabase/hb-run.log names the exit code of any run that did not beat.",
+      "cadence": "6h",
+      "mechanism": {
+        "substrate": "supabase-box-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 25's check history, plus the sb-* object set under oracleenc:postgres/ on the encrypted business Drive and the /opt/supabase/.sb-drive-sync.done stamp",
+        "failingValue": "no successful heartbeat inside the window — which is what a refused Drive grant, an rclone failure and a dead cron all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 25,
+          "monitorName": "Supabase Drive sync — carried for a HUMAN READER ONLY; the reader keys by `monitor` and never asserts this string.",
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner. ⚠️ WHAT THE BEAT ASSERTS IS NARROWER THAN \"THE OFF-BOX COPY IS INTACT\": it asserts that rclone exited 0 on a copy, not that the bytes at the far end still verify. The far end is proven by backup-liveness.py, which reads the remote back and is the record `duty.supabase-backup-liveness` names."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 25 'Supabase Drive sync', project `ops`, on the SERVICES box — genuinely off-host from the duty, which is what makes this set different from every other cron row in this register. The alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient id 3; both are recorded in tooling/ops/alarm-chains.json. Created 2026-09-05 and BEATEN BEFORE the row was written — TRAPS ci-26: a watched job with zero rows grades absent, which is RED with no grace.",
+        "signal": "No heartbeat inside the monitor's 32400s interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "32400s against a 6h cadence — 1.5x, so one missed slot is absorbed and two are not.",
+        "ownerGated": true,
+        "gap": "⬜ THE DOWN TRANSITION HAS NEVER BEEN FORCED FOR THIS MONITOR, so no `downTransitionDrill` field is carried — the guard PRINTS that field for any row that has one, and a line asserting an observation nobody made is this register answering confidently about a chain it has not seen work, which is the defect monitor 6 embodied for nine days. What HAS been observed is the negative arm of the thing that feeds the beat (see `verifiedHow`) — a failed job produces silence, and the silence is real. What nobody has watched is GlitchTip turning that silence into a delivered message for THIS monitor. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest evidence there is and is not the same claim. 🔴 AND ONE THING IS BETTER HERE THAN ANYWHERE ELSE IN THIS FILE AND MUST NOT BE READ AS THE USUAL GAP: the watcher is NOT on the machine it watches. Box A dying leaves the monitor, the alert evaluation and both notification hops alive on the other box. The residual [pipeline E-9b] is the mirror image — nothing off-host watches the SERVICES box — and it is carried by the rows that live there."
+      },
+      "accessProviders": [
+        "oci",
+        "google",
+        "hostinger"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, the wrapper and the five scripts are on a host CI cannot reach; only the owner or an SSH session can change them. Two named items are open so they are countable rather than remembered: (1) the down transition has never been forced for this monitor — see `absenceWatcher.gap`; (2) hb-run.sh is not in any backup set. sb_drive_sync.sh copies /opt/supabase through an INCLUDE allowlist that names docker-compose.override.yml, backup.sh and sb_drive_sync.sh and nothing else, so a rebuild restores the jobs without the wrapper and every one of these five duties comes back silent. The wrapper is reproduced verbatim in Private/runbooks/backup-restore.md against exactly that day.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured. The first run through the installed wrapper printed `supabase drive sync ok`, exited 0 with rclone reporting `Checks: 1 / 1, 100%`, and monitor 25 recorded `isUp: true` at 22:34:47.404Z. The wrapper carries a recorded FAILING case, run on the box on 2026-09-05 against a throwaway monitor (created and deleted, id 28, burnt): a job exiting 1, a job exiting 42, an absent endpoint file and a malformed duty name each produced the job's own code / 91 / 90 and NO check at all, while `/bin/true` produced exit 0 and an `isUp: true` check. Two arms, one monitor, two checks — 22:32:50.475Z and 22:33:12.214Z — and four failures that wrote nothing. A beat that could not fail would be worse than none."
+    },
+    {
+      "id": "duty.supabase-second-copy",
+      "kind": "duty",
+      "what": "/opt/supabase/sb_boxb_sync.sh, root cron `50 0,6,12,18` on the auth box, via /opt/supabase/hb-run.sh. It is the leg that stops every off-box copy of the auth database living behind ONE OAuth grant on ONE Google account: rclone sftp over WireGuard (10.44.0.1 only, never a public IP) to `boxbenc:` on the services box, encrypted at rest with the same crypt password as the Drive remote, with a key-file exclude list so a widened include cannot ship the crypt key beside the ciphertext. It then VERIFIES BY READING THE REMOTE BACK rather than by trusting rclone's exit code, and only then beats. THE BOX IS ON Asia/Kolkata (IST, +0530), NOT UTC — measured with `timedatectl` on 2026-09-06, and it is the single easiest thing to get wrong here. Every cron field below is IST. The corroboration is monitor 19's own check history: `47 * * * *` IST lands at :17 UTC, and every one of its hourly checks is stamped HH:17Z. /opt/supabase/hb-run.sh runs the job, preserves its exit code, and POSTs the heartbeat ONLY when the job exited 0 — so the beat asserts the OUTCOME, not that cron reached the line. It is `#!/bin/sh` (dash on this box) with no bash arrays, appends to its log and never redirects onto a load-bearing file, and the beat is a POST because GlitchTip answers a heartbeat GET with 405.",
+      "detector": "GlitchTip heartbeat monitor 26 'Supabase second-copy sync', project `ops`, interval 32400s (6h cadence x 1.5). The script is deliberately NOT `set -e` — it handles each exit code itself — and it exits 1 when the WireGuard link is down, when rclone fails, and when the newest local dump is not on the far side after a successful-looking copy. None of those beats.",
+      "response": "Read /opt/supabase/backups/.boxb-sync.log; its FAIL lines name the leg, and \"is NOT on Box B after a successful-looking copy\" is the one that matters most — that is the failure the read-back exists for. Check the WireGuard link first: a down tunnel is reported as such rather than as an rclone timeout.",
+      "cadence": "6h",
+      "mechanism": {
+        "substrate": "supabase-box-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 26's check history, plus /opt/supabase/backups/.boxb-sync.log and the /opt/supabase/.sb-boxb-sync.done stamp",
+        "failingValue": "no successful heartbeat inside the window — which is what a down WireGuard tunnel, an rclone failure and a copy that reported success while shipping nothing all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 26,
+          "monitorName": "Supabase second-copy sync — carried for a HUMAN READER ONLY; the reader keys by `monitor` and never asserts this string.",
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN. 🔴 THIS IS THE ONE ROW IN THE SET WHOSE BEAT ASSERTS THE FAR END, because the script re-lists the remote for the newest local dump by name before beating — the `--files-only` lesson applied: it matches the expected basename rather than treating non-empty output as a find."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 26 'Supabase second-copy sync', project `ops`, on the SERVICES box — genuinely off-host from the duty, which is what makes this set different from every other cron row in this register. The alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient id 3; both are recorded in tooling/ops/alarm-chains.json. Created 2026-09-05 and BEATEN BEFORE the row was written — TRAPS ci-26: a watched job with zero rows grades absent, which is RED with no grace.",
+        "signal": "No heartbeat inside the monitor's 32400s interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "32400s against a 6h cadence — 1.5x, so one missed slot is absorbed and two are not.",
+        "ownerGated": true,
+        "gap": "⬜ THE DOWN TRANSITION HAS NEVER BEEN FORCED FOR THIS MONITOR, so no `downTransitionDrill` field is carried — the guard PRINTS that field for any row that has one, and a line asserting an observation nobody made is this register answering confidently about a chain it has not seen work, which is the defect monitor 6 embodied for nine days. What HAS been observed is the negative arm of the thing that feeds the beat (see `verifiedHow`) — a failed job produces silence, and the silence is real. What nobody has watched is GlitchTip turning that silence into a delivered message for THIS monitor. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest evidence there is and is not the same claim. 🔴 AND ONE THING IS BETTER HERE THAN ANYWHERE ELSE IN THIS FILE AND MUST NOT BE READ AS THE USUAL GAP: the watcher is NOT on the machine it watches. Box A dying leaves the monitor, the alert evaluation and both notification hops alive on the other box. The residual [pipeline E-9b] is the mirror image — nothing off-host watches the SERVICES box — and it is carried by the rows that live there. ⚠️ AND ONE EXTRA FOR THIS ROW: the destination and the watcher are the SAME BOX. The monitor still survives Box A, so the duty is watched; but the loss of the services box would take this copy and its alarm together, and the Drive copy is what covers that direction."
+      },
+      "accessProviders": [
+        "oci",
+        "hostinger"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, the wrapper and the five scripts are on a host CI cannot reach; only the owner or an SSH session can change them. Two named items are open so they are countable rather than remembered: (1) the down transition has never been forced for this monitor — see `absenceWatcher.gap`; (2) hb-run.sh is not in any backup set. sb_drive_sync.sh copies /opt/supabase through an INCLUDE allowlist that names docker-compose.override.yml, backup.sh and sb_drive_sync.sh and nothing else, so a rebuild restores the jobs without the wrapper and every one of these five duties comes back silent. The wrapper is reproduced verbatim in Private/runbooks/backup-restore.md against exactly that day.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured, and the read-back arm is the evidence rather than the exit code. The first run through the installed wrapper exited 0 and logged `2026-09-05T22:34:55Z sync OK (sb-* -> boxbenc: over WireGuard; verified sb-postgres-2026-09-06-0404.dump present)`, so the artefact this run produced was named on the far side by that run. Monitor 26 recorded `isUp: true` at 22:34:55.666Z. The wrapper carries a recorded FAILING case, run on the box on 2026-09-05 against a throwaway monitor (created and deleted, id 28, burnt): a job exiting 1, a job exiting 42, an absent endpoint file and a malformed duty name each produced the job's own code / 91 / 90 and NO check at all, while `/bin/true` produced exit 0 and an `isUp: true` check. Two arms, one monitor, two checks — 22:32:50.475Z and 22:33:12.214Z — and four failures that wrote nothing. A beat that could not fail would be worse than none."
+    },
+    {
+      "id": "duty.supabase-backup-liveness",
+      "kind": "duty",
+      "what": "/opt/supabase/backup-liveness.py, root cron `47 * * * *` on the auth box, UNWRAPPED and deliberately so — it posts its own heartbeat and only when the whole chain is healthy, so putting it behind hb-run.sh would post a second beat asserting merely that the script ran, which is a weaker claim wearing the same monitor's clothes. It asserts FOUR artefacts and not one: the newest dump's age and size floor, the second database, the globals, the .env copy, a pgsodium root key that is present AND non-empty, that the newest dump is actually on the encrypted remote, and that the Drive sync stamp is fresh. On any problem it sends a GlitchTip EVENT and does NOT beat. THE BOX IS ON Asia/Kolkata (IST, +0530), NOT UTC — measured with `timedatectl` on 2026-09-06, and it is the single easiest thing to get wrong here. Every cron field below is IST. The corroboration is monitor 19's own check history: `47 * * * *` IST lands at :17 UTC, and every one of its hourly checks is stamped HH:17Z.",
+      "detector": "GlitchTip heartbeat monitor 19 'Supabase backup chain', project `ops`, interval 7200s (1h cadence x 2). This is the one monitor in the set that predates the declaration — it has beaten hourly since 2026-09-02 — and it is the only one whose silence means EITHER \"the checker stopped\" OR \"the chain is unhealthy\", because the script withholds the beat in both cases.",
+      "response": "Run /opt/supabase/backup-liveness.py by hand; it prints every problem it found on stderr and exits 1. The GlitchTip `ops` project also holds the event it sent, which names the failing artefact.",
+      "cadence": "1h",
+      "mechanism": {
+        "substrate": "supabase-box-cron",
+        "anchor": "Private/runbooks/backup-restore.md",
+        "record": "GlitchTip heartbeat monitor 19's check history",
+        "failingValue": "no successful heartbeat inside the window — which is what a stale dump, a truncated dump, a missing second database, a missing or 0-byte pgsodium root key, a dump that never reached the encrypted remote, a stale Drive-sync stamp and a dead cron all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 19,
+          "monitorName": "Supabase backup chain — carried for a HUMAN READER ONLY; the reader keys by `monitor` and never asserts this string.",
+          "why": "🔴 THIS MONITOR HAS BEEN LIVE AND GREEN SINCE 2026-09-02 AND NO ROW READ IT — it is listed in tooling/ops/alarm-chains.json and recorded in tooling/monitor-register.json's `_notInThisRegister` as a Heartbeat with no hostname to file under, and that was the whole of its coverage. Reading it here costs nothing new: GLITCHTIP_TOKEN has been a repository secret since 2026-08-11."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 19 'Supabase backup chain', project `ops`, on the SERVICES box — genuinely off-host from the duty, which is what makes this set different from every other cron row in this register. The alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient id 3; both are recorded in tooling/ops/alarm-chains.json. Created 2026-09-05 and BEATEN BEFORE the row was written — TRAPS ci-26: a watched job with zero rows grades absent, which is RED with no grace.",
+        "signal": "No heartbeat inside the monitor's 7200s interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "7200s against a 1h cadence is 2x, not 1.5x, and the extra hour is deliberate rather than sloppy: the beat is withheld on a real chain problem as well as on a dead checker, so a single hour of a slow rclone remote read would otherwise page. Two consecutive misses alarm.",
+        "ownerGated": true,
+        "gap": "⬜ THE DOWN TRANSITION HAS NEVER BEEN FORCED FOR THIS MONITOR, so no `downTransitionDrill` field is carried — the guard PRINTS that field for any row that has one, and a line asserting an observation nobody made is this register answering confidently about a chain it has not seen work, which is the defect monitor 6 embodied for nine days. What HAS been observed is the negative arm of the thing that feeds the beat (see `verifiedHow`) — a failed job produces silence, and the silence is real. What nobody has watched is GlitchTip turning that silence into a delivered message for THIS monitor. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest evidence there is and is not the same claim. 🔴 AND ONE THING IS BETTER HERE THAN ANYWHERE ELSE IN THIS FILE AND MUST NOT BE READ AS THE USUAL GAP: the watcher is NOT on the machine it watches. Box A dying leaves the monitor, the alert evaluation and both notification hops alive on the other box. The residual [pipeline E-9b] is the mirror image — nothing off-host watches the SERVICES box — and it is carried by the rows that live there."
+      },
+      "accessProviders": [
+        "oci",
+        "google",
+        "hostinger"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, the wrapper and the five scripts are on a host CI cannot reach; only the owner or an SSH session can change them. Two named items are open so they are countable rather than remembered: (1) the down transition has never been forced for this monitor — see `absenceWatcher.gap`; (2) hb-run.sh is not in any backup set. sb_drive_sync.sh copies /opt/supabase through an INCLUDE allowlist that names docker-compose.override.yml, backup.sh and sb_drive_sync.sh and nothing else, so a rebuild restores the jobs without the wrapper and every one of these five duties comes back silent. The wrapper is reproduced verbatim in Private/runbooks/backup-restore.md against exactly that day.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured against a monitor with a long history rather than a fresh one. Monitor 19 holds 50 checks on its newest page and every one is `isUp: true`; a hand run immediately after the crontab was rewritten printed `ok  supabase backup chain healthy - sb-postgres-2026-09-06-0404.dump 0.01 h old, 326205 bytes, on remote, synced`, exited 0, and beat at 22:35:06.125Z — which is also the check that proves the crontab edit did not break the chain. 🔴 THE HOURLY CHECKS ARE STAMPED HH:17Z, WHICH IS `47 * * * *` READ IN IST, and that is the arithmetic that corrects this box's cron table from UTC to IST."
+    },
+    {
+      "id": "duty.supabase-disk-alert",
+      "kind": "duty",
+      "what": "/opt/supabase/disk-alert.py, root cron `17 * * * *` on the auth box, via /opt/supabase/hb-run.sh. It reports resource pressure (>=80% disk) as a GlitchTip EVENT into project `ops`. THE BOX IS ON Asia/Kolkata (IST, +0530), NOT UTC — measured with `timedatectl` on 2026-09-06, and it is the single easiest thing to get wrong here. Every cron field below is IST. The corroboration is monitor 19's own check history: `47 * * * *` IST lands at :17 UTC, and every one of its hourly checks is stamped HH:17Z. /opt/supabase/hb-run.sh runs the job, preserves its exit code, and POSTs the heartbeat ONLY when the job exited 0 — so the beat asserts the OUTCOME, not that cron reached the line. It is `#!/bin/sh` (dash on this box) with no bash arrays, appends to its log and never redirects onto a load-bearing file, and the beat is a POST because GlitchTip answers a heartbeat GET with 405.",
+      "detector": "GlitchTip heartbeat monitor 27 'Supabase disk alert', project `ops`, interval 5400s (1h cadence x 1.5). 🔴 THE EVENT AND THE BEAT ANSWER DIFFERENT QUESTIONS AND THE ROW NEEDS BOTH. An event says HOW BAD the disk is and only fires above the threshold; a heartbeat says the reporter is alive. `duty.oci.disk-alert` — the SERVICES box's twin of this script — carries no heartbeat, and its own gap says so outright: \"a disk-alert that has stopped running looks exactly like a box with plenty of disk\". That gap is closed here, on this box, and it is the one named on-box item in this register that this change actually retires.",
+      "response": "Fail-loud is still the backstop for the SEND: the script exits non-zero if it cannot report, so cron mails root and the wrapper withholds the beat. For a real pressure event, read OPS-* in the GlitchTip `ops` project; the event carries the usage figures.",
+      "cadence": "1h",
+      "mechanism": {
+        "substrate": "supabase-box-cron",
+        "anchor": "Private/runbooks/boxes/oracle.md",
+        "record": "GlitchTip heartbeat monitor 27's check history, plus events in the GlitchTip `ops` project",
+        "failingValue": "no successful heartbeat inside the window — which is what a dead cron, a failed send and a box that is off all look like. ⚠️ The absence of an EVENT is still not information, and never will be: an ops project with no disk events is indistinguishable from a healthy disk. The beat is what makes the reporter's own silence readable, and that is the only claim this row makes.",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-monitors.mjs on the ops-watch schedule",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 27,
+          "monitorName": "Supabase disk alert — carried for a HUMAN READER ONLY; the reader keys by `monitor` and never asserts this string.",
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN. ⚠️ AND THE READER IS DELIBERATELY NOT POINTED AT THE EVENTS. Until 2026-08-05 the `ops` project had received nothing ever, and that silence was read as \"nothing to report\" while Cloudflare was dropping every send at the edge on the stock Python User-Agent. An empty project cannot be a record, so it is not named as one."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 27 'Supabase disk alert', project `ops`, on the SERVICES box — genuinely off-host from the duty, which is what makes this set different from every other cron row in this register. The alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient id 3; both are recorded in tooling/ops/alarm-chains.json. Created 2026-09-05 and BEATEN BEFORE the row was written — TRAPS ci-26: a watched job with zero rows grades absent, which is RED with no grace.",
+        "signal": "No heartbeat inside the monitor's 5400s interval -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "5400s against a 1h cadence — 1.5x, so one missed hour is absorbed and two are not.",
+        "ownerGated": true,
+        "gap": "⬜ THE DOWN TRANSITION HAS NEVER BEEN FORCED FOR THIS MONITOR, so no `downTransitionDrill` field is carried — the guard PRINTS that field for any row that has one, and a line asserting an observation nobody made is this register answering confidently about a chain it has not seen work, which is the defect monitor 6 embodied for nine days. What HAS been observed is the negative arm of the thing that feeds the beat (see `verifiedHow`) — a failed job produces silence, and the silence is real. What nobody has watched is GlitchTip turning that silence into a delivered message for THIS monitor. Monitor 6's transition WAS forced, in this same project and through this same alert rule (id 2), which is the nearest evidence there is and is not the same claim. 🔴 AND ONE THING IS BETTER HERE THAN ANYWHERE ELSE IN THIS FILE AND MUST NOT BE READ AS THE USUAL GAP: the watcher is NOT on the machine it watches. Box A dying leaves the monitor, the alert evaluation and both notification hops alive on the other box. The residual [pipeline E-9b] is the mirror image — nothing off-host watches the SERVICES box — and it is carried by the rows that live there."
+      },
+      "accessProviders": [
+        "oci",
+        "hostinger"
+      ],
+      "ownerGated": true,
+      "ownerGap": "The schedule, the wrapper and the five scripts are on a host CI cannot reach; only the owner or an SSH session can change them. Two named items are open so they are countable rather than remembered: (1) the down transition has never been forced for this monitor — see `absenceWatcher.gap`; (2) hb-run.sh is not in any backup set. sb_drive_sync.sh copies /opt/supabase through an INCLUDE allowlist that names docker-compose.override.yml, backup.sh and sb_drive_sync.sh and nothing else, so a rebuild restores the jobs without the wrapper and every one of these five duties comes back silent. The wrapper is reproduced verbatim in Private/runbooks/backup-restore.md against exactly that day.",
+      "source": "verified",
+      "verifiedHow": "2026-09-05 — measured, and this is the ONE row in the set whose beat is proven to arrive FROM CRON rather than from a hand run. The first run through the installed wrapper exited 0 with no stderr and monitor 27 recorded `isUp: true` at 22:34:23.010Z; thirteen minutes later the crontab line fired on its own and monitor 27 recorded a second `isUp: true` at 22:47:01.354Z — `17 * * * *` read in IST, to the second. That second check is what proves the INVOCATION SHAPE `/opt/supabase/hb-run.sh <duty> <script> >/dev/null` works under cron’s environment, PATH and permissions, and the other three wrapped rows inherit that half from here: their own beats are hand runs of the same line, and their first cron-fired slot is the next one on the 6h clock. ⚠️ WHAT IS NOT PROVEN, and is not counted as if it were: no threshold breach has been forced on THIS box since the wrapper existed. The send path itself was proven end to end on 2026-08-05 on the services box, where a breach was forced, the event landed as OPS-1 and the mail arrived 42s later. The wrapper carries a recorded FAILING case, run on the box on 2026-09-05 against a throwaway monitor (created and deleted, id 28, burnt): a job exiting 1, a job exiting 42, an absent endpoint file and a malformed duty name each produced the job's own code / 91 / 90 and NO check at all, while `/bin/true` produced exit 0 and an `isUp: true` check. Two arms, one monitor, two checks — 22:32:50.475Z and 22:33:12.214Z — and four failures that wrote nothing. A beat that could not fail would be worse than none."
     },
     {
       "id": "revert.worker.platform",
