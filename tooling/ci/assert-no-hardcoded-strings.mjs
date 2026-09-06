@@ -324,7 +324,7 @@ function scanRaw(dir) {
  *  reverse limb would print a clean zero forever. It is also gitignored
  *  factory-wide (.gitignore:191), which is how the same probe once answered one
  *  way on a workstation and another in a guard-only CI job on an identical
- *  commit — assert-consent-withdrawal-surface.mjs:584-555 records that scar
+ *  commit — assert-consent-withdrawal-surface.mjs:584-589 records that scar
  *  (that citation read 551-556 until it was re-taken on 2026-08-21). */
 function readDartTree(dir) {
   const out = [];

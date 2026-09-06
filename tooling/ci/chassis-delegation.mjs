@@ -202,16 +202,161 @@ const NESTED_DECL_PATTERNS = [
   /^[ \t]+(?:[A-Za-z_$][\w$<>,?\s.[\]]*?\s+)([A-Za-z_$][\w$]*)\s*(?:<[^>\n]*>)?\s*\([^;()]*\)\s*(?:async\s*\*?\s*)?[{=]/gm,
 ];
 
-/** Every name a source declares ITSELF, at any depth — its top-level API
- *  (including the `_`-private names `publicApiOf` drops on purpose), its fields,
- *  its locals and its member functions.
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 …AND A BINDING SHADOWS AN IMPORT EXACTLY AS WELL AS A DECLARATION DOES.
+//
+// The subtraction above collects what a file DECLARES. A third independent
+// review measured, on the real tree at `a54bea1b`, that it did not collect what
+// a file BINDS — and that the gap was not a corner: `context` and `ref` are
+// parameters of every `Widget build(BuildContext context, WidgetRef ref)` in
+// the tree, so a chassis file whose only top-level name was `final context = 0;`
+// survived the subtraction and was referenced bare by every screen. Measured:
+// `apps/subly/.../settings_screen.dart` DECLARES 54 names and references 238
+// bare identifiers it does not declare; `login_screen.dart`, 21 against 146.
+// With the deleted `recordAnalyticsConsent(` control in the tree,
+// `assert-consent-withdrawal-surface` went EXIT 1 → EXIT 0 on that one line,
+// while `origin/main`'s copy of the same guard called the same tree FAILED.
+//
+// A binding is exactly as good a shadow as a declaration, and Dart AGREES: a
+// local, a parameter, a catch clause or a loop variable legally shadows an
+// imported top-level name, so a tree built on that collision still compiles and
+// nothing downstream ever complains. (The neighbouring shape — colliding with a
+// name that comes from ANOTHER import, `Widget`, `Scaffold`, `BuildContext` —
+// is not silent in the same way: Dart refuses an unprefixed use that two
+// imports both supply, so that tree does not build. The SHADOWING case is the
+// one the compiler waves through, which is why it is the one this module must
+// catch itself.)
+//
+// So `boundNamesOf` collects the binding sites too: parameter lists (function,
+// method, constructor and closure), `catch (e, st)` clauses, `for (final x in
+// …)` loop variables, plain typed locals (`AppLocalizations l10n = …`, which
+// the `final|const|late|var` pattern above cannot see) and Dart 3 destructuring
+// patterns. Cases `U8-param`, `U8-param-b`, `U8-param-c`, `U8-typed-local` and
+// `U8-forin` in `chassis-delegation.test.mjs` are the mutations that hold it,
+// with `U8-param-control` as the green control that stops "refuse everything"
+// passing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Heads whose parentheses hold REFERENCES, not bindings. Subtracting the
+ *  contents of `if (isChassisReady)` would refuse honest evidence. `catch` is
+ *  deliberately NOT here: `catch (e)` binds. */
+const CONTROL_HEADS = new Set(['if', 'for', 'while', 'switch', 'assert', 'return', 'await', 'throw', 'case', 'is', 'in']);
+
+/** Words that can stand where a type stands but never introduce a binding, so
+ *  `return x;` is not read as "a variable `x` of type `return`". */
+const NOT_A_TYPE = new Set([
+  'return', 'throw', 'await', 'yield', 'case', 'final', 'const', 'var', 'new', 'is', 'as', 'in',
+  'else', 'if', 'for', 'while', 'switch', 'do', 'try', 'catch', 'finally', 'assert', 'break',
+  'continue', 'rethrow', 'super', 'this', 'get', 'set', 'operator', 'part', 'library', 'import',
+  'export', 'show', 'hide', 'when', 'default', 'typedef', 'class', 'enum', 'mixin', 'extension',
+]);
+
+/** The identifiers of a fragment, in order, with generic arguments removed. */
+const identsOf = (text) => [...String(text).replace(/<[^<>]*>/g, ' ').matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0]);
+
+/** Split a parameter-list body at TOP-LEVEL commas. */
+function splitParams(body) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of body) {
+    if (ch === '(' || ch === '[' || ch === '{' || ch === '<') depth += 1;
+    else if (ch === ')' || ch === ']' || ch === '}' || ch === '>') depth -= 1;
+    if (ch === ',' && depth <= 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.filter((s) => s.trim());
+}
+
+/** The name one parameter segment BINDS, or `null`. The binding is the LAST
+ *  identifier once the default value is cut and the generics are dropped:
+ *  `required BuildContext context` → `context`, `this.onTap` → `onTap`,
+ *  `void Function(int a) cb = _noop` → `cb`, `(v) =>` → `v`. */
+function paramBindingName(segment) {
+  const cut = String(segment).replace(/[=:][\s\S]*$/, ' ');
+  const ids = identsOf(cut);
+  return ids.length ? ids[ids.length - 1] : null;
+}
+
+/** Every `(…)` body in `code` that is a BINDING SITE — a declaration's or a
+ *  closure's parameter list, or a `catch` clause. Recognised by what FOLLOWS
+ *  the closing paren (`{`, `=>`, `async`, `sync`), which is what separates
+ *  `Widget build(BuildContext context) {` and `(v) => …` and `catch (e) {`
+ *  from a call such as `foo(a, b);` — whose arguments are references. */
+function* bindingParenBodies(code) {
+  for (let i = 0; i < code.length; i += 1) {
+    if (code[i] !== '(') continue;
+    const head = (code.slice(Math.max(0, i - 24), i).match(/([A-Za-z_$][\w$]*)\s*$/) || [])[1] || '';
+    if (CONTROL_HEADS.has(head)) continue;
+    let depth = 0;
+    let j = i;
+    for (; j < code.length; j += 1) {
+      if (code[j] === '(') depth += 1;
+      else if (code[j] === ')') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    if (j >= code.length) continue;
+    if (!/^\s*(?:\{|=>|async|sync)/.test(code.slice(j + 1, j + 12))) continue;
+    yield code.slice(i + 1, j);
+  }
+}
+
+/** `for (final item in items)` · `for (final e in map.entries)` — the loop
+ *  variable, which the `final|const|late|var` pattern above answers `items` for
+ *  because the value expression ends in `)`. */
+const FOR_IN_RE = /\bfor\s*\(\s*(?:await\s+)?([^;()]*?)\s+in\b/g;
+
+/** A plain typed local or field: `AppLocalizations l10n = …`, `Timer? t;`.
+ *  Not covered by the `final|const|late|var` pattern, and it shadows exactly
+ *  as well. Group 1 is the type, group 2 the binding. */
+const TYPED_LOCAL_RE = /(?:^|[;{}()])\s*(?:late\s+)?([A-Za-z_$][\w$]*)(?:\s*<[^<>;{}]*>)?\s*\??\s+([a-z_$][\w$]*)\s*(?:=(?!=)|;)/gm;
+
+/** Dart 3 destructuring: `final (a, b) = pair;` · `var [x, y] = list;`. */
+const PATTERN_BIND_RE = /\b(?:final|var)\s*[([{]([^)\]}]*)[)\]}]\s*=(?!=)/g;
+
+/** Every name a source BINDS without declaring it in the sense above — the
+ *  parameters, catch clauses, loop variables, typed locals and destructuring
+ *  patterns. Same over-collecting contract as `declaredNamesOf`: a name this
+ *  wrongly claims can only ever cost a LOUD refusal, never a silent pass. */
+export function boundNamesOf(rawSource) {
+  const code = stripStringLiterals(stripSourceComments(String(rawSource), '.dart'));
+  const out = new Set();
+  for (const body of bindingParenBodies(code)) {
+    for (const seg of splitParams(body)) {
+      const n = paramBindingName(seg);
+      if (n) out.add(n);
+    }
+  }
+  for (const m of code.matchAll(FOR_IN_RE)) {
+    const ids = identsOf(m[1]);
+    if (ids.length) out.add(ids[ids.length - 1]);
+  }
+  for (const m of code.matchAll(TYPED_LOCAL_RE)) if (!NOT_A_TYPE.has(m[1])) out.add(m[2]);
+  for (const m of code.matchAll(PATTERN_BIND_RE)) for (const id of identsOf(m[1])) out.add(id);
+  for (const kw of KEYWORDS) out.delete(kw);
+  return out;
+}
+
+/** Every name a source declares OR BINDS ITSELF, at any depth — its top-level
+ *  API (including the `_`-private names `publicApiOf` drops on purpose), its
+ *  fields, its locals, its member functions, and every binding site
+ *  `boundNamesOf` collects.
  *
  *  🔴 THIS IS THE SUBTRACTION, and it is the half the first use check lacked.
  *  A name the adapter declares cannot be evidence that the adapter uses somebody
  *  ELSE's file: its own declaration is the match. Measured 2026-09-05 — a
  *  chassis file named `class SettingsScreen` (the name [ADR 067] decision 2
  *  actually moves) and a chassis file holding only `final l10n = 0;` both
- *  satisfied the check for every brick screen in the tree.
+ *  satisfied the check for every brick screen in the tree. Measured again
+ *  2026-09-06 — `final context = 0;`, because a PARAMETER was not being
+ *  collected and `context` is a parameter of every `build` in the tree.
  *
  *  Deliberately over-collects: a name this wrongly claims the adapter declares
  *  can only ever cost a LOUD refusal, never a silent pass. */
@@ -221,6 +366,7 @@ export function declaredNamesOf(rawSource) {
   for (const re of [...DECL_PATTERNS, ...NESTED_DECL_PATTERNS]) {
     for (const m of code.matchAll(re)) if (m[1]) out.add(m[1]);
   }
+  for (const n of boundNamesOf(rawSource)) out.add(n);
   for (const kw of KEYWORDS) out.delete(kw);
   return out;
 }
@@ -305,7 +451,7 @@ export function delegationOf(repoRoot, relFile, { describe = (r) => `\`${r}\`` }
     return refuse(
         `${describe(relFile)} imports \`package:${CHASSIS_PKG}/${paths[0]}\`, and EVERY name that target ` +
         `declares (${shadowed.slice(0, 8).join(', ')}${shadowed.length > 8 ? ', …' : ''}) is a name THIS FILE ` +
-        'ALSO DECLARES. Its own declaration would be the only "reference" available, so nothing here is ' +
+        'ALSO DECLARES OR BINDS. Its own declaration would be the only "reference" available, so nothing here is ' +
         'evidence that the behaviour went to the package. This is not a corner case: [ADR 067] decision 2 ' +
         'moves `SettingsScreen` INTO the chassis package, so the same-name collision is the naturally ' +
         'occurring one — and it was MEASURED on 2026-09-05 turning a deleted DPDP withdrawal control and a ' +

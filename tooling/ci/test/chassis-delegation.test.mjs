@@ -34,6 +34,7 @@ import {
   chassisImportPaths,
   chassisImportPrefix,
   dartCodeOnly,
+  boundNamesOf,
   declaredNamesOf,
   delegationOf,
   delegationOfAbs,
@@ -340,6 +341,136 @@ describe('🔴 SAME-NAME SHADOWING — the adapter\'s own names are not evidence
     assert.equal(publicApiOf(src).has('l10n'), false);
     assert.ok(declaredNamesOf(src).has('l10n'));
     assert.ok(declaredNamesOf(src).has('build'));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE THIRD MEASURED EXPLOIT — A BINDING IS AS GOOD A SHADOW AS A DECLARATION.
+//
+// The subtraction shipped on 2026-09-06 collected what the adapter DECLARES and
+// not what it BINDS. A third independent review measured, on the real tree at
+// `a54bea1b`, that `context` and `ref` are PARAMETERS of every
+// `Widget build(BuildContext context, WidgetRef ref)` in the tree, so a chassis
+// file whose only top-level name was `final context = 0;` survived the
+// subtraction and was referenced bare by every screen — turning the deleted
+// DPDP withdrawal control and the deleted `caps.oauthRedirect` gate from EXIT 1
+// back into EXIT 0, with `origin/main`'s copy of the same two guards calling the
+// same trees FAILED. Measured over `declaredNamesOf` at that head:
+// `settings_screen.dart` DECLARES 54 names and references 238 bare identifiers
+// it does not declare; `login_screen.dart`, 21 against 146. Any ONE of them,
+// declared in the chassis file, was accepted as proof.
+//
+// Dart is why this shape and not its neighbour: a parameter, a local, a catch
+// clause or a loop variable LEGALLY shadows an imported top-level name, so that
+// tree still compiles and nothing else ever complains. Colliding instead with a
+// name from another import (`Widget`, `Scaffold`) is an ambiguous-import error,
+// so the compiler already refuses it. The shadowing case is the one the compiler
+// waves through — so it is the one this module has to catch itself.
+//
+// `U8-param-control` is what stops a resolver that simply refuses everything
+// from passing this file: the same adapter, with all five binding shapes in it,
+// must still resolve on a name it neither declares nor binds.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('🔴 BOUND NAMES — a parameter shadows an import exactly as a declaration does', () => {
+  /** The real shape: a Riverpod screen whose `build` binds `context` and `ref`,
+   *  with a catch clause, a loop variable, a typed local and a closure. */
+  const riverpodAdapter = (body) =>
+    `${IMPORT}\nclass SettingsScreen extends ConsumerWidget {\n` +
+    '  @override\n' +
+    '  Widget build(BuildContext context, WidgetRef ref) {\n' +
+    '    AppLocalizations l10n = AppLocalizations.of(context)!;\n' +
+    '    try {\n      load();\n    } catch (e) {\n      report(e);\n    }\n' +
+    '    for (final item in items) {\n      use(item);\n    }\n' +
+    `    ${body}\n` +
+    '    return Scaffold(body: Text(l10n.settingsTitle), onTap: (value) => go(value));\n' +
+    '  }\n}\n';
+
+  const refusedOn = (targetSource) => {
+    const root = tree({ adapter: riverpodAdapter('noop();'), target: targetSource });
+    return resolveIn(root);
+  };
+
+  test('U8-param · the target\'s only public name is `context`, a PARAMETER of the adapter\'s build', () => {
+    const d = refusedOn('final context = 0;\n');
+    assert.ok(d && d.lost, 'a parameter must not be the reference');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+    assert.match(d.lost, /context/);
+  });
+
+  test('U8-param-b · …and the same with `ref`, the second parameter of every ConsumerWidget build', () => {
+    const d = refusedOn('final ref = 0;\n');
+    assert.ok(d && d.lost, 'the WidgetRef parameter must not be the reference');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+  });
+
+  test('U8-param-c · a CATCH BINDING (`catch (e)`) is a binding, not evidence', () => {
+    const d = refusedOn('final e = 0;\n');
+    assert.ok(d && d.lost, 'a catch clause binds');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+  });
+
+  test('U8-forin · a FOR-IN loop variable is a binding — the `final|var` pattern answers the collection', () => {
+    // `for (final item in items)` matched the older pattern as `items`, the
+    // thing being iterated, and left `item` in the evidence set.
+    const d = refusedOn('final item = 0;\n');
+    assert.ok(d && d.lost, 'a loop variable binds');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+  });
+
+  test('U8-typed-local · a PLAIN TYPED LOCAL (`AppLocalizations l10n = …`) binds too', () => {
+    // The `final|const|late|var` pattern cannot see this one, and `l10n` is the
+    // name the second review already measured as spelled by every brick screen.
+    const d = refusedOn('final l10n = 0;\n');
+    assert.ok(d && d.lost, 'a typed local binds');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+  });
+
+  test('U8-closure-param · a CLOSURE parameter (`(value) => …`) binds', () => {
+    const d = refusedOn('final value = 0;\n');
+    assert.ok(d && d.lost, 'a closure parameter binds');
+    assert.match(d.lost, /is a name THIS FILE ALSO DECLARES OR BINDS/);
+  });
+
+  // 🟢 THE GREEN CONTROL for all six. Same adapter, same five binding shapes —
+  // a name it neither declares nor binds still resolves, so the subtraction
+  // refuses the exploit without refusing everything.
+  test('U8-param-control · a genuine bare top-level name the adapter neither declares nor binds resolves', () => {
+    const root = tree({
+      adapter: riverpodAdapter('openSettingsBody();'),
+      target: 'void openSettingsBody() {\n  x();\n}\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `must resolve, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'openSettingsBody');
+  });
+
+  test('U8-arg-control · a CALL ARGUMENT is a reference, not a binding — evidence survives', () => {
+    // `Text(SettingsBody())` must not subtract `SettingsBody`: a call's
+    // arguments are references, and reading them as bindings would turn every
+    // honest delegation that passes the chassis widget into a COVERAGE LOST.
+    const bound = boundNamesOf('class S {\n  Widget build(BuildContext context) {\n    return Text(SettingsBody(), openSettingsBody());\n  }\n}\n');
+    assert.equal(bound.has('SettingsBody'), false, [...bound].join(','));
+    assert.equal(bound.has('openSettingsBody'), false, [...bound].join(','));
+    assert.ok(bound.has('context'), [...bound].join(','));
+  });
+
+  test('D3 · boundNamesOf collects every binding shape, and an `if (…)` condition is not one', () => {
+    const bound = boundNamesOf(
+        'class S {\n  Widget build(BuildContext context, WidgetRef ref) {\n' +
+        '    AppLocalizations l10n = X.of(context)!;\n' +
+        '    if (isChassisReady) { load(); }\n' +
+        '    try { load(); } catch (e) { report(e); }\n' +
+        '    for (final item in items) { use(item); }\n' +
+        '    final (a, b) = pair;\n' +
+        '    return Wrap(onTap: (value) => go(value));\n  }\n}\n',
+    );
+    for (const n of ['context', 'ref', 'l10n', 'e', 'item', 'a', 'b', 'value']) {
+      assert.ok(bound.has(n), `${n} must be collected — have ${[...bound].sort().join(',')}`);
+    }
+    // A condition holds REFERENCES. Subtracting them would refuse honest evidence.
+    assert.equal(bound.has('isChassisReady'), false, [...bound].sort().join(','));
+    assert.equal(bound.has('items'), false, [...bound].sort().join(','));
+    assert.equal(bound.has('pair'), false, [...bound].sort().join(','));
   });
 });
 
