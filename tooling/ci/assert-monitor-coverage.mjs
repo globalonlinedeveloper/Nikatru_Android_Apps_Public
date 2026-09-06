@@ -5,7 +5,8 @@
 //
 // WHY THIS EXISTS. The acceptance quantifies over "every live hostname", and
 // until tooling/monitor-register.json landed that set did not exist anywhere a
-// machine could read. The monitor set lived inside GlitchTip on the Oracle box;
+// machine could read. The monitor set lived inside GlitchTip, then on the Oracle
+// box and on the Hostinger box (Box B) since 2026-09-02;
 // the deployed set lived in wrangler configs, an app catalogue and a handful of
 // canonical links; and the comparison between them was performed by a human,
 // from memory, when somebody happened to look. Measured 2026-08-01 and again
@@ -53,8 +54,9 @@
 // The LIVE half of E-9 is tooling/ops/verify-monitors.mjs, which reconciles the
 // register against the GlitchTip API. It is deliberately not run here: a CI limb
 // needing a network token would either be skipped (and a skipped check reports
-// ok) or would make every build depend on the Oracle box, which is the very
-// single point of failure E-9b is about.
+// ok) or would make every build depend on the box GlitchTip runs on — Box B,
+// the Hostinger box, since 2026-09-02 — which is the very single point of
+// failure E-9b is about.
 //
 // Usage:  node tooling/ci/assert-monitor-coverage.mjs [repoRoot]
 // Exit 0 = every deployed hostname is declared, 1 = violation or lost coverage.
@@ -315,7 +317,9 @@ if (register?.observability?.decidedOn == null) {
   console.log(
     '--   [pipeline E-9b] the observability SPOF is UNDECIDED: every monitor, including the one watching',
   );
-  console.log('     glitchtip.nikatru.com, runs inside GlitchTip on one Oracle box, and so does the alert path.');
+  console.log('     glitchtip.nikatru.com, runs inside GlitchTip on ONE box — Box B, the Hostinger box,');
+  console.log('     since 2026-09-02 — and so does the alert path. The machine changed that day; the COUNT');
+  console.log('     did not, so E-9b is exactly as open as it was on 2026-08-03.');
   console.log('     Owner must fund/accept an off-box checker or record the SPOF as accepted, with a date and a');
   console.log('     name (monitor-register.json → observability.decidedOn / decidedBy).');
 }

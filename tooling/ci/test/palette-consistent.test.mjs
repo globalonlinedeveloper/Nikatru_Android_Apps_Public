@@ -250,6 +250,28 @@ const MIN_SNAPSHOTS = (() => {
   return Number(m[1]);
 })();
 
+/** ⚠️ AND THE FLOOR ITSELF IS PINNED, LITERALLY, RIGHT HERE. Reading the number
+ *  out of the guard keeps every case below aimed at the number the guard really
+ *  uses — but on its own it also makes LOWERING that number INVISIBLE: `keep`,
+ *  the expected message and the boundary all follow it down, so a floor of 1
+ *  would leave this suite green while the guard had stopped requiring what it
+ *  requires. Measured, not assumed: with only the read above, MIN_SNAPSHOTS
+ *  3 -> 2 and 3 -> 1 both left `node --test` at EXIT 0, 56 pass 0 fail.
+ *
+ *  So the value is ALSO stated once, as a literal, beside the measurement — the
+ *  house pattern (guards.test.mjs:1877, no-seam-forks.test.mjs:705-706 both pin
+ *  `expected at least N` as text). It is a RATCHET, not an equality: raising the
+ *  floor is a deliberate tightening and stays green here; lowering it fails,
+ *  because the archive is append-only and a floor that falls is COVERAGE LOST. */
+assert.ok(
+  MIN_SNAPSHOTS >= 3,
+  `${GUARD_REL} declares MIN_SNAPSHOTS = ${MIN_SNAPSHOTS}, below the pinned floor of 3. ` +
+    'The dated-snapshot floor is a RATCHET: raising it is fine, lowering it is COVERAGE LOST. ' +
+    'Every expectation in this suite is derived from that constant, so without this line the ' +
+    'whole file would have followed the floor down in silence. If the archive really did shrink, ' +
+    'change this 3 in the same diff a reviewer reads.',
+);
+
 function run(root) {
   const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8', cwd: root });
   return { code: r.status, out: r.stdout ?? '', err: r.stderr ?? '', all: `${r.stdout ?? ''}${r.stderr ?? ''}` };
