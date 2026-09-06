@@ -12,6 +12,13 @@
 //        and 1 LIVE sink(s) declare receiving it: oracle-cloud (Oracle Cloud)."
 //     Restored → exit 0.
 //
+//     ⏱ THE ROW IN THAT RECORD IS NOW SPELLED `hostinger (Hostinger)`. The
+//     mutation and its output are left as they were run ([ADR 053] rule 2): the
+//     crash sink moved from Box A to Box B on 2026-09-02 and the provider row
+//     was renamed with the machine in the 2026-09-05 policy mint. Nothing about
+//     the mutation changes — the same `receives += "ip_address"` on the same
+//     sink still names the same published denial — only the id it prints.
+//
 // 🔴 AND ONE RESULT THAT CHANGED THE GUARD, recorded because it is the trap this
 // whole file is built around. The real sentence on privacy.html is
 //     "We do not collect or store your IP address with these records; an
