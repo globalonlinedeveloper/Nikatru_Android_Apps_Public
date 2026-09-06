@@ -850,7 +850,6 @@
             "job": "github_dispatch",
             "target": "Nikatru_Platform_Public/build-platforms.yml"
           },
-          "firstDue": "2026-09-08T00:00:00Z",
           "_why": [
             "WORKER CRON PHASE 2, THIRD AND LAST WORKFLOW - 2026-09-04. Same split as duty.workflow.e2e.yml:",
             "the TIMER claim comes from the cron_heartbeat row only the dispatching Worker can write, and the",
@@ -1300,7 +1299,6 @@
           "workflow": "codeql.yml",
           "event": "schedule",
           "headBranch": "main",
-          "firstDue": "2026-09-12T00:00:00Z",
           "firstDueWhy": "⚠️ THE BOOTSTRAP, AND IT EXPIRES BY ARITHMETIC RATHER THAN BY SOMEBODY REMEMBERING. TRAPS ci-18: this guard holds `watched workflows === .github/workflows/*.yml` in BOTH directions, so codeql.yml cannot land without this row — and a workflow's run history does not exist until the file is on the DEFAULT BRANCH, so on the day it merges the recordQuery below has nothing to find. `firstDue` is the only sanctioned bridge across that deadlock and the guard refuses one more than a single cadence window ahead, which is what stops it becoming a permanent waiver. Dated 2026-09-12, six days after the file was written and comfortably inside this row's own [7d x 1.5 = 252h] window. ⬜ ITS EXIT CONDITION, STATED SO NOBODY HAS TO DERIVE IT: DELETE BOTH THIS FIELD AND `firstDue` once one scheduled run has succeeded on main. Leaving them is not neutral — a spent bootstrap is a waiver wearing a wait's clothes, which is why duty.workflow.renovate.yml's was removed on 2026-09-05 with the removal written down.",
           "why": "🔴 `event: schedule` STAYS, EVEN THOUGH THIS WORKFLOW ALSO RUNS ON EVERY PULL REQUEST, and the two claims must not be confused. A PR run proves somebody opened a pull request; it is not a cadence claim, and accepting it here would make freshness green on the repository being busy. It would also be the widest possible filter, because a pull_request run can come from ANY branch — which is what `headBranch: main` is stated against. Nothing dispatches this workflow from the Cloudflare cron (services/platform/src/scheduled.ts names e2e.yml and ops-watch.yml, not this one), so there is no `timer` limb to split the claim onto and the schedule filter carries the whole of it. ⬜ WHAT WOULD IMPROVE IT: add codeql.yml to GITHUB_DISPATCH_TARGETS and split this row the way e2e.yml's is split. GitHub delivers this repository's crons 10.1% on time, which is why the cron fires DAILY against a weekly window rather than weekly against a weekly one (TRAPS ci-19) — the margin is given to the EVIDENCE, not to the duty."
         }
@@ -1336,7 +1334,6 @@
           "workflow": "trufflehog.yml",
           "event": "schedule",
           "headBranch": "main",
-          "firstDue": "2026-09-12T00:00:00Z",
           "firstDueWhy": "⚠️ THE BOOTSTRAP, ON THE SAME TERMS AND FOR THE SAME REASON AS duty.workflow.codeql.yml's — restated here rather than cross-referenced, because a shared note is one that gets edited for one row and read for two. TRAPS ci-18: the both-directions coverage limb refuses a workflow with no duty row, and a run history does not exist until the file is on the default branch, so the row and the record cannot both be true on the day of the merge. Dated 2026-09-12, inside this row's own [7d x 1.5 = 252h] window, which is the bound the guard enforces and the only thing that stops the field becoming permanent. ⬜ DELETE THIS FIELD AND `firstDue` once one scheduled run has succeeded on main.",
           "why": "🔴 `event: schedule` — this workflow has no pull_request trigger at all, so the filter is not narrowing a busy history; it is refusing `workflow_dispatch`, which is indistinguishable from a person pressing the button and is therefore the opposite of a cadence claim. `headBranch: main` is stated anyway rather than left implied by GitHub firing schedules only on the default branch: that guarantee belongs to GitHub's behaviour, not to this register, and it must not vanish silently if the event filter is ever widened."
         }
