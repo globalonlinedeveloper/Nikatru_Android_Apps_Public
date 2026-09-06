@@ -28,15 +28,24 @@
    by a generated banner would make that claim unverifiable by the cheapest
    possible check, which is a hash.
 
-   WHERE IT LANDS, AND WHY NOT UNDER core/v1/. `core/v1/` is the VENDORED
-   surface: `scripts/sync-core.mjs` copies every file under it into each tool's
-   `vendor/core/`, `core/core.json` carries a module entry per file, and
-   `core/test/coverage.node.js` requires a sim per built module. Putting the
-   contract there is a real option and a larger change — a core version bump, a
-   module entry, a sim, and a re-sync of every tool in the same commit. This
-   lands the shared copy at `core/entitlement-contract.js` first, where the
-   runtime can read it and where `tooling/ci/assert-entitlement-contract.mjs`
-   limb 4 already grades it against the SQL seed.
+   WHERE IT LANDS: `core/v1/`, THE VENDORED SURFACE. ⏱ MOVED 2026-09-06 from
+   `core/entitlement-contract.js`, which was one level above that surface. The
+   distinction is not cosmetic: `scripts/sync-core.mjs` copies every file under
+   `core/<channel>/` into each adopting tool's `vendor/core/`, and it copies
+   nothing else — so a contract sitting beside the channel directory could never
+   reach a tool's zip, however many guards graded it. It now carries the price
+   the surface charges: a `core/core.json` module entry, a sim under
+   `core/test/` (`core/test/coverage.node.js` requires one per file on the
+   surface, keyed on the FILESYSTEM rather than on any status field), and a core
+   version bump.
+
+   ⚠️ NO TOOL VENDORS CORE YET, and that is not something this change fixes.
+   `Extension/Full_Screen_Shot/tool.json` and `templates/tool/tool.json` both
+   declare `"core": null` on purpose — a declaration with no `vendor/core/`
+   behind it asserts a relationship nothing verifies. So the honest claim today
+   is "the contract is on the surface a tool inherits when it adopts core", not
+   "a submitted zip carries it". The first tool to adopt gets it with no further
+   work; before that, nothing ships it.
 
    ⚠️ NOT A BUILD STEP, and the distinction is the one [ADR 067] decision 1
    turns on. This copies a file at authoring time and commits the result; it
@@ -58,7 +67,7 @@ import { repoRoot, sha256 } from './lib/toolinfo.mjs';
 export const SYNCED = [
   {
     from: 'contracts/entitlement/contract.js',
-    to: 'core/entitlement-contract.js',
+    to: 'core/v1/entitlement-contract.js',
     why: 'the money vocabulary — the revocation-reason set and the two money environments',
   },
 ];

@@ -2259,6 +2259,10 @@ const NO_CASE_RECORDED = [
     why: 'OPEN GAP, recorded 2026-08-25. The plainest of the nine: one file in, one hash out, used by the determinism comparison in ci.yml. Nothing here proves it reports a missing file rather than printing an empty hash.' },
   { gate: 'scripts/changelog-section.mjs',
     why: 'OPEN GAP, recorded 2026-08-25. Called only from release.yml, to cut one version section out of a CHANGELOG for the release body. Uncovered means a release note that silently comes out empty is caught by nobody.' },
+  { gate: 'scripts/check-contracts-sync.mjs',
+    why: 'COVERED, ELSEWHERE AND IN CI, recorded 2026-09-06. Its twelve red/green cases are in scripts/test/contracts-sync.test.mjs — including the hand-edited copy, the line-endings-only drift, the missing copy, and --dry-run writing nothing — and extensions.yml\'s core job runs that suite in the same step list that runs the gate. They are not in this file because every case here mutates ONE tree through --repo-root, and this pair needs a synthetic MONOREPO: a contracts/ root beside an extensions/ root, which is what --contracts-root exists for.' },
+  { gate: 'scripts/test/contracts-sync.test.mjs',
+    why: 'PERMANENT. It is a suite, not a gate — the same reason scripts/test/selftest.node.js is in this list. It appears in the invoked set only because extensions.yml runs it by path.' },
   { gate: 'Extension/Full_Screen_Shot/publish/verify-firefox-package.node.js',
     why: 'OPEN GAP, recorded 2026-08-25. It lives in a tool\'s publish/, not in scripts/, and the run() helper here resolves against SCRIPTS and appends --repo-root, which this gate does not take — it takes --zip. It needs its own runner before it can have a case.' }
 ];

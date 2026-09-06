@@ -31,7 +31,7 @@
 //     guard FAILURE, not a redundancy.
 //   · tooling/ci/assert-entitlement-contract.mjs limb 4 compares FIVE copies
 //     against the SQL seed: this file, its generated contract.json, the
-//     byte-identical copy at extensions/core/entitlement-contract.js, and the
+//     byte-identical copy at extensions/core/v1/entitlement-contract.js, and the
 //     generated Dart at
 //     packages/purchases/lib/src/generated/entitlement_contract.g.dart.
 //

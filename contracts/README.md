@@ -37,7 +37,7 @@ single repository. The failure this directory prevents has happened here once.
 
 | Path | What it is | Consumed by |
 |---|---|---|
-| `entitlement/` | the revocation-reason set, the money environments, and the JSON Schema that grades them | `services/platform` imports `contract.js` directly; `extensions/core/v1/entitlement-contract.js` is a byte-identical vendored copy on the vendored surface; `packages/purchases` exports generated Dart |
+| `entitlement/` | the revocation-reason set, the money environments, and the JSON Schema that grades them | `services/platform` imports `contract.js` directly; `extensions/core/v1/entitlement-contract.js` is a byte-identical copy on the extensions' vendored surface; `packages/purchases` exports generated Dart |
 | `tokens/` | the DTCG brand-token source in `tokens/dtcg/` — see `tokens/README.md` | `sites/**` (generated CSS), the Flutter apps (generated Dart), `extensions/**` (generated JSON) |
 | `legal/` | the shared text of a published legal document | `sites/nikatru/fullshot/privacy.html` and `extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY.html`, both RENDERED from it |
 
@@ -101,7 +101,11 @@ from DTCG JSON.
    `legal/render-fullshot-privacy.mjs`, and `tooling/ci/
    assert-legal-text-parity.mjs` holds all three together.
 5. ✅ **DONE 2026-09-06.** The vendored contract sits on the `core/v1/`
-   VENDORED SURFACE (core `1.3.0`, module row in `core/core.json`, sim in
-   `core/test/`), so a tool's submitted zip carries it; and
-   `extensions/scripts/check-contracts-sync.mjs` is invoked by
-   `.github/workflows/extensions.yml`.
+   VENDORED SURFACE — core `0.1.0` → `0.2.0`, a module row in `core/core.json`,
+   and a 22-assertion sim at `core/test/entitlement-contract.node.js`, which is
+   the price that surface charges — so `sync-core.mjs` carries it into any tool
+   that adopts core. ⚠️ **No tool adopts core yet** (both `tool.json` files say
+   `"core": null` on purpose), so no submitted zip carries it today; what
+   changed is that the first one will, with no further work. And
+   `extensions/scripts/check-contracts-sync.mjs` is now invoked by
+   `.github/workflows/extensions.yml`, beside its own twelve-case suite.

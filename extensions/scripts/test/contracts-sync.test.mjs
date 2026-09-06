@@ -10,14 +10,14 @@
    worktree; green control, mutate, run, restore, re-verify green):
 
      C1  `chargeback_reversed.restores` flipped in     -> check-contracts-sync exit 1,
-         extensions/core/entitlement-contract.js           "MODIFIED … a COPY, not a fork"
+         extensions/core/v1/entitlement-contract.js           "MODIFIED … a COPY, not a fork"
      C2  the same flip, re-synced from contracts/     -> exit 0 again
 
    ⚠️ AND THE GAP THIS FILE DOES NOT CLOSE, said here rather than left implied:
    no workflow invokes `check-contracts-sync.mjs` yet — `.github/workflows/
    extensions.yml` is outside the unit that added these scripts. What DOES gate
    the property in CI is `tooling/ci/assert-entitlement-contract.mjs` limb 4,
-   which byte-compares `extensions/core/entitlement-contract.js` against
+   which byte-compares `extensions/core/v1/entitlement-contract.js` against
    `contracts/entitlement/contract.js` on every run of ci.yml's guards-legal
    lane. These two scripts are the authoring path and its faster, sharper
    message.
@@ -61,7 +61,7 @@ export const CONTRACT_TABLE = { moneyEnvironments: MONEY_ENVIRONMENTS, revocatio
 function fixture(o = {}) {
   const root = join(TMP, `case-${(seq += 1)}`);
   const ext = join(root, 'extensions');
-  const core = join(ext, 'core');
+  const core = join(ext, 'core', 'v1');
   const contracts = join(root, 'contracts', 'entitlement');
   mkdirSync(core, { recursive: true });
   mkdirSync(contracts, { recursive: true });

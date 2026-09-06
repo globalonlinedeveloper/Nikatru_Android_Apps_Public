@@ -388,7 +388,7 @@ function run(o = {}) {
   const codeReasons = o.tsReasons ?? ALL_REASONS;
   const contracts = join(root, 'contracts', 'entitlement');
   const generated = join(root, 'packages', 'purchases', 'lib', 'src', 'generated');
-  const extCore = join(root, 'extensions', 'core');
+  const extCore = join(root, 'extensions', 'core', 'v1');
   mkdirSync(contracts, { recursive: true });
   mkdirSync(generated, { recursive: true });
   mkdirSync(extCore, { recursive: true });
@@ -600,11 +600,11 @@ describe('assert-entitlement-contract — the money rail schema is complete befo
 // ⚠️ REAL-TREE MUTATIONS FIRST, 2026-09-05, six, on this worktree, each restored
 // and the restore re-verified green (green control → mutate → run → restore):
 //   M1 `chargeback_reversed.restores` true→false in contracts/entitlement/contract.js   -> exit 1
-//   M2 the same flip in extensions/core/entitlement-contract.js                          -> exit 1
+//   M2 the same flip in extensions/core/v1/entitlement-contract.js                          -> exit 1
 //   M3 the same flip in the generated Dart                                               -> exit 1
 //   M4 the same flip in contracts/entitlement/contract.json                              -> exit 1
 //   M5 a REVOCATION_REASONS array re-declared in contract.ts                             -> exit 1
-//   M6 extensions/core/entitlement-contract.js deleted                     -> exit 1, COVERAGE LOST
+//   M6 extensions/core/v1/entitlement-contract.js deleted                     -> exit 1, COVERAGE LOST
 // Green controls before and after: exit 0.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-entitlement-contract limb 4 — every runtime copy of the vocabulary answers to the SQL seed', () => {
@@ -613,7 +613,7 @@ describe('assert-entitlement-contract limb 4 — every runtime copy of the vocab
   const COPIES = [
     { name: 'contracts/entitlement/contract.js', reasons: 'jsReasons', absent: 'js', junk: 'export const NOTHING = [];\n' },
     { name: 'contracts/entitlement/contract.json', reasons: 'jsonReasons', absent: 'json', junk: '{ "moneyEnvironments": ["live"] }\n' },
-    { name: 'extensions/core/entitlement-contract.js', reasons: 'vendoredReasons', absent: 'vendored', junk: 'export const NOTHING = [];\n' },
+    { name: 'extensions/core/v1/entitlement-contract.js', reasons: 'vendoredReasons', absent: 'vendored', junk: 'export const NOTHING = [];\n' },
     { name: 'packages/purchases/lib/src/generated/entitlement_contract.g.dart', reasons: 'dartReasons', absent: 'dart', junk: '// nothing generated\n' },
   ];
 

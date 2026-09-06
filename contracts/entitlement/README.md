@@ -45,7 +45,7 @@ see.
 | SQL seed rows (`services/platform/migrations/0004_money_rail.sql` §E) | — it IS the left-hand side | 🟢 |
 | `contract.js` | `tooling/ci/assert-entitlement-contract.mjs` limb 4 | 🟢 checked |
 | `contract.json` | limb 4, plus `generate.mjs --check` against `contract.js` | 🟢 checked |
-| `extensions/core/entitlement-contract.js` | limb 4, by SET **and** byte-for-byte against `contract.js` | 🟢 checked |
+| `extensions/core/v1/entitlement-contract.js` | limb 4, by SET **and** byte-for-byte against `contract.js` | 🟢 checked |
 | `packages/purchases/lib/src/generated/entitlement_contract.g.dart` | limb 4, plus `generate-dart.mjs --check` | 🟢 checked |
 | `services/platform/src/lib/mor/contract.ts` | limb 4: it must IMPORT `contract.js`, and a re-declared `REVOCATION_REASONS` array in it is a FAILURE | 🟢 checked |
 

@@ -35,6 +35,35 @@
 //   3. no banned domain noun appears in shared CODE, from a list that must exist
 //      and must NOT be empty — an empty list passes everything, silently, forever
 //
+// ── [ADR 070] ONE DERIVED EXCEPTION, AND IT IS NOT AN ALLOWLIST ──────────────
+// A banned DOMAIN NOUN in a `packages/*/lib` file is not a clone tell when that
+// file is GENERATED from a file under `contracts/` which itself contains the
+// same token. `contracts/` is by definition "the things more than one runtime
+// has to agree about", so a word that is in a contract is portfolio-wide by
+// construction — which is a fact about the tree, not a judgement typed here.
+//
+// The conflict this settles was latent before it was hit: [pipeline C-10] bans
+// `subscription` because Subly is a subscription tracker, while [pipeline 5]M-3
+// makes the revocation-reason set permanent in
+// services/platform/migrations/0004_money_rail.sql — and two of its eight
+// members are `subscription_expired` and `subscription_paused`. The generated
+// Dart mirror of that contract is the one machine-made transcription of it.
+//
+// THREE INDEPENDENT FACTS MUST ALL HOLD, each read from the tree at run time:
+//   a) the file's own LEADING comment block says GENERATED and names a path
+//      under contracts/ that EXISTS on disk;
+//   b) a generator under contracts/ names that file's repo-relative path as its
+//      output — so the file really is written by machine, rather than merely
+//      described as such by its own header;
+//   c) the EXACT token found appears in the named contract source.
+// Typing a path satisfies none of them on its own.
+//
+// 🔴 APP NAMES ARE NEVER EXEMPT. A contract that names an app has stopped being
+// a contract, so limb 2 keeps its full reach over generated files.
+//
+// The count of exempted findings and the files they came from are PRINTED on
+// every run. An exception that grew to cover the tree cannot do so in silence.
+//
 // Usage:  node tooling/ci/assert-no-clone-tells.mjs [repoRoot]
 // Exit 0 = shared code is app-neutral, 1 = a clone tell leaked in.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,12 +276,91 @@ function tellPattern(words) {
   return new RegExp(`(?<![A-Za-z0-9])(${[...new Set(variants)].join('|')})(?![a-z])`);
 }
 
+// ── [ADR 070] the generated-from-a-contract derivation ───────────────────────
+
+/** Every `.mjs` under contracts/, concatenated. A generator that writes a file
+ *  names that file's repo-relative path in its own source — `generate-dart.mjs`
+ *  carries `const REL = 'packages/purchases/lib/src/generated/…';` — so this
+ *  blob is what turns "the header claims it is generated" into "something here
+ *  actually writes it". Read once; the directory holds three files today. */
+function contractGeneratorSources() {
+  const parts = [];
+  (function walk(dir) {
+    let entries;
+    try {
+      entries = listDir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+      const abs = join(dir, e.name);
+      if (e.isDirectory()) walk(abs);
+      else if (e.name.endsWith('.mjs')) parts.push(readFileSync(abs, 'utf8'));
+    }
+  })(join(ROOT, 'contracts'));
+  return parts.join('\n');
+}
+const GENERATOR_BLOB = contractGeneratorSources();
+
+/** The file's LEADING comment block only — from line 1 up to the first blank
+ *  line after at least one `//` line. Deliberately not "any comment anywhere":
+ *  a doc comment halfway down a hand-written file must not be able to declare
+ *  the file generated. */
+function leadingCommentBlock(raw) {
+  const kept = [];
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (t.startsWith('//')) {
+      kept.push(t);
+      continue;
+    }
+    if (t === '' && kept.length === 0) continue;
+    break;
+  }
+  return kept.join('\n');
+}
+
+/** The contract sources `rel` says it was generated from, as [{source, text}].
+ *  Empty when the file is not generated from a contract at all.
+ *
+ *  ⚠️ A `.mjs` under contracts/ is NOT a candidate. The generators live in the
+ *  same directory as the contracts, and the header names the generator as well
+ *  as its input — so taking the first path that happens to exist picked
+ *  `generate-dart.mjs`, whose source contains none of the vocabulary, and the
+ *  exemption never fired. Worse in the other direction: a generator's own
+ *  source is exactly where a banned noun could be written by hand. The contract
+ *  is the data the runtimes read; the generator is a tool, and it is the file
+ *  that satisfies fact (b), not fact (c). */
+function contractProvenance(rel, raw) {
+  if (!/^packages\/[^/]+\/lib\//.test(rel)) return [];
+  const header = leadingCommentBlock(raw);
+  if (!/GENERATED/.test(header)) return [];
+  // (b) — something under contracts/ writes THIS path. A header alone is prose.
+  if (!GENERATOR_BLOB.includes(rel)) return [];
+  const found = [];
+  for (const m of header.matchAll(/contracts\/[A-Za-z0-9._\-/]+/g)) {
+    let p = m[0];
+    while (p.endsWith('.')) p = p.slice(0, -1); // a path at the end of a sentence
+    if (p.includes('..') || !/\.[A-Za-z0-9]+$/.test(p) || p.endsWith('.mjs')) continue;
+    const abs = join(ROOT, p);
+    if (!existsSync(abs)) continue; // (a)
+    found.push({ source: p, text: readFileSync(abs, 'utf8') });
+  }
+  return found;
+}
+
 const problems = [];
+/** [ADR 070] — every finding the derivation above waved through, so the passing
+ *  line can say how many and from where. */
+const exempt = [];
 const appRe = tellPattern(appNames);
 const nounRe = tellPattern(domainNouns);
 
 for (const rel of sharedFiles) {
-  const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+  const raw = readFileSync(join(ROOT, rel), 'utf8');
+  const provenance = contractProvenance(rel, raw);
+  const code = stripComments(raw);
   for (const [i, line] of code.split('\n').entries()) {
     const app = line.match(appRe);
     if (app) {
@@ -263,6 +371,13 @@ for (const rel of sharedFiles) {
     }
     const noun = line.match(nounRe);
     if (noun) {
+      // (c) — the token itself must be in the contract this file was generated
+      // from. A generated file does NOT get a blanket pass on the whole list.
+      const bearing = provenance.find((c) => c.text.includes(noun[1]));
+      if (bearing) {
+        exempt.push({ rel, line: i + 1, token: noun[1], source: bearing.source });
+        continue;
+      }
       problems.push(
         `${rel}:${i + 1} — shared code uses the domain word "${noun[1]}". That vocabulary belongs to one ` +
           "app's problem, not to the chassis.",
@@ -288,9 +403,16 @@ const split = REQUIRED_COVERAGE.map(
   (r) => `${r.key}=${byRoot.get(r.key).length}${IS_FULL_CHECKOUT ? `/floor ${r.floor}` : ''}`,
 ).join(', ');
 
+// [ADR 070] — printed, never silent. Zero exemptions prints nothing extra, so
+// the sentence cannot become furniture a reader stops seeing.
+const exemptNote = exempt.length
+  ? `; ${exempt.length} finding(s) exempt as generated from a contract [ADR 070]: ` +
+    [...new Set(exempt.map((e) => `${e.rel} ← ${e.source}`))].join(', ')
+  : '';
+
 console.log(
   `ok  no clone tells — ${sharedFiles.length} shared file(s) scanned [${split}] for ${appNames.length} app name(s) ` +
-    `and ${domainNouns.length} domain word(s); comments exempt` +
+    `and ${domainNouns.length} domain word(s); comments exempt${exemptNote}` +
     (IS_FULL_CHECKOUT
       ? ''
       : '. NOTE: this root is not a checkout of this repository, so only the union floor ' +

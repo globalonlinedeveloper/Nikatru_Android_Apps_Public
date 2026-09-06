@@ -883,8 +883,10 @@
   },
   {
     "claims": [
+      "ADR 070",
       "C-10",
-      "C-11"
+      "C-11",
+      "M-3"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-chassis"

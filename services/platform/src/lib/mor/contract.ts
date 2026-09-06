@@ -92,7 +92,7 @@ export type { MoneyEnvironment };
  * section E — asserted by `tooling/ci/assert-entitlement-contract.mjs` limb 4,
  * which now compares FIVE copies: the SQL seed, that contract file, its
  * generated `contract.json`, the byte-identical copy the extensions vendor at
- * `extensions/core/entitlement-contract.js`, and the generated Dart table at
+ * `extensions/core/v1/entitlement-contract.js`, and the generated Dart table at
  * `packages/purchases/lib/src/generated/entitlement_contract.g.dart`.
  *
  * `restores` marks the one member that GIVES ACCESS BACK. Without it a customer
