@@ -1720,6 +1720,19 @@
   },
   {
     "claims": [
+      "ADR 067",
+      "F-11"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-workflow-timeouts.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "F-1"
     ],
     "invokedBy": [
