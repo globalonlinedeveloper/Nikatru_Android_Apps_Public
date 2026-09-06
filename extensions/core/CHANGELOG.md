@@ -13,6 +13,49 @@ breaking change becomes `core/v2/` beside it rather than a new number here.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-06
+
+### Added — `v1/entitlement-contract.js`, the money vocabulary, on the vendored surface
+
+The surface grew by one file, so the minor moves. Additive within the channel (§2 rule 2): nothing
+already on `v1/` changed, no adopting tool has to do anything, and no pin breaks.
+
+- **`core/v1/entitlement-contract.js`** — the money environments and the revocation-reason set, with
+  the one member that RESTORES access. Predicates only: no storage, no messaging, and no network.
+- **`core/test/entitlement-contract.node.js`** (22 assertions, 3 teeth) — the sim §2 rule 3 requires,
+  loading the real shipped bytes and mutating them three ways: drop the `restores: true` flag, make
+  the membership predicate fail open, and make `restoresAccess()` answer from membership alone.
+- `core/core.json` gains its module entry; `unspecifiedV1FilesBuilt` 2 → 3, `coreTestSims` 3 → 4.
+  The **specified** counts do not move — this is not one of the eleven architecture modules, and a
+  version bump that also moved them would claim progress that did not happen.
+
+### Changed — where the contract lives, and why the old address was wrong
+
+It landed at `core/entitlement-contract.js` on 2026-09-05, one level ABOVE the vendored surface. That
+address could never reach a tool: `scripts/sync-core.mjs` copies `core/<channel>/**` into an adopting
+tool's `vendor/core/` and walks nothing else, so a contract beside the channel directory was graded by
+two guards and shipped by none. `extensions/scripts/sync-contracts.mjs` now writes it to
+`core/v1/entitlement-contract.js`.
+
+⚠️ **No tool vendors core yet**, and this does not change that. `Extension/Full_Screen_Shot/tool.json`
+and `templates/tool/tool.json` both declare `"core": null` on purpose. The honest claim is *"the
+contract is on the surface a tool inherits when it adopts core"*, not *"a submitted zip carries it"*.
+
+### 🔴 One deviation from CORE-POLICY §2 rule 4, recorded rather than hidden
+
+Shared files on this surface are classic scripts attaching to a namespace. This one is an **ES module
+with named exports**, because it is a byte-identical mirror of the monorepo's
+`contracts/entitlement/contract.js` and the Cloudflare Worker imports those same bytes. A
+hand-rewritten classic-script version would be a SECOND copy of the money vocabulary — the exact
+failure `contracts/` exists to prevent — so byte-identity was preferred to uniformity of module
+system. It costs the sim its `H.loadCore()` route (`vm.runInContext` parses a classic script and would
+die on `export`); the sim loads the same real bytes as a module instead, and says so in its header.
+
+Byte-identity is recomputed mechanically in two places, so nothing here rests on a hand-kept hash:
+`extensions/scripts/check-contracts-sync.mjs` (now invoked by `.github/workflows/extensions.yml`) and
+`tooling/ci/assert-entitlement-contract.mjs` limb 4, which compares it against the SQL seed in
+`services/platform/migrations/0004_money_rail.sql` rather than against another copy.
+
 ### Changed — 2026-08-22 — `ci.yml` is cited by STEP NAME here, not by line
 
 No code changed. Four pointers into `.github/workflows/ci.yml` were rewritten as searchable anchors,

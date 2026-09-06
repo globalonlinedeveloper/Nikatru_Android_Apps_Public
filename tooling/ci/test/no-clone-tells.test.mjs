@@ -223,3 +223,233 @@ describe('the stripper is a tokenizer — a comment cannot hide a tell', () => {
     assert.equal(code, 0, out);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [ADR 070] — A DOMAIN NOUN IN A FILE GENERATED FROM A CONTRACT THAT NAMES IT
+//
+// The exception is derived from four independent facts about the tree, and
+// every case below withholds exactly ONE of them and proves the guard still
+// exits 1. The GREEN CONTROL comes first, so a red that is really "the fixture
+// never worked" cannot be read as the guard biting.
+//
+//   (a) the file's LEADING comment block says GENERATED and names a path under
+//       contracts/ that exists
+//   (b) a generator under contracts/ names this file's repo-relative path
+//   (c) the token found is in that contract's CODE, comments stripped
+//   (d) a workflow invokes that generator with `--check`
+//
+// ⏱ (c) TIGHTENED AND (d) ADDED 2026-09-06. Facts (a)–(c) are all read off
+// SOURCE TEXT and none of them looks at the file's CONTENT, so "generated" was
+// an assertion the tree never had to make good on: measured on this branch,
+// two hand-typed lines appended to the real generated Dart left this guard at
+// EXIT 0 and assert-entitlement-contract.mjs at EXIT 0, and the only thing that
+// caught them was `contracts/entitlement/generate-dart.mjs --check` — which NO
+// workflow invoked. (d) makes the exemption conditional on that gate being
+// wired; the gate's own red/green pair is in entitlement-contract.test.mjs.
+//
+// App names are never exempt, and the rule is scoped to packages/*/lib.
+// ─────────────────────────────────────────────────────────────────────────────
+const GEN_REL = 'packages/purchases/lib/src/generated/entitlement_contract.g.dart';
+
+const GEN_HEADER =
+  '// GENERATED FILE — DO NOT EDIT.\n' +
+  '//\n' +
+  '// Written by `node contracts/entitlement/generate-dart.mjs` from\n' +
+  '// contracts/entitlement/contract.js, the one authored copy of the money\n' +
+  '// vocabulary.\n';
+
+/** The workflow step that makes fact (d) hold — the generator's own drift gate,
+ *  invoked on every push. `workflow: false` withholds it; `workflow: 'no-check'`
+ *  names the generator without running its `--check`, which is the near-miss:
+ *  a step that touches the file is not a step that proves it. */
+const WORKFLOW_WIRED =
+  'name: Contracts\n' +
+  'on: [pull_request]\n' +
+  'jobs:\n' +
+  '  contracts:\n' +
+  '    steps:\n' +
+  '      - run: node contracts/entitlement/generate-dart.mjs --check\n';
+
+/** All four facts by default; pass a key to withhold or corrupt exactly one. */
+function generated(opts = {}) {
+  const {
+    header = GEN_HEADER,
+    body = "const r = 'subscription_expired';\n",
+    contract = "export const REVOCATION_REASONS = ['subscription_expired'];\n",
+    generator = true,
+    workflow = true,
+    rel = GEN_REL,
+  } = opts;
+  const extra = {};
+  extra[rel] = header + '\n' + body;
+  if (contract !== null) extra['contracts/entitlement/contract.js'] = contract;
+  if (generator) extra['contracts/entitlement/generate-dart.mjs'] = "const REL = '" + rel + "';\n";
+  if (workflow === true) extra['.github/workflows/contracts.yml'] = WORKFLOW_WIRED;
+  else if (typeof workflow === 'string') extra['.github/workflows/contracts.yml'] = workflow;
+  return extra;
+}
+
+describe('[ADR 070] generated from a contract that names the noun', () => {
+  test('THE GREEN CONTROL: all four facts hold — exempt, and the count is PRINTED', () => {
+    const { code, out } = run(tree({ extra: generated() }));
+    assert.equal(code, 0, out);
+    assert.match(out, /1 finding\(s\) exempt as generated from a contract \[ADR 070\]/, out);
+    assert.match(out, /contracts\/entitlement\/contract\.js/, out);
+  });
+
+  test('a HAND-WRITTEN file with the same noun is still refused — no generated header', () => {
+    const { code, out } = run(tree({ extra: generated({ header: '// the money rail table\n' }) }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('(a) withheld — the header names a contract that does NOT exist', () => {
+    const { code, out } = run(tree({ extra: generated({ contract: null }) }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('(b) withheld — no generator under contracts/ writes this path, so the header is prose', () => {
+    const { code, out } = run(tree({ extra: generated({ generator: false }) }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('(c) withheld — the contract exists but does NOT contain the token', () => {
+    const { code, out } = run(
+      tree({ extra: generated({ contract: "export const R = ['trial_expired'];\n" }) }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('the exemption is PER TOKEN, not per file — a second noun the contract lacks still fails', () => {
+    const { code, out } = run(
+      tree({ extra: generated({ body: "const a = 'subscription_expired';\nconst b = 'renewal';\n" }) }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "renewal"/);
+    assert.doesNotMatch(out, /the domain word "subscription"/);
+  });
+
+  test('🔴 an APP NAME in a perfectly generated file is NEVER exempt', () => {
+    const { code, out } = run(
+      tree({ extra: generated({ body: "const r = 'subscription_expired';\nconst app = 'subly';\n" }) }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code names the app "subly"/i);
+  });
+
+  test('the rule is scoped to packages/*/lib — the brick cannot claim it', () => {
+    const rel = 'tooling/bricks/app/__brick__/entitlement.dart';
+    const { code, out } = run(tree({ extra: generated({ rel }) }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('the header must LEAD — a GENERATED comment further down does not count', () => {
+    const { code, out } = run(
+      tree({
+        extra: generated({
+          header: 'class Head {}\n// GENERATED FILE — DO NOT EDIT, from contracts/entitlement/contract.js\n',
+        }),
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('a generator .mjs is not a contract — its own source cannot supply fact (c)', () => {
+    // The header names generate-dart.mjs too. If that file counted as the
+    // contract, writing the noun into the GENERATOR would buy the exemption.
+    const extra = generated({ contract: "export const R = ['trial_expired'];\n" });
+    extra['contracts/entitlement/generate-dart.mjs'] =
+      "const REL = '" + GEN_REL + "';\n// subscription_expired lives here now\n";
+    const { code, out } = run(tree({ extra }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('(c) — the token in a COMMENT in the contract does not count', () => {
+    // 🔴 THE EXEMPTION WAS BUYABLE. fact (c) read the RAW contract source, so a
+    // `// renewal` typed into contracts/entitlement/contract.js would have made
+    // `renewal` portfolio-wide in every file generated from it — while the
+    // guard's own header sold (c) as "the EXACT token appearing in that
+    // contract". The contract's CODE is what is read now.
+    const { code, out } = run(
+      tree({
+        extra: generated({
+          contract: "// subscription_expired is coming later\nexport const R = ['trial_expired'];\n",
+        }),
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+  });
+
+  test('(d) withheld — nothing invokes the generator, so nothing re-derives the premise', () => {
+    // THE REFUTATION THIS CASE EXISTS FOR. Facts (a), (b) and (c) all hold and
+    // the file really is generated — but with the drift gate unwired, a hand
+    // edit to it reddens nothing, so "generated" is a header rather than a
+    // property. The message has to NAME the generator, because the fix is in a
+    // workflow file and not in the file the finding points at.
+    const { code, out } = run(tree({ extra: generated({ workflow: false }) }));
+    assert.equal(code, 1, out);
+    assert.match(out, /shared code uses the domain word "subscription"/);
+    assert.match(out, /no workflow under \.github\/workflows invokes contracts\/entitlement\/generate-dart\.mjs with --check/);
+  });
+
+  test('(d) — a workflow that names the generator WITHOUT --check is not a gate', () => {
+    // The near-miss: a step that regenerates the file (or merely mentions it)
+    // proves nothing about whether the committed bytes match. Only `--check`
+    // fails on drift; a bare run rewrites the file and exits 0.
+    const { code, out } = run(
+      tree({
+        extra: generated({
+          workflow:
+            'jobs:\n  contracts:\n    steps:\n      - run: node contracts/entitlement/generate-dart.mjs\n',
+        }),
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /with --check/);
+  });
+
+  test('(d) — a generator named only in a workflow COMMENT is not invoked', () => {
+    // The same hazard selftest.node.js records for its own invoked set: every
+    // workflow in this tree discusses the scripts it calls at length, and prose
+    // satisfying a check is the defect this whole arrangement exists to prevent.
+    const { code, out } = run(
+      tree({
+        extra: generated({
+          workflow:
+            'jobs:\n  contracts:\n    steps:\n' +
+            '      # node contracts/entitlement/generate-dart.mjs --check is coming\n' +
+            '      - run: echo nothing\n',
+        }),
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /with --check/);
+  });
+
+  test('(d) — the invocation may live in ANY workflow, not a named one', () => {
+    const { code, out } = run(
+      tree({
+        extra: {
+          ...generated({ workflow: false }),
+          '.github/workflows/some-other-lane.yml':
+            'jobs:\n  x:\n    steps:\n      - run: node contracts/entitlement/generate-dart.mjs --check\n',
+        },
+      }),
+    );
+    assert.equal(code, 0, out);
+    assert.match(out, /1 finding\(s\) exempt as generated from a contract \[ADR 070\]/, out);
+  });
+
+  test('no exemption, no note — the passing line does not carry a sentence that is always there', () => {
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /ADR 070/);
+  });
+});

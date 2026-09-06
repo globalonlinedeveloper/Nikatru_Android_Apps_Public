@@ -18,8 +18,15 @@ the source of truth those two copy from, and the rules below.
 
 ## What is actually here, today
 
-`core/` is **0.1.0**, not 1.0.0. The directory `v1` is the major version (a breaking change becomes
+`core/` is **0.2.0**, not 1.0.0. The directory `v1` is the major version (a breaking change becomes
 `core/v2/` beside it); the version *number* is a claim about how much of that channel exists.
+
+> **0.1.0 -> 0.2.0 on 2026-09-06**, when `v1/entitlement-contract.js` joined the surface — additive
+> within the channel, so nothing already vendored changed and no pin broke. It is not one of the
+> eleven specified modules, so the specified counts below did not move with it. It is also the one
+> file here that is an **ES module** rather than a classic script, because it is a byte-identical
+> mirror of the monorepo's `contracts/entitlement/contract.js`; the deviation from CORE-POLICY §2
+> rule 4 and the reason for it are recorded in `core.json` and `core/CHANGELOG.md`.
 
 > **Two counts, both real.** The architecture enumerates **11 modules** under `core/v1/` — `ns.js`,
 > `msg.js`, `settings.js`, `idb.js`, `download.js`, `clipboard.js`, `i18n.js`, `diag.js`, `detect/pii.js`,
@@ -153,13 +160,16 @@ One file per shipped module, run by the `core sims` job in `.github/workflows/ci
 | `jobs.node.js` | `v1/jobs.js` | 61 |
 | `settings.node.js` | `v1/settings.js` | 66 |
 | `storage.node.js` | `v1/storage.js` | 79 |
-| `coverage.node.js` | the rule itself — see below | 40 |
+| `entitlement-contract.node.js` | `v1/entitlement-contract.js` | 22 |
+| `coverage.node.js` | the rule itself — see below | 45 |
 | `harness.js` | not a sim: the fakes. **Deliberately not named `*.node.js`**, because the CI glob would run it as one and grade an empty run as a pass. | — |
 
 Three properties are worth knowing before reading them:
 
 - **They load the real file.** `harness.loadCore()` reads `core/v1/<module>.js` off disk and runs it in a
-  fresh `vm` context. Only what the module *talks to* is fake — `chrome.storage`, IndexedDB,
+  fresh `vm` context. `entitlement-contract.node.js` is the one exception and says why in its own header:
+  `vm.runInContext` parses a CLASSIC script and that module is an ES module, so the sim reads the same
+  real bytes and loads them as a module instead. The bytes are the shipped bytes either way. Only what the module *talks to* is fake — `chrome.storage`, IndexedDB,
   `navigator.storage` — and each fake records its traffic, so "did it write?" is asserted and not inferred.
 - **Each carries an EXECUTED failing case, not a remembered one.** Admission rule 6 asks for a recorded
   failing case. Every sim ends in a `TEETH` section that mutates the real source text, reloads the mutant,
@@ -209,7 +219,7 @@ ossify the code that most needs to keep changing.
 
 ## Known gaps
 
-These are the reasons this is 0.1.0. Each is a real hole, stated so nobody has to discover it.
+These are the reasons this is not 1.0.0. Each is a real hole, stated so nobody has to discover it.
 
 1. ✅ **CLOSED 2026-08-15 — `core/test/` exists and the `core sims` job passes.** It was the gate working
    as designed, not noise: the job was written so an empty glob *fails*, precisely because a loop over zero

@@ -581,6 +581,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "M-2",
       "M-3",
       "M-7"
@@ -740,6 +741,18 @@
   },
   {
     "claims": [
+      "ADR 067"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-legal-text-parity.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "K-13"
     ],
     "invokedBy": [
@@ -870,8 +883,10 @@
   },
   {
     "claims": [
+      "ADR 070",
       "C-10",
-      "C-11"
+      "C-11",
+      "M-3"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-chassis"
