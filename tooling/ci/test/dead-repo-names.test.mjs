@@ -119,6 +119,35 @@ describe('assert-no-dead-repo-names — the mutations', () => {
     assert.doesNotMatch(out, /`Project_Cross_Platform_Apps` \(died/);
   });
 
+  test('A YAML COMMENT IS A RECORD, THE VALUE BESIDE IT IS A DEFECT — both, one fixture', () => {
+    // The pair that matters, and the first thing this guard met in the wild:
+    // PR #502 removed the dead repo from RENOVATE_REPOSITORIES and left a comment
+    // saying which name had gone and why. A guard that refuses that comment forbids
+    // a fix from explaining itself, and gets deleted. A guard that skips the whole
+    // line instead would have missed the defect it was written for.
+    seed();
+    write('.github/workflows/renovate.yml',
+      'name: renovate\n# Nikatru_Extensions_Public was removed here on 2026-09-05 - it was deleted.\njobs:\n  r:\n    steps:\n      - env:\n          RENOVATE_REPOSITORIES: globalonlinedeveloper/Nikatru_Platform_Public\n');
+    const clean = run();
+    assert.equal(clean.code, 0, `a dead name in a YAML COMMENT is a record, not a defect:\n${clean.out}`);
+
+    // Same file, same name, now in the VALUE a machine reads.
+    write('.github/workflows/renovate.yml',
+      'name: renovate\n# Nikatru_Extensions_Public was removed here on 2026-09-05 - it was deleted.\njobs:\n  r:\n    steps:\n      - env:\n          RENOVATE_REPOSITORIES: globalonlinedeveloper/Nikatru_Extensions_Public\n');
+    const dirty = run();
+    assert.equal(dirty.code, 1, `the same name in a VALUE must FAIL:\n${dirty.out}`);
+    // Exactly one finding: the comment on line 2 must not also be counted.
+    assert.match(dirty.out, /1 live reference\(s\)/);
+    assert.match(dirty.out, /renovate\.yml:7:/);
+  });
+
+  test('a quoted # does not truncate the value it sits in', () => {
+    seed();
+    write('.github/workflows/x.yml', "name: x\non:\n  s: 'a # b globalonlinedeveloper/Nikatru_Extensions_Public'\n");
+    const { code, out } = run();
+    assert.equal(code, 1, `a # INSIDE quotes is data, not a comment marker:\n${out}`);
+  });
+
   test('prose is OUT OF SCOPE — a dead name in a README does not fail', () => {
     seed();
     write('README.md', 'This repository was called Nikatru_Extensions_Public until 2026-09-05.\n');

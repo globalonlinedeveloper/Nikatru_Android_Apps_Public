@@ -139,11 +139,44 @@ walk(ROOT, '');
 files.sort();
 
 // ── 3. the scan ──────────────────────────────────────────────────────────────
+/* 🔴 A YAML COMMENT IS NOT ACTED ON, SO IT IS NOT THIS GUARD'S SUBJECT.
+   AGENTS.md: "Assert on parsed structure, never by grepping prose. Strip
+   comments AND string literals first." A workflow's `#` lines are prose living
+   inside a live file, and the FIRST thing this guard met in the wild was exactly
+   that: PR #502 removed the dead repository from RENOVATE_REPOSITORIES and left
+   a comment saying which name had been removed and why. Refusing that comment
+   would mean a fix cannot explain itself — and a guard that forbids the record
+   of its own defect is a guard people delete.
+
+   String VALUES are still scanned. `RENOVATE_REPOSITORIES: globalonlinedeveloper/X`
+   is the thing a machine reads, and a name is no less live for being quoted.
+   Only the run of characters from an unquoted `#` to end of line is dropped, and
+   quote tracking is what keeps a `#` inside a value from truncating it. */
+const stripYamlComments = (line) => {
+  let quote = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (quote) {
+      if (c === '\\' && quote === '"') { i += 1; continue; }
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
+      // Blank the comment rather than truncate, so every column number below
+      // still points at the real column in the real file.
+      return line.slice(0, i) + ' '.repeat(line.length - i);
+    }
+  }
+  return line;
+};
+const isYaml = (rel) => rel.endsWith('.yml') || rel.endsWith('.yaml');
+
 const findings = [];
 for (const rel of files) {
   let text;
   try { text = readFileSync(join(ROOT, rel), 'utf8'); } catch { continue; }
-  const lines = text.split('\n');
+  const raw = text.split('\n');
+  const lines = isYaml(rel) ? raw.map(stripYamlComments) : raw;
   for (const [i, line] of lines.entries()) {
     for (const r of byName) {
       let from = 0;
@@ -158,7 +191,9 @@ for (const rel of files) {
         if (findings.some((f) => f.file === rel && f.line === i + 1 && at >= f.col - 1 && at < f.col - 1 + f.name.length)) continue;
         findings.push({
           file: rel, line: i + 1, col: at + 1, name: r.name, died: r.died, wentTo: r.wentTo,
-          text: line.trim().slice(0, 160),
+          // The RAW line is quoted back, not the comment-stripped one a reader
+          // would not recognise when they open the file.
+          text: raw[i].trim().slice(0, 160),
         });
         break;
       }
