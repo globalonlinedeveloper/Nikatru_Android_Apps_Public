@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 16445,
+    "lines": 16487,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -91,19 +91,19 @@
     },
     {
       "path": "lib/features/auth/legal_consent_fields.dart",
-      "lines": 74,
+      "lines": 75,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 265 -> 74 brick lines, 268 package lines, callSiteDelta -191. What stayed is the ONE thing that could not travel: url_launcher and AppConfig.termsUrl/privacyUrl. Declaring url_launcher in packages/chassis_screens would make it an ADAPTER under assert-package-boundaries limb C (:185-201) and :288-298 would then fail the brick and every app for importing it directly, so the package takes onOpenTerms/onOpenPrivacy callbacks and the launcher call lives here under the dated brick|url_launcher bypass.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 265 -> 75 brick lines, 292 package lines, callSiteDelta -190. What stayed is the ONE thing that could not travel: url_launcher and AppConfig.termsUrl/privacyUrl. Declaring url_launcher in packages/chassis_screens would make it an ADAPTER under assert-package-boundaries limb C (:185-201) and :288-298 would then fail the brick and every app for importing it directly, so the package takes onOpenTerms/onOpenPrivacy callbacks and the launcher call lives here under the dated brick|url_launcher bypass. This widget is still MOUNTED, not merely still present: sign_up and reaccept_terms hand their chassis views a ConsentFieldsBuilder that builds THIS class.",
       "target": "packages/chassis_screens/lib/auth/legal_consent_fields.dart",
-      "callSiteDelta": -191
+      "callSiteDelta": -190
     },
     {
       "path": "lib/features/auth/reaccept_terms_screen.dart",
-      "lines": 40,
+      "lines": 57,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 174 -> 40 brick lines, 184 package lines, callSiteDelta -134. The consent flag went WITH the box: assert-signup-consent-shape reads this surface as the adapter UNIONED with its chassis file, so bool _accepted = false, the early-return guard and the button disable are all still asserted where they now live. signOutAndForgetUser stays here — it is the sign-out a PAYING user is most likely to reach.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 174 -> 57 brick lines, 182 package lines, callSiteDelta -117. The consent flag went WITH the box: assert-signup-consent-shape reads this surface as the adapter UNIONED with its chassis file, so bool _accepted = false, the early-return guard and the button disable are all still asserted where they now live. signOutAndForgetUser stays here — it is the sign-out a PAYING user is most likely to reach — and so does the ConsentFieldsBuilder that keeps the brick LegalConsentFields mounted.",
       "target": "packages/chassis_screens/lib/auth/reaccept_terms_screen.dart",
-      "callSiteDelta": -134
+      "callSiteDelta": -117
     },
     {
       "path": "lib/features/auth/reset_password_screen.dart",
@@ -115,7 +115,7 @@
     },
     {
       "path": "lib/features/auth/sign_in_screen.dart",
-      "lines": 65,
+      "lines": 68,
       "verdict": "MOVES",
       "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 298 -> 65 brick lines, 303 package lines, callSiteDelta -233. THREE things stayed, each for a named guard and not for taste: the caps.oauthRedirect read (assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero caps.<field> reads, and the zero-caps COVERAGE LOST names the ADAPTER), signInWithEmail( (dod.json:75 anchors the auth-redirect mutation proof at this path and assert-app-dod:836 fails when the symbol leaves the file), and the two context.go calls. The rest — the preflight, the busy latch, the FocusNode, the deletion notice — is now one file for every stamped app.",
       "target": "packages/chassis_screens/lib/auth/sign_in_screen.dart",
@@ -123,19 +123,19 @@
     },
     {
       "path": "lib/features/auth/sign_up_screen.dart",
-      "lines": 83,
+      "lines": 98,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 194 -> 83 brick lines, 183 package lines, callSiteDelta -111. Both consent flags moved with their boxes. What stayed is what assert-stamp-properties SIGN_UP (:1428) anchors and a package declaring no go_router cannot hold: signUpWithEmail( then the consent write then the NO-SESSION-only context.go(/check-inbox, extra:) — in that order, for the reason written beside it.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 194 -> 98 brick lines, 180 package lines, callSiteDelta -96. Both consent flags moved with their boxes. What stayed is what assert-stamp-properties SIGN_UP (:1428) anchors and a package declaring no go_router cannot hold: signUpWithEmail( then the consent write then the NO-SESSION-only context.go(/check-inbox, extra:), in that order and for the reason written beside it, plus the ConsentFieldsBuilder that keeps the brick consent widget in the render tree.",
       "target": "packages/chassis_screens/lib/auth/sign_up_screen.dart",
-      "callSiteDelta": -111
+      "callSiteDelta": -96
     },
     {
       "path": "lib/features/auth/verify_email_screen.dart",
-      "lines": 41,
+      "lines": 47,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 154 -> 41 brick lines, 166 package lines, callSiteDelta -113. Its BODY was pinned by nothing (a 20-line stub kept the sweep green). The three seam calls stay HERE because assert-captcha-gated-call-sites scores resendVerificationEmail( at the root that owns it and assert-seams-wired:692-693 requires this screen's way-out to go through signOutAndForgetUser, not a bare signOut().",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 154 -> 47 brick lines, 166 package lines, callSiteDelta -107. Its BODY was pinned by nothing (a 20-line stub kept the sweep green). The three seam calls stay HERE, and resendVerificationEmail is written as a CALL rather than a tear-off on purpose: assert-captcha-gated-call-sites finds a gated site by matching <method>( and a tear-off is a gated seam call the scan cannot see at all. assert-seams-wired:692-693 requires this screen's way-out to go through signOutAndForgetUser, not a bare signOut().",
       "target": "packages/chassis_screens/lib/auth/verify_email_screen.dart",
-      "callSiteDelta": -113
+      "callSiteDelta": -107
     },
     {
       "path": "lib/features/firstrun/onboarding_screen.dart",

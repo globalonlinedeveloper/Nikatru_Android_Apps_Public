@@ -34,7 +34,24 @@ class ReacceptTermsScreen extends ConsumerWidget {
     onAccept: () =>
         ref.read(legalAcceptanceProvider.notifier).acceptTermsOnly(),
     onSignOut: () => signOutAndForgetUser(ref),
-    onOpenTerms: LegalConsentFields.openTerms,
-    onOpenPrivacy: LegalConsentFields.openPrivacy,
+    // The brick's own consent widget, still MOUNTED — it owns the published
+    // URLs and the platform call that opens them, and the chassis view owns the
+    // flag. `showMarketing: false`: this screen re-takes the TERMS and nothing
+    // else, so it must not speak for a marketing decision.
+    consentFields:
+        ({
+          required bool termsAccepted,
+          required bool marketingAccepted,
+          required bool enabled,
+          required ValueChanged<bool> onTermsChanged,
+          required ValueChanged<bool> onMarketingChanged,
+        }) => LegalConsentFields(
+          termsAccepted: termsAccepted,
+          marketingAccepted: marketingAccepted,
+          enabled: enabled,
+          showMarketing: false,
+          onTermsChanged: onTermsChanged,
+          onMarketingChanged: onMarketingChanged,
+        ),
   );
 }

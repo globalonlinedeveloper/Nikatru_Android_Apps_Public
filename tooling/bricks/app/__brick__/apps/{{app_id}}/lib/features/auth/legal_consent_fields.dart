@@ -20,6 +20,13 @@ import '../../core/app_config.dart';
 /// library; the launcher call lives here, where the brick already carries the
 /// dated `brick|url_launcher` bypass for `AppConfig.privacyUrl` and the support
 /// mailto.
+///
+/// ⚠️ AND THIS WIDGET IS STILL MOUNTED, not merely still present. `SignUpScreen`
+/// and `ReacceptTermsScreen` hand their chassis views a `ConsentFieldsBuilder`
+/// that builds THIS class, so the render tree is unchanged. Letting the package
+/// build its own boxes would have left a file the guards can `existsSync` and a
+/// widget nothing renders — which the stamped probe caught immediately, on the
+/// brick's own `find.descendant(of: LegalConsentFields, matching: FocusableTap)`.
 class LegalConsentFields extends StatelessWidget {
   const LegalConsentFields({
     super.key,
@@ -42,21 +49,12 @@ class LegalConsentFields extends StatelessWidget {
   static const Key marketingCheckbox =
       LegalConsentFieldsView.marketingCheckbox;
 
-  /// Opens the LIVE terms page. Best-effort: a link that will not open must
-  /// never break sign-up.
-  ///
-  /// Exposed as a static so `SignUpScreen` and `ReacceptTermsScreen` can hand
-  /// it to their own chassis views without a second copy of the launcher.
-  static Future<void> openTerms() => _open(AppConfig.termsUrl);
-
-  /// Opens the LIVE privacy page.
-  static Future<void> openPrivacy() => _open(AppConfig.privacyUrl);
-
+  /// Best-effort — a link that will not open must never break sign-up.
   static Future<void> _open(String url) async {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Best-effort — a link that will not open must never break sign-up.
+      // Deliberately swallowed: the consent is still takeable.
     }
   }
 
@@ -66,8 +64,11 @@ class LegalConsentFields extends StatelessWidget {
     marketingAccepted: marketingAccepted,
     onTermsChanged: onTermsChanged,
     onMarketingChanged: onMarketingChanged,
-    onOpenTerms: openTerms,
-    onOpenPrivacy: openPrivacy,
+    // ⚠️ THE LINKS OPEN THE LIVE PAGES. `AppConfig.termsUrl` / `privacyUrl` are
+    // the text the user is bound by; an embedded copy is a second version of a
+    // legal document that nothing keeps in step with the published one.
+    onOpenTerms: () => _open(AppConfig.termsUrl),
+    onOpenPrivacy: () => _open(AppConfig.privacyUrl),
     enabled: enabled,
     showMarketing: showMarketing,
   );

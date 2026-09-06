@@ -53,6 +53,30 @@ import 'package:nikatru_design_system/nikatru_design_system.dart'
 /// ⚠️ THE LINKS OPEN THE LIVE PAGES. The adapter passes the published URLs; an
 /// embedded copy is a second version of a legal document that nothing keeps in
 /// step with the published one.
+/// How a consent SURFACE asks for its tick boxes.
+///
+/// 🔴 A BUILDER AND NOT A DIRECT CONSTRUCTION, AND THE REASON IS MEASURED. If
+/// `SignUpView` and `ReacceptTermsView` built [LegalConsentFieldsView]
+/// themselves, the brick's own `LegalConsentFields` would stop being MOUNTED —
+/// it would survive as a file the guards can `existsSync` and a widget nothing
+/// renders. The brick's `chassis_properties_test.dart` proved that on the first
+/// stamped probe: `find.descendant(of: find.byType(LegalConsentFields),
+/// matching: find.byType(FocusableTap))` found nothing, because the adapter had
+/// been routed around. A screen moving into the chassis must not quietly
+/// unmount the app-side widget that carries its URLs.
+///
+/// So the SURFACE owns the flags (limb 1 of `assert-signup-consent-shape` reads
+/// them here) and the ADAPTER owns the rendering, which is the same division
+/// every other screen in this package uses.
+typedef ConsentFieldsBuilder =
+    Widget Function({
+      required bool termsAccepted,
+      required bool marketingAccepted,
+      required bool enabled,
+      required ValueChanged<bool> onTermsChanged,
+      required ValueChanged<bool> onMarketingChanged,
+    });
+
 class LegalConsentFieldsView extends StatelessWidget {
   const LegalConsentFieldsView({
     super.key,

@@ -30,8 +30,23 @@ void main() {
           required bool marketingEmail,
         }) async {},
     onHaveAccount: onHaveAccount ?? () {},
-    onOpenTerms: onOpenTerms ?? () {},
-    onOpenPrivacy: onOpenPrivacy ?? () {},
+    consentFields:
+        ({
+          required bool termsAccepted,
+          required bool marketingAccepted,
+          required bool enabled,
+          required ValueChanged<bool> onTermsChanged,
+          required ValueChanged<bool> onMarketingChanged,
+        }) => LegalConsentFieldsView(
+          termsAccepted: termsAccepted,
+          marketingAccepted: marketingAccepted,
+          enabled: enabled,
+          showMarketing: true,
+          onTermsChanged: onTermsChanged,
+          onMarketingChanged: onMarketingChanged,
+          onOpenTerms: onOpenTerms ?? () {},
+          onOpenPrivacy: onOpenPrivacy ?? () {},
+        ),
   );
 
   /// Fills the form and ticks the terms box, which is the only state from which

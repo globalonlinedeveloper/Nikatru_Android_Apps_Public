@@ -25,8 +25,7 @@ class SignUpView extends StatefulWidget {
   const SignUpView({
     required this.onSignUp,
     required this.onHaveAccount,
-    required this.onOpenTerms,
-    required this.onOpenPrivacy,
+    required this.consentFields,
     super.key,
   });
 
@@ -47,9 +46,9 @@ class SignUpView extends StatefulWidget {
   /// "I already have an account" — the way to the sign-in door.
   final VoidCallback onHaveAccount;
 
-  /// Opens the LIVE terms / privacy pages.
-  final VoidCallback onOpenTerms;
-  final VoidCallback onOpenPrivacy;
+  /// Renders the tick boxes — see [ConsentFieldsBuilder] for why the ADAPTER
+  /// builds them and this surface only owns the flags.
+  final ConsentFieldsBuilder consentFields;
 
   @override
   State<SignUpView> createState() => _SignUpViewState();
@@ -146,15 +145,13 @@ class _SignUpViewState extends State<SignUpView> {
                 ),
               ],
               const SizedBox(height: 20),
-              LegalConsentFieldsView(
+              widget.consentFields(
                 termsAccepted: _acceptedTerms,
                 marketingAccepted: _marketingEmail,
                 enabled: !_busy,
                 onTermsChanged: (bool v) => setState(() => _acceptedTerms = v),
                 onMarketingChanged: (bool v) =>
                     setState(() => _marketingEmail = v),
-                onOpenTerms: widget.onOpenTerms,
-                onOpenPrivacy: widget.onOpenPrivacy,
               ),
               const SizedBox(height: 20),
               // 🔴 DISABLED UNTIL THE TERMS BOX IS TICKED — and NOT until the

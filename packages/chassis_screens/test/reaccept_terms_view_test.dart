@@ -21,8 +21,26 @@ void main() {
   }) => ReacceptTermsView(
     onAccept: onAccept ?? () async {},
     onSignOut: onSignOut ?? () async {},
-    onOpenTerms: onOpenTerms ?? () {},
-    onOpenPrivacy: onOpenPrivacy ?? () {},
+    // The real adapter hands the view the BRICK's `LegalConsentFields`; this
+    // suite hands it the package view directly, which is the same tree minus
+    // the URL launcher the package may not declare.
+    consentFields:
+        ({
+          required bool termsAccepted,
+          required bool marketingAccepted,
+          required bool enabled,
+          required ValueChanged<bool> onTermsChanged,
+          required ValueChanged<bool> onMarketingChanged,
+        }) => LegalConsentFieldsView(
+          termsAccepted: termsAccepted,
+          marketingAccepted: marketingAccepted,
+          enabled: enabled,
+          showMarketing: false,
+          onTermsChanged: onTermsChanged,
+          onMarketingChanged: onMarketingChanged,
+          onOpenTerms: onOpenTerms ?? () {},
+          onOpenPrivacy: onOpenPrivacy ?? () {},
+        ),
   );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────

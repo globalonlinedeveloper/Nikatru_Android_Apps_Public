@@ -76,8 +76,23 @@ class SignUpScreen extends ConsumerWidget {
         }
       },
       onHaveAccount: () => context.go('/sign-in'),
-      onOpenTerms: LegalConsentFields.openTerms,
-      onOpenPrivacy: LegalConsentFields.openPrivacy,
+      // The brick's own consent widget, still MOUNTED — see
+      // `legal_consent_fields.dart`. The chassis view owns the two flags; this
+      // side owns the published URLs and the platform call that opens them.
+      consentFields:
+          ({
+            required bool termsAccepted,
+            required bool marketingAccepted,
+            required bool enabled,
+            required ValueChanged<bool> onTermsChanged,
+            required ValueChanged<bool> onMarketingChanged,
+          }) => LegalConsentFields(
+            termsAccepted: termsAccepted,
+            marketingAccepted: marketingAccepted,
+            enabled: enabled,
+            onTermsChanged: onTermsChanged,
+            onMarketingChanged: onMarketingChanged,
+          ),
     );
   }
 }

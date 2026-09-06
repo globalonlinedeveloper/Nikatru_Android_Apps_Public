@@ -40,8 +40,7 @@ class ReacceptTermsView extends StatefulWidget {
   const ReacceptTermsView({
     required this.onAccept,
     required this.onSignOut,
-    required this.onOpenTerms,
-    required this.onOpenPrivacy,
+    required this.consentFields,
     super.key,
   });
 
@@ -56,9 +55,10 @@ class ReacceptTermsView extends StatefulWidget {
   /// Declining, which is signing out. Goes through the SPINE in the adapter.
   final Future<void> Function() onSignOut;
 
-  /// Opens the LIVE terms / privacy pages.
-  final VoidCallback onOpenTerms;
-  final VoidCallback onOpenPrivacy;
+  /// Renders the tick boxes. The ADAPTER builds them, so the brick's own
+  /// `LegalConsentFields` — which owns the published URLs and the platform call
+  /// that opens them — stays mounted. See [ConsentFieldsBuilder].
+  final ConsentFieldsBuilder consentFields;
 
   @override
   State<ReacceptTermsView> createState() => _ReacceptTermsViewState();
@@ -140,15 +140,12 @@ class _ReacceptTermsViewState extends State<ReacceptTermsView> {
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 20),
-              LegalConsentFieldsView(
+              widget.consentFields(
                 termsAccepted: _accepted,
                 marketingAccepted: false,
                 enabled: !_busy,
-                showMarketing: false,
                 onTermsChanged: (bool v) => setState(() => _accepted = v),
                 onMarketingChanged: (_) {},
-                onOpenTerms: widget.onOpenTerms,
-                onOpenPrivacy: widget.onOpenPrivacy,
               ),
               if (_notice != null) ...<Widget>[
                 const SizedBox(height: 12),
