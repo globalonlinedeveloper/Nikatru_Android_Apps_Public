@@ -49,14 +49,26 @@
 // members are `subscription_expired` and `subscription_paused`. The generated
 // Dart mirror of that contract is the one machine-made transcription of it.
 //
-// THREE INDEPENDENT FACTS MUST ALL HOLD, each read from the tree at run time:
+// FOUR INDEPENDENT FACTS MUST ALL HOLD, each read from the tree at run time:
 //   a) the file's own LEADING comment block says GENERATED and names a path
 //      under contracts/ that EXISTS on disk;
 //   b) a generator under contracts/ names that file's repo-relative path as its
 //      output — so the file really is written by machine, rather than merely
 //      described as such by its own header;
-//   c) the EXACT token found appears in the named contract source.
+//   c) the EXACT token found appears in the named contract's CODE — comments
+//      stripped, because a `// renewal` typed into a contract would otherwise
+//      buy that noun an exemption in everything generated from it;
+//   d) a workflow under .github/workflows invokes that generator with `--check`,
+//      so a hand edit to the generated file reddens a run rather than sitting
+//      there. Facts (a)–(c) are all read off SOURCE TEXT and none of them looks
+//      at the file's CONTENT; (d) is what makes "generated" a claim the tree has
+//      to keep on every push. See the block above `workflowLines()` for what its
+//      absence cost, measured.
 // Typing a path satisfies none of them on its own.
+//
+// ⏱ (c) TIGHTENED and (d) ADDED 2026-09-06, after an adversarial review measured
+// the hole. Everything above is the rule as it now stands; the ADR records the
+// amendment beside its original wording rather than in place of it.
 //
 // 🔴 APP NAMES ARE NEVER EXEMPT. A contract that names an app has stopped being
 // a contract, so limb 2 keeps its full reach over generated files.
@@ -68,7 +80,7 @@
 // Exit 0 = shared code is app-neutral, 1 = a clone tell leaked in.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
-import { join, resolve, dirname, posix } from 'node:path';
+import { join, resolve, dirname, posix, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 import { stripSourceComments } from './text-reductions.mjs';
@@ -278,13 +290,15 @@ function tellPattern(words) {
 
 // ── [ADR 070] the generated-from-a-contract derivation ───────────────────────
 
-/** Every `.mjs` under contracts/, concatenated. A generator that writes a file
- *  names that file's repo-relative path in its own source — `generate-dart.mjs`
- *  carries `const REL = 'packages/purchases/lib/src/generated/…';` — so this
- *  blob is what turns "the header claims it is generated" into "something here
- *  actually writes it". Read once; the directory holds three files today. */
-function contractGeneratorSources() {
-  const parts = [];
+/** Every `.mjs` under contracts/, as {rel, text}. A generator that writes a file
+ *  names that file's repo-relative path in its own source -- `generate-dart.mjs`
+ *  carries `const REL = 'packages/purchases/lib/src/generated/...';` -- so this
+ *  set is what turns "the header claims it is generated" into "something here
+ *  actually writes it". Kept per FILE rather than concatenated, because fact (d)
+ *  below has to name the generator it could not find a gate for; a blob can say
+ *  that a writer exists but not which one. */
+function contractGenerators() {
+  const out = [];
   (function walk(dir) {
     let entries;
     try {
@@ -296,12 +310,88 @@ function contractGeneratorSources() {
       if (e.name.startsWith('.') || e.name === 'node_modules') continue;
       const abs = join(dir, e.name);
       if (e.isDirectory()) walk(abs);
-      else if (e.name.endsWith('.mjs')) parts.push(readFileSync(abs, 'utf8'));
+      else if (e.name.endsWith('.mjs')) {
+        out.push({
+          rel: abs.slice(ROOT.length + 1).split(sep).join(posix.sep),
+          text: readFileSync(abs, 'utf8'),
+        });
+      }
     }
   })(join(ROOT, 'contracts'));
-  return parts.join('\n');
+  return out;
 }
-const GENERATOR_BLOB = contractGeneratorSources();
+const GENERATORS = contractGenerators();
+
+/**
+ * FACT (d) -- THE GATE THAT MAKES "GENERATED" A CLAIM THE TREE HAS TO KEEP.
+ *
+ * 🔴 ADDED 2026-09-06 AFTER AN ADVERSARIAL REVIEW MEASURED THE HOLE. Facts (a),
+ * (b) and (c) are all read off SOURCE TEXT: a header that says GENERATED, a
+ * generator whose source names the output path, and a contract that contains the
+ * token. Not one of them looks at whether the committed file is actually what
+ * the generator would write today. On the branch that introduced this exemption
+ * `contracts/entitlement/generate-dart.mjs --check` was invoked by NO workflow
+ * (`grep -rn "generate-dart" .github/` -> zero lines), so two hand-typed lines
+ * appended to the generated Dart left this guard at EXIT 0 and
+ * assert-entitlement-contract.mjs at EXIT 0 -- the exemption was granted on a
+ * premise nothing in CI ever re-derived.
+ *
+ * The premise is now conditional on the gate: a workflow must invoke the
+ * generator that satisfies fact (b) WITH `--check`. Unwire that step and this
+ * guard refuses the exemption and goes RED on the generated file, naming the
+ * generator it found no invocation for. That is deliberately the same shape as
+ * the rest of this corpus -- a register earns JSON only when a guard reads it --
+ * applied one level up: an exemption earns its premise only when a gate proves
+ * it on every push.
+ *
+ * ⚠️ NO INVOCATION SET AT ALL MEANS NO EXEMPTION, not a free pass. A root with
+ * no `.github/workflows` cannot show that anything re-derives the premise, and
+ * "I could not check" must never read the same as "I checked".
+ */
+function workflowLines() {
+  const dir = join(ROOT, '.github', 'workflows');
+  let names;
+  try {
+    names = listDir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const e of names) {
+    if (!e.isFile() || !/\.ya?ml$/.test(e.name)) continue;
+    for (const line of readFileSync(join(dir, e.name), 'utf8').split('\n')) {
+      out.push(stripHashComment(line));
+    }
+  }
+  return out;
+}
+
+/** A `#` starts a comment only at the head of a line or after whitespace, and
+ *  never inside a quoted string -- the same rule a YAML comment and a shell
+ *  comment inside a `run: |` body both obey. A gate NAMED IN PROSE is not a gate
+ *  anybody invokes, and the header of every workflow in this tree discusses the
+ *  scripts it calls at length. */
+function stripHashComment(line) {
+  let q = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (q === '"' && c === '\\') { i++; continue; }
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === "'" || c === '"') { q = c; continue; }
+    if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) return line.slice(0, i);
+  }
+  return line;
+}
+const WORKFLOW_LINES = workflowLines();
+
+/** Is `genRel` invoked with `--check` by a workflow? Same LINE, because that is
+ *  how every gate in this tree is written (`run: node <gate> --check`); a name
+ *  in one step and a `--check` in another is two different invocations. */
+const invokedWithCheck = (genRel) =>
+  WORKFLOW_LINES.some((l) => l.includes(genRel) && l.includes('--check'));
 
 /** The file's LEADING comment block only — from line 1 up to the first blank
  *  line after at least one `//` line. Deliberately not "any comment anywhere":
@@ -321,8 +411,19 @@ function leadingCommentBlock(raw) {
   return kept.join('\n');
 }
 
-/** The contract sources `rel` says it was generated from, as [{source, text}].
- *  Empty when the file is not generated from a contract at all.
+/** What `rel` claims about its own provenance, and how much of the claim the
+ *  tree makes good on: `{ writers, wired, sources }`.
+ *
+ *  `sources` are the contract files the header names, each with its CODE — the
+ *  comment-stripped text — because fact (c) asks whether the CONTRACT contains
+ *  the token, and a contract's comments are prose like any other.
+ *
+ *  🔴 FACT (c) USED TO READ THE RAW CONTRACT SOURCE, COMMENTS INCLUDED, so
+ *  writing `// renewal` into contracts/entitlement/contract.js bought that noun
+ *  an exemption in every file generated from it. The guard's own header sold (c)
+ *  as "the EXACT token appearing in that contract", which is what it now is.
+ *  A contract whose extension this tree has no comment syntax for is returned
+ *  unchanged by stripSourceComments — JSON, which has no comments to strip.
  *
  *  ⚠️ A `.mjs` under contracts/ is NOT a candidate. The generators live in the
  *  same directory as the contracts, and the header names the generator as well
@@ -332,22 +433,28 @@ function leadingCommentBlock(raw) {
  *  source is exactly where a banned noun could be written by hand. The contract
  *  is the data the runtimes read; the generator is a tool, and it is the file
  *  that satisfies fact (b), not fact (c). */
+const NO_PROVENANCE = { writers: [], wired: false, sources: [] };
+
 function contractProvenance(rel, raw) {
-  if (!/^packages\/[^/]+\/lib\//.test(rel)) return [];
+  if (!/^packages\/[^/]+\/lib\//.test(rel)) return NO_PROVENANCE;
   const header = leadingCommentBlock(raw);
-  if (!/GENERATED/.test(header)) return [];
+  if (!/GENERATED/.test(header)) return NO_PROVENANCE;
   // (b) — something under contracts/ writes THIS path. A header alone is prose.
-  if (!GENERATOR_BLOB.includes(rel)) return [];
-  const found = [];
+  const writers = GENERATORS.filter((g) => g.text.includes(rel)).map((g) => g.rel);
+  if (writers.length === 0) return NO_PROVENANCE;
+  // (d) — and a workflow proves that writer's output on every push.
+  const wired = writers.some(invokedWithCheck);
+  const sources = [];
   for (const m of header.matchAll(/contracts\/[A-Za-z0-9._\-/]+/g)) {
     let p = m[0];
     while (p.endsWith('.')) p = p.slice(0, -1); // a path at the end of a sentence
     if (p.includes('..') || !/\.[A-Za-z0-9]+$/.test(p) || p.endsWith('.mjs')) continue;
     const abs = join(ROOT, p);
     if (!existsSync(abs)) continue; // (a)
-    found.push({ source: p, text: readFileSync(abs, 'utf8') });
+    const ext = p.slice(p.lastIndexOf('.'));
+    sources.push({ source: p, code: stripSourceComments(readFileSync(abs, 'utf8'), ext) });
   }
-  return found;
+  return { writers, wired, sources };
 }
 
 const problems = [];
@@ -373,14 +480,25 @@ for (const rel of sharedFiles) {
     if (noun) {
       // (c) — the token itself must be in the contract this file was generated
       // from. A generated file does NOT get a blanket pass on the whole list.
-      const bearing = provenance.find((c) => c.text.includes(noun[1]));
-      if (bearing) {
+      const bearing = provenance.sources.find((c) => c.code.includes(noun[1]));
+      if (bearing && provenance.wired) {
         exempt.push({ rel, line: i + 1, token: noun[1], source: bearing.source });
         continue;
       }
+      // 🔴 (d) FAILED, AND THE MESSAGE SAYS SO RATHER THAN LEAVING THE READER TO
+      // WORK IT OUT. Every other fact is about this file; this one is about a
+      // workflow somewhere else, and a plain "clone tell" on a file that plainly
+      // is generated is the kind of red that gets exempted again by hand.
+      const unwired =
+        bearing && !provenance.wired
+          ? ` [ADR 070] would exempt this line, but no workflow under .github/workflows invokes ` +
+            `${provenance.writers.join(' or ')} with --check, so nothing re-derives that this file is ` +
+            'machine-written. Wire the drift gate rather than widening the exemption.'
+          : '';
       problems.push(
         `${rel}:${i + 1} — shared code uses the domain word "${noun[1]}". That vocabulary belongs to one ` +
-          "app's problem, not to the chassis.",
+          "app's problem, not to the chassis." +
+          unwired,
       );
     }
   }

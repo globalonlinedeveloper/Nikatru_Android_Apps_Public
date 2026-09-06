@@ -84,7 +84,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync, copyFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -869,5 +869,141 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
     });
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /isoFromEpochMs is declared in .* but CALLED from nowhere else/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DART DRIFT GATE — `contracts/entitlement/generate-dart.mjs --check`, and
+// THE WORKFLOW STEP THAT RUNS IT. Added 2026-09-06 after an adversarial review
+// measured the hole this closes.
+//
+// 🔴 WHAT WAS MISSING, AND WHAT IT COST. limb 4 above grades the REASON SET and
+// the `restores` flag of the generated Dart against the SQL seed. It grades
+// nothing else in that file. The generator's own `--check` is what holds every
+// other byte — and on the branch that introduced the file, NO workflow invoked
+// it (`grep -rn "generate-dart" .github/` -> zero lines;
+// `git log --all -S "generate-dart.mjs --check" -- .github/` -> nothing, so it
+// had never been wired on any commit). Measured on a read-only worktree at
+// a0959017 with two hand-typed lines appended to the generated Dart:
+//
+//     node tooling/ci/assert-no-clone-tells.mjs              EXIT 0
+//     node tooling/ci/assert-entitlement-contract.mjs        EXIT 0
+//     node contracts/entitlement/generate-dart.mjs --check   EXIT 1   <- only this
+//
+// The gate is now a step in `.github/workflows/extensions.yml`'s `contracts`
+// job, and [ADR 070]'s fact (d) in assert-no-clone-tells.mjs refuses the
+// exemption unless a workflow invokes it — so unwiring it reddens two guards
+// rather than none. THE CASES BELOW ARE THE PIN: the green control comes first,
+// then the exact mutation the review used.
+//
+// ⚠️ THE GENERATOR RESOLVES ITS OWN ROOT FROM ITS OWN LOCATION, so these cases
+// COPY contracts/entitlement/ and the generated file into a temp tree and run
+// the COPY. Nothing here touches the real tree — trap ci-31: a whole-tree verify
+// that edits the tree behind a concurrent reader turns other suites red for
+// reasons that name your files.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the Dart drift gate is wired, and it bites', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  const GEN_REL = 'contracts/entitlement/generate-dart.mjs';
+  const DART_REL = 'packages/purchases/lib/src/generated/entitlement_contract.g.dart';
+  const WORKFLOW_DIR = join(REPO, '.github', 'workflows');
+
+  /** A temp tree carrying only what the generator reads and writes. */
+  function copyTree({ dart = 'keep' } = {}) {
+    const root = join(TMP, `gen${seq++}`);
+    mkdirSync(join(root, 'contracts', 'entitlement'), { recursive: true });
+    for (const f of readdirSync(join(REPO, 'contracts', 'entitlement'))) {
+      copyFileSync(join(REPO, 'contracts', 'entitlement', f), join(root, 'contracts', 'entitlement', f));
+    }
+    if (dart !== 'absent') {
+      mkdirSync(dirname(join(root, DART_REL)), { recursive: true });
+      let body = readFileSync(join(REPO, DART_REL), 'utf8');
+      if (dart !== 'keep') body += dart;
+      writeFileSync(join(root, DART_REL), body);
+    }
+    return root;
+  }
+
+  const check = (root) => {
+    const r = spawnSync(process.execPath, [join(root, GEN_REL), '--check'], { encoding: 'utf8' });
+    return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  };
+
+  test('THE GREEN CONTROL: the committed Dart is what contract.js derives', () => {
+    const r = check(copyTree());
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /matches contract\.js/);
+  });
+
+  test('🔴 THE MUTATION THE REVIEW RAN: a hand-typed const appended to the generated file', () => {
+    // Verbatim from the refutation. It is not a reason, not an environment and
+    // not anything limb 4 reads — which is precisely why limb 4 and
+    // assert-no-clone-tells both stayed green on it.
+    const r = check(
+      copyTree({ dart: "\n// hand-typed, never generated\nconst String kUpsell = 'Manage your subscription';\n" }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /is not what contract\.js derives/);
+    assert.match(r.out, /Run: node contracts\/entitlement\/generate-dart\.mjs/);
+  });
+
+  test('a generated file that is DELETED is a failure, not an absence', () => {
+    const r = check(copyTree({ dart: 'absent' }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /does not exist/);
+  });
+
+  test('a one-CHARACTER edit inside the table is caught too', () => {
+    const root = copyTree();
+    const p = join(root, DART_REL);
+    const before = readFileSync(p, 'utf8');
+    const after = before.replace('restoresAccess: true', 'restoresAccess: false');
+    assert.notEqual(after, before, 'the fixture no longer carries a restoring member');
+    writeFileSync(p, after);
+    const r = check(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /is not what contract\.js derives/);
+  });
+
+  // ── the WIRING itself, so a rebase cannot quietly drop the step ────────────
+  const workflowLines = (dir) =>
+    readdirSync(dir)
+      .filter((n) => /\.ya?ml$/.test(n))
+      .flatMap((n) => readFileSync(join(dir, n), 'utf8').split('\n'));
+
+  /** `#` comments are dropped FIRST — prose naming a gate is not a gate anybody
+   *  runs, which is the same rule assert-no-clone-tells.mjs and
+   *  extensions/scripts/test/selftest.node.js both apply to their own sets. */
+  const invokes = (lines, gate) =>
+    lines
+      .map((l) => {
+        const i = l.search(/(^|\s)#/);
+        return i === -1 ? l : l.slice(0, i);
+      })
+      .some((l) => l.includes(gate) && l.includes('--check'));
+
+  test('the evaluator can FAIL — a synthetic set without the step is reported as unwired', () => {
+    // The green control for the case below. Without this, "the tree is wired"
+    // could be a matcher that says yes to anything.
+    assert.equal(invokes([`      - run: node ${GEN_REL} --check`], GEN_REL), true);
+    assert.equal(invokes([`      - run: node ${GEN_REL}`], GEN_REL), false, 'a bare run is not a --check');
+    assert.equal(invokes([`      # node ${GEN_REL} --check`], GEN_REL), false, 'a comment is not an invocation');
+    assert.equal(invokes(['      - run: echo hello'], GEN_REL), false);
+  });
+
+  test('🔴 a workflow in THIS tree really invokes the Dart drift gate with --check', () => {
+    const lines = workflowLines(WORKFLOW_DIR);
+    assert.ok(lines.length > 0, 'COVERAGE LOST — no workflow line was read, so this case grades nothing');
+    assert.ok(
+      invokes(lines, GEN_REL),
+      `no workflow under .github/workflows runs \`node ${GEN_REL} --check\`. ` +
+        'The generated Dart is then held by nothing that runs, and [ADR 070] fact (d) ' +
+        'makes assert-no-clone-tells.mjs red for the same reason. Re-wire the step; ' +
+        'do not delete this case.',
+    );
+  });
+
+  test('...and so does the contract.json gate beside it, which this one was modelled on', () => {
+    assert.ok(invokes(workflowLines(WORKFLOW_DIR), 'contracts/entitlement/generate.mjs'));
   });
 });

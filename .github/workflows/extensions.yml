@@ -112,6 +112,10 @@ jobs:
         with: { node-version: '24' }
       - name: contract.json is what contract.js derives
         run: node contracts/entitlement/generate.mjs --check
+      # why: this is the ONLY thing that re-derives the [ADR 070] premise that the
+      # Dart mirror is machine-written. See docs/ci/extensions.md.
+      - name: the generated Dart is what contract.js derives
+        run: node contracts/entitlement/generate-dart.mjs --check
 
   gate-inventory:
     if: github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && github.event.action != 'labeled' && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')

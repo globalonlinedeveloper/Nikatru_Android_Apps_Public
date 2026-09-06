@@ -49,8 +49,8 @@ single repository. The failure this directory prevents has happened here once.
 | `services/platform/src/lib/mor/contract.ts` ↔ `entitlement/contract.js` | the same limb: the import must be present AND a restated array is a failure | `ci.yml` · guards-legal |
 | `extensions/core/v1/entitlement-contract.js` ↔ `entitlement/contract.js` | byte-identical, checked twice — limb 4 above, and `extensions/scripts/check-contracts-sync.mjs` | `ci.yml` · guards-legal, and `extensions.yml` |
 | the vendored surface ↔ each tool's `vendor/core/` | `extensions/scripts/check-core-sync.mjs`, the existing `sync-core.mjs` route | `extensions.yml` |
-| `contract.js` ↔ `contract.json` | `entitlement/generate.mjs --check` | the guard above reads the result |
-| `contract.js` ↔ the generated Dart | `entitlement/generate-dart.mjs --check` | the guard above reads the result |
+| `contract.js` ↔ `contract.json` | `entitlement/generate.mjs --check` | `extensions.yml` · job `contracts` |
+| `contract.js` ↔ the generated Dart | `entitlement/generate-dart.mjs --check` | `extensions.yml` · job `contracts` |
 | `tokens/dtcg/*.json` ↔ the three generated outputs | `tooling/ci/assert-palette-consistent.mjs`, plus `ci.yml`'s `site-tokens` lane which deletes all three and re-derives them | `ci.yml` |
 | `legal/fullshot-privacy.md` ↔ both published HTML copies | `tooling/ci/assert-legal-text-parity.mjs` — two assertions, a 2,000-character floor, a printed count | `ci.yml` · guards-legal |
 

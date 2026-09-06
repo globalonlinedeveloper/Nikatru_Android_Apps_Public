@@ -284,6 +284,11 @@ describe('assert-legal-text-parity — a document published twice says the same 
   //     the same command, fixed                                     EXIT 0
   // So these two cases are a PIN on behaviour that must not regress, not a
   // red/green pair for the guard edit; the pair for the edit is above.
+  //
+  // ⏱ APPENDED 2026-09-06 — the paragraph above stands exactly as written, and
+  // the gap it discloses is now CLOSED rather than only recorded: the third case
+  // at the end of this block is a red/green pair for the GUARD half, and it was
+  // measured both ways. See its own comment.
   // ───────────────────────────────────────────────────────────────────────────
   const closedWithBang = () =>
     markdown().replace(
@@ -307,5 +312,41 @@ describe('assert-legal-text-parity — a document published twice says the same 
     const r = run({ md });
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /fullshot-privacy\.md/);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ⏱ THE GUARD HALF, PINNED 2026-09-06. The two cases above were honest about
+  // being a PIN rather than a red/green pair: revert this guard's two `--!?>`
+  // patterns and both stay green, because the generic `<[^>]*>` strip further
+  // down eats a `--!>`-closed comment as one long tag and the reduction survives
+  // by accident. That accident has ONE condition — the comment must contain no
+  // `>` of its own. Put one inside it and the generic strip stops there, leaving
+  // the REST of an unpublished note in the compared text.
+  //
+  // MEASURED both ways on this fixture, `--!?>` reverted to `-->` in both
+  // patterns of tooling/ci/assert-legal-text-parity.mjs:
+  //     the pair above          EXIT 0   (green either way — the honest gap)
+  //     the pair below          EXIT 1   ("- 4 is true, and a commented-out …")
+  //     patterns restored, both EXIT 0
+  // So this is the red/green pair the guard edit was missing, and the two cases
+  // above stay as the behaviour pin they were always described as.
+  // ───────────────────────────────────────────────────────────────────────────
+  const closedWithBangHoldingAngle = () =>
+    markdown().replace(
+      '  as text: a commented-out sentence that changed would otherwise fail this.\n-->',
+      '  as text: 5 > 4, and a commented-out sentence that changed would otherwise fail this.\n--!>',
+    );
+
+  test("🔴 a `--!>`-closed note CONTAINING a `>` is still dropped whole", () => {
+    const md = closedWithBangHoldingAngle();
+    assert.ok(md.includes('--!>'), 'the fixture no longer carries the --!> ending');
+    assert.ok(md.includes('5 > 4'), 'the fixture no longer carries a `>` inside the comment');
+    const r = run({ md });
+    assert.equal(
+      r.code,
+      0,
+      'the comment pattern is what drops this note; the generic tag strip cannot, ' +
+        `because it stops at the > inside it:\n${r.out}`,
+    );
   });
 });

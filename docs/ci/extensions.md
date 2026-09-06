@@ -14,8 +14,9 @@ it carries the rules every workflow in this repository has to obey.
 > never offset, and there is nothing left to re-measure them against. Where the
 > text they name is still live, it is in `extensions.yml` — for example the
 > matrix job the e2e gate parses, `name: e2e · ${{ matrix.suite.dir }}`, was
-> line 84 of *that* `ci.yml` and is `extensions.yml:896` here (re-measured
-> 2026-09-06). This repository's own `ci.yml:84` is an unrelated line.
+> line 84 of *that* `ci.yml` and is `extensions.yml:917` here (re-measured
+> 2026-09-06, and again after this branch's own two insertions moved it: 896
+> on main, 913 with the contracts-sync steps, 917 with the Dart drift gate). This repository's own `ci.yml:84` is an unrelated line.
 
 ## File header
 
@@ -187,6 +188,43 @@ contracts/entitlement/README.md — that pair is still joined by nothing,
 and extending assert-entitlement-contract.mjs's limb-4 target list is
 the next step. What this proves is that the two copies INSIDE
 contracts/ cannot diverge.
+
+⏱ CORRECTED 2026-09-06 -- the sentence above is superseded, and left standing
+because this corpus appends rather than rewrites. `assert-entitlement-contract.mjs`
+limb 4 was widened that day and now holds the SQL seed in
+`services/platform/migrations/0004_money_rail.sql` equal to all four runtime
+copies, `contracts/entitlement/contract.js` among them, each compared against the
+seed rather than against each other in a chain. The pair IS joined now. What limb
+4 still does not do is grade anything in those files beyond the reason set and the
+`restores` flag -- which is why the step below exists.
+
+### in step **the generated Dart is what contract.js derives**, above `run: node contracts/entitlement/generate-dart.mjs --check`
+
+WIRED 2026-09-06, AND IT WAS THE HOLE AN ADVERSARIAL REVIEW MEASURED. The
+generator existed on the branch that added it and NO workflow invoked it:
+`grep -rn "generate-dart" .github/` answered zero lines, and
+`git log --all -S "generate-dart.mjs --check" -- .github/` returned nothing, so
+it had never been wired on any commit. What that cost, measured on a read-only
+worktree at a0959017 by appending two hand-typed lines to
+packages/purchases/lib/src/generated/entitlement_contract.g.dart:
+
+    node tooling/ci/assert-no-clone-tells.mjs              EXIT 0
+    node tooling/ci/assert-entitlement-contract.mjs        EXIT 0
+    node contracts/entitlement/generate-dart.mjs --check   EXIT 1   <- the only one
+
+assert-entitlement-contract.mjs limb 4 grades the REASON SET and the `restores`
+flag against the SQL seed. Everything else in that generated file -- a stray
+`const`, an edited doc comment, a renamed helper -- is ungraded by it. And
+[ADR 070] exempts the domain noun `subscription` there on the premise that the
+file is machine-written; before this step, nothing in CI ever re-derived that
+premise.
+
+THE STEP AND THE PREMISE ARE PINNED TO EACH OTHER, so this cannot be silently
+unwired again: `tooling/ci/assert-no-clone-tells.mjs` will not grant the
+[ADR 070] exemption unless a workflow invokes the generator that writes the file
+with `--check` (fact (d)). Delete this step and that guard goes RED on the
+generated Dart, naming the missing invocation.
+
 
 ## job `steps`
 
