@@ -531,7 +531,23 @@ const REQUIRED_COVERAGE = [
         label: 'a UI caller that ends a session through it',
       },
       {
-        re: /on(?:Tap|Pressed):\s*\(\)\s*=>\s*_signOut\(/,
+        // 🔴 `onSignOut:` WAS ADDED 2026-09-06 ([ADR 067] phase 2, unit
+        // screens-money-settings), and it is a WIDENING OF THE PROP NAME ONLY —
+        // the closure it must contain is unchanged. The settings BODY moved into
+        // `package:nikatru_chassis_screens/settings/settings_screen.dart`, so the
+        // tile that used to carry `onTap:` is built there and the brick adapter
+        // hands the same closure across as `onSignOut:`. Left at Tap|Pressed this
+        // row would have failed for a tree in which the control is wired exactly
+        // as it was — the false-red twin of the false-green the row exists to
+        // stop.
+        //
+        // ⚠️ IT STILL CATCHES THE DEFECT THE ROW WAS WRITTEN FOR, and that was
+        // MEASURED rather than argued (`seams-wired.test.mjs`, cases SO1/SO2):
+        // reverting the control to the fire-and-forget
+        // `onSignOut: () => ref.read(authRepositoryProvider).signOut()` leaves
+        // `_signOut` with no caller and this row exits 1, because what is matched
+        // is the CLOSURE `=> _signOut(`, not the prop it is passed under.
+        re: /on(?:Tap|Pressed|SignOut):\s*\(\)\s*=>\s*_signOut\(/,
         scope: BRICK_APP,
         label: 'the sign-out CONTROL routed through that awaited handler',
       },

@@ -1,30 +1,56 @@
-import 'package:flutter/material.dart';
-import 'package:nikatru_notifications/nikatru_notifications.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
-import 'package:nikatru_core/nikatru_core.dart' as core;
-import 'package:nikatru_design_system/nikatru_design_system.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nikatru_chassis_screens/settings/settings_screen.dart';
+import 'package:nikatru_core/nikatru_core.dart' as core;
+import 'package:nikatru_design_system/nikatru_design_system.dart';
+import 'package:nikatru_notifications/nikatru_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_config.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 
-/// Settings — carries the chassis-mandated support contact (E1) and the
-/// in-app account-deletion entry (G2).
-/// This app is client-only, so deletion terminates in the SHARED `platform`
-/// Worker keyed by `app_id` — there is no per-app service to wire ([ADR 020]).
-
+/// Settings — the ADAPTER half. Carries the chassis-mandated support contact
+/// (E1) and the in-app account-deletion entry (G2). This app is client-only, so
+/// deletion terminates in the SHARED `platform` Worker keyed by `app_id` — there
+/// is no per-app service to wire ([ADR 020]).
+///
+/// 🏗️ THE PAGE IS IN `package:nikatru_chassis_screens` ([ADR 067] decision 2),
+/// and what stayed here is every call the package cannot make. It declares no
+/// `flutter_riverpod`, no `go_router`, no `url_launcher` and no
+/// `nikatru_notifications` — see its pubspec for the measurement behind that
+/// rule — so all of these stayed, and each answers a named guard as well:
+///
+/// ⛔ `recordAnalyticsConsent(ref, granted: on)` AND `ref.watch(analyticsConsentProvider)`.
+/// `assert-consent-withdrawal-surface.mjs` requires a CALL in
+/// `lib/features/settings/` whose `granted:` is not a constant, plus a read of
+/// the state so the control can render its own value. It reads this file unioned
+/// with the chassis file, but the call could not move even if it were allowed
+/// to: it takes a `WidgetRef`. Same for `recordPromoObjection` (GDPR Art 21).
+///
+/// ⛔ `NotificationCapabilities.forPlatform(` and `applyReminderChoice(`
+/// (`assert-stamp-properties.mjs:1123`, `:1131`).
+///
+/// ⛔ `ref.watch(authUserProvider)` (`:1081`), `onSave: () => _saveProfile(`
+/// (`:1077`), `.updateProfile(displayName:` (`:1078`),
+/// `onConfirm: () => _deleteAccount(` (`:1043`), `await auth.deleteAccount()`
+/// (`:1044`), `await auth.signInWithEmail(` (`:1045`) and
+/// `core.accountDeletionOutcomeOf(` (`:1061`).
+///
+/// ⛔ `_openUrl(AppConfig.<name>)` for every URL `app_config.dart` declares —
+/// `assert-stamp-properties.mjs:459` asks this file, and only this file, to OPEN
+/// each one, because a constant nobody links leaves the page as unreachable as
+/// not declaring it at all.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ChassisLocalizations l10n = context.chassisL10n;
     final AppLocalizations appL10n = AppLocalizations.of(context);
     final ThemeMode mode = ref.watch(themeModeProvider);
-    // WATCHED as a stream, not read off `currentUser`: the tile below shows a
+    // WATCHED as a stream, not read off `currentUser`: the profile tile shows a
     // value the user can edit from this very screen, and a snapshot read would
     // go on showing the old name after a successful save. [pipeline C-13]
     final core.AuthUser? user = ref.watch(authUserProvider).valueOrNull;
@@ -34,409 +60,68 @@ class SettingsScreen extends ConsumerWidget {
     // what is actually installed and falls back to the constant only while the
     // plugin resolves (and on platforms where it cannot), exactly as the
     // force-update gate does with the same value.
-    //
-    // Hoisted to a local because BOTH about-and-licences rows below need it,
-    // and the two must never be able to report different builds.
     final String runningVersion =
         ref.watch(packageVersionProvider).valueOrNull ?? AppConfig.appVersion;
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsTitle)),
-      // 🔴 THIS WAS A BARE `Scaffold` + `ListView`, i.e. NO WIDTH DECISION AT
-      // ALL. A `ListTile` fills whatever it is given, so on a maximised desktop
-      // window every row here stretched the full width of the display: the
-      // leading icon at the far left, its label a hand's width away, the
-      // trailing chevron off at the other edge. Nothing was clipped and nothing
-      // overflowed, so no test and no reviewer had anything to point at — the
-      // defect is that the eye has to travel, and only a measurement catches it.
-      //
-      // The DEFAULT cap (`AppBreakpoints.kMaxBodyWidth`), not `.reading`: this
-      // is a page of controls rather than prose, and 1280 is the same ceiling
-      // `AppScaffold` already applies to its extra-large class — so a settings
-      // screen inside the chassis shell and one pumped on its own now agree,
-      // instead of agreeing only up to 1600.
-      body: ContentPane(
-        child: ListView(
-          children: <Widget>[
-            // ── PROFILE ──────────────────────────────────────────────────────
-            // Only when there is an account. Offering "edit your name" to a
-            // signed-out user is an offer the app cannot honour — the same reason
-            // the deletion entry is gated further down.
-            if (user != null) ...<Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Text(
-                  l10n.profile,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              ListTile(
-                leading: CircleAvatar(child: Text(user.initial)),
-                title: Text(
-                  (user.displayName == null || user.displayName!.isEmpty)
-                      ? l10n.displayNameNotSet
-                      : user.displayName!,
-                ),
-                subtitle: Text(user.email),
-                trailing: const Icon(Icons.edit_outlined),
-                onTap: () => _editProfile(context, ref, l10n, user),
-              ),
-              const Divider(),
-            ],
-            // [pipeline C-16] The on-switch for the persisted themeMode. A stored
-            // preference with no control is a dead setting — the same shape as the
-            // consent recorder that had no prompt and silently discarded every
-            // event. Shipped together, or not at all.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                l10n.appearance,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: SegmentedButton<ThemeMode>(
-                segments: <ButtonSegment<ThemeMode>>[
-                  ButtonSegment<ThemeMode>(
-                    value: ThemeMode.system,
-                    label: Text(l10n.themeSystem),
-                  ),
-                  ButtonSegment<ThemeMode>(
-                    value: ThemeMode.light,
-                    label: Text(l10n.themeLight),
-                  ),
-                  ButtonSegment<ThemeMode>(
-                    value: ThemeMode.dark,
-                    label: Text(l10n.themeDark),
-                  ),
-                ],
-                selected: <ThemeMode>{mode},
-                onSelectionChanged: (Set<ThemeMode> s) =>
-                    ref.read(themeModeProvider.notifier).set(s.first),
-              ),
-            ),
-            const Divider(),
+    // [pipeline C-7 earning its keep in real UI] The platform matrix is
+    // consulted BEFORE a control is offered. On Linux the plugin shows but
+    // cannot schedule; on Windows (pinned 17.x) it does neither. A toggle that
+    // silently does nothing on those platforms is worse than an honest sentence,
+    // because the user believes reminders are on.
+    final NotificationCapabilities caps = NotificationCapabilities.forPlatform(
+      defaultTargetPlatform,
+      isWeb: kIsWeb,
+    );
+    final bool hasSession =
+        ref.watch(authRepositoryProvider).currentUser != null;
 
-            // ── LANGUAGE ─────────────────────────────────────────────────────
-            // Language names are shown in their OWN language, so a speaker can
-            // find theirs without first being able to read the current one.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(
-                l10n.language,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+    return SettingsView(
+      profile: user == null
+          ? null
+          : SettingsProfile(
+              initial: user.initial,
+              displayName: user.displayName ?? '',
+              email: user.email,
             ),
-            RadioGroup<String>(
-              groupValue: ref.watch(localeProvider)?.languageCode ?? '',
-              onChanged: (String? code) => ref
-                  .read(localeProvider.notifier)
-                  .set((code == null || code.isEmpty) ? null : Locale(code)),
-              child: Column(
-                children: <Widget>[
-                  RadioListTile<String>(
-                    value: '',
-                    title: Text(l10n.languageSystem),
-                  ),
-                  RadioListTile<String>(
-                    value: 'en',
-                    title: Text(l10n.languageEnglish),
-                  ),
-                  RadioListTile<String>(
-                    value: 'ta',
-                    title: Text(l10n.languageTamil),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(),
-
-            // ── NOTIFICATIONS ────────────────────────────────────────────────
-            // [pipeline C-7 earning its keep in real UI] The platform matrix is
-            // consulted BEFORE a control is offered. On Linux the plugin shows but
-            // cannot schedule; on Windows (pinned 17.x) it does neither. A toggle
-            // that silently does nothing on those platforms is worse than an
-            // honest sentence, because the user believes reminders are on.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(
-                l10n.notifications,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            Builder(
-              builder: (BuildContext context) {
-                final NotificationCapabilities caps =
-                    NotificationCapabilities.forPlatform(
-                      defaultTargetPlatform,
-                      isWeb: kIsWeb,
-                    );
-                if (!caps.canSchedule) {
-                  return ListTile(
-                    leading: const Icon(Icons.notifications_off_outlined),
-                    title: Text(l10n.remindersUnavailable),
-                    enabled: false,
-                  );
-                }
-                return SwitchListTile(
-                  secondary: const Icon(Icons.notifications_outlined),
-                  title: Text(l10n.remindersEnabled),
-                  value: ref.watch(remindersEnabledProvider),
-                  onChanged: (bool on) =>
-                      _setReminders(context, ref, l10n, on: on),
-                );
-              },
-            ),
-            const Divider(),
-
-            // ── PRIVACY ──────────────────────────────────────────────────────
-            // 🔴 THE DPDP §6(3) WITHDRAWAL PATH, AND THE CHASSIS SHIPPED WITHOUT
-            // IT. Until [ADR 037 P2.7] the only caller of `recordAnalyticsConsent`
-            // in a stamped app was the FIRST-RUN PROMPT in app.dart — shown once,
-            // never again — so consent was a one-way door in every app the factory
-            // stamps. assert-seams-wired.mjs stayed green throughout: it asks
-            // whether the seam is DEAD, not whether it is REVERSIBLE, and the
-            // prompt answers that question. Withdrawal must be as easy as
-            // granting, and privacy.html promises it happens here.
-            //
-            // The value is WATCHED, not read: this row is the one place the state
-            // changes, and a snapshot read leaves the switch showing the old
-            // answer after the user has just flipped it — the same defect the
-            // profile tile's comment above records.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(
-                l10n.privacy,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.insights_outlined),
-              title: Text(l10n.usageStatistics),
-              subtitle: Text(
-                ref.watch(analyticsConsentProvider) ==
-                        core.ConsentStatus.granted
-                    ? l10n.usageStatisticsOn
-                    : l10n.usageStatisticsOff,
-              ),
-              value:
-                  ref.watch(analyticsConsentProvider) ==
-                  core.ConsentStatus.granted,
-              // Not awaited, for the same reason app.dart's `_answer` is not: the
-              // decision applies in memory immediately and the upload is
-              // best-effort, so blocking the switch on a network round trip would
-              // make a withdrawal feel like a broken control.
-              onChanged: (bool on) => recordAnalyticsConsent(ref, granted: on),
-            ),
-
-            // ── PROMOTIONAL OFFERS — THE GDPR Art 21 OBJECTION ───────────────
-            // [research/44 rung 4] NOT a consent gate, and the difference is
-            // the whole design. In-app promotion of our own apps runs on
-            // LEGITIMATE INTEREST (Recital 47), so asking permission first
-            // would be friction that also implies the processing becomes
-            // unlawful when refused. What Art 21(2)/(3) makes absolute is the
-            // OBJECTION: "the data subject shall have the right to object at
-            // any time", after which "the personal data shall no longer be
-            // processed for such purposes."
-            //
-            // 🔴 THIS ROW IS THE SECOND HOME, NOT THE ONLY ONE. Art 21(4)
-            // wants the right presented "clearly and separately" at the LATEST
-            // at the time of the first communication, so the same control is
-            // built into `PromoSurface` and renders on the card itself. A
-            // person meeting their first offer has no reason to open Settings.
-            //
-            // It reads and writes the CONSENT RAIL (`ConsentPurpose.promo`),
-            // not a private flag: one append-only artifact trail, one server
-            // route, one place the objection lives. `PromoGateState.suppressed`
-            // is a projection of this value — see `PromoObjection`.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(
-                l10n.promotionalOffers,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: Text(
-                l10n.promoObjectionExplain,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 16, 8),
-              // WATCHED, not read, for the same reason the analytics row above
-              // is: this is one of the two places the value changes, and a
-              // snapshot read leaves the control offering "Stop" after the
-              // person has already stopped it.
-              //
-              // 🔴 AND IT READS THE THIRD STATE TOO. `promoObjected` is
-              // fail-closed — it answers "objected" while the rail is still
-              // loading, which is right for a CARD and a lie in a CONTROL: it
-              // would tell someone who never objected "Offers are off" on every
-              // launch, and a tap in that window uploads a `granted: true`
-              // artifact recording a decision they never made. `known` is what
-              // keeps the row blank and untappable until the rail has spoken.
-              child: PromoObjectionControl(
-                objected: ref.watch(promoObjectedProvider),
-                known: ref.watch(promoObjectionKnownProvider),
-                onChanged: (bool objected) =>
-                    recordPromoObjection(ref, objected: objected),
-                stopLabel: l10n.promoStopOffers,
-                resumeLabel: l10n.promoResumeOffers,
-                objectedNotice: l10n.promoOffersOff,
-              ),
-            ),
-            const Divider(),
-
-            // ── SUBSCRIPTION ([pipeline 5]M-6 · M-9) ──────────────────────────
-            //
-            // 🔴 THE TWO ENTRY POINTS SIT SIDE BY SIDE ON PURPOSE. ROSCA's rule
-            // is that cancelling must be no harder than subscribing, and the
-            // cheapest way to be sure of that is to reach both from the same
-            // place, one tap each. A cancel path buried a level deeper than the
-            // upgrade path is the specific pattern the rule exists to stop.
-            //
-            // Gated on a session because both terminate in a call keyed to an
-            // account: offering "manage your subscription" to a signed-out user
-            // is an offer the app cannot honour, the same reason the profile and
-            // deletion entries are gated.
-            if (ref.watch(authRepositoryProvider).currentUser !=
-                null) ...<Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Text(
-                  appL10n.plan,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.workspace_premium_outlined),
-                title: Text(l10n.paywallUpgrade),
-                onTap: () => context.go('/paywall'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: Text(appL10n.managePlanTitle),
-                onTap: () => context.go('/manage-plan'),
-              ),
-              const Divider(),
-            ],
-
-            // ── LEGAL. Both stores require these to be reachable IN-APP, not
-            //    only from a store listing. [pipeline C-13]
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(
-                l10n.legal,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
-              title: Text(l10n.privacyPolicy),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => _openUrl(AppConfig.privacyUrl),
-            ),
-            ListTile(
-              leading: const Icon(Icons.description_outlined),
-              title: Text(l10n.termsOfService),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => _openUrl(AppConfig.termsUrl),
-            ),
-            // [pipeline 8]K-6. The third published legal page, and the one that
-            // was missing: the site publishes privacy, terms AND refund, the
-            // brick linked the first two, and nothing compared the sets. A refund
-            // policy a buyer cannot reach from inside the app they bought in is
-            // the page a store reviewer looks for first when a charge is
-            // disputed.
-            ListTile(
-              leading: const Icon(Icons.currency_exchange_outlined),
-              title: Text(l10n.refundPolicy),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => _openUrl(AppConfig.refundUrl),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.mail_outline),
-              title: Text(l10n.contactSupport),
-              subtitle: const Text(AppConfig.supportEmail),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: _contactSupport,
-            ),
-            // Sign out sits ABOVE delete: it is the action a user wants
-            // hundreds of times more often, and putting the irreversible one
-            // first invites a misfire.
-            if (ref.watch(authRepositoryProvider).currentUser != null)
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: Text(l10n.signOut),
-                onTap: () => _signOut(context, ref, l10n),
-              ),
-
-            // [pipeline C-13] Only when there is an account to delete. Both
-            // stores require an in-app deletion path where accounts EXIST; an
-            // entry shown to a signed-out user is an offer the app cannot honour.
-            if (ref.watch(authRepositoryProvider).currentUser != null)
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: Text(l10n.deleteAccount),
-                subtitle: Text(l10n.deleteAccountSubtitle),
-                onTap: () => _confirmDelete(context, ref, l10n),
-              ),
-            // ── OPEN-SOURCE LICENCES ([pipeline 8]K-11) ─────────────────────
-            //
-            // 🔴 THE ONE SHIPPING APP HAD A ONE-TAP LICENCES ROW AND THE BRICK
-            // DID NOT, so every app this factory stamps offered the notices
-            // only via the About dialog's "View licenses" button — two taps,
-            // behind a dialog. Several packages a stamped app ships, and the
-            // MaterialIcons font that `uses-material-design: true` bundles,
-            // carry attribution obligations discharged by DISPLAYING the
-            // notice, and both stores may ask for evidence of rights on
-            // demand. The answer has to be a screen the reviewer can reach,
-            // not a search.
-            //
-            // TWO tiles, and they are NOT redundant. The About tile below is
-            // the chassis one and carries the RUNNING VERSION — the single
-            // fact a support mail is worthless without — and reaches the
-            // licences only through the framework's own button. This row is
-            // the one tap K-11 asks for.
-            //
-            // `LicensePage` reads `LicenseRegistry`, which every package
-            // registers into automatically and which `main.dart` now tops up
-            // with the vendored font entries Flutter's collector never sees —
-            // so this list stays correct as dependencies change, instead of
-            // being a list somebody must remember to update.
-            ListTile(
-              leading: const Icon(Icons.copyright_outlined),
-              title: Text(l10n.openSourceLicences),
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: AppConfig.appName,
-                applicationVersion: runningVersion,
-                applicationLegalese: l10n.legalese,
-              ),
-            ),
-            // 🔴 [pipeline C-13] `applicationVersion` WAS MISSING, and the
-            // register row for this screen has always promised "version and
-            // legalese". Flutter does not complain: `showAboutDialog` simply
-            // renders no version line, so the dialog looked complete and told a
-            // user reporting a bug nothing about WHICH BUILD they were running —
-            // which is the one fact a support mail is worthless without, and the
-            // reason both stores expect a version to be visible in-app.
-            //
-            // It is `runningVersion` — the RUNNING version, not the compiled-in
-            // constant. See where that local is computed at the top of `build`
-            // for why the distinction matters.
-            AboutListTile(
-              applicationName: AppConfig.appName,
-              applicationVersion: runningVersion,
-              applicationLegalese: l10n.legalese,
-              child: Text(l10n.about),
-            ),
-          ],
-        ),
-      ),
+      onEditProfile: user == null
+          ? null
+          : () => _editProfile(context, ref, context.chassisL10n, user),
+      themeMode: mode,
+      onThemeModeChanged: (ThemeMode m) =>
+          ref.read(themeModeProvider.notifier).set(m),
+      languageCode: ref.watch(localeProvider)?.languageCode ?? '',
+      onLanguageChanged: (String code) => ref
+          .read(localeProvider.notifier)
+          .set(code.isEmpty ? null : Locale(code)),
+      remindersAvailable: caps.canSchedule,
+      remindersEnabled: ref.watch(remindersEnabledProvider),
+      onRemindersChanged: (bool on) =>
+          _setReminders(context, ref, context.chassisL10n, on: on),
+      analyticsGranted:
+          ref.watch(analyticsConsentProvider) == core.ConsentStatus.granted,
+      // Not awaited, for the same reason app.dart's `_answer` is not: the
+      // decision applies in memory immediately and the upload is best-effort, so
+      // blocking the switch on a network round trip would make a withdrawal feel
+      // like a broken control.
+      onAnalyticsConsentChanged: (bool on) =>
+          recordAnalyticsConsent(ref, granted: on),
+      promoObjected: ref.watch(promoObjectedProvider),
+      promoObjectionKnown: ref.watch(promoObjectionKnownProvider),
+      onPromoObjectionChanged: (bool objected) =>
+          recordPromoObjection(ref, objected: objected),
+      hasSession: hasSession,
+      planSectionLabel: appL10n.plan,
+      managePlanLabel: appL10n.managePlanTitle,
+      onUpgrade: () => context.go('/paywall'),
+      onManagePlan: () => context.go('/manage-plan'),
+      onOpenPrivacyPolicy: () => _openUrl(AppConfig.privacyUrl),
+      onOpenTerms: () => _openUrl(AppConfig.termsUrl),
+      onOpenRefundPolicy: () => _openUrl(AppConfig.refundUrl),
+      supportEmail: AppConfig.supportEmail,
+      onContactSupport: _contactSupport,
+      onSignOut: () => _signOut(context, ref, context.chassisL10n),
+      onDeleteAccount: () => _confirmDelete(context, ref, context.chassisL10n),
+      applicationName: AppConfig.appName,
+      applicationVersion: runningVersion,
     );
   }
 
@@ -555,9 +240,13 @@ class SettingsScreen extends ConsumerWidget {
   /// original reason described a field nothing wrote and concluded from that
   /// that it could never be written.
   ///
-  /// Split into its own dialog widget for the same reason the delete dialog is —
-  /// a confirm action only reachable through a tap on a tile is one nobody
-  /// writes a test for, which is how a dead button survives.
+  /// The dialog itself is [EditProfileDialog] in the chassis package — a confirm
+  /// action only reachable through a tap on a tile is one nobody writes a test
+  /// for, which is how a dead button survives, and in the package it is pumped
+  /// directly. The CONTROLLER is still created here: `assert-stamp-properties`
+  /// pins the save wiring as the literal zero-argument closure
+  /// `onSave: () => _saveProfile(`, whose only way to see the typed name is a
+  /// controller the caller holds.
   void _editProfile(
     BuildContext context,
     WidgetRef ref,
@@ -569,8 +258,7 @@ class SettingsScreen extends ConsumerWidget {
     );
     showDialog<void>(
       context: context,
-      builder: (BuildContext dialogContext) => _EditProfileDialog(
-        l10n: l10n,
+      builder: (BuildContext dialogContext) => EditProfileDialog(
         name: name,
         onSave: () => _saveProfile(dialogContext, ref, l10n, name.text),
       ),
@@ -618,7 +306,7 @@ class SettingsScreen extends ConsumerWidget {
     ChassisLocalizations l10n,
   ) {
     // 🔴 OWNED HERE, NOT BY THE DIALOG, and disposed by [_DeleteAccountDialog]
-    // as the last reader. `tooling/ci/assert-stamp-properties.mjs:1042` pins the
+    // as the last reader. `tooling/ci/assert-stamp-properties.mjs:1043` pins the
     // confirm wiring as the literal zero-argument closure
     // `onConfirm: () => _deleteAccount(`, so the typed password has to be
     // readable from OUT HERE for that closure to have anything to pass — a
@@ -775,7 +463,9 @@ class SettingsScreen extends ConsumerWidget {
 ///
 /// TOP-LEVEL AND PUBLIC so `test/chassis_properties_test.dart` can assert on it
 /// directly: a mapping only reachable through a dialog is one nobody tests, and
-/// the whole defect this replaces was invisible for exactly that reason.
+/// the whole defect this replaces was invisible for exactly that reason. It
+/// stays in the BRICK for the same reason — `chassis_properties_test.dart:2100`
+/// calls it by name, and that suite is the stamped app's own.
 ///
 /// 🔴 THE DIALOG NO LONGER RENDERS THIS, AND SAYING SO HERE IS THE POINT — the
 /// next person to read this file would otherwise "tidy" one of the two away.
@@ -829,43 +519,6 @@ String deleteAccountFailureMessage(
   }
 }
 
-/// [pipeline C-13] The display-name editor. No confirmation step and no reauth,
-/// deliberately: renaming yourself is reversible in one tap, and guarding a
-/// harmless action trains people to click through the guards on the dangerous
-/// one two tiles below.
-class _EditProfileDialog extends StatelessWidget {
-  const _EditProfileDialog({
-    required this.l10n,
-    required this.name,
-    required this.onSave,
-  });
-
-  final ChassisLocalizations l10n;
-  final TextEditingController name;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(l10n.editProfile),
-      content: TextField(
-        controller: name,
-        autofocus: true,
-        textCapitalization: TextCapitalization.words,
-        decoration: InputDecoration(labelText: l10n.displayName),
-        onSubmitted: (_) => onSave(),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(onPressed: onSave, child: Text(l10n.save)),
-      ],
-    );
-  }
-}
-
 /// Split out so the confirm action can be driven directly in a test — a dialog
 /// only reachable through a tap on a tile is one nobody writes a test for, which
 /// is how the dead button survived in the first place.
@@ -874,22 +527,17 @@ class _EditProfileDialog extends StatelessWidget {
 /// CONTROLLER. As a `StatelessWidget` it could not, and nothing else did — the
 /// `TextEditingController` built in `_confirmDelete` was leaked on every open of
 /// the dialog, in every app the factory stamps. It cannot be created inside the
-/// dialog instead: `assert-stamp-properties.mjs:1042` pins the confirm wiring as
+/// dialog instead: `assert-stamp-properties.mjs:1043` pins the confirm wiring as
 /// the literal zero-argument closure `onConfirm: () => _deleteAccount(`, whose
 /// only way to see the typed password is a controller the CALLER holds. So the
 /// caller creates it, this widget is the last reader, and this widget disposes
 /// it.
 ///
 /// 🏗️ THE FORM, THE BUSY LOCK, THE `PopScope` AND THE RESULT PHASE ALL LIVE IN
-/// [DestructiveConfirmDialog] NOW ([ADR 065], chassis step 2). None of it is
+/// [DestructiveConfirmDialog] ([ADR 065], chassis step 2). None of it is
 /// app-specific — it is "an irreversible action, behind a secret, that says what
-/// it did" — and the brick's own Dart cannot be analyzed or unit-tested where it
-/// lives, so behaviour left in this file is behaviour nothing can prove. Moved
-/// into `packages/design_system` it is measured directly by
-/// `packages/design_system/test/destructive_confirm_dialog_test.dart`. Every
-/// user-visible string is still handed in from HERE, inside the tree
-/// `assert-no-hardcoded-strings.mjs` scans, so nothing left that guard's domain
-/// by moving house.
+/// it did". This wrapper stays in the BRICK, unlike [EditProfileDialog], because
+/// `onConfirm` reaches `_deleteAccount(ref, …)` and `ref` is Riverpod.
 class _DeleteAccountDialog extends StatefulWidget {
   const _DeleteAccountDialog({
     required this.l10n,

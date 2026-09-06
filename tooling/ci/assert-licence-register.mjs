@@ -45,6 +45,21 @@ import { listDir } from './tree-walk.mjs';
 // purpose: a disagreement between the two registers must turn both red, or the
 // one that stays green is the one somebody quotes. See licence-cross-assert.mjs.
 import { crossAssertLicenceRegisters } from './licence-cross-assert.mjs';
+// ── DELEGATION — THE LICENCES SURFACE FOLLOWS THE SCREEN INTO THE CHASSIS ────
+// (ADR 067 decision 2; the same resolver eleven sibling guards carry.)
+//
+// [ADR 066] step 4 empties a brick screen into `package:nikatru_chassis_screens`
+// and leaves an ADAPTER at the same path. `AboutListTile` and `showLicensePage`
+// are PAINTED, so they moved with the settings body — and read at the adapter
+// alone this limb reports that the template ships no licences surface at all.
+// That is a K-11 claim about a tree that ships one, which is exactly as bad as
+// missing a real gap. So the scan below reads each app's own lib AND the chassis
+// files it delegates to. This only ever ADDS text: a surface that was found is
+// still found, and one that is genuinely absent is still absent.
+//
+// ONE LEVEL, ONE IMPORT, EVERY REFUSAL LOUD. A delegation this resolver cannot
+// follow is COVERAGE LOST, never a quiet fall-back to reading the adapter alone.
+import { delegationOf } from './chassis-delegation.mjs';
 
 // ⚠️ ARGUMENT PARSING, AND IT ALREADY BIT ONCE. The first draft read
 // `argv.find((a, i) => !a.startsWith('--') && i !== bundleAt + 1)`; with no
@@ -481,12 +496,31 @@ for (const app of appDirs) {
   const libDir = join(repoRoot, ...app.split('/'), 'lib');
   // A CALL SITE, not a string: comments stripped, and each pattern is an
   // invocation. A declaration is not a call — [3]S-2 proved that here already.
-  const has = walk(libDir)
-    .filter((f) => f.endsWith('.dart'))
-    .some((f) => {
-      const src = stripSourceComments(readFileSync(f, 'utf8'), '.dart');
-      return surfacePatterns.some((re) => re.test(src));
-    });
+  const ownFiles = walk(libDir).filter((f) => f.endsWith('.dart'));
+  // The chassis files this app's lib delegates to, resolved one level.
+  const delegated = new Set();
+  for (const f of ownFiles) {
+    const rel = relative(repoRoot, f).split(sep).join('/');
+    const d = delegationOf(repoRoot, rel, { describe: () => `\`${rel}\`` });
+    if (d && d.lost) {
+      problems.push(
+        `COVERAGE LOST — \`${rel}\` ${d.lost} The licences-surface limb is read over the stamped ` +
+          'chassis, and a delegation it cannot follow is a surface it cannot see.',
+      );
+      continue;
+    }
+    for (const t of (d && d.files) || []) delegated.add(join(repoRoot, ...t.split('/')));
+  }
+  if (delegated.size) {
+    prints.push(
+      `${app} — the licences-surface scan also read ${delegated.size} chassis file(s) it delegates to: ` +
+        `${[...delegated].map((f) => relative(repoRoot, f).split(sep).join('/')).sort().join(', ')}`,
+    );
+  }
+  const has = [...ownFiles, ...delegated].some((f) => {
+    const src = stripSourceComments(readFileSync(f, 'utf8'), '.dart');
+    return surfacePatterns.some((re) => re.test(src));
+  });
   const gap = exempt.get(app);
   if (has) {
     appsWithSurface++;

@@ -682,7 +682,13 @@ const REQUIRED_COVERAGE = [
     // with it.
     // ⚠️ RAISE `a11yFiles` TO 1 AND `cases` TO WHATEVER THE FIRST SWEEP
     // MEASURES, IN THE SAME CHANGE THAT LANDS IT.
-    surfaces: 7,
+    // 🔴 RAISED 7 → 12 ON 2026-09-06 ([ADR 067] phase 2,
+    // screens-money-settings). `a11yFiles: 0` and `cases: 0` STAY as they
+    // are — the five new surfaces arrived with WIDTH suites, not a11y
+    // sweeps, and writing a floor of 0 for something that is genuinely 0 is
+    // the finding rather than a shrug. What this raise buys is that the five
+    // cannot leave the printed list by leaving the tree.
+    surfaces: 12,
     a11yFiles: 0,
     cases: 0,
     label:

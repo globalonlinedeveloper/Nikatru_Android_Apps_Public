@@ -35,11 +35,16 @@ const List<Size> kAllWindows = <Size>[kPhone, kTablet, kDesktop];
 /// hand-written one: if the generated triplet is missing, or the delegate is
 /// not exported, this is where it fails — loudly, at the first `l10n.` read,
 /// which is what `nullable-getter: false` in `l10n.yaml` buys.
+/// [settle] is `false` for a screen that is DELIBERATELY still animating — a
+/// `LinearProgressIndicator` never settles, so `pumpAndSettle` on a busy screen
+/// times out after ten seconds and reports it as a test failure rather than as
+/// the running indicator it is.
 Future<void> pumpChassis(
   WidgetTester tester,
   Size size,
   Widget child, {
   Locale locale = const Locale('en'),
+  bool settle = true,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -51,5 +56,9 @@ Future<void> pumpChassis(
       home: child,
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }

@@ -154,8 +154,8 @@
       },
       "reachable": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/settings/settings_screen.dart",
-        "pattern": "onTap: _contactSupport",
-        "why": "the anchor is a `member`, and that pattern (`_contactSupport\\s*\\(`) matches the method's OWN DECLARATION — so deleting the tile that calls it leaves the anchor green while E1's mandated support contact becomes unreachable from inside the app. The call site is a TEAR-OFF with no parentheses, which is precisely why it needs its own assertion: no `symbol(` pattern can see it"
+        "pattern": "onContactSupport: _contactSupport",
+        "why": "the anchor is a `member`, and that pattern (`_contactSupport\\s*\\(`) matches the method's OWN DECLARATION — so deleting the tile that calls it leaves the anchor green while E1's mandated support contact becomes unreachable from inside the app. The call site is a TEAR-OFF with no parentheses, which is precisely why it needs its own assertion: no `symbol(` pattern can see it. RE-POINTED 2026-09-06 ([ADR 067] phase 2, screens-money-settings): the body moved to `package:nikatru_chassis_screens/settings/settings_screen.dart`, so the tile is built there and the ADAPTER passes the same tear-off as `onContactSupport:`. The reachability limb reads ONE file and does not follow the delegation — deliberately, because reachability is a claim about the stamped app — so the pattern names where the adapter wires it. It is still the CALL SITE and still not the declaration, which is the whole reason this row exists"
       }
     },
     {
@@ -228,12 +228,12 @@
       "detail": "🔴 PENDING IS THE ONE THAT MATTERS AND IT IS WHY THIS IS ITS OWN REGISTER ROW. A hosted checkout returns the buyer the instant they press pay; the merchant of record's notification reaches our server afterwards. So there is a real window in which the user HAS paid and the server does NOT know, and the two obvious answers are both wrong: unlocking on the return unlocks abandoned checkouts and declined cards, and showing 'purchase failed' tells a paying customer their money vanished. The client re-reads with BOUNDED backoff (kCheckoutConvergenceDelays — five attempts, a portfolio constraint, not a UX preference) and lands in a stated terminal state.",
       "anchor": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/monetization/paywall_screen.dart",
-        "symbol": "_PaywallPhase"
+        "symbol": "PaywallPhase"
       },
       "reachable": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/monetization/paywall_screen.dart",
         "pattern": "_PaywallPhase.pending",
-        "why": "an enum of states nothing ever enters is a switch statement, not a screen. The pending branch is the one a user with money in flight actually sees"
+        "why": "an enum of states nothing ever enters is a switch statement, not a screen. The pending branch is the one a user with money in flight actually sees. The ANCHOR was re-pointed 2026-09-06 ([ADR 067] phase 2, screens-money-settings) from `_PaywallPhase` to `PaywallPhase`: the enum moved into `package:nikatru_chassis_screens/monetization/paywall_screen.dart` and the anchor limb follows the delegation. THIS pattern did not move, because the brick keeps `typedef _PaywallPhase = PaywallPhase;` — an alias, so there is still exactly ONE enum and the phase machine still reads `_PaywallPhase.pending` in the file a user reaches"
       }
     },
     {
@@ -287,8 +287,8 @@
       },
       "reachable": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/settings/settings_screen.dart",
-        "pattern": "onTap: () => _signOut(context, ref, l10n)",
-        "why": "placed ABOVE account deletion — it is the action a user wants hundreds of times more often, and putting the irreversible one first invites a misfire. Re-pointed 2026-08-11 from `ref.read(authRepositoryProvider).signOut()`: that call was fire-and-forget, so the deliberate throw from SecureSessionStorage.removePersistedSession went nowhere and the per-user state on the device outlived the session. The two halves are split on purpose — `anchor` proves the handler reaches the real path (`signOutAndForgetUser(`), this proves the CONTROL reaches the handler. Anchoring both on the handler was measured and rejected: reverting the tile to the fire-and-forget call left the handler in place with nothing calling it, and every check stayed green"
+        "pattern": "onSignOut: () => _signOut(context, ref, context.chassisL10n)",
+        "why": "placed ABOVE account deletion — it is the action a user wants hundreds of times more often, and putting the irreversible one first invites a misfire. Re-pointed 2026-08-11 from `ref.read(authRepositoryProvider).signOut()`: that call was fire-and-forget, so the deliberate throw from SecureSessionStorage.removePersistedSession went nowhere and the per-user state on the device outlived the session. The two halves are split on purpose — `anchor` proves the handler reaches the real path (`signOutAndForgetUser(`), this proves the CONTROL reaches the handler. Anchoring both on the handler was measured and rejected: reverting the tile to the fire-and-forget call left the handler in place with nothing calling it, and every check stayed green. RE-POINTED 2026-09-06 ([ADR 067] phase 2, screens-money-settings): the tile is built in the chassis package now and the ADAPTER passes the closure as `onSignOut:`. Both halves still hold — the anchor still proves the handler reaches `signOutAndForgetUser(`, and this still proves a control reaches the handler"
       }
     },
     {
@@ -342,13 +342,13 @@
       "status": "present",
       "anchor": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/settings/settings_screen.dart",
-        "symbol": "_EditProfileDialog",
+        "symbol": "EditProfileDialog",
         "kind": "class"
       },
       "reachable": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/settings/settings_screen.dart",
         "pattern": ".updateProfile(displayName:",
-        "why": "BUILT 2026-07-29, after being refused on \"there is no profile data model\" — which described a field nothing wrote and concluded it could never be written. gotrue's `updateUser` writes `auth.users.user_metadata`, and the adapter now writes the SAME `full_name` key it already read. The tile watches the identity STREAM rather than the `currentUser` snapshot: a snapshot read compiles, renders, and never rebuilds, so a saved name would go on showing the old value — which is what a save button wired to nothing looks like"
+        "why": "BUILT 2026-07-29, after being refused on \"there is no profile data model\" — which described a field nothing wrote and concluded it could never be written. gotrue's `updateUser` writes `auth.users.user_metadata`, and the adapter now writes the SAME `full_name` key it already read. The tile watches the identity STREAM rather than the `currentUser` snapshot: a snapshot read compiles, renders, and never rebuilds, so a saved name would go on showing the old value — which is what a save button wired to nothing looks like. The ANCHOR was re-pointed 2026-09-06 ([ADR 067] phase 2, screens-money-settings) from `_EditProfileDialog` to `EditProfileDialog`: the dialog moved into `package:nikatru_chassis_screens/settings/settings_screen.dart` and had to become PUBLIC to be constructible from the adapter, which is also what makes it pumpable in `packages/chassis_screens/test`. The anchor limb follows the delegation; this reachability pattern did not move, because `_saveProfile` and `AuthRepository.updateProfile` are Riverpod and stayed in the adapter"
       }
     },
     {

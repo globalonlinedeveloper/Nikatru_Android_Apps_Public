@@ -410,6 +410,59 @@ describe('[pipeline K-11] every app shows the licences of what it ships', () => 
     assert.match(out(r), /PROMOTE ME/);
   });
 
+  // ── THE SURFACE THAT MOVED INTO THE CHASSIS PACKAGE ────────────────────────
+  //
+  // 2026-09-06 ([ADR 067] phase 2, unit screens-money-settings). `AboutListTile`
+  // and `showLicensePage` are PAINTED, so they left the brick with the settings
+  // body. Read at the adapter alone this limb reported "the template ships no
+  // licences surface" about a template that ships one — a K-11 claim as wrong as
+  // missing a real gap, and the reason this limb now follows the delegation.
+  // DL2 is what makes DL1 more than a resolver that reads a file and throws the
+  // answer away; DL3 is the refusal that must never read as silence.
+  const delegating = ({ onDisk = true, inPackage = true } = {}) => {
+    // The adapter imports the chassis file and USES a name it declares — the
+    // resolver refuses an import that is never referenced — and carries NO
+    // surface call of its own.
+    const root = fixture({
+      brickLib:
+        "import 'package:nikatru_chassis_screens/settings/settings_screen.dart';\n" +
+        'Widget b() => const SettingsView();\n',
+    });
+    if (onDisk) {
+      write(
+        root,
+        join('packages', 'chassis_screens', 'lib', 'settings', 'settings_screen.dart'),
+        'class SettingsView {\n' +
+          (inPackage
+            ? "  Widget t() => AboutListTile(applicationName: 'x');\n"
+            : '  Widget t() => const ListTile();\n') +
+          '}\n',
+      );
+    }
+    return root;
+  };
+
+  test('DL1 · the surface is found THROUGH the delegation, and the scan says so', () => {
+    const r = run(delegating());
+    assert.equal(r.status, 0, out(r));
+    assert.match(out(r), /the licences-surface scan also read 1 chassis file\(s\) it delegates to/);
+    assert.match(out(r), /packages\/chassis_screens\/lib\/settings\/settings_screen\.dart/);
+    assert.ok(!out(r).includes('ships NO licences surface: nothing under its lib/'));
+  });
+
+  test('DL2 · 🔴 the surface deleted from the PACKAGE still FAILS — the union is real, not a widening', () => {
+    const r = run(delegating({ inPackage: false }));
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /ships NO licences surface/);
+  });
+
+  test('DL3 · 🔴 a delegation that cannot be followed is COVERAGE LOST, not silence', () => {
+    const r = run(delegating({ onDisk: false }));
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /COVERAGE LOST/);
+    assert.match(out(r), /a delegation it cannot follow is a surface it cannot see/);
+  });
+
   test('a surface mentioned only in a COMMENT does not count — a declaration is not a call', () => {
     const r = run(fixture({ brickLib: '// AboutListTile( goes here one day\nWidget b() => const ListTile();\n' }));
     assert.equal(r.status, 1);
