@@ -149,6 +149,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node tooling/ci/assert-alert-disposition.mjs
+      - name: No workflow or register names a repository that no longer exists
+        run: node tooling/ci/assert-no-dead-repo-names.mjs
       - name: Every pinned input is reached by a live update manager
         run: node tooling/ci/assert-update-coverage.mjs
       - name: Every store the portfolio holds has a declared retention rule

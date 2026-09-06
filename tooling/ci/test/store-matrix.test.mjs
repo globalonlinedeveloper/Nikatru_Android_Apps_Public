@@ -221,7 +221,13 @@ describe('assert-store-matrix — positive controls', () => {
       // guard's business and would mean it had quietly stopped looking.
       assert.ok(r.code === 0 || r.code === 1, `expected 0 or 1, got ${r.code}\n${r.out}`);
       assert.match(r.out, /tree limb: RAN against/);
-      assert.match(r.out, /across 2 slot path\(s\)/);
+      // 1 slot path since 2026-09-06, 2 before it. The Chrome_Web_Store path held
+      // Nikatru_Extensions_{Public,Private}; both were merged into this repository's
+      // extensions/ subtree on 2026-09-05 under [ADR 067] decision 1, deleted on GitHub,
+      // and their local directories moved to Projects/_archived-2026-09-05/. The number
+      // is asserted, rather than merely "RAN", so that a walk which reached the anchor
+      // and then found NOTHING cannot satisfy this branch.
+      assert.match(r.out, /across 1 slot path\(s\)/);
     } else {
       assert.equal(r.code, 2, r.out);
       assert.match(r.out, /COVERAGE LOST/);

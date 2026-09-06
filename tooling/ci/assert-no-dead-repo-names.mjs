@@ -42,13 +42,15 @@
 //
 // ── FLOORS ───────────────────────────────────────────────────────────────────
 // A walk that matches nothing because it walked nothing reads exactly like a
-// pass. `floors.files` and `floors.repos` make that state exit 2 CANNOT RUN.
+// pass. `floors.files` and `floors.repos` make that state exit 2 COVERAGE LOST -
+// the house meaning of 2: the guard did not check enough to be evidence, which is
+// deliberately NOT a pass, and must never be read as one.
 //
 // Usage:  node tooling/ci/assert-no-dead-repo-names.mjs [repoRoot]
 // Exit 0 = no live surface names a dead repository.
 //      1 = at least one does. Every hit is printed with file, line and the
 //          replacement the data file declares.
-//      2 = CANNOT RUN — the declaration is unreadable, or a floor was not met.
+//      2 = COVERAGE LOST — the declaration is unreadable, or a floor was not met.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
@@ -63,26 +65,26 @@ const die = (code, lines) => { for (const l of lines) console.error(l); process.
 // ── 1. the declaration ───────────────────────────────────────────────────────
 const declPath = join(ROOT, DECL_REL);
 if (!existsSync(declPath)) {
-  die(2, [`✗ CANNOT RUN — ${DECL_REL} does not exist. This guard is a reader of that file; without it there is no list of dead names and a green run would mean nothing.`]);
+  die(2, [`✗ COVERAGE LOST — ${DECL_REL} does not exist. This guard is a reader of that file; without it there is no list of dead names and a green run would mean nothing.`]);
 }
 let decl;
 try {
   decl = JSON.parse(readFileSync(declPath, 'utf8'));
 } catch (e) {
-  die(2, [`✗ CANNOT RUN — ${DECL_REL} is not readable JSON: ${e.message}`]);
+  die(2, [`✗ COVERAGE LOST — ${DECL_REL} is not readable JSON: ${e.message}`]);
 }
 
 const repos = Array.isArray(decl.repos) ? decl.repos : null;
-if (!repos) die(2, [`✗ CANNOT RUN — ${DECL_REL} has no \`repos\` ARRAY.`]);
+if (!repos) die(2, [`✗ COVERAGE LOST — ${DECL_REL} has no \`repos\` ARRAY.`]);
 for (const [i, r] of repos.entries()) {
   for (const k of ['name', 'died', 'wentTo']) {
     if (typeof r?.[k] !== 'string' || !r[k].trim()) {
-      die(2, [`✗ CANNOT RUN — repos[${i}]: \`${k}\` is missing or empty. A dead name without a date and a destination is a complaint, not a declaration: the guard could refuse a reference without being able to say what to write instead.`]);
+      die(2, [`✗ COVERAGE LOST — repos[${i}]: \`${k}\` is missing or empty. A dead name without a date and a destination is a complaint, not a declaration: the guard could refuse a reference without being able to say what to write instead.`]);
     }
   }
 }
 const globs = Array.isArray(decl.scan?.globs) ? decl.scan.globs : null;
-if (!globs || globs.length === 0) die(2, [`✗ CANNOT RUN — ${DECL_REL} declares no \`scan.globs\`. An empty scan set is a guard with no subject.`]);
+if (!globs || globs.length === 0) die(2, [`✗ COVERAGE LOST — ${DECL_REL} declares no \`scan.globs\`. An empty scan set is a guard with no subject.`]);
 
 const excluded = Array.isArray(decl.excludedPaths) ? decl.excludedPaths : [];
 const allowedSuffixes = Array.isArray(decl.allowedSuffixes) ? decl.allowedSuffixes : [];
@@ -170,7 +172,7 @@ if (files.length < FLOOR_FILES) floorFailures.push(`${files.length} file(s) scan
 if (repos.length < FLOOR_REPOS) floorFailures.push(`${repos.length} dead repo name(s) declared, floor ${FLOOR_REPOS}`);
 if (floorFailures.length) {
   die(2, [
-    '✗ CANNOT RUN — the scan did not prove it still scanned:',
+    '✗ COVERAGE LOST — the scan did not prove it still scanned:',
     ...floorFailures.map((f) => `    ${f}`),
     '  A walk that matches nothing because it walked nothing reads exactly like a pass.',
   ]);

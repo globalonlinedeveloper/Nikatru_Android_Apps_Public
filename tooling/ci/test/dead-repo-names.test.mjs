@@ -151,34 +151,34 @@ describe('assert-no-dead-repo-names — the mutations', () => {
 });
 
 describe('assert-no-dead-repo-names — it cannot be silenced quietly', () => {
-  test('emptying the dead list is CANNOT RUN (2), not a pass', () => {
+  test('emptying the dead list is COVERAGE LOST (2), not a pass', () => {
     seed({ ...DECL, repos: [] });
     const { code, out } = run();
     assert.equal(code, 2, `an empty list must refuse, not pass:\n${out}`);
-    assert.match(out, /CANNOT RUN/);
+    assert.match(out, /COVERAGE LOST/);
   });
 
-  test('emptying the scan set is CANNOT RUN (2), not a pass', () => {
+  test('emptying the scan set is COVERAGE LOST (2), not a pass', () => {
     seed({ ...DECL, scan: { globs: [] } });
     const { code, out } = run();
     assert.equal(code, 2, `a guard with no subject must refuse:\n${out}`);
-    assert.match(out, /no subject|CANNOT RUN/);
+    assert.match(out, /no subject|COVERAGE LOST/);
   });
 
-  test('a row with no `wentTo` is CANNOT RUN (2) — a refusal must name the replacement', () => {
+  test('a row with no `wentTo` is COVERAGE LOST (2) — a refusal must name the replacement', () => {
     seed({ ...DECL, repos: [{ name: 'Nikatru_Extensions_Public', died: '2026-09-05' }, ...DECL.repos.slice(1)] });
     const { code, out } = run();
     assert.equal(code, 2);
     assert.match(out, /wentTo/);
   });
 
-  test('a missing declaration file is CANNOT RUN (2)', () => {
+  test('a missing declaration file is COVERAGE LOST (2)', () => {
     seed();
     rmSync(join(root, 'tooling/dead-repos.json'));
     assert.equal(run().code, 2);
   });
 
-  test('dropping the file floor below what the tree holds is CANNOT RUN (2)', () => {
+  test('dropping the file floor below what the tree holds is COVERAGE LOST (2)', () => {
     seed({ ...DECL, floors: { files: 999, repos: 3 } });
     const { code, out } = run();
     assert.equal(code, 2);
