@@ -92,9 +92,19 @@ function tree(app, { backend = false, mutate = null, platform = platformConfig()
   const appDir = join(root, 'apps', app);
   const coreDir = join(appDir, 'lib', 'core');
   mkdirSync(coreDir, { recursive: true });
+  // ⏱ ENTRY POINTS ADDED 2026-09-06. The cron limb's subject set is directories
+  // under `services/` that carry a `src/index.ts`, because [ADR 067] decision 2
+  // added `services/_shared/` — the one home of the Worker chassis, inlined into
+  // its carriers' bundles by esbuild and deployed by nothing, so it has no
+  // wrangler.jsonc and never will. A fixture whose "Workers" have no entry point
+  // models a tree that cannot exist, and would leave the limb's subject set
+  // EMPTY — which its own COVERAGE LOST floor correctly refuses. The FIXTURES
+  // are corrected, not the guard: these are Workers, so they have entry points.
+  const workerEntry = 'export default { fetch() { return new Response("ok"); } };\n';
   if (platform !== null) {
-    mkdirSync(join(root, 'services', 'platform'), { recursive: true });
+    mkdirSync(join(root, 'services', 'platform', 'src'), { recursive: true });
     writeFileSync(join(root, 'services', 'platform', 'wrangler.jsonc'), platform);
+    writeFileSync(join(root, 'services', 'platform', 'src', 'index.ts'), workerEntry);
   }
 
   const host = backend ? `https://api-${app}.nikatru.com` : 'https://platform.nikatru.com';
@@ -117,6 +127,16 @@ function tree(app, { backend = false, mutate = null, platform = platformConfig()
       const p = join(root, rel);
       mkdirSync(dirname(p), { recursive: true });
       writeFileSync(p, body);
+      // A fixture that writes a `services/<x>/wrangler.jsonc` is declaring a
+      // deployed Worker, and since 2026-09-06 a deployed Worker is a directory
+      // with an entry point (see the block above). Written here rather than at
+      // twenty call sites so no case can forget it and silently drop out of the
+      // cron limb's subject set — which would turn a red case green.
+      const m = /^services\/([^/]+)\/wrangler\.jsonc$/.exec(rel.replaceAll('\\', '/'));
+      if (m) {
+        mkdirSync(join(root, 'services', m[1], 'src'), { recursive: true });
+        writeFileSync(join(root, 'services', m[1], 'src', 'index.ts'), workerEntry);
+      }
     },
     setConfig: (body) => writeFileSync(join(coreDir, 'app_config.dart'), body),
   };
@@ -471,12 +491,45 @@ describe('[S-6] cron triggers are portfolio-wide, so they live in ONE Worker', (
   });
 
   // ── coverage: the scan must prove it reached the tree it claims to police ──
-  test('COVERAGE LOST when a services/ directory carries no wrangler.jsonc', () => {
-    const root = tree('demo', { mutate: (t) => t.write('services/other-api/README.md', 'no config here\n') });
+  test('COVERAGE LOST when a DEPLOYED Worker carries no wrangler.jsonc', () => {
+    // ⏱ 2026-09-06: the fixture now gives `other-api` an ENTRY POINT, which is
+    // what makes it a deployed Worker and therefore owed a config. Before this
+    // it was a bare directory, and the limb's rule was "any directory under
+    // services/" — a rule [ADR 067] decision 2 falsified by adding
+    // `services/_shared/`. The property under test is unchanged: a Worker whose
+    // config the scan cannot read is COVERAGE LOST, not a pass.
+    const root = tree('demo', {
+      mutate: (t) => {
+        t.write('services/other-api/README.md', 'no config here\n');
+        t.write('services/other-api/src/index.ts', 'export default {};\n');
+      },
+    });
     const r = run(root, '--client', 'demo');
     assert.equal(r.status, 1, r.stdout);
     assert.match(r.stderr, /COVERAGE LOST/);
     assert.match(r.stderr, /services\/other-api\/wrangler\.jsonc — the directory exists but carries no wrangler\.jsonc/);
+  });
+
+  // 🔴 THE POSITIVE CONTROL FOR THE NARROWING, AND THE CASE THAT REDDENED CI.
+  // `services/_shared/` is the one home of the Worker chassis: both Workers and
+  // the brick's Worker template reach it by a relative import that esbuild
+  // inlines, and NOTHING deploys it — no entry point, no wrangler.jsonc, no
+  // deploy job. On 2026-09-06 this limb reported it as an unreadable Worker and
+  // failed the App-brick job. Without this case the narrowing that fixed it
+  // could be reverted and only a full CI run would notice.
+  test('a services/ directory with NO entry point is not a Worker and is not owed a config', () => {
+    const root = tree('demo', {
+      mutate: (t) => {
+        t.write('services/_shared/src/health.ts', 'export const READING_TTL_MS = 5000;\n');
+        t.write('services/_shared/src/auth.ts', "export const bearer = (a) => a.slice(7) || null;\n");
+      },
+    });
+    const r = run(root, '--client', 'demo');
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /_shared/);
+    // …and the limb still ran over the Worker that IS there, rather than being
+    // switched off: services/platform is named in the passing line.
+    assert.match(r.stdout, /no cron triggers outside services\/platform/);
   });
 
   test('COVERAGE LOST when the exempt home services/platform was never read', () => {

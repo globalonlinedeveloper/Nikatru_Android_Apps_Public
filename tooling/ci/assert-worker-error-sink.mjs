@@ -29,6 +29,17 @@
 //       Not "the file mentions it" — the call must be inside the handler, or
 //       the wire runs to a function nobody reaches.
 //   3 · Each service HAS the sink module, exporting `reportWorkerError`.
+//       🔴 AND IT FOLLOWS THE DELEGATION. Since [ADR 067] decision 2 the sink
+//       has ONE home at `services/_shared/src/error-sink.ts` and each carrier's
+//       `src/lib/error-sink.ts` is a five-line re-export of it. Every limb below
+//       reads the file that CARRIES THE BODY, resolved by
+//       `worker-shared-modules.mjs`. Measured 2026-09-06 rather than assumed:
+//       run against the moved tree, this guard's previous version reported four
+//       FAILs per Worker (`does not export reportWorkerError`, `performs no
+//       fetch`, `no server_name`, `no release`) — it went LOUDLY red rather than
+//       silently green, which is the good failure, and this is the repair.
+//       A carrier whose re-export cannot be followed is COVERAGE LOST, never a
+//       pass.
 //   4 · The release is not `API_VERSION`. That var is the literal "v1" in both
 //       Workers and has never changed; using it as a release id would put every
 //       error this factory ever reports into one bucket named after a URL
@@ -60,6 +71,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripSourceComments } from './text-reductions.mjs';
 import { listDir } from './tree-walk.mjs';
+import { workerModuleSource } from './worker-shared-modules.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -156,6 +168,10 @@ if (deployText === null) {
 }
 
 let wired = 0;
+/** How many carriers were judged at the shared home rather than in place. A
+ *  count, printed, so "every Worker delegates" and "no Worker delegates" are
+ *  distinguishable in the log rather than both reading as ok. */
+let delegated = 0;
 for (const name of workers) {
   const entryPath = `${SERVICES}/${name}/src/index.ts`;
   const entry = stripSourceComments(read(entryPath), '.ts');
@@ -184,32 +200,46 @@ for (const name of workers) {
     fail(`${sinkPath} does not exist, so \`${SINK_FN}\` in ${entryPath} resolves to nothing.`);
     problems++;
   } else {
-    const sink = stripSourceComments(read(sinkPath), '.ts');
+    // WHERE THE BODY IS. A carrier that wholly re-exports the shared home is
+    // judged at the home; anything else is judged where it stands. A delegation
+    // that cannot be followed is COVERAGE LOST, not a pass — see
+    // worker-shared-modules.mjs for the three answers and why they differ.
+    const resolved = workerModuleSource(ROOT, sinkPath);
+    if ('lost' in resolved) {
+      coverageLost(
+        `${resolved.lost}\n  Limbs 3 and 4 below decide whether this Worker's crash sink exists, POSTs, names ` +
+          'itself and carries a real release id. Reading the wrong file, or no file, would certify a sink ' +
+          'nobody checked.',
+      );
+    }
+    const sinkSubject = resolved.relPath;
+    if (resolved.delegated) delegated++;
+    const sink = stripSourceComments(resolved.source, '.ts');
     if (!new RegExp(`export\\s+(async\\s+)?function\\s+${SINK_FN}\\b`).test(sink)) {
-      fail(`${sinkPath} does not export \`${SINK_FN}\`.`);
+      fail(`${sinkSubject} does not export \`${SINK_FN}\`.`);
       problems++;
     }
     if (!/\bfetch\s*\(/.test(sink)) {
       fail(
-        `${sinkPath} performs no \`fetch\` — a sink that does not leave the isolate is a log line with more steps.`,
+        `${sinkSubject} performs no \`fetch\` — a sink that does not leave the isolate is a log line with more steps.`,
       );
       problems++;
     }
     if (!/\bserver_name\b/.test(sink)) {
       fail(
-        `${sinkPath}'s payload carries no \`server_name\`. Both Workers report into the same GlitchTip project, so ` +
+        `${sinkSubject}'s payload carries no \`server_name\`. Both Workers report into the same GlitchTip project, so ` +
           'a report that cannot say WHICH Worker produced it is a report nobody can act on.',
       );
       problems++;
     }
     // ── 4 · the release is not the constant ─────────────────────────────────
     if (!/\brelease\b/.test(sink)) {
-      fail(`${sinkPath}'s payload carries no \`release\`, so every error lands unattributed to a deploy.`);
+      fail(`${sinkSubject}'s payload carries no \`release\`, so every error lands unattributed to a deploy.`);
       problems++;
     }
     if (/\bAPI_VERSION\b/.test(sink)) {
       fail(
-        `${sinkPath} reads \`API_VERSION\`. That var is the literal "v1" in both Workers and has never changed, so ` +
+        `${sinkSubject} reads \`API_VERSION\`. That var is the literal "v1" in both Workers and has never changed, so ` +
           'using it as a release id groups every error this factory will ever report into one bucket named after a ' +
           'URL prefix — an attribution that cannot tell today\'s deploy from the one that introduced the bug. ' +
           'Until [9]R-2 lands a real release id, the release is the deployed SHA supplied as `--var RELEASE:`.',
@@ -251,7 +281,9 @@ for (const name of workers) {
 
 const summary =
   `worker error sink — ${wired}/${workers.length} Worker(s) report unhandled errors to a declared sink ` +
-  `(${workers.join(', ')}); behaviour is asserted by services/*/test/error-sink.test.ts`;
+  `(${workers.join(', ')}); ${delegated} of them judged at services/_shared/src/error-sink.ts, the one home ` +
+  `their src/lib/error-sink.ts re-exports ([ADR 067] decision 2); behaviour is asserted by ` +
+  'services/*/test/error-sink.test.ts';
 
 if (failed) {
   console.error(`\n${summary}`);

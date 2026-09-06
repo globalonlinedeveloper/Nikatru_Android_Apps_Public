@@ -305,14 +305,47 @@ if (envHits < FLOORS['worker-env']) {
 // wrangler config, so every one of them must contribute at least one surface.
 // That expectation is derived from the tree on each run — it cannot sit below
 // reality, because reality is what computes it.
+// 🔴 "EVERY DIRECTORY UNDER services/ IS A DEPLOYED WORKER" STOPPED BEING TRUE
+// ON 2026-09-06, AND THE GUARD SAID SO RATHER THAN DRIFTING. [ADR 067] decision
+// 2 added `services/_shared/`, the ONE HOME of the modules both Workers and the
+// brick's Worker template used to carry three times. It has no `src/index.ts`,
+// no `wrangler.jsonc` and no deploy job: it is inlined into its carriers'
+// bundles by esbuild (proven by `wrangler deploy --dry-run --outdir`, whose
+// sourcemaps name `services/_shared/src/health.ts` for both Workers). This guard
+// went RED on it — "read ZERO wrangler surfaces from 1 of 3 service(s)" — and
+// its own message says what to do: *teach this scan the new layout in the SAME
+// change; do not let the count speak for it.*
+//
+// The relationship is unchanged in substance and is now stated on the property
+// that actually decides it: a DEPLOYED WORKER is a directory with an ENTRY
+// POINT. That is the same derivation `.github/workflows/deploy-workers.yml`,
+// `assert-worker-error-sink.mjs` and `twinned-worker-modules.test.ts` use, so
+// the four cannot disagree about what a Worker is. Deleting a Worker's
+// `wrangler.jsonc` still fails here, which is finding #39's whole point; what no
+// longer fails is a shared source directory that was never deployed.
+//
+// ⚠️ AND THE NARROWING CARRIES ITS OWN FLOOR, because "a Worker is a directory
+// with src/index.ts" is exactly the kind of rule that can be satisfied by
+// nothing. Below MIN_DEPLOYED_WORKERS the relationship has been emptied rather
+// than met, and that is a failure, not a pass.
+const MIN_DEPLOYED_WORKERS = 2;
+const deployedWorkers = services.filter((s) => existsSync(join(svcRoot, s, 'src', 'index.ts')));
+
 if (services.length === 0) {
   problems.push(`COVERAGE LOST — no service directories under \`services/\`, so source (c)/(d) ranged over nothing. Every wrangler binding, ratelimit name and cron schedule in the repo would be invisible and this guard would still print ok.`);
+} else if (deployedWorkers.length < MIN_DEPLOYED_WORKERS) {
+  problems.push(
+    `COVERAGE LOST — ${deployedWorkers.length} of ${services.length} directory(ies) under \`services/\` carry a ` +
+      `\`src/index.ts\`, fewer than the ${MIN_DEPLOYED_WORKERS} deployed Workers that exist today. The wrangler ` +
+      'relationship below ranges over exactly that set, so an emptied one would certify every vendor claim ' +
+      'against no Worker at all.',
+  );
 } else {
-  const blind = [...wranglerPerService.entries()].filter(([, n]) => n === 0).map(([s]) => s);
+  const blind = deployedWorkers.filter((s) => (wranglerPerService.get(s) ?? 0) === 0);
   if (blind.length) {
     problems.push(
-      `COVERAGE LOST — source (c)/(d) read ZERO wrangler surfaces from ${blind.length} of ${services.length} service(s): ${blind.map((s) => `services/${s}`).join(', ')}. ` +
-        `Each directory under \`services/\` is a deployed Worker and must contribute at least one binding, \`ratelimits[].name\` or cron. ` +
+      `COVERAGE LOST — source (c)/(d) read ZERO wrangler surfaces from ${blind.length} of ${deployedWorkers.length} deployed Worker(s): ${blind.map((s) => `services/${s}`).join(', ')}. ` +
+        `Each directory under \`services/\` that carries a \`src/index.ts\` is a deployed Worker and must contribute at least one binding, \`ratelimits[].name\` or cron. ` +
         `This scan reads exactly one filename — \`${WRANGLER}\` — so a config renamed, moved or deleted takes that Worker's whole external surface with it while the remaining service carries the total. ` +
         `If the layout genuinely changed, teach this scan the new one in the SAME change; do not let the count speak for it.`,
     );

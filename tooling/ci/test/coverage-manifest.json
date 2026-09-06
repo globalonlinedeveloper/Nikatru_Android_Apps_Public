@@ -32,7 +32,7 @@
   "chassis-delegation.test.mjs": 47,
   "chassis-ledger.test.mjs": 21,
   "chrome-splice.test.mjs": 26,
-  "clone-contract.test.mjs": 34,
+  "clone-contract.test.mjs": 35,
   "config-registry.test.mjs": 59,
   "consent-anon-id.test.mjs": 12,
   "consent-withdrawal-surface.test.mjs": 43,
@@ -158,6 +158,7 @@
   "windows-signing.test.mjs": 73,
   "windows-store-submission.test.mjs": 20,
   "worker-error-sink.test.mjs": 18,
+  "worker-shared-modules.test.mjs": 13,
   "workflow-scan.test.mjs": 16,
   "xcode-floor.test.mjs": 19
 }

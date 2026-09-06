@@ -385,11 +385,35 @@ if (backendApp) {
 // at the stamp would miss a cron added to subly-api by hand.
 const CRON_HOME = 'platform';
 {
+  // 🔴 A DEPLOYED WORKER IS A DIRECTORY WITH AN ENTRY POINT, NOT ANY DIRECTORY
+  // UNDER services/. NARROWED 2026-09-06, and it was measured in CI rather than
+  // predicted: [ADR 067] decision 2 added `services/_shared/`, the ONE HOME of
+  // the modules both Workers and the brick's Worker template used to carry three
+  // times. It is inlined into its carriers' bundles by esbuild (proven by
+  // `wrangler deploy --dry-run --outdir`, whose sourcemaps name
+  // `services/_shared/src/health.ts` for both) and is deployed by nothing, so it
+  // has no `wrangler.jsonc` and never will. This limb reported
+  //
+  //   ✗ COVERAGE LOST — services/_shared/wrangler.jsonc — the directory exists
+  //     but carries no wrangler.jsonc.
+  //
+  // …which is the limb WORKING: it refused rather than passing over a directory
+  // it could not read. What it needed was the new layout, in the same change.
+  //
+  // The relationship is unchanged in substance — every DEPLOYED Worker must
+  // yield a parsed config, and a config that is renamed, moved or deleted is
+  // still loud. `src/index.ts` is the same derivation
+  // `.github/workflows/deploy-workers.yml`, `assert-worker-error-sink.mjs`,
+  // `assert-vendor-portability.mjs` and `twinned-worker-modules.test.ts` use, so
+  // the five cannot disagree about what a Worker is. The `CRON_HOME` floor two
+  // limbs below is what stops the narrowing being satisfied by nothing: if the
+  // filter ever stops finding `services/platform`, this limb fails.
   let dirs = null;
   try {
     dirs = listDir('services', { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
+      .filter((name) => existsSync(`services/${name}/src/index.ts`))
       .sort();
   } catch {
     /* reported immediately below */

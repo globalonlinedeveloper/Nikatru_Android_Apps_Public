@@ -48,6 +48,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listDir } from './tree-walk.mjs';
+import { stripSourceComments } from './text-reductions.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 const REGISTER = join(ROOT, 'tooling', 'platform-register.json');
@@ -636,7 +637,33 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
         problems.push(`${k} — client file \`${cf}\` does not exist on disk.`);
         continue;
       }
-      const src = stripComments(readFileSync(join(ROOT, cf), 'utf8'));
+      // 🔴 STRIP IN THE LANGUAGE OF THE FILE. CORRECTED 2026-09-06, AND IT HAD
+      // BEEN GREEN FOR THE WRONG REASON.
+      //
+      // `stripComments` above is a TS/Dart stripper: it blanks from `//` to the
+      // end of the line. A client file may be a WORKFLOW, and a workflow's
+      // comment marker is `#` — while `//` appears inside every `https://` URL
+      // it names. The only thing that kept `https://api.nikatru.com/v1/health`
+      // readable in `.github/workflows/deploy-workers.yml` was the file's QUOTE
+      // PARITY: an odd number of `'` before that line made the stripper believe
+      // it was inside a string literal and copy it through.
+      //
+      // MEASURED, not deduced. On 2026-09-06 this unit stripped that workflow's
+      // prose into `docs/ci/deploy-workers.md`, which changed the quote parity
+      // and nothing else that matters here. The same `--url` argument, on the
+      // same step, in the same job:
+      //     stripComments(origin/main copy)  → contains the URL: true
+      //     stripComments(this branch)       → contains the URL: false
+      // The guard reported "client expression … does not appear once comments
+      // are stripped" on a workflow that plainly calls the route. The evidence
+      // for "something calls this route" was resting on an accident.
+      //
+      // `stripSourceComments` from text-reductions.mjs is the ONE reduction that
+      // knows extensions; it blanks `#` comments for `.yml`/`.yaml` and leaves
+      // `//` alone there. Nothing is weakened: a `#` comment in a workflow is
+      // still not evidence, which is the whole point of stripping at all.
+      const clientText = readFileSync(join(ROOT, cf), 'utf8');
+      const src = /\.ya?ml$/.test(cf) ? stripSourceComments(clientText, '.yml') : stripComments(clientText);
       if (!src.includes(c.expression)) {
         problems.push(
           `${k} — client expression \`${c.expression}\` does not appear in \`${cf}\` once comments are stripped. ` +

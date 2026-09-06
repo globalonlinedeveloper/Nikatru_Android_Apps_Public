@@ -21,5 +21,5 @@
   // than an untyped side effect of the import; the CATALOGUE is deliberately NOT
   // listed — it lives outside this package and is pulled in by the import alone,
   // so this tsconfig never claims ownership of a public file it does not write.
-  "include": ["src/**/*.ts", "src/**/*.json", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.json", "test/**/*.ts", "../_shared/src/**/*.ts"]
 }

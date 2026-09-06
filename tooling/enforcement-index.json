@@ -475,6 +475,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "O-7"
     ],
     "invokedBy": [
@@ -1693,8 +1694,8 @@
   },
   {
     "claims": [
+      "ADR 067",
       "E-8",
-      "R-1",
       "R-2"
     ],
     "invokedBy": [
@@ -1942,6 +1943,16 @@
     "ref": "tooling/ci/windows-signing.mjs",
     "references": [],
     "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 067"
+    ],
+    "invokedBy": [],
+    "kind": "guard",
+    "ref": "tooling/ci/worker-shared-modules.mjs",
+    "references": [],
+    "state": "LIBRARY"
   },
   {
     "claims": [],
