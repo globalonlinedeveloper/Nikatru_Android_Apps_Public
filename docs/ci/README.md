@@ -206,6 +206,8 @@ Recorded so a change to any of them is a deliberate act:
 | `allowed_actions` | `selected` + a named allowlist | GitHub now enforces natively what `assert-workflow-hardening.mjs` enforced alone. The allowlist is GitHub-owned + verified creators + `subosito/flutter-action`, `cloudflare/wrangler-action`, `nanasess/setup-chromedriver`, `dorny/paths-filter`, `renovatebot/github-action` — the five third-party actions the tree actually uses. |
 | `sha_pinning_required` | **false, and it cannot be true** | GitHub applies it to actions nested inside an action you use, and `subosito/flutter-action` references `actions/cache@v5`. See §7.1 — this is measured, twice, not a preference. |
 | `delete_branch_on_merge` | true | |
+| `allow_auto_merge` | **true** (was `false` until 2026-09-07) | `site-drift-repair.yml` arms `gh pr merge --auto --squash` on the repair pull request it opens, which is the half that stops main sitting red until a human merges it. `--auto` queues *behind* `ci-gate`, so this grants nothing branch protection did not already gate. Renovate's `automergeType: "pr"` uses the same setting. |
+| `Allow GitHub Actions to create and approve pull requests` | true | `can_approve_pull_request_reviews`. Necessary for `site-drift-repair.yml` and **not sufficient** — see §7.4. |
 
 ### 7.1 `sha_pinning_required` cannot be turned on while flutter-action is used
 
@@ -357,6 +359,42 @@ Flutter code and CodeQL ships no Dart support, so `apps/` and `packages/` are
 outside that lane by construction — not by an omission anyone can close by adding
 a language to the matrix. Dart is covered by `melos run analyze` and the
 `apps/subly` format gate in `workspace-gate`.
+
+### 7.4 A pull request opened with `GITHUB_TOKEN` starts no checks, so it cannot self-merge
+
+Added 2026-09-07, and it is the rule any future "let the workflow open the fix" lane has to obey.
+
+`site-drift-repair.yml` is the only workflow here that opens a pull request meant to **merge**
+rather than be read. Turning *"Allow GitHub Actions to create and approve pull requests"* on
+(2026-09-06) made it open one — **#513** — and main stayed red anyway, because of a GitHub property
+that no permission changes:
+
+> *When you use the repository's `GITHUB_TOKEN` to perform tasks, events triggered by the
+> `GITHUB_TOKEN` will not create a new workflow run.*
+
+So #513's checks never started, `ci-gate` sat *Expected*, and the required check could only be
+satisfied by a human pressing *Approve and run* — measured at 19:58:00Z (opened by
+`app/github-actions`) → 20:05:46Z (run triggered by `globalonlinedeveloper`).
+
+**The fix is the actor, not the scope.** That workflow's `gh` calls now authenticate as
+`RENOVATE_TOKEN`, the classic PAT `renovate.yml` already uses, so the `pull_request` event is
+attributed to a real account and `ci.yml` runs on it unprompted. Its `GITHUB_TOKEN` correspondingly
+**gave up `pull-requests: write`** — it pushes the branch and nothing else.
+
+Three things that follow, and are easy to get wrong:
+
+- **`--auto` is not a bypass.** It queues the squash behind the required check. Branch protection is
+  untouched (`ci-gate`, strict, `enforce_admins: true`), so a red gate leaves the pull request open
+  for a person, which is the same ending the manual arrangement had.
+- **The secret is checked where it is used and its absence is RED.** The step branches on
+  `RENOVATE_TOKEN` being empty and `exit 1`s with the secret's name, printing and uploading the
+  computed patch first — §4's rule, and `assert-green-means-ran.mjs` section B is what enforces it.
+- **An automatic merge loop needs a ceiling in the shell, not only in an argument.** The repair is
+  provably a fixed point after at most two rounds; the step counts consecutive
+  `sites: regenerate the discovery surface` commits at the tip of `main` and refuses to open a third,
+  because a generator that does not converge must go red rather than merge for ever.
+  `docs/ci/site-drift-repair.md` carries the measurement and why a plain self-skip would be the
+  wrong guard.
 
 ## 8. Dependency updates
 

@@ -84,6 +84,24 @@ round moves no <lastmod> at all and the next run finds nothing to do.
 🔴 DO NOT WIDEN THIS JOB to write anything whose own git date the sitemap
 quotes on a longer cycle. That is the edit that would make it self-perpetuating.
 
+📌 APPENDED 2026-09-07 — THAT ARGUMENT IS NOW ALSO A CEILING IN THE SHELL. The
+paragraph above stays exactly as it was measured; what changed underneath it is
+that the pull request MERGES ITSELF (see "HOW THE LOOP CLOSES" below), so
+"bounded by an argument" and "bounded by a human who would notice the third
+one" stopped being the same sentence. `Propose the repair` now counts the
+consecutive commits at the tip of main whose subject starts
+`sites: regenerate the discovery surface` and REFUSES to open a pull request at
+the third — printing the patch and exiting 1 instead.
+
+⛔ A PLAIN SELF-SKIP — "if the pushed commit is a repair commit, do nothing" —
+IS THE WRONG GUARD HERE AND WAS DELIBERATELY NOT WRITTEN. The cross-day case in
+the paragraph above is a repair push that LEGITIMATELY owes one more
+sitemap-only round; skipping it leaves main red with nothing coming, which is
+the exact state this workflow exists to end. The ceiling is 2 because the
+argument above bounds the fixed point at 2, and a THIRD consecutive repair
+commit that still leaves drift is not a repair — it is a generator that does not
+converge, and it must go red rather than merge pull requests for ever.
+
 ── 🔴 THE REDDENING MUTATION FOR THIS FILE, RECORDED AT THE SITE ───────────
 NO NEW ASSERTION SHIPS HERE. The only new claim is "this workflow exists and
 runs the generator on main", and its mutation is mechanical: DELETE THIS FILE.
@@ -125,6 +143,79 @@ stub returning GitHub's refusal string verbatim: DELETE the `exit 1` and the
 refused run exits 0 — green over a repair nobody was told about. Unmutated it
 exits 1. A stub failing 503 instead also exits 1, on the generic limb.
 
+── 📌 APPENDED 2026-09-07 — HOW THE LOOP CLOSES, AND WHAT IT COST TO CLOSE ──
+
+**THE DEFECT THIS CLOSES, MEASURED THREE TIMES IN 24 HOURS.** Every squash merge
+of a pull request that touched a `sites/` page on a day later than its sitemap
+was generated landed on main with a one-day `<lastmod>` drift, and main went RED
+on the `sites` lane AND on the generator-freshness case in `guard-meta`:
+`39e3b3e1`, `a798985c`, and the run that opened **#513**. At `a798985c` the
+measurement was
+`sites/nikatru/sitemap.xml` giving `https://nikatru.com/subly/privacy`
+lastmod **2026-09-06** against a page `git log -1 --date=short` puts at
+**2026-09-07** — the merge happened at 01:27 +0530, past the runner's UTC
+midnight.
+
+**WHY THE 2026-08-26 AUTOMATION STILL LEFT MAIN RED.** The repository setting
+*"Allow GitHub Actions to create and approve pull requests"* went ON, so from
+2026-09-06 this workflow really did open the pull request itself (#513, author
+`app/github-actions`, created 19:58:00Z). It changed nothing about how long main
+stayed red, because **a pull request opened with `GITHUB_TOKEN` triggers no
+workflow runs.** #513's checks did not start; `ci-gate` sat *Expected*; a human
+had to press *Approve and run* — measured on the run GitHub attributes to
+`globalonlinedeveloper` at **20:05:46Z**, seven minutes and forty-six seconds
+of red that no machine was going to end. That is a documented GitHub property,
+not a permission that can be granted: *"When you use the repository's
+GITHUB_TOKEN to perform tasks, events triggered by the GITHUB_TOKEN will not
+create a new workflow run."*
+
+**THE TWO HALVES THAT CLOSE IT.**
+
+1. `gh pr create` and `gh pr merge --auto --squash` now run as **`RENOVATE_TOKEN`**
+   — the classic PAT with `repo` scope that `renovate.yml` already uses. A PAT is
+   a real actor, so the repair pull request's `pull_request` event fires `ci.yml`
+   and its checks RUN without anyone approving them.
+2. The repository setting **`allow_auto_merge`** was `false` and is now `true`
+   (`gh api -X PATCH repos/globalonlinedeveloper/Nikatru_Platform_Public -F
+   allow_auto_merge=true`, 2026-09-07; the whole repository object was diffed
+   before and after and `allow_auto_merge` is the only field that moved —
+   TRAPS `ci-10`). It is recorded in `README.md` §7 with the other settings CI
+   depends on.
+
+**BRANCH PROTECTION IS UNCHANGED, AND THAT IS THE SAFETY PROPERTY.**
+`contexts: ["ci-gate"]`, `strict: true`, `enforce_admins: true`,
+`required_approving_review_count: 0` — re-read 2026-09-07, identical. `--auto`
+queues the squash *behind* `ci-gate`; a red gate simply never fires it and the
+pull request sits open for a person to read. Nothing here can merge anything the
+gate has not passed, and nothing here writes to `main` directly.
+
+**SO A RED MAIN AFTER A `sites/` MERGE NOW SELF-HEALS WITHIN ONE CI CYCLE.**
+push to main → this workflow regenerates → a branch, a pull request, auto-merge
+armed → `ci.yml` runs on the pull request → `ci-gate` green → GitHub squashes it
+→ main green, and the next run of this workflow finds the surface byte-identical
+and exits 0 by the no-drift path. Expected duration, end to end, is one CI cycle
+— **C-EXPECTED-DURATION**: if main is still red on the `sites` lane one full
+cycle after a `sites/` merge, the thing to read is this workflow's run for that
+push, then the repair pull request's `ci-gate`, then the `::error` annotation,
+which always names the cause and where the patch is.
+
+**⚠️ TWO RESIDUALS, STATED RATHER THAN HIDDEN.** (1) The Cloudflare window in the
+section above is UNCHANGED — the stale sitemap is live from the merge push until
+the repair merges, and only a push to protected `main` would take that to zero.
+(2) `strict: true` means the repair branch must be up to date with `main`;
+GitHub updates an auto-merge-enabled branch itself when protection requires it,
+and if it ever does not, the pull request waits and the NEXT push to main opens a
+fresh, already-current one. The `concurrency` group keeps those serialised.
+
+**THE REDDENING MUTATIONS FOR THIS ROUND**, against the step's own `run:` body
+with a `gh` stub: delete the `exit 1` under the `gh pr merge --auto` failure limb
+and a refusal exits 0 — green over a repair that will never merge; unmutated it
+exits 1 naming `allow_auto_merge`. Delete the `exit 1` under the empty-token limb
+and a run with `RENOVATE_TOKEN` unset exits 0 having proposed nothing; unmutated
+it exits 1 naming the secret — which is also
+`assert-green-means-ran.mjs` section B1, the guard that requires a
+secret-presence branch to end the job rather than skip it.
+
 ### above `concurrency:`
 
 deploy-workers.yml:24-25 and ops-watch.yml:36-37's shape, NOT ci.yml's. A run
@@ -142,10 +233,12 @@ where assert-workflow-hardening.mjs:255 says a write scope belongs.
 
 ### above `permissions:`
 
-THE NARROWEST SET THAT LETS THE REPAIR OUTLIVE ITS RUN, and each half is
-used by exactly one command: `contents: write` pushes the branch,
-`pull-requests: write` opens the pull request. Nothing here deploys, and
-nothing here writes to main.
+THE NARROWEST SET THAT LETS THE REPAIR OUTLIVE ITS RUN: `contents: write`
+pushes the branch, and that is now the whole set. 📌 2026-09-07 —
+`pull-requests: write` was REMOVED, not forgotten: every `gh` call in this job
+authenticates as `RENOVATE_TOKEN`, so `GITHUB_TOKEN` no longer opens or merges
+anything and a scope it cannot use is a scope it should not hold. Nothing here
+deploys, and nothing here writes to main.
 
 ## job `repair`
 
@@ -172,11 +265,19 @@ right. Measured this run: `grep -rn generate-discovery .github/workflows/
 package.json` matched NOTHING, so before this file no workflow in the
 repository had ever invoked the writer.
 
-### before step **Propose the repair (pull request)**
+### before step **Propose the repair, and arm it to merge itself on green**
+
+📌 Named `Propose the repair (pull request)` until 2026-09-07; the step now
+does the arming as well, and the name says so.
 
 NO `if:` GATE, for assert-green-means-ran.mjs's reason: a step that can
 be skipped is a capability that can go dark under a green tick. When
-there is genuinely nothing to repair that is REPORTED, not skipped.
+there is genuinely nothing to repair that is REPORTED, not skipped. The
+same rule is why the `RENOVATE_TOKEN` presence check EXITS 1 rather than
+setting an output for the rest of the step to skip on — section B of that
+guard is the one that caught e2e.yml doing exactly that — and why the
+check sits AFTER the no-drift exit: a missing credential must redden the
+run that needed it, not every push to main.
 
 ### before step **Preserve the computed repair**
 
