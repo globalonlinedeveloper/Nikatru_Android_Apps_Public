@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:nikatru_auth_supabase/nikatru_auth_supabase.dart';
+import 'package:nikatru_chassis_screens/shell/bootstrap.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
-import 'package:nikatru_design_system/nikatru_design_system.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nikatru_notifications/nikatru_notifications.dart';
 import 'package:nikatru_platform_storage/nikatru_platform_storage.dart';
@@ -11,30 +11,11 @@ import 'app.dart';
 import 'core/app_config.dart';
 import 'state/providers.dart';
 
+/// 🏗️ THE BOOT ORDER IS IN `package:nikatru_chassis_screens/shell/bootstrap.dart`
+/// ([ADR 067] decision 2). [bootstrapNikatru] owns the sequence and the reason
+/// for each step; this file supplies the four things a package that declares no
+/// third-party dependency cannot carry, and nothing else.
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔴 [pipeline K-10/K-11] THE LICENCE CONDITION EVERY STAMPED APP WAS
-  // BREACHING. The assets that ship in the bundle but that Flutter's NOTICES
-  // collector never sees — today the CC BY 4.0 Material Icons font, which
-  // arrives from the SDK artifact cache rather than as a Dart package.
-  // Measured: the shipped NOTICES has ZERO hits for its licence, so the font
-  // was distributed with its attribution condition UNMET, and an unmet CC BY
-  // condition means the licence does not apply. That is a breach at the first
-  // store submission, not untidiness.
-  //
-  // The shared half already existed and was tested
-  // (`packages/design_system/.../vendored_asset_licences.dart`); the brick
-  // simply never called it, so apps/subly was compliant and every app this
-  // factory stamps was not.
-  //
-  // Registered BEFORE `runApp` because `LicenseRegistry` is read lazily by
-  // `LicensePage` — the surface Settings offers below — and a registration
-  // that lands after a user has already opened that page shows them an
-  // incomplete list. It is idempotent, so a hot restart, a second call, or a
-  // stamped app that also calls it cannot stack duplicate entries.
-  registerVendoredAssetLicences();
-
   // Telemetry chassis: no DSN -> NoOp client (appRunner runs directly);
   // a GLITCHTIP_DSN via --dart-define enables GlitchTip/Sentry with PII
   // scrubbing. sentry_flutter is isolated inside packages/telemetry.
@@ -58,69 +39,16 @@ Future<void> main() async {
     dist: AppConfig.releaseChannel,
   );
 
-  await TelemetryBootstrap.init(
-    config,
-    appRunner: () async {
-      // [pipeline C-13] Replace Flutter's default build-error widget before the
-      // first frame. The default is the grey/yellow box in release and the red
-      // screen in debug; shipping either to a user looks like a broken app and
-      // leaks widget internals. One line at startup, impossible to retrofit across
-      // fifty shipped apps.
-      //
-      // The copy is the design system's own last-resort fallback: this runs
-      // before any BuildContext exists, so there is no Localizations to read,
-      // and an error during the FIRST build is exactly what this covers. See
-      // AppErrorScreen.fallbackTitle for why it cannot come from the app's ARB.
-      AppErrorScreen.install();
+  // ONE adapter, constructed here and `init()`ed once by bootstrapNikatru before
+  // the first frame — see its step 4 for why a second instance is a tap stream
+  // that is silent forever.
+  final core.NotificationService notifications = createLocalNotificationService();
 
-      // 🔴 [13]T-9 THE INBOUND HALF, AND THE ORDER IS LOAD-BEARING.
-      //
-      // ONE adapter, constructed once and `init()`ed once, HERE — before the
-      // first frame — and then handed to the tree as an override. Three things
-      // make that the whole wiring rather than a tidy-up:
-      //
-      //  1. `init()` is where the plugin's tap callback is registered
-      //     (`_plugin.initialize(_taps.add)`), and the taps are delivered on
-      //     THAT instance's own broadcast stream. A second instance — which is
-      //     exactly what `notificationServiceProvider`'s default body,
-      //     `createLocalNotificationService()`, builds — exposes a stream that is
-      //     silent forever. Working code, no error, no tap.
-      //  2. `FlutterLocalNotificationsPlugin()` is a process singleton, so the
-      //     LAST `initialize` call is the one whose callback survives. Doing it
-      //     here and overriding the provider means the reminder rail's own
-      //     `svc.init()` (RemindersEnabledController.resyncOnStart, from
-      //     AnalyticsGate's post-frame callback) hits `_initialized` and returns
-      //     early instead of re-pointing every future tap at a stream nobody
-      //     listens to.
-      //  3. A cold start FROM a notification is the case that cannot be fixed
-      //     later: the OS delivers it at launch, so the registration has to
-      //     already exist. A post-frame `init()` is too late by a frame.
-      //
-      // ⚠️ IT MUST NOT ASK FOR PERMISSION, and it does not: `init()` loads the
-      // timezone database and registers the callback, nothing else. The ask
-      // stays on the enable path (`applyReminderChoice`), because Android 13+
-      // turns a SECOND denial into USER_FIXED — permanently non-promptable — so
-      // a launch-time prompt can burn the channel for the life of the install.
-      // `tooling/ci/assert-stamp-properties.mjs` walks this boot path and fails
-      // the build if an ask ever appears on it.
-      final core.NotificationService notifications =
-          createLocalNotificationService();
-      await notifications.init();
-
-      // 🔴 [pipeline C-15 / G-43] (absent from origins.lock.json by construction — G-43 is a MASTER_PLAN §3 chassis-gap id, a different register from the pipeline ids; see Private/MASTER_PLAN.md) IDENTITY, BEFORE THE FIRST FRAME — and this
-      // call is the only thing that makes the identity --dart-defines work.
-      //
-      // Nothing in the brick used to initialise the SDK at all, while
-      // `authRepositoryProvider` returns the real `SupabaseAuthRepository` the
-      // moment SUPABASE_URL/SUPABASE_ANON_KEY are supplied — the exact
-      // configuration the stamped README tells the owner to use. The router
-      // resolves that provider through `refreshListenable` while it is being
-      // built, so the app died at LAUNCH on `Supabase.instance` (AssertionError
-      // in debug, LateInitializationError in release), before a screen rendered.
-      // It was invisible to every test because widget tests take no
-      // --dart-defines, so `isBackendLive` is false and the in-memory
-      // implementation is used.
-      //
+  await bootstrapNikatru(
+    notifications: notifications,
+    runGuarded: (Future<void> Function() appRunner) =>
+        TelemetryBootstrap.init(config, appRunner: appRunner),
+    initialiseIdentity: () async {
       // It goes through `initNikatruAuth` rather than `Supabase.initialize`
       // because that function is what passes the SecureStore-backed session
       // storage: the SDK's default writes the access AND refresh tokens as
@@ -138,23 +66,22 @@ Future<void> main() async {
           secureStore: FlutterSecureStore(),
         );
       }
-
-      runApp(
-        ProviderScope(
-          overrides: <Override>[
-            // THE INITIALISED INSTANCE, not a fresh one. The tap stream belongs
-            // to the object that registered with the OS; overriding with
-            // anything else — or not overriding at all — gives the app a
-            // `notificationTaps()` that is silent for the life of the process,
-            // and gives the reminder rail a second plugin registration that
-            // silently wins. ONE provider on purpose: the chassis has a single
-            // notification seam, so the tap source and the schedule target are
-            // the same object and cannot drift apart.
-            notificationServiceProvider.overrideWithValue(notifications),
-          ],
-          child: const {{app_id.pascalCase()}}App(),
-        ),
-      );
     },
+    run: () => runApp(
+      ProviderScope(
+        overrides: <Override>[
+          // THE INITIALISED INSTANCE, not a fresh one. The tap stream belongs
+          // to the object that registered with the OS; overriding with
+          // anything else — or not overriding at all — gives the app a
+          // `notificationTaps()` that is silent for the life of the process,
+          // and gives the reminder rail a second plugin registration that
+          // silently wins. ONE provider on purpose: the chassis has a single
+          // notification seam, so the tap source and the schedule target are
+          // the same object and cannot drift apart.
+          notificationServiceProvider.overrideWithValue(notifications),
+        ],
+        child: const {{app_id.pascalCase()}}App(),
+      ),
+    ),
   );
 }
