@@ -383,7 +383,7 @@ const importsFrom = (rel, src) => {
   // bytes. The stripped text answers "where am I", never "what does it say".
   //
   // ⬜ NAMED AND NOT CLOSED — this oracle is STRICTLY WEAKER than `codeMask` in
-  // assert-guard-coverage.mjs:1135, which is the repo's real answer to this
+  // assert-guard-coverage.mjs:1139, which is the repo's real answer to this
   // question and already carries its own canaries. `codeMask` also understands
   // TEMPLATE LITERALS, line/block comments mid-line, and regex literals; this
   // one knows only `'…'` and "…". A fixture written in backticks is therefore
@@ -453,7 +453,7 @@ const importsFrom = (rel, src) => {
   ]) {
     for (const m of code.matchAll(re)) {
       // The FIRST BYTE of the match, the idiom this repo already uses at
-      // assert-guard-coverage.mjs:1243 — a match that STARTS inside a literal is
+      // assert-guard-coverage.mjs:1247 — a match that STARTS inside a literal is
       // a shape being quoted, not one being imported.
       if (!isCode(m.index)) continue;
       if (!/\.(mjs|js)$/.test(m[1])) continue;

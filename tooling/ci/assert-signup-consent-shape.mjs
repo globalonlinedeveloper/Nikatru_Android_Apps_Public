@@ -47,6 +47,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { stripSourceComments } from './text-reductions.mjs';
+import { delegationOf as resolveChassisDelegation } from './chassis-delegation.mjs';
 
 const ROOT = resolve(process.argv[2] ?? process.cwd());
 
@@ -120,6 +121,47 @@ const ok = (m) => console.log(`ok   ${m}`);
 
 const read = (rel) => stripSourceComments(readFileSync(join(ROOT, rel), 'utf8'), '.dart');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE SURFACES ARE PINNED BY PATH *AND* BY FIELD NAME, SO A SCREEN THAT MOVES
+// INTO THE CHASSIS TAKES THE FLAG WITH IT.
+//
+// [ADR 067] decision 2 empties a brick screen into
+// `package:nikatru_chassis_screens` and leaves an adapter at the same path.
+// `bool _acceptedTerms = false;` then lives in the package, and limb 1 —
+// anchored on that declaration — would report "the consent flag this guard
+// checks is gone or renamed" about a tree where it is one import away and
+// correct. That failure is LOUD, so it is not the silent shape this repository
+// keeps paying for; but it is still a guard going red for being right, and it
+// would force the first spine unit to edit a DPDP/CPRA guard mid-move. The
+// stated goal of the delegation pass is that no spine unit edits a guard.
+//
+// So each surface is read as ITS OWN CODE PLUS the chassis file(s) it delegates
+// to, by the one shared rule in ./chassis-delegation.mjs — one import, one
+// level, the target on disk, AND the adapter actually referencing something the
+// target declares that the adapter does not declare itself. A delegation this
+// scan cannot follow is COVERAGE LOST, never silence.
+//
+// This only ever ADDS text, so every limb keeps its meaning: a surface that
+// really has no `_acceptedTerms` anywhere still fails limb 1, and a marketing
+// flag that gates the button still fails limb 3 wherever the gate is written.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A surface's comment-stripped code UNIONED with the chassis file(s) it
+ *  delegates to. `{ lost }` when the delegation cannot be followed. */
+function readWithDelegation(rel) {
+  const dg = resolveChassisDelegation(ROOT, rel, { describe: () => '' });
+  if (dg && dg.lost) return { lost: dg.lost };
+  const files = (dg && dg.files) || [];
+  let code = read(rel);
+  for (const f of files) {
+    if (!existsSync(join(ROOT, f))) {
+      return { lost: `delegates to \`${f}\`, which is not on disk, so the consent flag is asserted NOWHERE.` };
+    }
+    code += `\n${read(f)}`;
+  }
+  return { code, files };
+}
+
 let scanned = 0;
 let blocking = 0;
 
@@ -132,7 +174,18 @@ for (const s of SURFACES) {
     );
     continue;
   }
-  const code = read(s.file);
+  const scan = readWithDelegation(s.file);
+  if (scan.lost) {
+    problems.push(
+      `COVERAGE LOST — ${s.file} ${scan.lost} Limbs 1-3 read the surface PLUS whatever it delegates ` +
+        'to, so a delegation this scan cannot follow is a consent flag it cannot see.',
+    );
+    continue;
+  }
+  if (scan.files.length) {
+    console.log(`⬜ ${s.file} also read ${scan.files.length} chassis file(s) it delegates to — ${scan.files.join(', ')}`);
+  }
+  const code = scan.code;
   scanned++;
 
   // ── limb 1 · UNTICKED ─────────────────────────────────────────────────────

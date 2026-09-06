@@ -184,6 +184,7 @@ import { join, resolve } from 'node:path';
 
 import { stripSourceComments } from './text-reductions.mjs';
 import { listDir } from './tree-walk.mjs';
+import { delegationsUnderAbs as chassisDelegationsUnder } from './chassis-delegation.mjs';
 
 const ROOT = resolve(process.argv[2] ?? process.cwd());
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
@@ -286,7 +287,7 @@ const hasBusyGatedPopScope = (src) => {
  * Every anchor is a shape a bug cannot rename away: `PopScope`/`canPop`,
  * `onPressed`, `onConfirm` and `.text.isEmpty` are Flutter and Dart spellings,
  * not local identifiers. `onConfirm` in particular is already pinned across
- * this repo by `assert-stamp-properties.mjs:1042`, which anchors the literal
+ * this repo by `assert-stamp-properties.mjs:1043`, which anchors the literal
  * closure `onConfirm: () => _deleteAccount(` — verified at that line, not
  * quoted from the comment in the widget that cites it.
  *
@@ -344,6 +345,39 @@ const coverageLost = (lines) => {
 };
 
 /** Every .dart file under `dir`, comment-stripped and concatenated. */
+// ─────────────────────────────────────────────────────────────────────────────
+// DELEGATION — THE DELETION CONTROL FOLLOWS THE SCREEN INTO THE CHASSIS PACKAGE
+// (ADR 067 decision 2; the same resolver assert-a11y-coverage.mjs carries)
+//
+// [ADR 066] step 4 empties a brick screen into `package:nikatru_chassis_screens`
+// and leaves an ADAPTER at the same path: same file, same route, same class
+// name, and none of the body. The `.deleteAccount(` call site, the confirmation dialog and the re-authentication all move with the body, out of `lib/features/settings/` and into the package — and read at the adapter alone this guard reports that a shipping app has NO in-app deletion control, which is a store rejection claim about a tree that is perfectly compliant.
+//
+// So the scan below reads the adapter AND the chassis file it delegates to.
+// This only ever ADDS text: a call site that was found is still found, and one
+// that is genuinely absent is still absent. Nothing is removed from any domain
+// and no floor is lowered.
+//
+// ONE LEVEL, ONE IMPORT, EVERY REFUSAL LOUD. Two different chassis imports in
+// one adapter is ambiguous and refused; a target that is not on disk is
+// COVERAGE LOST. A delegation this resolver cannot follow must never read as
+// "no delegation" — that is the silent-pass shape.
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE RULE IS NOT WRITTEN OUT AGAIN HERE. It lives in
+// ./chassis-delegation.mjs — one import, one level, the target must be on
+// disk, AND THE ADAPTER MUST ACTUALLY USE SOMETHING THE TARGET DECLARES.
+// It shipped as eleven near-copies on 2026-09-05 and a review measured seven
+// distinct implementations of the same paragraph with nothing in the tree
+// comparing them; the module is that finding repaired, and the use check is
+// the half whose absence let ONE UNUSED IMPORT silence a DPDP withdrawal
+// control and a caps gate. `null` (no delegation) and `{ lost }` (one this
+// scan could not follow) stay DIFFERENT ANSWERS: everything below reports
+// `lost` as COVERAGE LOST and nothing reads it as "nothing to do".
+//
+// The ABSOLUTE-path face of it is `delegationsUnderAbs`, imported above and
+// exported by the module: it shipped here as one of THREE byte-identical
+// copies, which is the very defect the module exists to end.
+
 const readDartTree = (dir) => {
   const out = [];
   const walk = (d) => {
@@ -514,7 +548,26 @@ for (const root of roots) {
   }
   withAccounts++;
 
-  const settings = readDartTree(join(ROOT, root, SETTINGS_DIR));
+  const settingsAbs = join(ROOT, root, SETTINGS_DIR);
+  const delegated = chassisDelegationsUnder(settingsAbs, ROOT);
+  for (const why of delegated.lost) {
+    coverageLost([
+      `${root}: a settings file could not have its chassis delegation followed — ${why}.`,
+      'Every limb below reads the settings tree PLUS whatever it delegates to; a delegation this scan',
+      'cannot follow is a deletion control it cannot see, and an unseen control reads exactly like an',
+      'absent one — in a guard whose failure mode is a store rejection.',
+    ]);
+  }
+  let settings = readDartTree(settingsAbs);
+  if (delegated.files.length) {
+    settings += `\n${delegated.files
+      .map((f) => stripSourceComments(readFileSync(join(ROOT, f), 'utf8'), '.dart'))
+      .join('\n')}`;
+    notes.push(
+      `⬜ ${root}: the settings scan also read ${delegated.files.length} chassis file(s) it delegates ` +
+        `to — ${delegated.files.join(', ')}`,
+    );
+  }
   if (settings.trim().length === 0) {
     problems.push(
       `${root} offers accounts and has NO ${SETTINGS_DIR}/. Both stores' reviewers look for the deletion ` +
