@@ -542,31 +542,61 @@ function readSourceTree(dir) {
   return out;
 }
 
-async function queryD1(databaseId, job) {
+/**
+ * Read the newest `cron_heartbeat` rows for one job, optionally narrowed to ONE
+ * target.
+ *
+ * 🔴 EXPORTED 2026-09-06 SO A SECOND READER CAN IMPORT IT RATHER THAN COPY IT.
+ * `tooling/ci/assert-e2e-proof-fresh.mjs` now grades the nightly proof on this
+ * same table, and a second hand-written copy of this query is the shape this
+ * corpus keeps paying for: two transports drift, and the one that drifts is
+ * always the one nobody is looking at. There is ONE reader of `cron_heartbeat`
+ * over HTTP in this tree and this is it.
+ *
+ * ⚠️ `target` IS NOT A TIDYING PARAMETER — IT IS THE NARROWING THAT MAKES A
+ * PER-WORKFLOW VERDICT POSSIBLE. One job writes MANY targets: measured live
+ * 2026-09-06, job `github_dispatch` wrote `(dispatcher)` and
+ * `Nikatru_Platform_Public/ops-watch.yml` on all four daily firings and
+ * `Nikatru_Platform_Public/e2e.yml` on ONE of them (that target carries
+ * `everyHours: 20`). So the newest row for the JOB is an ops-watch row on three
+ * firings out of four, and a caller grading e2e's timer on it would be reading a
+ * healthy unrelated dispatch as proof that e2e was dispatched.
+ * `assert-ops-register.mjs` refuses a `recordQuery.timer` narrowed by neither
+ * `job` nor `target` for exactly this reason; this parameter is how a caller
+ * obeys it.
+ *
+ * Omitting `target` keeps the original behaviour byte for byte — the job-wide
+ * read `main()` below has always done — so this export widens nothing.
+ */
+export async function queryD1(databaseId, job, target = null) {
   const token = process.env.CLOUDFLARE_API_TOKEN;
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;
   if (!token || !account) {
     throw new Error('CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not both in the environment — cannot read the heartbeat table, so this fails closed');
   }
+  const narrowed = typeof target === 'string' && target.length > 0;
   const url = `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${databaseId}/query`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      sql: 'SELECT job, target, ok, detail, ran_at FROM cron_heartbeat WHERE job = ? ORDER BY ran_at DESC LIMIT 20',
-      params: [job],
+      sql: narrowed
+        ? 'SELECT job, target, ok, detail, ran_at FROM cron_heartbeat WHERE job = ? AND target = ? ORDER BY ran_at DESC LIMIT 20'
+        : 'SELECT job, target, ok, detail, ran_at FROM cron_heartbeat WHERE job = ? ORDER BY ran_at DESC LIMIT 20',
+      params: narrowed ? [job, target] : [job],
     }),
   });
-  if (!res.ok) throw new Error(`the D1 API returned ${res.status} for job ${job}`);
+  const what = narrowed ? `job ${job} target ${target}` : `job ${job}`;
+  if (!res.ok) throw new Error(`the D1 API returned ${res.status} for ${what}`);
   let body;
   try {
     body = await res.json();
   } catch (e) {
-    throw new Error(`the D1 API response for job ${job} was not JSON (${e.message})`);
+    throw new Error(`the D1 API response for ${what} was not JSON (${e.message})`);
   }
-  if (body?.success !== true) throw new Error(`the D1 API reported failure for job ${job}: ${JSON.stringify(body?.errors ?? body).slice(0, 300)}`);
+  if (body?.success !== true) throw new Error(`the D1 API reported failure for ${what}: ${JSON.stringify(body?.errors ?? body).slice(0, 300)}`);
   const rows = body?.result?.[0]?.results;
-  if (!Array.isArray(rows)) throw new Error(`the D1 API response for job ${job} carried no results array`);
+  if (!Array.isArray(rows)) throw new Error(`the D1 API response for ${what} carried no results array`);
   return rows;
 }
 

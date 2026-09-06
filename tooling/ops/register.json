@@ -907,7 +907,7 @@
         "anchor": ".github/workflows/e2e.yml",
         "record": "GitHub Actions run history + the reused issue titled 'Nightly E2E (live) is failing against production'",
         "failingValue": "conclusion = failure on event = schedule, which opens/comments the issue",
-        "readBy": "tooling/ci/assert-e2e-proof-fresh.mjs on every push — the newest SCHEDULED green run must be inside its derived window, and a workflow_dispatch deliberately does not satisfy it; plus the alert job in e2e.yml, whose issue is closed by a human because closing it IS the disposition",
+        "readBy": "tooling/ci/assert-e2e-proof-fresh.mjs on every push, and since 2026-09-06 it reads BOTH limbs of this recordQuery: the newest green run whose headBranch is main must be inside its derived window, AND so must the cron_heartbeat row for job github_dispatch, target Nikatru_Platform_Public/e2e.yml. It imports the D1 reader from tooling/ops/check-heartbeats.mjs rather than carrying a second copy of the query, and it re-reads this row on every run so the constants in the guard and the declaration here cannot drift apart. A workflow_dispatch now satisfies the OUTCOME limb — correct, because the Cloudflare Worker dispatches this workflow; what a hand-press cannot satisfy is the timer limb. Plus the alert job in e2e.yml, whose issue is closed by a human because closing it IS the disposition",
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "e2e.yml",
@@ -954,13 +954,36 @@
             "🔴 AND THIS ROW IS NOT THE ONLY READER OF THIS FACT. tooling/ci/assert-e2e-proof-fresh.mjs still",
             "still requires `event=schedule`. Its MAX_AGE_DAYS = 3 is NOT under an owner lock -- that was an INVERTED CITATION, corrected 2026-09-04. The lock is on the SIBLING assert-platform-proof-fresh.mjs's 14, whose own header says 'It is not DERIVED from the cron -- that is a standing owner lock'. This file's 3 is the opposite: DERIVED from e2e.yml's daily cron and machine-enforced by assertWatchedWorkflowIntact, which fails the build if that cron stops being daily. So what defers moving it is BLAST RADIUS on the repository's most safety-critical guard, NOT permission -- and the word 'locked' would have stopped a later reader from even asking. It is not",
             "blocking today (72h ceiling vs this row's 36h) and it is deliberately NOT moved in the same change —",
-            "but it stays a 72h dependency on a 10.1%-on-time scheduler, so PHASE 2 IS NOT FINISHED UNTIL IT MOVES."
+            "but it stays a 72h dependency on a 10.1%-on-time scheduler, so PHASE 2 IS NOT FINISHED UNTIL IT MOVES.",
+            "",
+            "✅ DONE 2026-09-06 — [ADR 067] phase 2, unit `e2e-proof-fresh-d1`. The four lines above are the dated record",
+            "of the deferral and are left standing; this is the correction BESIDE them, not instead of them.",
+            "THE SENTENCE \"still requires `event=schedule`\" IS NOW FALSE. tooling/ci/assert-e2e-proof-fresh.mjs greps 0 for",
+            "that filter and grades this row's TWO limbs: the run history narrowed to headBranch main, and the",
+            "cron_heartbeat row for job `github_dispatch` target `Nikatru_Platform_Public/e2e.yml` — narrowed by BOTH,",
+            "because the job alone would be vouched for by ops-watch, which the same job dispatches four times a day",
+            "against e2e.yml's one (measured live 2026-09-06). It reads D1 through the SAME reader ops-watch uses,",
+            "IMPORTED from tooling/ops/check-heartbeats.mjs, never copied, and it fails closed on every unreadable path",
+            "with exit 2 rather than 1: no token, a non-200, an answer that is not JSON, or no row at all is COVERAGE",
+            "LOST and never a pass. MAX_AGE_DAYS is UNCHANGED at 3 and still DERIVED from e2e.yml's daily cron, which",
+            "assertWatchedWorkflowIntact still enforces — so the `schedule:` slot this row keeps as its rollback is",
+            "load-bearing for the CEILING as well as for the rollback. The 72h dependency on a 10.1%-on-time scheduler",
+            "named above is discharged: the ceiling now measures a Cloudflare timer.",
+            "⛔ THIS DOES NOT CLOSE O-E2E-UNPROVEN, and the guard says so in its own success line — the freshness of the",
+            "evidence was never a claim about whether the live path works.",
+            "",
+            "⚠️ AND ONE ASYMMETRY IS LEFT OPEN ON PURPOSE, NAMED RATHER THAN TOLERATED. `failingValue` above still reads",
+            "\"event = schedule\" because e2e.yml's own `alert` job still gates on it (.github/workflows/e2e.yml, the job",
+            "guarded by `github.event_name == 'schedule'`). So a WORKER-DISPATCHED nightly that fails files NO durable",
+            "issue — and the Worker-dispatched run is precisely the unattended one now. The reader is fixed; the alerter",
+            "is not. This unit does not own .github/workflows/e2e.yml and did not touch it; the finding is recorded in",
+            "Private/research/revamp-2026-09-05/phase2-spine-e2e-proof-fresh-d1.md for a unit that does."
           ]
         }
       },
       "absenceWatcher": {
         "substrate": "github-actions",
-        "what": "tooling/ci/assert-e2e-proof-fresh.mjs, on every push: the newest SCHEDULED green run must be inside its derived window.",
+        "what": "tooling/ci/assert-e2e-proof-fresh.mjs, on every push: the newest green run on headBranch main AND the Worker cron_heartbeat row that dispatched it must both be inside its derived window.",
         "ownerGated": true,
         "gap": "Same shape and same size as duty.workflow.build-platforms.yml: a push-triggered reader catches the schedule dying, and cannot catch the provider dying, because it is on that provider. Recorded separately rather than cross-referenced because a shared note is a note that gets edited for one row and read for two. OWNER_QUEUE S-8."
       },

@@ -540,8 +540,8 @@
   },
   {
     "claims": [
-      "N-6",
-      "R-9"
+      "ADR 067",
+      "N-6"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
