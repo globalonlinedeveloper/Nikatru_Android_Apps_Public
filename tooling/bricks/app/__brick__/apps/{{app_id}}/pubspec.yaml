@@ -38,6 +38,13 @@ dependencies:
     path: ../../packages/api_client
   nikatru_design_system:
     path: ../../packages/design_system
+  # [ADR 067] decision 2 / [ADR 071] — the chassis SCREEN BODIES. Every file
+  # under lib/features/auth/ here is now a thin adapter over a widget in this
+  # package; the package declares no Riverpod, no go_router and no plugin, so it
+  # wraps nothing and assert-package-boundaries limb C never classifies it as an
+  # adapter.
+  nikatru_chassis_screens:
+    path: ../../packages/chassis_screens
   nikatru_telemetry:
     path: ../../packages/telemetry
   nikatru_platform_storage:

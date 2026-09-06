@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 17508,
+    "lines": 17282,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -101,9 +101,11 @@
     },
     {
       "path": "lib/features/auth/reset_password_screen.dart",
-      "lines": 310,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens a11y, responsive, no-seam-forks and assert-screen-set (a class-symbol row). Its BODY is pinned by nothing — 306 lines behind one class name and seven Key constants, a 25-line stub kept the sweep green. The largest free reduction of the twelve."
+      "lines": 77,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: the brick file went 310 -> 77 lines and 286 lines landed in the package, so the CALL SITE shrank by 233. Its body was pinned by nothing (a 25-line stub kept the whole sweep green), which is why it went first. What stays here is what a package declaring no Riverpod and no go_router cannot hold: the provider reads, the arrival clear, signOutAndForgetUser and the context.go. The eight Key constants stay spelled at this class name as ALIASES of the package constants, never copies.",
+      "target": "packages/chassis_screens/lib/auth/reset_password_screen.dart",
+      "callSiteDelta": -233
     },
     {
       "path": "lib/features/auth/sign_in_screen.dart",
@@ -195,7 +197,7 @@
     },
     {
       "path": "pubspec.yaml",
-      "lines": 180,
+      "lines": 187,
       "verdict": "STAYS",
       "why": "Per-app manifest; its dependency list is swept by assert-play-declarations as of PR #474."
     },
