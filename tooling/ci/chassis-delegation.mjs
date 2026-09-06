@@ -90,8 +90,9 @@
 // returns. What this module CAN lose is its refusals, and that is not left to
 // prose: tooling/ci/test/chassis-delegation.test.mjs mutates each limb — an
 // unused import, a target that is not on disk, two imports, a use hidden in a
-// comment, a use hidden in a string literal — and fails when any of them starts
-// answering `{ files }`.
+// comment, a use hidden in a string literal, a name spelled only as a NAMED
+// ARGUMENT LABEL, a map key and a `case` label — and fails when any of them
+// starts answering `{ files }`.
 //
 // It sits FLAT in tooling/ci because assert-guard-coverage.mjs's stray-.mjs
 // check (correctly) treats a subdirectory of tooling/ci as a guard escaping the
@@ -381,14 +382,127 @@ export function declaredNamesOf(rawSource) {
  *  be spelled the same, and accepting it is how a chassis file holding one line
  *  `final l10n = 0;` satisfied the use check for every screen in the tree. So a
  *  match preceded by `.` is refused — EXCEPT after the import's own `as` prefix,
- *  which is the one honest way to write `chassis.SettingsBody(…)`. */
+ *  which is the one honest way to write `chassis.SettingsBody(…)`.
+ *
+ *  🔴 …AND NEITHER IS A LABEL. `child:` in an argument list is a slot name on
+ *  the constructor being called, not a reference to an imported top-level name.
+ *  See `isReferencePosition` below: this check judges POSITIONS, not text. */
 export function referencedSymbol(rawAdapterSource, symbols, { prefix = null } = {}) {
   const code = dartCodeOnly(rawAdapterSource);
   for (const s of symbols) {
-    if (new RegExp(`(?<![\\w$.])${escapeRe(s)}(?![\\w$])`).test(code)) return s;
+    if (referenceIndexOf(code, s) !== -1) return s;
     if (prefix && new RegExp(`(?<![\\w$.])${escapeRe(prefix)}\\s*\\.\\s*${escapeRe(s)}(?![\\w$])`).test(code)) return s;
   }
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 A NAMED ARGUMENT LABEL IS NOT A REFERENCE — AND IT IS THE ABUNDANT ONE.
+//
+// The two subtractions above ask "is this a name the adapter itself declares or
+// binds". A fourth independent review measured, on the real tree at `4faa5731`,
+// that both together still left the use check satisfiable by TEXT that Dart
+// never resolves as a reference to anything. The widest such position in a
+// Flutter file is the NAMED ARGUMENT LABEL: the token before the `:` in
+// `child:`, `padding:`, `title:`, `onTap:`. It is not a reference to an imported
+// top-level name — it is a slot name belonging to the constructor being called,
+// and Dart resolves it against THAT constructor's parameters, never against the
+// import scope. `apps/subly/.../settings_screen.dart` spells `child:` 51 times.
+//
+// Measured, exploit R8, every mutation reverted afterwards:
+//   · R1 (green control) — delete the `recordAnalyticsConsent(` call at
+//     `apps/subly/lib/features/settings/settings_screen.dart:601`.
+//     `assert-consent-withdrawal-surface` → EXIT 1.
+//   · R8 — the same tree, plus ONE unused
+//     `import 'package:nikatru_chassis_screens/settings.dart';` and a package
+//     file whose ONLY top-level names are `final child = 0;` and a never-called
+//     `deadShim` carrying the deleted call. → EXIT 0. The adapter "referenced"
+//     `child` fifty-one times without once referring to the package.
+//
+// `child` is not a contrived name. `publicApiOf` collects any top-level
+// `final <lowercase> = …`, and the Flutter argument vocabulary — `child`,
+// `children`, `padding`, `title`, `builder`, `value`, `label`, `icon` — is
+// spelled by every screen in the tree, so ONE such line in a chassis file bound
+// nothing on any of them. That is the `final l10n = 0;` shape again, one
+// position further out: the earlier fixes removed the names the adapter
+// DECLARES, and this one removes the places that are not references at all.
+//
+// THE RULE, STATED ONCE: a symbol counts as USED only at an EXPRESSION position
+// — `Name(`, `Name.member`, or a bare reference — and never at a position that
+// merely spells the name:
+//   · a named argument label or a map-literal key — `child:`, `{title: 1}`
+//   · a `case Foo:` label, or a `loop:` statement label — the same `ident:`
+//   · a member access — `context.l10n`, `this.child`, a `..child` cascade
+//   · a comment, a doc comment, a string literal, an interpolated span, or the
+//     `import`/`export`/`part` URI itself — all already blanked by
+//     `dartCodeOnly`, which is why they are not re-handled here
+//   · a name the adapter declares or binds — already subtracted by
+//     `declaredNamesOf`, including enum and class declarations
+//
+// And the POSITIVE half, which is the one level of resolution this module does:
+// a never-called shim in the chassis file is not reached by widening a scan to
+// it unless the DELEGATING file references the symbol that carries it. `deadShim`
+// counts when the adapter calls `deadShim(…)` and not when it does not — cases
+// `R8` and `R8-live-control`.
+//
+// WHY `ident:` AND NOT `ident\s*:`. The one expression position that puts an
+// identifier immediately before a colon is the ternary's true branch,
+// `cond ? a : b` — and `dart format` writes that with a space on both sides,
+// while it writes a named argument, a map key and a `case` label with NO space
+// before the colon. The discriminator is therefore the IMMEDIATE colon, and it
+// is the formatter that makes it reliable. `L4-ternary-control` is the green
+// control that stops this tightening into a COVERAGE LOST on honest code. `::`
+// does not occur in Dart; it is excluded anyway so a future spelling cannot
+// silently become a refusal.
+//
+// WHY NOT `dart analyze`. Preferred, and measured INFEASIBLE here rather than
+// skipped. `dart --version` answers 3.12.2 on THIS machine, but the four CI
+// lanes that run these eleven importers (`.github/workflows/ci.yml` —
+// `guard-meta`, `guards-platform`, `guards-privacy`, `guards-chassis`) use
+// `./.github/actions/setup-node` and nothing else, so no Dart SDK exists on the
+// runner; adding one is a `.github/**` edit, a FORBIDDEN path for this unit.
+// Beyond the toolchain, resolution needs a `package_config.json`, and half this
+// module's subject is the brick TEMPLATE under `tooling/bricks/`, which is not
+// valid Dart until it is stamped — while `packages/chassis_screens` does not
+// exist on disk at all yet. A resolver that answers only for the stamped half
+// is a resolver that goes quiet on the other half, which is the silent-pass
+// shape this whole module is built against. So the lexical reading stays, and
+// EVERY position it excludes carries its own mutation case in
+// `chassis-delegation.test.mjs`, each with a green control beside it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Is the `[start, end)` occurrence of an identifier in `code` a REFERENCE to an
+ *  imported top-level name, or only a position that spells it?
+ *
+ *  `code` must already be `dartCodeOnly` output — comments, string literals and
+ *  the import/export/part directives blanked — because this judges POSITION, and
+ *  a position inside a blanked span is not one. */
+export function isReferencePosition(code, start, end) {
+  // A MEMBER ACCESS names somebody else's member. `dart format` breaks a long
+  // chain with the dot leading the NEXT line, so the whitespace is skipped
+  // rather than assumed absent: `ctx\n    .child` is a member access too, and so
+  // are `?.child`, `this.child` and the `..child` cascade — all end in the same
+  // `.`. (The import's own `as` prefix is the one honest exception, and
+  // `referencedSymbol` handles it separately, before this is consulted.)
+  let k = start - 1;
+  while (k >= 0 && /\s/.test(code[k])) k -= 1;
+  if (k >= 0 && code[k] === '.') return false;
+  // A LABEL is a slot name, not a reference: `child:` (named argument),
+  // `{title: 1}` (map key), `case Foo:` (switch), `outer:` (statement label).
+  // See the block above for why the colon must be IMMEDIATE.
+  if (code[end] === ':' && code[end + 1] !== ':') return false;
+  return true;
+}
+
+/** The index of the first REFERENCE to `name` in `code`, or `-1`. Word-boundary
+ *  matched, then filtered by `isReferencePosition` — so a name that appears
+ *  fifty-one times, every one of them a named argument label, answers `-1`. */
+export function referenceIndexOf(code, name) {
+  const re = new RegExp(`(?<![\\w$])${escapeRe(name)}(?![\\w$])`, 'g');
+  for (const m of code.matchAll(re)) {
+    if (isReferencePosition(code, m.index, m.index + name.length)) return m.index;
+  }
+  return -1;
 }
 
 /** A refusal, with the caller's own leading description trimmed off when it

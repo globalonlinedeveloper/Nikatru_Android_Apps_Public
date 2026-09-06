@@ -35,6 +35,8 @@ import {
   chassisImportPrefix,
   dartCodeOnly,
   boundNamesOf,
+  isReferencePosition,
+  referenceIndexOf,
   declaredNamesOf,
   delegationOf,
   delegationOfAbs,
@@ -471,6 +473,135 @@ describe('🔴 BOUND NAMES — a parameter shadows an import exactly as a declar
     assert.equal(bound.has('isChassisReady'), false, [...bound].sort().join(','));
     assert.equal(bound.has('items'), false, [...bound].sort().join(','));
     assert.equal(bound.has('pair'), false, [...bound].sort().join(','));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 A LABEL IS NOT A REFERENCE — the use check judges POSITIONS, not text.
+//
+// The two subtractions above (`declaredNamesOf`, `boundNamesOf`) remove names
+// the ADAPTER owns. A fourth independent review measured, on the real tree at
+// `4faa5731`, that a name the adapter owns nothing of could still satisfy the
+// use check by appearing where Dart never resolves a reference at all — most
+// abundantly the NAMED ARGUMENT LABEL, the token before the `:` in `child:`.
+// `apps/subly/.../settings_screen.dart` spells `child:` 51 times, so a chassis
+// file whose only top-level name is `final child = 0;` was "referenced" by it
+// fifty-one times without once referring to the package. R8 below is that
+// exploit; the `-control` cases beside it are what stops a resolver that simply
+// refuses everything from passing this file.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('🔴 A LABEL IS NOT A REFERENCE — positions, not text', () => {
+  /** The exploit's target: the Flutter argument vocabulary as a top-level name,
+   *  plus a never-called free function carrying the deleted control. */
+  const R8_TARGET = 'final child = 0;\n\nvoid deadShim(dynamic ref) {\n  recordAnalyticsConsent(ref, granted: false);\n}\n';
+
+  /** An adapter body inside a `build` that is NOT a binding site for `child`. */
+  const screen = (body) => `${IMPORT}\nclass SettingsScreen {\n  Widget build(c) {\n    ${body}\n  }\n}\n`;
+
+  test('R8 · the target\'s only names are `child` (spelled only as a NAMED ARGUMENT LABEL) and a never-called shim', () => {
+    // Measured on the real tree, each mutation reverted: deleting the
+    // `recordAnalyticsConsent(` call at settings_screen.dart:601 took
+    // assert-consent-withdrawal-surface to EXIT 1 (the green control); adding
+    // ONE unused chassis import and this target took it back to EXIT 0.
+    const root = tree({ adapter: screen('return Padding(padding: p, child: Text("x"));'), target: R8_TARGET });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, `a named argument label must not be evidence, got: ${JSON.stringify(d)}`);
+    assert.match(d.lost, /never references anything it declares/);
+    assert.match(d.lost, /child/);
+    assert.match(d.lost, /deadShim/);
+  });
+
+  test('R8-live-control · …and the SAME target resolves once the adapter really calls the shim', () => {
+    // The positive half of the rule, and the one level of resolution it does:
+    // the delegating file must reference the chassis symbol that carries the
+    // behaviour. When it does, this is an honest delegation and must resolve —
+    // without this control, R8 above is equally consistent with "refuse
+    // everything", which would redden the first real chassis unit.
+    const root = tree({ adapter: screen('deadShim(c);\n    return Padding(padding: p, child: Text("x"));'), target: R8_TARGET });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `a real call to the shim IS evidence, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'deadShim');
+  });
+
+  test('L1-named-arg · a name spelled ONLY as `child:` is refused, however many times', () => {
+    const many = Array.from({ length: 51 }, () => 'Padding(child: Text("x"))').join(', ');
+    const root = tree({ adapter: screen(`return Row(children: [${many}]);`), target: 'final child = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'fifty-one labels are still zero references');
+    assert.match(d.lost, /never references anything it declares \(child\)/);
+  });
+
+  test('L1-control · the same target, referenced ONCE as a bare value, resolves', () => {
+    const root = tree({ adapter: screen('return Padding(child: Text(child));'), target: 'final child = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `a value position IS a reference, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'child');
+  });
+
+  test('L2-map-key · a MAP-LITERAL KEY is a slot name, not a reference', () => {
+    const root = tree({ adapter: screen('final m = <String, int>{title: 1};\n    return Text("$m");'), target: 'final title = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a map key must not be evidence');
+    assert.match(d.lost, /never references anything it declares \(title\)/);
+  });
+
+  test('L3-case-label · a `case x:` LABEL is not a reference', () => {
+    const root = tree({ adapter: screen('switch (v) {\n      case child:\n        break;\n    }\n    return null;'), target: 'final child = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a switch-case label must not be evidence');
+    assert.match(d.lost, /never references anything it declares \(child\)/);
+  });
+
+  test('L4-ternary-control · a TERNARY\'s true branch IS a reference — the colon rule is immediate, not greedy', () => {
+    // `dart format` writes ` ? a : b` with spaces and `child:` without one, so
+    // the discriminator is the IMMEDIATE colon. Without this control the rule
+    // could tighten to `ident\s*:` and turn an honest delegation into a
+    // COVERAGE LOST, which is the same silent-domain-loss shape one step over.
+    const root = tree({ adapter: screen('return Text(flag ? child : other);'), target: 'final child = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(!d.lost, `a ternary branch IS a reference, got: ${d && d.lost}`);
+    assert.equal(d.usedSymbol, 'child');
+  });
+
+  test('L5-comment · the name ONLY inside a `//` and a `///` comment is not a reference', () => {
+    const root = tree({ adapter: screen('// child: the chassis body\n    /// child\n    return Text("x");'), target: 'final child = 0;\n' });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a comment must not be evidence');
+    assert.match(d.lost, /never references anything it declares \(child\)/);
+  });
+
+  test('L6-string · the name ONLY inside a STRING LITERAL, raw string or interpolation is not a reference', () => {
+    const root = tree({
+      adapter: screen('final a = "child";\n    final b = r\'child\';\n    return Text("$child");'),
+      target: 'final child = 0;\n',
+    });
+    const d = resolveIn(root);
+    assert.ok(d && d.lost, 'a string literal must not be evidence');
+    assert.match(d.lost, /never references anything it declares \(child\)/);
+  });
+
+  // ── The position rule itself, exercised directly. ──────────────────────────
+  test('L7-positions · isReferencePosition / referenceIndexOf judge each position by hand', () => {
+    const at = (code, name) => referenceIndexOf(code, name);
+    // NOT references
+    assert.equal(at('f(child: 1);', 'child'), -1, 'named argument label');
+    assert.equal(at('{child: 1}', 'child'), -1, 'map key');
+    assert.equal(at('case child:', 'child'), -1, 'case label');
+    assert.equal(at('child: for (final x in y) {}', 'child'), -1, 'statement label');
+    assert.equal(at('this.child = v;', 'child'), -1, 'initialising formal / member');
+    assert.equal(at('a?.child;', 'child'), -1, 'null-aware member access');
+    assert.equal(at('a\n    ..child = 1;', 'child'), -1, 'cascade with the dot leading the next line');
+    assert.equal(at('ctx\n    .child;', 'child'), -1, 'chain broken across lines by dart format');
+    // ARE references
+    assert.ok(at('return child;', 'child') >= 0, 'bare reference');
+    assert.ok(at('child();', 'child') >= 0, 'call');
+    assert.ok(at('child.length;', 'child') >= 0, 'member access ON it');
+    assert.ok(at('f(1, child);', 'child') >= 0, 'call argument');
+    assert.ok(at('flag ? child : other;', 'child') >= 0, 'ternary true branch');
+    assert.ok(at('const [child];', 'child') >= 0, 'list element');
+    // The `[start,end)` face, so a caller cannot be handed a different rule.
+    assert.equal(isReferencePosition('f(child: 1);', 2, 7), false);
+    assert.equal(isReferencePosition('return child;', 7, 12), true);
   });
 });
 
