@@ -109,7 +109,7 @@
   "pseudonymity-firewall.test.mjs": 17,
   "publish-records.test.mjs": 43,
   "purchase-path.test.mjs": 68,
-  "release-durable.test.mjs": 127,
+  "release-durable.test.mjs": 130,
   "release-lane-generic.test.mjs": 33,
   "release-provenance.test.mjs": 115,
   "render-payload.test.mjs": 48,

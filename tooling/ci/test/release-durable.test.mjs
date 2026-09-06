@@ -81,12 +81,20 @@ const CONFIGURED_PIN = {
  *  rather than decoration: since originEnvironments gates on `signingPosture`, a
  *  fixture row with no signing block is 'undeclared' and is WITHHELD — so a
  *  fixture without this would have quietly turned every positive case below into
- *  a test of the omission path while still reading as a test of the match path. */
+ *  a test of the omission path while still reading as a test of the match path.
+ *  🔴 EVERY ROW DECLARES `surface: 'app'`, added 2026-09-06 and load-bearing.
+ *  The register's schema REQUIRES the field and assert-channel-register.mjs fails
+ *  the build without it, so a surface-less fixture row was modelling a register
+ *  that cannot exist — and it read as green only because `channelIsOnSurface`
+ *  used to hand a surface-less row to the app surface. That fail-open is the
+ *  refutation this file now holds a case for; the fixture has to be a register
+ *  the guard would accept, or the cases below measure the guess and not the gate. */
 const REGISTER = {
   channels: [
     {
       id: 'web',
       kind: 'web',
+      surface: 'app',
       served: true,
       artifactFormats: ['static-bundle'],
       deploymentEnvironment: '{app}-web',
@@ -94,6 +102,7 @@ const REGISTER = {
     {
       id: 'android-play',
       kind: 'store',
+      surface: 'app',
       served: false,
       artifactFormats: ['.aab'],
       deploymentEnvironment: '{app}-android-play',
@@ -101,6 +110,7 @@ const REGISTER = {
     {
       id: 'windows-direct',
       kind: 'direct',
+      surface: 'app',
       served: false,
       artifactFormats: ['.msix', '.exe'],
       deploymentEnvironment: '{app}-windows-direct',
@@ -501,7 +511,7 @@ describe('assert-release-durable.mjs — limb 3 (the register supplies "publishe
 describe('assert-release-durable.mjs — REQUIRED_COVERAGE', () => {
   test('the installable set grows with the register — a new `.dmg` channel is covered with no edit', () => {
     const register = JSON.parse(JSON.stringify(REGISTER));
-    register.channels.push({ id: 'macos-direct', kind: 'direct', served: false, artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-macos-direct' });
+    register.channels.push({ id: 'macos-direct', surface: 'app', kind: 'direct', served: false, artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-macos-direct' });
     const r = run(fixture({ register, workflows: { 'build.yml': lane() } }));
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /REQUIRED_COVERAGE — .*\.dmg/);
@@ -810,6 +820,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // unchanged, so removing it changes no answer here.)
     const arrayKeyKind = JSON.parse(JSON.stringify({
       id: 'array-keykind',
+      surface: 'app',
       kind: 'direct',
       deploymentEnvironment: '{app}-array-keykind',
       artifactFormats: ['.msix'],
@@ -899,6 +910,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // reader in this repository can interpret.
     const arrayRow = {
       id: 'windows-direct',
+      surface: 'app',
       kind: 'direct',
       artifactFormats: ['.msix'],
       deploymentEnvironment: '{app}-windows-direct',
@@ -937,13 +949,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // `null` is legal JSON in an array. `c?.kind` is what makes it a skip.
         null,
         // no `deploymentEnvironment` at all — `typeof tpl !== 'string'`.
-        { id: 'no-env', kind: 'direct', artifactFormats: ['.msix'] },
+        { id: 'no-env', surface: 'app', kind: 'direct', artifactFormats: ['.msix'] },
         // a template that forgot `{app}` — `!tpl.includes('{app}')`.
-        { id: 'literal-env', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: 'windows-direct' },
+        { id: 'literal-env', surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: 'windows-direct' },
         // no `artifactFormats` key — `c.artifactFormats ?? []`.
-        { id: 'no-formats', kind: 'direct', deploymentEnvironment: '{app}-no-formats' },
+        { id: 'no-formats', surface: 'app', kind: 'direct', deploymentEnvironment: '{app}-no-formats' },
         // non-string entries beside the real one — `typeof f === 'string'`.
-        { id: 'junk-formats', kind: 'direct', artifactFormats: [42, null, '.msix'], deploymentEnvironment: '{app}-junk-formats' },
+        { id: 'junk-formats', surface: 'app', kind: 'direct', artifactFormats: [42, null, '.msix'], deploymentEnvironment: '{app}-junk-formats' },
         // 🔴 A FORMAT WITH NO LEADING DOT — `f.startsWith('.')`, which survived
         // `if (false)` with this file at EXIT 0 / 85 pass / 0 fail on 2026-08-24
         // because every fixture format had always begun with one. `static-bundle`
@@ -953,9 +965,17 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // degenerates to "the asset name ends with this word", `keyKind: "none"`
         // makes the row recordable, and the release writes a [10]D-9 row for a
         // channel that declared no file extension at all.
-        { id: 'dotless-format', kind: 'direct', artifactFormats: ['static-bundle'], deploymentEnvironment: '{app}-dotless', signing: { keyKind: 'none' } },
+        { id: 'dotless-format', surface: 'app', kind: 'direct', artifactFormats: ['static-bundle'], deploymentEnvironment: '{app}-dotless', signing: { keyKind: 'none' } },
         // no `id` — the omission line still has to name something.
-        { kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-unnamed' },
+        { surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-unnamed' },
+        // 🔴 NO `surface` AT ALL — skipped at the surface gate, BEFORE posture is
+        // asked, so it appears in neither list below. Added 2026-09-06 with the
+        // real equality in `channelIsOnSurface`: the register's schema requires
+        // the field, and the fail-closed answer to a row that does not declare one
+        // is "this release is not on your surface". It carries a `.msix` and a
+        // `{app}` template on purpose — every other clause would have let it
+        // through, so this case fails the moment the gate goes back to guessing.
+        { id: 'surfaceless', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-surfaceless', signing: { keyKind: 'none' } },
         good,
       ],
     };
@@ -970,6 +990,11 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // clause failing open.
     assert.deepEqual(r.omitted.map((o) => o.id), ['junk-formats', '(unnamed)']);
     assert.deepEqual(r.omitted.map((o) => o.environment), ['subly-junk-formats', 'subly-unnamed']);
+    // ...and the surface-less row is in NEITHER list: not emitted, not withheld,
+    // skipped. `deepEqual` on both lists above already holds that, and this says
+    // so by name so the next reader does not have to count.
+    assert.ok(!r.environments.includes('subly-surfaceless'), 'a row that declares no surface may not reach the ledger');
+    assert.ok(!r.omitted.some((o) => o.id === 'surfaceless'), 'it is skipped BEFORE posture, so it is not a withheld row either');
 
     // A register with no `channels` key, and no register at all, are both empty
     // answers rather than a crash in the middle of a release job.
@@ -995,13 +1020,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const reg = {
       channels: [
         // format SHOUTED in the register, asset lowercase on disk.
-        { id: 'upper-fmt', kind: 'direct', artifactFormats: ['.MSIX'], deploymentEnvironment: '{app}-upper', signing: nosign },
+        { id: 'upper-fmt', surface: 'app', kind: 'direct', artifactFormats: ['.MSIX'], deploymentEnvironment: '{app}-upper', signing: nosign },
         // format lowercase, asset SHOUTED on disk — which is how several Windows
         // and installer tools name what they emit.
-        { id: 'upper-asset', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-lower', signing: nosign },
+        { id: 'upper-asset', surface: 'app', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-lower', signing: nosign },
         // two rows, one environment: it must be recorded once.
-        { id: 'dup-a', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
-        { id: 'dup-b', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
+        { id: 'dup-a', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
+        { id: 'dup-b', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
         // 🔴 THE SECOND DECLARED FORMAT MATCHES AND THE FIRST DOES NOT. The
         // `formats.some(…)` BOUND had nothing holding it — it survived
         // `formats.slice(0, 1).some(…)` on 2026-08-24 with this file at EXIT 0 /
@@ -1009,7 +1034,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // FIRST format. windows-direct really declares `['.msix', '.exe']`, so a
         // release carrying only the .exe is the ordinary shape of this row, and a
         // bound that stops at the first format withholds its ledger row silently.
-        { id: 'second-format', kind: 'direct', artifactFormats: ['.msi', '.exe'], deploymentEnvironment: '{app}-second', signing: nosign },
+        { id: 'second-format', surface: 'app', kind: 'direct', artifactFormats: ['.msi', '.exe'], deploymentEnvironment: '{app}-second', signing: nosign },
         // 🔴 THE EXTENSION IS A SUFFIX, NEVER A SUBSTRING. `endsWith` relaxed to
         // `includes` survived on 2026-08-24 at EXIT 0 / 85 pass / 0 fail: no
         // fixture asset had ever CARRIED a declared extension anywhere but at its
@@ -1017,7 +1042,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // `.zip` and is not the artifact — so under `includes` this row matches a
         // release that ships no .zip at all and the ledger records a channel the
         // release never served.
-        { id: 'suffix-only', kind: 'direct', artifactFormats: ['.zip'], deploymentEnvironment: '{app}-zip', signing: nosign },
+        { id: 'suffix-only', surface: 'app', kind: 'direct', artifactFormats: ['.zip'], deploymentEnvironment: '{app}-zip', signing: nosign },
       ],
     };
     const r = originEnvironments(reg, 'subly', ['subly-v1.msix', 'SUBLY-V1.EXE', 'subly-v1.dmg', 'subly-v1.zip.sha256']);
@@ -1205,6 +1230,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const r = JSON.parse(JSON.stringify(REGISTER));
     r.channels.push({
       id: 'linux-appimage',
+      surface: 'app',
       kind: 'direct',
       served: false,
       artifactFormats: ['.AppImage'],
@@ -1270,10 +1296,10 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const onSentinel = () => ({ keyKind: 'code-signing-certificate', codeSigningCertificate: { ...CONFIGURED_PIN, sha256: SENTINEL } });
     const register = {
       channels: [
-        { id: 'ok-msix', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-ok-msix', signing: pinned() },
-        { id: 'ok-exe', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-ok-exe', signing: pinned() },
-        { id: 'held-dmg', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-held-dmg', signing: onSentinel() },
-        { id: 'held-appimage', kind: 'direct', artifactFormats: ['.AppImage'], deploymentEnvironment: '{app}-held-appimage', signing: onSentinel() },
+        { id: 'ok-msix', surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-ok-msix', signing: pinned() },
+        { id: 'ok-exe', surface: 'app', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-ok-exe', signing: pinned() },
+        { id: 'held-dmg', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-held-dmg', signing: onSentinel() },
+        { id: 'held-appimage', surface: 'app', kind: 'direct', artifactFormats: ['.AppImage'], deploymentEnvironment: '{app}-held-appimage', signing: onSentinel() },
       ],
     };
     const root = fixture({ register });
@@ -2102,18 +2128,52 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   ];
   const BOTH_SURFACES = { channels: [...REGISTER.channels.map((c) => ({ ...c, surface: 'app' })), ...EXT_ROWS] };
 
-  test('channelIsOnSurface is an equality on the EXTENSION side and a pass-through on the other', () => {
+  test('channelIsOnSurface is a REAL equality on both sides', () => {
     assert.equal(channelIsOnSurface({ surface: 'extension' }, 'extension'), true);
     assert.equal(channelIsOnSurface({ surface: 'extension' }, 'app'), false);
     assert.equal(channelIsOnSurface({ surface: 'app' }, 'app'), true);
     assert.equal(channelIsOnSurface({ surface: 'app' }, 'extension'), false);
-    // A row with NO surface keeps exactly the behaviour it had before the gate:
-    // the register's schema requires the field and assert-channel-register.mjs
-    // fails without it, so a surface-less row is a tree that is already red and
-    // this script must not hold a second opinion about it.
-    assert.equal(channelIsOnSurface({}, 'app'), true);
+    // 🔴 THE REFUTATION, 2026-09-06. The first spelling was
+    // `(c?.surface === 'extension') === (surface === 'extension')` — an
+    // is-extension boolean wearing a surface name. It answered TRUE for a THIRD
+    // surface against EVERY non-extension surface, measured:
+    // `channelIsOnSurface({surface:'site'},'app')` was `true` AND
+    // `channelIsOnSurface({surface:'site'},'site')` was `true`. The vocabulary is
+    // open — assert-channel-register.mjs asks only `SURFACES.has(c.surface)` and
+    // derives SURFACES from the register's own `surfaces` block — so a third
+    // surface is a register edit and this predicate must see it.
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'app'), false, 'a third surface is not the app surface');
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'extension'), false);
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'site'), true, 'and it IS its own surface — an equality, not a ban');
+    // A row with NO surface, or an unreadable one, matches NOTHING. Both
+    // narrowing readers get smaller as rows drop out, so the fail-closed answer
+    // is a refusal ("no installable artifact found" / no environment emitted),
+    // never a false stage. The register's schema requires the field, so such a
+    // row is a tree assert-channel-register.mjs has already reddened.
+    assert.equal(channelIsOnSurface({}, 'app'), false);
     assert.equal(channelIsOnSurface({}, 'extension'), false);
-    assert.equal(channelIsOnSurface(null, 'app'), true);
+    assert.equal(channelIsOnSurface(null, 'app'), false);
+    assert.equal(channelIsOnSurface({ surface: 42 }, 'app'), false);
+    assert.equal(channelIsOnSurface({ surface: 'app' }, null), false, 'null is the UNNARROWED sentinel and never reaches here');
+  });
+
+  test('a THIRD surface\'s format is not an APP installable — the fail-open the equality closes', () => {
+    // The reviewer's measured case, held as a case. Against the old spelling
+    // this set came back `['.html', '.aab', '.apk']`.
+    const THIRD = {
+      channels: [
+        { id: 'nikatru-site', surface: 'site', kind: 'direct', served: true, artifactFormats: ['.html'], deploymentEnvironment: '{app}-site', signing: { keyKind: 'none', identity: null } },
+        { id: 'android-play', surface: 'app', kind: 'store', served: true, artifactFormats: ['.aab'], deploymentEnvironment: '{app}-android-play', signing: { keyKind: 'none', identity: null } },
+      ],
+    };
+    const app = installableExtensions(THIRD, 'app');
+    assert.deepEqual([...app].sort(), ['.aab', '.apk'], 'a site channel\'s .html is not an app installable');
+    assert.ok(!app.has('.html'), 'the third surface\'s format must not fold into the --app set');
+    const site = installableExtensions(THIRD, 'site');
+    assert.deepEqual([...site].sort(), ['.html'], 'and the third surface still gets its own, so this is a narrowing and not a ban');
+    // The mirror reader: a site row is not an origin of an APP release either.
+    const originsForApp = originEnvironments(THIRD, 'subly', ['subly-1.0.0.html'], 'app');
+    assert.deepEqual(originsForApp.environments, [], 'a .html carried by a site channel emits no app-surface origin');
   });
 
   test('installableExtensions narrows to one surface, and UNNARROWED is still the whole register', () => {
@@ -2207,6 +2267,55 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
     const e = cli(['--stage', from2, '--out', out2, '--app', 'fullshot', '--tag', 'fullshot-v1.0.0', '--repo-root', root]);
     assert.equal(e.code, 0, e.out);
     assert.deepEqual(assetFiles(out2).names, ['fullshot-v1.0.0-fullshot-chromium.zip']);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🔴 THE THIRD SURFACE, THROUGH THE CLI. Added 2026-09-06 for the carry-forward
+  // refutation. The two cases above are written against `extension`, which the
+  // old `(c?.surface === 'extension') === (surface === 'extension')` spelling DID
+  // answer correctly — that is why they passed over a fail-open predicate. The
+  // vocabulary is open (assert-channel-register.mjs asks `SURFACES.has(c.surface)`
+  // and derives SURFACES from the register's own `surfaces` block), so the axis
+  // has to be measured on a surface that is NEITHER of the two the token knows.
+  // ───────────────────────────────────────────────────────────────────────────
+  const SITE_ROW = {
+    id: 'nikatru-site',
+    kind: 'direct',
+    surface: 'site',
+    served: true,
+    artifactFormats: ['.html'],
+    deploymentEnvironment: '{app}-site',
+    signing: { keyKind: 'none', identity: null },
+  };
+  const THREE_SURFACES = { channels: [...BOTH_SURFACES.channels, SITE_ROW] };
+
+  test('CLI --stage refuses a THIRD surface\'s format for --app subly, and never lists it as expected', () => {
+    const root = fixture({ register: THREE_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const from = join(TMP, `s${seq++}`);
+    mkdirSync(from, { recursive: true });
+    writeFileSync(join(from, 'subly-1.0.0.html'), 'h');
+    const out = join(TMP, `o${seq++}`);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no installable artifact found/);
+    assert.match(r.out, /surface "app"/);
+    assert.doesNotMatch(r.out, /Looked for:[^\n]*\.html/, 'a site channel\'s format is not part of the app surface expectation');
+  });
+
+  test('CLI --emit-environments emits NO third-surface origin for an APP release', () => {
+    // Against the old spelling this emitted `subly-site`: the site row is
+    // `kind: "direct"`, and `channelIsOnSurface({surface:'site'},'app')` answered
+    // true, so a Flutter release recorded a [10]D-9 origin on a surface it does
+    // not ship to — the same class of false record as `subly-amo`.
+    const root = fixture({ register: THREE_SURFACES, apps: ['subly'] });
+    const d = join(TMP, `d${seq++}`);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'subly-1.0.0.html'), 'h');
+    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.equal(r.stdout.trim(), '', 'the lane reads stdout as a word list — a third-surface name here IS the false record');
+    assert.doesNotMatch(r.out, /subly-site/);
+    assert.match(r.out, /is on the "app" surface/);
   });
 });
 

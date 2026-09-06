@@ -146,10 +146,22 @@ let registerChannels = []; // the register's channel rows, whole
       // ANSWERED: each extension row carries its own `purchaseRail` with a
       // sourced `why` and a `forbids` list, held by assert-channel-register.mjs
       // exactly as every app row's is. What is NOT asked of them is the Dart
-      // matrix, because there is no Dart. The surface is read from the register's
-      // own `surfaces` vocabulary rather than from a channel id, so a fourth
-      // extension store joins this exclusion by declaring its surface and not by
-      // anybody editing this list.
+      // matrix, because there is no Dart. The exclusion is keyed on the row's own
+      // `surface` FIELD rather than on a channel id, so a fourth extension store
+      // joins it by declaring `surface: "extension"` and not by anybody editing a
+      // list of ids here.
+      // ⚠️ CORRECTED 2026-09-06, AND THE CORRECTION IS THE POINT OF THE SENTENCE.
+      // This comment used to claim the surface was resolved through the vocabulary
+      // the register declares, rather than from a channel id. The first half was
+      // never true: the test below is the LITERAL `c.surface !== 'extension'`, and
+      // nothing here opens `channel-register.json`'s surface block. A guard
+      // header that claims a property the guard does not have is the one kind of
+      // prose this repository treats as a defect, because the next reader trusts
+      // it instead of the line. The literal appears in ~9 non-test sites across 7
+      // guards, so a THIRD surface is a multi-file edit — recorded as a deliberate
+      // deferral in platform-state/open.json (O-EXT-PURCHASE-RAIL), not claimed
+      // closed here. What IS true is the second half, and it is what is written
+      // above: the axis is the row's field, so the id list never grows.
       // 🔴 `registerChannels` STAYS THE WHOLE SET. §G reads it to grade every
       // row's `purchaseRail` block — rail, why, source, forbids, the
       // contradiction check — and those questions are about the REGISTER, not

@@ -238,16 +238,37 @@ export const BUNDLE_MEMBERS = new Map([
  * product that ships to no browser store. main's honest refusal became three false
  * environments. Both are one question, asked once, here.
  *
- * ⚠️ IT IS AN EQUALITY ON THE EXTENSION SIDE ONLY, DELIBERATELY. A row with NO
- * `surface` reads as not-an-extension and keeps exactly the behaviour it had
- * before this gate existed — the register's schema requires the field and
- * assert-channel-register.mjs fails the build without it, so a surface-less row
- * is a tree that is already red. Making the app half an equality instead would
- * change what this script does on a register that guard has already rejected,
- * which is a second opinion about a failure rather than a narrowing.
+ * ⚠️ IT IS A REAL EQUALITY ON BOTH SIDES, AND UNREADABLE RESOLVES TO "NOT ON THIS
+ * SURFACE". The first spelling of this predicate was
+ * `(c?.surface === 'extension') === (surface === 'extension')` — an is-extension
+ * boolean wearing a surface name, and FAIL-OPEN for every surface that is not
+ * `extension`. Measured 2026-09-06 against that spelling:
+ * `channelIsOnSurface({ surface: 'site' }, 'app')` returned `true`, so
+ * `installableExtensions({ channels: [{ surface: 'site', artifactFormats: ['.html'] },
+ * { surface: 'app', artifactFormats: ['.aab'] }] }, 'app')` returned
+ * `['.html', '.aab', '.apk']` — a THIRD surface's format folded into the `--app`
+ * installable set, which is the exact leak this gate exists to close for `.zip`.
+ * The surface vocabulary is OPEN, not two-valued: assert-channel-register.mjs asks
+ * only `SURFACES.has(c.surface)` and derives `SURFACES` from the register's own
+ * `surfaces` block, so a third surface is a register edit, not a code change, and
+ * a predicate that reads only the `extension` token cannot see one coming.
+ *
+ * ⚠️ A ROW WITH NO `surface` NOW MATCHES NOTHING, AND THAT IS THE FAIL-CLOSED
+ * DIRECTION. The old reading handed a surface-less row to the APP surface. Both
+ * narrowing readers here — `installableExtensions(register, surface)` and
+ * `originEnvironments(…)` — get SMALLER as rows drop out, so dropping one means
+ * "no installable artifact found" or "no origin environment emitted": a refusal,
+ * never a false stage and never a false [10]D-9 record. The register's schema
+ * requires the field and assert-channel-register.mjs fails the build without it,
+ * so a surface-less row is a tree that is already red; this file answers it with a
+ * refusal rather than a guess. UNNARROWED (`surface === null`) is untouched —
+ * every GUARD asks the whole-tree question and still gets the whole tree.
  */
 export function channelIsOnSurface(c, surface) {
-  return (c?.surface === 'extension') === (surface === 'extension');
+  const declared = c?.surface;
+  if (typeof declared !== 'string' || declared === '') return false;
+  if (typeof surface !== 'string' || surface === '') return false;
+  return declared === surface;
 }
 
 /** Every installable file extension: the register's, plus the declared extras.
