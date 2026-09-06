@@ -44,7 +44,19 @@ const SUBLY_LOGIN = `${SUBLY}/lib/features/auth/login_screen.dart`;
  *  the reduction is mandatory rather than tidy. */
 const SUBLY_CHECK_INBOX = `${SUBLY}/lib/features/auth/check_inbox_screen.dart`;
 
-/** A real-tree copy carrying exactly what the guard reads, and nothing else. */
+/** The chassis package [ADR 071] emptied the brick's auth screens into. Four of
+ *  them now delegate here, so it is part of what this guard READS. */
+const CHASSIS_LIB = 'packages/chassis_screens/lib';
+
+/** A real-tree copy carrying exactly what the guard reads, and nothing else.
+ *
+ *  🔴 THE CHASSIS PACKAGE IS COPIED FROM THE REAL TREE, NOT STUBBED. [ADR 071]
+ *  turned four brick auth screens into adapters that import
+ *  `package:nikatru_chassis_screens/auth/…`, and this guard resolves that
+ *  import and refuses — correctly, and loudly — when the target is not on disk.
+ *  A fixture that left the package out therefore made EVERY case in this file
+ *  fail as COVERAGE LOST for a reason none of them is about, which is exactly
+ *  what happened before this line existed. */
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-captcha-'));
   for (const r of [BRICK, SUBLY]) {
@@ -53,6 +65,8 @@ function realTree() {
   }
   mkdirSync(dirname(join(root, INTERFACE)), { recursive: true });
   cpSync(join(REPO, INTERFACE), join(root, INTERFACE));
+  mkdirSync(join(root, CHASSIS_LIB), { recursive: true });
+  cpSync(join(REPO, CHASSIS_LIB), join(root, CHASSIS_LIB), { recursive: true });
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8' });
   git('init', '-q');
   git('config', 'user.email', 'test@example.invalid');
@@ -115,7 +129,19 @@ describe('the real tree', () => {
       () => {},
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.doesNotMatch(r.stdout + r.stderr, /check_inbox_screen/, 'a doc comment was scored as a call site');
+        // 🔴 NARROWED TO WHAT THIS CASE IS ABOUT, ON 2026-09-06, AND THE OLD
+        // FORM WAS AN OVER-BROAD ASSERTION RATHER THAN A STRONGER ONE. It
+        // forbade the STRING `check_inbox_screen` anywhere in the output, and
+        // [ADR 071] made the run print that name legitimately: the guard now
+        // reports which chassis files each root delegates to, and
+        // `check_inbox_screen.dart` is one of the seven. A call site is printed
+        // as `<file>:<line> <method>`, so THAT is the shape to forbid — the
+        // reduction being load-bearing is still exactly what is tested.
+        assert.doesNotMatch(
+          r.stdout + r.stderr,
+          /check_inbox_screen\.dart:\d+\s+\w/,
+          'a doc comment was scored as a call site',
+        );
       },
     );
   });

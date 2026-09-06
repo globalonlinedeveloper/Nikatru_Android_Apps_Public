@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 17508,
+    "lines": 16482,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -83,45 +83,59 @@
     },
     {
       "path": "lib/features/auth/check_inbox_screen.dart",
-      "lines": 78,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens assert-a11y-coverage, assert-responsive-coverage (surface floor 12) and assert-no-seam-forks (:627 existsSync on its WATCHED_PAIRS entry). Its BODY is pinned by nothing — a 13-line stub kept the whole sweep green. Step 4 empties it; it cannot be removed."
+      "lines": 23,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 78 -> 23 brick lines, 88 package lines, callSiteDelta -55. The smallest of the seven and still a shrink: all that a package declaring no go_router cannot carry is the one context.go('/sign-in'), so the adapter is that call and the email pass-through. Its WATCHED_PAIRS entry in assert-no-seam-forks still existsSync on this path — an adapter is a file, not an absence.",
+      "target": "packages/chassis_screens/lib/auth/check_inbox_screen.dart",
+      "callSiteDelta": -55
     },
     {
       "path": "lib/features/auth/legal_consent_fields.dart",
-      "lines": 265,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens assert-no-seam-forks (:627) and assert-signup-consent-shape. Its BODY is pinned by nothing beyond its two Key constants — a 27-line stub kept the sweep green."
+      "lines": 74,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 265 -> 74 brick lines, 291 package lines, callSiteDelta -191. What stayed is the ONE thing that could not travel: url_launcher and AppConfig.termsUrl/privacyUrl. Declaring url_launcher in packages/chassis_screens would make it an ADAPTER under assert-package-boundaries limb C (:185-201) and :288-298 would then fail the brick and every app for importing it directly, so the package takes onOpenTerms/onOpenPrivacy callbacks and the launcher call lives here under the dated brick|url_launcher bypass. This widget is still MOUNTED, not merely still present: sign_up and reaccept_terms hand their chassis views a ConsentFieldsBuilder that builds THIS class.",
+      "target": "packages/chassis_screens/lib/auth/legal_consent_fields.dart",
+      "callSiteDelta": -191
     },
     {
       "path": "lib/features/auth/reaccept_terms_screen.dart",
-      "lines": 174,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens a11y, responsive, no-seam-forks and signup-consent-shape. Nearly stubbable: it must keep `bool _accepted` used BOTH in an early-return guard AND to disable its button."
+      "lines": 57,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 174 -> 57 brick lines, 182 package lines, callSiteDelta -117. The consent flag went WITH the box: assert-signup-consent-shape reads this surface as the adapter UNIONED with its chassis file, so bool _accepted = false, the early-return guard and the button disable are all still asserted where they now live. signOutAndForgetUser stays here — it is the sign-out a PAYING user is most likely to reach — and so does the ConsentFieldsBuilder that keeps the brick LegalConsentFields mounted.",
+      "target": "packages/chassis_screens/lib/auth/reaccept_terms_screen.dart",
+      "callSiteDelta": -117
     },
     {
       "path": "lib/features/auth/reset_password_screen.dart",
-      "lines": 310,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens a11y, responsive, no-seam-forks and assert-screen-set (a class-symbol row). Its BODY is pinned by nothing — 306 lines behind one class name and seven Key constants, a 25-line stub kept the sweep green. The largest free reduction of the twelve."
+      "lines": 77,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: the brick file went 310 -> 77 lines and 287 lines landed in the package, so the CALL SITE shrank by 233. Its body was pinned by nothing (a 25-line stub kept the whole sweep green), which is why it went first. What stays here is what a package declaring no Riverpod and no go_router cannot hold: the provider reads, the arrival clear, signOutAndForgetUser and the context.go. The eight Key constants stay spelled at this class name as ALIASES of the package constants, never copies.",
+      "target": "packages/chassis_screens/lib/auth/reset_password_screen.dart",
+      "callSiteDelta": -233
     },
     {
       "path": "lib/features/auth/sign_in_screen.dart",
-      "lines": 298,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, app-dod) and NOT fully stubbable — assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero `caps.<field>` reads, and assert-app-dod needs `signInWithEmail(`. Roughly 270 of 299 lines are unpinned."
+      "lines": 68,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 298 -> 68 brick lines, 303 package lines, callSiteDelta -230. THREE things stayed, each for a named guard and not for taste: the caps.oauthRedirect read (assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero caps.<field> reads, and the zero-caps COVERAGE LOST names the ADAPTER), signInWithEmail( (dod.json:75 anchors the auth-redirect mutation proof at this path and assert-app-dod:836 fails when the symbol leaves the file), and the two context.go calls. The rest — the preflight, the busy latch, the FocusNode, the deletion notice — is now one file for every stamped app.",
+      "target": "packages/chassis_screens/lib/auth/sign_in_screen.dart",
+      "callSiteDelta": -230
     },
     {
       "path": "lib/features/auth/sign_up_screen.dart",
-      "lines": 194,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable; must retain the two consent flags with guard-and-disable (assert-signup-consent-shape) and the check-inbox navigation (assert-stamp-properties SIGN_UP, :100)."
+      "lines": 94,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 194 -> 94 brick lines, 178 package lines, callSiteDelta -100. Both consent flags moved with their boxes. What stayed is what assert-stamp-properties SIGN_UP (:1428) anchors and a package declaring no go_router cannot hold: signUpWithEmail( then the consent write then the NO-SESSION-only context.go(/check-inbox, extra:), in that order and for the reason written beside it, plus the ConsentFieldsBuilder that keeps the brick consent widget in the render tree.",
+      "target": "packages/chassis_screens/lib/auth/sign_up_screen.dart",
+      "callSiteDelta": -100
     },
     {
       "path": "lib/features/auth/verify_email_screen.dart",
-      "lines": 154,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens a11y, responsive and no-seam-forks. Its BODY is pinned by nothing — a 20-line stub kept the sweep green."
+      "lines": 47,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 154 -> 47 brick lines, 166 package lines, callSiteDelta -107. Its BODY was pinned by nothing (a 20-line stub kept the sweep green). The three seam calls stay HERE, and resendVerificationEmail is written as a CALL rather than a tear-off on purpose: assert-captcha-gated-call-sites finds a gated site by matching <method>( and a tear-off is a gated seam call the scan cannot see at all. assert-seams-wired:692-693 requires this screen's way-out to go through signOutAndForgetUser, not a bare signOut().",
+      "target": "packages/chassis_screens/lib/auth/verify_email_screen.dart",
+      "callSiteDelta": -107
     },
     {
       "path": "lib/features/firstrun/onboarding_screen.dart",
@@ -195,7 +209,7 @@
     },
     {
       "path": "pubspec.yaml",
-      "lines": 180,
+      "lines": 187,
       "verdict": "STAYS",
       "why": "Per-app manifest; its dependency list is swept by assert-play-declarations as of PR #474."
     },

@@ -1,194 +1,94 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nikatru_chassis_screens/auth/sign_up_screen.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
-import 'package:nikatru_design_system/nikatru_design_system.dart';
 
 import '../../state/providers.dart';
 import 'legal_consent_fields.dart';
 
-/// Sign-up — [pipeline C-13], inherited by every stamped app.
+/// Sign-up — the ADAPTER half.
 ///
-/// 🔴 CARRIES THE BLOCKING TERMS CLICKWRAP AND THE EXPRESS MARKETING OPT-IN
-/// (research/43 + research/44 riders, owner 2026-08-09). Both boxes arrive
-/// UNTICKED; the terms box blocks the button and the marketing box may not.
-/// See `legal_consent_fields.dart` for why they are two different legal animals.
-class SignUpScreen extends ConsumerStatefulWidget {
+/// 🏗️ THE BODY IS IN `package:nikatru_chassis_screens` ([ADR 071]), both
+/// consent flags with it. What could not travel is below: the seam call, the
+/// consent write and the ONE navigation this screen owns.
+class SignUpScreen extends ConsumerWidget {
   const SignUpScreen({super.key});
 
-  static const Key submitButton = Key('signUpSubmit');
+  static const Key submitButton = SignUpView.submitButton;
 
   @override
-  ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
-}
-
-class _SignUpScreenState extends ConsumerState<SignUpScreen> {
-  final TextEditingController _email = TextEditingController();
-  final TextEditingController _password = TextEditingController();
-  bool _busy = false;
-  String? _error;
-
-  /// 🔴 BOTH FALSE, ALWAYS. `assert-signup-consent-shape.mjs` fails the build
-  /// if either initialiser ever says `true` — a pre-ticked consent is a dark
-  /// pattern under Planet49/EDPB, DPDP Rules 2025 and CPRA alike, and it is the
-  /// one mistake here that no test would notice because the flow still works.
-  bool _acceptedTerms = false;
-  bool _marketingEmail = false;
-
-  @override
-  void dispose() {
-    _email.dispose();
-    _password.dispose();
-    super.dispose();
-  }
-
-  Future<void> _signUp(
-    core.AuthRepository auth,
-    ChassisLocalizations l10n,
-  ) async {
-    // 🔴 THE SECOND HALF OF THE CLICKWRAP. Disabling the button is the visible
-    // rule; this is the one that holds when the button is not the only way in —
-    // `onSubmitted:` on the password field reaches here from the keyboard, and
-    // an enter key that bypasses a legal gate is still a bypass.
-    if (_busy || !_acceptedTerms) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      if (_password.text.length < 8) {
-        // Checked HERE as well as server-side. The server is the authority, but
-        // a round trip to be told "too short" is a worse experience than being
-        // told before sending — and this is the one rule we can state exactly.
-        throw core.AuthFailure(l10n.passwordTooShort);
-      }
-      await auth.signUpWithEmail(
-        email: _email.text.trim(),
-        password: _password.text,
-      );
-      // 🔴 AFTER THE ACCOUNT EXISTS, and the order was the other way round for
-      // a day. Recording first was justified as "a user through the door with
-      // no record of what they agreed to is the outcome to avoid" — true, and
-      // not what recording first buys. What it bought was the opposite error,
-      // and the opposite error is the unrecoverable one:
-      //
-      //   · the consent trail is APPEND-ONLY and keyed by `anon_id`, never by
-      //     user id. A sign-up that then throws — address already registered, a
-      //     server-side password rejection, a dropped connection — left a
-      //     permanent `terms granted:true` and `marketing granted:true` for a
-      //     registration that never happened, and an account deletion (keyed by
-      //     user id) can never reach those rows to erase them.
-      //   · worse, `accept()` sets the device stamp SYNCHRONOUSLY at its first
-      //     line. So a failed sign-up satisfied the re-acceptance gate, and the
-      //     same person could sign IN to a pre-clickwrap account with the gate
-      //     already open — on the strength of an acceptance for an account that
-      //     does not exist.
-      //
-      // The other direction costs a re-ask: if this write fails after a
-      // successful sign-up, the gate stops them at the next launch and asks
-      // again. Recoverable, and the direction every other decision in this
-      // chassis takes.
-      //
-      // ⚠️ NO FRAME CAN BE PAINTED BETWEEN THESE TWO STATEMENTS, which is why
-      // the interstitial does not flash. `accept()` sets the in-memory stamp
-      // before its own first `await`, and Flutter drains the microtask queue —
-      // including this continuation — before it pumps a frame.
-      await ref
-          .read(legalAcceptanceProvider.notifier)
-          .accept(marketingEmail: _marketingEmail);
-      // 🔴 A SIGN-UP DOES NOT ALWAYS PRODUCE A SESSION, AND THE REDIRECT GUARD
-      // CANNOT SEE THE CASE WHERE IT DOES NOT. With "Confirm email" ON, gotrue
-      // returns a user and NO session, so `currentUser` stays null — and the
-      // router's verification gate is `sessionIsUnverified`, which answers
-      // FALSE for a null user BY DESIGN. Nothing fires, nothing moves, and the
-      // person who has just registered is left looking at the form they
-      // completed with no word about the mail now sitting in their inbox.
-      //
-      // So this screen navigates for exactly that state and for no other. When
-      // a session DID appear the guard is still the only thing that moves the
-      // user — pushing from both places is how two routes race for the top of
-      // the stack.
-      if (!mounted) return;
-      if (auth.currentUser == null) {
-        context.go('/check-inbox', extra: _email.text.trim());
-      }
-    } on core.AuthFailure catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (e) {
-      if (mounted) setState(() => _error = '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ChassisLocalizations l10n = context.chassisL10n;
+  Widget build(BuildContext context, WidgetRef ref) {
     final core.AuthRepository auth = ref.watch(authRepositoryProvider);
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.signUpTitle)),
-      // Same shape and same reasoning as SignInScreen: the error line lands
-      // under the fields, so vertical centring makes the form move at exactly
-      // the wrong moment. Width comes from the chassis.
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ContentPane.form(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autofillHints: const <String>[AutofillHints.email],
-                decoration: InputDecoration(labelText: l10n.email),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _password,
-                obscureText: true,
-                autofillHints: const <String>[AutofillHints.newPassword],
-                decoration: InputDecoration(labelText: l10n.password),
-                onSubmitted: (_) => _signUp(auth, l10n),
-              ),
-              if (_error != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-              const SizedBox(height: 20),
-              LegalConsentFields(
-                termsAccepted: _acceptedTerms,
-                marketingAccepted: _marketingEmail,
-                enabled: !_busy,
-                onTermsChanged: (bool v) => setState(() => _acceptedTerms = v),
-                onMarketingChanged: (bool v) =>
-                    setState(() => _marketingEmail = v),
-              ),
-              const SizedBox(height: 20),
-              // 🔴 DISABLED UNTIL THE TERMS BOX IS TICKED — and NOT until the
-              // marketing box is. An optional consent that gates the service is
-              // GDPR Art 7(4) conditionality, which research/43 declined as
-              // legally unavailable rather than as a preference.
-              FilledButton(
-                key: SignUpScreen.submitButton,
-                onPressed: (_busy || !_acceptedTerms)
-                    ? null
-                    : () => _signUp(auth, l10n),
-                child: Text(l10n.signUp),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: _busy ? null : () => context.go('/sign-in'),
-                child: Text(l10n.haveAccount),
-              ),
-            ],
+    return SignUpView(
+      onSignUp: ({required String email, required String password, required bool marketingEmail}) async {
+        await auth.signUpWithEmail(email: email, password: password);
+        // 🔴 AFTER THE ACCOUNT EXISTS, and the order was the other way round
+        // for a day. Recording first was justified as "a user through the door
+        // with no record of what they agreed to is the outcome to avoid" —
+        // true, and not what recording first buys. What it bought was the
+        // opposite error, and the opposite error is the unrecoverable one:
+        //
+        //   · the consent trail is APPEND-ONLY and keyed by `anon_id`, never by
+        //     user id. A sign-up that then throws — address already registered,
+        //     a server-side password rejection, a dropped connection — left a
+        //     permanent `terms granted:true` and `marketing granted:true` for a
+        //     registration that never happened, and an account deletion (keyed
+        //     by user id) can never reach those rows to erase them.
+        //   · worse, `accept()` sets the device stamp SYNCHRONOUSLY at its
+        //     first line. So a failed sign-up satisfied the re-acceptance gate,
+        //     and the same person could sign IN to a pre-clickwrap account with
+        //     the gate already open — on the strength of an acceptance for an
+        //     account that does not exist.
+        //
+        // The other direction costs a re-ask: if this write fails after a
+        // successful sign-up, the gate stops them at the next launch and asks
+        // again. Recoverable, and the direction every other decision in this
+        // chassis takes.
+        //
+        // ⚠️ NO FRAME CAN BE PAINTED BETWEEN THESE TWO STATEMENTS, which is why
+        // the interstitial does not flash. `accept()` sets the in-memory stamp
+        // before its own first `await`, and Flutter drains the microtask queue
+        // — including this continuation — before it pumps a frame.
+        await ref
+            .read(legalAcceptanceProvider.notifier)
+            .accept(marketingEmail: marketingEmail);
+        // 🔴 A SIGN-UP DOES NOT ALWAYS PRODUCE A SESSION, AND THE REDIRECT
+        // GUARD CANNOT SEE THE CASE WHERE IT DOES NOT. With "Confirm email" ON,
+        // gotrue returns a user and NO session, so `currentUser` stays null —
+        // and the router's verification gate is `sessionIsUnverified`, which
+        // answers FALSE for a null user BY DESIGN. Nothing fires, nothing
+        // moves, and the person who has just registered is left looking at the
+        // form they completed with no word about the mail now sitting in their
+        // inbox.
+        //
+        // So this screen navigates for exactly that state and for no other.
+        // When a session DID appear the guard is still the only thing that
+        // moves the user — pushing from both places is how two routes race for
+        // the top of the stack.
+        if (!context.mounted) return;
+        if (auth.currentUser == null) {
+          context.go('/check-inbox', extra: email);
+        }
+      },
+      onHaveAccount: () => context.go('/sign-in'),
+      // The brick's own consent widget, still MOUNTED — see
+      // `legal_consent_fields.dart`. The chassis view owns the two flags; this
+      // side owns the published URLs and the platform call that opens them.
+      consentFields:
+          ({
+            required bool termsAccepted,
+            required bool marketingAccepted,
+            required bool enabled,
+            required ValueChanged<bool> onTermsChanged,
+            required ValueChanged<bool> onMarketingChanged,
+          }) => LegalConsentFields(
+            termsAccepted: termsAccepted,
+            marketingAccepted: marketingAccepted,
+            enabled: enabled,
+            onTermsChanged: onTermsChanged,
+            onMarketingChanged: onMarketingChanged,
           ),
-        ),
-      ),
     );
   }
 }

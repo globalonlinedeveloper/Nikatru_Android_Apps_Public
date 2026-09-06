@@ -84,7 +84,14 @@ const SUBJECT = [WORKSPACE_MANIFEST, APP_MANIFEST, ROUTER, ROUTER_DIR, FEATURES,
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
 const BRICK_MANIFEST = 'tooling/bricks/app/brick.yaml';
 const DS = 'packages/design_system';
-const NEW_ROOT_SUBJECT = [BRICK, BRICK_MANIFEST, DS];
+// 🔴 THE CHASSIS PACKAGE IS PART OF THE SUBJECT SINCE [ADR 071]. Six of the
+// brick's twelve routed screens are now ADAPTERS importing
+// `package:nikatru_chassis_screens/auth/…`; this guard resolves that import and
+// refuses when the target is not on disk, so a fixture that copied the brick
+// without it failed as COVERAGE LOST for a reason no case here is about. It is
+// also the fourth DERIVED root, and the one root in the tree that ENFORCES.
+const CHASSIS = 'packages/chassis_screens';
+const NEW_ROOT_SUBJECT = [BRICK, BRICK_MANIFEST, DS, CHASSIS];
 
 let TMP;
 let seq = 0;
@@ -165,7 +172,7 @@ const fails = (out) => out.split('\n').filter((l) => l.startsWith('FAIL '));
 // guard that can only ever say "uncovered".
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the guard says YES on the tree as it is', () => {
-  test('the REAL repository — 3 derived roots, subly EQUAL, exit 0', () => {
+  test('the REAL repository — 4 derived roots, subly EQUAL, exit 0', () => {
     const { code, out } = run(REPO);
     assert.equal(code, 0, out);
     // 🔴 THE ROOT LINE IS PINNED BECAUSE THE ROOT LINE IS THE FIX. The domain
@@ -173,14 +180,17 @@ describe('the guard says YES on the tree as it is', () => {
     // nothing else in the output would say it had come back: `19 surface(s)
     // reachable … EQUAL` prints just as happily over a tree with two unchecked
     // roots in it.
-    assert.match(out, /3 root\(s\) DERIVED, never listed/);
+    // FOUR since [ADR 071] added packages/chassis_screens — the one root here
+    // that ENFORCES rather than reports.
+    assert.match(out, /4 root\(s\) DERIVED, never listed/);
     assert.match(out, /apps\/subly \(workspace app member\)/);
     assert.match(
       out,
       /packages\/design_system \(workspace package member: declares flutter_test AND a public widget\)/,
     );
     assert.match(out, /\{\{app_id\}\} \(brick template, declared by tooling\/bricks\/app\/brick\.yaml\)/);
-    assert.match(out, /FULL CHECKOUT: all 3 declared root\(s\) are required to be among them/);
+    assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
+    assert.match(out, /packages\/chassis_screens: 7 surface\(s\) reachable, 7 measured — the two sets are EQUAL/);
 
     assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
     assert.match(
@@ -188,7 +198,7 @@ describe('the guard says YES on the tree as it is', () => {
       /apps\/subly: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/,
     );
     // The two report-mode roots, and the shape of what they report.
-    assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 9 PRINTED and not failed/);
+    assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 3 PRINTED and not failed/);
     assert.match(out, /packages\/design_system: 11 of 19 surface\(s\) measured — 8 PRINTED and not failed/);
   });
 
@@ -390,7 +400,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, WORKSPACE_MANIFEST, '\n  - packages/design_system', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`packages\/design_system`/);
     // The reason the limb exists, asserted: nothing else could see it, because
     // the scan still read the other roots in full.
@@ -402,7 +412,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, `${DS}/pubspec.yaml`, '\n  flutter_test:', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`packages\/design_system`/);
   });
 
@@ -411,7 +421,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`apps\/subly`/);
   });
 });
@@ -425,7 +435,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     rmSync(join(root, `${BRICK}/test/responsive_width_test.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `tooling\/bricks.*` has 0 measured surface\(s\) and its measured floor is 3/s);
+    assert.match(out, /COVERAGE LOST — `tooling\/bricks.*` has 6 measured surface\(s\) and its measured floor is 9/s);
     assert.match(out, /COVERAGE LOST — `tooling\/bricks.*` yielded only 0 width test file\(s\)/s);
   });
 
@@ -488,7 +498,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     assert.equal(code, 0, out);
     assert.ok(printedUnmeasured(out, BRICK).includes('showG3ProbeSheet'), out);
     assert.ok(printedUnmeasured(out, DS).includes('G3ProbeWidget'), out);
-    assert.match(out, /\{\{app_id\}\}: 3 of 13 surface\(s\) measured — 10 PRINTED/);
+    assert.match(out, /\{\{app_id\}\}: 3 of 13 surface\(s\) measured — 4 PRINTED/);
     assert.match(out, /packages\/design_system: 11 of 20 surface\(s\) measured — 9 PRINTED/);
   });
 });
@@ -585,8 +595,11 @@ function treeWithChassis({ chassisWidthTest = true, inWorkspace = true, widgetOn
     count: 4,
   });
 
-  if (inWorkspace) {
-    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', `\n  - ${CHASSIS_DIR}\n  - apps/subly`);
+  // ⚠️ THE WORKSPACE LINE IS ALREADY THERE, SO THE MUTATION IS THE REMOVAL —
+  // see the same note in a11y-coverage.test.mjs. Adding a second line derived
+  // `packages/chassis_screens` twice once [ADR 071] put it in the real manifest.
+  if (!inWorkspace) {
+    edit(root, WORKSPACE_MANIFEST, `\n  - ${CHASSIS_DIR}`, '');
   }
   return root;
 }
@@ -597,14 +610,14 @@ describe('a screen that DELEGATES into the chassis is measured where it now live
     const { code, out } = run(treeWithChassis());
     assert.equal(code, 0, out);
     assert.match(out, /4 derived root\(s\)/);
-    assert.match(out, /1 measured where they delegate to/);
+    assert.match(out, /7 measured where they delegate to/);
   });
 
   // THE MUTATION — the screen moved and NO width test arrived with it.
   test('R-D2 · the chassis widget has no width test: the brick floor fires', () => {
     const { code, out } = run(treeWithChassis({ chassisWidthTest: false }));
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — .*\{\{app_id\}\}` has 2 measured surface\(s\) and its measured floor is 3/);
+    assert.match(out, /COVERAGE LOST — .*\{\{app_id\}\}` has 8 measured surface\(s\) and its measured floor is 9/);
   });
 
   // Same mutation seen from the other side: the delegation resolves to nothing.

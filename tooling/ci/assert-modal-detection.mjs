@@ -340,6 +340,17 @@ const REQUIRED_COVERAGE = [
       'the shared chassis [ADR 065 step 2] — where DestructiveConfirmDialog and DestructiveOutcomeNotice ' +
       'now live, and the only package carrying a `find.byType(` at all (17 suite file(s), 63 site(s) today)',
   },
+  {
+    // MEASURED 2026-09-06, the day [ADR 071] created this root, from this
+    // guard's own per-root line: `packages/chassis_screens=8`. Roughly half,
+    // like every other floor here — 8 sites across 7 suite files, one per auth
+    // screen. RAISE IT IN THE SAME CHANGE THAT LANDS THE NEXT SCREEN.
+    dir: 'packages/chassis_screens',
+    floor: 4,
+    label:
+      'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens every ' +
+      'stamped app inherits (7 suite file(s), 8 site(s) today)',
+  },
   { dir: 'packages/auth_supabase', floor: 3, label: 'the sign-in widgets (5 suite file(s) today)' },
   { dir: 'packages/purchases', floor: 3, label: 'the paywall surfaces (6 suite file(s) today)' },
   { dir: 'packages/notifications', floor: 2, label: 'the permission prompts (3 suite file(s) today)' },

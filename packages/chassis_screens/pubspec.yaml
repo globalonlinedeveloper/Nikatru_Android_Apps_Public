@@ -1,0 +1,63 @@
+name: nikatru_chassis_screens
+description: >-
+  The chassis SCREEN BODIES every stamped app inherits — the auth flow first.
+  Each widget here takes plain values and callbacks; the brick keeps a thin
+  adapter that reads providers and passes them in. No Riverpod, no go_router,
+  no plugin: this package wraps nothing, so it is not an adapter, and every
+  screen in it is testable without a provider container.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+repository: https://github.com/globalonlinedeveloper/Nikatru_Platform_Public
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+# ── WHY THIS PACKAGE DECLARES NOTHING BUT FLUTTER AND TWO nikatru_ PATHS ─────
+# [ADR 067] decision 2, and it is a MEASUREMENT rather than a preference.
+#
+#   · Limb C of `tooling/ci/assert-package-boundaries.mjs` (:185-201) derives
+#     the ADAPTER set from the tree: every package under packages/ that is not
+#     `core` and not `design_system` and declares at least one THIRD-PARTY
+#     dependency is an adapter, and each of those dependencies is recorded as a
+#     vendor it WRAPS. `:288-298` then fails every app that imports a wrapped
+#     vendor directly. Declaring `flutter_riverpod` or `go_router` here would
+#     therefore make ~66 existing direct import sites illegal overnight, none
+#     of which is going through a seam and none of which should.
+#     `kind === 'sdk'`, `kind === 'path'` and any `nikatru_`-prefixed name are
+#     skipped by that derivation (:191-193), and `_lints` is config rather than
+#     a wrapped SDK (:184) — so the four entries below wrap nothing at all.
+#
+#   · Depending on `nikatru_core` is the whole reason this is not
+#     `packages/design_system`. Both measured shared-widget adoptions so far
+#     cost the CALL SITE more than they removed (+136, +148 — [ADR 066])
+#     because the design system may not see the domain (limb B, :150-158), so
+#     every adapter had to map core types down to plain values by hand. A
+#     package that CAN see core keeps that mapping out of the adapter, which is
+#     what makes the [ADR 066] rule — a screen moves only when the call site
+#     measurably shrinks — reachable at all.
+#
+#   · `nikatru_design_system` brings `ContentPane`, `AuthField`, `FocusableTap`
+#     and `ChassisLocalizations`. It is a `nikatru_` name, so limb C skips it;
+#     limb B binds design_system, not its consumers.
+#
+# THE STANDING RULE THIS CREATES: a third-party dependency added here turns
+# this package into an adapter and reddens the build for two-thirds of the
+# `apps/subly` import sites. If a screen body needs a plugin, the plugin call
+# stays in the brick adapter and this package takes a callback.
+dependencies:
+  flutter:
+    sdk: flutter
+  nikatru_core:
+    path: ../core
+  nikatru_design_system:
+    path: ../design_system
+
+dev_dependencies:
+  # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.
+  nikatru_lints:
+    path: ../analysis
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
