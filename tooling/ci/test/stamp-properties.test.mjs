@@ -285,7 +285,16 @@ describe('an anchor whose line moved into the chassis is judged there', () => {
    *  in NEITHER file. `packageOnDisk: false` is the resolver's own refusal. */
   function delegate({ lineInPackage = true, packageOnDisk = true } = {}) {
     const appPath = join(BASE, BRICK, APP_ROOT);
-    const original = readFileSync(appPath, 'utf8');
+    // ⚠️ THE BRICK'S OWN CHASSIS IMPORT IS STRIPPED FIRST, and that is not
+    // tidying. Since 2026-09-07 ([ADR 067] phase 2, unit app-shell) `app.dart`
+    // ALREADY delegates — to
+    // `package:nikatru_chassis_screens/shell/app_shell.dart` — so prepending a
+    // second import made this fixture the SP-D4 case by accident: the resolver
+    // correctly refused to guess between two paths and SP-D1's green control
+    // went red for a reason that had nothing to do with what it measures. One
+    // import, replaced, so each case still controls exactly one variable.
+    const original = readFileSync(appPath, 'utf8')
+      .replace(/^import 'package:nikatru_chassis_screens\/[^']+';\n/gm, '');
     assert.ok(original.includes(ANCHOR), 'the subject anchor has moved out of the brick app.dart');
     writeFileSync(
       appPath,
@@ -305,6 +314,11 @@ describe('an anchor whose line moved into the chassis is judged there', () => {
         'class AppShell extends StatelessWidget {\n' +
           '  Widget build(BuildContext context) => MaterialApp(\n' +
           (lineInPackage ? `    ${ANCHOR}\n` : '    // the line is in neither file\n') +
+          // The OTHER APP_ROOT anchor that left the brick with the shell in the
+          // same unit. It is unconditional: `lineInPackage` is about the ONE
+          // line under test, and a fixture that dropped this one too would make
+          // SP-D2 red for two reasons and prove neither.
+          '    builder: (c, w) => MediaQuery.withClampedTextScaling(\n' +
           '  );\n}\n',
       );
     }
