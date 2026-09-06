@@ -212,11 +212,17 @@ const blocks = [];
 let pending = null; // the directive attached to the next block
 for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
-  const directive = /^<!--\s*render:\s*(.*?)\s*-->$/.exec(line);
+  // ⚠ `--!>` CLOSES AN HTML COMMENT TOO, and a scanner that only knows `-->`
+  // reads the rest of the document as still-inside-the-comment. CodeQL
+  // js/bad-tag-filter raised it on the second line below (2026-09-06); both are
+  // widened, because a directive this parser fails to recognise and a note it
+  // fails to close are the same defect at different severities — one drops a
+  // rendering instruction, the other swallows published legal text.
+  const directive = /^<!--\s*render:\s*(.*?)\s*--!?>$/.exec(line);
   if (directive) { pending = directive[1]; continue; }
   if (/^<!--/.test(line)) {
     // A note to readers of the Markdown. Skip to the end of the comment.
-    while (i < lines.length && !/-->\s*$/.test(lines[i])) i++;
+    while (i < lines.length && !/--!?>\s*$/.test(lines[i])) i++;
     continue;
   }
   if (line.trim() === '') continue;

@@ -125,8 +125,11 @@ function markdownVisibleText(md) {
     // HTML copies as a visible `<span class="tag">`; treating the directive that
     // holds it as metadata would let that string change in the Markdown with
     // this guard reporting a clean run. Every other directive is presentation.
-    .replace(/<!--\s*render:[^>]*?callout=([^>]*?)\s*-->/g, ' $1 ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')   // reader notes and the other directives
+    // `--!>` closes a comment as well as `-->`; both patterns accept it, so this
+    // reduction and contracts/legal/render-fullshot-privacy.mjs agree about where
+    // a comment ENDS. They disagreeing is a divergence report nobody can explain.
+    .replace(/<!--\s*render:[^>]*?callout=([^>]*?)\s*--!?>/g, ' $1 ')
+    .replace(/<!--[\s\S]*?--!?>/g, ' ')  // reader notes and the other directives
     .replace(/<[^>]*>/g, ' ')            // the inline HTML the policy uses (<u>)
     .replace(/^\s*---\s*$/gm, ' ')       // the footer rule
     .replace(/^#{1,6}\s+/gm, '')         // heading markers

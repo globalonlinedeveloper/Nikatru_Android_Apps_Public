@@ -60,6 +60,17 @@ if (!fs.existsSync(path.join(monoRoot, 'contracts'))) {
 
 const lf = (buf) => Buffer.from(buf.toString('binary').replace(/\r\n/g, '\n'), 'binary');
 
+/** The file's bytes, or null if it is not there. Anything else still throws —
+ *  a permissions error is not "absent" and must not be reported as one. */
+function readOrNull(abs) {
+  try {
+    return fs.readFileSync(abs);
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 const problems = [];
 let compared = 0;
 
@@ -67,25 +78,31 @@ for (const row of SYNCED) {
   const srcAbs = path.join(monoRoot, row.from);
   const dstAbs = path.join(extRoot, row.to);
 
-  if (!fs.existsSync(srcAbs)) {
+  /* ⚠️ READ, THEN DIAGNOSE. existsSync() followed by readFileSync() is a
+     time-of-check/time-of-use race (CodeQL js/file-system-race, raised on the
+     twin of this loop in sync-contracts.mjs, 2026-09-06): the file can be
+     replaced between the two calls, so the bytes reported on are not the bytes
+     checked. One read answers both questions and ENOENT carries the same
+     diagnosis the probe did. */
+  const src = readOrNull(srcAbs);
+  if (src === null) {
     problems.push('SOURCE GONE  ' + row.from + '  — the authored contract this runtime copy mirrors is not in the ' +
       'tree. Either it moved and sync-contracts.mjs\'s table is stale, or it was deleted while a copy of it ' +
       'is still shipping.');
     continue;
   }
-  const src = fs.readFileSync(srcAbs);
   if (src.length === 0) {
     problems.push('SOURCE EMPTY  ' + row.from + '  — zero bytes. Every hash comparison below would pass against ' +
       'an equally empty copy, and the runtime would carry no vocabulary at all.');
     continue;
   }
-  if (!fs.existsSync(dstAbs)) {
+  const dst = readOrNull(dstAbs);
+  if (dst === null) {
     problems.push('MISSING  ' + row.to + '  — ' + row.why + ', and the runtime has no copy of it.\n' +
       '          Run:  node scripts/sync-contracts.mjs');
     continue;
   }
   compared++;
-  const dst = fs.readFileSync(dstAbs);
   if (sha256(dst) === sha256(src)) continue;
 
   if (sha256(lf(dst)) === sha256(lf(src))) {

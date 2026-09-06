@@ -262,4 +262,50 @@ describe('assert-legal-text-parity — a document published twice says the same 
     const r = run({ ext: asEntities });
     assert.equal(r.code, 0, r.out);
   });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🔴 `--!>` CLOSES AN HTML COMMENT, AND A SCANNER THAT ONLY KNOWS `-->` READS
+  // EVERYTHING AFTER IT AS STILL INSIDE THE COMMENT (CodeQL js/bad-tag-filter,
+  // raised on contracts/legal/render-fullshot-privacy.mjs, 2026-09-06). Both
+  // ends of this pair — the renderer's block scan and this guard's Markdown
+  // reduction — now accept it, and the two cases below pin BOTH directions:
+  // the note is still dropped, and the published text after it is still read.
+  //
+  // ⚠️ HONEST ABOUT WHICH HALF WAS BROKEN, because it was MEASURED rather than
+  // assumed. Reverting THIS guard's two patterns and re-running these two cases
+  // leaves both GREEN: the generic `<[^>]*>` tag strip further down happens to
+  // eat a `--!>`-closed comment as one long tag, so the reduction survived by
+  // accident. The RENDERER was genuinely broken, and that was measured too — on
+  // the real tree, with the real Markdown's head note closed `--!>`:
+  //     node contracts/legal/render-fullshot-privacy.mjs --check   (pre-fix)
+  //     EXIT 1 — "fullshot-privacy.md has no level-1 heading, so neither page
+  //               would have a title": the scan ran to end of file and swallowed
+  //               the ENTIRE document
+  //     the same command, fixed                                     EXIT 0
+  // So these two cases are a PIN on behaviour that must not regress, not a
+  // red/green pair for the guard edit; the pair for the edit is above.
+  // ───────────────────────────────────────────────────────────────────────────
+  const closedWithBang = () =>
+    markdown().replace(
+      '  as text: a commented-out sentence that changed would otherwise fail this.\n-->',
+      '  as text: a commented-out sentence that changed would otherwise fail this.\n--!>',
+    );
+
+  test("a reader note closed with `--!>` is still a comment, not published text", () => {
+    const md = closedWithBang();
+    assert.ok(md.includes('--!>'), 'the fixture no longer carries the --!> ending');
+    const r = run({ md });
+    assert.equal(r.code, 0, r.out);
+  });
+
+  test("...and a sentence AFTER a `--!>`-closed note is still COMPARED, not swallowed", () => {
+    const md = closedWithBang().replace(
+      'FullShot collects no personal information from anyone.',
+      'FullShot collects some personal information from everyone.',
+    );
+    assert.ok(md.includes('--!>'));
+    const r = run({ md });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /fullshot-privacy\.md/);
+  });
 });

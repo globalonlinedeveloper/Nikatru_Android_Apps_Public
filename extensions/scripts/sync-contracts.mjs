@@ -110,17 +110,36 @@ function main() {
   for (const row of SYNCED) {
     const srcAbs = path.join(monoRoot, row.from);
     const dstAbs = path.join(extRoot, row.to);
-    if (!fs.existsSync(srcAbs)) {
+
+    /* ⚠️ READ, THEN DIAGNOSE — never existsSync() and then readFileSync(). The
+       pair is a time-of-check/time-of-use race (CodeQL js/file-system-race,
+       raised on this file 2026-09-06): between the two calls the file can be
+       replaced, so what is diagnosed is not what is copied. One read answers
+       both questions, and ENOENT is the same diagnosis the check produced. */
+    let src;
+    try {
+      src = fs.readFileSync(srcAbs);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
       die('source does not exist: ' + row.from + '\n' +
         'It is ' + row.why + ', and the extension runtime cannot be given a copy of a file that is\n' +
         'not there. Either the contract moved, or this table is stale.');
     }
-    const src = fs.readFileSync(srcAbs);
     if (src.length === 0) {
       die(row.from + ' is EMPTY. Copying zero bytes would satisfy every hash check afterwards and\n' +
         'leave the runtime with no vocabulary at all.');
     }
-    const same = fs.existsSync(dstAbs) && sha256(fs.readFileSync(dstAbs)) === sha256(src);
+
+    /* Same rule on the destination: an absent copy and a copy that differs are
+       the same verdict here — it has to be written — so a missing file is read
+       as "not the same bytes" rather than probed for first. */
+    let dst = null;
+    try {
+      dst = fs.readFileSync(dstAbs);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+    const same = dst !== null && sha256(dst) === sha256(src);
     if (same) {
       r.pass(row.to + ' is already byte-identical to ' + row.from);
       continue;
