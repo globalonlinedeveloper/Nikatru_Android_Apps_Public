@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalonlinedeveloper/Nikatru_Extensions_Public/scripts/schema/tool.schema.json",
+  "$id": "https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/extensions/scripts/schema/tool.schema.json",
   "title": "tool.json",
   "description": "The entire coupling surface between a tool and this monorepo. Every gate in scripts/ is driven by this file, so a tool never has to restructure itself to participate. NOTE: this schema is for editor autocomplete and hover docs only. It is NOT the gate — scripts/lib/toolinfo.mjs is, because the checks that matter are cross-file (does the manifest exist, does every listed test path resolve, does the surface match the category directory) and no JSON Schema can express them. If the two ever disagree, toolinfo.mjs is right.",
   "type": "object",

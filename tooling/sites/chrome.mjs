@@ -90,11 +90,14 @@ export const CHROME_EXCLUDED = new Map([
   ],
   [
     'sites/nikatru/fullshot/privacy.html',
-    'a MIRRORED LEGAL DOCUMENT whose source of truth is Nikatru_Extensions_Public/Extension/' +
+    'a MIRRORED LEGAL DOCUMENT whose source of truth is extensions/Extension/' +
       'Full_Screen_Shot/publish/PRIVACY-POLICY.html. Its <footer> is not site chrome — it is the ' +
       "document's own publisher identification, part of the text a store reviewer is reading. Splicing " +
-      'site navigation over it would both edit a legal document and widen a cross-repo divergence that ' +
-      'no guard in either repository can see. The cost is that this page carries no site navigation; ' +
+      'site navigation over it would both edit a legal document and widen a divergence between the two ' +
+      'copies. (Repointed 2026-09-06: the source used to live in the separate repository ' +
+      'Nikatru_Extensions_Public, which was merged into this one on 2026-09-05 under [ADR 067] ' +
+      'decision 1 and then DELETED on GitHub. The divergence is therefore no longer CROSS-REPO ' +
+      'and is now something a guard in this repository can see.) The cost is that this page carries no site navigation; ' +
       'that is recorded as a known gap, not an oversight.',
   ],
 ]);
