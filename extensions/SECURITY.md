@@ -4,7 +4,7 @@
 
 Use GitHub's private vulnerability reporting:
 
-**<https://github.com/globalonlinedeveloper/Nikatru_Extensions_Public/security/advisories/new>**
+**<https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/security/advisories/new>**
 
 The report is visible only to you and the maintainer, it lets you attach a proof of concept without
 publishing it, and it is the same link the issue chooser offers. Please do not open a public issue

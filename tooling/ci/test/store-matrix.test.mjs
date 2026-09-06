@@ -183,8 +183,17 @@ describe('assert-store-matrix — positive controls', () => {
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
     assert.equal(r.status, 0, out);
     assert.match(out, /assert-store-matrix: ok/);
-    // 2 rows since 2026-08-19 (was 15 before the intent-only rows were dropped), not 0: an `ok` over an empty registry would satisfy the line above.
-    assert.match(out, /checked 2 slot row\(s\)/);
+    // 1 row since 2026-09-06, not 0: an `ok` over an empty registry would satisfy the
+    // line above. The COUNT is what matters here - that the guard reached a NON-EMPTY
+    // registry. It read 15 until the intent-only rows were dropped on 2026-08-19, then 2,
+    // and 1 since the Chrome_Web_Store row was removed on 2026-09-06. That row declared
+    // Nikatru_Extensions_{Public,Private} as publicDir and as existsOnGitHub: true; both
+    // repositories were merged into this one's extensions/ subtree on 2026-09-05 under
+    // [ADR 067] decision 1 and then DELETED on GitHub, so the registry was asserting two
+    // repositories that do not exist. catalog/store-matrix.json's
+    // `removedSlot20260906_Chrome_Web_Store` carries the removal and the before/after
+    // finding counts.
+    assert.match(out, /checked 1 slot row\(s\)/);
   });
 
   test('P2 a no-flag run REACHES whichever tree is here, and forms a verdict about it', () => {
@@ -212,7 +221,13 @@ describe('assert-store-matrix — positive controls', () => {
       // guard's business and would mean it had quietly stopped looking.
       assert.ok(r.code === 0 || r.code === 1, `expected 0 or 1, got ${r.code}\n${r.out}`);
       assert.match(r.out, /tree limb: RAN against/);
-      assert.match(r.out, /across 2 slot path\(s\)/);
+      // 1 slot path since 2026-09-06, 2 before it. The Chrome_Web_Store path held
+      // Nikatru_Extensions_{Public,Private}; both were merged into this repository's
+      // extensions/ subtree on 2026-09-05 under [ADR 067] decision 1, deleted on GitHub,
+      // and their local directories moved to Projects/_archived-2026-09-05/. The number
+      // is asserted, rather than merely "RAN", so that a walk which reached the anchor
+      // and then found NOTHING cannot satisfy this branch.
+      assert.match(r.out, /across 1 slot path\(s\)/);
     } else {
       assert.equal(r.code, 2, r.out);
       assert.match(r.out, /COVERAGE LOST/);

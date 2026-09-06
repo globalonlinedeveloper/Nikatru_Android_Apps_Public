@@ -883,6 +883,18 @@
   },
   {
     "claims": [
+      "ADR 067"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-no-dead-repo-names.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "T-10"
     ],
     "invokedBy": [
