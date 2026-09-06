@@ -30,6 +30,11 @@ import {
   buildRunsUrl,
   REQUIRED_WORK,
   RUNS_PAGE_SIZE,
+  evaluateTimer,
+  assertTimerRecordDeclared,
+  TIMER_JOB,
+  TIMER_TARGET,
+  TIMER_TABLE,
 } from '../assert-e2e-proof-fresh.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,9 +51,27 @@ after(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
+// 🔴 EVERY CLI RUN SUPPLIES BOTH RECORDS, AND THE DEFAULT TIMER ROW IS FRESH.
+// Since 2026-09-06 the guard grades a run list AND a D1 timer row and refuses a
+// half-fixture outright, so a test about the run-list limb must not silently
+// become a test about a missing heartbeat. The timer cases below pass their own
+// `--timer-file` through `args`, and this helper stands aside when they do.
+const timerRow = (opts = {}) => ({
+  job: opts.job ?? 'github_dispatch',
+  target: opts.target ?? 'Nikatru_Platform_Public/e2e.yml',
+  ok: opts.ok ?? 1,
+  detail: opts.detail ?? 'dispatched',
+  ran_at: opts.ran_at ?? daysAgo(opts.days ?? 0),
+});
+const timerFixture = (name, rows) => {
+  const p = join(TMP, name);
+  writeFileSync(p, JSON.stringify(rows));
+  return p;
+};
 const run = (name, ...args) => {
   const file = join(TMP, name);
-  return spawnSync(process.execPath, [GUARD, '--runs-file', file, '--now', NOW, ...args], {
+  const timer = args.includes('--timer-file') ? [] : ['--timer-file', timerFixture(`timer-for-${name}`, [timerRow()])];
+  return spawnSync(process.execPath, [GUARD, '--runs-file', file, '--now', NOW, ...timer, ...args], {
     cwd: REPO,
     encoding: 'utf8',
   });
@@ -61,19 +84,19 @@ const daysAgo = (n) => new Date(NOW_MS - n * 86_400_000).toISOString();
 
 describe('evaluateFreshness — the decision', () => {
   test('a run inside the ceiling passes', () => {
-    const v = evaluateFreshness([{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(1) }], NOW_MS);
+    const v = evaluateFreshness([{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(1) }], NOW_MS);
     assert.equal(v.ok, true);
     assert.ok(Math.abs(v.ageDays - 1) < 0.01);
   });
 
   test('a run past the ceiling FAILS — this is the whole requirement', () => {
-    const v = evaluateFreshness([{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(4) }], NOW_MS);
+    const v = evaluateFreshness([{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(4) }], NOW_MS);
     assert.equal(v.ok, false);
     assert.match(v.reason, /4\.0 days old/);
   });
 
   test('exactly at the ceiling passes — the boundary is inclusive and pinned at 3', () => {
-    const v = evaluateFreshness([{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(3) }], NOW_MS);
+    const v = evaluateFreshness([{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(3) }], NOW_MS);
     assert.equal(v.ok, true);
   });
 
@@ -81,15 +104,15 @@ describe('evaluateFreshness — the decision', () => {
     // The ceiling is 1 (cadence) + 1 (a tolerated bad night) + 1 (jitter margin).
     // If someone re-derives it down to the bare cadence, a single red nightly
     // starts blocking every merge in the repo, which is how guards get deleted.
-    const v = evaluateFreshness([{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(2) }], NOW_MS);
+    const v = evaluateFreshness([{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(2) }], NOW_MS);
     assert.equal(v.ok, true);
   });
 
   test('failed runs do not count as proof, however recent', () => {
     const v = evaluateFreshness(
       [
-        { id: 1, conclusion: 'failure', event: 'schedule', updated_at: daysAgo(0) },
-        { id: 2, conclusion: 'cancelled', event: 'schedule', updated_at: daysAgo(0) },
+        { id: 1, conclusion: 'failure', head_branch: 'main', event: 'schedule', updated_at: daysAgo(0) },
+        { id: 2, conclusion: 'cancelled', head_branch: 'main', event: 'schedule', updated_at: daysAgo(0) },
       ],
       NOW_MS,
     );
@@ -97,34 +120,58 @@ describe('evaluateFreshness — the decision', () => {
     assert.match(v.reason, /no successful/);
   });
 
-  test('THE REAL 2026-08-01 DEFECT — two green manual runs inside a six-night outage', () => {
+  test('THE REAL 2026-08-01 DEFECT, AT THE RECORD THAT NOW CARRIES IT', () => {
     // Not hypothetical. On 2026-08-01, mid-outage, two `workflow_dispatch` runs
-    // went green while every scheduled run was red. A guard that counted them
-    // would have called the nightly healthy on the worst night it ever had.
-    const v = evaluateFreshness(
-      [
-        { id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(7) },
-        { id: 2, conclusion: 'success', event: 'workflow_dispatch', updated_at: daysAgo(1) },
-        { id: 3, conclusion: 'success', event: 'workflow_dispatch', updated_at: daysAgo(1) },
-      ],
-      NOW_MS,
-    );
-    assert.equal(v.ok, false);
-    assert.match(v.reason, /7\.0 days old/);
+    // went green while every scheduled run was red, and until 2026-09-06 this
+    // guard refused them HERE, in the run list.
+    //
+    // 🔴 IT CANNOT REFUSE THEM HERE ANY MORE, AND THAT IS THE CHANGE, NOT A
+    // REGRESSION: the Cloudflare Worker dispatches this workflow, so a
+    // legitimate nightly IS a `workflow_dispatch` now. The claim those two runs
+    // must not satisfy moved to a record no hand-press can write. This test
+    // therefore asserts BOTH halves of the split at once — that the outcome limb
+    // accepts them, and that the duty is still not fresh.
+    const runs = [
+      { id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(7) },
+      { id: 2, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(1) },
+      { id: 3, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(1) },
+    ];
+    assert.equal(evaluateFreshness(runs, NOW_MS).ok, true, 'a green run on main is a green run on main');
+    const t = evaluateTimer([{ job: TIMER_JOB, target: TIMER_TARGET, ok: 1, ran_at: daysAgo(7) }], NOW_MS);
+    assert.equal(t.ok, false, 'the dispatcher has not fired in seven days — the duty is not fresh');
+    assert.match(t.reason, /7\.0 days old/);
   });
 
-  test('manual-only history FAILS here — the deliberate divergence from F-4', () => {
-    // assert-platform-proof-fresh.mjs treats this as a dated tripwire that only
-    // PRINTS, because its cron had genuinely never fired. This workflow's cron
-    // has fired every night from 2026-07-24 to 2026-08-02, so the same state is
-    // a stopped timer, not a young one, and it must fail immediately.
+  test('A GREEN RUN ON A SIDE BRANCH IS NOT THE NIGHTLY — the guarantee the event filter used to carry for free', () => {
+    // GitHub fires schedules only on the default branch, so the old event filter
+    // was ALSO a branch filter and nobody had to say so. Dropping it without
+    // naming the branch would have widened this guard to "a green run anywhere",
+    // and that is not hypothetical: measured 2026-09-04, this workflow held four
+    // green runs on `feat/e2e-login-via-magic-link`.
     const v = evaluateFreshness(
-      [{ id: 1, conclusion: 'success', event: 'workflow_dispatch', updated_at: daysAgo(0) }],
+      [{ id: 1, conclusion: 'success', head_branch: 'feat/e2e-login-via-magic-link', event: 'workflow_dispatch', updated_at: daysAgo(0) }],
       NOW_MS,
     );
     assert.equal(v.ok, false);
-    assert.equal(v.manualCount, 1);
-    assert.match(v.reason, /NONE was triggered by the schedule/);
+    assert.equal(v.offBranchCount, 1);
+    assert.match(v.reason, /NONE has `head_branch: main`/);
+  });
+
+  test('a row carrying NO branch at all is DROPPED, not trusted', () => {
+    // A missing field is not a matching one. If the API ever stops sending
+    // `head_branch`, this guard must go red rather than certify every row.
+    const v = evaluateFreshness([{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(0) }], NOW_MS);
+    assert.equal(v.ok, false);
+  });
+
+  test('a green run on main passes WHATEVER FIRED IT — schedule and dispatch alike', () => {
+    // The Worker dispatches this workflow, so refusing `workflow_dispatch` here
+    // would refuse the real nightly. e2e.yml keeps its `schedule:` slot as the
+    // rollback, so both events must satisfy the OUTCOME limb.
+    for (const event of ['schedule', 'workflow_dispatch']) {
+      const v = evaluateFreshness([{ id: 1, conclusion: 'success', head_branch: 'main', event, updated_at: daysAgo(1) }], NOW_MS);
+      assert.equal(v.ok, true, `event ${event} should satisfy the outcome limb`);
+    }
   });
 
   test('an unreadable answer is a failure, never a pass', () => {
@@ -135,7 +182,7 @@ describe('evaluateFreshness — the decision', () => {
 
   test('an unparseable timestamp fails rather than reading as epoch 0', () => {
     const v = evaluateFreshness(
-      [{ id: 1, conclusion: 'success', event: 'schedule', updated_at: 'yesterday-ish' }],
+      [{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: 'yesterday-ish' }],
       NOW_MS,
     );
     assert.equal(v.ok, false);
@@ -172,7 +219,7 @@ describe('isDailyCron — the derivation`s own check', () => {
 
 describe('the guard as CI runs it', () => {
   test('fresh proof exits 0 and names the run', () => {
-    const f = fixture('fresh.json', [{ id: 999, conclusion: 'success', event: 'schedule', updated_at: daysAgo(1) }]);
+    const f = fixture('fresh.json', [{ id: 999, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(1) }]);
     const r = run(f);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /nightly golden-path proof fresh/);
@@ -180,7 +227,7 @@ describe('the guard as CI runs it', () => {
   });
 
   test('stale proof exits 1 and REFUSES to recommend raising the ceiling', () => {
-    const f = fixture('stale.json', [{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(30) }]);
+    const f = fixture('stale.json', [{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(30) }]);
     const r = run(f);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /not fresh/);
@@ -189,31 +236,36 @@ describe('the guard as CI runs it', () => {
     assert.match(r.stderr, /e2e-screenshots/);
   });
 
-  test('a manual run cannot mask a stale scheduled one, through the CLI too', () => {
-    const f = fixture('masked.json', [
-      { id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(60) },
-      { id: 2, conclusion: 'success', event: 'workflow_dispatch', updated_at: daysAgo(0) },
-    ]);
-    const r = run(f);
+  test('a hand-press cannot mask a stopped dispatcher, through the CLI too', () => {
+    // The 2026-08-01 shape, one record along: the run list is spotless — a green
+    // run on main from today — and the duty is still not fresh, because the
+    // thing that has stopped is the alarm clock.
+    const f = fixture('masked.json', [{ id: 2, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) }]);
+    const t = timerFixture('masked-timer.json', [timerRow({ days: 60 })]);
+    const r = run(f, '--timer-file', t);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /60\.0 days old/);
-    assert.match(r.stderr, /A MANUAL RUN DOES NOT SATISFY THIS/);
+    assert.match(r.stderr, /A HAND-PRESSED RUN CANNOT SATISFY THIS EITHER/);
   });
 
-  test('a missing fixture file fails rather than passing silently', () => {
+  test('a missing fixture file is COVERAGE LOST (2), never a silent pass', () => {
+    // A fixture that cannot be read is a record that was not read, which is the
+    // same fact as a missing token — so it takes the same exit code. It used to
+    // exit 1 alongside a genuinely stale proof; those are different findings and
+    // now say so.
     const r = run('does-not-exist.json');
-    assert.equal(r.status, 1);
+    assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /could not read fixture/);
   });
 
   test('offline mode announces itself so it cannot hide in a CI log', () => {
-    const f = fixture('announce.json', [{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(1) }]);
+    const f = fixture('announce.json', [{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(1) }]);
     const r = run(f);
     assert.match(r.stdout, /OFFLINE FIXTURE MODE/);
   });
 
   test('a bad --now is rejected, not silently treated as epoch 0', () => {
-    const f = fixture('now.json', [{ id: 1, conclusion: 'success', event: 'schedule', updated_at: daysAgo(1) }]);
+    const f = fixture('now.json', [{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(1) }]);
     const r = spawnSync(process.execPath, [GUARD, '--runs-file', join(TMP, f), '--now', 'not-a-date'], {
       cwd: REPO,
       encoding: 'utf8',
@@ -222,16 +274,28 @@ describe('the guard as CI runs it', () => {
     assert.match(r.stderr, /not a parseable date/);
   });
 
-  test('NO TOKEN IS A FAILURE — the fail-closed path, exercised', () => {
-    // Without --runs-file the guard must reach the network, and with the token
-    // stripped from the environment it must exit non-zero rather than skip.
-    // This is why the guard is expected to be red in a local guard sweep.
+  test('NO TOKEN IS COVERAGE LOST (2), NOT A FAILURE (1) AND NEVER A PASS', () => {
+    // Without --runs-file the guard must reach BOTH networks, and with every
+    // credential stripped it must say it could not read either record. 2, not 1:
+    // nothing was graded, so the verdict is unknown rather than bad. This is why
+    // the guard is expected to be red in a local guard sweep.
     const env = { ...process.env };
     delete env.GITHUB_TOKEN;
     delete env.GH_TOKEN;
+    delete env.CLOUDFLARE_API_TOKEN;
+    delete env.CLOUDFLARE_ACCOUNT_ID;
     const r = spawnSync(process.execPath, [GUARD], { cwd: REPO, encoding: 'utf8', env });
-    assert.equal(r.status, 1);
+    assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /fails closed/);
+    assert.match(r.stderr, /CLOUDFLARE_API_TOKEN/);
+    assert.match(r.stderr, /COVERAGE LOST/);
+  });
+
+  test('HALF A FIXTURE IS COVERAGE LOST — one record offline and the other left unread', () => {
+    const f = fixture('half.json', [{ id: 1, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(1) }]);
+    const r = spawnSync(process.execPath, [GUARD, '--runs-file', join(TMP, f), '--now', NOW], { cwd: REPO, encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /Supply both, or neither/);
   });
 });
 
@@ -394,7 +458,14 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
     Array.from({ length }, (_, i) => ({
       id: 1000 + i,
       conclusion: 'success',
-      event: i === deep - 1 ? 'schedule' : 'workflow_dispatch',
+      // 🔄 RE-KEYED 2026-09-06 FROM `event` TO `head_branch`, SHAPE UNCHANGED.
+      // The cliff these tests model is "the one row that can satisfy the guard
+      // sits below the end of the page". Until today that row was the only
+      // `schedule` row; today it is the only row on `main`. Same truncation,
+      // same verdict, one discriminator — which is the point: the window
+      // reasoning was never about the event, it was about what the page hides.
+      event: 'workflow_dispatch',
+      head_branch: i === deep - 1 ? 'main' : 'feat/e2e-login-via-magic-link',
       updated_at: daysAgo(i === deep - 1 ? 1 : 0),
     }));
   // What the API hands back for a given per_page: the newest N rows, oldest dropped.
@@ -402,13 +473,13 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
 
   test('🔴 THE CLIFF — through the OLD 20-row page a scheduled success at position 25 is INVISIBLE', () => {
     const history = historyWith(25);
-    assert.equal(history[24].event, 'schedule', 'fixture is not the shape this test claims');
+    assert.equal(history[24].head_branch, 'main', 'fixture is not the shape this test claims');
     // …and that run went green YESTERDAY. The cron is perfect; the page was too
     // short. The resulting red is indistinguishable from a dead cron, which is
     // what made this worth fixing rather than tolerating.
     const v = evaluateFreshness(pageOf(history, 20), NOW_MS, undefined, 20);
     assert.equal(v.ok, false);
-    assert.match(v.reason, /NONE was triggered by the schedule/);
+    assert.match(v.reason, /NONE has `head_branch: main`/);
   });
 
   test('🟢 …and VISIBLE through the shipped window. THIS TEST IS WHY RUNS_PAGE_SIZE IS 100.', () => {
@@ -441,14 +512,14 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
     assert.match(v.reason, /statement about the WINDOW/);
   });
 
-  test('a SHORT page with no scheduled run is a stopped TIMER, and still says exactly that', () => {
+  test('a SHORT page with no run on main is a statement about the WORKFLOW, and says exactly that', () => {
     const v = evaluateFreshness(
-      [{ id: 1, conclusion: 'success', event: 'workflow_dispatch', updated_at: daysAgo(0) }],
+      [{ id: 1, conclusion: 'success', head_branch: 'feat/e2e-login-via-magic-link', event: 'workflow_dispatch', updated_at: daysAgo(0) }],
       NOW_MS,
     );
     assert.equal(v.ok, false);
     assert.equal(v.windowSaturated, false);
-    assert.match(v.reason, /every one was manual/);
+    assert.match(v.reason, /every green run is on a side branch/);
     assert.doesNotMatch(v.reason, /THE PAGE WAS FULL/);
   });
 
@@ -481,7 +552,7 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
     // there is no window to blame. Saying otherwise would send an operator
     // hunting a pagination bug behind a genuinely stale nightly.
     const v = evaluateFreshness(
-      [{ id: 7, conclusion: 'success', event: 'schedule', updated_at: daysAgo(30) }],
+      [{ id: 7, conclusion: 'success', head_branch: 'main', event: 'schedule', updated_at: daysAgo(30) }],
       NOW_MS,
     );
     assert.equal(v.ok, false);
@@ -507,7 +578,7 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
     // cron that fired last night.
     const r20 = run(fixture('window-page20.json', pageOf(history, 20)));
     assert.equal(r20.status, 1);
-    assert.match(r20.stderr, /NONE was triggered by the schedule/);
+    assert.match(r20.stderr, /NONE has `head_branch: main`/);
 
     // page100: the SAME history through the shipped window. Same repo, same
     // cron, same nightly — the only difference in the world is the page width.
@@ -523,5 +594,166 @@ describe('the run window — `per_page` sizes a window over SUCCESSES, not over 
     assert.match(r.stderr, /LOOK AT THE RUN/);
     // …and it must not sell widening as the remedy a second time.
     assert.match(r.stderr, /paginating, not widening/);
+  });
+});
+
+describe('THE TWO RECORDS — the four verdicts, through the CLI', () => {
+  // 🔴 THE FOUR CASES THIS CHANGE EXISTS FOR, each exercised end to end rather
+  // than against the pure halves alone. The pure tests above prove the decisions;
+  // these prove the WIRING — that both records are actually read, that both
+  // verdicts reach the exit code, and that the worst of the two wins.
+
+  test('1. only dispatch runs on main + a fresh timer row → 0', () => {
+    // This is the shape of a healthy night AFTER the move: the Cloudflare Worker
+    // fired the workflow, so every run in the history is a `workflow_dispatch`,
+    // and the cadence claim rests on the heartbeat the Worker wrote.
+    const f = fixture('rec-ok.json', [
+      { id: 4242, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const r = run(f, '--timer-file', timerFixture('rec-ok-timer.json', [timerRow({ days: 0 })]));
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /proof fresh on BOTH records/);
+    // BOTH LIMBS ARE PRINTED ON A PASS, not only on a failure. "The other record
+    // is healthy" and "the other record was never looked at" must not read alike.
+    assert.match(r.stdout, /OUTCOME \(GitHub run history\)/);
+    assert.match(r.stdout, /TIMER   \(D1 cron_heartbeat\)/);
+    // …and a green verdict says out loud what it does NOT prove.
+    assert.match(r.stdout, /does not close O-E2E-UNPROVEN/);
+  });
+
+  test('2. a STALE timer row → 1, even with a spotless run list', () => {
+    const f = fixture('rec-stale-timer.json', [
+      { id: 1, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const r = run(f, '--timer-file', timerFixture('rec-stale-timer-rows.json', [timerRow({ days: 9 })]));
+    assert.equal(r.status, 1, r.stderr);
+    assert.match(r.stderr, /9\.0 days old/);
+    assert.match(r.stderr, /the Cloudflare alarm clock has stopped firing this workflow/);
+    // A stale record is a FINDING, not an unread one — the codes must not blur.
+    assert.doesNotMatch(r.stderr, /COVERAGE LOST  /);
+  });
+
+  test('3a. a MISSING timer row → 2, because an empty answer is not evidence', () => {
+    // The Worker writes a row on every dispatch path INCLUDING its own failures,
+    // so nothing at all is this guard failing to read the record — not the
+    // dispatcher reporting bad news.
+    const f = fixture('rec-no-timer.json', [
+      { id: 1, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const r = run(f, '--timer-file', timerFixture('rec-no-timer-rows.json', []));
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /no cron_heartbeat row for job/);
+  });
+
+  test('3b. …and a row for the WRONG TARGET is the same absence', () => {
+    // 🔴 THE MEASUREMENT THAT MAKES THIS NECESSARY. Live 2026-09-06, job
+    // `github_dispatch` wrote `(dispatcher)` and `…/ops-watch.yml` on all four
+    // daily firings and `…/e2e.yml` on ONE. Un-narrowed, the newest row for the
+    // job is an ops-watch row three firings out of four — a healthy unrelated
+    // dispatch vouching for a dispatcher that may not have fired in a week.
+    const f = fixture('rec-wrong-target.json', [
+      { id: 1, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const rows = [
+      timerRow({ target: 'Nikatru_Platform_Public/ops-watch.yml', days: 0 }),
+      timerRow({ target: '(dispatcher)', days: 0 }),
+    ];
+    const r = run(f, '--timer-file', timerFixture('rec-wrong-target-rows.json', rows));
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /no cron_heartbeat row for job/);
+  });
+
+  test('3c. …and a dispatcher row that records ok = 0 is a FINDING (1), not an absence (2)', () => {
+    // The complement of 3a, and the reason the two codes are worth separating: a
+    // row saying the dispatch FAILED is a record that WAS read and is bad news.
+    const f = fixture('rec-ok0.json', [
+      { id: 1, conclusion: 'success', head_branch: 'main', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const rows = [timerRow({ ok: 0, days: 0, detail: 'GITHUB_DISPATCH_TOKEN is not set on this Worker' })];
+    const r = run(f, '--timer-file', timerFixture('rec-ok0-rows.json', rows));
+    assert.equal(r.status, 1, r.stderr);
+    assert.match(r.stderr, /NONE records ok = 1/);
+  });
+
+  test('4. a green run whose branch is NOT main → 1, however fresh the timer is', () => {
+    const f = fixture('rec-offbranch.json', [
+      { id: 1, conclusion: 'success', head_branch: 'feat/e2e-login-via-magic-link', event: 'workflow_dispatch', updated_at: daysAgo(0) },
+    ]);
+    const r = run(f, '--timer-file', timerFixture('rec-offbranch-timer.json', [timerRow({ days: 0 })]));
+    assert.equal(r.status, 1, r.stderr);
+    assert.match(r.stderr, /NONE has `head_branch: main`/);
+  });
+});
+
+describe('the timer record must be DECLARED, not assumed', () => {
+  // The second coverage self-check, built the same way as the first: against a
+  // MUTATED REAL register, never a hand-written fixture.
+  const withRegister = (transform, fn) => {
+    const root = mkdtempSync(join(tmpdir(), 'nikatru-n6-reg-'));
+    mkdirSync(join(root, 'tooling', 'ops'), { recursive: true });
+    mkdirSync(join(root, 'services', 'platform'), { recursive: true });
+    const reg = JSON.parse(readFileSync(join(REPO, 'tooling/ops/register.json'), 'utf8'));
+    writeFileSync(join(root, 'tooling/ops/register.json'), JSON.stringify(transform(reg)));
+    writeFileSync(
+      join(root, 'services/platform/wrangler.jsonc'),
+      readFileSync(join(REPO, 'services/platform/wrangler.jsonc'), 'utf8'),
+    );
+    try {
+      fn(assertTimerRecordDeclared(root));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+  const timerOf = (reg) => reg.rows.find((r) => r.id === 'duty.workflow.e2e.yml').mechanism.recordQuery.timer;
+
+  test('GREEN CONTROL — the real register resolves the real database', () => {
+    const v = assertTimerRecordDeclared();
+    assert.equal(v.error, null, String(v.error));
+    assert.ok(v.databaseId, 'the D1 database must resolve out of the wrangler config the register names');
+    assert.equal(v.wrangler, 'services/platform/wrangler.jsonc');
+  });
+
+  test('the guard and the register name the SAME job, target, table and reader', () => {
+    // The constants are not the source of truth on their own — this is the pair
+    // being checked against each other, which is the whole point of the limb.
+    const reg = JSON.parse(readFileSync(join(REPO, 'tooling/ops/register.json'), 'utf8'));
+    const t = timerOf(reg);
+    assert.equal(t.reader, 'cloudflare-d1-heartbeat');
+    assert.equal(t.table, TIMER_TABLE);
+    assert.equal(t.job, TIMER_JOB);
+    assert.equal(t.target, TIMER_TARGET);
+  });
+
+  test('MUTATION — the register renaming the target is COVERAGE LOST, not a silent pass', () => {
+    withRegister(
+      (reg) => {
+        timerOf(reg).target = 'Nikatru_Platform_Public/build-platforms.yml';
+        return reg;
+      },
+      (v) => {
+        assert.match(v.error, /COVERAGE LOST/);
+        assert.match(v.error, /target is/);
+      },
+    );
+  });
+
+  test('MUTATION — the timer limb deleted outright is COVERAGE LOST', () => {
+    withRegister(
+      (reg) => {
+        delete reg.rows.find((r) => r.id === 'duty.workflow.e2e.yml').mechanism.recordQuery.timer;
+        return reg;
+      },
+      (v) => assert.match(v.error, /declares no `recordQuery.timer`/),
+    );
+  });
+
+  test('MUTATION — the whole row gone is COVERAGE LOST', () => {
+    withRegister(
+      (reg) => {
+        reg.rows = reg.rows.filter((r) => r.id !== 'duty.workflow.e2e.yml');
+        return reg;
+      },
+      (v) => assert.match(v.error, /declares no row/),
+    );
   });
 });

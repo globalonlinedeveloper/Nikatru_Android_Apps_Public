@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
 // assert-e2e-proof-fresh.mjs — the nightly golden-path proof must be RECENT,
-// SCHEDULED, and must still be running the suite it claims to run.
+// TIMER-DRIVEN, and must still be running the suite it claims to run.
 //
 // [pipeline N-6, clauses 1 and 3] Private/requirements/ (was pipeline/06-app-build.md,
 // folded into that JSON spec 2026-08-15)
@@ -20,6 +20,92 @@
 // `assert-platform-proof-fresh.mjs` belongs to stage 1 ([1]F-4) and its
 // MAX_AGE_DAYS is under a standing owner lock, so widening it here would mean
 // editing another stage's constant to carry this stage's meaning.
+//
+// ── 2026-09-06: TWO RECORDS, NOT ONE EVENT FILTER ───────────────────────────
+// [ADR 067] phase 2, unit `e2e-proof-fresh-d1`. Until today this guard graded
+// the run history for an `event: schedule` row, and that ONE filter was carrying
+// TWO different claims at once: that the TIMER fired, and that the RUN passed.
+//
+// GitHub delivers this repository's scheduled runs 10.1% on time — 899 of 8,928,
+// measured across the portfolio (Private research/76 §E). The timer half of the
+// fused claim therefore froze the merge queue three times while the workflow
+// itself was perfectly healthy (~18h 2026-08-10, ~46h 2026-09-02, and again
+// 2026-09-03 into 09-04, where a `workflow_dispatch` on the SAME COMMIT went
+// green 44 minutes after the scheduled run failed). A merge-blocking guard whose
+// red means "GitHub's queue is busy tonight" is a guard people delete.
+//
+// 🔴 THE FIX IS NOT TO ACCEPT `workflow_dispatch` AS PROOF OF A TIMER. A
+// dispatched run is indistinguishable from a hand-press, so counting one would
+// make freshness green on somebody being awake — the exact defect this family
+// exists to prevent, and the reason every paragraph below about the 2026-08-01
+// outage is left standing word for word. The two claims are SPLIT onto two
+// records instead, and BOTH must be fresh:
+//
+//   · THE TIMER — the `cron_heartbeat` row the platform Worker writes when it
+//     dispatches this workflow (`GITHUB_DISPATCH_JOB = 'github_dispatch'` in
+//     services/platform/src/scheduled.ts; target `Nikatru_Platform_Public/e2e.yml`).
+//     Only a timer writes that row: it is written from inside the Worker's own
+//     cron handler, and no browser tab can produce one.
+//   · THE OUTCOME — the run history, event filter DROPPED, `head_branch` now
+//     MANDATORY. The branch guarantee used to ride on the event filter, because
+//     GitHub fires schedules only on the default branch; dropping one without
+//     naming the other would have widened this guard to "a green run on any
+//     branch", and this workflow HAS green runs on feature branches — four on
+//     `feat/e2e-login-via-magic-link`, measured 2026-09-04.
+//
+// THE DUTY IS ONLY AS FRESH AS ITS STALER LIMB. Both records are graded against
+// the same derived ceiling, both are PRINTED on every run — pass or fail — and a
+// green verdict names both. tooling/ops/register.json's `duty.workflow.e2e.yml`
+// row declares this same pair as `recordQuery` and `recordQuery.timer`, and
+// `assertTimerRecordDeclared` below re-reads that declaration every run: the
+// constants here and the register are checked AGAINST EACH OTHER rather than
+// trusted to stay in step, the same way the cron derivation is.
+//
+// ⚠️ NARROWED BY JOB **AND** TARGET, AND THAT IS NOT TIDINESS. Measured live
+// 2026-09-06: job `github_dispatch` wrote `(dispatcher)` and
+// `Nikatru_Platform_Public/ops-watch.yml` on all four daily firings, and
+// `Nikatru_Platform_Public/e2e.yml` on exactly ONE of them (that target declares
+// `everyHours: 20`). The newest row for the JOB is therefore an ops-watch row
+// three firings out of four, so grading e2e's timer on it would let a healthy
+// unrelated dispatch vouch for a dispatcher that had not fired in a week.
+// assert-ops-register.mjs refuses a `recordQuery.timer` narrowed by neither
+// `job` nor `target` for precisely this reason, and the narrowing is applied
+// TWICE: in the SQL, and again over the rows that come back, so a widened query
+// cannot silently widen the verdict.
+//
+// ⚠️ e2e.yml KEEPS ITS `schedule:` SLOT and `assertWatchedWorkflowIntact` still
+// fails the build if that cron stops being daily. The slot costs a duplicate run
+// on the ~40% of nights GitHub delivers, and it is the ROLLBACK: revert this
+// change and the old evidence is still being written. MAX_AGE_DAYS is still
+// DERIVED from that cron and is UNCHANGED at 3.
+//
+// ⛔ THIS DOES NOT CLOSE O-E2E-UNPROVEN, AND SAYING SO IS PART OF THE CHANGE.
+// That item asks for TEN consecutive green nights, or ~1000 authenticated
+// requests before and after — a claim about whether the live path WORKS. This
+// guard has only ever asserted that a proof is RECENT and TIMER-DRIVEN: it
+// grades the freshness of the evidence, never the evidence itself, and changing
+// how it reads the timer cannot advance a count of green nights. What this DOES
+// close is O-E2E-PROOF-FRESH — the last GitHub-scheduler dependency in a duty
+// reader — and it advances O-GITHUB-SCHEDULER.
+//
+// ── EXIT CODES IN THIS FILE ─────────────────────────────────────────────────
+//   0  both records were read and both are inside the ceiling.
+//   1  a record was READ and it FAILS — stale, on the wrong branch, no green run
+//      at all, or a dispatcher row that records `ok = 0`.
+//   2  COVERAGE LOST — a record could NOT BE READ, so nothing was graded: no
+//      token, a non-200, an answer that is not JSON, no row at all for the
+//      narrowed job+target, the watched workflow gone, its cron no longer daily,
+//      the suite ripped out of it, or the register no longer declaring the timer
+//      record. [C-COVERAGE-LOST-IS-NOT-PASS] — "I could not tell" must never
+//      share an exit code with "every floor holds".
+//
+// ⚠️ ONE DELIBERATE EXCEPTION, AND IT IS NOT A DRAFTING SLIP. `evaluateFreshness`
+// prints "COVERAGE LOST" inside two window-saturation DIAGNOSES that still exit
+// 1. Those are not unread records: a run list WAS read and graded, and the
+// sentence means "the page came back full, so a row you cannot see might be
+// newer than the one this verdict names". The finding stands either way — this
+// file has said since 2026-08-26 that saturation splits the DIAGNOSIS and never
+// the VERDICT — so the exit code follows the verdict, not the wording.
 //
 // ── WHY THIS COULD NOT LAND BEFORE TODAY, AND WHAT CHANGED ──────────────────
 // PR #121 deferred exactly this guard, and was right to. At that moment the last
@@ -85,7 +171,7 @@
 // nightly is exactly what makes people press dispatch, over and over, and each
 // one that goes green consumes a row above the last scheduled success. Push
 // enough of them and that scheduled success falls off the end of the page. The
-// guard then sees a success list with no `event === 'schedule'` in it at all and
+// guard then saw a success list with no `event: schedule` row in it at all and
 // HARD-FAILS ci-gate saying the timer has stopped — a verdict indistinguishable,
 // from the outside, from a genuinely dead cron. It was measured at the shipped
 // width before this change: with a scheduled success ONE DAY OLD at position 25,
@@ -196,15 +282,31 @@
 // GitHub issue, or the `::error::` annotations at the top of the run page that
 // PR #111 added (screenshots went 1 → 21 in the same change), and fix the app.
 //
-// FAILS CLOSED. No token, a non-200, malformed JSON, or zero successful scheduled
-// runs are all failures. "I could not tell" must never read as "it is fine" —
-// that is exactly how the original claim became unfalsifiable. Locally, with no
-// GH_TOKEN in the environment, this guard therefore exits non-zero by design,
-// identically to assert-platform-proof-fresh.mjs.
+// FAILS CLOSED, ON BOTH RECORDS. No token, a non-200, malformed JSON, or no
+// readable row at all is COVERAGE LOST (exit 2) for the limb that could not be
+// read; zero green runs on `main`, or a dispatcher row recording `ok = 0`, is a
+// finding (exit 1). "I could not tell" must never read as "it is fine" — that is
+// exactly how the original claim became unfalsifiable. Locally, with no
+// GH_TOKEN and no CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID in the
+// environment, this guard therefore exits non-zero by design, identically to
+// assert-platform-proof-fresh.mjs.
 //
-// Offline testing: --runs-file <json> --now <iso> injects fixture data so the
-// decision logic is genuinely exercised without network. It prints a loud banner
-// so its presence in a real CI log is unmistakable.
+// 🔴 AND A TOKEN THAT IS ABSENT IN SOME CONTEXT MUST YIELD 2, NEVER 0. Both
+// credentials are wired into the ONE ci.yml step that runs this guard; the
+// assert-ops-register step beside it has carried the same Cloudflare pair since
+// the Worker-cron move. A future job that forgets one gets a loud COVERAGE LOST
+// naming the missing variable, not a green tick over an unread record.
+//
+// Offline testing: --runs-file <json> --timer-file <json> --now <iso> injects
+// fixture data for BOTH records so the decision logic is genuinely exercised
+// without network. It prints a loud banner so its presence in a real CI log is
+// unmistakable.
+//
+// ⚠️ THE TWO FIXTURE FLAGS ARE ALL-OR-NOTHING, and that is a coverage rule, not
+// ergonomics. A half-fixture would exercise one limb offline and send the other
+// to the live API — or, worse, invite a "skip the limb we have no fixture for"
+// branch, which is the shape of every guard that reports green over something it
+// never looked at. Supplying one without the other is COVERAGE LOST.
 //
 // LANE-BOUND: e2e.yml — the subject is the nightly LIVE end-to-end proof, and there is exactly one of
 // it. e2e.yml is not a channel lane at all: it appears in no `lane` block of tooling/channel-register.json
@@ -213,15 +315,36 @@
 // a SET reports the newest run and hides a dead sibling. [pipeline 9]R-1 limb B.
 //
 // Usage:  node tooling/ci/assert-e2e-proof-fresh.mjs
+//         (needs GITHUB_TOKEN plus CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// 🔴 IMPORTED, NEVER COPIED. tooling/ops/check-heartbeats.mjs owns the one HTTP
+// read of `cron_heartbeat` in this tree; a second hand-written copy of that
+// query is how two transports drift apart with nobody watching the one that
+// moved. `parseJsonc` is the same file's wrangler parser, for the same reason.
+import { parseJsonc, queryD1 } from '../ops/check-heartbeats.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const WORKFLOW = 'e2e.yml';
 const BRANCH = 'main';
 const MAX_AGE_DAYS = 3;
+// ── THE TIMER RECORD, AND THE ONE PLACE IT IS NAMED ─────────────────────────
+// 🔴 DECLARED HERE **AND** CROSS-CHECKED AGAINST THE REGISTER. These three
+// constants say what record carries the cadence claim;
+// tooling/ops/register.json's `duty.workflow.e2e.yml` row says the same thing to
+// ops-watch. Two copies of one fact drift, and the copy that drifts is always
+// the one nobody runs — so `assertTimerRecordDeclared` below re-reads the
+// register on every run and refuses to grade anything if the two disagree. This
+// is the same shape as `assertWatchedWorkflowIntact`: the derivation is
+// ENFORCED, not merely documented.
+export const TIMER_TABLE = 'cron_heartbeat';
+export const TIMER_JOB = 'github_dispatch';
+export const TIMER_TARGET = 'Nikatru_Platform_Public/e2e.yml';
+const REGISTER_REL = 'tooling/ops/register.json';
+const TIMER_ROW_ID = 'duty.workflow.e2e.yml';
+
 // 🔴 REPOINTED 2026-08-20. This read `Nikatru_Android_Apps_Public`, which
 // `gh repo list` shows is NOT A LIVE REPOSITORY — the owner renamed it again after
 // the 2026-08-19 pass that put it here. A RENAME FREES THE OLD NAME. GitHub follows
@@ -288,6 +411,16 @@ export const REQUIRED_WORK = [
 function fail(msg) {
   console.error(`FAIL  ${msg}`);
   process.exitCode = 1;
+}
+
+// 🔴 A SEPARATE EXIT CODE, BECAUSE THEY ARE SEPARATE FACTS. 1 means a record was
+// read and it is bad; 2 means a record could not be read at all, so nothing was
+// graded. [C-COVERAGE-LOST-IS-NOT-PASS] An assertion that cannot fail is worse
+// than none, and one that cannot tell you it never looked is the same defect.
+// 2 outranks 1: once a record is unread, the run's verdict is unknown, not bad.
+function coverageLost(msg) {
+  console.error(`COVERAGE LOST  ${msg}`);
+  process.exitCode = 2;
 }
 
 // `indexOf` returns -1 when absent, and -1 + 1 === 0 silently selects argv[0].
@@ -383,6 +516,147 @@ export function assertWatchedWorkflowIntact(root = ROOT) {
   return null;
 }
 
+
+// COVERAGE SELF-CHECK, SECOND RECORD. The timer claim lives in a table this
+// guard reaches over the network, and the only thing that says WHICH row means
+// "the nightly was dispatched" is a declaration. If that declaration moves and
+// these constants do not, this guard would read a row that means something else
+// and report it as the nightly's timer — the exact fusion the 2026-09-04 split
+// exists to undo, wearing a different hat.
+//
+// So the register's own `recordQuery.timer` is compared field by field with the
+// constants above, and the D1 database is resolved from the `wrangler` path THAT
+// ROW NAMES rather than from a second hard-coded path. Anything missing or
+// disagreeing is COVERAGE LOST: nothing has been graded.
+export function assertTimerRecordDeclared(root = ROOT) {
+  const regPath = resolve(root, REGISTER_REL);
+  if (!existsSync(regPath)) {
+    return { error: `COVERAGE LOST — ${REGISTER_REL} does not exist, so nothing declares which ${TIMER_TABLE} row carries this workflow's cadence claim.` };
+  }
+  let reg;
+  try {
+    reg = JSON.parse(readFileSync(regPath, 'utf8'));
+  } catch (e) {
+    return { error: `COVERAGE LOST — ${REGISTER_REL} could not be parsed (${e.message}), so the timer record cannot be resolved.` };
+  }
+  const row = (reg.rows ?? []).find((r) => r && r.id === TIMER_ROW_ID);
+  if (!row) {
+    return {
+      error:
+        `COVERAGE LOST — ${REGISTER_REL} declares no row \`${TIMER_ROW_ID}\`. That row is where the two records this ` +
+        'guard grades are declared; without it the register and this guard have stopped describing the same duty.',
+    };
+  }
+  const t = row?.mechanism?.recordQuery?.timer;
+  if (!t || typeof t !== 'object') {
+    return {
+      error:
+        `COVERAGE LOST — ${TIMER_ROW_ID} declares no \`recordQuery.timer\`. The cadence claim would then rest on the run ` +
+        'history alone, which is the fusion this guard stopped making on 2026-09-06: a dispatched run cannot tell a timer ' +
+        'from a hand-press. Restore the timer limb, or re-derive what this guard should grade.',
+    };
+  }
+  const disagreements = [];
+  if (t.reader !== 'cloudflare-d1-heartbeat') disagreements.push(`reader is ${JSON.stringify(t.reader)}, this guard reads \`cloudflare-d1-heartbeat\``);
+  if (t.table !== TIMER_TABLE) disagreements.push(`table is ${JSON.stringify(t.table)}, this guard reads \`${TIMER_TABLE}\``);
+  if (t.job !== TIMER_JOB) disagreements.push(`job is ${JSON.stringify(t.job)}, this guard reads \`${TIMER_JOB}\``);
+  if (t.target !== TIMER_TARGET) disagreements.push(`target is ${JSON.stringify(t.target)}, this guard reads \`${TIMER_TARGET}\``);
+  if (typeof t.wrangler !== 'string' || t.wrangler.length === 0) disagreements.push('no `wrangler` path, so the database cannot be resolved');
+  if (disagreements.length) {
+    return {
+      error:
+        `COVERAGE LOST — ${TIMER_ROW_ID}'s \`recordQuery.timer\` and this guard no longer name the same record: ` +
+        `${disagreements.join('; ')}. One of the two moved. Fix whichever is wrong IN THE SAME CHANGE — a guard grading ` +
+        'a row the register does not declare is reporting on something nobody wrote down.',
+    };
+  }
+  const wranglerPath = resolve(root, t.wrangler);
+  if (!existsSync(wranglerPath)) {
+    return { error: `COVERAGE LOST — ${TIMER_ROW_ID} resolves its heartbeat database through ${t.wrangler}, which does not exist.` };
+  }
+  let cfg;
+  try {
+    cfg = parseJsonc(readFileSync(wranglerPath, 'utf8'));
+  } catch (e) {
+    return { error: `COVERAGE LOST — ${t.wrangler} could not be parsed (${e.message}), so the database that owns ${TIMER_TABLE} cannot be resolved.` };
+  }
+  const databaseId = (cfg?.d1_databases ?? []).find((d) => d && d.migrations_dir)?.database_id ?? null;
+  if (!databaseId) {
+    return {
+      error:
+        `COVERAGE LOST — ${t.wrangler} has no D1 binding carrying \`migrations_dir\`, so the database that owns ` +
+        `${TIMER_TABLE} cannot be resolved. This is the same resolution tooling/ops/check-heartbeats.mjs performs; ` +
+        'if it moved, both readers moved.',
+    };
+  }
+  return { error: null, databaseId, wrangler: t.wrangler };
+}
+
+/** The timer decision, kept pure so it can be tested without network.
+ *
+ *  🔴 THE NARROWING IS APPLIED TWICE, ON PURPOSE. The SQL already asks for one
+ *  job and one target, and this filter asks again over what came back. That is
+ *  not belt-and-braces for its own sake: the query lives in another file
+ *  (tooling/ops/check-heartbeats.mjs, shared with ops-watch), so a widening
+ *  there — dropping the target clause, or adding a second target — would silently
+ *  widen this verdict. Measured live 2026-09-06, the job's newest row is an
+ *  ops-watch dispatch three firings out of four, so a widened read does not fail
+ *  loudly; it passes, wrongly, on somebody else's healthy job.
+ *
+ *  ⚠️ `ok = 0` IS A FINDING, NOT A COVERAGE LOSS. The Worker writes a row on
+ *  every path — no token, no targets, a 404, a network error — precisely so a
+ *  dispatcher that quietly does nothing is distinguishable from one that works.
+ *  A row saying the dispatch FAILED is therefore a record that was read and is
+ *  bad news, which is exit 1. No row at all is a record that could not be read,
+ *  which is exit 2. */
+export function evaluateTimer(rows, nowMs, maxAgeDays = MAX_AGE_DAYS) {
+  if (!Array.isArray(rows)) {
+    return { ok: false, coverageLost: true, reason: `the ${TIMER_TABLE} answer was not an array — treating an unreadable answer as unread, not as healthy` };
+  }
+  const mine = rows.filter((r) => r && r.job === TIMER_JOB && r.target === TIMER_TARGET && r.ran_at);
+  if (mine.length === 0) {
+    return {
+      ok: false,
+      coverageLost: true,
+      reason:
+        `COVERAGE LOST — no ${TIMER_TABLE} row for job \`${TIMER_JOB}\` target \`${TIMER_TARGET}\`. The Worker writes a row ` +
+        'on EVERY dispatch path including its own failures, so an empty answer is not "the dispatch failed" — it is this ' +
+        'guard reading a record that is not being written. Check the Worker deployed, that the target is still declared in ' +
+        'services/platform/src/scheduled.ts, and that the row names are spelled the same in both places.',
+    };
+  }
+  const green = mine.filter((r) => r.ok === 1 || r.ok === true);
+  if (green.length === 0) {
+    const newestBad = mine.reduce((a, b) => (Date.parse(b.ran_at) > Date.parse(a.ran_at) ? b : a));
+    return {
+      ok: false,
+      coverageLost: false,
+      reason:
+        `${mine.length} ${TIMER_TABLE} row(s) for job \`${TIMER_JOB}\` target \`${TIMER_TARGET}\` and NONE records ok = 1 — ` +
+        `newest ${newestBad.ran_at}${newestBad.detail ? ` (${String(newestBad.detail).slice(0, 160)})` : ''}. ` +
+        'The dispatcher ran and could not fire this workflow, which is a live failure of the alarm clock itself.',
+    };
+  }
+  const newest = green.reduce((a, b) => (Date.parse(b.ran_at) > Date.parse(a.ran_at) ? b : a));
+  const stamp = Date.parse(newest.ran_at);
+  if (Number.isNaN(stamp)) {
+    return { ok: false, coverageLost: true, reason: `COVERAGE LOST — the newest ${TIMER_TABLE} row has an unparseable ran_at: ${newest.ran_at}` };
+  }
+  const ageDays = (nowMs - stamp) / 86_400_000;
+  const stale = ageDays > maxAgeDays;
+  return {
+    ok: !stale,
+    coverageLost: false,
+    ageDays,
+    ranAt: newest.ran_at,
+    reason: stale
+      ? `the newest successful \`${TIMER_JOB}\` dispatch of \`${TIMER_TARGET}\` is ${ageDays.toFixed(1)} days old, ceiling is ${maxAgeDays} — ` +
+        'the Cloudflare alarm clock has stopped firing this workflow. That is a Worker-cron failure, not a GitHub one: read ' +
+        'the ops-watch run and the Worker logs before touching this ceiling, which is DERIVED (see the header).'
+      : null,
+  };
+}
+
 // The decision, kept pure so it can be tested without network. This is where the
 // real defects live — the API call is the boring half.
 export function evaluateFreshness(runs, nowMs, maxAgeDays = MAX_AGE_DAYS, pageSize = RUNS_PAGE_SIZE) {
@@ -414,35 +688,45 @@ export function evaluateFreshness(runs, nowMs, maxAgeDays = MAX_AGE_DAYS, pageSi
   // happen. This workflow's cron has fired every single night from 2026-07-24 to
   // 2026-08-02 inclusive, so here the same state is not a young timer — it is a
   // timer that has STOPPED, and it fails immediately.
-  const scheduled = successes.filter((r) => r.event === 'schedule');
-  if (scheduled.length === 0) {
-    // TWO DIFFERENT FACTS, AND ONLY ONE OF THEM IS ABOUT THE CRON. A page that
-    // came back FULL means the API had more successes to give and this query
-    // never asked for them, so "no scheduled run here" is a statement about the
-    // WINDOW. A short page IS the whole retained success history, so the same
-    // emptiness is a statement about the TIMER.
-    //
-    // ⛔ BOTH STILL FAIL, and that is deliberate. A guard that cannot see the
-    // timer must not report the timer healthy — "I could not tell" reading as
-    // "it is fine" is the original defect this whole file exists to remove. What
-    // changes is only what the operator is sent to look at, which is the
-    // difference between fixing a cron and chasing one that was never broken.
+  // ⚠️ THE EVENT FILTER IS GONE — READ 'TWO RECORDS, NOT ONE EVENT FILTER' IN
+  // THE HEADER BEFORE PUTTING IT BACK. Everything the paragraphs above say about
+  // the 2026-08-01 outage remains true and is why the cadence claim did not
+  // simply move to `workflow_dispatch`: it moved to a record only a timer can
+  // write (`evaluateTimer`). What is left HERE is the OUTCOME, and the outcome's
+  // one remaining guarantee is the BRANCH.
+  //
+  // 🔴 THE BRANCH USED TO RIDE ON THE EVENT FILTER FOR FREE, because GitHub
+  // fires schedules only on the default branch. Dropping one without naming the
+  // other would have widened this to "a green run anywhere" — and that is not
+  // hypothetical: measured 2026-09-04, this workflow held FOUR green runs on
+  // `feat/e2e-login-via-magic-link`, any one of which would then have certified
+  // the nightly.
+  //
+  // `head_branch` is the REST field name. `gh run list --json headBranch` spells
+  // the same field in camelCase and this guard calls the REST endpoint directly,
+  // so snake_case is what arrives. A row that carries neither is DROPPED rather
+  // than trusted — a missing branch is not a matching one.
+  const onBranch = successes.filter((r) => r.head_branch === BRANCH);
+  if (onBranch.length === 0) {
+    // TWO DIFFERENT FACTS, AND ONLY ONE OF THEM IS ABOUT THE WORKFLOW. A page
+    // that came back FULL means the API had more successes to give and this
+    // query never asked for them, so "no run on main here" is a statement about
+    // the WINDOW. A short page IS the whole retained success history, so the same
+    // emptiness is a statement about the WORKFLOW.
     return {
       ok: false,
-      manualCount: successes.length,
+      offBranchCount: successes.length,
       windowSaturated,
       reason: windowSaturated
-        ? `COVERAGE LOST — ${successes.length} successful run(s) came back and NONE was triggered by the schedule, but THE PAGE WAS FULL ` +
+        ? `COVERAGE LOST — ${successes.length} successful run(s) came back and NONE has \`head_branch: ${BRANCH}\`, but THE PAGE WAS FULL ` +
           `(${runs.length} rows >= per_page ${pageSize}), so older successes exist that this query never saw. ` +
-          'That is a statement about the WINDOW, not yet about the cron: because the query filters `status=success`, a green ' +
-          'scheduled run can be sitting just past the end of the page, pushed there by hand-pressed dispatches. ' +
-          'It still FAILS — a guard that cannot see the timer must not certify it — but confirm with ' +
-          `\`gh run list --workflow=${WORKFLOW} --branch ${BRANCH} --status success\` before blaming the schedule.`
-        : `${successes.length} successful run(s), but NONE was triggered by the schedule — every one was manual. ` +
-          'A dead cron is invisible behind a hand-press, which is exactly what freshness exists to detect.',
+          'That is a statement about the WINDOW, not yet about the workflow. It still FAILS — a guard that cannot see the ' +
+          `proof must not certify it — but confirm with \`gh run list --workflow=${WORKFLOW} --branch ${BRANCH} --status success\` first.`
+        : `${successes.length} successful run(s), and NONE has \`head_branch: ${BRANCH}\` — every green run is on a side branch. ` +
+          'The nightly proves the golden path against production from the DEFAULT branch; a feature branch proves that branch.',
     };
   }
-  const newest = scheduled.reduce((a, b) => (Date.parse(b.updated_at) > Date.parse(a.updated_at) ? b : a));
+  const newest = onBranch.reduce((a, b) => (Date.parse(b.updated_at) > Date.parse(a.updated_at) ? b : a));
   const stamp = Date.parse(newest.updated_at);
   if (Number.isNaN(stamp)) {
     return { ok: false, reason: `newest run has an unparseable timestamp: ${newest.updated_at}` };
@@ -508,14 +792,33 @@ async function fetchRuns() {
   return body.workflow_runs;
 }
 
+/** The timer-record query, over the SHARED reader.
+ *
+ *  Errors are thrown, never swallowed: `queryD1` throws on a missing credential,
+ *  a non-200 and an answer that is not JSON, and every one of those is a record
+ *  this guard could not read. main() turns them into COVERAGE LOST. */
+async function fetchTimerRows(databaseId) {
+  return queryD1(databaseId, TIMER_JOB, TIMER_TARGET);
+}
+
 async function main() {
   const coverage = assertWatchedWorkflowIntact();
   if (coverage) {
-    fail(coverage);
+    coverageLost(coverage);
+    return;
+  }
+
+  // The second record's declaration is resolved BEFORE anything is read, so a
+  // register that has stopped declaring the timer fails on the declaration
+  // rather than on an empty query — which reads like a dead dispatcher.
+  const timerDecl = assertTimerRecordDeclared();
+  if (timerDecl.error) {
+    coverageLost(timerDecl.error);
     return;
   }
 
   const runsFile = flag('--runs-file');
+  const timerFile = flag('--timer-file');
   const nowFlag = flag('--now');
   const nowMs = nowFlag ? Date.parse(nowFlag) : Date.now();
   if (Number.isNaN(nowMs)) {
@@ -523,68 +826,131 @@ async function main() {
     return;
   }
 
+  if (Boolean(runsFile) !== Boolean(timerFile)) {
+    coverageLost(
+      `offline fixture mode was given ${runsFile ? '--runs-file' : '--timer-file'} and not the other. Both records are ` +
+        'graded on every run, so a half-fixture would exercise one limb offline and send the other to the live API — or ' +
+        'invite a "skip the limb we have no fixture for" branch, which is how a guard comes to report green over something ' +
+        'it never looked at. Supply both, or neither.',
+    );
+    return;
+  }
+
   let runs;
+  let timerRows;
+  let runsError = null;
+  let timerError = null;
   if (runsFile) {
-    console.log('!!  OFFLINE FIXTURE MODE — --runs-file is set. This must NEVER appear in a real CI log.');
+    console.log('!!  OFFLINE FIXTURE MODE — --runs-file and --timer-file are set. This must NEVER appear in a real CI log.');
     try {
       runs = JSON.parse(readFileSync(runsFile, 'utf8'));
     } catch (e) {
-      fail(`could not read fixture ${runsFile}: ${e.message}`);
-      return;
+      runsError = `could not read fixture ${runsFile}: ${e.message}`;
+    }
+    try {
+      timerRows = JSON.parse(readFileSync(timerFile, 'utf8'));
+    } catch (e) {
+      timerError = `could not read fixture ${timerFile}: ${e.message}`;
     }
   } else {
+    // 🔴 BOTH READS ARE ATTEMPTED EVEN WHEN THE FIRST FAILS. Returning early on
+    // the run-list error would print one line about a missing GITHUB_TOKEN and
+    // say nothing at all about the timer, so an operator fixing the first would
+    // discover the second only on the next run. Both records are read, both
+    // verdicts are printed, and the exit code is the worst of them.
     try {
       runs = await fetchRuns();
     } catch (e) {
-      fail(`${e.message}`);
-      return;
+      runsError = e.message;
+    }
+    try {
+      timerRows = await fetchTimerRows(timerDecl.databaseId);
+    } catch (e) {
+      timerError = e.message;
     }
   }
 
-  const verdict = evaluateFreshness(runs, nowMs);
+  const runVerdict = runsError ? { ok: false, coverageLost: true, reason: runsError } : evaluateFreshness(runs, nowMs);
+  const timerVerdict = timerError ? { ok: false, coverageLost: true, reason: timerError } : evaluateTimer(timerRows, nowMs);
 
-  if (!verdict.ok) {
-    fail(`the nightly golden-path proof is not fresh — ${verdict.reason}`);
-    if (verdict.windowSaturated) {
+  // ── BOTH LIMBS, SIDE BY SIDE, ON EVERY RUN ────────────────────────────────
+  // Printed pass or fail. A guard that prints only what went wrong leaves the
+  // reader unable to tell "the other record is healthy" from "the other record
+  // was never looked at", and this file's whole subject is that difference.
+  const say = (v, label, ok) => (ok ? console.log : console.error)(`      ${label}  ${v}`);
+  say(
+    runVerdict.ok
+      ? `green run ${runVerdict.runId} on ${BRANCH}, ${runVerdict.ageDays.toFixed(1)} day(s) old (ceiling ${MAX_AGE_DAYS})`
+      : String(runVerdict.reason),
+    'OUTCOME (GitHub run history) :',
+    runVerdict.ok,
+  );
+  say(
+    timerVerdict.ok
+      ? `${TIMER_TABLE} row for ${TIMER_JOB} -> ${TIMER_TARGET} at ${timerVerdict.ranAt}, ${timerVerdict.ageDays.toFixed(1)} day(s) old (ceiling ${MAX_AGE_DAYS})`
+      : String(timerVerdict.reason),
+    'TIMER   (D1 cron_heartbeat) :',
+    timerVerdict.ok,
+  );
+
+  // THE DUTY IS ONLY AS FRESH AS ITS STALER LIMB, and an unread record outranks
+  // a bad one: 2 beats 1 beats 0.
+  const lost = (!runVerdict.ok && runVerdict.coverageLost) || (!timerVerdict.ok && timerVerdict.coverageLost);
+  const failed = !runVerdict.ok || !timerVerdict.ok;
+
+  if (failed) {
+    if (lost) {
+      coverageLost('the nightly golden-path proof could not be graded — one of the two records above was not readable.');
+    } else {
+      fail('the nightly golden-path proof is not fresh — see the two records above.');
+    }
+    if (runVerdict.windowSaturated) {
       console.error('');
       console.error(`      ⚠️ THE RUN PAGE CAME BACK FULL (per_page=${RUNS_PAGE_SIZE}, this endpoint's maximum), so older`);
       console.error('      successes exist that this query never saw. THIS VERDICT MAY BE A WINDOW ARTIFACT.');
-      if (verdict.ageDays === undefined) {
+      if (runVerdict.ageDays === undefined) {
         console.error('      HERE THAT MEANS: the query filters `status=success`, so every green hand-press occupies a');
-        console.error('      slot and can push the last scheduled success off the end of the page — a cron that fired');
-        console.error('      last night can look stopped.');
+        console.error(`      slot and can push the last green ${BRANCH} run off the end of the page.`);
       } else {
         console.error('      HERE THAT MEANS: the page is ordered by `created_at` but freshness is graded by');
-        console.error('      `updated_at`, and a run created earlier can update later — so a scheduled run truncated');
+        console.error('      `updated_at`, and a run created earlier can update later — so a run truncated');
         console.error('      by created_at can hold a newer updated_at than any row left on the page. Measured');
         console.error('      2026-08-26 the two orderings agreed exactly over the whole retained history, but that is');
         console.error('      a BOUND, NOT A LAW, which is why this is printed rather than assumed away.');
       }
-      console.error('      It still fails — a guard that cannot see the timer must not certify it — but LOOK AT THE RUN');
+      console.error('      It still fails — a guard that cannot see the proof must not certify it — but LOOK AT THE RUN');
       console.error('      LIST before touching the schedule. Closing this properly means paginating, not widening.');
     }
     console.error('');
-    console.error(`      The live E2E has not gone green on a SCHEDULED run on ${BRANCH} recently enough.`);
-    console.error('      ⚠️ A MANUAL RUN DOES NOT SATISFY THIS. Freshness is a claim about the timer, so');
-    console.error('      only a run triggered by `schedule` counts. Two green `workflow_dispatch` runs sat');
-    console.error('      inside the 2026-07-27…08-01 outage; counting them would have called it healthy.');
+    console.error(`      THE PROOF IS TWO RECORDS AND BOTH MUST BE FRESH: a green ${WORKFLOW} run on ${BRANCH}`);
+    console.error(`      (the OUTCOME), and a ${TIMER_TABLE} row written by the Worker that dispatched it (the TIMER).`);
+    console.error('      ⚠️ A HAND-PRESSED RUN CANNOT SATISFY THIS EITHER. It can satisfy the outcome limb, which is');
+    console.error('      why the cadence claim no longer lives there: only the Worker\'s cron handler writes the');
+    console.error(`      \`${TIMER_JOB}\` row for \`${TIMER_TARGET}\`, and that row is graded against the same ceiling.`);
     console.error('');
     console.error('      ⛔ THE REMEDY IS NOT TO RAISE MAX_AGE_DAYS. It is derived from the cron cadence');
     console.error('      (see this file\'s header) and tolerates a bad night already. If it is red, the');
     console.error('      nightly has been failing or silent for about three days.');
     console.error('');
     console.error('      Where to look, in order:');
+    console.error('        · if the TIMER limb is red — the ops-watch run and the Worker logs; the alarm clock is');
+    console.error('          Cloudflare now, not GitHub, so a frozen GitHub scheduler is no longer the suspect');
     console.error('        · the open GitHub issue the `alert` job files and reuses');
     console.error('        · the ::error:: annotations at the top of the red run page');
     console.error('        · the `e2e-screenshots` artifact on that run — one shot per page');
     console.error('      It runs against LIVE Supabase, the live Worker and live D1, so treat a red');
     console.error('      nightly as production being broken until proven a flake. [pipeline N-6]');
+    console.error('');
+    console.error('      ⛔ AND A GREEN VERDICT HERE IS NOT A PROOF THAT THE LIVE PATH WORKS. This guard grades');
+    console.error('      the FRESHNESS of the evidence, never the evidence. O-E2E-UNPROVEN stays open.');
     return;
   }
 
   console.log(
-    `ok  nightly golden-path proof fresh — newest green SCHEDULED ${WORKFLOW} run ${verdict.runId} is ` +
-      `${verdict.ageDays.toFixed(1)} day(s) old (ceiling ${MAX_AGE_DAYS}, derived from the daily cron)`,
+    `ok  nightly golden-path proof fresh on BOTH records — green ${WORKFLOW} run ${runVerdict.runId} on ${BRANCH} is ` +
+      `${runVerdict.ageDays.toFixed(1)} day(s) old, and the Worker's ${TIMER_JOB} dispatch of ${TIMER_TARGET} is ` +
+      `${timerVerdict.ageDays.toFixed(1)} day(s) old (ceiling ${MAX_AGE_DAYS}, derived from the daily cron). ` +
+      'This says the proof is RECENT and TIMER-DRIVEN; it does not close O-E2E-UNPROVEN.',
   );
 }
 

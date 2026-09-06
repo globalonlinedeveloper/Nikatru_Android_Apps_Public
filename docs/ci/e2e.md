@@ -42,6 +42,51 @@ owner a red run — which the `alert` job turns into a durable GitHub issue.
 tooling/ci/assert-green-means-ran.mjs §B enforces this structurally: the
 preflight must exit non-zero, and no step may be `if:`-gated on its output.
 
+🔴 HOW THIS WORKFLOW'S FRESHNESS IS GRADED — CHANGED 2026-09-06.
+`tooling/ci/assert-e2e-proof-fresh.mjs` runs on every push and blocks merges,
+and until today it required the newest green run to carry `event: schedule`.
+That single filter carried TWO claims at once — the timer fired, and the run
+passed — and GitHub delivers this repository's scheduled runs 10.1% on time, so
+the timer half froze the merge queue three times while the workflow itself was
+healthy (~18h 2026-08-10, ~46h 2026-09-02, and again 2026-09-03 into 09-04).
+
+The claims are now SPLIT across two records, and BOTH must be inside the same
+derived three-day ceiling:
+
+  · the OUTCOME — the newest green run whose `head_branch` is `main`. The
+    event filter is gone; the branch is now named explicitly, because it used to
+    ride on that filter for free (GitHub fires schedules only on the default
+    branch) and this workflow does hold green runs on feature branches.
+  · the TIMER — the `cron_heartbeat` row the platform Worker writes when it
+    dispatches this workflow: job `github_dispatch`, target
+    `Nikatru_Platform_Public/e2e.yml`, in D1. Only a timer writes that row.
+
+⛔ SO A HAND-PRESSED `workflow_dispatch` CANNOT MAKE THIS GUARD GREEN. It can
+satisfy the outcome limb — correctly, because the Cloudflare Worker's dispatch
+is a `workflow_dispatch` and it IS the nightly now — and it cannot satisfy the
+timer limb, which is where the cadence claim moved.
+
+⚠️ THE `schedule:` TRIGGER BELOW STAYS, for two reasons. It is the rollback: if
+the Worker rail is reverted, the old evidence is still being written. And
+`MAX_AGE_DAYS = 3` is DERIVED from that cron's daily cadence — the guard
+re-reads it on every run and fails if it stops being daily — so deleting the
+cron would break the ceiling as well as the fallback.
+
+The guard reads D1 through the SAME reader ops-watch uses
+(`tooling/ops/check-heartbeats.mjs`), imported rather than copied, and it needs
+`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` alongside `GITHUB_TOKEN` in
+`ci.yml`. Every unreadable path — no token, a non-200, an answer that is not
+JSON, no heartbeat row at all — exits 2 (COVERAGE LOST), never 0.
+
+⛔ AND A GREEN VERDICT IS NOT A PROOF THAT THE LIVE PATH WORKS. That guard
+grades the FRESHNESS of the evidence. `O-E2E-UNPROVEN` stays open.
+
+⚠️ ONE ASYMMETRY IS LEFT OPEN AND NAMED. The `alert` job at the bottom of this
+file still gates on `github.event_name == 'schedule'`, so a Worker-DISPATCHED
+nightly that fails files no durable issue — and the Worker-dispatched run is now
+the unattended one. The reader was fixed by the unit that owned it; the alerter
+was not, because that unit did not own this workflow.
+
 ### above `permissions:`
 
 Least privilege, and this is the DEFAULT for every job that does not override
