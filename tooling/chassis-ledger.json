@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 17282,
+    "lines": 17114,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -83,9 +83,11 @@
     },
     {
       "path": "lib/features/auth/check_inbox_screen.dart",
-      "lines": 78,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens assert-a11y-coverage, assert-responsive-coverage (surface floor 12) and assert-no-seam-forks (:627 existsSync on its WATCHED_PAIRS entry). Its BODY is pinned by nothing — a 13-line stub kept the whole sweep green. Step 4 empties it; it cannot be removed."
+      "lines": 23,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 78 -> 23 brick lines, 88 package lines, callSiteDelta -55. The smallest of the seven and still a shrink: all that a package declaring no go_router cannot carry is the one context.go('/sign-in'), so the adapter is that call and the email pass-through. Its WATCHED_PAIRS entry in assert-no-seam-forks still existsSync on this path — an adapter is a file, not an absence.",
+      "target": "packages/chassis_screens/lib/auth/check_inbox_screen.dart",
+      "callSiteDelta": -55
     },
     {
       "path": "lib/features/auth/legal_consent_fields.dart",
@@ -121,9 +123,11 @@
     },
     {
       "path": "lib/features/auth/verify_email_screen.dart",
-      "lines": 154,
-      "verdict": "STAYS",
-      "why": "MEASURED: deleting it reddens a11y, responsive and no-seam-forks. Its BODY is pinned by nothing — a 20-line stub kept the sweep green."
+      "lines": 41,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 154 -> 41 brick lines, 166 package lines, callSiteDelta -113. Its BODY was pinned by nothing (a 20-line stub kept the sweep green). The three seam calls stay HERE because assert-captcha-gated-call-sites scores resendVerificationEmail( at the root that owns it and assert-seams-wired:692-693 requires this screen's way-out to go through signOutAndForgetUser, not a bare signOut().",
+      "target": "packages/chassis_screens/lib/auth/verify_email_screen.dart",
+      "callSiteDelta": -113
     },
     {
       "path": "lib/features/firstrun/onboarding_screen.dart",
