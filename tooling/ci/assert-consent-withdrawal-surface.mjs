@@ -547,13 +547,47 @@ for (const root of roots) {
   // generated `AppLocalizations` classes, which declare the same key as a
   // getter and render nothing — matching those would fail every app on a file
   // it has no business reading.
+  //
+  // 🔴 AND IT FOLLOWS THE DELEGATION, FOR THE SAME REASON LIMBS 1-3 DO.
+  // [ADR 067] decision 2 (unit app-shell) moved the prompt's BODY into
+  // `package:nikatru_chassis_screens/shell/consent_prompt_card.dart` and left
+  // `_ConsentPrompt` in the brick as an adapter that supplies the one Riverpod
+  // writer. The adapter renders no sentence, so read at the adapter alone this
+  // derivation finds ZERO prompt classes — which this limb correctly reports as
+  // COVERAGE LOST, i.e. a red build against a tree whose prompt is perfectly
+  // scrollable. The scroll view is a measured defect repair; the claim is about
+  // the widget that RENDERS the sentence, wherever that widget now lives.
+  // Adding the delegated files only ever ADDS candidates: a prompt class that
+  // was found in the root is still found.
+  const shellDelegations = chassisDelegationsUnder(join(ROOT, root, 'lib'), ROOT);
+  for (const why of shellDelegations.lost) {
+    coverageLost([
+      `${root}: a lib/ file's chassis delegation could not be followed — ${why}.`,
+      'Limb 4 derives the first-run prompt from the tree PLUS whatever that tree delegates to. A delegation',
+      'this scan cannot follow is a prompt it cannot see, and an unseen prompt reads exactly like a missing',
+      'one — which is a red build against a compliant app.',
+    ]);
+  }
+  const promptSources = [
+    ...libFiles.map((f) => ({ rel: `${root}/${f.rel}`, body: f.body })),
+    ...shellDelegations.files.map((f) => ({
+      rel: f,
+      body: reduce(readFileSync(join(ROOT, f), 'utf8')),
+    })),
+  ];
+  if (shellDelegations.files.length) {
+    notes.push(
+      `⬜ ${root}: limb 4 also read ${shellDelegations.files.length} chassis file(s) lib/ delegates to — ` +
+        shellDelegations.files.join(', '),
+    );
+  }
   const promptClasses = [];
-  for (const f of libFiles) {
-    if (f.rel.startsWith(`/${GENERATED_L10N}`) || f.rel.includes(GENERATED_L10N)) continue;
+  for (const f of promptSources) {
+    if (f.rel.includes(GENERATED_L10N)) continue;
     for (const c of classBodies(f.body)) {
       if (!new RegExp(`\\b${PROMISE_KEY}\\b`).test(c.body)) continue;
       if (!/\bWidget\s+build\s*\(/.test(c.body)) continue;
-      promptClasses.push({ file: `${root}/${f.rel}`, name: c.name, body: c.body });
+      promptClasses.push({ file: f.rel, name: c.name, body: c.body });
     }
   }
   if (!promptClasses.length) {

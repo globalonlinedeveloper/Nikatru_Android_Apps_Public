@@ -95,10 +95,27 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 ///    invisible to every test because widget tests take no `--dart-define`s.
 ///    [initialiseIdentity] is a callback because the SDK, the secure store and
 ///    the app's own config all live outside this package.
+/// Runs [appRunner] inside the app's crash-reporting zone. The brick supplies
+/// `TelemetryBootstrap.init(config, appRunner: appRunner)`.
+///
+/// ⚠️ A TYPEDEF RATHER THAN AN INLINE FUNCTION TYPE, AND THE REASON IS
+/// MECHANICAL. `tooling/ci/chassis-delegation.mjs`'s `publicApiOf` matches a
+/// top-level declaration with `\([^;()]*\)` — a parameter list that CONTAINS
+/// parentheses is not a declaration it can see. Written inline, this file's only
+/// public name was invisible, the resolver answered `{ lost }`, and every guard
+/// that follows the delegation reported COVERAGE LOST on a perfectly wired
+/// tree. Loud, not silent — but the repair belongs on the declaration, because a
+/// looser regex over there is a looser regex for all fifteen importers.
+typedef TelemetryZoneRunner =
+    Future<void> Function(Future<void> Function() appRunner);
+
+/// Initialises the identity SDK, if this app has a backend at all.
+typedef IdentityInitialiser = Future<void> Function();
+
 Future<void> bootstrapNikatru({
   required core.NotificationService notifications,
-  required Future<void> Function(Future<void> Function() appRunner) runGuarded,
-  required Future<void> Function() initialiseIdentity,
+  required TelemetryZoneRunner runGuarded,
+  required IdentityInitialiser initialiseIdentity,
   required VoidCallback run,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
