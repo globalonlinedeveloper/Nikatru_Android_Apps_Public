@@ -2314,4 +2314,46 @@ describe('assert-release-durable.mjs — a job that cannot run on a tag is a bui
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /job \"package\" uploads an installable artifact/);
   });
+
+  // 🔴 THE DISJUNCTION. Reproduced on the real tree 2026-09-05 by review, against
+  // the SUBSTRING reading this exemption shipped with: the clause is present, so
+  // `.includes()` matched — and the condition is TRUE on a tag, so the job runs on
+  // a tag, uploads an expiring `.zip`, and was dropped from [9]R-4's domain while
+  // the guard printed that it "CANNOT RUN on a tag". This is the case that fails
+  // against that reading and passes against the structural one.
+  test('a `tag || (!tag && …)` job condition is GRADED — one disjunct that survives a tag is enough', () => {
+    const disjunction =
+      "    if: startsWith(github.ref, 'refs/tags/') || (!startsWith(github.ref, 'refs/tags/') && needs.discover.outputs.count != '0')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(disjunction) } });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job \"package\" uploads an installable artifact/);
+    assert.doesNotMatch(r.out, /its own `if:` carries/, 'the condition is true on a tag and the guard must not say the job cannot run on one');
+  });
+
+  // The other direction, and it is the shape `.github/workflows/extensions.yml`
+  // actually writes — the exclusion nested two levels down inside a conjunction
+  // of parenthesised groups. A rule that only understood a flat `a && b` would
+  // grade the real `package` job and redden the real tree, so the fix is pinned
+  // against BOTH mistakes rather than only against the loose one.
+  test('the exclusion nested inside a parenthesised conjunction still exempts — the real extensions.yml shape', () => {
+    const real =
+      "    if: (github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')) && (needs.discover.outputs.count != '0')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(real) } });
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /its own `if:` carries/);
+  });
+
+  // A disjunction where EVERY branch excludes tags is genuinely false on a tag,
+  // and grading it would be the opposite defect: a true finding refused. Pinned
+  // so the fix is a reading of the condition and not a ban on the `||` character.
+  test('a disjunction whose every branch excludes tags is still an exemption', () => {
+    const bothExclude =
+      "    if: (!startsWith(github.ref, 'refs/tags/') && github.event_name == 'schedule') || (!startsWith(github.ref, 'refs/tags/') && github.event_name == 'pull_request')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(bothExclude) } });
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /its own `if:` carries/);
+  });
 });

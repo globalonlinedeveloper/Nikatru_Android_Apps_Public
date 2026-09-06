@@ -1474,15 +1474,29 @@ if (agg === null || typeof agg !== 'object' || typeof agg.workflow !== 'string' 
   // is not — the two existing words could only be used by overstating or
   // understating. `live` means: THE ACCOUNT EXISTS AND CAN PUBLISH, and the
   // store required no verification.
-  // ⚠️ IT IS NOT A WEAKER `verified`. Both satisfy the served-channel gate below
-  // because both assert an account that can publish, which is the property that
-  // gate exists to hold; and both are held to the same staleness horizon, so the
-  // one status whose age matters is not the one that stops being printed.
+  // ⚠️ AND IT IS SCOPED TO THE SURFACE THAT EARNED IT, corrected 2026-09-06.
+  // The first spelling of this change put `live` in the served-channel gate for
+  // EVERY row, and review measured what that bought: `android-play` with
+  // `served: true` and `accountStatus.status: "live"` passed silently, where the
+  // same row on main was refused outright. On a store that DOES verify — Play,
+  // Apple, Microsoft — `live` would then assert a publishable account with no
+  // verification step behind it, and `applied` vs `verified` is exactly the
+  // distinction the owner-gated queue tracks. So `live` is a status only an
+  // `extension`-surface row may claim: it is the answer to "this store asked for
+  // no verification", which is a property of those three stores and of no app
+  // store in this register. A non-extension row carrying it FAILS here rather
+  // than being quietly accepted; not one row needed the wider reading, because
+  // all three rows that carry `live` are `served: false`.
   const STATUSES = new Set(['none', 'applied', 'verified', 'live']);
-  /** The statuses that assert a publishable account. The served gate reads this
-   *  rather than the literal `verified`, so adding a status cannot silently
-   *  widen it — a new word is outside the set until somebody puts it in. */
-  const ACCOUNT_EXISTS = new Set(['verified', 'live']);
+  /** The one surface on which `live` is a claim a row may make — the exact token,
+   *  not "a surface that looks like an extension". Widening this is a reviewed
+   *  line here, which is what the first version of this change did not cost. */
+  const LIVE_SURFACE = 'extension';
+  /** The statuses that assert a publishable account, PER ROW. The served gate
+   *  reads this rather than the literal `verified`, so adding a status cannot
+   *  silently widen it — a new word is outside the set until somebody puts it in,
+   *  and `live` is inside it only on the surface that declared it. */
+  const accountExistsFor = (c) => (c.surface === LIVE_SURFACE ? new Set(['verified', 'live']) : new Set(['verified']));
   // 90 days. Chosen to be longer than any enrolment flow here has taken (the
   // Play account went pending → verified in about a day, Microsoft quotes five
   // business days), so a row inside the horizon is genuinely fresh rather than
@@ -1521,7 +1535,13 @@ if (agg === null || typeof agg !== 'object' || typeof agg.workflow !== 'string' 
       );
       continue;
     }
-    if (c.served === true && !ACCOUNT_EXISTS.has(st.status)) {
+    if (st.status === 'live' && c.surface !== LIVE_SURFACE) {
+      problems.push(
+        `channel "${c.id}" is on the "${c.surface ?? '(no surface)'}" surface and claims accountStatus.status "live". That word exists for ONE thing — a store that asked for no verification at all, which is true of the browser add-on stores and of no app store here — so on any other surface it is "verified" that the account either has or has not earned. Expected one of ${[...accountExistsFor(c)].concat(['none', 'applied']).sort().join(', ')} on this surface. Say the weaker true thing rather than the stronger convenient one.`,
+      );
+      continue;
+    }
+    if (c.served === true && !accountExistsFor(c).has(st.status)) {
       problems.push(
         `channel "${c.id}" is SERVED and its accountStatus is "${st.status}" (as of ${st.asOf}). A served channel is one this factory publishes through; publishing needs the account. One of the two fields is wrong and the register cannot say which.`,
       );
@@ -1551,7 +1571,7 @@ if (agg === null || typeof agg !== 'object' || typeof agg.workflow !== 'string' 
     // row re-confirmed and re-dated with the same value is the correct outcome.
     const ageDays = Math.floor((Date.now() - Date.parse(`${st.asOf}T00:00:00Z`)) / 86_400_000);
     const stale = ageDays > ACCOUNT_STATUS_STALE_DAYS;
-    if (!ACCOUNT_EXISTS.has(st.status)) {
+    if (!accountExistsFor(c).has(st.status)) {
       prints.push(
         `ACCOUNT ${st.status.toUpperCase()}: ${c.id} — OWNER_QUEUE ${c.ownerQueue ?? '(none)'}, asserted ${ageDays}d ago (${st.asOf})${stale ? ' ⚠️ RE-ASSERT — older than the staleness horizon; confirm it is still true rather than re-reading it' : ''}${st.note ? ` · ${st.note}` : ''}`,
       );

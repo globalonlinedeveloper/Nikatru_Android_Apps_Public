@@ -1609,6 +1609,37 @@ describe('assert-channel-register — the channel↔account status', () => {
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /channel "web".*accountStatus/);
   });
+
+  // 🔴 `live` IS AN EXTENSION-SURFACE WORD, AND THIS IS THE CASE THAT PROVES IT.
+  // The 2026-09-05 spelling of the `live` change put it in the served-channel gate
+  // for every row; review measured `android-play` (Google Play — a store that DOES
+  // verify) passing SILENTLY with `served: true` + `live`, where main refused the
+  // same row outright. These three cases are the green control, the app-surface
+  // refusal, and the served bypass that was measured.
+  test('the extension-surface row may claim `live` — the green control for the two cases below', () => {
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /claims accountStatus.status "live"/);
+  });
+
+  test('FAILS when an APP-surface store row claims `live` — a store that verifies has "verified" to earn', () => {
+    const { code, out } = run(tree({ mutate: (r) => { r.channels[1].accountStatus.status = 'live'; } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /channel "windows-store" is on the "app" surface and claims accountStatus.status "live"/);
+  });
+
+  test('FAILS on the measured bypass — a SERVED app-surface row does not get its account from `live`', () => {
+    const { code, out } = run(
+      tree({
+        mutate: (r) => {
+          r.channels[1].served = true;
+          r.channels[1].accountStatus = { status: 'live', asOf: '2026-08-12', note: 'account open' };
+        },
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /channel "windows-store" is on the "app" surface and claims accountStatus.status "live"/);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

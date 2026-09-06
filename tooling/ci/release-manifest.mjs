@@ -727,14 +727,16 @@ export function originEnvironments(register, app, assetNames, surface) {
     // The store-submission record is `record-deployment.mjs`'s `--state` +
     // `--listing-url` pair, which a release job cannot honestly supply because
     // the store decides hours-to-weeks after the run has ended.
-    // 🔴 AND THAT PAIR IS THE OPEN EDGE OF THIS CHANGE: record-deployment.mjs
-    // refuses a `kind: "store"` environment with neither flag, so the extensions
-    // release job's record loop — which passes only a URL — would fail AFTER the
-    // publish on the first real tag. `git tag` is 0 and no extension has ever
-    // been released, so nothing is broken today and the fix is one flag pair in
-    // a workflow this change does not own. It is recorded in
-    // research/revamp-2026-09-05/phase2-ext-purchase-rail.md rather than left to
-    // be discovered by the first release.
+    // 🔴 THAT PAIR WAS THE OPEN EDGE OF THIS CHANGE, AND IT IS CLOSED (2026-09-06).
+    // record-deployment.mjs refused a `kind: "store"` environment carrying
+    // neither flag, so the extensions release job's record loop — which passed
+    // only a URL — would have failed AFTER the publish on the first real tag.
+    // Neither flag could be supplied honestly: nothing is submitted, and no
+    // listing exists before the manual first publish. So the ledger gained the
+    // state that is true — `pending_manual_publish`, "this release is the ORIGIN
+    // and nobody submitted it" — and extensions.yml passes it. It is refused on
+    // any row this factory CAN submit through, and it is not counted as a
+    // submission by [10]D-6's cadence.
     // 🔴 THE SURFACE OF THE RELEASE COMES FIRST, BEFORE `kind` IS EVEN READ.
     // Without this line the branch below asked "is this row an extension row?"
     // and never "is this release an extension release?", so `--app subly`
