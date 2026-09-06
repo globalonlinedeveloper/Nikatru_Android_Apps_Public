@@ -50,15 +50,70 @@ const spawn = (script, args) => {
   return { code: r.status === null ? 2 : r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 };
 
-/** A copy of everything the guard and the renderer read, and nothing else. */
+/** A copy of everything the guard and the two renderers read, and nothing else.
+ *
+ *  🔴 THE NOTICE SURFACES ARE IN THE FIXTURE, not stubbed. Limbs 4 and 5 both
+ *  refuse an incomplete tree with COVERAGE LOST — limb 4 when a sworn store file
+ *  is absent or still the brick's stamped one, limb 5 when not one extension
+ *  store listing carries the privacy-practices markers — so a fixture missing
+ *  them would exercise the refusals on every case instead of the case's own
+ *  mutation. The files below are exactly the ones `planPrivacy` opens. */
 function tree() {
   const root = mkdtempSync(join(tmpdir(), 'app-yaml-'));
-  for (const rel of ['apps/subly/app.yaml', 'apps/subly/privacy.yaml', 'catalog/apps.json', 'tooling/channel-register.json', 'tooling/legal/provider-register.json']) {
+  for (const rel of [
+    'apps/subly/app.yaml',
+    'apps/subly/privacy.yaml',
+    'catalog/apps.json',
+    'tooling/channel-register.json',
+    'tooling/legal/provider-register.json',
+    'sites/nikatru/subly/privacy.html',
+    'extensions/Extension/Full_Screen_Shot/publish/privacy.yaml',
+    'extensions/Extension/Full_Screen_Shot/publish/STORE-LISTING.md',
+    'extensions/templates/tool/publish/STORE-LISTING.md',
+  ]) {
     mkdirSync(join(root, dirname(rel)), { recursive: true });
     cpSync(join(REPO, rel), join(root, rel));
   }
   cpSync(join(REPO, 'apps/subly/store'), join(root, 'apps/subly/store'), { recursive: true });
   return root;
+}
+
+const PRIVACY_RENDER = join(REPO, 'tooling', 'app-yaml', 'render-privacy.mjs');
+const PLAY_SWORN = 'apps/subly/store/android-play/data-safety.json';
+const APPLE_SWORN = 'apps/subly/store/ios-appstore/privacy-manifest.json';
+const SITE_NOTICE = 'sites/nikatru/subly/privacy.html';
+const EXT_LISTING = 'extensions/Extension/Full_Screen_Shot/publish/STORE-LISTING.md';
+
+const readJson = (root, rel) => JSON.parse(get(root, rel));
+const putJson = (root, rel, obj) => put(root, rel, `${JSON.stringify(obj, null, 2)}\n`);
+
+/** One more `collects` row, valid against the schema and matching NOTHING in
+ *  either sworn file. Appended after the last row so the block structure holds. */
+const EXTRA_COLLECTS_ROW = [
+  '',
+  '  - category: Messages',
+  '    type: Other in-app messages',
+  '    purposes:',
+  '      - Analytics',
+  '    retentionClass: 400',
+  '    required: false',
+  '    shared: false',
+  '    basis: >-',
+  '      A row that is schema-valid in every respect and appears in neither sworn',
+  '      store declaration. This is the whole point of the case: the declaration',
+  '      alone cannot decide what the app collects.',
+  '    source: apps/subly/store/android-play/data-safety.json',
+  '    asOf: "2026-09-06"',
+  '',
+].join('\n');
+
+/** Insert `EXTRA_COLLECTS_ROW` at the end of the `collects:` block — i.e. just
+ *  before the `processors:` key, which is the next top-level key in the file. */
+function addCollectsRow(root) {
+  const text = get(root, PRIVACY_YAML);
+  const at = text.indexOf('\nprocessors:');
+  assert.notEqual(at, -1, 'the declaration must still carry a top-level `processors:` key');
+  put(root, PRIVACY_YAML, `${text.slice(0, at)}\n${EXTRA_COLLECTS_ROW}${text.slice(at)}`);
 }
 const put = (root, rel, text) => writeFileSync(join(root, rel), text);
 const get = (root, rel) => readFileSync(join(root, rel), 'utf8');
@@ -357,5 +412,232 @@ describe('schema-validate.mjs — an unimplemented keyword is refused, never ign
   test('it reports EVERY problem at once, not the first', () => {
     const schema = { type: 'object', additionalProperties: false, required: ['a', 'b'], properties: { a: { type: 'string' }, b: { type: 'string' } } };
     assert.equal(validate({ c: 1 }, schema).length, 3);
+  });
+});
+
+describe('limb 4 — the declaration and the two SWORN store declarations agree', () => {
+  test('POSITIVE CONTROL: the real tree matches in both directions, and says how many rows it compared', () => {
+    // The strongest statement available here: the eleven categories a human
+    // swore to Google, the eleven Apple rows derived from them, and the eleven
+    // in the notice declaration are the same eleven. If that stops holding,
+    // every negative case below is about a tree nobody ships.
+    const root = tree();
+    try {
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 0, out);
+      assert.match(out, /limb 4 — 11 collected categor\(ies\) across 1 app\(s\)/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: a row added to privacy.yaml ALONE is a FINDING (1), naming the sworn file', () => {
+    const root = tree();
+    try {
+      addCollectsRow(root);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /android-play\/data-safety\.json has no row for it/);
+      assert.match(out, /Messages \/ Other in-app messages/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: a sworn Play row the declaration does not mention is a FINDING, the other direction', () => {
+    // One direction alone is the defect this limb is named after. A declaration
+    // that is a SUBSET of the sworn answers passes "every declared row is sworn"
+    // while the app collects a category its own notice never mentions.
+    const root = tree();
+    try {
+      const text = get(root, PRIVACY_YAML);
+      const at = text.indexOf('  - category: Location');
+      const next = text.indexOf('  - category: Personal info');
+      assert.ok(at !== -1 && next > at, 'the first collects row must still be the Location one');
+      put(root, PRIVACY_YAML, text.slice(0, at) + text.slice(next));
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /swears "Location \/ Approximate location" is collected/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: a data-safety.json still STAMPED is COVERAGE LOST (2), never a pass', () => {
+    // The brick ships this file with `buildPosture: null` and no `answers`, on
+    // purpose. Comparing a real declaration against it finds nothing wrong over
+    // an empty set — C-COVERAGE-LOST-IS-NOT-PASS is exactly this case.
+    const root = tree();
+    try {
+      const sworn = readJson(root, PLAY_SWORN);
+      sworn.buildPosture = null;
+      putJson(root, PLAY_SWORN, sworn);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 2, `expected COVERAGE LOST, got ${code}:\n${out}`);
+      assert.match(out, /still the STAMPED template/);
+      assert.match(out, /COVERAGE LOST/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: an unanswered Apple manifest is COVERAGE LOST (2) too', () => {
+    const root = tree();
+    try {
+      const sworn = readJson(root, APPLE_SWORN);
+      sworn.collectedDataTypes = null;
+      putJson(root, APPLE_SWORN, sworn);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 2, `expected COVERAGE LOST, got ${code}:\n${out}`);
+      assert.match(out, /carries no `rows` array/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: an Apple row whose Play row the declaration dropped is a FINDING (1)', () => {
+    const root = tree();
+    try {
+      const sworn = readJson(root, APPLE_SWORN);
+      sworn.collectedDataTypes.rows = sworn.collectedDataTypes.rows.filter((r) => r.fromPlayRow !== 'Crash logs');
+      putJson(root, APPLE_SWORN, sworn);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /is "Crash logs"/);
+    } finally { kill(root); }
+  });
+
+  test('THE APP ARITY FLOOR DID NOT MOVE: `collects: []` on an app declaration is still refused', () => {
+    // `collects` and `processors` carried `minItems: 1` unconditionally before
+    // the extension surface existed. The floor moved INTO the app branch of the
+    // schema, and this is the demonstration that it is still there — the case a
+    // reviewer would otherwise have to take on trust.
+    const root = tree();
+    try {
+      const text = get(root, PRIVACY_YAML);
+      const start = text.indexOf('collects:');
+      const end = text.indexOf('\nprocessors:');
+      assert.ok(start !== -1 && end > start);
+      put(root, PRIVACY_YAML, `${text.slice(0, start)}collects: []${text.slice(end)}`);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /permitted shapes/);
+    } finally { kill(root); }
+  });
+
+  test('THE APP ARITY FLOOR DID NOT MOVE: `processors: []` is still refused', () => {
+    const root = tree();
+    try {
+      const text = get(root, PRIVACY_YAML);
+      const start = text.indexOf('\nprocessors:');
+      assert.notEqual(start, -1);
+      put(root, PRIVACY_YAML, `${text.slice(0, start)}\nprocessors: []\n`);
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /permitted shapes/);
+    } finally { kill(root); }
+  });
+
+  test('a declaration that names a network address is STILL refused, with the surface key present', () => {
+    // Limb 3's refusal, re-run because the schema grew a discriminator around
+    // it. A constraint that survives a refactor only by accident is one nobody
+    // has proved survived it.
+    const root = tree();
+    try {
+      put(root, PRIVACY_YAML, get(root, PRIVACY_YAML).replace('type: Approximate location', 'type: Approximate location and IP address'));
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /names a network address/);
+    } finally { kill(root); }
+  });
+});
+
+describe('limb 5 — the notice surfaces are what the declaration renders to', () => {
+  test('POSITIVE CONTROL: --check is green on the real tree and writes nothing', () => {
+    const root = tree();
+    try {
+      const before = [SITE_NOTICE, EXT_LISTING].map((rel) => [rel, get(root, rel)]);
+      const { code, out } = spawn(PRIVACY_RENDER, [root, '--check']);
+      assert.equal(code, 0, out);
+      assert.match(out, /3 notice rendering\(s\) match/);
+      for (const [rel, text] of before) assert.equal(get(root, rel), text, `${rel} must not be rewritten by --check`);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: a hand edit BETWEEN the STORE-LISTING markers is caught, and restoring it is green', () => {
+    // The bytes between those markers are pasted into a store dashboard. A
+    // dashboard answer that contradicts the code is a policy strike at account
+    // level, and the surrounding document is hand-written prose that cannot
+    // carry a single "generated" header — so this comparison is the only thing
+    // standing between an edit and a console.
+    const root = tree();
+    try {
+      const original = get(root, EXT_LISTING);
+      assert.equal(spawn(PRIVACY_RENDER, [root, '--check']).code, 0, 'the control must be green first');
+      put(root, EXT_LISTING, original.replace('| Website content | **YES — handled locally only** |', '| Website content | **NO** |'));
+      const bad = spawn(PRIVACY_RENDER, [root, '--check']);
+      assert.equal(bad.code, 1, `expected the edit to be caught:\n${bad.out}`);
+      assert.match(bad.out, /STORE-LISTING\.md/);
+      const guarded = spawn(GUARD, [root]);
+      assert.equal(guarded.code, 1, `the guard must fail on it too:\n${guarded.out}`);
+      assert.match(guarded.out, /policy strike/);
+      put(root, EXT_LISTING, original);
+      assert.equal(spawn(PRIVACY_RENDER, [root, '--check']).code, 0, 'restoring the bytes must be green again');
+      assert.equal(spawn(GUARD, [root]).code, 0);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: a hand edit to the per-app notice page is caught', () => {
+    const root = tree();
+    try {
+      put(root, SITE_NOTICE, get(root, SITE_NOTICE).replace('<h2>4. Who else touches it</h2>', '<h2>4. Nobody else touches it</h2>'));
+      const { code, out } = spawn(PRIVACY_RENDER, [root, '--check']);
+      assert.equal(code, 1, out);
+      assert.match(out, /sites\/nikatru\/subly\/privacy\.html/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: no fenced store listing anywhere is COVERAGE LOST (2), not "0 renderings, clean"', () => {
+    const root = tree();
+    try {
+      rmSync(join(root, 'extensions'), { recursive: true, force: true });
+      const { code, out } = spawn(PRIVACY_RENDER, [root, '--check']);
+      assert.equal(code, 2, `expected COVERAGE LOST, got ${code}:\n${out}`);
+      assert.match(out, /carries the privacy-practices markers/);
+    } finally { kill(root); }
+  });
+
+  test('MUTATION: only the TEMPLATE fenced is COVERAGE LOST — a stamped notice proves nothing', () => {
+    const root = tree();
+    try {
+      rmSync(join(root, 'extensions/Extension'), { recursive: true, force: true });
+      const { code, out } = spawn(PRIVACY_RENDER, [root, '--check']);
+      assert.equal(code, 2, `expected COVERAGE LOST, got ${code}:\n${out}`);
+      assert.match(out, /every fenced store listing is the tool TEMPLATE/);
+    } finally { kill(root); }
+  });
+
+  test('the tool TEMPLATE renders the UNANSWERED notice, never a plausible default', () => {
+    // The brick stamps its four sworn store files UNANSWERED for the same
+    // reason. The one default that is tempting here — "this item does not
+    // collect user data" — is a policy strike for any tool that reads page
+    // content, so the template ships no answer at all.
+    const root = tree();
+    try {
+      const text = get(root, 'extensions/templates/tool/publish/STORE-LISTING.md');
+      assert.match(text, /UNANSWERED/);
+      assert.doesNotMatch(text, /Dashboard answer/);
+    } finally { kill(root); }
+  });
+
+  test('the extension declaration is graded by the guard, not just by the renderer', () => {
+    const root = tree();
+    try {
+      const rel = 'extensions/Extension/Full_Screen_Shot/publish/privacy.yaml';
+      put(root, rel, get(root, rel).replace('noSale: true', 'noSale: false'));
+      const { code, out } = spawn(GUARD, [root]);
+      assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
+      assert.match(out, /limitedUse\/noSale/);
+    } finally { kill(root); }
+  });
+
+  test('the empty flow sequence `[]` parses, and every other flow form is still refused', () => {
+    // The one flow form this subset admits, and the reason it had to be: there
+    // is no block form for an empty sequence, so `collects:` with nothing under
+    // it parses as null — a different value and a different failure. Every
+    // other flow form stays refused, which is what the cases above rely on.
+    assert.deepEqual(parseYaml('collects: []\n'), { collects: [] });
+    assert.throws(() => parseYaml('collects: [a]\n'), YamlError);
+    assert.throws(() => parseYaml('collects: {}\n'), YamlError);
   });
 });

@@ -142,14 +142,44 @@ entirely on the user's device and transmits nothing. Per Chrome Web Store User
 Data FAQ Q2–Q3, taking a screenshot is "handling user data" and local-only
 handling still must be disclosed — so this is disclosed honestly below.
 
-Data collection disclosures (dashboard checkboxes):
-- Website content — **handled locally only** (the captured screenshot). Not transmitted, not sold, not shared. ⟨See owner-decision note in COMPLIANCE-CHECKLIST.md §Data-disclosure.⟩
-- Personally identifiable info / financial info / health / authentication / location / web history / user activity / personal communications — **NOT collected.** (A screenshot may incidentally contain whatever the user points it at, but FullShot does not extract, index, or transmit any such category; the opt-in redaction feature exists to cover matched patterns in the image, not to gather them.)
+📌 **THE DASHBOARD ANSWERS BELOW ARE GENERATED, AND THE TWO BULLETS THAT USED TO STAND HERE ARE
+SUPERSEDED RATHER THAN DELETED.** They said the same thing this block says — *Website content =
+handled locally only; the other eight = NOT collected; all three Limited Use boxes affirmable* — but
+they said it in prose, three files away from the table in `PRIVACY-POLICY-HOSTING.md` §4c that
+decided each answer, with nothing able to tell agreement from a coincidence. The answers now live in
+`publish/privacy.yaml`, one row per category with its own basis and source, and this block is
+rendered from that file by `tooling/app-yaml/render-privacy.mjs`. ⟨The owner-decision note in
+COMPLIANCE-CHECKLIST.md §Data-disclosure is unchanged and is still the sign-off record.⟩
 
-Limited Use certification (all three must be affirmed — FullShot qualifies):
-- ☑ I do not sell user data to third parties (FullShot transmits no data at all).
-- ☑ I do not use or transfer user data for purposes unrelated to my item's single purpose.
-- ☑ I do not use or transfer user data to determine creditworthiness or for lending.
+<!-- GENERATED:privacy-practices — rendered from publish/privacy.yaml by tooling/app-yaml/render-privacy.mjs. DO NOT EDIT BETWEEN THESE MARKERS. -->
+
+Data collection disclosures — the nine **Privacy practices → Data usage** categories, in the
+dashboard’s own order. Every answer carries the basis it was decided on and the file that basis
+was read out of.
+
+| Category | Dashboard answer | Why |
+|---|---|---|
+| Website content | **YES — handled locally only** | The screenshot IS website content. It is composed, edited and exported entirely on the device and no request of any kind leaves the browser, but Google's User Data FAQ counts handling rather than transmission, so the box is ticked and the local-only explanation travels with it. |
+| Personally identifiable information | **NO** | No account, no sign-in and no identity of any kind is read, derived or stored. A capture may depict a name; FullShot never extracts, parses, indexes or retains one, and the opt-in redaction feature exists to remove such text from the image rather than to gather it. |
+| Health information | **NO** | Never touched. There is no code path that reads, classifies or stores anything of this kind, and no network layer that could carry it anywhere if there were. |
+| Financial and payment information | **NO** | Card-number patterns are detected only in order to paint an opaque block over them, and the matched value is never stored, indexed or transmitted. Detecting in order to hide is the opposite of collecting. |
+| Authentication information | **NO** | Never read. No credential, password, security answer or PIN is requested, observed or stored anywhere in the extension, which has no account system of its own to need one. |
+| Personal communications | **NO** | FullShot does not read messages as messages. Capturing a page that happens to be an inbox produces an image, exactly as any other page does, and nothing parses it back into correspondence. |
+| Location | **NO** | No geolocation API is called and there is no network layer at all, so there is nothing that could infer where the user is — not from the device and not from a connection that is never opened. |
+| Web history | **NO** | Neither the history nor the tabs permission is declared, and a page is touched only at the instant the user starts a capture on it. The local capture history holds the captures the user chose to keep, on their own device, which is their saved work rather than a record of browsing. |
+| User activity | **NO** | Nothing is logged. Programmatic scrolling happens during a capture in order to stitch the page together; it is not recorded, and the user's own clicks, keystrokes and scrolling are never observed. |
+
+Limited Use certification — all three must be affirmed:
+
+- ☑ I do not sell user data to third parties.
+- ☑ I do not use or transfer user data for purposes unrelated to my item’s single purpose.
+- ☑ I do not use or transfer user data to determine creditworthiness or for lending purposes.
+
+Why each is affirmable: All three are true for one reason that is checkable rather than promised: the extension transmits nothing at all. There is no network call in the shipped code, so there is no recipient to sell to, no second purpose to transfer for and no lender to score anybody for.
+
+Rendered from `publish/privacy.yaml`, declaration date 2026-09-06; Limited Use basis read from `extensions/Extension/Full_Screen_Shot/publish/COMPLIANCE-CHECKLIST.md`.
+
+<!-- /GENERATED:privacy-practices -->
 
 Privacy policy URL (required — item handles user data):
 ```

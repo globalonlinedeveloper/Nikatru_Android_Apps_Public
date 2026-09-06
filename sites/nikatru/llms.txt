@@ -22,6 +22,7 @@
 - Refund & Cancellation Policy: https://nikatru.com/refund
 - Contact: https://nikatru.com/contact
 - FullShot Privacy Policy: https://nikatru.com/fullshot/privacy — the browser extension; all capture is processed locally and nothing is transmitted
+- Subly — what the app collects: https://nikatru.com/subly/privacy — the per-app notice, itemised from the app's own privacy declaration; the policy a user agrees to is /privacy
 - Developer site: https://rajasekarselvam.com/
 
 ## Contact
