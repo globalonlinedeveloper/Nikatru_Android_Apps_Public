@@ -73,7 +73,7 @@
 // Exit 0 = the notice surfaces match the declarations. 1 = they do not (or a
 // declaration is invalid). 2 = COVERAGE LOST — see the refusals in `planPrivacy`.
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseYaml, YamlError } from './yaml.mjs';
@@ -107,9 +107,40 @@ const ORIGIN = 'https://nikatru.com';
 export const MARK_START = '<!-- GENERATED:privacy-practices — rendered from publish/privacy.yaml by tooling/app-yaml/render-privacy.mjs. DO NOT EDIT BETWEEN THESE MARKERS. -->';
 export const MARK_END = '<!-- /GENERATED:privacy-practices -->';
 
-const isDir = (p) => existsSync(p) && statSync(p).isDirectory();
 const listDirs = (abs) => readdirSync(abs, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-const readIf = (abs) => (existsSync(abs) ? readFileSync(abs, 'utf8') : null);
+
+/**
+ * Read a file, or `null` when it is not there.
+ *
+ * 🔴 ONE SYSCALL, NOT `existsSync` THEN `readFileSync`. CodeQL's
+ * `js/file-system-race` raised the check-then-read pair here at high severity on
+ * 2026-09-06, and it is right rather than pedantic: between the two calls the
+ * file can be replaced, so the branch a renderer takes is decided by a fact that
+ * was true a moment ago. The generators in this tree run beside each other —
+ * `generate-discovery.mjs` splices the same site pages this script writes — so
+ * the window is a real one, not a hypothetical. Reading and catching ENOENT
+ * makes "is it there" and "what does it say" the same observation. Anything
+ * OTHER than ENOENT is re-thrown: a permission error silently read as "absent"
+ * would make a missing declaration and an unreadable one the same case, and they
+ * need opposite repairs.
+ */
+const readIf = (abs) => {
+  try {
+    return readFileSync(abs, 'utf8');
+  } catch (e) {
+    if (e && (e.code === 'ENOENT' || e.code === 'EISDIR')) return null;
+    throw e;
+  }
+};
+
+const isDir = (p) => {
+  try {
+    return statSync(p).isDirectory();
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return false;
+    throw e;
+  }
+};
 
 /* ------------------------------------------------------------------ */
 /* Escaping                                                            */
@@ -403,10 +434,13 @@ export function planPrivacy(root) {
 
   const schema = JSON.parse(readFileSync(PRIVACY_SCHEMA_PATH, 'utf8'));
 
-  const readDoc = (rel) => {
+  /** Parse and grade one declaration whose bytes have ALREADY been read. Taking
+   *  the text rather than the path is what keeps this side of the script free of
+   *  a check-then-read pair — see `readIf`. */
+  const gradeDoc = (rel, text) => {
     let doc;
     try {
-      doc = parseYaml(readFileSync(join(root, rel), 'utf8'));
+      doc = parseYaml(text);
     } catch (e) {
       problems.push(`${rel}: ${e instanceof YamlError ? e.message : String(e)}`);
       return null;
@@ -425,17 +459,22 @@ export function planPrivacy(root) {
     lost.push(`${APPS_DIR}/ does not exist, so this run had no app declaration to render a notice from.`);
     return { declarations, files, problems, lost };
   }
-  const appIds = listDirs(appsAbs).filter((id) => existsSync(join(appsAbs, id, 'privacy.yaml'))).sort();
-  if (appIds.length === 0) {
+  // Read once. `readIf` returns null for an absent file, so the set of apps that
+  // declare and the bytes they declare come out of the same observation.
+  const appDeclarations = listDirs(appsAbs)
+    .sort()
+    .map((id) => [id, readIf(join(appsAbs, id, 'privacy.yaml'))])
+    .filter(([, text]) => text !== null);
+  if (appDeclarations.length === 0) {
     lost.push(
       `no ${APPS_DIR}/<id>/privacy.yaml exists. The per-app notice is a function of that declaration, so `
         + 'zero declarations render zero bytes and every comparison below would pass over an empty set.',
     );
     return { declarations, files, problems, lost };
   }
-  for (const id of appIds) {
+  for (const [id, text] of appDeclarations) {
     const rel = `${APPS_DIR}/${id}/privacy.yaml`;
-    const doc = readDoc(rel);
+    const doc = gradeDoc(rel, text);
     if (!doc) continue;
     if (doc.app !== id) {
       problems.push(`${rel}: declares app "${doc.app}" but lives in ${APPS_DIR}/${id}/ — two files describing two different apps.`);
@@ -470,7 +509,8 @@ export function planPrivacy(root) {
       const isTemplate = listingRel === TEMPLATE_LISTING;
       const declRel = `${dirname(listingRel)}/privacy.yaml`;
       let block;
-      if (existsSync(join(root, declRel))) {
+      const declText = readIf(join(root, declRel));
+      if (declText !== null) {
         // 🔴 COUNTED BEFORE IT IS VALIDATED, and that ordering is the whole
         // point. Counting a real tool's listing only once its declaration
         // PARSED means a broken declaration empties the count, the refusal
@@ -482,7 +522,7 @@ export function planPrivacy(root) {
         // and it was re-learned here: `tooling/ci/test/app-yaml.test.mjs`'s
         // extension-grading case went 2 instead of 1 until this moved.
         if (!isTemplate) realListings += 1;
-        const doc = readDoc(declRel);
+        const doc = gradeDoc(declRel, declText);
         if (!doc) continue;
         if (doc.surface !== 'extension') {
           problems.push(`${declRel}: declares surface "${doc.surface}". A declaration beside a store listing is the extension surface.`);
@@ -553,7 +593,7 @@ export function renderPrivacy(root, { check = false } = {}) {
   const wrote = [];
   for (const [rel, contents] of files) {
     const abs = join(root, rel);
-    const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
+    const current = readIf(abs);
     if (current === contents) continue;
     stale.push(rel);
     if (!check) {
