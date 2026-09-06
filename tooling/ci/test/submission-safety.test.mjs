@@ -203,6 +203,35 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
     assert.match(out, /CADENCE: 0 store submission/);
   });
 
+  // 🔴 THREE EXTENSION-STORE ROWS PER TAG ARE NOT THREE SUBMISSIONS. The
+  // extensions release lane records `pending_manual_publish` for each browser
+  // store row: the release is the artifact's ORIGIN and nothing was sent to a
+  // store. Counted, one tag would breach a cap that exists to stop a burst of
+  // REAL submissions reading as a content farm — and the "burst" would be three
+  // records nobody submitted.
+  test('a `pending_manual_publish` row is PRINTED and does not count towards the cadence', () => {
+    const at = (d) => ({
+      environment: `subly-windows-store`,
+      createdAt: `2026-08-0${d}T00:00:00Z`,
+      description: `nk1 state=pending_manual_publish sha=abc1234${d}`,
+    });
+    const { code, out } = run(fixture({ ledger: [at(1), at(2), at(3)] }), ['--ledger', 'ledger.json']);
+    assert.equal(code, 0, out);
+    assert.match(out, /LEDGER ROW NOT A SUBMISSION: subly-windows-store — state=pending_manual_publish/);
+    assert.match(out, /CADENCE: 0 store submission\(s\) on record/);
+    assert.doesNotMatch(out, /3 store submission\(s\) recorded/);
+  });
+
+  test('and a real submission beside them is still counted — the exclusion is one state, not a mood', () => {
+    const ledger = [
+      { environment: 'subly-windows-store', createdAt: '2026-08-01T00:00:00Z', description: 'nk1 state=pending_manual_publish sha=abc12341' },
+      { environment: 'subly-windows-store', createdAt: '2026-08-02T00:00:00Z', description: 'nk1 state=in_review sha=abc12342 listing=https://a/x' },
+    ];
+    const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
+    assert.equal(code, 0, out);
+    assert.match(out, /CADENCE 2026-08: 1\/2/);
+  });
+
   test('an UNREADABLE ledger row is printed, never silently dropped', () => {
     const ledger = [{ environment: 'subly-windows-store', createdAt: '2026-08-03T00:00:00Z', description: 'live at abc12345' }];
     const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
