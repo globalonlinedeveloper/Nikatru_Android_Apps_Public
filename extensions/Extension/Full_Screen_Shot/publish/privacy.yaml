@@ -1,0 +1,157 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FullShot — the privacy declaration for the extension surface.
+#
+# ── WHAT THIS FILE IS ────────────────────────────────────────────────────────
+# The DECLARATION the Chrome Web Store privacy-practices disclosure in
+# publish/STORE-LISTING.md is RENDERED from, by
+# tooling/app-yaml/render-privacy.mjs, between the two GENERATED markers in that
+# document. Graded against tooling/app-yaml/schema/privacy.schema.json by
+# tooling/ci/assert-app-yaml.mjs, which also holds the rendered block
+# byte-identical to what this file renders to — so a hand edit inside the
+# markers is caught rather than submitted.
+#
+# It is NOT the policy text. The published policy is
+# contracts/legal/fullshot-privacy.md, rendered to two copies by
+# contracts/legal/render-fullshot-privacy.mjs and held equal by
+# tooling/ci/assert-legal-text-parity.mjs. Two different documents answering two
+# different questions: that one is prose a reader agrees to, this one is the
+# nine dashboard answers a reviewer compares to the code.
+#
+# ── EVERY ROW IS SOURCED, NONE IS INVENTED ───────────────────────────────────
+# The nine dispositions below are the nine already decided and reasoned in
+# publish/PRIVACY-POLICY-HOSTING.md §4c (the table at :287-295) and summarised
+# in publish/COMPLIANCE-CHECKLIST.md C4 / §"Data-disclosure decision". Nothing
+# here is a new judgement; this file is where those answers stop being prose a
+# renderer cannot read.
+#
+# ── WHY "Website content" IS local-only AND NOT not-collected ────────────────
+# 🔴 THE TEMPTING ANSWER IS THE WRONG ONE, and the checklist says so in its own
+# words: "Do not mark 'no data collected.' Even though FullShot sends nothing, a
+# screenshot is website content under Google's definition; 'no data' risks a
+# policy-mismatch strike (dashboard vs. behavior)." Google's User Data FAQ Q2
+# counts *handling*, and Q3 requires local-only handling to be disclosed anyway.
+# So the box IS ticked, and the local-only explanation travels with it.
+#
+# ── AND WHY `collects` IS EMPTY ANYWAY ───────────────────────────────────────
+# `collects` means retained or transmitted. FullShot has no network layer at
+# all, so there is nothing to give a retention class to and nobody to name as a
+# processor. The two lists are empty because that is the truth, and the schema's
+# arity floor for an APP declaration is untouched — see the `allOf` note there.
+# ─────────────────────────────────────────────────────────────────────────────
+
+app: fullshot
+surface: extension
+asOf: "2026-09-06"
+
+# C-NO-NETWORK-ADDRESS-COLUMN. Stronger here than anywhere else in the
+# portfolio: there is no network layer in this extension to record one with.
+networkAddress: false
+
+# Nothing is retained or transmitted, so no category owes a retention class.
+collects: []
+
+# Nobody outside this repository receives anything, because nothing leaves the
+# device.
+processors: []
+
+# The nine Chrome Web Store "Privacy practices → Data usage" categories, in the
+# dashboard's own order.
+storeDisclosures:
+  - category: Website content
+    disposition: local-only
+    basis: >-
+      The screenshot IS website content. It is composed, edited and exported
+      entirely on the device and no request of any kind leaves the browser, but
+      Google's User Data FAQ counts handling rather than transmission, so the
+      box is ticked and the local-only explanation travels with it.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Personally identifiable information
+    disposition: not-collected
+    basis: >-
+      No account, no sign-in and no identity of any kind is read, derived or
+      stored. A capture may depict a name; FullShot never extracts, parses,
+      indexes or retains one, and the opt-in redaction feature exists to remove
+      such text from the image rather than to gather it.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Health information
+    disposition: not-collected
+    basis: >-
+      Never touched. There is no code path that reads, classifies or stores
+      anything of this kind, and no network layer that could carry it anywhere
+      if there were.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Financial and payment information
+    disposition: not-collected
+    basis: >-
+      Card-number patterns are detected only in order to paint an opaque block
+      over them, and the matched value is never stored, indexed or transmitted.
+      Detecting in order to hide is the opposite of collecting.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Authentication information
+    disposition: not-collected
+    basis: >-
+      Never read. No credential, password, security answer or PIN is requested,
+      observed or stored anywhere in the extension, which has no account system
+      of its own to need one.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Personal communications
+    disposition: not-collected
+    basis: >-
+      FullShot does not read messages as messages. Capturing a page that happens
+      to be an inbox produces an image, exactly as any other page does, and
+      nothing parses it back into correspondence.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Location
+    disposition: not-collected
+    basis: >-
+      No geolocation API is called and there is no network layer at all, so
+      there is nothing that could infer where the user is — not from the device
+      and not from a connection that is never opened.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: Web history
+    disposition: not-collected
+    basis: >-
+      Neither the history nor the tabs permission is declared, and a page is
+      touched only at the instant the user starts a capture on it. The local
+      capture history holds the captures the user chose to keep, on their own
+      device, which is their saved work rather than a record of browsing.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+  - category: User activity
+    disposition: not-collected
+    basis: >-
+      Nothing is logged. Programmatic scrolling happens during a capture in
+      order to stitch the page together; it is not recorded, and the user's own
+      clicks, keystrokes and scrolling are never observed.
+    source: extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY-HOSTING.md
+    asOf: "2026-09-06"
+
+# The three Limited Use affirmations the dashboard requires. Declared here so
+# the person ticking them is reading the same sentence the repository can prove,
+# rather than reconstructing it at the console.
+limitedUse:
+  noSale: true
+  noUnrelatedTransfer: true
+  noCreditworthiness: true
+  basis: >-
+    All three are true for one reason that is checkable rather than promised:
+    the extension transmits nothing at all. There is no network call in the
+    shipped code, so there is no recipient to sell to, no second purpose to
+    transfer for and no lender to score anybody for.
+  source: extensions/Extension/Full_Screen_Shot/publish/COMPLIANCE-CHECKLIST.md
+  asOf: "2026-09-06"

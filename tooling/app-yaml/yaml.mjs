@@ -123,8 +123,24 @@ function scalar(text, line) {
     if (t.length < 2 || t[t.length - 1] !== "'") throw new YamlError('unterminated single-quoted scalar', line);
     return t.slice(1, -1).split("''").join("'");
   }
+  // 🔴 THE EMPTY SEQUENCE IS THE ONE FLOW FORM ADMITTED, AND THE REFUSAL BELOW IS
+  // UNCHANGED FOR EVERY OTHER. Flow style is refused because `[a, b]` and
+  // `{a: b}` are a second way to write something the block form already writes,
+  // and two spellings of one structure is what a subset exists to prevent. `[]`
+  // is not a second spelling of anything: this subset has NO block form for an
+  // empty sequence at all — `collects:` with nothing under it parses as `null`,
+  // which is a different value and a different schema failure. An extension that
+  // transmits nothing has to be able to say so, and "say nothing and hope the
+  // reader infers empty" is exactly the shape a privacy declaration must not
+  // have. `{}` stays refused: no schema here has an empty-object case, and an
+  // allowance nobody needs is an allowance nobody has tested.
+  if (t === '[]') return [];
   if (t[0] === '[' || t[0] === '{') {
-    throw new YamlError('flow style ([...] / {...}) is not part of the subset — write a block sequence or mapping', line);
+    throw new YamlError(
+      'flow style ([...] / {...}) is not part of the subset — write a block sequence or mapping. '
+        + '(The single exception is the empty sequence `[]`, which has no block form.)',
+      line,
+    );
   }
   if (t[0] === '&' || t[0] === '*') throw new YamlError('anchors and aliases are not part of the subset', line);
   if (t[0] === '!') throw new YamlError('tags (!!str, !x) are not part of the subset', line);

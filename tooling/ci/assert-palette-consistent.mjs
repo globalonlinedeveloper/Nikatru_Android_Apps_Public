@@ -225,15 +225,26 @@ const MUST_COMPARE = [
  *  17 -> 18 on 2026-08-21: `sites/nikatru/fullshot/privacy.html`, the hosted
  *  FullShot policy. It arrived carrying its own greys and was the only dissenting
  *  declaration of --ink, --muted and --line on either root, which is precisely
- *  what this guard is for — it caught the page on the run that added it. */
-const MIN_PAGES = 18;
+ *  what this guard is for — it caught the page on the run that added it.
+ *  18 -> 19 on 2026-09-06: `sites/nikatru/subly/privacy.html`, the per-app
+ *  privacy notice GENERATED from `apps/subly/privacy.yaml` by
+ *  `tooling/app-yaml/render-privacy.mjs` ([ADR 067] phase 2, unit
+ *  `privacy-generators`). RAISED, and the direction matters: an exact floor
+ *  tracks the subject, so a page ADDED raises it exactly as a page deleted would
+ *  lower it. Leaving it at 18 would mean a tree that had since lost a page still
+ *  cleared the floor — which is the floor failing to be one. */
+const MIN_PAGES = 19;
 /** What the exclusion must still match. */
 const MIN_SNAPSHOTS = 3;
-/** `:root` blocks across every source. Today 32. EXACT: a block is a page's
+/** `:root` blocks across every source. Today 33. EXACT: a block is a page's
  *  whole light or dark palette, so losing one is never incidental.
  *  31 -> 32 with MIN_PAGES above; the new page declares a light palette and no
- *  dark override, so it contributes exactly one block. */
-const MIN_ROOT_BLOCKS = 32;
+ *  dark override, so it contributes exactly one block.
+ *  32 -> 33 on 2026-09-06, with the per-app privacy notice, for the same reason
+ *  and in the same shape: it declares one light `:root` and no dark override,
+ *  because it is rendered with the same four brand tokens the FullShot policy
+ *  carries — the values from `sites/_shared/assets/tokens.css`, never its own. */
+const MIN_ROOT_BLOCKS = 33;
 /** Declarations inside those blocks. Today 265, floored SLACK on purpose. The
  *  three exact floors already fence the subject; this one exists for the single
  *  failure they cannot see — a reducer that blanks one character too many and

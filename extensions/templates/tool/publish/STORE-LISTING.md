@@ -185,6 +185,30 @@ tempting answer is the wrong one:
 - **Limited Use affirmations:** all three, each true here because nothing is
   transmitted at all.
 
+The paste-ready answers themselves are GENERATED from `publish/privacy.yaml` into the fenced block
+below, by `tooling/app-yaml/render-privacy.mjs`. Writing that declaration is step one of filling
+this section; the block then renders itself and `tooling/ci/assert-app-yaml.mjs` holds it equal to
+the declaration on every build.
+
+<!-- GENERATED:privacy-practices — rendered from publish/privacy.yaml by tooling/app-yaml/render-privacy.mjs. DO NOT EDIT BETWEEN THESE MARKERS. -->
+
+⛔ **UNANSWERED — this tool has no `publish/privacy.yaml` yet.**
+
+Write one beside this file (copy `extensions/Extension/Full_Screen_Shot/publish/privacy.yaml`,
+which is the worked example) and re-run `node tooling/app-yaml/render-privacy.mjs`. The nine
+answers below this line are then generated from it and this notice disappears.
+
+🔴 Do **not** hand-write the answers into this block. It is fenced by the two markers around it
+and `tooling/ci/assert-app-yaml.mjs` fails the build on any edit inside them — for the same reason
+a store listing file carries no "generated" header: the bytes here are pasted into a dashboard, and
+a dashboard answer that contradicts the code is a policy strike at account level.
+
+🔴 In particular, do not tick *"This item does not collect user data"* for any tool that reads page
+content. Under Google’s User Data FAQ Q2–Q3 taking a screenshot, reading DOM text or reading a page
+title IS handling user data, and local-only handling must still be disclosed.
+
+<!-- /GENERATED:privacy-practices -->
+
 ---
 
 ## 7. AMO (addons.mozilla.org) extras
