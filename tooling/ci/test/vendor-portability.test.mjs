@@ -106,6 +106,17 @@ function tree({ mutate = (r) => r, dart = '', env = '', wrangler = '', core = nu
     'runbooks/ops.md': '# ops\n',
     'app/defines.dart': `${dartDefines}\nstatic const String u = String.fromEnvironment(\n  'UPDATE_URL',\n);\nstatic const String s = String.fromEnvironment(\n  'SUPABASE_URL',\n);\nstatic const String a = String.fromEnvironment(\n  'SUPABASE_ANON_KEY',\n);\nstatic const String g = String.fromEnvironment(\n  'GLITCHTIP_DSN',\n);\nstatic const String r = String.fromEnvironment(\n  'REVENUECAT_KEY',\n);\n${dart}`,
     'services/platform/src/types.ts': `export interface Env {\n  PLATFORM_DB: D1Database;\n  CONFIG_KV: KVNamespace;\n  EVENTS_LIMITER: RateLimit;\n  EXPORTS: R2Bucket;\n  APP_ID: string;\n  API_VERSION: string;\n  ALLOWED_ORIGINS: string;\n  SUPABASE_URL: string;\n  SUPABASE_JWT_SECRET: string;\n  SUPABASE_ANON_KEY: string;\n  GLITCHTIP_DSN: string;\n  REVENUECAT_WEBHOOK_SECRET: string;\n  APP_ENV: string;\n  APP_VERSION: string;\n  API_BASE_URL: string;\n${env}}\n`,
+    // ⏱ ADDED 2026-09-06 — THE TWO ENTRY POINTS. assert-vendor-portability's
+    // per-service relationship ranges over directories under `services/` that
+    // carry a `src/index.ts`, because [ADR 067] decision 2 added
+    // `services/_shared/` — the one home of the Worker chassis, inlined into its
+    // carriers' bundles by esbuild and deployed by nothing. A fixture whose
+    // "Workers" have no entry point models a tree that cannot exist, and would
+    // leave the relationship ranging over zero services, which is what the
+    // guard's own MIN_DEPLOYED_WORKERS floor refuses. THE FIXTURE IS CORRECTED,
+    // NOT THE GUARD: these are Workers, so they have entry points.
+    'services/platform/src/index.ts': 'const app = {};\nexport default app;\n',
+    'services/api/src/index.ts': 'const app = {};\nexport default app;\n',
     // NOTE: `wrangler` injects an EXTRA ENTRY into the existing ratelimits
     // array, not a second array. The first version of this fixture appended a
     // whole second "ratelimits" key and the case failed — correctly, because a
@@ -319,7 +330,12 @@ describe('assert-vendor-portability', () => {
     test('FAILS when ONE service contributes no wrangler surface, though the other clears the old floor', () => {
       const { code, out } = run(tree({ apiWranglerName: 'wrangler.json' }));
       assert.equal(code, 1);
-      assert.match(out, /COVERAGE LOST — source \(c\)\/\(d\) read ZERO wrangler surfaces from 1 of 2 service\(s\): services\/api/);
+      // ⏱ RE-ANCHORED 2026-09-06 — `service(s)` → `deployed Worker(s)`. The
+      // guard still fires on exactly this mutation and still names the service;
+      // what changed is which set the "1 of 2" counts, because a directory under
+      // services/ is no longer necessarily a Worker ([ADR 067] decision 2 added
+      // `services/_shared/`). The behaviour under test is untouched.
+      assert.match(out, /COVERAGE LOST — source \(c\)\/\(d\) read ZERO wrangler surfaces from 1 of 2 deployed Worker\(s\): services\/api/);
       // …and the message must name the one filename this scan understands, or
       // the reader cannot tell a rename from a deletion.
       assert.match(out, /exactly one filename — `wrangler\.jsonc`/);

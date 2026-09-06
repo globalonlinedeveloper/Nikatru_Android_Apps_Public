@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// twinned-worker-modules.test.ts — the two Workers carry the SAME module twice,
-// and this is what makes a fix applied to one and not the other a RED BUILD.
+// twinned-worker-modules.test.ts — a module carried by more than one Worker is
+// either ONE FILE THAT THEY ALL RE-EXPORT, or a set of copies held equal
+// declaration by declaration. Nothing in between, and never unchecked.
 //
 // 🔴 THE CLAIM THAT WAS FALSE. `services/subly-api/src/lib/error-sink.ts` said,
 // in its own header, that "tooling/ci/assert-worker-error-sink.mjs asserts BOTH
@@ -10,95 +11,138 @@ import { describe, it, expect } from 'vitest';
 // build failure rather than a discovery." Read that guard: it asserts each copy
 // EXISTS, exports `reportWorkerError`, calls `fetch`, carries `server_name` and
 // `release`, and does not read `API_VERSION`. Every one of those limbs is
-// satisfied by each copy ALONE. Nothing in this repository has ever compared the
+// satisfied by each copy ALONE. Nothing in this repository had ever compared the
 // two files. The `res.ok`-not-`true` correction of 2026-08-04 landed in both by
 // hand, and had it landed in one, every check in the tree would have stayed
 // green — which is precisely the "guard that silently stopped checking" shape
 // CLAUDE.md's verification discipline is written about.
 //
-// ── WHY A GUARD AND NOT ONE SHARED HOME ──────────────────────────────────────
-// The obvious repair is to give each module one home and have the other import
-// it. Measured before choosing, because "a shared home that requires inventing a
-// build step may be worse than a guard":
+// ── 🔴 THE TWO OBJECTIONS TO ONE SHARED HOME WERE RE-MEASURED, AND ONE OF THEM
+//      HELD (2026-09-06, [ADR 067] decision 2) ────────────────────────────────
+// This file used to argue that the duplication should STAY, on two grounds
+// recorded on 2026-08-17. Both were re-measured on the real tree:
 //
-//   · NO MODULE BOUNDARY EXISTS BETWEEN THE TWO WORKERS TODAY. They are separate
-//     npm packages with their own `package.json` + `package-lock.json`, their own
-//     `tsconfig.json` with NO `paths` mapping between them, and their own
-//     `npm ci` in CI. `pnpm-workspace.yaml` lists `sites/_shared` and
-//     `tooling/content_pipeline` — neither Worker is a member, so a
-//     `workspace:*` dependency would not resolve under the `npm ci` both lanes
-//     actually run.
-//   · A BARE RELATIVE IMPORT INTO A `services/_shared/` WOULD BUILD AND WOULD
-//     BREAK THE DEPLOY. `.github/workflows/deploy-workers.yml` triggers on
-//     `services/subly-api/**` and `services/platform/**`, and its inner
-//     `paths-filter` decides PER SERVICE from the same two globs. A shared file
-//     outside both directories matches neither, so an edit to it would deploy
-//     NOTHING while CI went green — the exact failure that workflow's own header
-//     records as incident #155, where a merged fix reported success and
-//     production stayed broken for six hours. Repairing that means editing the
-//     deploy workflow's filters, i.e. buying one copy of thirty lines with a new
-//     class of silent staleness in the release path.
+//   · "NO MODULE BOUNDARY EXISTS BETWEEN THE TWO WORKERS." Still true as
+//     written — the Workers are separate npm packages with their own
+//     `package-lock.json` and their own `npm ci` (`ci.yml` jobs
+//     `worker-subly-api`, `worker-platform`), and `pnpm-workspace.yaml` lists
+//     only `sites/_shared` and `tooling/content_pipeline`, so a `workspace:*`
+//     dependency would not resolve. But a bare RELATIVE import needs no package
+//     boundary at all: esbuild inlines it, which is exactly how
+//     `services/platform/src/lib/mor/contract.ts` has been reaching
+//     `contracts/entitlement/contract.js` since [ADR 067] decision 1 — proven
+//     with `wrangler deploy --dry-run --outdir`, whose sourcemap names the file.
+//     So this objection was about packaging and did not survive.
 //
-// So: the duplication stays a deliberate choice, and this test is the thing that
-// makes it a CHECKED one.
+//   · "A BARE RELATIVE IMPORT INTO A `services/_shared/` WOULD BUILD AND WOULD
+//     BREAK THE DEPLOY." That one was REAL and is now closed by the repair it
+//     always implied: `.github/workflows/deploy-workers.yml` names
+//     `services/_shared/**` in `on.push.paths` AND in BOTH inner `paths-filter`
+//     globs, and `tooling/ci/assert-deploy-triggers-deploy.mjs` fails the build
+//     when a filter claims a source tree without claiming what that tree imports
+//     from outside itself. The incident it names — #155, a merged fix reporting
+//     success with production broken for six hours — is why that guard's
+//     mutation is part of the acceptance of this change rather than an extra.
 //
-// ── WHAT IS HELD EQUAL, AND HOW THE EXCEPTIONS CANNOT ROT ────────────────────
-// Comments are stripped first: the two copies' headers are deliberately
-// different documents (each explains what the defect cost ITS Worker) and
-// holding prose equal would only teach people to stop writing it. What is held
-// equal is the CODE, declaration by declaration.
+// ⚠️ AND THERE IS A THIRD CONSTRAINT, MEASURED THE SAME DAY, WHICH IS WHY
+// `middleware/auth.ts` DID NOT MOVE WHOLE. Nothing under `services/_shared/src/`
+// may carry a BARE import: Node, tsc and esbuild all resolve a bare specifier by
+// walking up from the file that writes it, and there is no `node_modules` at
+// `services/_shared/`, at `services/`, or at the repo root. A probe importing
+// `jose` failed both readers (`error TS2307: Cannot find module 'jose'`;
+// `X [ERROR] Could not resolve "jose"`), and wrangler's suggested `alias` repair
+// is refused because it resolves a DIRECTORY and bypasses the package's
+// `exports` conditions — the exact way the `workerd` build of jose was lost once
+// before (`vitest.config.ts`'s header). So `services/_shared/src/auth.ts` holds
+// the deciding (the ES256 pin, `isKeySetUnavailable`, the KV key and TTL, the
+// bearer parse, the empty-JWKS refusal) and each Worker keeps its own plumbing —
+// which is also what keeps `services/platform`'s "no HS256 fallback" and
+// `services/subly-api`'s `erasureAuth` true, since collapsing those would be a
+// security change and not a refactor.
+//
+// ── WHAT THIS FILE NOW HOLDS ────────────────────────────────────────────────
+// THE SUBJECT SET IS DERIVED, NOT LISTED. Every `services/*/src/lib/*.ts`
+// basename carried by two or more Workers is a twin. Worker #3 stamped from the
+// brick therefore acquires the obligation by existing, and a rename that empties
+// the derived set fails the coverage limb instead of iterating nothing and
+// printing green. Each twin then falls into exactly one of two groups:
+//
+//   · A SHARED-HOME twin — `services/_shared/src/<basename>` exists. Every
+//     carrier's copy must be EXACTLY a re-export of it: comments stripped, the
+//     whole remaining source must be the single line
+//     `export * from '../../../_shared/src/<name>';`. Not "contains" — IS. A
+//     copy that re-exports the shared home AND declares something of its own is
+//     a fork wearing a delegation, and this limb refuses it.
+//
+//   · A COMPARED twin — no shared home. The copies are held equal declaration by
+//     declaration, with the exception tables below. `lib/d1.ts` is the one that
+//     is still in this group, deliberately: the brick's Worker template ships it
+//     as a four-line starter stub (see DECLARED_SOLE_OWNERS), so the copies are
+//     legitimately unequal and a single home would have to be a superset nobody
+//     imports.
+//
+// Both groups carry their own floor, because a twin that silently moves from one
+// group to the other must not be able to leave both limbs ranging over nothing.
+//
+// ── WHAT IS HELD EQUAL IN THE COMPARED GROUP, AND HOW THE EXCEPTIONS CANNOT ROT
+// Comments are stripped first: the copies' headers are deliberately different
+// documents (each explains what the defect cost ITS Worker) and holding prose
+// equal would only teach people to stop writing it. What is held equal is the
+// CODE, declaration by declaration.
 //
 // 🔴 AN EXEMPTION IS THE SIZE OF THE LINES IT NAMES, NOT THE SIZE OF THE
-// DECLARATION. A `DECLARED_DIVERGENCES` row does NOT stop `SinkContext` or
-// `buildEnvelope` from being compared. It names the exact normalised source
-// lines that are allowed to be present in some copies and absent from others;
-// those lines are removed from EVERY copy, and the remainder is still compared
-// line for line. Written that way after measuring the alternative: while the row
-// was a whole-declaration pass, changing `logger: 'worker'` to anything else in
-// the platform copy of `buildEnvelope` ALONE left this file green — 5 passed,
-// exit 0, measured 2026-08-17 — so a ~40-line function was excused by a one-line
-// difference. That is the "guard that silently stopped checking" shape this file
-// was written to close, reproduced inside the file itself.
+// DECLARATION. A `DECLARED_DIVERGENCES` row does NOT stop a declaration from
+// being compared. It names the exact normalised source lines that are allowed to
+// be present in some copies and absent from others; those lines are removed from
+// EVERY copy, and the remainder is still compared line for line. Written that way
+// after measuring the alternative: while the row was a whole-declaration pass,
+// changing `logger: 'worker'` to anything else in the platform copy of
+// `buildEnvelope` ALONE left this file green — 5 passed, exit 0, measured
+// 2026-08-17 — so a ~40-line function was excused by a one-line difference.
 //
-// Real, principled divergences exist, so there is an exception table — and it is
-// checked in BOTH directions, the same anti-rot floor `check-selection-record`
-// applies to its EXEMPT list:
+// ⚠️ `DECLARED_DIVERGENCES` IS EMPTY TODAY, AND AN EMPTY TABLE IS THE STRICTEST
+// SETTING, NOT A WEAKENED ONE. Its only two rows were `error-sink.ts ::
+// SinkContext` and `:: buildEnvelope`, exempting the `appId` field and the
+// `app_id` envelope tag. That module now has ONE home, where `appId` is a single
+// OPTIONAL field — so the asymmetry is expressed in the type system instead of in
+// an exemption table, and the anti-rot limb below would have called both rows
+// stale had they been left. The machinery stays because `d1.ts` is still
+// compared with zero exemptions, which is what an empty table means.
+//
+// The exception tables are checked in BOTH directions, the same anti-rot floor
+// `check-selection-record` applies to its EXEMPT list:
 //
 //   · a declaration in every copy that differs OUTSIDE
 //     the lines its row exempts                        → FAIL
 //   · an exempt LINE now carried by every copy, or by
-//     none of them                                     → FAIL (stale permission:
-//     the copies converged on that line, or it is gone — either way the row
-//     excuses a difference that does not exist, and the next real drift on that
-//     line would pass unreported)
-//   · a divergence row naming NO exempt line           → FAIL (that is exactly
-//     the whole-declaration pass described above)
+//     none of them                                     → FAIL (stale permission)
+//   · a divergence row naming NO exempt line           → FAIL (a whole-
+//     declaration pass, which is what this file was rewritten to end)
 //   · a declaration in only some copies                → must be DECLARED
 //   · a DECLARED sole owner that the others now carry  → FAIL (same reason)
 //   · a DECLARED row naming a module/declaration that
 //     no longer exists                                 → FAIL (the row outlived
 //     its subject)
+//   · a DECLARED row naming a module that now has a
+//     SHARED HOME                                      → FAIL (one file cannot
+//     differ from itself; the row excuses a difference that has become
+//     unrepresentable, and would sit there excusing the next real one)
 //
-// THE SUBJECT SET IS DERIVED, NOT LISTED. Every `services/*/src/lib/*.ts`
-// basename carried by two or more Workers is a twin. Worker #3 stamped from the
-// brick therefore acquires the obligation by existing, and a rename that empties
-// the derived set fails the coverage limb instead of iterating nothing and
-// printing green.
-//
-// ⚠️ AND BECAUSE IT IS DERIVED, THE BRICK'S STARTER STUB IS ALREADY DECLARED —
-// STAMPING APP #2 MUST NOT BE A RED BUILD FOR A DIFFERENCE NOBODY INTRODUCED.
-// `tooling/bricks/app/__brick__/…/{{app_id}}-api/src/lib/d1.ts` is four lines
-// carrying `nowIso` alone, because `nowIso` is the only helper the stamped
-// Worker imports (`src/index.ts` stamps it on the health route; `routes/
-// account.ts` calls `.run()` on the D1 statement itself). So the day app #2 is
-// stamped, `services/<app>-api/src/lib/d1.ts` joins the derived set WITHOUT
-// `allRows`, `uuid` and `todayYmd`. Measured 2026-08-17 rather than predicted:
-// that stub was copied to a scratch `services/probe2-api/` and this file run —
-// exactly those three names, undeclared, one red limb, and the equality limb
-// stayed green, which is also the proof that the stub's `nowIso` is byte-for-
-// byte the same function as both real copies. The three are declared in
-// DECLARED_SOLE_OWNERS below; the brick itself is NOT edited from here, and is
-// not scanned by this file (it lives under `tooling/`, not `services/`).
+// ⚠️ AND BECAUSE THE SUBJECT SET IS DERIVED, THE BRICK'S STARTER STUB IS ALREADY
+// DECLARED — STAMPING APP #2 MUST NOT BE A RED BUILD FOR A DIFFERENCE NOBODY
+// INTRODUCED. `tooling/bricks/app/__brick__/…/{{app_id}}-api/src/lib/d1.ts` is
+// four lines carrying `nowIso` alone, because `nowIso` is the only helper the
+// stamped Worker imports (`src/index.ts` stamps it on the health route;
+// `routes/account.ts` calls `.run()` on the D1 statement itself). So the day app
+// #2 is stamped, `services/<app>-api/src/lib/d1.ts` joins the derived twin set
+// without `allRows`, `uuid` and `todayYmd`. Measured 2026-08-17 rather than
+// predicted: that stub was copied to a scratch `services/probe2-api/` and this
+// file run — exactly those three names, undeclared, one red limb. The three are
+// declared in DECLARED_SOLE_OWNERS below. The stamped `health.ts` needs no such
+// row: the template's copy is a re-export of the same shared home, so app #2
+// joins the SHARED-HOME group and is held to the stricter limb from day one.
+// The brick itself is NOT edited from here, and is not scanned by this file (it
+// lives under `tooling/`, not `services/`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // `process.getBuiltinModule` rather than `import 'node:fs'`, for the same reason
@@ -122,11 +166,18 @@ const nodeProcess = (
 ).process;
 const fs = nodeProcess.getBuiltinModule('node:fs');
 
-/** Two Workers exist today; both carry `d1.ts` and `error-sink.ts`. Floors, not
- *  expectations — a derived set that shrinks below them means the scan broke,
- *  not that the duplication was resolved. */
+/** Two Workers exist today; both carry `d1.ts`, `error-sink.ts` and `health.ts`.
+ *  Floors, not expectations — a derived set that shrinks below them means the
+ *  scan broke, not that the duplication was resolved. */
 const MIN_WORKERS = 2;
 const MIN_TWINNED_MODULES = 2;
+/** …and each twin falls into exactly one of two groups, each with its own floor.
+ *  Without both, a twin that moved from one group to the other would leave one
+ *  limb ranging over nothing while the other still printed a healthy count —
+ *  which is the shape this whole file exists to refuse. Today: `error-sink.ts`
+ *  and `health.ts` have a shared home; `d1.ts` is still compared. */
+const MIN_SHARED_HOME_MODULES = 2;
+const MIN_COMPARED_MODULES = 1;
 
 /** The repo root, found by walking up from the cwd. `npm test` runs with the cwd
  *  at `services/platform`, but a run from the repo root (or from an editor) must
@@ -145,12 +196,20 @@ function repoRoot(): string {
 
 const ROOT = repoRoot();
 const SERVICES = `${ROOT}/services`;
+/** The one home. A module basename that exists here is a SHARED-HOME twin and
+ *  every carrier must re-export it; a basename that does not is compared copy
+ *  against copy, as everything was before [ADR 067] decision 2. */
+const SHARED_SRC = `${SERVICES}/_shared/src`;
 
 /** Every Worker that has a `src/lib` directory. Derived from the tree rather
- *  than listed, so Worker #3 is covered the day it is stamped. */
+ *  than listed, so Worker #3 is covered the day it is stamped.
+ *
+ *  `_shared` is excluded BY NAME as well as by the `src/lib` test: it is the one
+ *  home, not a carrier, and a future `services/_shared/src/lib/` would otherwise
+ *  make the shared file its own twin and compare it against itself. */
 const workers: string[] = fs
   .readdirSync(SERVICES)
-  .filter((name) => !name.startsWith('.'))
+  .filter((name) => !name.startsWith('.') && name !== '_shared')
   .filter((name) => fs.existsSync(`${SERVICES}/${name}/src/lib`))
   .sort();
 
@@ -175,6 +234,21 @@ const twins: Array<{ module: string; carriers: string[] }> = (() => {
     .map(([module, carriers]) => ({ module, carriers }))
     .sort((a, b) => a.module.localeCompare(b.module));
 })();
+
+/** Does this twin have one home under `services/_shared/src/`? A FACT ABOUT THE
+ *  TREE, read the same way the twin set is. */
+const hasSharedHome = (module: string): boolean => fs.existsSync(`${SHARED_SRC}/${module}`);
+
+/** The exact source a carrier's copy must consist of, once comments are stripped
+ *  and lines are trimmed. `services/<worker>/src/lib/<m>.ts` sits three
+ *  directories below `services/`, and so does the stamped
+ *  `services/<app>-api/src/lib/<m>.ts` the brick produces — one depth, one
+ *  string, no per-carrier arithmetic to get wrong. */
+const expectedReexport = (module: string): string =>
+  `export * from '../../../_shared/src/${module.replace(/\.ts$/, '')}';`;
+
+const sharedTwins = twins.filter((t) => hasSharedHome(t.module));
+const comparedTwins = twins.filter((t) => !hasSharedHome(t.module));
 
 // ── the exception table ──────────────────────────────────────────────────────
 
@@ -203,30 +277,19 @@ interface SoleOwner {
   why: string;
 }
 
-const DECLARED_DIVERGENCES: Divergence[] = [
-  {
-    module: 'error-sink.ts',
-    declaration: 'SinkContext',
-    exemptLines: ['appId: string | undefined;'],
-    why:
-      'platform carries an `appId` field and subly-api does not, and that asymmetry is [pipeline B-16]. ' +
-      'platform is the ONE Worker every stamped app posts to, so a report there has to say WHOSE app broke; ' +
-      'subly-api serves exactly one app, so `service: "subly-api"` already answers that question and an ' +
-      '`appId` field here would be a value no caller could ever fill in differently.',
-  },
-  {
-    module: 'error-sink.ts',
-    declaration: 'buildEnvelope',
-    exemptLines: ['...(ctx.appId ? { app_id: ctx.appId } : {}),'],
-    why:
-      'The other half of the same divergence: platform spreads `...(ctx.appId ? { app_id: ctx.appId } : {})` ' +
-      'into the envelope TAGS so "show me every error for app X" is answerable across a 50-app portfolio on ' +
-      'one shared host. That ONE line is the whole exemption. Everything else in this function — the event ' +
-      'id shape, the timestamp, the transaction line, the stack frame, the three-line envelope join — is ' +
-      'held identical by this test, line for line, because the equality limb subtracts the line above from ' +
-      'both copies and compares what is left.',
-  },
-];
+/**
+ * EMPTY, AND DELIBERATELY SO — see the header. Its only two rows were
+ * `error-sink.ts :: SinkContext` (exempting `appId: string | undefined;`) and
+ * `error-sink.ts :: buildEnvelope` (exempting the `app_id` tag spread). That
+ * module has ONE home since [ADR 067] decision 2, where `appId` is a single
+ * OPTIONAL field — so the asymmetry is now expressed in the type system, one
+ * file cannot differ from itself, and the anti-rot limb below refuses a row
+ * naming a shared-home module at all.
+ *
+ * An empty table is the STRICTEST setting for the compared group, not a
+ * weakened one: `d1.ts` is held equal with zero exemptions.
+ */
+const DECLARED_DIVERGENCES: Divergence[] = [];
 
 const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
@@ -276,6 +339,20 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
       'only, so `uuid` is absent on stamp day by design. A stamped app that later needs an id generator ' +
       'copies this function, at which point the row goes stale and this test demands it be deleted so the ' +
       'two (then three) copies are held equal instead of excused.',
+  },
+  {
+    module: 'd1.ts',
+    declaration: 'TRANSIENT_D1_MESSAGES',
+    carriers: ['platform', 'subly-api'],
+    why:
+      'Same brick stub, same reason as `allRows`, `uuid` and `todayYmd` below — and MEASURED, not assumed, on ' +
+      '2026-09-06: a probe was stamped with `mason make app -c tooling/bricks/app/_probe_backend_vars.json` ' +
+      'and this file run against the three carriers. It reported exactly this one name as an undeclared sole ' +
+      'owner, which is a row the 2026-08-17 measurement could not have produced because the D1 transient-retry ' +
+      'set landed after it. The stamped Worker calls `.run()` on the D1 statement directly and imports no ' +
+      'retry helper, so the constant is absent on stamp day by design. Recorded now so app #2 does not open on ' +
+      'a red build for a difference nobody introduced; the day a stamped Worker grows its own retry set, the ' +
+      'anti-rot limb says so and the row belongs under the equality limb instead.',
   },
   {
     module: 'd1.ts',
@@ -444,7 +521,7 @@ function declarations(source: string): Map<string, string> {
 
 /** module basename -> carrier -> (declaration -> normalised text). */
 const parsed = new Map<string, Map<string, Map<string, string>>>(
-  twins.map(({ module, carriers }) => [
+  comparedTwins.map(({ module, carriers }) => [
     module,
     new Map(
       carriers.map((w) => [
@@ -469,7 +546,23 @@ describe('the modules duplicated across services/* are held equal', () => {
       `only ${twins.length} twinned module(s) across ${workers.join(', ')} — ` +
         'a module carried by two Workers stopped being seen as one, so nothing is being compared',
     ).toBeGreaterThanOrEqual(MIN_TWINNED_MODULES);
-    for (const { module, carriers } of twins) {
+    // Each GROUP is floored separately. A twin that moves between them silently
+    // — a shared home deleted, or a compared module quietly given one — would
+    // otherwise leave one limb iterating an empty list and printing green while
+    // the total above still looked healthy.
+    expect(
+      sharedTwins.length,
+      `only ${sharedTwins.length} twinned module(s) have a home under ${SHARED_SRC} ` +
+        `(${sharedTwins.map((t) => t.module).join(', ') || 'none'}) — the re-export limb below would range ` +
+        'over nothing. Either the shared directory moved, or a module was copied back into the carriers.',
+    ).toBeGreaterThanOrEqual(MIN_SHARED_HOME_MODULES);
+    expect(
+      comparedTwins.length,
+      `only ${comparedTwins.length} twinned module(s) are still compared copy-against-copy ` +
+        `(${comparedTwins.map((t) => t.module).join(', ') || 'none'}) — the equality, sole-owner and ` +
+        'anti-rot limbs below would range over nothing.',
+    ).toBeGreaterThanOrEqual(MIN_COMPARED_MODULES);
+    for (const { module, carriers } of comparedTwins) {
       for (const w of carriers) {
         const decls = parsed.get(module)?.get(w);
         expect(
@@ -480,9 +573,48 @@ describe('the modules duplicated across services/* are held equal', () => {
     }
   });
 
+  it('every carrier of a shared-home module is EXACTLY a re-export of it', () => {
+    // 🔴 "IS", NOT "CONTAINS". A copy that re-exports the shared home and then
+    // declares one more thing of its own is a fork wearing a delegation: the
+    // import line makes the file look delegated to every reader and to every
+    // guard that follows delegations, while the declaration it adds is checked
+    // by nothing. So the whole of the comment-stripped, trimmed source must be
+    // the one expected line — which is also what makes `wc -l` on these files a
+    // meaningful number rather than a coincidence.
+    const wrong: string[] = [];
+    for (const { module, carriers } of sharedTwins) {
+      const home = `${SHARED_SRC}/${module}`;
+      const homeDecls = declarations(fs.readFileSync(home, 'utf8'));
+      if (homeDecls.size === 0) {
+        wrong.push(
+          `services/_shared/src/${module} parsed to ZERO declarations. Every carrier below re-exports it, so ` +
+            'an empty home means every carrier exports nothing and every consumer of them fails to compile — ' +
+            'or, worse, the reader stopped reading and this limb is comparing nothing.',
+        );
+      }
+      const want = expectedReexport(module);
+      for (const w of carriers) {
+        const rel = `services/${w}/src/lib/${module}`;
+        const got = normalise(stripComments(fs.readFileSync(`${SERVICES}/${w}/src/lib/${module}`, 'utf8')));
+        if (got === want) continue;
+        wrong.push(
+          `${rel} is not a re-export of services/_shared/src/${module}.\n` +
+            `    expected exactly: ${want}\n` +
+            `    found:            ${got.split('\n').join(' ⏎ ') || '(nothing)'}\n` +
+            '    That module has ONE home since [ADR 067] decision 2. A carrier that declares anything of its ' +
+            'own has forked it back, and nothing compares the fork to the home — which is the state this file ' +
+            'was written to end. Move the change into services/_shared/src/, or, if the difference is ' +
+            'principled, delete the shared home and let the copies be COMPARED again (the other limbs here ' +
+            'take over, and the deploy filter globs in .github/workflows/deploy-workers.yml come out with it).',
+        );
+      }
+    }
+    expect(wrong, wrong.join('\n\n')).toEqual([]);
+  });
+
   it('every declaration present in all carriers is IDENTICAL outside its declared exempt lines', () => {
     const drifted: string[] = [];
-    for (const { module, carriers } of twins) {
+    for (const { module, carriers } of comparedTwins) {
       const byWorker = parsed.get(module)!;
       const [reference, ...others] = carriers;
       const ref = byWorker.get(reference)!;
@@ -518,7 +650,7 @@ describe('the modules duplicated across services/* are held equal', () => {
 
   it('every declaration missing from some carrier is a declared sole owner', () => {
     const undeclared: string[] = [];
-    for (const { module, carriers } of twins) {
+    for (const { module, carriers } of comparedTwins) {
       const byWorker = parsed.get(module)!;
       const union = new Set(carriers.flatMap((w) => [...byWorker.get(w)!.keys()]));
       for (const name of [...union].sort()) {
@@ -543,7 +675,23 @@ describe('the modules duplicated across services/* are held equal', () => {
     // stays, and the next real divergence lands under a name already excused.
     const stale: string[] = [];
 
+    // A row naming a module that now has ONE home excuses a difference that has
+    // become unrepresentable — one file cannot differ from itself — and would
+    // sit there excusing the next real one. Checked before the tables' own
+    // limbs, because `parsed` deliberately holds only the compared group and
+    // such a row would otherwise be reported as "no longer a twinned module",
+    // which is a different and less useful sentence.
+    for (const d of [...DECLARED_DIVERGENCES, ...DECLARED_SOLE_OWNERS]) {
+      if (!hasSharedHome(d.module)) continue;
+      stale.push(
+        `an exception row names ${d.module} :: ${d.declaration}, and ${d.module} now has ONE home at ` +
+          `services/_shared/src/${d.module}. Every carrier re-exports it, so there is no second copy for this ` +
+          'row to excuse. Delete the row.',
+      );
+    }
+
     for (const d of DECLARED_DIVERGENCES) {
+      if (hasSharedHome(d.module)) continue;
       const byWorker = parsed.get(d.module);
       if (byWorker === undefined) {
         stale.push(`DECLARED_DIVERGENCES names ${d.module}, which is no longer a twinned module. Delete the row.`);
@@ -590,6 +738,7 @@ describe('the modules duplicated across services/* are held equal', () => {
     }
 
     for (const d of DECLARED_SOLE_OWNERS) {
+      if (hasSharedHome(d.module)) continue;
       const byWorker = parsed.get(d.module);
       if (byWorker === undefined) {
         stale.push(`DECLARED_SOLE_OWNERS names ${d.module}, which is no longer a twinned module. Delete the row.`);

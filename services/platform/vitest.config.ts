@@ -45,6 +45,9 @@ import { defineConfig } from 'vitest/config';
 // and so a downgrade to vite 5 is not silently unprotected.
 // ─────────────────────────────────────────────────────────────────────────────
 export default defineConfig({
+  test: {
+    include: ["test/**/*.test.ts", "../_shared/test/**/*.test.ts"],
+  },
   resolve: {
     conditions: ['workerd', 'browser', 'import', 'default'],
   },

@@ -425,7 +425,13 @@ give the *evidence* margin, not the duty.
 
 ## 9. One page per workflow
 
-`ci.yml`'s prose moved here first. On 2026-09-06 the other twelve followed. They
+`ci.yml`'s prose moved here first. On 2026-09-06 the other twelve followed, and
+`deploy-workers.yml` — the thirteenth, and the one workflow that twelve did not
+cover because another unit owned it that day — followed the same afternoon with
+the `worker-shared-chassis` unit: **242 comment lines became 56**, and its parsed
+document changed only in the two places that unit deliberately changed it (the
+`services/_shared/**` globs), shown as a canonical-JSON diff in that unit's
+report. The twelve: they
 carried **5,179 comment lines against 9,322 lines of file** and now carry
 **500** — the `# why:` lines this repository keeps in a workflow, plus the 336
 shell comments inside `run:` bodies, which are executable context and were not
@@ -435,6 +441,7 @@ naming the job it belonged to and the line it sat above.
 | page | workflow | what it covers |
 | [`build-platforms.md`](build-platforms.md) | `.github/workflows/build-platforms.yml` | the six-platform build, and the durable release artifacts |
 | [`deploy-web.md`](deploy-web.md) | `.github/workflows/deploy-web.yml` | the Pages deploy, the source maps, and why a 200 proves nothing here |
+| [`deploy-workers.md`](deploy-workers.md) | `.github/workflows/deploy-workers.yml` | the two Worker deploys, migrations-before-deploy, and the path filters #155 is about |
 | [`e2e.md`](e2e.md) | `.github/workflows/e2e.yml` | the nightly run against live Supabase, the live Worker and live D1 |
 | [`extensions.md`](extensions.md) | `.github/workflows/extensions.yml` | the build-free extensions subtree: gates, sims, packaging, e2e |
 | [`ops-watch.md`](ops-watch.md) | `.github/workflows/ops-watch.yml` | the alarm clock, twelve cron slots and one durable issue |
