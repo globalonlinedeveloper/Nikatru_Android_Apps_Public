@@ -981,7 +981,7 @@ jobs:
     needs: e2e-discover
     if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e') || (github.event_name == 'workflow_dispatch' && inputs.lane == 'e2e'))) && (needs.e2e-discover.result == 'success' && needs.e2e-discover.outputs.count != '0')
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
