@@ -770,13 +770,18 @@ describe('assert-modal-detection · the shared chassis is inside the domain [ADR
     writeFileSync(p, kept.join('\n'));
   };
 
-  test('the full checkout passes, reads all eight roots, and prints the per-root split', () => {
+  test('the full checkout passes, reads all nine roots, and prints the per-root split', () => {
     withTree(
       () => {},
       (r, root) => {
         assert.equal(r.status, 0, r.out);
         assert.match(r.out, /assert-modal-detection: ok/);
-        assert.match(r.out, /in 8 root\(s\)/, 'the six chassis package roots are not being derived');
+        // NINE since [ADR 071] added `packages/chassis_screens`. The number is
+        // the point of the assertion — a root that stops being derived is
+        // exactly how `- apps/subly` once left in silence — so it moves only in
+        // the change that adds or removes a root, and it moved here with one.
+        assert.match(r.out, /in 9 root\(s\)/, 'the seven chassis package roots are not being derived');
+        assert.match(r.out, /packages\/chassis_screens=\d+\/floor 4/);
         // The split, not only the total: a total is still true of a tree that
         // lost a root, which is exactly how `- apps/subly` left in silence.
         assert.match(r.out, /packages\/design_system=\d+\/floor 10/);
