@@ -95,6 +95,13 @@ const GUARD = join(REPO, GUARD_REL);
 const GENERATOR_REL = 'tooling/sites/generate-discovery.mjs';
 const LIVE_POLICY = 'sites/nikatru/privacy.html';
 const A_SNAPSHOT = 'sites/nikatru/legal/2026-08-10/en/privacy.html';
+
+/** The archive root and the dated schema, as the guard states them. They are
+ *  restated here rather than counted by hand so the cases below can MEASURE the
+ *  snapshot set instead of naming members of it; if the guard's own schema ever
+ *  widens past this one the measured counts disagree and the cases say so. */
+const ARCHIVE_ROOT = 'sites/nikatru/legal';
+const SNAPSHOT = /^sites\/nikatru\/legal\/\d{4}-\d{2}-\d{2}\/[^/]+\/[^/]+\.html$/;
 const TOKENS = 'sites/_shared/assets/tokens.css';
 
 /* The 2026-09-05 additions: the token CONTRACT and the two outputs that join
@@ -212,6 +219,36 @@ function untrack(root, rel) {
   assert.equal(git(root, ['rm', '--cached', '-q', '--', rel]).status, 0, `git rm --cached ${rel} failed`);
   return root;
 }
+
+/** 🔴 THE SNAPSHOT COUNT IS A MEASUREMENT, NOT A CONSTANT. Two cases below used
+ *  to restate it — one untracked two snapshots BY NAME and expected `matched 1`,
+ *  the other added one and expected `4 … excluded`. Both are functions of how
+ *  many policy versions have ever been published, so MINTING A POLICY VERSION
+ *  TURNED THIS SUITE RED (PR #492, the 2026-09-05 mint: `matched 2`, `5 …
+ *  excluded`). A number in a test is a measurement that stopped being taken, so
+ *  both are taken here, from the fixture's own index and from the guard's own
+ *  source, and neither moves again when the next version is minted. */
+function datedSnapshots(root) {
+  const r = git(root, ['ls-files', '--', ARCHIVE_ROOT]);
+  assert.equal(r.status, 0, `git ls-files ${ARCHIVE_ROOT} failed: ${r.stderr}`);
+  const snaps = r.stdout
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((p) => SNAPSHOT.test(p))
+    .sort();
+  assert.ok(snaps.length > 0, `the fixture carries no dated snapshot at all under ${ARCHIVE_ROOT}/`);
+  return snaps;
+}
+
+/** The guard's own floor, read from the guard rather than copied into the test:
+ *  the case below proves the limb fires exactly ONE file below it, and a copy
+ *  would prove that against a number the guard had stopped using. A rename is a
+ *  loud failure here for the same reason it is COVERAGE LOST in the guard. */
+const MIN_SNAPSHOTS = (() => {
+  const m = readFileSync(GUARD, 'utf8').match(/^const MIN_SNAPSHOTS = (\d+);/m);
+  assert.ok(m, `${GUARD_REL} no longer declares MIN_SNAPSHOTS — this suite cannot state its floor`);
+  return Number(m[1]);
+})();
 
 function run(root) {
   const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8', cwd: root });
@@ -391,16 +428,28 @@ describe('the dated-snapshot exclusion', () => {
   });
 
   test('an exclusion that matches too few files is COVERAGE LOST, not a pass', () => {
-    let root = untrack(fixture(), 'sites/nikatru/legal/2026-07-26/en/privacy.html');
-    root = untrack(root, 'sites/nikatru/legal/2026-08-01/en/privacy.html');
+    /* Untrack down to ONE BELOW the guard's floor, whatever the floor is and
+       however many versions have been minted — the boundary is the assertion,
+       and naming two snapshots hard-coded both the floor and the tree's size. */
+    let root = fixture();
+    const snaps = datedSnapshots(root);
+    const keep = MIN_SNAPSHOTS - 1;
+    assert.ok(
+      snaps.length > keep,
+      `the tree carries ${snaps.length} dated snapshot(s); this case needs more than ${keep} to untrack any`,
+    );
+    for (const rel of snaps.slice(keep)) root = untrack(root, rel);
     const r = run(root);
     assert.equal(r.code, 2, r.all);
-    assert.match(r.err, /exclusion matched 1 file\(s\), expected at least 3/);
+    assert.match(
+      r.err,
+      new RegExp(`exclusion matched ${keep} file\\(s\\), expected at least ${MIN_SNAPSHOTS}`),
+    );
   });
 
   test('an archive root that is not there at all is COVERAGE LOST', () => {
     const root = fixture();
-    rmSync(join(root, 'sites/nikatru/legal'), { recursive: true, force: true });
+    rmSync(join(root, ARCHIVE_ROOT), { recursive: true, force: true });
     const r = run(root);
     assert.equal(r.code, 2, r.all);
     assert.match(r.err, /that directory is not on disk/);
@@ -414,9 +463,17 @@ describe('the dated-snapshot exclusion', () => {
   });
 
   test('a NEW dated snapshot is excluded automatically, by schema and not by a list', () => {
-    const r = run(add(fixture(), 'sites/nikatru/legal/2026-09-01/en/privacy.html', '<style>:root{--text:#BADBAD}</style>'));
-    assert.equal(r.code, 0, `the schema, not a hardcoded list of three:\n${r.all}`);
-    assert.match(r.out, /4 dated snapshot\(s\) excluded/);
+    /* The date is deliberately one no mint can ever collide with: adding a file
+       that already exists would leave the count unchanged and the case would
+       assert nothing. n is measured, so the expected n+1 moves with the tree. */
+    const root = fixture();
+    const before = datedSnapshots(root).length;
+    const NEW_SNAPSHOT = `${ARCHIVE_ROOT}/9999-12-31/en/privacy.html`;
+    assert.ok(SNAPSHOT.test(NEW_SNAPSHOT), 'the synthetic snapshot must match the dated schema');
+    assert.ok(!datedSnapshots(root).includes(NEW_SNAPSHOT), 'the synthetic snapshot must be new');
+    const r = run(add(root, NEW_SNAPSHOT, '<style>:root{--text:#BADBAD}</style>'));
+    assert.equal(r.code, 0, `the schema, not a hardcoded list:\n${r.all}`);
+    assert.match(r.out, new RegExp(`${before + 1} dated snapshot\\(s\\) excluded`));
   });
 });
 
