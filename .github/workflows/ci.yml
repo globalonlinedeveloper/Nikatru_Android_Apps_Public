@@ -751,8 +751,12 @@ jobs:
       # `git ls-files`, so committing them was measured at FAIL, 5 problem(s).
       #
       # 🔴 `git diff` CANNOT BE THIS GATE, AND SHIPPING IT AS ONE WAS THE DEFECT.
-      # The first version of this step ran `git diff --exit-code --
-      # packages/design_system/lib` and called that the drift check. The triplet is
+      # The first version of this step ran a plain tracked-byte diff over
+      # `packages/design_system/lib` and called that the drift check. (Spelled out
+      # rather than quoted, deliberately: `green-means-ran.test.mjs` DERIVES how many
+      # drift lanes exist by counting that exact command string across every workflow
+      # file, so a comment quoting it invents a lane the guard cannot find — measured,
+      # CI red at 8 counted against 7 reported.) The triplet is
       # UNTRACKED, so `git diff` cannot see it: measured by writing `BROKEN
       # GENERATOR OUTPUT` over all three files and running the step verbatim —
       # EXIT 0, with `git status --ignored=matching` showing all three as `!!`. A
