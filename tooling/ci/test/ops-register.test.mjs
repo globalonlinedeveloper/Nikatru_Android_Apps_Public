@@ -2756,50 +2756,87 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
     });
 
     // ── and the schema half: the guard must REFUSE the shapes that would turn
-    //    the wait into a waiver. Run through the real limb over the real file.
-    // 🔴 THE SUBJECT IS DERIVED, NOT PINNED, AND THAT IS THE WHOLE POINT OF THIS
-    //    FIELD. A `firstDue` exists to be DELETED the moment its record lands —
-    //    its own text says so — so a control pinned to one row id and one literal
-    //    date fails on the very act it exists to make safe. It did, on 2026-09-05,
-    //    when `duty.workflow.renovate.yml`'s spent bootstrap was removed after its
-    //    first scheduled run landed. ⚠️ The domain is asserted NON-EMPTY: "no row
-    //    carries a firstDue" must REFUSE rather than pass vacuously, because a
-    //    mutation applied to nothing is a control that cannot fail.
-    const bootstrapRow = (reg) => {
-      const row = reg.rows.find((r) => typeof r?.mechanism?.recordQuery?.firstDue === 'string');
-      assert.ok(
-        row,
-        'COVERAGE LOST — no row carries a `recordQuery.firstDue`, so every mutation below would ' +
-          'range over nothing and pass. Re-point this at a row that has one, or delete these cases ' +
-          'with the field.',
-      );
-      return row;
+    //    the wait into a waiver. Run through the real limb, over the real file
+    //    PLUS one row this file builds.
+    // 🔴 THE SUBJECT IS SYNTHESISED, NOT BORROWED FROM THE COMMITTED REGISTER,
+    //    AND THAT IS THE WHOLE POINT OF THIS FIELD. A `firstDue` exists to be
+    //    DELETED the moment its record lands — its own text says so — so the set
+    //    of live bootstraps is always on its way to empty, and a control that
+    //    ranges over it expires with them. Two earlier shapes both broke on
+    //    exactly that: pinning one row id and one literal date died on
+    //    2026-09-05 when `duty.workflow.renovate.yml`'s spent bootstrap was
+    //    removed after its first scheduled run landed; the `find the first row
+    //    with a firstDue` replacement then made every mutation below depend on
+    //    the register still happening to carry one, which is a control whose
+    //    domain a correct edit elsewhere can empty. The fixture below cannot be
+    //    emptied by anybody's cleanup, so these four cases keep failing for the
+    //    reason they were written. The committed values are still held — by the
+    //    last case in this block, which reads the real file and nothing else.
+    // ⚠️ `firstDue` is measured against `Date.now()`, so the legal value is
+    //    computed at run time. A literal would age into the very "parked in the
+    //    future" red this fixture has to be clean of.
+    const FIXTURE_ID = 'duty.fixture.bootstrap-probe';
+    const withFixture = (mutate) => {
+      const reg = REAL();
+      const row = {
+        id: FIXTURE_ID,
+        kind: 'duty',
+        cadence: '1d',
+        mechanism: {
+          recordQuery: {
+            reader: 'github-run-history',
+            workflow: 'fixture.yml',
+            event: 'schedule',
+            headBranch: 'main',
+            firstDue: new Date(Date.now() + 3_600_000).toISOString(),
+          },
+        },
+      };
+      reg.rows.push(row);
+      if (mutate) mutate(row.mechanism.recordQuery, row);
+      return reg;
     };
+    /** Only this row's errors. The empty probe map makes every reader dark,
+     *  which raises its own (correct) ceiling error about the whole register. */
+    const fixtureErrors = (reg) => limbErrors(reg).filter((e) => e.startsWith(FIXTURE_ID));
+
+    test('the fixture is LEGAL as built — the green control the four mutations below are measured against', () => {
+      const out = fixtureErrors(withFixture());
+      assert.deepEqual(out, [], 'a fixture that is already red proves nothing when a mutation reddens it: ' + out.join(' | '));
+    });
 
     test('🔴 THE SCHEMA REFUSES A DATE PARKED IN THE FUTURE — the one way this becomes permanent', () => {
-      const reg = REAL();
-      const row = bootstrapRow(reg);
-      assert.ok(Number.isFinite(Date.parse(row.mechanism.recordQuery.firstDue)), 'the committed firstDue must be a real instant');
-      const far = JSON.parse(JSON.stringify(reg));
-      bootstrapRow(far).mechanism.recordQuery.firstDue = '2030-01-01T00:00:00Z';
-      const out = limbErrors(far);
+      const out = fixtureErrors(withFixture((q) => { q.firstDue = '2030-01-01T00:00:00Z'; }));
       assert.ok(
         out.some((e) => /more than one cadence window/.test(e)),
         `a firstDue four years out must be refused; got:\n${out.join('\n')}`,
       );
     });
 
-    test('the schema refuses an unparseable firstDue and one on an `unreachable` reader', () => {
-      const reg = REAL();
-      const bad = JSON.parse(JSON.stringify(reg));
-      bootstrapRow(bad).mechanism.recordQuery.firstDue = 'soon';
-      assert.ok(limbErrors(bad).some((e) => /not a parseable instant/.test(e)));
+    test('the schema refuses an unparseable firstDue', () => {
+      const out = fixtureErrors(withFixture((q) => { q.firstDue = 'soon'; }));
+      assert.ok(out.some((e) => /not a parseable instant/.test(e)), 'got: ' + out.join(' | '));
+    });
 
-      const unreachable = JSON.parse(JSON.stringify(reg));
-      const q = bootstrapRow(unreachable).mechanism.recordQuery;
-      q.reader = 'unreachable';
-      q.why = 'built for this mutation only';
-      assert.ok(limbErrors(unreachable).some((e) => /reader is `unreachable`/.test(e)));
+    test('the schema refuses a firstDue on an `unreachable` reader — nothing is waiting for a record nothing reads', () => {
+      const out = fixtureErrors(withFixture((q) => {
+        q.reader = 'unreachable';
+        q.why = 'built for this mutation only';
+        delete q.workflow;
+        delete q.event;
+        delete q.headBranch;
+      }));
+      assert.ok(out.some((e) => /reader is `unreachable`/.test(e)), 'got: ' + out.join(' | '));
+    });
+
+    test('🔴 the schema refuses a firstDue beside a PASS already observed — that is a waiver wearing a wait\'s clothes', () => {
+      const out = fixtureErrors(withFixture((q) => {
+        q.lastObserved = { verdict: 'pass', at: '2026-09-01T00:00:00Z', detail: 'run 1 (schedule) succeeded.' };
+      }));
+      assert.ok(
+        out.some((e) => /already held a success is past its bootstrap/.test(e)),
+        'the third schema branch had no case at all until the fixture made one cheap; got: ' + out.join(' | '),
+      );
     });
 
     test('the committed register raises NO firstDue error of its own — the mutations above are the only red', () => {
@@ -3037,12 +3074,53 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
         );
       });
 
-      test('adding a Cloudflare-backed row RAISES the derivation — the coupling is real', () => {
-        const reg = registerCopy();
-        const before = deriveUnreadableCeiling(reg).ceiling;
-        const row = reg.rows.find((r) => r.id === 'duty.workflow.e2e.yml');
-        reg.rows.push(JSON.parse(JSON.stringify({ ...row, id: 'duty.workflow.invented.yml' })));
-        assert.equal(deriveUnreadableCeiling(reg).ceiling, before + 1);
+      // 🔴 THE PROVIDER IS ASKED FOR, NEVER NAMED. This case used to clone
+      // `duty.workflow.e2e.yml` — a Cloudflare-backed row — and assert the
+      // ceiling rose by one. That holds only while CLOUDFLARE is the provider
+      // the ceiling is derived from, which was a hidden premise about the
+      // register's contents and not a property of the rule under test. On
+      // 2026-09-06 five `glitchtip-heartbeat` rows for the auth box's crons took
+      // glitchtip from 3 to 8; cloudflare stayed at 3, cloning a cloudflare row
+      // moved nothing, and the case failed `9 !== 10` against a register that
+      // was entirely correct. The rule is `worst non-github provider + 1`, so
+      // the subject is whichever provider is worst RIGHT NOW: `perProvider[0]`
+      // is the derivation's own answer to that. The row to clone is then found
+      // by re-running the derivation per candidate rather than by consulting a
+      // reader→provider table this file would have to keep in sync with the
+      // guard — the same reason the dispatcher cases above read `scheduled.ts`.
+      test('adding a row for the LARGEST provider RAISES the derivation — the coupling is real', () => {
+        const base = deriveUnreadableCeiling(registerCopy());
+        assert.ok(
+          base.perProvider.length > 0,
+          'COVERAGE LOST — no non-GitHub provider is counted at all, so no clone below could raise anything.',
+        );
+        const [top, topCount] = base.perProvider[0];
+
+        // A row could in principle contribute to one provider twice, which would
+        // raise the ceiling by two, so the candidate is chosen by MEASURING its
+        // effect rather than by reading its shape.
+        let after = null;
+        let clonedFrom = null;
+        for (const row of registerCopy().rows ?? []) {
+          const reg = registerCopy();
+          reg.rows.push({ ...JSON.parse(JSON.stringify(row)), id: 'duty.invented.ceiling-probe' });
+          const d = deriveUnreadableCeiling(reg);
+          if ((d.perProvider.find(([p]) => p === top) ?? [top, 0])[1] === topCount + 1) {
+            after = d;
+            clonedFrom = row.id;
+            break;
+          }
+        }
+        assert.ok(
+          clonedFrom,
+          `COVERAGE LOST — no row adds exactly one to \`${top}\`, the provider this ceiling is derived from, ` +
+            'so this case would range over nothing and pass.',
+        );
+        assert.equal(
+          after.ceiling,
+          base.ceiling + 1,
+          `cloning ${clonedFrom} took ${top} from ${topCount} to ${topCount + 1}; the ceiling must follow it`,
+        );
       });
     });
 
