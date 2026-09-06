@@ -1,0 +1,140 @@
+{
+  "_what": "Repository names that are DEAD — deleted or renamed away on GitHub — together with the date each died and where its contents went. Read by tooling/ci/assert-no-dead-repo-names.mjs, which refuses any LIVE surface that still names one.",
+  "_whyThisFileExists": "On 2026-09-06 the Renovate workflow was still listing globalonlinedeveloper/Nikatru_Extensions_Public in RENOVATE_REPOSITORIES, twelve hours after that repository was deleted, and every scheduled run had been failing since. Nothing could have caught it: no guard knew the name was dead. A dead name is not a spelling mistake, it is a fact with a date, so it is declared here as data and enforced by one guard rather than re-derived by each reader.",
+  "_theRule": "A name goes in this list the day the repository stops answering. It is NEVER removed — a name that is revived is a new fact and gets its own `revived` field, because deleting the row would silently re-license every stale reference the guard has been holding back.",
+  "_scope": "LIVE surfaces only: workflows, machine-read registers, renovate.json, package.json files and the catalog. Dated records — ADRs, research reports, session notes, archives, the rename narratives in README files — are DELIBERATELY out of scope and are listed under `excludedPaths`. A frozen record is superseded, never rewritten.",
+
+  "repos": [
+    {
+      "name": "Nikatru_Extensions_Public",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-09-05",
+      "how": "deleted",
+      "wentTo": "Nikatru_Platform_Public/extensions/ — a build-free subtree, [ADR 067] decision 1",
+      "measured": "2026-09-06: `gh api repos/globalonlinedeveloper/Nikatru_Extensions_Public` exits non-zero; the name is absent from `gh api user/repos` (11 repos). No rename redirect — the old URL 404s.",
+      "localPathWas": "Projects/Nikatru_Extensions_Public",
+      "snapshot": "Projects/_archived-2026-09-05/Nikatru_Extensions_Public"
+    },
+    {
+      "name": "Nikatru_Extensions_Private",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-09-05",
+      "how": "deleted",
+      "wentTo": "Nikatru_Platform_Private/extensions/ — the imported docs set, [ADR 067] decision 1",
+      "measured": "2026-09-06: `gh api repos/globalonlinedeveloper/Nikatru_Extensions_Private` exits non-zero; the name is absent from `gh api user/repos`. No rename redirect.",
+      "localPathWas": "Projects/Nikatru_Extensions_Private",
+      "snapshot": "Projects/_archived-2026-09-05/Nikatru_Extensions_Private"
+    },
+    {
+      "name": "Nikatru_Chrome_Extensions_Public",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Extensions_Public, which itself died 2026-09-05 — so this name is two hops from anything live. Follow it to Nikatru_Platform_Public/extensions/.",
+      "measured": "2026-09-06: absent from `gh api user/repos`.",
+      "localPathWas": "Projects/Chrome_Web_Store/Chrome/Extensions/Nikatru_Chrome_Extensions_Public"
+    },
+    {
+      "name": "Nikatru_Chrome_Extensions_Private",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Extensions_Private, which itself died 2026-09-05. Follow it to Nikatru_Platform_Private/extensions/.",
+      "measured": "2026-09-06: absent from `gh api user/repos`.",
+      "localPathWas": "Projects/Chrome_Web_Store/Chrome/Extensions/Nikatru_Chrome_Extensions_Private"
+    },
+    {
+      "name": "Project_Cross_browser_Extensions",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Chrome_Extensions_Public, then Nikatru_Extensions_Public, then deleted. Follow it to Nikatru_Platform_Public/extensions/.",
+      "measured": "2026-09-06: absent from `gh api user/repos`."
+    },
+    {
+      "name": "Project_Cross_browser_Extensions_Private",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Chrome_Extensions_Private, then Nikatru_Extensions_Private, then deleted. Follow it to Nikatru_Platform_Private/extensions/.",
+      "measured": "2026-09-06: absent from `gh api user/repos`."
+    },
+    {
+      "name": "Nikatru_Android_Apps_Public",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-21",
+      "how": "renamed",
+      "wentTo": "Nikatru_Platform_Public — this repository.",
+      "measured": "2026-09-06: absent from `gh api user/repos`. THE NAME WAS FREED, NOT PARKED: it resolves to nothing and anyone may claim it, so a link to it is worse than a broken one.",
+      "localPathWas": "Projects/Google_Play_Store/Android/Apps/Nikatru_Android_Apps_Public"
+    },
+    {
+      "name": "Nikatru_Android_Apps_Private",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-21",
+      "how": "renamed",
+      "wentTo": "Nikatru_Platform_Private.",
+      "measured": "2026-09-06: absent from `gh api user/repos`.",
+      "localPathWas": "Projects/Google_Play_Store/Android/Apps/Nikatru_Android_Apps_Private"
+    },
+    {
+      "name": "Project_Cross_Platform_Apps",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Android_Apps_Public, then Nikatru_Platform_Public — this repository.",
+      "measured": "2026-09-06: absent from `gh api user/repos`. The two Cloudflare Pages projects that pinned this name outside git were repointed; re-measured 2026-09-06 via the Cloudflare API, `nikatru` and `rajasekarselvam` both read globalonlinedeveloper/Nikatru_Platform_Public on branch main.",
+      "notAName": "`Project_Cross_Platform_Apps_GITHUB_PAT` is a LIVE, WORKING vault key and is NOT a reference to this repository. The guard's matcher requires a word boundary that `_GITHUB_PAT` does not provide — see the ALLOWED_SUFFIXES rule in the guard."
+    },
+    {
+      "name": "Project_Cross_Platform_Apps_Private",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "renamed",
+      "wentTo": "Nikatru_Android_Apps_Private, then Nikatru_Platform_Private.",
+      "measured": "2026-09-06: absent from `gh api user/repos`."
+    },
+    {
+      "name": "Nikatru_Storefront_Public",
+      "owner": "globalonlinedeveloper",
+      "died": "2026-08-19",
+      "how": "deleted",
+      "wentTo": "Nikatru_Platform_Public/sites/ — the storefront is a directory in the monorepo, not a repository.",
+      "measured": "2026-09-06: absent from `gh api user/repos`. Recorded in catalog/store-matrix.json deletionRecord20260819."
+    }
+  ],
+
+  "allowedSuffixes": [
+    "_GITHUB_PAT"
+  ],
+  "_allowedSuffixesWhy": "A dead repository NAME immediately followed by one of these is a different identifier that merely starts with the same characters. `Project_Cross_Platform_Apps_GITHUB_PAT` is the real key in the local vault and in tooling/ops/safe-rerun.mjs; renaming it would break `gh` auth for every ops script. This list is short on purpose — it is an exemption surface, and each entry must name a thing that genuinely still exists.",
+
+  "scan": {
+    "globs": [
+      ".github/workflows/**/*.yml",
+      ".github/workflows/**/*.yaml",
+      "tooling/**/*.json",
+      "renovate.json",
+      "**/package.json",
+      "catalog/**/*.json",
+      "extensions/catalog/**/*.json"
+    ],
+    "_globsWhy": "Every one of these is READ BY A MACHINE. A dead name in any of them is acted on rather than merely read: a workflow dispatches against it, a register is joined on it, a package manifest resolves it. Prose is out of scope by construction — see excludedPaths."
+  },
+
+  "excludedPaths": [
+    "catalog/store-matrix.json",
+    "tooling/ops/register.json",
+    "tooling/ci/test/",
+    "tooling/bricks/",
+    "node_modules/",
+    "tooling/dead-repos.json"
+  ],
+  "_excludedPathsWhy": "DATED RECORDS and fixtures, each excluded for a stated reason, not for convenience. catalog/store-matrix.json carries removedSlot20260906_Chrome_Web_Store and deletionRecord20260819 — dated records OF the deaths this file lists, and the one place the old names must survive verbatim. tooling/ops/register.json carries dated operational history. tooling/ci/test/ holds FIXTURES that deliberately name dead repos to prove guards catch them, this guard's own mutation test included. tooling/bricks/ is template source, not a live register. tooling/dead-repos.json is this file, which names every dead repo by definition and would otherwise be its own first finding.",
+
+  "floors": {
+    "files": 8,
+    "repos": 11
+  },
+  "_floorsWhy": "A scan that silently matched nothing must not read as a pass. If the walk finds fewer than `files` files, or the list holds fewer than `repos` names, the guard exits 2 CANNOT RUN rather than 0. Raise these when the tree grows; never lower them to make a run go green."
+}

@@ -25,7 +25,9 @@
 //     Cloudflare was invisible BY CONSTRUCTION — not overlooked, unrepresentable.
 //
 // tooling/legal/provider-register.json is the one artifact that already knew the
-// crash rail is `oracle-cloud · infrastructure · live`. So the obligation is
+// crash rail is a live infrastructure sink of its own — the row was
+// `oracle-cloud` when this was written and is `hostinger · infrastructure · live`
+// since the instance moved from Box A to Box B on 2026-09-02. So the obligation is
 // attached to the register that knows the sink exists: every live infrastructure
 // provider DECLARES the personal-data categories it receives and retains, and
 // every published "we do not collect / do not store X" is scoped against the
@@ -171,7 +173,7 @@ if (liveSinks.length === 0) {
   coverageLost(
     'tooling/legal/provider-register.json declares NO `infrastructure` provider with status `live`.',
     'Every limb below quantifies over that set. With it empty, "no live sink receives what a page denies" is',
-    'true of nothing — and the register that already knew about oracle-cloud is exactly what made the',
+    'true of nothing — and the register that already knew about the self-hosted crash sink is what made the',
     'original defect findable at all. A live sink losing its row is the shape this guard exists to refuse.',
   );
 }

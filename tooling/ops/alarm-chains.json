@@ -76,7 +76,34 @@
     "",
     "⛔ 23's NAME CARRIES A BOX NAME, WHICH THIS SECTION'S OWN RULE FORBIDS. It is recorded and not",
     "renamed: the id is the identity, a rename here is reported and never failed, and the register row",
-    "carries the same note. The rule is for the NEXT monitor somebody creates."
+    "carries the same note. The rule is for the NEXT monitor somebody creates.",
+    "",
+    "📌 AND FOUR MORE ON 2026-09-06 — 24 `Supabase dump`, 25 `Supabase Drive sync`, 26 `Supabase",
+    "second-copy sync`, 27 `Supabase disk alert`. They are the auth box's four wrapped root crons,",
+    "created live on 2026-09-05 and beaten before their register rows were written. This is the",
+    "asymmetry named two paragraphs up doing exactly what it does, and the numbers are measured rather",
+    "than eyeballed: `verify-alarm-chains` reads TWENTY live monitors from the instance today and this",
+    "list named FOURTEEN of them, and NOTHING went red, because limb D fails on a LISTED id that is",
+    "absent and is silent about a LIVE id that is unlisted. Completeness here is maintained by whoever",
+    "creates a monitor. All four also carry a duty row in tooling/ops/register.json",
+    "(duty.supabase-dump, duty.supabase-drive-sync, duty.supabase-second-copy, duty.supabase-disk-alert)",
+    "whose recordQuery reads the monitor by id on every CI run, so a delete of any of them now fails",
+    "TWO guards rather than none.",
+    "",
+    "⚠️ 19 `Supabase backup chain` was ALREADY on this list and is deliberately NOT wrapped: it posts",
+    "its own beat only when the whole chain is healthy, so a wrapper beat asserting merely that the",
+    "script ran would be a weaker claim wearing the same monitor's clothes.",
+    "",
+    "⬜ NOT CLOSED BY THIS ADDITION: no Down transition has been forced on any of 24-27, so none of",
+    "them appears in `chainsObserved` and none carries a `downTransitionDrill` anywhere. Being listed",
+    "here is a claim that the monitor still EXISTS, never that its alarm has been seen to arrive.",
+    "",
+    "⬜ AND THE LIST IS STILL SHORT BY TWO, STATED HERE RATHER THAN QUIETLY CLOSED: ids 29 `Laptop",
+    "routine: ops check` and 30 `Laptop routine: CI watchdog` are live on the instance, are in no",
+    "`expectedMonitors` row, and have no duty row in tooling/ops/register.json either — so eighteen of",
+    "twenty are declared. They were not created by this change and adding an id whose duty nobody has",
+    "written would put this file ahead of the register it is supposed to agree with. It belongs to",
+    "whoever created them, and it is named so the next reader of 'complete as of' does not read a tick."
   ],
   "expectedMonitors": [
     {
@@ -134,6 +161,22 @@
     {
       "id": 23,
       "name": "Box B restic"
+    },
+    {
+      "id": 24,
+      "name": "Supabase dump"
+    },
+    {
+      "id": 25,
+      "name": "Supabase Drive sync"
+    },
+    {
+      "id": 26,
+      "name": "Supabase second-copy sync"
+    },
+    {
+      "id": 27,
+      "name": "Supabase disk alert"
     }
   ],
   "chainsObserved": {

@@ -1727,6 +1727,24 @@ sees it, so a tag carrying shell metacharacters would be executed rather
 than quoted — `tooling/ci/scan-workflows.mjs` caught exactly that here
 on this lane's first run through it (`template-injection`, medium/high).
 
+🔴 `--state pending_manual_publish`, AND IT IS THE ONLY TRUE THING THIS
+RUN CAN SAY. Added 2026-09-06, and without it this step DIED ON THE FIRST
+REAL TAG — after `gh release create`, under `set -euo pipefail`:
+`record-deployment.mjs` refuses a `kind: "store"` environment that carries
+no `--state` and no `--listing-url`, and the three environments this loop
+now emits are all store rows. Neither of the two flags it was asking for
+could be supplied honestly: nothing was submitted to any store (all three
+rows are `submittable: false`; [ADR 067] decision 8 puts a MANUAL first
+publish in front of each), and no listing URL exists before that publish
+happens (`tool.json`'s `listings` are null on all three). So the ledger
+gained the state that says exactly what this run did: the release is the
+ORIGIN of the artifact destined for that channel and nobody has submitted
+it. `record-deployment.mjs` REFUSES that state on any row this factory can
+submit through, and refuses `in_review` on a row it cannot, so the flag
+here cannot drift into a claim about a submission; and
+`assert-submission-safety.mjs` does not count it towards the ≤2-per-month
+cadence, because it is not a submission.
+
 ### before step **Rehearsal complete — nothing was published**
 
 The counterpart, so a rehearsal ends in a sentence rather than in the

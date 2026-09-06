@@ -301,7 +301,7 @@ const CLASSIFIED_ELSEWHERE = new Map([
   ],
   [
     'renovate.yml',
-    'runs Renovate self-hosted across both PUBLIC repositories. It opens dependency pull requests; it ' +
+    'runs Renovate self-hosted on this repository (it covered two until the extensions repo was merged in on 2026-09-05). It opens dependency pull requests; it ' +
       'builds no app, produces no release artifact and names no app id. R-1 quantifies over the ' +
       'workspace APP set to prove a lane is generic, so a lane that ships no app has nothing for this ' +
       'guard to compare and would sit in the denominator as a permanent empty-set pass — the same ' +
@@ -310,7 +310,7 @@ const CLASSIFIED_ELSEWHERE = new Map([
       'tooling/ops/register.json, and that ownership is not prose: assert-ops-register.mjs holds ' +
       '`watched workflows === .github/workflows/*.yml` in BOTH directions, so this lane cannot be in ' +
       'the tree without a row there. 🔴 AND IT IS THE ONE LANE THAT ACTS ON A REPOSITORY THIS ' +
-      'WORKSPACE DOES NOT CONTAIN: RENOVATE_REPOSITORIES names Nikatru_Extensions_Public as well, ' +
+      'WORKSPACE DOES NOT CONTAIN — it did until 2026-09-06: RENOVATE_REPOSITORIES named Nikatru_Extensions_Public as well, ' +
       'deliberately, so that two schedules cannot silently diverge. Grading it against THIS ' +
       "workspace's app set would therefore be doubly meaningless — it would measure genericity over " +
       'apps for a lane whose subject is repositories. What holds its behaviour correct is each ' +
