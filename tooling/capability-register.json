@@ -612,6 +612,17 @@
       "noSeamReason": "A widget library, not a contract — callers use the widgets directly. The one decision that COULD have become a seam (what to lock) is deliberately left with the caller so this package never learns domain vocabulary: that is [2]C-5's boundary, and PaywallGate is the example."
     },
     {
+      "id": "chassis_screens",
+      "capability": "The chassis SCREEN BODIES every stamped app inherits — the seven auth screens first ([ADR 067] decision 2, [ADR 071]). Each takes plain values and callbacks; the brick keeps a thin adapter of the same name that reads the providers, makes the seam calls and does the navigation. It declares NO third-party dependency, so assert-package-boundaries limb C never derives it as an adapter and no existing direct import in the tree becomes retroactively illegal.",
+      "owner": "packages/chassis_screens",
+      "package": "nikatru_chassis_screens",
+      "seams": [],
+      "consumers": [
+        "tooling/bricks/app/__brick__/apps/{{app_id}}"
+      ],
+      "noSeamReason": "A widget library, not a contract — the adapter constructs the widget directly. Every DECISION stays with the caller by construction: this package can see nikatru_core (which is why the call site shrinks at all) but it can see no provider container, no router and no plugin, so there is nothing here for a seam to abstract. apps/subly is NOT a consumer and will not be one: it is a frozen rail-prover ([ADR 065])."
+    },
+    {
       "id": "platform_storage",
       "capability": "Secure-token and key-value storage across all six platforms.",
       "owner": "packages/platform_storage",

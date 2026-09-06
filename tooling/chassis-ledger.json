@@ -117,9 +117,9 @@
       "path": "lib/features/auth/sign_in_screen.dart",
       "lines": 68,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 298 -> 65 brick lines, 303 package lines, callSiteDelta -233. THREE things stayed, each for a named guard and not for taste: the caps.oauthRedirect read (assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero caps.<field> reads, and the zero-caps COVERAGE LOST names the ADAPTER), signInWithEmail( (dod.json:75 anchors the auth-redirect mutation proof at this path and assert-app-dod:836 fails when the symbol leaves the file), and the two context.go calls. The rest — the preflight, the busy latch, the FocusNode, the deletion notice — is now one file for every stamped app.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 298 -> 68 brick lines, 303 package lines, callSiteDelta -230. THREE things stayed, each for a named guard and not for taste: the caps.oauthRedirect read (assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero caps.<field> reads, and the zero-caps COVERAGE LOST names the ADAPTER), signInWithEmail( (dod.json:75 anchors the auth-redirect mutation proof at this path and assert-app-dod:836 fails when the symbol leaves the file), and the two context.go calls. The rest — the preflight, the busy latch, the FocusNode, the deletion notice — is now one file for every stamped app.",
       "target": "packages/chassis_screens/lib/auth/sign_in_screen.dart",
-      "callSiteDelta": -233
+      "callSiteDelta": -230
     },
     {
       "path": "lib/features/auth/sign_up_screen.dart",
