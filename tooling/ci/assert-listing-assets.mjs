@@ -129,6 +129,9 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
+// The ONE reading of "this app root was emptied into the chassis package" - see
+// that module's header for why it is a module and not eleven copies.
+import { delegationOf as resolveChassisDelegation } from './chassis-delegation.mjs';
 // 🔴 THE PIXELS, and this import is the whole of what changed on 2026-08-04.
 // Everything else here reads a PNG HEADER, which answers every question Google
 // states and NONE of the question that actually matters: a demo capture is
@@ -156,6 +159,9 @@ const problems = [];
 const prints = [];
 const abs = (rel) => join(ROOT, rel);
 const read = (rel) => (existsSync(abs(rel)) ? readFileSync(abs(rel)) : null);
+
+/** The chassis file(s) a repo-relative file delegates to, resolved ONE level. */
+const delegationOf = (rel) => resolveChassisDelegation(ROOT, rel, { describe: () => '' });
 const isDir = (rel) => existsSync(abs(rel)) && statSync(abs(rel)).isDirectory();
 
 /** Structural failure: every check below quantifies over the missing thing, so
@@ -705,11 +711,34 @@ for (const row of withGraphics) {
     const rel = `apps/${app.slug}/lib/app.dart`;
     const buf = read(rel);
     if (buf === null) continue; // an entry in the catalogue with no app tree here
+    // 🔴 AND WHAT THAT FILE DELEGATES TO — [ADR 067] decision 2, unit app-shell.
+    // `MaterialApp.router` moved into
+    // `package:nikatru_chassis_screens/shell/app_shell.dart` as `NikatruApp`,
+    // and the flag went with it, because it is a property of the app SHELL and
+    // not of any one app. Read at the adapter alone a stamped app no longer
+    // matches `\bMaterialApp\b`, so it would be SKIPPED — silently, by the
+    // `continue` below — and this limb would be judging apps/subly alone while
+    // reporting a healthy count. That is not the loud failure the COVERAGE LOST
+    // beneath it catches: `debugBannerAppsChecked` would still be 1.
+    //
+    // The union only ever ADDS text, so an app that set the flag itself still
+    // passes; a delegation that cannot be FOLLOWED is a problem, never a quiet
+    // skip.
+    const dg = delegationOf(rel);
+    if (dg && dg.lost) {
+      problems.push(
+        `COVERAGE LOST — ${rel} ${dg.lost} The DEBUG-ribbon check reads that file plus whatever it ` +
+          'delegates to, so a delegation this scan cannot follow is a MaterialApp it cannot see — and an ' +
+          'unseen shell is skipped by the very branch below that exists to skip files which build no app.',
+      );
+      continue;
+    }
     // Comment-stripped: the file explains the flag directly above it in several
     // apps, and prose satisfying a structural check is the trap this repo has
     // been caught by twice.
-    const code = buf
-      .toString('utf8')
+    const code = [rel, ...((dg && dg.files) || [])]
+      .map((f) => (read(f) ?? Buffer.from('')).toString('utf8'))
+      .join('\n')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .split('\n')
       .map((l) => l.replace(/\/\/.*$/, ''))

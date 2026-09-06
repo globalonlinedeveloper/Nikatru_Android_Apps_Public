@@ -11,12 +11,16 @@
     "(17 were red both before and after, all of them needing build artifacts, credentials or CLI args). This ledger is the first",
     "thing that makes the template a declared set."
   ],
-  "measuredOn": "2026-09-06",
-  "measuredAtCommit": "3e66efb3",
-  "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
+  "measuredOn": "2026-09-07",
+  "measuredAtCommit": "b61f15b6",
+  "roots": [
+    "tooling/bricks/app/__brick__/apps/{{app_id}}",
+    "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api"
+  ],
+  "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged.",
   "totals": {
-    "files": 96,
-    "lines": 15871,
+    "files": 109,
+    "lines": 16494,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -65,9 +69,11 @@
     },
     {
       "path": "lib/app.dart",
-      "lines": 570,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable, 6 new reds. assert-vendor-portability:480 matches `valueOrNull?.updateUrl ??` here; dod.json:123,125 (AnalyticsGate) and :135,137 (darkTheme); assert-consent-withdrawal-surface:201,527; seven screen-register rows; 14 stamp-properties APP_ROOT anchors."
+      "lines": 349,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 570 -> 349 brick lines, 519 package lines, callSiteDelta -221. MaterialApp.router, the clamped text scaling, the force-update gate, the consent card, the consent scrim, the offline banner and the four-state lifecycle flush all moved into `NikatruApp` and the four surfaces beside it. What stayed is the COMPOSITION ROOT and only that: the stamped `const Color(0xFF{{seed_hex}})` seed (mustache, so it cannot leave), this app's own localisation delegates, every `ref.watch`/`ref.read`, the `url_launcher` call, `recordAnalyticsConsent(`, and the three ConsumerWidget gates the shell is handed. Anchors held where they were: assert-vendor-portability:513 (`valueOrNull?.updateUrl ??`), dod.json:123/125 (AnalyticsGate) and :135/137 (darkTheme), seven screen-register rows, and 13 of the 14 stamp-properties APP_ROOT anchors. The fourteenth (`child: AnalyticsGate(`) was re-pointed to `shell: (...) => AnalyticsGate(`, the same mounting claim, with a mutation proving it.",
+      "target": "packages/chassis_screens/lib/shell/app_shell.dart",
+      "callSiteDelta": -221
     },
     {
       "path": "lib/core/app_config.dart",
@@ -193,9 +199,11 @@
     },
     {
       "path": "lib/main.dart",
-      "lines": 160,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable, 4 new reds — screen-register.json:56 (system.error-boundary), 3 stamp-properties MAIN anchors, assert-stamp-wiring. NOTE: assert-app-dod does NOT parse main()'s boot path — deleting main.dart leaves that guard green. That belief was refuted by measurement."
+      "lines": 87,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 160 -> 87 brick lines, 130 package lines, callSiteDelta -73. The boot ORDER and its 110 lines of reasoning moved to `bootstrapNikatru`; what stayed is the four things a package declaring no third-party dependency cannot carry - the `TelemetryConfig` const (nikatru_telemetry), `initNikatruAuth` with `FlutterSecureStore()` (nikatru_auth_supabase + nikatru_platform_storage), `createLocalNotificationService()` (nikatru_notifications) and the `ProviderScope` with its one override (flutter_riverpod). All three stamp-properties MAIN anchors and screen-register.json:56 are on those lines, so all four held.",
+      "target": "packages/chassis_screens/lib/shell/bootstrap.dart",
+      "callSiteDelta": -73
     },
     {
       "path": "lib/state/money_providers.dart",
@@ -628,6 +636,101 @@
       "lines": 35,
       "verdict": "STAYS",
       "why": "Per-app web shell: headers, manifest and entry point are app-specific by construction."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": ".dev.vars.example",
+      "lines": 3,
+      "verdict": "STAYS",
+      "why": "Per-app local secret NAMES, no values. Stamped per app by construction."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "README.md",
+      "lines": 57,
+      "verdict": "STAYS",
+      "why": "Per-app operator README; assert-stamp-text-fidelity derives its hosts from the app vars."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "migrations/0001_init.sql",
+      "lines": 61,
+      "verdict": "STAYS",
+      "why": "Per-app D1 schema. The provisioner applies it against THIS app's APP_DB."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "package.json",
+      "lines": 22,
+      "verdict": "STAYS",
+      "why": "Per-app Worker manifest; each Worker runs its own npm ci in its own directory, which is the measured reason services/_shared can carry no bare import."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/index.ts",
+      "lines": 140,
+      "verdict": "STAYS",
+      "why": "Per-app route table and the erasureAuth mount. assert-deploy-triggers-deploy reads the import graph from here."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/lib/d1.ts",
+      "lines": 4,
+      "verdict": "STAYS",
+      "why": "Four lines: an ISO-8601 helper. Nothing to move, and a re-export would be longer than the body."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/lib/health.ts",
+      "lines": 5,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / unit worker-shared-chassis, LEDGERED 2026-09-07 by unit app-shell - MEASURED: 334 -> 5 lines, callSiteDelta -329. The file is now a five-line `export * from '../../../_shared/src/health'`; the three-state design, the cache reasoning and the measured refusal to carry a bare import all live once in services/_shared/src/health.ts (356 lines), which services/platform, services/subly-api and every stamped Worker carry from.",
+      "target": "services/_shared/src/health.ts",
+      "callSiteDelta": -329
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/middleware/auth.ts",
+      "lines": 258,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 / unit worker-shared-chassis, LEDGERED 2026-09-07 by unit app-shell - MEASURED: 287 -> 258 lines, callSiteDelta -29. A PARTIAL move, and the refusal is measured rather than a shortcut: the DECIDING moved to services/_shared/src/auth.ts (the ES256 pin, the twice-corrected isKeySetUnavailable predicate, JWKS_KV_KEY, JWKS_TTL_SECONDS, bearer, and the refusal to treat an empty JWKS document as a usable cache), while the jose/hono plumbing and the shared-secret fallback stay here because nothing under services/_shared may carry a bare import - each Worker runs its own npm ci in its own directory, and aliasing round it silently changes which build of jose is verified.",
+      "target": "services/_shared/src/auth.ts",
+      "callSiteDelta": -29
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/middleware/cors.ts",
+      "lines": 58,
+      "verdict": "STAYS",
+      "why": "Per-app CORS allowlist, derived from this app's own web origin at stamp time."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/routes/account.ts",
+      "lines": 119,
+      "verdict": "STAYS",
+      "why": "Per-app erasure route: it re-checks the assurance label and names this app's own tables."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "src/types.ts",
+      "lines": 58,
+      "verdict": "STAYS",
+      "why": "Per-app Env bindings - APP_DB and this app's own vars."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "tsconfig.json",
+      "lines": 15,
+      "verdict": "STAYS",
+      "why": "Per-app compiler config; workerd types are resolved from the Worker's own node_modules."
+    },
+    {
+      "root": "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api",
+      "path": "wrangler.jsonc",
+      "lines": 117,
+      "verdict": "STAYS",
+      "why": "Per-app Worker config: name, routes, D1 binding. Stamped, never shared."
     }
   ],
   "_classified": "All 28 measured 2026-09-05 by deleting each file, running the full assert-*.mjs sweep, and diffing against a per-worktree baseline. NOT ONE of the 28 is deletable on its own: every source file is held by a named guard, and the three that only this ledger holds are tests kept on value. So chassis step 4 does not DELETE files. It shrinks the ones that stay, and delegates behaviour into packages where the call site measurably shrinks. AND THE HEADROOM IS SMALLER THAN IT LOOKS: 6,608 of these 15,560 lines (42%) are comment or blank. Stripping them from the six spine files alone removes 2,463 lines against a green sweep — but those comments are this corpus's recorded measurements and the reason several defects were ever found. Removing them would be measurable progress against a number and a real loss. Step 4 shrinks CODE."
