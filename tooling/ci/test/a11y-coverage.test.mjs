@@ -126,7 +126,15 @@ const SUBJECT = [WORKSPACE_MANIFEST, APP_MANIFEST, ROUTER, ROUTER_DIR, FEATURES,
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
 const BRICK_MANIFEST = 'tooling/bricks/app/brick.yaml';
 const DS = 'packages/design_system';
-const NEW_ROOT_SUBJECT = [BRICK, BRICK_MANIFEST, DS];
+// 🔴 THE CHASSIS PACKAGE IS PART OF THE SUBJECT SINCE [ADR 071]. Six of the
+// brick's twelve routed screens are now ADAPTERS that import
+// `package:nikatru_chassis_screens/auth/…`, and this guard resolves that import
+// and refuses — correctly — when the target is not on disk. A fixture that
+// copied the brick without it was not a copy of the real tree: every case below
+// failed as COVERAGE LOST for a reason none of them is about. It is also the
+// FOURTH derived root, which is why the root counts in this file read 4.
+const CHASSIS = 'packages/chassis_screens';
+const NEW_ROOT_SUBJECT = [BRICK, BRICK_MANIFEST, DS, CHASSIS];
 
 // MEASURED by running the guard against the working tree of 2026-08-13. Named
 // individually rather than counted: a count with no names is the "unmet clause
@@ -322,7 +330,7 @@ function sweepTheNewSheet(root) {
 // POSITIVE CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the guard says YES on the tree as it is', () => {
-  test('the REAL repository — 3 derived roots, 50 surfaces, 19 swept, exit 0', () => {
+  test('the REAL repository — 4 derived roots, 57 surfaces, 19 swept, exit 0', () => {
     const { code, out } = run(REPO);
     assert.equal(code, 0, out);
     // 🔴 THE ROOT LINE IS PINNED BECAUSE THE ROOT LINE IS THE FIX. Until
@@ -330,18 +338,22 @@ describe('the guard says YES on the tree as it is', () => {
     // going back to one is the regression this whole change exists to prevent,
     // and nothing else in the output would say so — 19 of 19 swept would still
     // print, in a tree with two unchecked roots in it.
-    assert.match(out, /3 root\(s\) DERIVED, never listed/);
+    // FOUR since [ADR 071] added packages/chassis_screens as a root of its own.
+    assert.match(out, /4 root\(s\) DERIVED, never listed/);
     assert.match(out, /apps\/subly \(workspace app member\)/);
     assert.match(
       out,
       /packages\/design_system \(workspace package member: declares flutter_test AND a public widget\)/,
     );
     assert.match(out, /\{\{app_id\}\} \(brick template, declared by tooling\/bricks\/app\/brick\.yaml\)/);
-    assert.match(out, /FULL CHECKOUT: all 3 declared root\(s\) are required to be among them/);
+    assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
 
     assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
-    assert.match(out, /50 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
-    assert.match(out, /31 unswept and PRINTED/);
+    // 50 → 57 on 2026-09-06: [ADR 071] added the seven chassis auth views as a
+    // fourth root. The brick's twelve are unchanged — an adapter is still a
+    // routed surface — so the seven are additions, not a re-count.
+    assert.match(out, /57 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
+    assert.match(out, /38 unswept and PRINTED/);
     // The per-family tally for subly, pinned. It read `tap-target ×0` from the
     // day this guard was written until 2026-08-13, and a family that has never
     // been non-zero is a limb nothing has exercised — so the number that proves
@@ -425,11 +437,12 @@ describe('the guard says YES on the tree as it is', () => {
 // domain was one hardcoded string and none of these touched it.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the domain is DERIVED, and a root that stops being derived FAILS', () => {
-  test('the three roots are all scanned, and each one is NAMED in the report', () => {
+  test('the four roots are all scanned, and each one is NAMED in the report', () => {
     const { code, out } = run(treeWithNewRoots());
     assert.equal(code, 0, out);
-    assert.match(out, /3 root\(s\) DERIVED/);
-    assert.match(out, /FULL CHECKOUT: all 3 declared root\(s\) are required to be among them/);
+    assert.match(out, /4 root\(s\) DERIVED/);
+    assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
+    assert.match(out, /packages\/chassis_screens: 0 of 7 reachable surface\(s\) carry an a11y sweep/);
     // Each root gets its own accounting line. A root that is derived but whose
     // surfaces never reach the report is a root this guard cannot see.
     assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
@@ -455,7 +468,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, WORKSPACE_MANIFEST, '\n  - packages/design_system', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`packages\/design_system`/);
     // 🔴 THE REASON THIS LIMB EXISTS, ASSERTED. Nothing else can see it: the
     // scan still read the other roots in full, so every count printed healthy.
@@ -467,7 +480,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, `${DS}/pubspec.yaml`, '\n  flutter_test:', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`packages\/design_system`/);
   });
 
@@ -476,7 +489,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /DECLARED root\(s\) were not among the 2 this run derived/);
+    assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
     assert.match(out, /`apps\/subly`/);
   });
 
@@ -907,8 +920,14 @@ function treeWithChassis({ inWorkspace = true, widgetOnDisk = true, sweep = true
     }),
   );
 
-  if (inWorkspace) {
-    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', `\n  - ${CHASSIS_DIR}\n  - apps/subly`);
+  // ⚠️ THE WORKSPACE LINE IS ALREADY THERE, SO THE MUTATION IS THE REMOVAL.
+  // Before [ADR 071] this fixture had to ADD `packages/chassis_screens` to the
+  // workspace list, because the real repository had no such package. It has one
+  // now and the copied manifest lists it, so adding a second line derived the
+  // root TWICE. The direction flips: `inWorkspace: false` is the mutation, and
+  // it takes the line out.
+  if (!inWorkspace) {
+    edit(root, WORKSPACE_MANIFEST, `\n  - ${CHASSIS_DIR}`, '');
   }
   return root;
 }
@@ -920,7 +939,9 @@ describe('a screen that DELEGATES into the chassis is judged where it now lives'
     const { code, out } = run(treeWithChassis());
     assert.equal(code, 0, out);
     assert.match(out, /4 root\(s\) DERIVED/);
-    assert.match(out, /1 reachable surface\(s\) in .*\{\{app_id\}\} DELEGATE into `packages\/chassis_screens`/);
+    // SEVEN, not one: the six auth adapters [ADR 071] landed delegate as well,
+    // and this fixture adds the settings one on top of them.
+    assert.match(out, /7 reachable surface\(s\) in .*\{\{app_id\}\} DELEGATE into `packages\/chassis_screens`/);
     assert.match(out, /SettingsScreen .* — SWEPT there/);
     // And it has LEFT the owed list, which is the difference the widening makes.
     assert.ok(!printedUnswept(out, BRICK).includes('SettingsScreen'), out);

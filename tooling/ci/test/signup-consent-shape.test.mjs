@@ -36,9 +36,27 @@ const SUBLY_LOGIN = `${SUBLY}/lib/features/auth/login_screen.dart`;
 const SUBLY_REACCEPT = `${SUBLY}/lib/features/auth/reaccept_terms_screen.dart`;
 const SUBLY_FIELDS = `${SUBLY}/lib/features/auth/legal_consent_fields.dart`;
 const BRICK_SIGNUP = `${BRICK}/lib/features/auth/sign_up_screen.dart`;
+const BRICK_FIELDS = `${BRICK}/lib/features/auth/legal_consent_fields.dart`;
+
+/** The chassis package [ADR 071] emptied the brick's auth screens into. Three
+ *  of the five listed surfaces and one of the two shared widgets now delegate
+ *  here, so it is part of what this guard READS and therefore part of what the
+ *  fixture must carry. */
+const CHASSIS_LIB = 'packages/chassis_screens/lib';
+const CHASSIS_SIGNUP = `${CHASSIS_LIB}/auth/sign_up_screen.dart`;
+const CHASSIS_REACCEPT = `${CHASSIS_LIB}/auth/reaccept_terms_screen.dart`;
+const CHASSIS_FIELDS = `${CHASSIS_LIB}/auth/legal_consent_fields.dart`;
 
 /** A real-tree copy carrying exactly what the guard reads: both roots' auth
- *  feature directories. Nothing else is read, so nothing else is copied. */
+ *  feature directories AND the chassis package they delegate into.
+ *
+ *  🔴 THE PACKAGE IS COPIED, NOT STUBBED, AND THAT IS THE POINT OF THE HOUSE
+ *  RULE AT THE TOP OF THIS FILE. Before [ADR 071] the brick screens carried
+ *  their own flags and two directories were the whole domain; they now carry an
+ *  import instead, and a fixture that left the target out would make EVERY case
+ *  below fail as COVERAGE LOST for a reason none of them is about. A stub with
+ *  the flags typed in by hand would be worse still — it would encode this
+ *  file's belief about what moved rather than what did. */
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-signup-consent-'));
   for (const r of [BRICK, SUBLY]) {
@@ -47,6 +65,8 @@ function realTree() {
       recursive: true,
     });
   }
+  mkdirSync(join(root, CHASSIS_LIB), { recursive: true });
+  cpSync(join(REPO, CHASSIS_LIB), join(root, CHASSIS_LIB), { recursive: true });
   return root;
 }
 
@@ -60,9 +80,22 @@ function withTree(mutate, fn) {
   }
 }
 
+/** Rewrite `rel` inside the copied tree — AND PROVE THE REWRITE LANDED.
+ *
+ *  🔴 THE LAND-CHECK IS NOT BELT-AND-BRACES, IT CAUGHT A REAL FALSE GREEN HERE
+ *  ON 2026-09-06. `String.replace` with a string pattern hits the FIRST
+ *  occurrence (trap `flutter-10`), and a doc comment above the declaration
+ *  quoted `bool _accepted = false;` verbatim — so the mutation landed in prose
+ *  the guard strips before matching, the tree it was supposed to break was
+ *  still correct, and the case read as "the guard did not catch it". A mutation
+ *  test whose mutation silently did nothing is worse than no mutation test: it
+ *  reports a guard defect that is not there, or hides one that is. */
 const edit = (root, rel, fn) => {
   const p = join(root, rel);
-  writeFileSync(p, fn(readFileSync(p, 'utf8')));
+  const before = readFileSync(p, 'utf8');
+  const after = fn(before);
+  assert.notEqual(after, before, `the mutation of ${rel} changed nothing — it did not land`);
+  writeFileSync(p, after);
 };
 
 describe('the real tree', () => {
@@ -80,11 +113,36 @@ describe('the real tree', () => {
   test('the copy the other cases mutate really carries the flags', () => {
     // Without this, every "caught" below could be an artefact of a stand-in
     // rather than evidence about the screens that ship.
-    for (const rel of [SUBLY_SIGNUP, SUBLY_LOGIN, BRICK_SIGNUP]) {
+    //
+    // ⚠️ THE BRICK'S ENTRY MOVED, AND IT MOVED TO A FILE RATHER THAN AWAY.
+    // [ADR 071] emptied `${BRICK_SIGNUP}` into the chassis package; the flags
+    // went with the boxes they belong to, so the file that must carry them is
+    // the package one. Subly is untouched — it is a frozen rail-prover, so its
+    // two surfaces still declare their own.
+    for (const rel of [SUBLY_SIGNUP, SUBLY_LOGIN, CHASSIS_SIGNUP]) {
       const src = readFileSync(join(REPO, rel), 'utf8');
       assert.ok(src.includes('bool _acceptedTerms = false;'), `${rel} must carry the terms flag`);
       assert.ok(src.includes('bool _marketingEmail = false;'), `${rel} must carry the marketing flag`);
     }
+  });
+
+  test('the brick surfaces really DELEGATE — the fixture models the tree, not a memory of it', () => {
+    // The other half of the self-check above. If the adapter stopped importing
+    // the package, the flags would be in neither file this guard reads and
+    // every delegation case below would be measuring a tree that is no longer
+    // the one that ships.
+    for (const [adapter, target] of [
+      [BRICK_SIGNUP, 'auth/sign_up_screen.dart'],
+      [`${BRICK}/lib/features/auth/reaccept_terms_screen.dart`, 'auth/reaccept_terms_screen.dart'],
+      [BRICK_FIELDS, 'auth/legal_consent_fields.dart'],
+    ]) {
+      const src = readFileSync(join(REPO, adapter), 'utf8');
+      assert.ok(
+        src.includes(`import 'package:nikatru_chassis_screens/${target}';`),
+        `${adapter} must delegate to ${target}`,
+      );
+    }
+    assert.ok(readFileSync(join(REPO, CHASSIS_REACCEPT), 'utf8').includes('bool _accepted = false;'));
   });
 });
 
@@ -103,10 +161,17 @@ describe('limb 1 — no box is born ticked', () => {
     );
   });
 
-  test('🔴 a PRE-TICKED MARKETING box fails in the BRICK — where no Dart test can see it', () => {
+  test('🔴 a PRE-TICKED MARKETING box fails for the BRICK — now in the chassis file it delegates to', () => {
+    // 🔬 THE POST-MOVE RE-RUN OF THE ORIGINAL BRICK MUTATION. It used to edit
+    // `BRICK_SIGNUP` directly; [ADR 071] moved the declaration into the package
+    // and the guard follows it there, so the mutation follows it too. The
+    // ASSERTION is unchanged and so is what it protects: the brick has no Dart
+    // suite of its own, so a pre-ticked box stamped into every future app is
+    // invisible to `flutter test` in both trees. The failure must still NAME
+    // the brick surface, because that is the surface that ships it.
     withTree(
       (root) =>
-        edit(root, BRICK_SIGNUP, (s) =>
+        edit(root, CHASSIS_SIGNUP, (s) =>
           s.replace('bool _marketingEmail = false;', 'bool _marketingEmail = true;'),
         ),
       (r) => {
@@ -123,6 +188,20 @@ describe('limb 1 — no box is born ticked', () => {
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /reaccept_terms_screen/);
+      },
+    );
+  });
+
+  test('🔴 the BRICK interstitial too, through its delegation', () => {
+    withTree(
+      (root) =>
+        edit(root, CHASSIS_REACCEPT, (s) =>
+          s.replace('bool _accepted = false;', 'bool _accepted = true;'),
+        ),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /PRE-TICKED CONSENT/);
+        assert.match(r.stderr, /__brick__/);
       },
     );
   });
@@ -199,6 +278,56 @@ describe('the shared widget cannot be asked to pre-tick', () => {
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /declares an `initial…` parameter/);
+      },
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🔬 THE MUTATIONS FOR THE DELEGATION THIS UNIT ADDED TO THIS LIMB.
+  //
+  // Before [ADR 071] the brick's `legal_consent_fields.dart` WAS the widget and
+  // reading it by path was sufficient. It is now a seventy-line forwarder, and
+  // the constructor that renders the checkboxes is in the package. Reading only
+  // the adapter would ask whether a forwarder declares `initialTermsAccepted:`
+  // — a question whose answer is always no — so the limb would keep printing ok
+  // about a file where the thing it forbids cannot occur. WC-CONTROL is the
+  // green control: without it, WC-1 and WC-2 are equally consistent with a limb
+  // that now refuses every tree.
+  // ───────────────────────────────────────────────────────────────────────────
+  test('WC-CONTROL · GREEN — the real delegating tree passes, and says what it read', () => {
+    withTree(
+      () => {},
+      (r) => {
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.match(
+          r.stdout,
+          /legal_consent_fields\.dart also read 1 chassis file\(s\) it delegates to/,
+        );
+      },
+    );
+  });
+
+  test('WC-1 · 🔴 an `initial…` in the CHASSIS widget fails — the adapter alone could never carry it', () => {
+    withTree(
+      (root) =>
+        edit(root, CHASSIS_FIELDS, (s) =>
+          s.replace('this.enabled = true,', 'this.enabled = true,\n    this.initialTermsAccepted = false,'),
+        ),
+      (r) => {
+        assert.equal(r.status, 1, `${r.stdout}\n${r.stderr}`);
+        assert.match(r.stderr, /declares an `initial…` parameter/);
+        assert.match(r.stderr, /__brick__/);
+      },
+    );
+  });
+
+  test('WC-2 · 🔴 a delegation this limb cannot follow is COVERAGE LOST, not silence', () => {
+    withTree(
+      (root) => rmSync(join(root, CHASSIS_FIELDS)),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /COVERAGE LOST/);
+        assert.match(r.stderr, /legal_consent_fields/);
       },
     );
   });

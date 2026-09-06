@@ -11,8 +11,9 @@ import 'legal_consent_fields.dart';
 /// [ADR 071]. The consent FLAG lives here with the box it belongs to, and
 /// `assert-signup-consent-shape.mjs` follows the delegation to find it — the
 /// surface is read as the adapter's code UNIONED with this file, so limb 1
-/// (`bool _accepted = false;`) and limb 2 (the guard AND the disable) are both
-/// asserted over exactly the text that decides them.
+/// (the unticked `_accepted` initialiser) and limb 2 (the early-return guard
+/// AND the button disable) are both asserted over exactly the text that decides
+/// them.
 ///
 /// Shown when `kTermsVersion` / `kPrivacyPolicyVersion` have moved past the
 /// stamp the user accepted. The router puts them here and nothing else is

@@ -48,10 +48,13 @@ class SignInScreen extends ConsumerWidget {
     return SignInView(
       onSignIn: (String email, String password) =>
           auth.signInWithEmail(email: email, password: password),
-      onForgotPassword: auth.sendPasswordReset,
+      // A CALL, NOT A TEAR-OFF — same reason as `verify_email_screen.dart`:
+      // `sendPasswordReset` is one of the four captcha-gated seam methods and
+      // assert-captcha-gated-call-sites matches `<method>(`.
+      onForgotPassword: (String email) => auth.sendPasswordReset(email),
       onNeedAccount: () => context.go('/sign-up'),
       showAppleButton: caps.oauthRedirect && providers.any && providers.apple,
-      onSignInWithApple: auth.signInWithApple,
+      onSignInWithApple: () => auth.signInWithApple(),
       deletion: deletion,
       deletionDetail: ref.watch(lastAccountDeletionDetailProvider),
       onDismissDeletionNotice: () {

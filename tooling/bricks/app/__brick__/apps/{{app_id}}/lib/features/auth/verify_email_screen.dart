@@ -34,7 +34,13 @@ class VerifyEmailScreen extends ConsumerWidget {
         final core.AuthUser? fresh = await auth.reloadUser();
         return core.sessionIsUnverified(fresh);
       },
-      onResend: auth.resendVerificationEmail,
+      // 🔴 A CALL, NOT A TEAR-OFF, AND `assert-captcha-gated-call-sites.mjs`
+      // IS WHY. It finds a gated call site by matching `<method>(` and then
+      // reads its argument list for `captchaToken:`. `auth.resendVerificationEmail`
+      // passed as a tear-off is a gated seam call the scan cannot see at all —
+      // the silent-blind shape, in a guard whose whole job is to notice a call
+      // site that cannot answer a challenge.
+      onResend: () => auth.resendVerificationEmail(),
       onSignOut: () => signOutAndForgetUser(ref),
     );
   }

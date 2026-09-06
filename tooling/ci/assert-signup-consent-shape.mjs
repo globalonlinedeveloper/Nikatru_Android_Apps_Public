@@ -242,12 +242,36 @@ for (const s of SURFACES) {
 // The state lives in the parent; if this widget ever grows an `initial…`
 // argument, limb 1 stops being sufficient because a caller could pass `true`
 // without ever declaring a field this guard can see.
+//
+// 🔴 READ THROUGH THE DELEGATION, EXACTLY AS THE SURFACES ABOVE ARE, AND FOR
+// THE SAME REASON. [ADR 071] emptied this widget into
+// `package:nikatru_chassis_screens/auth/legal_consent_fields.dart` and left an
+// adapter at the path below. Read at the adapter ALONE, this limb would ask
+// whether a seventy-line forwarder declares `initialTermsAccepted:` — which it
+// never will — while the constructor that actually renders the checkboxes sits
+// one import away, unexamined. That is NOT the loud failure limb 1's path
+// pinning would have been: it is a check that goes on printing ok about a file
+// where the thing it forbids cannot occur. The union only ever ADDS text, so a
+// real `initial…` on either side is still caught, and a delegation this scan
+// cannot follow is COVERAGE LOST rather than silence.
 for (const rel of WIDGETS) {
   if (!existsSync(join(ROOT, rel))) {
     problems.push(`COVERAGE LOST — ${rel} does not exist; the shared consent widget is the thing limb 1 relies on.`);
     continue;
   }
-  const code = read(rel);
+  const widgetScan = readWithDelegation(rel);
+  if (widgetScan.lost) {
+    problems.push(
+      `COVERAGE LOST — ${rel} ${widgetScan.lost} The pre-tick check reads the widget PLUS whatever it ` +
+        'delegates to, so a delegation this scan cannot follow is a constructor it cannot see — and the ' +
+        'adapter it CAN see could never carry the parameter this limb forbids.',
+    );
+    continue;
+  }
+  if (widgetScan.files.length) {
+    console.log(`⬜ ${rel} also read ${widgetScan.files.length} chassis file(s) it delegates to — ${widgetScan.files.join(', ')}`);
+  }
+  const code = widgetScan.code;
   if (/\binitial[A-Z]\w*\s*[:=]/.test(code)) {
     problems.push(
       `${rel} declares an \`initial…\` parameter. The consent state must live in the CALLER, where a ` +

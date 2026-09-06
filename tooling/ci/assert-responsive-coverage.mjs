@@ -505,13 +505,55 @@ const REQUIRED_COVERAGE = [
     // The nine are PRINTED BY NAME on every run and reported to the owner; they
     // are not fixed here, because they are not files this change owns.
     // ⚠️ FLIP `enforce` TO true THE DAY THE PRINTED LIST REACHES ZERO.
+    // 🔴 `coveredSurfaces` RAISED 3 → 9 ON 2026-09-06, IN THE CHANGE THAT
+    // EARNED IT. [ADR 071] turned six of the twelve into adapters delegating
+    // into `packages/chassis_screens`, and every one of them arrived there with
+    // a suite that pumps it at all three window classes. This floor counts
+    // delegated coverage (see the backstop below), so the brick's measured set
+    // went 3 → 9 the moment those six landed. Leaving it at 3 would have let
+    // all six chassis width suites be deleted in silence — the "floor two
+    // surfaces under its tree for a week" shape this file's own header records.
+    // The nine are: OnboardingScreen, SettingsScreen, ManagePlanScreen measured
+    // here; CheckInbox / ReacceptTerms / ResetPassword / SignIn / SignUp /
+    // VerifyEmail measured in the chassis package they delegate to.
     enforce: false,
     surfaces: 12,
     widthTestFiles: 1,
-    coveredSurfaces: 3,
+    coveredSurfaces: 9,
     label:
       'the template every stamped app inherits — 12 routed screens, 3 measured. The nine unmeasured ' +
       'ones are PRINTED, not failed [G-3, 2026-09-05]; the 3 that ARE measured cannot stop being',
+  },
+  {
+    dir: 'packages/chassis_screens',
+    // 🔴 ENFORCING FROM DAY ONE, AND THAT IS THE DIFFERENCE BETWEEN THIS ROOT
+    // AND THE TWO BELOW IT. The brick and the design system entered the domain
+    // on 2026-09-05 carrying unmeasured surfaces they had accumulated before
+    // anybody was looking, so both are in report mode until their printed list
+    // reaches zero. This root was CREATED on 2026-09-06 by [ADR 071] with its
+    // suite, so there is no inherited debt to report: every surface arrived
+    // measured at all three window classes, and the honest floor for a root
+    // like that is the strong one.
+    //
+    // MEASURED 2026-09-06 by running this guard and reading its own per-root
+    // report — never incremented, never predicted:
+    //   7 public widget classes under lib/auth/ (the seven auth screens)
+    //   8 test file(s) in the corpus (7 suites + test/support/width_harness.dart)
+    //   7 measured, 0 not
+    //   kPhone=375 / kTablet=768 / kDesktop=1280 declared in
+    //     test/support/width_harness.dart, so this root gets the STRONG form of
+    //     the required-width check rather than "some case at some size".
+    //
+    // ⚠️ RAISE `surfaces` AND `coveredSurfaces` TOGETHER IN THE SAME CHANGE
+    // THAT LANDS THE NEXT SCREEN. A floor is only a floor on the day it is
+    // measured.
+    enforce: true,
+    surfaces: 7,
+    widthTestFiles: 8,
+    coveredSurfaces: 7,
+    label:
+      'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens every stamped ' +
+      'app inherits, each measured at all three window classes',
   },
   {
     dir: 'packages/design_system',

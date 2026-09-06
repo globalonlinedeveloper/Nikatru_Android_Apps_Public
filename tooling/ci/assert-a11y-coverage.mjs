@@ -665,6 +665,31 @@ const REQUIRED_COVERAGE = [
     label: 'the template every stamped app inherits — 12 routed screens, ZERO a11y sweeps',
   },
   {
+    dir: 'packages/chassis_screens',
+    // MEASURED 2026-09-06, the day [ADR 071] created this root, by running this
+    // guard and reading its own per-root report:
+    //   7 public widget classes under lib/auth/ — the seven auth screens
+    //   0 `a11y_*_test.dart` files, 0 cases, 0 swept.
+    //
+    // 🔴 `a11yFiles: 0` AND `cases: 0` ARE NOT A SHRUG, THEY ARE THE FINDING,
+    // AND IT IS A FINDING THIS UNIT INHERITED RATHER THAN CREATED. These seven
+    // surfaces had NO accessibility sweep while they sat in the brick either —
+    // that root's own row below records `a11yFiles: 0` for the same reason —
+    // so moving them neither added nor removed a sweep. What DID change is that
+    // the gap now has one owner instead of one per stamped app, and it is
+    // printed by name on every run. The `surfaces` floor is the real one here:
+    // it is what fires if a screen leaves this package without its row leaving
+    // with it.
+    // ⚠️ RAISE `a11yFiles` TO 1 AND `cases` TO WHATEVER THE FIRST SWEEP
+    // MEASURES, IN THE SAME CHANGE THAT LANDS IT.
+    surfaces: 7,
+    a11yFiles: 0,
+    cases: 0,
+    label:
+      'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens, mounted by ' +
+      'every stamped app, ZERO a11y sweeps',
+  },
+  {
     dir: 'packages/design_system',
     // MEASURED 2026-09-05, the first day this root was ever in the domain:
     //   19 public widget classes under lib/src/widgets/
