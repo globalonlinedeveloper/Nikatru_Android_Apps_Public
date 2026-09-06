@@ -52,9 +52,10 @@
 //          replacement the data file declares.
 //      2 = COVERAGE LOST — the declaration is unreadable, or a floor was not met.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listDir } from './tree-walk.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? join(HERE, '..', '..'));
@@ -123,7 +124,13 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'build', 'dist', '.dart_tool'
 const files = [];
 const walk = (abs, rel) => {
   let entries;
-  try { entries = readdirSync(abs, { withFileTypes: true }); } catch { return; }
+  // listDir, not readdirSync: it is the one place that knows which entries are
+  // NOT part of the tree under test. A raw listing descends into a nested
+  // checkout - a worktree under .worktrees/, or Projects/_archived-2026-09-05/ -
+  // and reads another repository's files as this one's. That is green in CI,
+  // which creates no worktrees, and red only on the machine of the person
+  // actually looking at it, which is the worst place for a guard to be wrong.
+  try { entries = listDir(abs, { withFileTypes: true }); } catch { return; }
   for (const e of entries) {
     const r = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory()) {
