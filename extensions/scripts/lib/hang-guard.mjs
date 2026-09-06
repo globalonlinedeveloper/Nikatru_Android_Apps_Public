@@ -234,6 +234,20 @@ function runOnce(command, opts, attempt, reportDir) {
       /* Give the exit event a moment; if the tree is unkillable, do not hang
          HERE, which would be this file committing the defect it exists for. */
       await sleep(2000);
+      /* 🔴 SAY IN THE LOG WHETHER THE EVIDENCE ACTUALLY LANDED. A retry that
+         succeeds makes the step GREEN, and a green step is where nobody looks —
+         so the one line that tells a reader an artifact is waiting has to be in
+         the log of the run that collected it, not in the run that went red. */
+      let landed = [];
+      try { landed = fs.readdirSync(reportDir).filter(f => f.endsWith('.json')); } catch (_) {}
+      if (landed.length) {
+        console.log('hang-guard: diagnostic report(s) collected in ' + reportDir + ': ' + landed.join(', ') +
+          ' — the `javascriptStack` and `libuv` sections name what was still holding the process. ' +
+          'Download the hang-report-* artifact; a re-run does not reproduce this.');
+      } else {
+        console.log('hang-guard: NO diagnostic report was written to ' + reportDir + '. On Windows that is expected ' +
+          '(Node cannot be signalled for one); on POSIX it means the process was too wedged even for the report thread.');
+      }
       finish({ hung: true, code: EXIT_HUNG });
     }, opts.seconds * 1000);
   });
