@@ -161,26 +161,52 @@ describe('§A — an aggregating job cannot go green over a lane that did not ru
 });
 
 describe('§B — a job cannot green-skip its own body when a secret is absent', () => {
+  // 🔄 RE-ANCHORED 2026-09-07 ([ADR 067] decision 6, unit `cutover-blockers`).
+  // e2e.yml's preflight stopped being a single `-z "$KEY"` when it gained the
+  // `auth_target` axis: it now binds SIX secrets (`HOSTED_*` and `BOXA_*`) and
+  // tests each of them by name. The GUARD is unchanged and still counts exactly
+  // one secret-presence check; only these two fixtures' anchors moved, and an
+  // anchor that no longer matches fails loudly inside `mutant()` rather than
+  // passing over nothing — which is how this was caught.
+  //
+  // The expected message is matched on its SHAPE rather than on the list of
+  // variable names, so adding or renaming a resolved secret cannot turn a real
+  // catch into a fixture edit.
+  const NEVER_EXITS = /step "pre" branches on whether .*\(a repo secret\) is set, and never exits non-zero/;
+
   test('a secret-presence preflight that does not exit non-zero fails', () => {
+    // 🔴 BOTH REFUSALS GO, AND THEY GO AS TWO SEPARATE EDITS. The preflight
+    // ends the job in two places — an unknown target, and a missing secret —
+    // and `String.replace(<regex>)` without /g takes only the first match, so
+    // one anchor spanning both would leave the second `exit 1` standing and the
+    // step would still fail closed. The test would then pass for the wrong
+    // reason. Each `from` must match on its own or `mutant()` fails loudly.
     const root = mutant([
       [
         'e2e.yml',
-        /            echo "::error title=E2E cannot run[\s\S]*?\n            exit 1/,
+        /            echo "::error title=E2E cannot run::[^\n]*is not one of hosted, boxa\.[^\n]*\n            exit 1/,
+        '            echo "run=false" >> "$GITHUB_OUTPUT"',
+      ],
+      [
+        'e2e.yml',
+        /            echo "::error title=E2E cannot run::[^\n]*this is a failed run, not a skipped one[^\n]*\n            exit 1/,
         '            echo "run=false" >> "$GITHUB_OUTPUT"',
       ],
     ]);
-    caught(run(root), /step "pre" branches on whether `KEY` \(a repo secret\) is set, and never exits non-zero/);
+    caught(run(root), NEVER_EXITS);
   });
 
   test('the `-n` spelling of the same green-skip is caught too', () => {
+    // The whole resolution body is replaced by the smallest `-n` green-skip, so
+    // the only emptiness test left in the step is the inverted one.
     const root = mutant([
       [
         'e2e.yml',
-        /          if \[ -z "\$KEY" \]; then[\s\S]*?\n          fi/,
-        '          if [ -n "$KEY" ]; then\n            echo "run=true" >> "$GITHUB_OUTPUT"\n          fi',
+        /          set -uo pipefail\n[\s\S]*?\n          echo "Auth target: [^\n]*\n/,
+        '          if [ -n "$HOSTED_KEY" ]; then\n            echo "run=true" >> "$GITHUB_OUTPUT"\n          fi\n',
       ],
     ]);
-    caught(run(root), /step "pre" branches on whether `KEY` \(a repo secret\) is set, and never exits non-zero/);
+    caught(run(root), NEVER_EXITS);
   });
 
   test('re-gating a real step on the preflight output fails — the exact mechanism that shipped', () => {

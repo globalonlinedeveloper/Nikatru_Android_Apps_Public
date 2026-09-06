@@ -92,6 +92,18 @@ jobs:
         working-directory: .
         run: node tooling/ci/assert-app-versioning.mjs --emit apps/${{ matrix.app }} >> "$GITHUB_OUTPUT"
 
+      # why: TURNSTILE_SITE_KEY IS A REPOSITORY VARIABLE, NOT A SECRET, AND IT IS
+      # HERE BEFORE IT IS NEEDED ON PURPOSE. The site key is public by design —
+      # it ships inside the bundle and is meaningless without the secret half,
+      # which lives only on the auth box. While `vars.TURNSTILE_SITE_KEY` is
+      # unset the define arrives EMPTY, TurnstileGate renders SizedBox.shrink()
+      # and the deployed app behaves byte-for-byte as it does today
+      # (apps/subly/lib/features/auth/turnstile_gate.dart). Setting the variable
+      # is then the whole of the app-side cutover work: no workflow edit inside
+      # the Phase 5 window, which is the window that has to carry three acts
+      # already. Safe to ship ahead of the cutover because hosted GoTrue IGNORES
+      # a captcha token it never asked for — measured, not assumed, by
+      # tooling/e2e/captcha_posture.mjs on every E2E run.
       - name: Build web (release, no service worker)
         run: >
           flutter build web --release --pwa-strategy=none --source-maps
@@ -102,6 +114,7 @@ jobs:
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${GITHUB_SHA::7}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+          --dart-define=TURNSTILE_SITE_KEY=${{ vars.TURNSTILE_SITE_KEY }}
           --dart-define=APP_ENV=production
           --dart-define=RELEASE_CHANNEL=web
 
