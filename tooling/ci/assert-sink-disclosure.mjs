@@ -10,7 +10,7 @@
 // NO GUARD COULD SEE IT. sites/nikatru/privacy.html said "We do not collect or
 // store your IP address"; the self-hosted GlitchTip on the Oracle box was
 // storing `user.ip_address`, re-observed on two independent events. It has since
-// been fixed at the sink and verified by observation (Private/session-notes.md
+// been fixed at the sink and verified by observation (Private/archive/2026-09-05/session-notes.md
 // §17). Every existing check was structurally blind to it:
 //
 //   · assert-policy-claims.mjs compares published TEXT to repo TEXT. It can
