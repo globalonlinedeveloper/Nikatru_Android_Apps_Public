@@ -863,7 +863,7 @@ const FORK_SCAN_ROOTS = [
  *  is a guard edit, and assert-no-gate-weakening.mjs is what watches guard edits.
  *
  *  🔴 BUT THE SUBJECT IS CHECKED HERE, and it has to be, because the delegate
- *  cannot do it. assert-no-seam-forks.mjs:118 floors `sharedFiles.length +
+ *  cannot do it. assert-no-seam-forks.mjs:119 floors `sharedFiles.length +
  *  suspectFiles.length` at 10 — a UNION over packages/ AND apps/ AND
  *  tooling/bricks/. packages/ alone supplies 181 of today's 358 files, so the
  *  brick template could empty completely and that guard would still print ok

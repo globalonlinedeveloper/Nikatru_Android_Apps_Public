@@ -287,7 +287,7 @@ const hasBusyGatedPopScope = (src) => {
  * Every anchor is a shape a bug cannot rename away: `PopScope`/`canPop`,
  * `onPressed`, `onConfirm` and `.text.isEmpty` are Flutter and Dart spellings,
  * not local identifiers. `onConfirm` in particular is already pinned across
- * this repo by `assert-stamp-properties.mjs:1042`, which anchors the literal
+ * this repo by `assert-stamp-properties.mjs:1043`, which anchors the literal
  * closure `onConfirm: () => _deleteAccount(` — verified at that line, not
  * quoted from the comment in the widget that cites it.
  *

@@ -627,7 +627,7 @@ for (const rel of dartFiles) {
     // for `promo_card_enabled` that is DELIBERATE and owner-gated, because
     // serving it true turns the app into a promotional surface and makes
     // apps/subly/store/android-play/ads-declaration.json re-derivable.
-    // assert-stamp-properties.mjs:787 pins the absent-means-false read. Failing
+    // assert-stamp-properties.mjs:788 pins the absent-means-false read. Failing
     // here would block CI on a decision only the owner can take.
     const servedKeys = new Set(served.map((r) => r.key));
     const unserved = [...dartReaders.keys()].filter((k) => !servedKeys.has(k));

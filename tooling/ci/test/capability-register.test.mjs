@@ -564,7 +564,7 @@ describe('check 5 — the fork scan knows which per-app roots it does not read',
   });
 
   test('a delegated root with the guard on disk but NO source is COVERAGE LOST', () => {
-    // 🔴 THE LIMB THE DELEGATE CANNOT SUPPLY. assert-no-seam-forks.mjs:118 floors
+    // 🔴 THE LIMB THE DELEGATE CANNOT SUPPLY. assert-no-seam-forks.mjs:119 floors
     // `sharedFiles.length + suspectFiles.length` at 10 — a UNION over packages/,
     // apps/ and tooling/bricks/ — and packages/ alone is 181 of the real tree's
     // 358 files. So the template can empty completely and that guard still prints
