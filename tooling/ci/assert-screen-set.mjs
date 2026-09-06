@@ -81,7 +81,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { listDir } from './tree-walk.mjs';
-import { delegationOf as resolveChassisDelegation } from './chassis-delegation.mjs';
+import { delegationOf as resolveChassisDelegation, dartCodeOnly } from './chassis-delegation.mjs';
 
 const ROOT = process.cwd();
 const REGISTER = 'tooling/screen-register.json';
@@ -311,6 +311,113 @@ function checkPurchasePathIsWhole() {
   }
 }
 checkPurchasePathIsWhole();
+
+// ── THE LAST LINK OF A DELEGATION — added 2026-09-06 ────────────────────────
+//
+// 🔴 THIS EXISTS BECAUSE MOVING A SCREEN BODY INTO THE CHASSIS PACKAGE SILENCED
+// SIX REAL CONTROLS, AND IT WAS MEASURED ON THE REAL TREE, NOT ARGUED.
+// Before [ADR 067] phase 2 the settings tile carried its own handler:
+//
+//     onTap: () => _signOut(context, ref, l10n),
+//
+// so one string proved BOTH halves at once — the handler exists, and a control
+// reaches it. `assert-seams-wired.mjs` and this guard's own reachability limb
+// each matched that string, and severing the tile (`onTap: () {}`) reddened
+// both. After the move the chain has THREE links, not two:
+//
+//     adapter:  SettingsView(onSignOut: () => _signOut(context, ref, …))
+//     package:  ListTile(key: signOutTile, onTap: onSignOut)
+//
+// and every path-pinned pattern above lands on the FIRST link. Re-pointing the
+// register row to `onSignOut:` keeps it green — it asserts the adapter PASSES a
+// closure — while `onTap: onSignOut` can be deleted from the package with the
+// whole corpus at EXIT 0. That was reproduced on this branch for six controls
+// (sign-out, edit-profile, upgrade, manage-plan, privacy policy, terms), each of
+// which reddens `assert-seams-wired` / this guard / `assert-stamp-properties` /
+// `assert-purchase-path` on `origin/main` for the identical defect. A refactor
+// that turns a red into a green without changing what the app does is the exact
+// shape this corpus exists to refuse, so the missing link is checked HERE.
+//
+// THE RULE: for every brick screen that delegates, a callback the ADAPTER hands
+// across (`on<Name>:`) and the TARGET declares as a constructor field
+// (`this.on<Name>`) must be REFERENCED in the target outside its own
+// declaration. That is deliberately the weakest true statement of "wired":
+//
+//   · it is not "`on<Name>:` is passed to a child", because the real tree wires
+//     callbacks as ternaries (`onTap: busy ? null : onRestore`), through
+//     `widget.` (`onPressed: widget.onFinish`), positionally
+//     (`_LegalLink(l10n.privacyPolicy, onOpenPrivacy)`) and behind `??`
+//     (`onDismiss: widget.onDismissDeletionNotice ?? () {}`) — a narrower
+//     pattern reported four false UNWIREDs on files this unit never touched,
+//     and a guard that cries wolf gets its floor lowered rather than its bug
+//     fixed;
+//   · it is not "the name appears in the file", because the field declaration
+//     and the `this.` constructor parameter always spell it. Both are blanked
+//     first, for the reason `assert-seams-wired.mjs` carries a scar about: a
+//     `foo(` check that ignores declarations passes with every caller deleted.
+//
+// MEASURED 2026-09-06 on the real tree: 41 delegated callbacks across 9 adapters,
+// 41 wired, 0 unwired — and deleting any one of the six settings controls named
+// above takes this guard to EXIT 1 with a green control before and after.
+function checkDelegatedControlsAreWired() {
+  const BRICK_LIB = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib';
+  if (!existsSync(join(ROOT, BRICK_LIB))) return; // already reported above
+
+  // The declaration sites of `name` in a Dart widget: the constructor parameter
+  // (`required this.onSignOut`) and the field (`final VoidCallback onSignOut;`).
+  // Blanked rather than counted, so what remains is a genuine USE.
+  const withoutDeclarations = (code, name) =>
+    code
+      .replace(new RegExp(`\\bthis\\.${name}\\b`, 'g'), ' ')
+      .replace(new RegExp(`^[^\\n;]*\\b(?:final|late|var|const)\\b[^\\n;]*\\b${name}\\s*;`, 'gm'), ' ');
+
+  let checked = 0;
+  const unwired = [];
+  for (const rel of dartFilesUnder(BRICK_LIB)) {
+    const d = delegationOf(rel);
+    if (!d || d.lost || !d.files?.length) continue; // `lost` is reported above
+    const adapter = dartCodeOnly(readFileSync(join(ROOT, rel), 'utf8'));
+    const handedAcross = new Set([...adapter.matchAll(/\b(on[A-Z]\w*)\s*:/g)].map((m) => m[1]));
+    for (const f of d.files) {
+      const target = dartCodeOnly(readFileSync(join(ROOT, f), 'utf8'));
+      const declared = [...new Set([...target.matchAll(/\bthis\.(on[A-Z]\w*)\b/g)].map((m) => m[1]))].sort();
+      for (const name of declared) {
+        if (!handedAcross.has(name)) continue;
+        checked++;
+        if (!new RegExp(`\\b${name}\\b`).test(withoutDeclarations(target, name))) {
+          unwired.push({ name, rel, f });
+        }
+      }
+    }
+  }
+
+  for (const u of unwired) {
+    problems.push(
+      `A CONTROL THAT REACHES NOTHING — \`${u.rel}\` hands \`${u.name}\` across the delegation and ` +
+        `\`${u.f}\` declares it, but nothing in that file USES it. The adapter still passes the closure, so ` +
+        'every path-pinned pattern in this corpus stays green while the button does nothing. Wire it to a ' +
+        'control, or stop passing it.',
+    );
+  }
+
+  // ⚠️ THE FLOOR IS THE HALF THAT KEEPS THIS RUNNING. Every check above ranges
+  // over "adapters that delegate"; delete the delegations, or rename the chassis
+  // package, and the loop finds nothing and this guard says so cheerfully. 41
+  // MEASURED 2026-09-06 (`node tooling/ci/assert-screen-set.mjs`); the floor is
+  // set below it at 30 so ordinary movement of one screen does not need a guard
+  // edit, while emptying the domain does.
+  const MIN_DELEGATED_CALLBACKS = 30;
+  if (checked < MIN_DELEGATED_CALLBACKS) {
+    problems.push(
+      `COVERAGE LOST — only ${checked} delegated callback(s) were checked for a control that uses them, and the ` +
+        `checked-in floor is ${MIN_DELEGATED_CALLBACKS} (41 measured 2026-09-06). Either the brick stopped delegating ` +
+        'to the chassis package or this scan stopped finding the delegations — both read as green here and neither is.',
+    );
+  } else if (unwired.length === 0) {
+    ok(`${checked} delegated callback(s) are wired to a control in the chassis file that receives them`);
+  }
+}
+checkDelegatedControlsAreWired();
 
 let present = 0;
 let reachableChecked = 0;

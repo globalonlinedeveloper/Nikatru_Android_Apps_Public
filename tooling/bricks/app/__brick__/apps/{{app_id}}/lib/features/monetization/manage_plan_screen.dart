@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nikatru_chassis_screens/monetization/manage_plan_screen.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
@@ -8,25 +9,25 @@ import 'package:nikatru_purchases/nikatru_purchases.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/money_providers.dart';
 
-/// Manage subscription — [pipeline 5]M-9 (ROSCA) and [pipeline 5]M-10 (restore).
+/// Manage subscription — the ADAPTER half.
 ///
-/// ## Why cancelling is ONE screen and ONE confirm, and why that number matters
-/// ROSCA's rule is that cancelling must be no harder than subscribing. Buying is
-/// Settings → Upgrade → pick a plan: the checkout opens on the third tap.
-/// Cancelling is Settings → Manage → Cancel → confirm. The counts are derived
-/// from the ROUTER by `tooling/ci/assert-purchase-path.mjs`, from the same
-/// navigation source as the purchase count, so the two cannot drift apart by
-/// somebody counting them differently.
+/// 🏗️ THE BODY IS IN `package:nikatru_chassis_screens` ([ADR 067] decision 2).
+/// Three things stayed here and each answers a named guard or a seam:
 ///
-/// 🔴 THE ORIGINAL CRITERION ("cancel steps ≤ purchase steps") WAS VACUOUSLY
-/// TRUE. With no purchase flow at all, `0 ≤ 0` passed — so a legal-conduct
-/// requirement was green for exactly as long as the thing it protects was
-/// missing. The guard now floors BOTH counts at ≥ 1.
+/// ⛔ `.requestCancellation()`. `assert-screen-set.mjs:289` matches it as a
+/// purchase-path limb, and `tooling/screen-register.json`'s
+/// `monetization.manage-plan` row proves REACHABILITY with that literal in THIS
+/// file — the reachability limb reads one file and does not follow the
+/// delegation, deliberately, because reachability is a claim about the stamped
+/// app.
 ///
-/// ⚠️ CANCELLING DURING THE TRIAL is the path regulators scrutinise hardest, and
-/// it is the same path: nothing here branches on whether the subscription is in
-/// its trial. That is deliberate — a separate trial-cancel flow is a second
-/// thing to get wrong, and the trial case is covered by the same test set.
+/// ⛔ `refreshEntitlements(ref)` in `_restore` ([pipeline 5]M-10), and the
+/// hoisted `ProviderContainer` in `_cancel`: both are Riverpod, which this
+/// package declares none of.
+///
+/// ⛔ The five app-owned labels and the outcome sentence. `managePlanTitle`,
+/// `plan{Active,Inactive}`, `cancelPlan`, `restorePurchasesHint`,
+/// `cancelExecuted`, `cancelNoPlan` and `cancelFailed` live in the APP's `.arb`.
 class ManagePlanScreen extends ConsumerStatefulWidget {
   const ManagePlanScreen({super.key});
 
@@ -137,87 +138,24 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
     final AsyncValue<core.Entitlements> ent = ref.watch(entitlementsProvider);
     final bool isPro = ent.valueOrNull?.isProAt(DateTime.now()) ?? false;
 
-    return Scaffold(
-      appBar: AppBar(
-        // 🔴 AN EXPLICIT BACK CONTROL, BECAUSE THE AUTOMATIC ONE NEVER APPEARED.
-        // `AppBar` inserts a back button only when its `Navigator` can pop, and
-        // this screen is reached with `context.go` from the settings register
-        // row and from the promo card — `go` REPLACES the stack, so there was
-        // nothing to pop and no leading control was ever built. The result was a
-        // cancellation screen with no way out of it except the system Back
-        // gesture, which web and desktop do not reliably give: on the one screen
-        // whose whole job is "cancelling must be no harder than subscribing".
-        //
-        // ⚠️ THE COMMENT IN `_cancel` ABOVE ALREADY ASSUMED THIS CONTROL
-        // EXISTED — "the app bar's back control stays live throughout" is the
-        // measured reason the provider container is hoisted before the first
-        // await. That hazard is real again now, and the hoist is what makes
-        // leaving mid-cancellation safe rather than a `StateError`.
-        //
-        // `BackButton` rather than a hand-rolled `IconButton`: it carries the
-        // platform's own glyph and the tooltip/semantics label from
-        // `MaterialLocalizations`, so this adds no copy to the arb and is
-        // translated in every locale the app declares.
-        leading: BackButton(
-          // Pop when there IS somewhere to pop to (a future `push` from a
-          // deeper surface), otherwise return to the register row this screen
-          // hangs off. `/settings` and not `/` deliberately: it is where the
-          // user was, and it is the origin `assert-purchase-path.mjs` measures
-          // the ROSCA cancel distance from.
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/settings'),
-        ),
-        title: Text(appL10n.managePlanTitle),
-      ),
-      // Bare `Scaffold` + `ListView` before this, the same shape as settings —
-      // and this is the WORSE of the two to leave unconstrained. The screen
-      // whose only job is "cancel must be no harder than subscribe" was, on a
-      // desktop, a cancel row whose label sat a full window away from the icon
-      // that identifies it. ROSCA is a rule about the difficulty of finding the
-      // control, and layout is part of how hard something is to find.
-      //
-      // Same default cap as settings, for the same reason: a page of controls,
-      // agreeing with the ceiling `AppScaffold` already applies.
-      body: ContentPane(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            ListTile(
-              leading: Icon(
-                isPro ? Icons.verified_outlined : Icons.lock_outline,
-              ),
-              title: Text(isPro ? appL10n.planActive : appL10n.planInactive),
-            ),
-            const Divider(),
-            // [pipeline 5]M-10. On this rail the entitlement is a server row keyed
-            // (user_id, app_id), so a fresh install on a new device is unlocked by
-            // signing in — there is nothing device-local to restore. The control
-            // exists because a user who has just paid wants a button, and because
-            // Apple guideline 3.1.1 makes one mandatory the day a native IAP rail
-            // ships (deferred, 39-CHASSIS §4 cut 5).
-            ListTile(
-              leading: const Icon(Icons.refresh),
-              title: Text(l10n.restorePurchases),
-              subtitle: Text(appL10n.restorePurchasesHint),
-              enabled: !_busy,
-              onTap: _busy ? null : _restore,
-            ),
-            if (isPro)
-              ListTile(
-                leading: const Icon(Icons.cancel_outlined),
-                title: Text(appL10n.cancelPlan),
-                enabled: !_busy,
-                onTap: _busy ? null : _cancel,
-              ),
-            if (_busy) const LinearProgressIndicator(),
-            if (_outcome != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text(_outcomeMessage(l10n, appL10n, _outcome!)),
-              ),
-          ],
-        ),
-      ),
+    return ManagePlanView(
+      title: appL10n.managePlanTitle,
+      isPro: isPro,
+      planStatusLabel: isPro ? appL10n.planActive : appL10n.planInactive,
+      restoreHint: appL10n.restorePurchasesHint,
+      cancelLabel: appL10n.cancelPlan,
+      busy: _busy,
+      // Pop when there IS somewhere to pop to (a future `push` from a deeper
+      // surface), otherwise return to the register row this screen hangs off.
+      // `/settings` and not `/` deliberately: it is where the user was, and it
+      // is the origin `assert-purchase-path.mjs` measures the ROSCA cancel
+      // distance from.
+      onBack: () => context.canPop() ? context.pop() : context.go('/settings'),
+      onRestore: _restore,
+      onCancel: _cancel,
+      outcomeMessage: _outcome == null
+          ? null
+          : _outcomeMessage(l10n, appL10n, _outcome!),
     );
   }
 

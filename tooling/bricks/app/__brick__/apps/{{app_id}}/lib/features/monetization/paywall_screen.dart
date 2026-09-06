@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nikatru_design_system/nikatru_design_system.dart';
+import 'package:nikatru_chassis_screens/monetization/paywall_screen.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 import '../../core/app_config.dart';
@@ -20,29 +20,40 @@ enum PaywallTrigger {
   final String code;
 }
 
-/// What the screen is currently doing. [pipeline 5]M-6's "purchase states", and
-/// every one of them is a state the user can be shown a sentence about.
-enum _PaywallPhase { choosing, opening, pending, unlocked, refused }
+/// The brick's own name for [PaywallPhase] — AN ALIAS, NOT A SECOND ENUM.
+///
+/// `tooling/screen-register.json`'s `monetization.purchase-states` row proves
+/// this screen is REACHED by finding `_PaywallPhase.pending` in THIS file, and
+/// `assert-screen-set.mjs:428` reads the reachability file alone, without
+/// following the delegation — deliberately, because reachability is a claim
+/// about the stamped app. A copy of the five values would satisfy it too, and
+/// would be exactly the hand-maintained drift this package exists to remove.
+typedef _PaywallPhase = PaywallPhase;
 
-/// The paywall — [pipeline 5]M-6, and the consumer [PaywallGate] never had.
+/// Paywall — the ADAPTER half.
 ///
-/// ## The three states this screen exists to keep apart
-/// A hosted checkout returns the buyer to the app the instant they press pay,
-/// and the merchant of record's notification reaches our server some time after
-/// that. So between the two there is a real window in which the user HAS paid
-/// and the server does NOT know.
+/// 🏗️ THE BODY IS IN `package:nikatru_chassis_screens` ([ADR 067] decision 2).
+/// Four things stayed here and each answers a named guard or a seam rather than
+/// a preference:
 ///
-///   · **opening**  — we handed the page to the browser.
-///   · **pending**  — they came back, we asked the server, it does not see it
-///                    yet. This is NOT a failure and must never be worded as
-///                    one: it is somebody's money in flight.
-///   · **unlocked** — the server confirmed. Only this state grants anything.
+/// ⛔ THE FOUR `funnel.on*` EMISSIONS, AS A SET.
+/// `assert-stamp-properties.mjs:1333-1336` (`money-funnel-emitted-as-a-set`)
+/// anchors all four as CALL SITES in this file. They also cannot leave: the
+/// funnel is resolved with `ref.read(moneyFunnelProvider.future)` and this
+/// package declares no `flutter_riverpod` (see its pubspec for why declaring one
+/// would make ~66 existing import sites illegal).
 ///
-/// The screen never grants access on its own, and it never spins: the poller is
-/// bounded ([kCheckoutConvergenceDelays]) and lands in a stated terminal state.
+/// ⛔ `PurchaseRail.startCheckout` AND THE BOUNDED WAIT.
+/// `assert-purchase-path.mjs:287` and `assert-seams-wired.mjs:473` match
+/// `.startCheckout(` as a CALL; the rail and the convergence poller are the
+/// purchase SEAM, which a screen-body package must not be handed.
 ///
-/// ⚠️ [pipeline C-13] THE WORDING of the pending state is a `human` decision. A
-/// green lane here proves the mechanism, not the copy.
+/// ⛔ `.formattedPrice`, read HERE where the rail's `Offering` still exists.
+/// `assert-no-price-literals.mjs:371` reads this file unioned with the chassis
+/// file, so either side satisfies it — and the honest home is the one place the
+/// `Offering` is in scope.
+///
+/// ⛔ The navigations, because the chassis package declares no go_router.
 class PaywallScreen extends ConsumerStatefulWidget {
   const PaywallScreen({super.key, this.trigger = PaywallTrigger.featureGate});
 
@@ -165,133 +176,37 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ChassisLocalizations l10n = context.chassisL10n;
     final PurchaseRail rail = ref.watch(purchaseRailProvider);
-    final ThemeData theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.paywallTitle)),
-      // 🔴 THE `Center` IS GONE, AND THIS IS THE SCREEN THAT NAMES THE BUG.
-      // `_body` returns a DIFFERENT NUMBER OF WIDGETS per `_PaywallPhase` —
-      // choosing, opening, pending, unlocked, refused — so the ListView's
-      // extent changes every time the phase does. Under a `Center`, that
-      // re-centres the whole scroller: press "Buy" and the plan list you were
-      // looking at slides, for a reason the user did not cause. Pinned to the
-      // top it stays where it was and only the new rows appear. `.pane` is the
-      // 480 this file used to hold privately.
-      body: ContentPane.pane(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          shrinkWrap: true,
-          children: <Widget>[
-            Icon(
-              Icons.workspace_premium_outlined,
-              size: 56,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              l10n.paywallHeadline,
-              style: theme.textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ..._body(l10n, rail, theme),
-          ],
-        ),
-      ),
+    // The rail's own `Offering`s, mapped down to the plain rows the chassis
+    // paints. `.formattedPrice` is read HERE, where the amount and the ISO
+    // currency it was derived from are still in scope — [pipeline 5]M-11.
+    final List<Offering> offerings = rail.offerings;
+    return PaywallView(
+      phase: _phase,
+      detail: _detail,
+      canStartCheckout: rail.canStartCheckout,
+      offers: <PaywallOffer>[
+        for (final Offering o in offerings)
+          PaywallOffer(
+            id: o.productId,
+            formattedPrice: o.formattedPrice,
+            term: o.term.wire,
+            trialDays: o.trialDays,
+          ),
+      ],
+      onBuy: (PaywallOffer offer) =>
+          _buy(offerings.firstWhere((Offering o) => o.productId == offer.id)),
+      onCheckAgain: () async {
+        final bool unlocked = (await refreshEntitlements(ref))
+            .isProAt(DateTime.now());
+        if (!mounted) return;
+        setState(
+          () => _phase = unlocked
+              ? _PaywallPhase.unlocked
+              : _PaywallPhase.pending,
+        );
+      },
+      onGoHome: () => context.go('/'),
     );
-  }
-
-  List<Widget> _body(
-    ChassisLocalizations l10n,
-    PurchaseRail rail,
-    ThemeData theme,
-  ) {
-    switch (_phase) {
-      case _PaywallPhase.opening:
-        return <Widget>[
-          const Center(child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-          Text(l10n.paywallOpening, textAlign: TextAlign.center),
-        ];
-      case _PaywallPhase.pending:
-        return <Widget>[
-          const Center(child: Icon(Icons.hourglass_top_outlined, size: 40)),
-          const SizedBox(height: 16),
-          // 🔴 NEVER THE WORD "FAILED". The user may well have paid.
-          Text(l10n.paywallPending, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () async {
-              final bool unlocked = (await refreshEntitlements(ref))
-                  .isProAt(DateTime.now());
-              if (!mounted) return;
-              setState(
-                () => _phase = unlocked
-                    ? _PaywallPhase.unlocked
-                    : _PaywallPhase.pending,
-              );
-            },
-            child: Text(l10n.paywallCheckAgain),
-          ),
-        ];
-      case _PaywallPhase.unlocked:
-        return <Widget>[
-          Icon(
-            Icons.check_circle_outline,
-            size: 40,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(l10n.paywallUnlocked, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () => context.go('/'),
-            child: Text(l10n.goHome),
-          ),
-        ];
-      case _PaywallPhase.refused:
-        return <Widget>[
-          Text(l10n.paywallUnavailable, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          // The REASON, verbatim from the capability row or the rail. A refusal
-          // with no reason is indistinguishable from a broken button, and a user
-          // on iOS deserves to know the rail is not available in this app rather
-          // than to conclude the app is broken.
-          Text(
-            _detail,
-            style: theme.textTheme.bodySmall,
-            textAlign: TextAlign.center,
-          ),
-        ];
-      case _PaywallPhase.choosing:
-        if (!rail.canStartCheckout || rail.offerings.isEmpty) {
-          return <Widget>[
-            Text(l10n.paywallUnavailable, textAlign: TextAlign.center),
-          ];
-        }
-        return <Widget>[
-          for (final Offering o in rail.offerings)
-            Card(
-              child: ListTile(
-                // 🔒 [pipeline 5]M-11. FORMATTED FROM THE RAIL'S OWN AMOUNT AND
-                // CURRENCY. There is no price literal anywhere in this file, and
-                // `tooling/ci/assert-no-price-literals.mjs` fails the build if
-                // one appears.
-                title: Text(o.formattedPrice),
-                subtitle: Text(
-                  o.trialDays > 0
-                      ? l10n.paywallTermWithTrial(o.term.wire, o.trialDays)
-                      : l10n.paywallTerm(o.term.wire),
-                ),
-                trailing: FilledButton(
-                  onPressed: () => _buy(o),
-                  child: Text(l10n.paywallUpgrade),
-                ),
-              ),
-            ),
-        ];
-    }
   }
 }

@@ -506,4 +506,51 @@ const String kPrivacyPolicyVersion = '2026-07-26';
     });
   });
 
+  // ── THE SIGN-OUT CONTROL, AFTER THE TILE MOVED INTO THE CHASSIS ────────────
+  //
+  // 2026-09-06 ([ADR 067] phase 2, unit screens-money-settings). The settings
+  // BODY now lives in `package:nikatru_chassis_screens`, so the control the
+  // `user_state_reset` row looks for is passed across the boundary as
+  // `onSignOut:` rather than sitting on a `ListTile` as `onTap:`. The row's
+  // regex gained that one prop name and nothing else, and these two cases are
+  // the reason that is a widening rather than a weakening: SO2 is the exact
+  // fire-and-forget revert the row was written to catch, written in the NEW
+  // shape, and it still exits 1.
+  describe('the sign-out control passed to a chassis view', () => {
+    /** The baseline tree with the settings control rewritten. */
+    const withControl = (name, control) => {
+      const dir = build(name);
+      const settings = join(dir, BRICK, 'lib/features/settings/settings_screen.dart');
+      const before = readFileSync(settings, 'utf8');
+      const OLD = 'onTap: () => _signOut(context, ref, l10n),';
+      // LAND-CHECKED. `String.replace` with a string pattern hits the FIRST
+      // occurrence and says nothing when there is none, so a case whose edit
+      // silently did nothing would read as "the guard did not catch it".
+      assert.ok(before.includes(OLD), 'the fixture must carry the control this case rewrites');
+      const after = before.replace(OLD, control);
+      assert.notEqual(after, before, 'the rewrite must actually change the fixture');
+      writeFileSync(settings, after);
+      return dir;
+    };
+
+    test('SO1 · CONTROL — the chassis handoff `onSignOut: () => _signOut(` is a wired control', () => {
+      const { code, out } = run(
+        withControl('so-chassis', 'onSignOut: () => _signOut(context, ref, l10n),'),
+      );
+      assert.equal(code, 0, out);
+      assert.match(out, /the sign-out CONTROL routed through that awaited handler/);
+    });
+
+    test('SO2 · 🔴 the fire-and-forget revert, in the NEW shape, is still caught', () => {
+      const { code, out } = run(
+        withControl(
+          'so-fireforget',
+          'onSignOut: () => ref.read(authRepositoryProvider).signOut(),',
+        ),
+      );
+      assert.equal(code, 1, out);
+      assert.match(out, /the sign-out CONTROL routed through that awaited handler NOT FOUND/);
+    });
+  });
+
 });

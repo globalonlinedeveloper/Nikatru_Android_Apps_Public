@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 16482,
+    "lines": 15871,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -139,9 +139,11 @@
     },
     {
       "path": "lib/features/firstrun/onboarding_screen.dart",
-      "lines": 194,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, app-dod, stamp-properties); must retain `onboardingSeenProvider` and the l10n-fallback anchor behind the onboarding-shown-once property."
+      "lines": 82,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 194 -> 82 brick lines, 179 package lines, callSiteDelta -112. The largest proportional shrink of the four: the carousel, the PageController, the dots and the reading cap are pure chassis. `onboardingSeenProvider` and the l10n-fallback anchor stayed — `_copy(cfg, 'onboarding.1.title', l10n.onboarding1Title)` is anchored in this file by assert-config-registry's `copy[` limb and by assert-stamp-properties:1094, and it is also the honest home: `AppConfig.copy` is the app's override map. `dod.json`'s `finish onboarding` mutation row was re-run on a fresh stamp and re-noted in the same commit (flutter-03).",
+      "target": "packages/chassis_screens/lib/firstrun/onboarding_screen.dart",
+      "callSiteDelta": -112
     },
     {
       "path": "lib/features/home/home_screen.dart",
@@ -151,21 +153,27 @@
     },
     {
       "path": "lib/features/monetization/manage_plan_screen.dart",
-      "lines": 245,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, purchase-path); must retain `_restore` calling `refreshEntitlements` and `.requestCancellation()`."
+      "lines": 183,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 245 -> 183 brick lines, 155 package lines, callSiteDelta -62. The smallest shrink of the four, and the reason is stated rather than hidden: five of this screen's labels (`managePlanTitle`, `plan{Active,Inactive}`, `cancelPlan`, `restorePurchasesHint`) and two of its four outcome sentences live in the APP's `.arb`, not in ChassisLocalizations, so they cross the seam as parameters. `.requestCancellation()` stays (assert-screen-set:289 and the register's own reachability pattern), as do `_restore` → `refreshEntitlements(ref)` and the hoisted ProviderContainer.",
+      "target": "packages/chassis_screens/lib/monetization/manage_plan_screen.dart",
+      "callSiteDelta": -62
     },
     {
       "path": "lib/features/monetization/paywall_screen.dart",
-      "lines": 297,
-      "verdict": "STAYS",
-      "why": "MEASURED: undeletable; must retain `_PaywallPhase`, `.formattedPrice`, `PurchaseRail.startCheckout` and the four `funnel.on*` money-funnel emissions (assert-seams-wired, assert-no-price-literals, stamp-properties PAYWALL :300)."
+      "lines": 212,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 297 -> 212 brick lines, 240 package lines, callSiteDelta -85. The RENDERING moved; the phase machine did not. Retained here and each for a named reason: the four `funnel.on*` emissions (stamp-properties `money-funnel-emitted-as-a-set`, and they take a WidgetRef), `PurchaseRail.startCheckout` and `awaitUnlock` (the purchase seam, assert-purchase-path/:287 and assert-seams-wired:473), `.formattedPrice` read where the Offering is still in scope (assert-no-price-literals:371 reads adapter ∪ chassis, so either side satisfies it), and `_PaywallPhase` — now `typedef _PaywallPhase = PaywallPhase;`, an ALIAS of the package enum, because screen-register's reachability limb reads ONE file and does not follow the delegation. One enum, not two.",
+      "target": "packages/chassis_screens/lib/monetization/paywall_screen.dart",
+      "callSiteDelta": -85
     },
     {
       "path": "lib/features/settings/settings_screen.dart",
-      "lines": 968,
-      "verdict": "STAYS",
-      "why": "MEASURED: the most pinned file in the template — eleven guards on deletion, nine on a stub. Sixteen tooling/screen-register.json rows, the whole assert-deletion-control flow, AboutListTile, `recordAnalyticsConsent(`, both upgrade/manage entry points and a `caps.canSchedule` read all live here. The route out is DELEGATION, not deletion: assert-deletion-control states that constructing `DestructiveConfirmDialog(` from packages/design_system discharges three of its seven limbs, and calls that how [ADR 065] step 4 is meant to land."
+      "lines": 616,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 968 -> 616 brick lines, 519 package lines, callSiteDelta -352. THE [ADR 066] PRESUMED 'NO' WAS WRONG, AND THE MEASUREMENT IS WHY. That presumption was taken before `ChassisLocalizations` existed: the page reads 46 chassis strings, and a package that could not see them would have taken all 46 as parameters — the 58-parameter tax the presumption was about. With the chassis catalogue in the package the constructor is 26 values and callbacks, and the page (the ListView, the width cap, every tile) is 352 lines lighter here. RETAINED, each for a named guard rather than for taste: `recordAnalyticsConsent(ref, granted: on)` and `ref.watch(analyticsConsentProvider)` (assert-consent-withdrawal-surface — DPDP §6(3)); `recordPromoObjection(` and `promoObjectedProvider` (GDPR Art 21); `NotificationCapabilities.forPlatform(` and `applyReminderChoice(` (stamp-properties :1123/:1131); `ref.watch(authUserProvider)` (:1081); `onSave: () => _saveProfile(` and `.updateProfile(displayName:` (:1077/:1078); `onConfirm: () => _deleteAccount(`, `await auth.deleteAccount()`, `await auth.signInWithEmail(` and `core.accountDeletionOutcomeOf(` (:1043-:1061); `_openUrl(AppConfig.<name>)` for all three published legal pages (:459); and `deleteAccountFailureMessage`, which `chassis_properties_test.dart:2100` calls by name. Every one of them needs a WidgetRef, url_launcher or nikatru_notifications — none of which `packages/chassis_screens` may declare (assert-package-boundaries limb C). Four screen-register rows were re-pointed at the adapter's wiring in the same commit and each says so in its own `why`.",
+      "target": "packages/chassis_screens/lib/settings/settings_screen.dart",
+      "callSiteDelta": -352
     },
     {
       "path": "lib/l10n/app_en.arb",

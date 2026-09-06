@@ -519,7 +519,15 @@ const REQUIRED_COVERAGE = [
     enforce: false,
     surfaces: 12,
     widthTestFiles: 1,
-    coveredSurfaces: 9,
+    // 🔴 RAISED 9 → 10 ON 2026-09-06, IN THE CHANGE THAT MOVED THE MONEY,
+    // FIRST-RUN AND SETTINGS SCREENS ([ADR 067] phase 2,
+    // screens-money-settings). The measured set counts DELEGATED coverage,
+    // and `OnboardingScreen` joined it the moment its body landed in
+    // `packages/chassis_screens` with a width suite. Read from this guard's
+    // own per-root line, never incremented blind. `paywall_screen` and
+    // `manage_plan_screen` delegate too and were ALREADY counted (their
+    // apps/subly forks carry width suites), which is why one move added one.
+    coveredSurfaces: 10,
     label:
       'the template every stamped app inherits — 12 routed screens, 3 measured. The nine unmeasured ' +
       'ones are PRINTED, not failed [G-3, 2026-09-05]; the 3 that ARE measured cannot stop being',
@@ -550,7 +558,13 @@ const REQUIRED_COVERAGE = [
     enforce: true,
     surfaces: 7,
     widthTestFiles: 8,
-    coveredSurfaces: 7,
+    // 🔴 RAISED 7 → 12 ON 2026-09-06 ([ADR 067] phase 2,
+    // screens-money-settings): `PaywallView`, `ManagePlanView`,
+    // `OnboardingView`, `SettingsView` and `EditProfileDialog` arrived with
+    // their width suites in the same change, so the root stays at
+    // reachable == measured and this floor is what stops the five going
+    // quiet later. Read from this guard's own per-root line.
+    coveredSurfaces: 12,
     label:
       'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens every stamped ' +
       'app inherits, each measured at all three window classes',
