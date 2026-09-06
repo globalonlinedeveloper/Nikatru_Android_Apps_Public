@@ -768,8 +768,14 @@ jobs:
           # packages/design_system/test/chassis_l10n_parity_test.dart, which names
           # the keys; this is the cheap early read of the same fact.
           test "$(cat packages/design_system/chassis-l10n-untranslated.json)" = '{}'
+      # why: scoped to lib/ and not the package root. `flutter gen-l10n` REWRITES
+      # `packages/design_system/analysis_options.yaml` as a side effect, adding an
+      # `analyzer: exclude: build/**` block — measured on the runner, run
+      # 34028952850. That is the tool editing its own project config, not drift in
+      # what this step is about; the thing that must not move is the SOURCE, and
+      # a committed generated triplet would land under lib/src/l10n/.
       - name: Regenerating the chassis localisations moved no tracked byte
-        run: git diff --exit-code -- packages/design_system
+        run: git diff --exit-code -- packages/design_system/lib
       - name: The shipping app is dart format-clean
         run: dart format --output=none --set-exit-if-changed apps/subly
       - name: The Apple privacy manifests still describe the binaries that ship
