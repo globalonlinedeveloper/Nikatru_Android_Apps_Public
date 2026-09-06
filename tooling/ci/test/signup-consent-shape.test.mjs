@@ -204,6 +204,86 @@ describe('the shared widget cannot be asked to pre-tick', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// A SURFACE THAT MOVES INTO THE CHASSIS TAKES ITS CONSENT FLAG WITH IT.
+//
+// This guard pins its surfaces by path AND by field name, so [ADR 067]
+// decision 2 — which empties the screen into `package:nikatru_chassis_screens`
+// and leaves an adapter at the same path — moves `bool _acceptedTerms = false;`
+// out from under limb 1. Without the delegation read, the first spine unit
+// would have to edit a DPDP/CPRA guard mid-move.
+//
+// SC-D1 is the green control: it must PASS. Without it every refusal below is
+// equally consistent with a guard that refuses any delegating tree at all.
+// ─────────────────────────────────────────────────────────────────────────────
+const CHASSIS_PKG = 'nikatru_chassis_screens';
+const CHASSIS_FILE = 'packages/chassis_screens/lib/sign_up_body.dart';
+
+/** Empty the terms-flag DECLARATION out of Subly's sign-up screen and into a
+ *  chassis file, leaving an adapter that imports and uses it — chassis step 4,
+ *  in miniature. `body` is what the package file ends up containing. */
+const delegateSignUp = (root, { body, writePackage = true, used = true } = {}) => {
+  edit(root, SUBLY_SIGNUP, (s) => {
+    const stripped = s.replace('bool _acceptedTerms = false;', '');
+    const use = used ? '\nWidget _chassisBody() => const SignUpBody();\n' : '\n';
+    return `import 'package:${CHASSIS_PKG}/sign_up_body.dart';\n${stripped}${use}`;
+  });
+  if (!writePackage) return;
+  mkdirSync(join(root, dirname(CHASSIS_FILE)), { recursive: true });
+  writeFileSync(join(root, CHASSIS_FILE), body);
+};
+
+const CHASSIS_BODY_OK =
+  'class SignUpBody extends StatelessWidget {\n' +
+  '  const SignUpBody({super.key});\n' +
+  '  bool _acceptedTerms = false;\n' +
+  '  bool _marketingEmail = false;\n' +
+  '}\n';
+
+describe('a surface that moved into the chassis is judged where it now lives', () => {
+  test('SC-D1 · GREEN CONTROL — the flag declaration in the package satisfies limb 1', () => {
+    withTree(
+      (root) => delegateSignUp(root, { body: CHASSIS_BODY_OK }),
+      (r) => {
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.match(r.stdout, /also read 1 chassis file\(s\) it delegates to/);
+      },
+    );
+  });
+
+  test('SC-D2 · the flag in NEITHER file still fails — the union only ever adds text', () => {
+    withTree(
+      (root) => delegateSignUp(root, { body: 'class SignUpBody {\n  const SignUpBody();\n}\n' }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /no `bool _acceptedTerms = …;` declaration found/);
+      },
+    );
+  });
+
+  test('SC-D3 · a delegation target that is not on disk is COVERAGE LOST, not silence', () => {
+    withTree(
+      (root) => delegateSignUp(root, { body: CHASSIS_BODY_OK, writePackage: false }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /COVERAGE LOST/);
+        assert.match(r.stderr, /not on disk|asserted NOWHERE/);
+      },
+    );
+  });
+
+  test('SC-D4 · an UNUSED chassis import is COVERAGE LOST — an import is a claim, not evidence', () => {
+    withTree(
+      (root) => delegateSignUp(root, { body: CHASSIS_BODY_OK, used: false }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /COVERAGE LOST/);
+        assert.match(r.stderr, /never references anything it declares|ALSO DECLARES/);
+      },
+    );
+  });
+});
+
 describe('the guard knows when it is not looking', () => {
   test('COVERAGE LOST when a listed surface is missing', () => {
     withTree(
