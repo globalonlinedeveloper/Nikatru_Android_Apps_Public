@@ -146,7 +146,7 @@
         "rule": "no-answer-declares-shared",
         "why": "🔴 THE ONE PLACE THESE TWO FORMS CAN CONTRADICT EACH OTHER, AND THE CONTRADICTION IS INVISIBLE BECAUSE THEY ARE FILLED IN ON DIFFERENT SCREENS MONTHS APART. If any Data safety answer is ever set to shared:true and this stays false, one of the two declarations to Google is false — and Play checks both. So this answer is not written independently; it is DERIVED from the Data safety answers and fails the moment they disagree."
       },
-      "basis": "Every data type in data-safety.json declares shared:false in both postures. The infrastructure that receives data — Cloudflare, Supabase, the self-hosted GlitchTip on Oracle Cloud — is service-provider processing on our behalf, which Play's own definition of 'shared' excludes."
+      "basis": "Every data type in data-safety.json declares shared:false in both postures. The infrastructure that receives data — Cloudflare, Supabase, the self-hosted GlitchTip on Hostinger (Box B; it ran on an Oracle Cloud VM until 2026-09-02 and this sentence said so until the 2026-09-05 policy mint) — is service-provider processing on our behalf, which Play's own definition of 'shared' excludes."
     },
     {
       "id": "target-audience-children",

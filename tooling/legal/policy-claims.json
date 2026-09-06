@@ -246,10 +246,10 @@
     },
     {
       "page": "privacy.html",
-      "claim": "Oracle Cloud",
+      "claim": "Hostinger",
       "type": "provider",
-      "providers": ["oracle-cloud"],
-      "note": "Where crash reports actually land. Closes `crash-reports-infrastructure`: the sentence used to cover usage statistics and crash reports with one host and was wrong about the second. Split at the 2026-08-10 signature so each system names its own. tooling/legal/provider-register.json already declared `crash_report` against the oracle-cloud sink, so the page was the only half of the pair that disagreed with the register."
+      "providers": ["hostinger"],
+      "note": "Where crash reports actually land. Closes `crash-reports-infrastructure`: the sentence used to cover usage statistics and crash reports with one host and was wrong about the second. Split at the 2026-08-10 signature so each system names its own. tooling/legal/provider-register.json already declared `crash_report` against the crash sink, so the page was the only half of the pair that disagreed with the register. ⏱ CORRECTED IN THE 2026-09-05 POLICY MINT: this row said `Oracle Cloud` / `oracle-cloud` and the page said the same, and both had been wrong since 2026-09-02 — the GlitchTip instance moved to Box B (Hostinger) on that date, `tooling/ops/register.json` `_substrateHosts.glitchtip-heartbeat` already resolved to `hostinger`, and the published page went on naming the machine the service had left. A provider row is an identity, not a label: the sink row was renamed with the machine rather than relabelled, so the page, this row and the register name one provider again."
     },
     {
       "page": "privacy.html",

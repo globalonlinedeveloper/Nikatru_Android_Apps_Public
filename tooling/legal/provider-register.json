@@ -24,7 +24,11 @@
     "    pages now agree that nothing is sold directly from the website yet; the two that are not version-",
     "    gated additionally name the seller that will take the payment.",
     "  · privacy.html says usage statistics AND CRASH REPORTS run on infrastructure provided by",
-    "    Cloudflare. Crash reports run on Oracle Cloud (Private/runbooks/glitchtip.md).",
+    "    Cloudflare. Crash reports run on Oracle Cloud (Private/runbooks/glitchtip.md). ✅ FIXED at the",
+    "    2026-08-10 signature, which split the sentence so each system names its own host. ⏱ AND THE HOST",
+    "    ITSELF THEN MOVED: GlitchTip left Box A for Box B on 2026-09-02, so from that date the split",
+    "    sentence named the right SHAPE and the wrong MACHINE. Corrected in the 2026-09-05 mint — the sink",
+    "    row is now `hostinger` and the page names Hostinger. See that row's notes.",
     "",
     "🔴 EVERY ONE OF THOSE IS FIXED BY EDITING A PUBLISHED LEGAL PAGE, WHICH IS OWNER WORK (OWNER_QUEUE",
     "O-3). They are therefore carried as `disclosureGap` rows that PRINT on every run — never silently",
@@ -171,8 +175,9 @@
       "  · tooling/legal/data-inventory.json declares 19 stores and EVERY ONE is Cloudflare D1 or KV. The",
       "    strings `glitchtip`, `oracle`, `sentry` and `ip_address` appear nowhere in it. The only",
       "    personal-data store outside Cloudflare was invisible BY CONSTRUCTION.",
-      "This register is the one artifact that already knew the crash rail is `oracle-cloud · infrastructure ·",
-      "live`. So the declaration is attached to the thing that knows the sink exists.",
+      "This register is the one artifact that already knew the crash rail is a live infrastructure sink of",
+      "its own — the row was `oracle-cloud` when this paragraph was written and is `hostinger` since the",
+      "2026-09-02 move. So the declaration is attached to the thing that knows the sink exists.",
       "",
       "`tells` are how a category is recognised in a PUBLISHED DENIAL — the words a reader would see, not the",
       "column names. They are matched against the text AFTER the denial verb, so 'We receive confirmation of",
@@ -351,7 +356,7 @@
         "account_identifier",
         "user_content"
       ],
-      "receivesBasis": "Derived from tooling/legal/data-inventory.json, which enumerates every D1 table, KV namespace and Pages-Function binding in this factory and marks each `personalData` true or false — all 19 of them are Cloudflare. `crash_report` is deliberately NOT in this list: crash reports land on oracle-cloud, which is the `crash-reports-infrastructure` gap privacy.html still gets wrong. `payment_instrument` is deliberately not here either, and no migration may declare a column for one.",
+      "receivesBasis": "Derived from tooling/legal/data-inventory.json, which enumerates every D1 table, KV namespace and Pages-Function binding in this factory and marks each `personalData` true or false — all 19 of them are Cloudflare. `crash_report` is deliberately NOT in this list: crash reports land on the `hostinger` sink (the row was `oracle-cloud` until the 2026-09-02 move), which is what the `crash-reports-infrastructure` gap was about. `payment_instrument` is deliberately not here either, and no migration may declare a column for one.",
       "transits": {
         "ip_address": "Cloudflare IS the network edge — it terminates TLS, so the client address is inherent in the connection and cannot not be seen. It is not retained for us: the events path derives country/region/city from `request.cf` and discards the address (privacy.html discloses exactly this), and the signup path keeps a keyed one-way fingerprint rather than the address. ⚠️ THIS IS THE ESCAPE ROUTE FROM THE DENIAL LIMB AND IT IS NAMED AS ONE — moving a category from `receives` to `transits` silences the intersection check. It is a visible edit in a diff and it PRINTS on every run, but it is a declaration about a sink no repo-resident guard can observe."
       },
@@ -579,13 +584,13 @@
       ]
     },
     {
-      "id": "oracle-cloud",
-      "name": "Oracle Cloud",
+      "id": "hostinger",
+      "name": "Hostinger",
       "role": "infrastructure",
       "status": "live",
       "reachableAt": null,
       "tells": [
-        "oracle"
+        "hostinger"
       ],
       "namedIn": [
         "privacy.html"
@@ -599,11 +604,70 @@
         "ip_address": "An ingest request necessarily arrives from the device's address; that is TCP, not a choice. Nothing writes it — see `receivesBasis`. ⚠️ AND THIS IS EXACTLY THE DECLARATION A REPO-RESIDENT GUARD CANNOT CHECK. If somebody re-enables IP storage on the live GlitchTip without editing this line, every guard in this repository stays green. Only a probe against the live GlitchTip API can close that, and no such probe exists today: the compose file lives at /opt/glitchtip on the box and is in no tree CI can read."
       },
       "notes": [
-        "Crash reports go to a GlitchTip instance we run ourselves on an Oracle Cloud always-free VM.",
-        "privacy.html says crash reports run 'on infrastructure provided by Cloudflare'. That sentence is",
-        "wrong about this provider — see the `crash-reports-infrastructure` gap. The rest of the same",
-        "paragraph (that crash reports are NOT sent to a third-party analytics product, and are received by",
-        "software we run ourselves) is true and stays true under either host."
+        "Crash reports go to a GlitchTip instance we run ourselves on a Hostinger VPS (Box B).",
+        "",
+        "🔴 THIS ROW WAS `oracle-cloud · Oracle Cloud` UNTIL THE 2026-09-05 POLICY MINT, AND THE MOVE IT",
+        "MISSED HAPPENED ON 2026-09-02. GlitchTip left the Oracle always-free VM (Box A) for Box B that",
+        "day. Everything operational followed it — tooling/ops/register.json `_substrateHosts",
+        ".glitchtip-heartbeat` resolves to `hostinger`, the recovery row's substrate is",
+        "`glitchtip-box-docker`, the backup chain monitor was renamed — and the two things a READER sees",
+        "did not: this register and the published policy page both went on naming a machine the service",
+        "had left. Nothing in this repository could go red over it, because every guard here compares the",
+        "page against the register and the register agreed with the page. That is the shape of this whole",
+        "file's blind spot, already written down in the `resend` row: the guards check the list against",
+        "the pages, never the list against reality.",
+        "",
+        "The row was RENAMED rather than relabelled. A provider row is an identity — `receives`,",
+        "`transits` and every disclosure duty hang off it — and the identity really did change: a",
+        "different company, a different contract, a different jurisdiction for the same crash payloads.",
+        "Keeping the id `oracle-cloud` on a Hostinger machine would have preserved a key at the cost of",
+        "the thing the key names. Oracle Cloud is still a provider — Box A runs the self-hosted identity",
+        "stack — and it keeps its own row below, which is what that id should always have meant.",
+        "",
+        "The rest of the paragraph on privacy.html (that crash reports are NOT sent to a third-party",
+        "analytics product, and are received by software we run ourselves) is true and stays true under",
+        "either host — which is exactly why the wrong host survived a version signature."
+      ]
+    },
+    {
+      "id": "oracle-cloud",
+      "name": "Oracle Cloud",
+      "role": "infrastructure",
+      "status": "wired-not-live",
+      "reachableAt": null,
+      "tells": [
+        "oracle"
+      ],
+      "namedIn": [],
+      "privateRecord": "Private/runbooks/boxes/oracle.md — Box A, the always-free VM and the self-hosted Supabase stack on it.",
+      "notes": [
+        "🔴 THIS ID EXISTED BEFORE 2026-09-05 AND MEANT SOMETHING ELSE. It carried the CRASH SINK — the",
+        "GlitchTip instance — because that was the only thing on the Oracle box anybody had written a row",
+        "for. GlitchTip moved to Box B on 2026-09-02 and the sink row moved with it, to `hostinger`. What",
+        "is left is what the id says on its face and what apps/subly/privacy.yaml was already pointing at:",
+        "the vendor whose machine runs the identity stack. So this is not a re-created row, it is the row",
+        "the id should have been all along, and it is written down rather than left implicit because the",
+        "conflation is what let a wrong host survive a policy signature.",
+        "",
+        "STATUS TRACKS THE `supabase` ROW IT HOSTS, deliberately. The self-hosted Supabase is",
+        "`wired-not-live`: the code reaches it and no shipped app creates accounts, so `auth.users` is 0",
+        "and this box retains no personal data today. `wired-not-live` therefore keeps it OUT of",
+        "assert-sink-disclosure's live-sink quantification — correct today, and wrong the moment an app",
+        "offers accounts, at which point this row must go `live` and declare `receives` and a",
+        "`receivesBasis` for what the auth database holds.",
+        "",
+        "⚠️ AND NOTHING HERE FIRES ON THAT TRANSITION, which is stated rather than glossed. The",
+        "`identity-provider-unnamed` gap is RETIRED — it was about naming Supabase on the page, and",
+        "privacy.html names it — so it is not a waiting trigger, and no row in",
+        "tooling/legal/duty-matrix.json is keyed on the first account either. The `supabase` row carries",
+        "exactly the same exposure for exactly the same reason, and this row is deliberately given the",
+        "same status so that the two move together when somebody does move them. A person comparing the",
+        "register to reality is still the only thing that closes it, as the `resend` row already says.",
+        "",
+        "NAMED IN NO PAGE. privacy.html named `Oracle Cloud` only as the crash-report host, and that",
+        "sentence now names Hostinger; nothing published says where the identity stack runs. The identity",
+        "PROVIDER is disclosed (the `supabase` row, §4), which is the duty; the machine it runs on is not",
+        "a separate disclosure and is not claimed to be one here."
       ]
     },
     {
@@ -661,7 +725,8 @@
       "page": "privacy.html",
       "was": "One sentence said usage statistics AND crash reports were 'received and stored by software we run ourselves, on infrastructure provided by Cloudflare as our hosting provider'. Usage statistics do run on Cloudflare. Crash reports run on an Oracle Cloud VM, so the sentence covered two systems on two providers and was wrong about the second.",
       "closedBy": "§4 now splits it: usage statistics name Cloudflare, crash reports name Oracle Cloud. Paired by the `Oracle Cloud` provider row in tooling/legal/policy-claims.json, and oracle-cloud.namedIn now lists privacy.html so the disclosure is re-checked against the page text on every run.",
-      "closedIn": "2026-08-10"
+      "closedIn": "2026-08-10",
+      "laterCorrection": "⏱ 2026-09-05 mint, appended beside the 2026-08-10 wording rather than replacing it ([ADR 053] rule 2): the sentence `closedBy` describes was correct on the day it was signed and stopped being correct on 2026-09-02, when the GlitchTip instance moved from Box A (Oracle Cloud) to Box B (Hostinger). The provider row was renamed `oracle-cloud` -> `hostinger` and the page now names Hostinger, so every `Oracle Cloud` above is the history and not the current state. The row is left here rather than reopened in `disclosureGaps`: the gap this row records — one sentence covering two systems on two hosts — really was closed and did not recur; what recurred is a different defect, a correct sentence naming a machine the service had left, and it has no gap row because no guard here compares the register to reality."
     },
     {
       "id": "merchant-of-record-unnamed",
