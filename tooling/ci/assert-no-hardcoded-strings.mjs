@@ -95,9 +95,67 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 import { stripSourceComments } from './text-reductions.mjs';
+import { delegationsUnder } from './chassis-delegation.mjs';
 
 const ROOT = process.cwd();
 const problems = [];
+
+/**
+ * WHAT gen-l10n IS CONFIGURED TO DO IN EACH ENFORCED TREE — READ FROM THAT
+ * TREE'S OWN `l10n.yaml`, NEVER TYPED HERE.
+ *
+ * 🔴 THE HAND-TYPED VERSION WAS A LATENT FALSE NEGATIVE AND [ADR 067] DECISION 2
+ * MADE IT A LIVE ONE. Two facts about the generated localisations were spelled
+ * out in this file rather than derived: the template arb lived at
+ * `l10n/app_en.arb` under every root, and the generated accessors were "any file
+ * whose basename contains `app_localizations`". Both were true of the two app
+ * trees and of nothing else. The chassis-l10n unit gave `packages/design_system`
+ * an arb at `lib/src/l10n/chassis_en.arb` and a generated triplet named
+ * `chassis_localizations*.dart`, and what the typed version then printed was
+ * MEASURED on the real tree: `errorTitle … read at
+ * packages/design_system/lib/src/l10n/chassis_localizations.dart:292`. A
+ * generated getter is not a reader — that is the whole reason the
+ * `app_localizations` skip exists — so an owner line naming a key that NO
+ * surface renders was being deleted by the one file that renders nothing.
+ *
+ * The fix is not a second name in a list. `l10n.yaml` already declares both
+ * facts, gen-l10n obeys it, and a rename there moves this guard in the same edit:
+ *   · `arb-dir` + `template-arb-file` → where the declared keys live
+ *   · `output-localization-file`      → the NAME-SHAPE of the generated accessors
+ * A root with no `l10n.yaml` keeps the historical default, so a tree that never
+ * had one is not silently re-pointed; a root that HAS one and is missing a field
+ * is COVERAGE LOST below, because a half-read config is a scan that narrowed
+ * without saying so.
+ */
+const l10nConfigOf = (root) => {
+  // Every enforced root is `<package>/lib`; `l10n.yaml` sits beside `lib/`.
+  const pkg = root.replace(/\/lib$/, '');
+  const abs = join(ROOT, pkg, 'l10n.yaml');
+  if (!existsSync(abs)) return { pkg, present: false };
+  const text = readFileSync(abs, 'utf8');
+  // Every l10n.yaml in this repository is flat `key: value`, and the three
+  // fields read here are scalars. A block or a list does not match and is
+  // reported as a MISSING field rather than guessed at.
+  const field = (name) => {
+    const m = text.match(new RegExp(`^${name}:[ \\t]*([^\\s#]+)[ \\t]*$`, 'm'));
+    return m ? m[1] : null;
+  };
+  return {
+    pkg,
+    present: true,
+    rel: `${pkg}/l10n.yaml`,
+    arbDir: field('arb-dir'),
+    templateArb: field('template-arb-file'),
+    outputFile: field('output-localization-file'),
+  };
+};
+
+/** The historical default, kept for a root that declares no `l10n.yaml`. */
+const DEFAULT_TEMPLATE_ARB = 'l10n/app_en.arb';
+/** …and the name-shape gen-l10n has always used in this repository. It is the
+ *  FALLBACK for such a root, not the rule — the rule is whatever that tree's
+ *  `output-localization-file` says. */
+const DEFAULT_GENERATED_STEM = 'app_localizations';
 /** 👤 OWNER lines. Printed on EVERY run and never counted as a problem — see the
  *  reverse-direction section below for why an unrendered translated key is an
  *  owner judgement rather than a build break. */
@@ -135,12 +193,22 @@ const ENFORCED_ROOTS = [
     // is the measured consequence: an untranslatable force-update wall in every
     // stamped app, in every locale, for as long as it existed.
     //
-    // ⚠️ THE PACKAGE HAS NO l10n AND MUST NOT GROW ONE. Its own pubspec note and
-    // `system_screens.dart`'s header both record the rule: design_system takes
-    // its copy as CONSTRUCTOR PARAMETERS precisely so it never gains an l10n
-    // dependency and never has to know what an app calls things. So the remedy
-    // here is NOT "add a key to this package" — it is to make the parameter
-    // `required` and let the caller supply it. That is how the wall was fixed.
+    // 🔴 THE PACKAGE NOW HAS AN l10n, AND THAT REVERSES WHAT THIS ENTRY USED TO
+    // SAY. Until [ADR 067] decision 2 this root carried `noArbBecause` and the
+    // sentence "design_system takes its copy as CONSTRUCTOR PARAMETERS precisely
+    // so it never gains an l10n dependency". That was a COVERAGE decision, not a
+    // design one, and [ADR 066] measured what it cost: the `settings_screen`
+    // adapter needed 58 string parameters, and the brick's arb kept GROWING as
+    // widgets moved. The chassis-l10n unit put the 149 shared keys in
+    // `lib/src/l10n/chassis_en.arb` with gen-l10n over them, so the parameter tax
+    // is gone and one translation fix reaches every app the factory stamps.
+    //
+    // The remedy below moved with it: a user-facing literal in this package is
+    // now fixed by adding a key HERE, not by pushing a parameter up to the
+    // caller. What did NOT change is that this package must not know what an app
+    // SELLS — `assert-no-clone-tells.mjs` is that wall, and it is why the eleven
+    // keys whose English value carries a `cloneTells.domainNoun` stayed in the
+    // brick's own arb while the other 149 moved.
     //
     // ⛔ SCOPED TO design_system, NOT `packages/*`, and the narrowing is
     // deliberate. It is the package this ADR moves UI into and the only one that
@@ -149,13 +217,72 @@ const ENFORCED_ROOTS = [
     // that would need is an exemption list. Widen it when a second package
     // renders, and record the reason here when you do.
     root: 'packages/design_system/lib',
-    noArbBecause:
-      'design_system takes its copy as constructor parameters so it never gains an l10n dependency — its pubspec note and system_screens.dart both record that rule. There are no keys here for the reverse direction to find unrendered, and the day there are, this field is the thing to delete.',
     why: 'the shared chassis every app renders through — a literal here reaches every app at once, and until 2026-09-04 no guard looked at it',
     remedy:
-      'Do NOT add an arb to this package. Make the parameter `required` and let the caller pass the string from its own l10n — the callers live in apps/ and in the brick, both already enforced above.',
+      "Add the key to packages/design_system/lib/src/l10n/chassis_en.arb (and chassis_ta.arb — packages/design_system/test/chassis_l10n_parity_test.dart asserts parity in BOTH directions), run `flutter gen-l10n` in that package, and read it through ChassisLocalizations. If the sentence names what an app SELLS it does not belong in a shared package at all — assert-no-clone-tells says so — and the key goes in the app's own arb instead.",
   },
 ];
+
+/**
+ * Every enforced root, resolved against its own `l10n.yaml`. Computed ONCE so
+ * both directions read the same answer: the forward limb needs the generated
+ * NAME to skip, the reverse limb needs the arb PATH to read, and while those
+ * were two hand-typed constants they were two lists that merely happened to
+ * agree.
+ */
+const L10N = new Map(
+  ENFORCED_ROOTS.map((r) => {
+    const cfg = l10nConfigOf(r.root);
+    if (!cfg.present) {
+      return [
+        r.root,
+        {
+          arbRel: `${r.root}/${DEFAULT_TEMPLATE_ARB}`,
+          arbLabel: DEFAULT_TEMPLATE_ARB,
+          stem: DEFAULT_GENERATED_STEM,
+          derived: false,
+        },
+      ];
+    }
+    for (const [name, value] of [
+      ['arb-dir', cfg.arbDir],
+      ['template-arb-file', cfg.templateArb],
+      ['output-localization-file', cfg.outputFile],
+    ]) {
+      if (!value) {
+        problems.push(
+          `COVERAGE LOST — ${cfg.rel} declares no \`${name}\`, so this guard cannot derive where ${r.root}'s ` +
+            'declared keys live or what its generated accessors are called. gen-l10n reads that file; a guard ' +
+            'that guesses instead of reading it is asserting about a tree it has not located.',
+        );
+      }
+    }
+    const arbLabel = cfg.arbDir && cfg.templateArb ? `${cfg.arbDir}/${cfg.templateArb}` : DEFAULT_TEMPLATE_ARB;
+    return [
+      r.root,
+      {
+        arbRel: `${cfg.pkg}/${arbLabel}`,
+        arbLabel,
+        stem: (cfg.outputFile ?? `${DEFAULT_GENERATED_STEM}.dart`).replace(/\.dart$/, ''),
+        derived: true,
+      },
+    ];
+  }),
+);
+
+/** The generated-accessor name-shapes, one per enforced tree, de-duplicated. A
+ *  file whose BASENAME starts with one of these is gen-l10n output: it declares
+ *  a getter for every key, so counting it as a render surface or as a reader
+ *  makes every key look used. */
+const GENERATED_STEMS = [...new Set([...L10N.values()].map((v) => v.stem))];
+if (GENERATED_STEMS.length === 0) {
+  problems.push(
+    'COVERAGE LOST — no generated-localisations name-shape could be derived from any enforced tree, so gen-l10n ' +
+      'output would be scanned as though a human had written it: every generated getter would read as an accessor ' +
+      'and the reverse direction would report a fully-rendered corpus over files nobody sees.',
+  );
+}
+const IS_GENERATED_L10N = (basename) => GENERATED_STEMS.some((x) => basename.startsWith(x));
 
 /**
  * ⚠️ THE ONLY WAIVER, AND IT IS KEYED TO AN EXACT LITERAL AT AN EXACT PATH.
@@ -349,7 +476,7 @@ function readDartTree(dir) {
       // RED against it when dropped.
       if (!entry.endsWith('.dart')) continue;
       // Generated localisations are the OUTPUT of l10n, not a violation of it.
-      if (/app_localizations/.test(entry)) continue;
+      if (IS_GENERATED_L10N(entry)) continue;
       const rel = relative(ROOT, full).replace(/\\/g, '/');
       // Strip comments first — a literal quoted in prose is not shown to anyone,
       // and this repo has already shipped one guard that matched its own
@@ -384,6 +511,25 @@ function readDartTree(dir) {
  *  addresses, keys and colours rather than prose. */
 const scan = (dir) => scanRaw(dir).filter((h) => !NOT_USER_FACING.some((x) => x.re.test(h.literal)));
 
+/** The same question asked of NAMED FILES rather than of a directory — the
+ *  delegation limb below needs it, because a chassis file lives outside every
+ *  enforced tree and is reached one file at a time. Same reduction, same
+ *  matchers, same exemptions: if these two ever diverged, a literal would be a
+ *  violation in the brick and legal in the package it moved to, which is the
+ *  exact hole [ADR 067] decision 2 opens. */
+const scanFiles = (rels) => {
+  const hits = [];
+  for (const rel of rels) {
+    if (!existsSync(join(ROOT, rel))) continue; // reported as `lost` by the resolver
+    const body = stripSourceComments(readFileSync(join(ROOT, rel), 'utf8'), '.dart');
+    for (const { re, what } of SHOWN_TO_A_PERSON) {
+      re.lastIndex = 0;
+      for (const m of body.matchAll(re)) hits.push({ file: rel, literal: m[2], what });
+    }
+  }
+  return hits.filter((h) => !NOT_USER_FACING.some((x) => x.re.test(h.literal)));
+};
+
 // ── The enforced trees: must be clean. ──────────────────────────────────────
 const waived = new Set();
 for (const { root, why, remedy } of ENFORCED_ROOTS) {
@@ -402,6 +548,46 @@ for (const { root, why, remedy } of ENFORCED_ROOTS) {
     problems.push(`${h.file} shows a hardcoded string in ${h.what}: "${h.literal}". ${remedy}`);
   }
   if (counted === 0) ok(`${root} shows no hardcoded user-facing strings`);
+
+  // ── THE DELEGATION LIMB ([ADR 067] decision 2) ────────────────────────────
+  // A brick screen that has been emptied into `package:nikatru_chassis_screens`
+  // is a THIN ADAPTER: its literals went with its body, and a scan that stops at
+  // the enforced tree's own `.dart` files would call the adapter clean while the
+  // English sentence it used to hold renders out of a package this loop never
+  // opens. That is the same blindness the `packages/design_system` root was
+  // added on 2026-09-04 to close, one move later — and it arrives BEFORE the
+  // first screen moves, deliberately, because a guard adopted after the tree is
+  // dirty is a guard that gets an allowlist.
+  //
+  // `delegationsUnder` is the ONE reading of "this file delegates, and here is
+  // what now carries it" (`chassis-delegation.mjs`). Its three answers stay
+  // three: no delegation is silence, a resolvable-and-USED delegation adds
+  // files, and a delegation this scan cannot follow is COVERAGE LOST reported
+  // by the caller — never a quiet nothing.
+  const delegated = delegationsUnder(ROOT, root);
+  for (const lost of delegated.lost) {
+    problems.push(
+      `COVERAGE LOST — ${lost} This limb reads the chassis file a screen delegates to, so a delegation it ` +
+        'cannot follow is a set of user-facing literals nothing looked at: the adapter is empty and the ' +
+        'package it points at was not read.',
+    );
+  }
+  if (delegated.files.length > 0) {
+    let delegatedHits = 0;
+    for (const h of scanFiles(delegated.files)) {
+      delegatedHits++;
+      problems.push(
+        `${h.file} shows a hardcoded string in ${h.what}: "${h.literal}" — reached because a screen under ` +
+          `${root} delegates to it. ${remedy}`,
+      );
+    }
+    if (delegatedHits === 0) {
+      ok(
+        `${root} delegates to ${delegated.files.length} chassis file(s), and they show no hardcoded ` +
+          `user-facing strings either: ${delegated.files.join(', ')}`,
+      );
+    }
+  }
 }
 
 // A waiver that matches nothing is an exemption with no visible input — the same
@@ -680,7 +866,10 @@ if (!existsSync(join(ROOT, FIXTURE_QUIET))) {
 //    stamped app renders is outside this union until that app joins
 //    ENFORCED_ROOTS — the same perishable-window argument the 2026-08-11 note
 //    above makes for why apps/subly was adopted when it was.
-const TEMPLATE_ARB = 'l10n/app_en.arb';
+// Where each tree's template arb sits is DERIVED from that tree's own
+// `l10n.yaml` — see `l10nConfigOf` at the top of this file.
+// `DEFAULT_TEMPLATE_ARB` there is the fallback for a root that declares no
+// config, and it is the value this constant used to carry.
 /**
  * A `.<key>` accessor in a screen. Named rather than inlined so a mutation can
  * break exactly this and see whether the limb notices.
@@ -787,7 +976,8 @@ const ALREADY_PRINTED_ELSEWHERE = [
   const englishValue = new Map(); // key -> the template value, for the literal-echo check
   let arbsRead = 0;
   for (const { root, noArbBecause } of ENFORCED_ROOTS) {
-    const abs = join(ROOT, root, ...TEMPLATE_ARB.split('/'));
+    const { arbRel, arbLabel } = L10N.get(root);
+    const abs = join(ROOT, ...arbRel.split('/'));
     // 🔴 A ROOT MAY DECLARE THAT IT HAS NO ARB, AND MUST SAY WHY. The reverse
     // direction asks "which declared keys does nothing render?" — a question
     // with no meaning for a tree that declares none. `packages/design_system` is
@@ -803,7 +993,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
     if (noArbBecause !== undefined) {
       if (existsSync(abs)) {
         problems.push(
-          `${root} declares \`noArbBecause\` and ${TEMPLATE_ARB} EXISTS. The declaration is stale — either the tree grew an arb and the reverse direction should now read it, or the file is a leftover. A root cannot be both.`,
+          `${root} declares \`noArbBecause\` and ${arbLabel} EXISTS. The declaration is stale — either the tree grew an arb and the reverse direction should now read it, or the file is a leftover. A root cannot be both.`,
         );
       } else {
         notes.push(
@@ -814,7 +1004,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
     }
     if (!existsSync(abs)) {
       problems.push(
-        `COVERAGE LOST — ${root}/${TEMPLATE_ARB} does not exist, so the reverse direction read no keys for this tree. "No unrendered keys" and "the file the keys live in has moved" are the same silence from a scanner and completely different facts.`,
+        `COVERAGE LOST — ${arbRel} does not exist, so the reverse direction read no keys for this tree. "No unrendered keys" and "the file the keys live in has moved" are the same silence from a scanner and completely different facts.`,
       );
       continue;
     }
@@ -823,14 +1013,14 @@ const ALREADY_PRINTED_ELSEWHERE = [
       parsed = JSON.parse(readFileSync(abs, 'utf8'));
     } catch (e) {
       problems.push(
-        `COVERAGE LOST — ${root}/${TEMPLATE_ARB} did not parse as JSON (${e.message}), so every key it declares was invisible to the reverse direction rather than checked.`,
+        `COVERAGE LOST — ${arbRel} did not parse as JSON (${e.message}), so every key it declares was invisible to the reverse direction rather than checked.`,
       );
       continue;
     }
     const keys = Object.keys(parsed).filter((k) => !k.startsWith('@'));
     if (keys.length === 0) {
       problems.push(
-        `COVERAGE LOST — ${root}/${TEMPLATE_ARB} declares no message keys, so the reverse direction ranged over nothing there and its clean result is a statement about an empty file.`,
+        `COVERAGE LOST — ${arbRel} declares no message keys, so the reverse direction ranged over nothing there and its clean result is a statement about an empty file.`,
       );
       continue;
     }
@@ -845,7 +1035,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
     const odd = keys.filter((k) => !ARB_KEY_SHAPE.test(k));
     if (odd.length > 0) {
       problems.push(
-        `COVERAGE LOST — ${root}/${TEMPLATE_ARB} declares ${odd.length} key(s) that are not Dart identifiers (${odd.slice(0, 3).join(', ')}), and this limb builds a regex per key. They were SKIPPED rather than checked, so the count below does not cover them.`,
+        `COVERAGE LOST — ${arbRel} declares ${odd.length} key(s) that are not Dart identifiers (${odd.slice(0, 3).join(', ')}), and this limb builds a regex per key. They were SKIPPED rather than checked, so the count below does not cover them.`,
       );
     }
     arbsRead++;
@@ -921,7 +1111,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
           continue;
         }
         if (!CONSUMER_EXTS.some((x) => entry.name.endsWith(x))) continue;
-        if (/app_localizations/.test(entry.name)) continue;
+        if (IS_GENERATED_L10N(entry.name)) continue;
         const rel = relative(ROOT, join(d, entry.name)).replace(/\\/g, '/');
         if (IS_TEST_PATH.test(rel)) continue;
         // 🔴 TWO DOMAINS, NOT ONE, AND THE SPLIT WAS FORCED BY A LIE THIS GUARD
@@ -1053,7 +1243,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
       const read = printable.filter((k) => consumers.get(k).length > 0);
       const dark = printable.filter((k) => consumers.get(k).length === 0);
       const domain =
-        `${declaredIn.size} message key(s) from ${arbsRead} tracked ${TEMPLATE_ARB} file(s) · ` +
+        `${declaredIn.size} message key(s) from ${arbsRead} tracked template arb file(s) (${[...new Set([...L10N.values()].map((v) => v.arbLabel))].join(', ')}) · ` +
         `${renderFiles.length} non-test .dart file(s) in ${ENFORCED_ROOTS.length} enforced tree(s) searched for a \`.<key>\` accessor · ` +
         `${consumerFiles.length} non-test ${CONSUMER_EXTS.join('/')} file(s) elsewhere searched for any other reader. ` +
         'Generated gen-l10n accessors are excluded from both — they declare a getter for every key, so counting them would make all of them "read".';

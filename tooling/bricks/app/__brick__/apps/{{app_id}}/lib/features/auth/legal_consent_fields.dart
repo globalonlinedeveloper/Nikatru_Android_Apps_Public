@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart'
-    show FocusableTap, TapRole;
+    show ChassisL10nX, ChassisLocalizations, FocusableTap, TapRole;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_config.dart';
-import '../../l10n/app_localizations.dart';
 
 /// The two tick boxes every sign-up surface must carry, and the one place their
 /// rules live.
@@ -76,7 +75,7 @@ class LegalConsentFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,

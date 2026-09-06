@@ -81,6 +81,29 @@ dependencies:
   # Navigation (real URLs on web; deep links on all 6 platforms).
   go_router: ^14.2.0
 
+  # ── LOCALISATION — THE CHASSIS STRINGS ([ADR 067] decision 2) ───────────────
+  # `l10n.yaml` in this directory drives gen-l10n over `lib/src/l10n/chassis_*.arb`
+  # and emits `ChassisLocalizations`. gen-l10n's output imports
+  # `package:intl/intl.dart`, so the hosting package MUST declare `intl` — and
+  # this is the ONE package that can. Limb C of `assert-package-boundaries.mjs`
+  # derives the adapter set from the tree at `:190` and `continue`s on exactly
+  # two names, `core` and `design_system`; any OTHER package declaring `intl`
+  # would record it as a WRAPPED vendor and `:288-298` would then fail the 16
+  # tracked `apps/subly` files that import `package:intl` directly. Limb B
+  # (`:154-158`) forbids this package only `nikatru_*` dependencies, and neither
+  # of these is one.
+  #
+  # 🔴 THE CONSTRAINT IS WHAT apps/subly ALREADY RESOLVES, COPIED, NOT CHOSEN.
+  # `apps/subly/pubspec.yaml:106` carries `intl: ">=0.19.0 <0.21.0"` with its own
+  # note on why: every stamped app pulls `flutter_localizations`, and that SDK
+  # package HARD-PINS `intl`. A tighter constraint here would fail the workspace
+  # resolution against the SDK pin; a looser one would let the two drift. The
+  # workspace `pubspec.lock` must not move for this edit — `git diff --stat
+  # origin/main -- pubspec.lock` is empty on this branch (trap git-09).
+  flutter_localizations:
+    sdk: flutter
+  intl: ">=0.19.0 <0.21.0"
+
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.
   nikatru_lints:
@@ -88,3 +111,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+# ── gen-l10n ([ADR 067] decision 2, unit `chassis-l10n`) ─────────────────────
+# `flutter gen-l10n` REFUSES to write anything without this flag — it prints
+# "Attempted to generate localizations code without having the flutter: generate
+# flag turned on" and exits 0, which is a silent no-op wearing a success code.
+# `l10n.yaml` beside this file carries the rest of the configuration, including
+# why the OUTPUT of gen-l10n is committed here while it is gitignored for apps.
+flutter:
+  generate: true

@@ -347,7 +347,11 @@ class ForceUpdateGate extends StatelessWidget {
   const ForceUpdateGate({required this.title, required this.child});
   final String title;
   final Widget child;
-  Widget build(BuildContext c) => Column(children: [Text(title), child]);
+  Widget build(BuildContext c) => Column(children: [
+    Text(title),
+    Text(ChassisLocalizations.of(c).shelfNotice),
+    child,
+  ]);
 }
 `;
 const FIXTURE = 'tooling/ci/test/fixtures/dirty-strings';
@@ -472,6 +476,17 @@ const SHELF_ALLOWLISTED = "const probe = Text('debug: $detail');\n";
 // untested by construction. The overlap is exercised deliberately instead, in
 // `the reader domain is the union of the enforced trees` below.
 const arb = (o) => (typeof o === 'string' ? o : `${JSON.stringify(o, null, 2)}\n`);
+// ── 2026-09-06 · THE SHELF HAS AN ARB NOW, AND THAT IS A REVERSAL ───────────
+// Until [ADR 067] decision 2 this root declared `noArbBecause` and every fixture
+// deliberately withheld an arb from it. The chassis-l10n unit moved 149 shared
+// keys into `packages/design_system`, so a shelf with no arb is no longer "the
+// tree this guard is not configured for" — it is COVERAGE LOST, and every case
+// below would go red for a reason none of them means to test.
+//
+// Planted at the DEFAULT path (`lib/l10n/app_en.arb`) unless a case also plants
+// an `l10n.yaml`, because the default is what a root that declares no config
+// gets — and keeping the two shapes apart is the whole point of the derivation.
+const SHELF_ARB = { '@@locale': 'en', shelfNotice: 'A shared notice' };
 const BRICK_ARB = { '@@locale': 'en', appTitle: 'Demo', navHome: 'Home', welcomeTo: 'Welcome to {name}' };
 const SUBLY_ARB = { '@@locale': 'en', homeTitle: 'Your subscriptions' };
 
@@ -496,6 +511,14 @@ function tree({
   consumers = CONSUMERS,
   shelf = CLEAN_SHELF,
   shelfAllowlisted = SHELF_ALLOWLISTED,
+  shelfArb = SHELF_ARB,
+  /** `{ pkg, body }` — an l10n.yaml to plant beside a package's `lib/`, so a
+   *  case can exercise the DERIVED arb path and generated-name skip rather than
+   *  the historical defaults. */
+  l10nYaml = null,
+  /** Extra files, verbatim, keyed by repo-relative path. The delegation limb
+   *  needs a `packages/chassis_screens/` tree that no default should carry. */
+  extra = null,
 } = {}) {
   const root = join(TMP, `r${seq++}`);
   const files = {};
@@ -504,10 +527,10 @@ function tree({
     if (brickArb !== null) files[`${BRICK}/l10n/app_en.arb`] = arb(brickArb);
   }
   if (subly !== null) files[`${SUBLY}/features/home/home_screen.dart`] = subly;
-  // No arb is planted for the shelf, deliberately - the real root declares
-  // `noArbBecause`, and a fixture that gave it one would be exercising a tree
-  // the guard is not configured for.
   if (shelf !== null) files[`${SHELF}/src/widgets/force_update_gate.dart`] = shelf;
+  if (shelfArb !== null) files[`${SHELF}/l10n/app_en.arb`] = arb(shelfArb);
+  if (l10nYaml !== null) files[`${l10nYaml.pkg}/l10n.yaml`] = l10nYaml.body;
+  for (const [rel, body] of Object.entries(extra ?? {})) files[rel] = body;
   if (shelfAllowlisted !== null) files[SHELF_ALLOWLISTED_FILE] = shelfAllowlisted;
   if (allowlisted !== null) files[ALLOWLISTED_FILE] = allowlisted;
   // The arb belongs to the ROOT, so it is planted whenever the root will exist
@@ -1037,7 +1060,7 @@ const b = Text('Hardcoded right after a URL');
       assert.match(out, /ok {3}every declared l10n key reaches a screen/);
       // A bare "no unread keys" is worth nothing; the domain is what makes it a
       // measurement. Both halves of the sweep have to be in the sentence.
-      assert.match(out, /\d+ message key\(s\) from 2 tracked l10n\/app_en\.arb file\(s\)/);
+      assert.match(out, /\d+ message key\(s\) from 3 tracked template arb file\(s\) \(l10n\/app_en\.arb\)/);
       assert.match(out, /\d+ non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
       assert.match(out, /\d+ non-test [^ ]+ file\(s\) elsewhere searched for any other reader/);
       assert.doesNotMatch(out, /👤 OWNER/);
@@ -1046,7 +1069,7 @@ const b = Text('Hardcoded right after a URL');
     test('PRINTS an unrendered key as an owner gap and still exits 0', () => {
       const { code, out } = run(tree({ sublyArb: GHOST }));
       assert.equal(code, 0, `an owner judgement reddened the build:\n${out}`);
-      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 5 reach NO surface/);
+      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /NOTHING IN THE TREE NAMES THE KEY AT ALL \(1\)/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
       assert.match(out, /appears nowhere else in the tree either/);
@@ -1055,12 +1078,12 @@ const b = Text('Hardcoded right after a URL');
       // so replacing the line with a literal `DOMAIN: (elided)` left this file
       // at EXIT 0, 69/69 — and that sentence is the entire difference between a
       // measurement and a blind spot. The fixture is fully known, so the numbers
-      // are exact here rather than `\d+`: 5 union keys from 2 arbs, 3 .dart
+      // are exact here rather than `\d+`: 6 union keys from 3 arbs, 5 .dart
       // render files (both home screens plus the allowlisted login screen), and
       // 1 consumer file outside the enforced trees.
       assert.match(
         out,
-        /DOMAIN, so the number above is a measurement and not a blind spot: 5 message key\(s\) from 2 tracked l10n\/app_en\.arb file\(s\) · 5 non-test \.dart file\(s\) in 3 enforced tree\(s\) searched for a `\.<key>` accessor · 1 non-test \.mjs\/\.js\/\.ts\/\.tsx\/\.dart file\(s\) elsewhere searched for any other reader\./,
+        /DOMAIN, so the number above is a measurement and not a blind spot: 6 message key\(s\) from 3 tracked template arb file\(s\) \(l10n\/app_en\.arb\) · 5 non-test \.dart file\(s\) in 3 enforced tree\(s\) searched for a `\.<key>` accessor · 1 non-test \.mjs\/\.js\/\.ts\/\.tsx\/\.dart file\(s\) elsewhere searched for any other reader\./,
       );
       // …and the sentence that says WHY the generated accessors are out of both
       // halves. Without it the exclusion looks like a scan that missed them.
@@ -1085,7 +1108,7 @@ const b = Text('Hardcoded right after a URL');
         },
       }));
       assert.equal(code, 0, out);
-      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 5 reach NO surface/);
+      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
       // …and the printed domain stays at 3, so the file was EXCLUDED rather than
       // scanned-and-missed. A count of 4 here would mean the word is still a label.
@@ -1249,12 +1272,12 @@ const b = Text('Hardcoded right after a URL');
       assert.doesNotMatch(out, /every declared l10n key reaches a screen/);
       assert.match(
         out,
-        /👤 OWNER l10n render direction — 0 of 5 translated, reviewed key\(s\) need a line here, and 1 unrendered key\(s\) are printed by the guard that owns them\./,
+        /👤 OWNER l10n render direction — 0 of 6 translated, reviewed key\(s\) need a line here, and 1 unrendered key\(s\) are printed by the guard that owns them\./,
       );
       assert.match(out, new RegExp(`consentReadPolicy is unrendered too and is deliberately NOT listed above: ${CONSENT_GUARD}`));
       // …and the domain is still stated on this branch too, so the 0 above is a
       // measurement rather than a scan that reached nothing.
-      assert.match(out, /DOMAIN, so the number above is a measurement and not a blind spot: 5 message key\(s\)/);
+      assert.match(out, /DOMAIN, so the number above is a measurement and not a blind spot: 6 message key\(s\)/);
       // The key is credited, not filed — one line for one key.
       assert.doesNotMatch(out, /consentReadPolicy \[declared in/);
     });
@@ -1310,7 +1333,7 @@ const b = Text('Hardcoded right after a URL');
         },
       }));
       assert.equal(code, 0, out);
-      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 5 reach NO surface/);
+      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
       // …and the printed domain stays at 3. A 4 here would mean the file was
       // scanned and merely happened not to match, which is a different guard.
@@ -1328,7 +1351,7 @@ const b = Text('Hardcoded right after a URL');
       const nearMiss = `${CLEAN_SUBLY}\nconst probe = Text(l10n.ghostKeySuffix);\n`;
       const { code, out } = run(tree({ sublyArb: GHOST, subly: nearMiss }));
       assert.equal(code, 0, out);
-      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 5 reach NO surface/);
+      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
     });
 
@@ -1346,7 +1369,7 @@ const b = Text('Hardcoded right after a URL');
       const named = `${CLEAN_SUBLY}\nfinal ghostKey = 1;\n`;
       const { code, out } = run(tree({ sublyArb: GHOST, subly: named }));
       assert.equal(code, 0, out);
-      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 5 reach NO surface/);
+      assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
     });
 
@@ -1550,11 +1573,11 @@ const b = Text('Hardcoded right after a URL');
     // `code === 0` here would be measuring the allowlist check, not the arb.
     test('the Subly arb is planted when EITHER of that tree’s two files is', () => {
       const viaAllowlistedFile = run(tree({ subly: null }));
-      assert.match(viaAllowlistedFile.out, /2 tracked l10n\/app_en\.arb file\(s\)/, viaAllowlistedFile.out);
+      assert.match(viaAllowlistedFile.out, /3 tracked template arb file\(s\)/, viaAllowlistedFile.out);
       assert.doesNotMatch(viaAllowlistedFile.out, new RegExp(`${SUBLY}/l10n/app_en.arb does not exist`));
 
       const viaScreen = run(tree({ allowlisted: null }));
-      assert.match(viaScreen.out, /2 tracked l10n\/app_en\.arb file\(s\)/, viaScreen.out);
+      assert.match(viaScreen.out, /3 tracked template arb file\(s\)/, viaScreen.out);
       assert.doesNotMatch(viaScreen.out, new RegExp(`${SUBLY}/l10n/app_en.arb does not exist`));
     });
 
@@ -1573,13 +1596,16 @@ const b = Text('Hardcoded right after a URL');
       // over zero keys — beside the COVERAGE LOST lines. Measured 2026-08-21,
       // the case above only removes ONE arb, so nothing reached this branch
       // before this case; `if (false)` on it is RED against this one.
-      test('FAILS when NEITHER enforced tree has an app_en.arb, and prints no clean zero', () => {
-        const { code, out } = run(tree({ brickArb: null, sublyArb: null }));
+      // 2026-09-06: THREE roots, not two — `packages/design_system` gained an arb
+      // with [ADR 067] decision 2, so nulling the two app arbs no longer empties
+      // the domain and this case would have stopped reaching the branch it names.
+      test('FAILS when NO enforced tree has a template arb, and prints no clean zero', () => {
+        const { code, out } = run(tree({ brickArb: null, sublyArb: null, shelfArb: null }));
         assert.equal(code, 1, 'the reverse direction read no keys at all and still called the tree clean');
         assert.equal(
           (out.match(/does not exist, so the reverse direction read no keys/g) ?? []).length,
-          2,
-          'both roots must be reported, not only the first',
+          3,
+          'every root must be reported, not only the first',
         );
         assert.doesNotMatch(out, /every declared l10n key reaches a screen/);
         assert.doesNotMatch(out, /👤 OWNER l10n render direction/);
@@ -1611,8 +1637,8 @@ const b = Text('Hardcoded right after a URL');
         assert.match(out, /They were SKIPPED rather than checked/);
         // …and the message is TRUE: the key really is outside the count below,
         // which is the whole reason the branch says COVERAGE LOST rather than
-        // reporting the key as unrendered. 4 is the default union, unchanged.
-        assert.match(out, /4 message key\(s\) from 2 tracked l10n\/app_en\.arb file\(s\)/);
+        // reporting the key as unrendered. 5 is the default union, unchanged.
+        assert.match(out, /5 message key\(s\) from 3 tracked template arb file\(s\)/);
       });
 
       // ── 2026-08-24 · THE CONTROL FOR ARB_KEY_SHAPE, AND THREE OF ITS ───────
@@ -1638,7 +1664,7 @@ const b = Text('Hardcoded right after a URL');
         assert.doesNotMatch(out, /not Dart identifiers/);
         // …and it was CHECKED rather than merely not-rejected: it is inside the
         // domain count and it drew its own owner line.
-        assert.match(out, /5 message key\(s\) from 2 tracked l10n\/app_en\.arb file\(s\)/);
+        assert.match(out, /6 message key\(s\) from 3 tracked template arb file\(s\)/);
         assert.match(out, /Legacy_\$Key \[declared in 1 of 3 enforced tree\(s\)\]/);
       });
 
@@ -1696,24 +1722,32 @@ const b = Text('Hardcoded right after a URL');
         // the rest of the print — the property "(elided)" cannot satisfy and a
         // stale hardcoded number could.
         const d = out.match(
-          /DOMAIN, so the number above is a measurement and not a blind spot: (\d+) message key\(s\) from (\d+) tracked l10n\/app_en\.arb file\(s\) · (\d+) non-test \.dart file\(s\) in (\d+) enforced tree\(s\) searched for a `\.<key>` accessor · (\d+) non-test [^ ]+ file\(s\) elsewhere searched for any other reader\./,
+          /DOMAIN, so the number above is a measurement and not a blind spot: (\d+) message key\(s\) from (\d+) tracked template arb file\(s\) \(([^)]+)\) · (\d+) non-test \.dart file\(s\) in (\d+) enforced tree\(s\) searched for a `\.<key>` accessor · (\d+) non-test [^ ]+ file\(s\) elsewhere searched for any other reader\./,
         );
         assert.ok(d, `the DOMAIN sentence is missing or reshaped:\n${out}`);
-        const [keys, arbs, dartFiles, trees, elsewhere] = d.slice(1).map(Number);
+        const [keys, arbs] = [Number(d[1]), Number(d[2])];
+        const arbPaths = d[3];
+        const [dartFiles, trees, elsewhere] = [Number(d[4]), Number(d[5]), Number(d[6])];
         const head = out.match(/👤 OWNER l10n render direction — (\d+) translated, reviewed key\(s\) of (\d+) reach NO surface/);
         assert.ok(head, 'the owner header is missing');
         assert.equal(Number(head[2]), keys, 'the header and the domain disagree about how many keys were read');
-        // ⚠️ ONE ARB PER ROOT WAS THE INVARIANT UNTIL 2026-09-04, AND IT IS NOW
-        // DELIBERATELY FALSE. `packages/design_system/lib` became the third
-        // enforced root and declares `noArbBecause`: it takes its copy as
-        // constructor parameters so it never gains an l10n dependency, so there
-        // is no arb for the reverse direction to read there and none should
-        // appear. `arbs === trees` would now fail on a correct tree.
+        // ⚠️ ONE ARB PER ROOT WAS FALSE FROM 2026-09-04 TO 2026-09-06 AND IS
+        // TRUE AGAIN. `packages/design_system/lib` joined as the third enforced
+        // root declaring `noArbBecause` — it took its copy as constructor
+        // parameters — and [ADR 067] decision 2 reversed that: it now owns
+        // `lib/src/l10n/chassis_en.arb`, the 149 shared keys, so all three roots
+        // carry one again and `arbs === trees` holds.
         //
-        // The two failures the old equality really guarded are kept, spelled
-        // out rather than collapsed into one number: an arb that VANISHES from a
-        // root that should have one, and a domain that has quietly emptied.
-        assert.equal(arbs, 2, 'a tracked arb vanished — the brick and apps/subly each carry one');
+        // The equality is NOT what is asserted, deliberately. What is asserted is
+        // the two failures it was ever standing in for: an arb that VANISHES from
+        // a root that should have one, and a domain that has quietly emptied. A
+        // fourth root with no arb would be a legitimate tree and must not redden
+        // this case; an arb dropping out of one of the three must.
+        assert.equal(arbs, 3, 'a tracked arb vanished — the brick, apps/subly and the design system each carry one');
+        // …and the PATHS are printed, so a root silently re-pointed at another
+        // root's arb cannot hide behind the count.
+        assert.match(arbPaths, /lib\/l10n\/app_en\.arb/);
+        assert.match(arbPaths, /lib\/src\/l10n\/chassis_en\.arb/, 'the chassis arb is not in the domain sentence');
         assert.ok(arbs > 0, 'no arb was read at all, so every key below is a statement about nothing');
         assert.equal(trees, 3, 'ENFORCED_ROOTS changed; re-read this assertion');
         assert.ok(arbs <= trees, 'more arbs than enforced trees — the domain sentence is malformed');
@@ -1759,6 +1793,162 @@ const b = Text('Hardcoded right after a URL');
         // …and the owner print was suppressed rather than drowned in noise.
         assert.doesNotMatch(out, /👤 OWNER l10n render direction/);
       });
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 2026-09-06 · [ADR 067] DECISION 2 — THE TWO l10n FACTS ARE DERIVED, AND A
+  // DELEGATED SCREEN IS JUDGED ON THE FILE THAT NOW CARRIES ITS LITERALS.
+  //
+  // Both facts were hand-typed constants until this change, and both were true
+  // of the two app trees and of nothing else:
+  //   · the template arb lived at `l10n/app_en.arb` under every root;
+  //   · the generated accessors were "basename contains `app_localizations`".
+  // The chassis-l10n unit gave `packages/design_system` an arb at
+  // `lib/src/l10n/chassis_en.arb` and a generated triplet called
+  // `chassis_localizations*.dart`, and what the typed version printed on the
+  // REAL tree was measured before this block was written:
+  //     errorTitle … read at packages/design_system/lib/src/l10n/chassis_localizations.dart:292
+  // A generated getter is not a reader — that is the whole reason the skip
+  // exists — so a true owner line was being deleted by the one file in the tree
+  // that renders nothing.
+  describe('the l10n facts come from each tree’s own l10n.yaml', () => {
+    const SHELF_PKG = 'packages/design_system';
+    const DERIVED_YAML =
+      'arb-dir: lib/src/l10n\n' +
+      'template-arb-file: chassis_en.arb\n' +
+      'output-dir: lib/src/l10n\n' +
+      'output-localization-file: chassis_localizations.dart\n' +
+      'output-class: ChassisLocalizations\n';
+    const CHASSIS_ARB = `${SHELF_PKG}/lib/src/l10n/chassis_en.arb`;
+    const GENERATED = `${SHELF_PKG}/lib/src/l10n/chassis_localizations_en.dart`;
+
+    /** A tree where the shelf's config really has moved. The DEFAULT arb is
+     *  withheld, so a guard that ignored l10n.yaml would report the shelf as
+     *  COVERAGE LOST rather than read the file gen-l10n actually reads. */
+    const derivedTree = (extra = {}, rest = {}) =>
+      tree({
+        shelfArb: null,
+        l10nYaml: { pkg: SHELF_PKG, body: DERIVED_YAML },
+        extra: { [CHASSIS_ARB]: arb({ '@@locale': 'en', shelfNotice: 'A shared notice' }), ...extra },
+        ...rest,
+      });
+
+    test('reads the arb the l10n.yaml points at, not the historical default', () => {
+      const { code, out } = run(derivedTree());
+      assert.equal(code, 0, out);
+      assert.match(out, /3 tracked template arb file\(s\)/, out);
+      assert.match(out, /lib\/src\/l10n\/chassis_en\.arb/, 'the derived arb path is not in the domain sentence');
+      assert.doesNotMatch(out, /packages\/design_system\/lib\/l10n\/app_en\.arb does not exist/);
+    });
+
+    // 🔴 THE MEASURED DEFECT, AS A FIXTURE. `ghostKey` reaches no screen. A
+    // generated accessor declares a getter for every key, so if the skip does
+    // not follow the CONFIGURED name, the owner line is replaced by a false
+    // "something else reads it" pointing at a file nobody sees.
+    test('a generated accessor under the CONFIGURED name is not a reader', () => {
+      // `ghostKey` is DECLARED — in the Subly arb — and rendered by nothing, so
+      // it must appear as an owner gap. The generated file below declares a
+      // getter for it, and is the only thing in the tree that names it at all.
+      const { code, out } = run(
+        derivedTree(
+          {
+            [GENERATED]:
+              'class ChassisLocalizationsEn extends ChassisLocalizations {\n' +
+              "  String get shelfNotice => 'A shared notice';\n" +
+              "  String get ghostKey => 'Ghost copy';\n" +
+              '}\n',
+          },
+          { sublyArb: { ...SUBLY_ARB, ghostKey: 'Ghost copy' } },
+        ),
+      );
+      assert.equal(code, 0, out);
+      assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/, out);
+      assert.doesNotMatch(
+        out,
+        /read at packages\/design_system\/lib\/src\/l10n\/chassis_localizations/,
+        'the generated file was counted as a reader — the skip did not follow output-localization-file',
+      );
+      // …and it is not filed as a literal ECHO either: the echo sweep skips the
+      // generated file by the same rule, or every key would "already ship as a
+      // hardcoded literal" in the file gen-l10n wrote.
+      assert.doesNotMatch(out, /copy ships as a hardcoded LITERAL at packages\/design_system\/lib\/src\/l10n/);
+    });
+
+    test('COVERAGE LOST when the l10n.yaml does not say where the arb is', () => {
+      const { code, out } = run(
+        tree({
+          shelfArb: null,
+          l10nYaml: { pkg: SHELF_PKG, body: 'output-localization-file: chassis_localizations.dart\n' },
+        }),
+      );
+      assert.equal(code, 1, 'a half-read config is a scan that narrowed without saying so');
+      assert.match(out, /declares no `arb-dir`/);
+      assert.match(out, /a guard that guesses instead of reading it/);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE DELEGATION LIMB. A brick screen emptied into
+  // `package:nikatru_chassis_screens` is a thin adapter: its literals went with
+  // its body. Fixture-based, because `packages/chassis_screens` does not exist
+  // in this repository yet — and that is exactly why the limb lands BEFORE the
+  // first screen moves. A guard adopted after the tree is dirty gets an
+  // allowlist instead of a fix.
+  describe('a screen that delegates is judged on the chassis file too', () => {
+    const ADAPTER = `${BRICK}/features/settings/settings_screen.dart`;
+    const TARGET = 'packages/chassis_screens/lib/settings.dart';
+    const adapter = (path) =>
+      `import 'package:nikatru_chassis_screens/${path}';\n` +
+      '\n' +
+      'class SettingsScreen extends StatelessWidget {\n' +
+      '  Widget build(BuildContext context) => const ChassisSettingsBody();\n' +
+      '}\n';
+
+    test('a CLEAN chassis file passes, and the guard says it read it', () => {
+      const { code, out } = run(
+        tree({
+          extra: {
+            [ADAPTER]: adapter('settings.dart'),
+            [TARGET]:
+              'class ChassisSettingsBody extends StatelessWidget {\n' +
+              '  const ChassisSettingsBody();\n' +
+              '  Widget build(BuildContext c) => Text(ChassisLocalizations.of(c).shelfNotice);\n' +
+              '}\n',
+          },
+        }),
+      );
+      assert.equal(code, 0, out);
+      assert.match(out, /delegates to 1 chassis file\(s\), and they show no hardcoded/);
+      assert.match(out, /packages\/chassis_screens\/lib\/settings\.dart/);
+    });
+
+    test('FAILS on a hardcoded string in the chassis file the screen delegates to', () => {
+      const { code, out } = run(
+        tree({
+          extra: {
+            [ADAPTER]: adapter('settings.dart'),
+            [TARGET]:
+              'class ChassisSettingsBody extends StatelessWidget {\n' +
+              '  const ChassisSettingsBody();\n' +
+              "  Widget build(BuildContext c) => Text('Hello');\n" +
+              '}\n',
+          },
+        }),
+      );
+      assert.equal(code, 1, 'the adapter was empty and the package it points at was never read');
+      assert.match(out, /packages\/chassis_screens\/lib\/settings\.dart shows a hardcoded string/);
+      assert.match(out, /"Hello"/);
+      assert.match(out, /reached because a screen under tooling\/bricks/);
+    });
+
+    // A delegation that cannot be followed is COVERAGE LOST, never silence —
+    // the resolver's three answers stay three.
+    test('COVERAGE LOST when the delegation cannot be followed', () => {
+      const { code, out } = run(tree({ extra: { [ADAPTER]: adapter('missing.dart') } }));
+      assert.equal(code, 1, 'an unfollowable delegation was read as "no delegation"');
+      assert.match(out, /COVERAGE LOST — /);
+      assert.match(out, /the adapter is empty and the package it points at was not read/);
     });
   });
 });

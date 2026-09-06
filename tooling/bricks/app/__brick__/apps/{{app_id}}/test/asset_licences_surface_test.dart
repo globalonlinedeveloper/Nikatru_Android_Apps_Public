@@ -35,6 +35,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:{{app_id.snakeCase()}}/features/settings/settings_screen.dart';
+import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:{{app_id.snakeCase()}}/l10n/app_localizations.dart';
 import 'package:{{app_id.snakeCase()}}/state/providers.dart';
 
@@ -151,7 +152,10 @@ void main() {
         UncontrolledProviderScope(
           container: c,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+              ...AppLocalizations.localizationsDelegates,
+              ChassisLocalizations.delegate,
+            ],
             supportedLocales: AppLocalizations.supportedLocales,
             home: SettingsScreen(),
           ),
@@ -169,12 +173,12 @@ void main() {
     ) async {
       await pumpSettings(tester);
       final BuildContext ctx = tester.element(find.byType(SettingsScreen));
-      final AppLocalizations l10n = AppLocalizations.of(ctx);
+      final ChassisLocalizations l10n = ChassisLocalizations.of(ctx);
       expect(
         find.text(l10n.openSourceLicences),
         findsOneWidget,
         reason:
-            'the label is read through AppLocalizations rather than matched as '
+            'the label is read through ChassisLocalizations rather than matched as '
             'an English literal, so this case also proves the arb key exists '
             'in both locales instead of only in the tree the author speaks',
       );
@@ -185,7 +189,7 @@ void main() {
     ) async {
       await pumpSettings(tester);
       final BuildContext ctx = tester.element(find.byType(SettingsScreen));
-      final AppLocalizations l10n = AppLocalizations.of(ctx);
+      final ChassisLocalizations l10n = ChassisLocalizations.of(ctx);
 
       // PRECONDITION: nothing is showing yet, so the expectation after the tap
       // cannot be satisfied by a page that was already there.

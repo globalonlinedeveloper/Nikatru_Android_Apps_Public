@@ -37,7 +37,16 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      // [ADR 067] decision 2 — the CHASSIS delegate is composed BESIDE the
+      // app's own, never instead of it. `AppLocalizations` carries the keys
+      // this app owns (its title, and any copy naming what it sells);
+      // `ChassisLocalizations` carries the 149 shared keys, so one
+      // translation fix reaches every app the factory stamps. Both lists
+      // resolve against the SAME `supportedLocales` below.
+      localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+        ...AppLocalizations.localizationsDelegates,
+        ChassisLocalizations.delegate,
+      ],
       supportedLocales: AppLocalizations.supportedLocales,
       // [pipeline C-13] The persisted language override. NULL is not "no value"
       // — it is "follow the device", and MaterialApp already does the right
@@ -78,15 +87,15 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
             // dismissed shipped English to every locale. No key for it had ever
             // existed in any arb, in either tree.
             //
-            // ⚠️ `AppLocalizations.of(context)` IS AVAILABLE HERE: this is
+            // ⚠️ `context.chassisL10n` IS AVAILABLE HERE: this is
             // `MaterialApp.router`'s `builder`, which runs BELOW the
             // `Localizations` widget the MaterialApp installs.
             child: ForceUpdateGate(
               mustUpdate: mustUpdate,
               onUpdate: () => _openUpdate(updateUrl),
-              title: AppLocalizations.of(context).updateRequiredTitle,
-              message: AppLocalizations.of(context).updateRequiredMessage,
-              buttonLabel: AppLocalizations.of(context).updateRequiredAction,
+              title: context.chassisL10n.updateRequiredTitle,
+              message: context.chassisL10n.updateRequiredMessage,
+              buttonLabel: context.chassisL10n.updateRequiredAction,
               child: AnalyticsGate(
                 child: _NotificationTapGate(
                   child: _OfflineBanner(
@@ -136,7 +145,7 @@ class _OfflineBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(networkUnreachableProvider)) return child;
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     return Column(
       children: <Widget>[
         OfflineNotice(
@@ -226,7 +235,7 @@ class _AnalyticsGateState extends ConsumerState<AnalyticsGate>
       // 13+ makes a second denial permanent. `resyncOnStart` does not, and
       // `chassis_properties_test.dart` asserts the count is zero across a full
       // boot so it cannot start to.
-      final AppLocalizations l10n = AppLocalizations.of(context);
+      final ChassisLocalizations l10n = context.chassisL10n;
       await ref
           .read(remindersEnabledProvider.notifier)
           .resyncOnStart(title: l10n.reminderTitle, body: l10n.reminderBody);
@@ -440,7 +449,7 @@ class _ConsentPrompt extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     return Positioned.fill(
       // 🔴 THE DIALOG ROLE, RESTORED BY HAND. `ModalRoute` sets `scopesRoute`
       // on every pushed route; an inline scrim is not a route and gets none of

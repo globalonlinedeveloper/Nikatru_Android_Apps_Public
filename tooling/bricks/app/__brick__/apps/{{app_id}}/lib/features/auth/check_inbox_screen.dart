@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart'
-    show ContentPane;
-
-import '../../l10n/app_localizations.dart';
+    show ChassisL10nX, ChassisLocalizations, ContentPane;
 
 /// "Check your inbox" for a sign-up that produced NO SESSION.
 ///
@@ -33,7 +31,7 @@ class CheckInboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.checkInboxTitle)),

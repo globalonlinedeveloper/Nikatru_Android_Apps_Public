@@ -39,7 +39,8 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
   CancellationOutcome? _outcome;
 
   Future<void> _cancel() async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
+    final AppLocalizations appL10n = AppLocalizations.of(context);
     // 🔴 THE CONTAINER IS RESOLVED HERE, BESIDE `l10n` AND BEFORE THE FIRST
     // AWAIT, BECAUSE `refreshEntitlements` CANNOT BE. It takes a `WidgetRef`
     // and spends it SYNCHRONOUSLY — `ref.invalidate` then `ref.read`
@@ -85,8 +86,8 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text(l10n.cancelPlan),
-        content: Text(l10n.cancelPlanConfirm),
+        title: Text(appL10n.cancelPlan),
+        content: Text(appL10n.cancelPlanConfirm),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -94,7 +95,7 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cancelPlan),
+            child: Text(appL10n.cancelPlan),
           ),
         ],
       ),
@@ -131,7 +132,8 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
+    final AppLocalizations appL10n = AppLocalizations.of(context);
     final AsyncValue<core.Entitlements> ent = ref.watch(entitlementsProvider);
     final bool isPro = ent.valueOrNull?.isProAt(DateTime.now()) ?? false;
 
@@ -165,7 +167,7 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/settings'),
         ),
-        title: Text(l10n.managePlanTitle),
+        title: Text(appL10n.managePlanTitle),
       ),
       // Bare `Scaffold` + `ListView` before this, the same shape as settings —
       // and this is the WORSE of the two to leave unconstrained. The screen
@@ -184,7 +186,7 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
               leading: Icon(
                 isPro ? Icons.verified_outlined : Icons.lock_outline,
               ),
-              title: Text(isPro ? l10n.planActive : l10n.planInactive),
+              title: Text(isPro ? appL10n.planActive : appL10n.planInactive),
             ),
             const Divider(),
             // [pipeline 5]M-10. On this rail the entitlement is a server row keyed
@@ -196,14 +198,14 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
             ListTile(
               leading: const Icon(Icons.refresh),
               title: Text(l10n.restorePurchases),
-              subtitle: Text(l10n.restorePurchasesHint),
+              subtitle: Text(appL10n.restorePurchasesHint),
               enabled: !_busy,
               onTap: _busy ? null : _restore,
             ),
             if (isPro)
               ListTile(
                 leading: const Icon(Icons.cancel_outlined),
-                title: Text(l10n.cancelPlan),
+                title: Text(appL10n.cancelPlan),
                 enabled: !_busy,
                 onTap: _busy ? null : _cancel,
               ),
@@ -211,7 +213,7 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
             if (_outcome != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Text(_outcomeMessage(l10n, _outcome!)),
+                child: Text(_outcomeMessage(l10n, appL10n, _outcome!)),
               ),
           ],
         ),
@@ -224,16 +226,20 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
   /// strength of our having written down that they asked — while the merchant of
   /// record goes on billing them. That is the single most expensive sentence
   /// this screen could say.
-  String _outcomeMessage(AppLocalizations l10n, CancellationOutcome o) {
+  String _outcomeMessage(
+    ChassisLocalizations l10n,
+    AppLocalizations appL10n,
+    CancellationOutcome o,
+  ) {
     switch (o) {
       case CancellationOutcome.executed:
-        return l10n.cancelExecuted;
+        return appL10n.cancelExecuted;
       case CancellationOutcome.recorded:
         return l10n.cancelRecorded;
       case CancellationOutcome.noActivePlan:
-        return l10n.cancelNoPlan;
+        return appL10n.cancelNoPlan;
       case CancellationOutcome.failed:
-        return l10n.cancelFailed;
+        return appL10n.cancelFailed;
     }
   }
 }

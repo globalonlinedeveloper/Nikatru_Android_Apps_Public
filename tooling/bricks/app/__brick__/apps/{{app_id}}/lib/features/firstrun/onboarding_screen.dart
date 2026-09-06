@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 
 /// First-run onboarding — [pipeline C-13].
@@ -72,7 +71,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;
 
     final List<({String title, String body})> pages =

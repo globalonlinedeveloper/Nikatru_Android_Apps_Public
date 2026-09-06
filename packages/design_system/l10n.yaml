@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# gen-l10n for the CHASSIS strings — [ADR 067] decision 2, unit `chassis-l10n`.
+#
+# Why the strings live here and not in `packages/chassis_l10n`: gen-l10n requires
+# the hosting package to declare `intl`, and `assert-package-boundaries.mjs:190`
+# classifies ANY package other than `core`/`design_system` that declares a
+# third-party dependency as an ADAPTER wrapping it — after which the 16 tracked
+# `apps/subly` files that import `package:intl` directly fail at `:288-298` as
+# "going around the seam". This package is excluded from that derivation by
+# construction, and its own limb B forbids it only `nikatru_*` dependencies.
+#
+# 🔴 THE OUTPUT IS COMMITTED, WHICH IS THE OPPOSITE OF THE APP RULE. `.gitignore`
+# ignores `apps/*/lib/l10n/app_localizations*.dart` because every app regenerates
+# its own on `flutter pub get` (`flutter: generate: true`). A PACKAGE cannot rely
+# on that: a consumer resolving `nikatru_design_system` runs no gen-l10n for it,
+# so an ungenerated `chassis_localizations.dart` is a package that does not
+# compile. The staleness that rule exists to prevent is closed by the
+# `chassis-l10n drift` step in `ci.yml`'s `workspace-gate` job, which DELETES the
+# generated files, regenerates them and fails on `git diff --exit-code`.
+#
+# `output-localization-file` is also the NAME-SHAPE the guards derive their
+# generated-file skip from — `assert-no-hardcoded-strings.mjs` reads this file
+# rather than carrying a path allowlist, so renaming the output here re-points
+# the skip in the same edit.
+arb-dir: lib/src/l10n
+template-arb-file: chassis_en.arb
+output-dir: lib/src/l10n
+output-localization-file: chassis_localizations.dart
+output-class: ChassisLocalizations
+nullable-getter: false
+
+# The diagnostic half of Tamil parity: gen-l10n falls back to ENGLISH for a
+# missing key, silently, so a key added to `chassis_en.arb` and forgotten in
+# `chassis_ta.arb` ships an English sentence in the middle of a Tamil screen.
+# This names them in a form a translator can be handed; the ENFORCEMENT half is
+# `test/chassis_l10n_parity_test.dart`, which fails the suite in both directions.
+untranslated-messages-file: chassis-l10n-untranslated.json

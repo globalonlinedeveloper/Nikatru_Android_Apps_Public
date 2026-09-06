@@ -5,7 +5,6 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 import '../../core/app_config.dart';
-import '../../l10n/app_localizations.dart';
 import '../../state/money_providers.dart';
 import '../../state/providers.dart';
 
@@ -166,7 +165,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final PurchaseRail rail = ref.watch(purchaseRailProvider);
     final ThemeData theme = Theme.of(context);
 
@@ -205,7 +204,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   List<Widget> _body(
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
     PurchaseRail rail,
     ThemeData theme,
   ) {

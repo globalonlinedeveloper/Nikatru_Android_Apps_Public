@@ -15,7 +15,10 @@ void main() {
           // [pipeline C-12] HomeScreen reads its copy from l10n now, so a bare
           // MaterialApp has no Localizations for it to find. Supplying the
           // delegates here is what a real app does anyway.
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+            ...AppLocalizations.localizationsDelegates,
+            ChassisLocalizations.delegate,
+          ],
           supportedLocales: AppLocalizations.supportedLocales,
           // [pipeline C-11] The stamped seed, not a default. `buildAppTheme`
           // requires it now: the old default was Subly's colour, so a bare

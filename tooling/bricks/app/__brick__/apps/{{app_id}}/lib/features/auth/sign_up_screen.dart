@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 import 'legal_consent_fields.dart';
 
@@ -43,7 +42,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     super.dispose();
   }
 
-  Future<void> _signUp(core.AuthRepository auth, AppLocalizations l10n) async {
+  Future<void> _signUp(
+    core.AuthRepository auth,
+    ChassisLocalizations l10n,
+  ) async {
     // 🔴 THE SECOND HALF OF THE CLICKWRAP. Disabling the button is the visible
     // rule; this is the one that holds when the button is not the only way in —
     // `onSubmitted:` on the password field reaches here from the keyboard, and
@@ -121,7 +123,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final core.AuthRepository auth = ref.watch(authRepositoryProvider);
 
     return Scaffold(

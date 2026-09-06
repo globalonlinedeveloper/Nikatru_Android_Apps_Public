@@ -61,7 +61,7 @@ class AppShell extends StatelessWidget {
     // NOT static const: labels are localised, so they need a BuildContext.
     // [pipeline C-12] A const list cannot read l10n, and an unlocalised nav bar
     // is the most visible untranslated surface in the app.
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     return NavShell(
       // The ROUTER is the single source of truth for which tab is lit. The
       // predecessor kept an `int _index` in this widget's State, so the URL and
@@ -206,14 +206,15 @@ class ExploreScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
+    final AppLocalizations appL10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.navExplore)),
       body: PaywallGate(
         locked: ref.watch(paywallLockedProvider),
         onUpgrade: () => context.go('/paywall'),
         title: l10n.paywallHeadline,
-        message: l10n.paywallGateMessage,
+        message: appL10n.paywallGateMessage,
         upgradeLabel: l10n.paywallUpgrade,
         child: const WelcomePanel(),
       ),
@@ -234,7 +235,7 @@ class WelcomePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppThemeX tokens = Theme.of(context).extension<AppThemeX>()!;
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -291,7 +292,7 @@ class CatchUpNudgeBanner extends ConsumerWidget {
       defaultTargetPlatform,
       isWeb: kIsWeb,
     );
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final DateTime now = (clock ?? DateTime.now)();
     final core.CatchUpNudgeVerdict verdict = const core.CatchUpNudge().decide(
       now: now,
@@ -421,7 +422,8 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
+    final AppLocalizations appL10n = AppLocalizations.of(context);
     final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;
     // ── THE HYDRATION BARRIER, AND IT IS THE FIRST DECISION FOR A REASON
     // 🔴 A RECORD WE HAVE NOT READ YET IS NOT A RECORD THAT SAYS "NOBODY
@@ -579,7 +581,7 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
         // start paying and no equally-adjacent way to stop does not compile —
         // and `assert-purchase-path.mjs` asserts this file really navigates to
         // the cancel surface, because a required callback can still be `() {}`.
-        manageLabel: l10n.managePlanTitle,
+        manageLabel: appL10n.managePlanTitle,
         onManageAction: () => context.go('/manage-plan'),
         // Neutral decline copy. "Not now" — never "No thanks, I don't want to
         // save", which is the confirm-shaming India's CCPA Dark Patterns

@@ -743,6 +743,33 @@ jobs:
         run: dart pub global activate melos 8.2.2
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
+      # why: the chassis strings are gen-l10n output over
+      # packages/design_system/lib/src/l10n/chassis_*.arb ([ADR 067] decision 2),
+      # and the triplet is GITIGNORED — the same rule apps/*/lib/l10n follows,
+      # for the reason .gitignore records: gen-l10n emits blanket
+      # `ignore_for_file: type=lint` headers and assert-no-gate-weakening walks
+      # `git ls-files`, so committing them was measured at FAIL, 5 problem(s).
+      #
+      # Untracked means `git diff` cannot be the drift gate, so this asserts the
+      # three things that CAN go silently wrong instead: the generator still
+      # runs, it produces every file, and nothing TRACKED depends on it. The step
+      # DELETES the triplet first, so a stale copy on the runner cannot answer
+      # for a generator that no longer works.
+      - name: Delete the generated chassis localisations so gen-l10n has to produce them
+        run: rm -f packages/design_system/lib/src/l10n/chassis_localizations*.dart
+      - name: chassis l10n regenerates from the arb
+        run: |
+          set -euo pipefail
+          (cd packages/design_system && flutter gen-l10n)
+          for f in chassis_localizations.dart chassis_localizations_en.dart chassis_localizations_ta.dart; do
+            test -s "packages/design_system/lib/src/l10n/$f"
+          done
+          # Tamil parity, from gen-l10n's own diagnostic. The ENFORCEMENT half is
+          # packages/design_system/test/chassis_l10n_parity_test.dart, which names
+          # the keys; this is the cheap early read of the same fact.
+          test "$(cat packages/design_system/chassis-l10n-untranslated.json)" = '{}'
+      - name: Regenerating the chassis localisations moved no tracked byte
+        run: git diff --exit-code -- packages/design_system
       - name: The shipping app is dart format-clean
         run: dart format --output=none --set-exit-if-changed apps/subly
       - name: The Apple privacy manifests still describe the binaries that ship

@@ -81,7 +81,10 @@ void main() {
   Widget host(ProviderContainer c, Widget screen) => UncontrolledProviderScope(
     container: c,
     child: MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+        ...AppLocalizations.localizationsDelegates,
+        ChassisLocalizations.delegate,
+      ],
       supportedLocales: AppLocalizations.supportedLocales,
       home: screen,
     ),

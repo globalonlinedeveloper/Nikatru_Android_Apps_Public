@@ -504,7 +504,29 @@ const UI_ANCHORS = [
     pointer: 'answers[type=Files and docs].basis',
     file: 'apps/{app}/lib/features/settings/settings_screen.dart',
     codeSymbol: 'l10n.exportDataCsv',
+    // 🔴 TWO ARBS, ONE LEVEL, AND THE SECOND ONE IS WHY THIS ANCHOR STILL WORKS.
+    // [ADR 067] decision 2 moved the 149 shared keys out of the brick's
+    // `lib/l10n/app_en.arb` and into the chassis arb the design system now owns.
+    //
+    // ⚠️ AND `exportDataCsv` IS NOT ONE OF THEM — MEASURED, NOT ASSUMED. On this
+    // tree it is a Subly-ONLY key: `grep -rn exportDataCsv apps tooling/bricks
+    // packages` (2026-09-06) finds it in `apps/subly` alone, never in the brick,
+    // so the app half still answers and this fallback has NO live input today.
+    // It is written now because the shape that needs it is one wave away: a
+    // stamped app whose settings screen reads a SHARED key its own arb no longer
+    // declares would fail the copy half with "renders text containing …(found:
+    // null)" — a true sentence about a screen that is perfectly present, which
+    // is the loudest possible false positive, on every probe CI stamps.
+    //
+    // The app arb is checked FIRST, because an app may keep or override its own
+    // copy. Its only inputs are the three cases in the suite, and the third of
+    // them is the one that matters: found in NEITHER must stay a failure, or the
+    // fallback is a waiver with extra steps.
+    //
+    // So: found in EITHER ⇒ checked. Found in NEITHER ⇒ a failure, never a skip
+    // (`COVERAGE LOST` is reserved for a file that cannot be read at all).
     arbFile: 'apps/{app}/lib/l10n/app_en.arb',
+    chassisArbFile: 'packages/design_system/lib/src/l10n/chassis_en.arb',
     arbKey: 'exportDataCsv',
     arbMustContain: 'Export data',
     why:
@@ -1019,24 +1041,37 @@ for (const app of apps) {
       }
       // COPY half — what the user actually sees is the .arb value; a key that
       // renders something unrelated is a row wearing the sworn sentence's name.
-      const arbRel = anchor.arbFile.replace('{app}', appId);
-      if (!existsSync(abs(arbRel))) {
-        fail(`🔴 STALE ANCHOR — ${arbRel} does not exist, so the copy half of "${anchor.pointer}" checks nothing.`);
-        continue;
+      // Resolved ONE LEVEL: the app's own arb, then the chassis arb its screens
+      // read through. See the anchor's own note for why the second exists.
+      const arbRels = [anchor.arbFile.replace('{app}', appId)];
+      if (anchor.chassisArbFile) arbRels.push(anchor.chassisArbFile);
+      const readable = [];
+      let unreadable = false;
+      for (const arbRel of arbRels) {
+        if (!existsSync(abs(arbRel))) {
+          // The APP arb missing is a stale anchor; the CHASSIS arb missing means
+          // the shared strings have moved again and this anchor cannot see where.
+          fail(`🔴 STALE ANCHOR — ${arbRel} does not exist, so the copy half of "${anchor.pointer}" cannot read it.`);
+          unreadable = true;
+          continue;
+        }
+        try {
+          readable.push({ arbRel, arb: JSON.parse(readFileSync(abs(arbRel), 'utf8')) });
+        } catch (e) {
+          fail(`🔴 ${arbRel} is not valid JSON (${e.message}) — the copy half of "${anchor.pointer}" cannot be read.`);
+          unreadable = true;
+        }
       }
-      let arb;
-      try {
-        arb = JSON.parse(readFileSync(abs(arbRel), 'utf8'));
-      } catch (e) {
-        fail(`🔴 ${arbRel} is not valid JSON (${e.message}) — the copy half of "${anchor.pointer}" cannot be read.`);
-        continue;
-      }
-      const copy = arb[anchor.arbKey];
+      if (unreadable || readable.length === 0) continue;
+      // Declared in one of them is the question; declared in NEITHER is a
+      // failure, because the sworn sentence rests on copy no arb ships.
+      const found = readable.find(({ arb }) => typeof arb[anchor.arbKey] === 'string');
+      const copy = found ? found.arb[anchor.arbKey] : null;
       if (typeof copy !== 'string' || !copy.includes(anchor.arbMustContain)) {
         fail(
-          `🔴 ${rel} rests on screen copy that is GONE — ${arbRel} key ${JSON.stringify(anchor.arbKey)} ` +
-            `no longer renders text containing ${JSON.stringify(anchor.arbMustContain)} ` +
-            `(found: ${JSON.stringify(copy ?? null)}). ${anchor.why}`,
+          `🔴 ${rel} rests on screen copy that is GONE — key ${JSON.stringify(anchor.arbKey)} no longer ` +
+            `renders text containing ${JSON.stringify(anchor.arbMustContain)} in any of ${arbRels.join(' or ')} ` +
+            `(found: ${JSON.stringify(copy ?? null)}${found ? ` in ${found.arbRel}` : ''}). ${anchor.why}`,
         );
       }
     }

@@ -152,7 +152,10 @@ Future<void> _pumpSettings(WidgetTester tester, ProviderContainer c) async {
     UncontrolledProviderScope(
       container: c,
       child: const MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+          ...AppLocalizations.localizationsDelegates,
+          ChassisLocalizations.delegate,
+        ],
         supportedLocales: AppLocalizations.supportedLocales,
         home: SettingsScreen(),
       ),
@@ -169,7 +172,10 @@ Future<void> _pumpPromo(WidgetTester tester, ProviderContainer c) async {
     UncontrolledProviderScope(
       container: c,
       child: const MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+          ...AppLocalizations.localizationsDelegates,
+          ChassisLocalizations.delegate,
+        ],
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(body: _PromoHost()),
       ),
