@@ -120,12 +120,13 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
   String? _problemMessage(
     ChassisLocalizations l10n,
     core.NewPasswordProblem? p,
-  ) => switch (p) {
-    core.NewPasswordProblem.empty => l10n.resetPasswordEnterOne,
-    core.NewPasswordProblem.tooShort => l10n.passwordTooShort,
-    core.NewPasswordProblem.mismatched => l10n.resetPasswordMismatch,
-    null => null,
-  };
+  ) =>
+      switch (p) {
+        core.NewPasswordProblem.empty => l10n.resetPasswordEnterOne,
+        core.NewPasswordProblem.tooShort => l10n.passwordTooShort,
+        core.NewPasswordProblem.mismatched => l10n.resetPasswordMismatch,
+        null => null,
+      };
 
   Future<void> _submit(ChassisLocalizations l10n) async {
     if (_busy) return;

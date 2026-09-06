@@ -40,8 +40,7 @@ class SignUpView extends StatefulWidget {
     required String email,
     required String password,
     required bool marketingEmail,
-  })
-  onSignUp;
+  }) onSignUp;
 
   /// "I already have an account" — the way to the sign-in door.
   final VoidCallback onHaveAccount;
@@ -160,9 +159,8 @@ class _SignUpViewState extends State<SignUpView> {
               // legally unavailable rather than as a preference.
               FilledButton(
                 key: SignUpView.submitButton,
-                onPressed: (_busy || !_acceptedTerms)
-                    ? null
-                    : () => _signUp(l10n),
+                onPressed:
+                    (_busy || !_acceptedTerms) ? null : () => _signUp(l10n),
                 child: Text(l10n.signUp),
               ),
               const SizedBox(height: 16),

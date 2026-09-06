@@ -22,22 +22,23 @@ void main() {
     VoidCallback? onHaveAccount,
     VoidCallback? onOpenTerms,
     VoidCallback? onOpenPrivacy,
-  }) => SignUpView(
-    onSignUp: onSignUp ??
-        ({
-          required String email,
-          required String password,
-          required bool marketingEmail,
-        }) async {},
-    onHaveAccount: onHaveAccount ?? () {},
-    consentFields:
-        ({
+  }) =>
+      SignUpView(
+        onSignUp: onSignUp ??
+            ({
+              required String email,
+              required String password,
+              required bool marketingEmail,
+            }) async {},
+        onHaveAccount: onHaveAccount ?? () {},
+        consentFields: ({
           required bool termsAccepted,
           required bool marketingAccepted,
           required bool enabled,
           required ValueChanged<bool> onTermsChanged,
           required ValueChanged<bool> onMarketingChanged,
-        }) => LegalConsentFieldsView(
+        }) =>
+            LegalConsentFieldsView(
           termsAccepted: termsAccepted,
           marketingAccepted: marketingAccepted,
           enabled: enabled,
@@ -47,7 +48,7 @@ void main() {
           onOpenTerms: onOpenTerms ?? () {},
           onOpenPrivacy: onOpenPrivacy ?? () {},
         ),
-  );
+      );
 
   /// Fills the form and ticks the terms box, which is the only state from which
   /// a sign-up may leave this screen.
@@ -85,8 +86,7 @@ void main() {
       expect(await paneWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await paneWidthAt(tester, kDesktop), AppBreakpoints.form);
     });
   });
@@ -127,15 +127,15 @@ void main() {
             required String email,
             required String password,
             required bool marketingEmail,
-          }) async => calls++,
+          }) async =>
+              calls++,
         ),
       );
       await complete(tester, tickTerms: false);
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(calls, 0,
-          reason:
-              'onSubmitted reaches the handler directly — the early-return '
+          reason: 'onSubmitted reaches the handler directly — the early-return '
               'guard is the half that holds there');
     });
   });
@@ -158,7 +158,8 @@ void main() {
             required String email,
             required String password,
             required bool marketingEmail,
-          }) async => marketing.add(marketingEmail),
+          }) async =>
+              marketing.add(marketingEmail),
         ),
       );
       await complete(tester);
@@ -178,7 +179,8 @@ void main() {
             required String email,
             required String password,
             required bool marketingEmail,
-          }) async => marketing.add(marketingEmail),
+          }) async =>
+              marketing.add(marketingEmail),
         ),
       );
       await complete(tester, tickMarketing: true);
@@ -204,7 +206,8 @@ void main() {
             required String email,
             required String password,
             required bool marketingEmail,
-          }) async => calls++,
+          }) async =>
+              calls++,
         ),
       );
       await complete(tester, password: 'short-1');
@@ -223,7 +226,8 @@ void main() {
             required String email,
             required String password,
             required bool marketingEmail,
-          }) async => throw core.AuthFailure('that address is taken'),
+          }) async =>
+              throw core.AuthFailure('that address is taken'),
         ),
       );
       await complete(tester);
@@ -245,7 +249,8 @@ void main() {
           required String email,
           required String password,
           required bool marketingEmail,
-        }) async => sent.add(email),
+        }) async =>
+            sent.add(email),
       ),
     );
     await complete(tester, email: '  someone@example.com  ');

@@ -21,18 +21,19 @@ void main() {
     ValueChanged<bool>? onMarketingChanged,
     VoidCallback? onOpenTerms,
     VoidCallback? onOpenPrivacy,
-  }) => Scaffold(
-    body: LegalConsentFieldsView(
-      termsAccepted: termsAccepted,
-      marketingAccepted: marketingAccepted,
-      enabled: enabled,
-      showMarketing: showMarketing,
-      onTermsChanged: onTermsChanged ?? (_) {},
-      onMarketingChanged: onMarketingChanged ?? (_) {},
-      onOpenTerms: onOpenTerms ?? () {},
-      onOpenPrivacy: onOpenPrivacy ?? () {},
-    ),
-  );
+  }) =>
+      Scaffold(
+        body: LegalConsentFieldsView(
+          termsAccepted: termsAccepted,
+          marketingAccepted: marketingAccepted,
+          enabled: enabled,
+          showMarketing: showMarketing,
+          onTermsChanged: onTermsChanged ?? (_) {},
+          onMarketingChanged: onMarketingChanged ?? (_) {},
+          onOpenTerms: onOpenTerms ?? () {},
+          onOpenPrivacy: onOpenPrivacy ?? () {},
+        ),
+      );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────
   //
@@ -46,9 +47,7 @@ void main() {
     Future<double> rowWidthAt(WidgetTester tester, Size size) async {
       await pumpChassis(tester, size, fields());
       return tester.getSize(find.byType(Checkbox).first).width +
-          tester
-              .getSize(find.byType(LegalConsentFieldsView))
-              .width;
+          tester.getSize(find.byType(LegalConsentFieldsView)).width;
     }
 
     testWidgets('kPhone', (WidgetTester tester) async {
@@ -87,8 +86,7 @@ void main() {
       await pumpChassis(tester, kPhone, fields());
       expect(
         tester
-            .widget<Checkbox>(
-                find.byKey(LegalConsentFieldsView.termsCheckbox))
+            .widget<Checkbox>(find.byKey(LegalConsentFieldsView.termsCheckbox))
             .value,
         isFalse,
       );
@@ -103,8 +101,7 @@ void main() {
 
     testWidgets('the marketing box is ABSENT when showMarketing is false',
         (WidgetTester tester) async {
-      await pumpChassis(
-          tester, kPhone, fields(showMarketing: false));
+      await pumpChassis(tester, kPhone, fields(showMarketing: false));
       expect(find.byKey(LegalConsentFieldsView.termsCheckbox), findsOneWidget);
       expect(find.byKey(LegalConsentFieldsView.marketingCheckbox), findsNothing,
           reason:

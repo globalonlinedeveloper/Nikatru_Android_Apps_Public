@@ -46,8 +46,7 @@ class LegalConsentFields extends StatelessWidget {
   final bool showMarketing;
 
   static const Key termsCheckbox = LegalConsentFieldsView.termsCheckbox;
-  static const Key marketingCheckbox =
-      LegalConsentFieldsView.marketingCheckbox;
+  static const Key marketingCheckbox = LegalConsentFieldsView.marketingCheckbox;
 
   /// Best-effort — a link that will not open must never break sign-up.
   static Future<void> _open(String url) async {

@@ -68,14 +68,13 @@ import 'package:nikatru_design_system/nikatru_design_system.dart'
 /// So the SURFACE owns the flags (limb 1 of `assert-signup-consent-shape` reads
 /// them here) and the ADAPTER owns the rendering, which is the same division
 /// every other screen in this package uses.
-typedef ConsentFieldsBuilder =
-    Widget Function({
-      required bool termsAccepted,
-      required bool marketingAccepted,
-      required bool enabled,
-      required ValueChanged<bool> onTermsChanged,
-      required ValueChanged<bool> onMarketingChanged,
-    });
+typedef ConsentFieldsBuilder = Widget Function({
+  required bool termsAccepted,
+  required bool marketingAccepted,
+  required bool enabled,
+  required ValueChanged<bool> onTermsChanged,
+  required ValueChanged<bool> onMarketingChanged,
+});
 
 class LegalConsentFieldsView extends StatelessWidget {
   const LegalConsentFieldsView({

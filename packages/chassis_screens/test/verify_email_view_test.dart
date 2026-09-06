@@ -16,12 +16,13 @@ void main() {
     Future<bool> Function()? onCheckConfirmed,
     Future<void> Function()? onResend,
     Future<void> Function()? onSignOut,
-  }) => VerifyEmailView(
-    email: email,
-    onCheckConfirmed: onCheckConfirmed ?? () async => false,
-    onResend: onResend ?? () async {},
-    onSignOut: onSignOut ?? () async {},
-  );
+  }) =>
+      VerifyEmailView(
+        email: email,
+        onCheckConfirmed: onCheckConfirmed ?? () async => false,
+        onResend: onResend ?? () async {},
+        onSignOut: onSignOut ?? () async {},
+      );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────
   // Written out rather than looped: the guard reads the window CONSTANT out of
@@ -29,9 +30,7 @@ void main() {
   group('property: verify-email-fills-the-form-pane at every window class', () {
     Future<double> paneWidthAt(WidgetTester tester, Size size) async {
       await pumpChassis(tester, size, view());
-      return tester
-          .getSize(find.byKey(VerifyEmailView.continueButton))
-          .width;
+      return tester.getSize(find.byKey(VerifyEmailView.continueButton)).width;
     }
 
     testWidgets('kPhone — narrower than the cap, so the pane yields',
@@ -43,8 +42,7 @@ void main() {
       expect(await paneWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await paneWidthAt(tester, kDesktop), AppBreakpoints.form);
     });
   });

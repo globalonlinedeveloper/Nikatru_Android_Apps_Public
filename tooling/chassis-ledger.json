@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 16487,
+    "lines": 16482,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -91,11 +91,11 @@
     },
     {
       "path": "lib/features/auth/legal_consent_fields.dart",
-      "lines": 75,
+      "lines": 74,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 265 -> 75 brick lines, 292 package lines, callSiteDelta -190. What stayed is the ONE thing that could not travel: url_launcher and AppConfig.termsUrl/privacyUrl. Declaring url_launcher in packages/chassis_screens would make it an ADAPTER under assert-package-boundaries limb C (:185-201) and :288-298 would then fail the brick and every app for importing it directly, so the package takes onOpenTerms/onOpenPrivacy callbacks and the launcher call lives here under the dated brick|url_launcher bypass. This widget is still MOUNTED, not merely still present: sign_up and reaccept_terms hand their chassis views a ConsentFieldsBuilder that builds THIS class.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 265 -> 74 brick lines, 291 package lines, callSiteDelta -191. What stayed is the ONE thing that could not travel: url_launcher and AppConfig.termsUrl/privacyUrl. Declaring url_launcher in packages/chassis_screens would make it an ADAPTER under assert-package-boundaries limb C (:185-201) and :288-298 would then fail the brick and every app for importing it directly, so the package takes onOpenTerms/onOpenPrivacy callbacks and the launcher call lives here under the dated brick|url_launcher bypass. This widget is still MOUNTED, not merely still present: sign_up and reaccept_terms hand their chassis views a ConsentFieldsBuilder that builds THIS class.",
       "target": "packages/chassis_screens/lib/auth/legal_consent_fields.dart",
-      "callSiteDelta": -190
+      "callSiteDelta": -191
     },
     {
       "path": "lib/features/auth/reaccept_terms_screen.dart",
@@ -123,11 +123,11 @@
     },
     {
       "path": "lib/features/auth/sign_up_screen.dart",
-      "lines": 98,
+      "lines": 94,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 194 -> 98 brick lines, 180 package lines, callSiteDelta -96. Both consent flags moved with their boxes. What stayed is what assert-stamp-properties SIGN_UP (:1428) anchors and a package declaring no go_router cannot hold: signUpWithEmail( then the consent write then the NO-SESSION-only context.go(/check-inbox, extra:), in that order and for the reason written beside it, plus the ConsentFieldsBuilder that keeps the brick consent widget in the render tree.",
+      "why": "[ADR 067] decision 2 / [ADR 071] — MEASURED 2026-09-06: 194 -> 94 brick lines, 178 package lines, callSiteDelta -100. Both consent flags moved with their boxes. What stayed is what assert-stamp-properties SIGN_UP (:1428) anchors and a package declaring no go_router cannot hold: signUpWithEmail( then the consent write then the NO-SESSION-only context.go(/check-inbox, extra:), in that order and for the reason written beside it, plus the ConsentFieldsBuilder that keeps the brick consent widget in the render tree.",
       "target": "packages/chassis_screens/lib/auth/sign_up_screen.dart",
-      "callSiteDelta": -96
+      "callSiteDelta": -100
     },
     {
       "path": "lib/features/auth/verify_email_screen.dart",

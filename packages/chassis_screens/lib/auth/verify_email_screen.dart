@@ -124,12 +124,12 @@ class _VerifyEmailViewState extends State<VerifyEmailView> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
-                        final bool stillUnverified =
-                            await widget.onCheckConfirmed();
-                        return stillUnverified
-                            ? l10n.verifyEmailStillUnverified
-                            : null;
-                      }),
+                          final bool stillUnverified =
+                              await widget.onCheckConfirmed();
+                          return stillUnverified
+                              ? l10n.verifyEmailStillUnverified
+                              : null;
+                        }),
                 child: Text(l10n.verifyEmailContinue),
               ),
               const SizedBox(height: 12),
@@ -138,9 +138,9 @@ class _VerifyEmailViewState extends State<VerifyEmailView> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
-                        await widget.onResend();
-                        return l10n.verifyEmailResent;
-                      }),
+                          await widget.onResend();
+                          return l10n.verifyEmailResent;
+                        }),
                 child: Text(l10n.verifyEmailResend),
               ),
               const SizedBox(height: 12),
@@ -152,9 +152,9 @@ class _VerifyEmailViewState extends State<VerifyEmailView> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
-                        await widget.onSignOut();
-                        return null;
-                      }),
+                          await widget.onSignOut();
+                          return null;
+                        }),
                 child: Text(l10n.signOut),
               ),
             ],

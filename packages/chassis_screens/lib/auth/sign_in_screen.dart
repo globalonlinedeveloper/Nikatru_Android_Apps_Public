@@ -131,46 +131,46 @@ class _SignInViewState extends State<SignInView> {
   }
 
   Future<void> _signIn(ChassisLocalizations l10n) => _run(() async {
-    final String email = _email.text.trim();
-    // 🔴 THIS SCREEN SENT WHATEVER WAS IN THE BOXES. Measured 2026-09-04:
-    // `grep -c "contains('@')"` over it answered 0, so a blank form and a
-    // mistyped address both cost a round trip and came back as the server's own
-    // English. `core.signInProblem` is the same rule Subly has always had, now
-    // in one place — see `packages/core/lib/src/auth/credentials_preflight.dart`.
-    //
-    // ⚠️ IT THROWS RATHER THAN RETURNING, because `_run` is what turns a
-    // failure into the message under the fields. An early `return` here would
-    // clear `_busy` and say nothing at all, which is the shape of a button that
-    // looks broken.
-    final core.CredentialsProblem? problem = core.signInProblem(
-      email: email,
-      password: _password.text,
-    );
-    if (problem != null) {
-      throw core.AuthFailure(switch (problem) {
-        core.CredentialsProblem.incomplete => l10n.authEnterBoth,
-        core.CredentialsProblem.emailMalformed => l10n.authInvalidEmail,
-        // Unreachable from this door, stated rather than defaulted so a future
-        // arm cannot land here wearing the wrong sentence.
-        core.CredentialsProblem.emailMissing => l10n.emailRequired,
+        final String email = _email.text.trim();
+        // 🔴 THIS SCREEN SENT WHATEVER WAS IN THE BOXES. Measured 2026-09-04:
+        // `grep -c "contains('@')"` over it answered 0, so a blank form and a
+        // mistyped address both cost a round trip and came back as the server's own
+        // English. `core.signInProblem` is the same rule Subly has always had, now
+        // in one place — see `packages/core/lib/src/auth/credentials_preflight.dart`.
+        //
+        // ⚠️ IT THROWS RATHER THAN RETURNING, because `_run` is what turns a
+        // failure into the message under the fields. An early `return` here would
+        // clear `_busy` and say nothing at all, which is the shape of a button that
+        // looks broken.
+        final core.CredentialsProblem? problem = core.signInProblem(
+          email: email,
+          password: _password.text,
+        );
+        if (problem != null) {
+          throw core.AuthFailure(switch (problem) {
+            core.CredentialsProblem.incomplete => l10n.authEnterBoth,
+            core.CredentialsProblem.emailMalformed => l10n.authInvalidEmail,
+            // Unreachable from this door, stated rather than defaulted so a future
+            // arm cannot land here wearing the wrong sentence.
+            core.CredentialsProblem.emailMissing => l10n.emailRequired,
+          });
+        }
+        await widget.onSignIn(email, _password.text);
+        // No navigation here: the router's redirect guard moves the user the moment
+        // the session appears. Pushing from both places is how you get two routes
+        // racing to be the top of the stack.
       });
-    }
-    await widget.onSignIn(email, _password.text);
-    // No navigation here: the router's redirect guard moves the user the moment
-    // the session appears. Pushing from both places is how you get two routes
-    // racing to be the top of the stack.
-  });
 
   Future<void> _forgot(ChassisLocalizations l10n) => _run(() async {
-    final String email = _email.text.trim();
-    if (core.passwordResetProblem(email: email) != null) {
-      throw core.AuthFailure(l10n.emailRequired);
-    }
-    await widget.onForgotPassword(email);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l10n.resetSent)));
-  });
+        final String email = _email.text.trim();
+        if (core.passwordResetProblem(email: email) != null) {
+          throw core.AuthFailure(l10n.emailRequired);
+        }
+        await widget.onForgotPassword(email);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l10n.resetSent)));
+      });
 
   @override
   Widget build(BuildContext context) {

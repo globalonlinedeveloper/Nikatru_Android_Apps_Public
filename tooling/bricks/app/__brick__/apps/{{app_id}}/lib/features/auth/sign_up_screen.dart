@@ -21,11 +21,7 @@ class SignUpScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final core.AuthRepository auth = ref.watch(authRepositoryProvider);
     return SignUpView(
-      onSignUp: ({
-        required String email,
-        required String password,
-        required bool marketingEmail,
-      }) async {
+      onSignUp: ({required String email, required String password, required bool marketingEmail}) async {
         await auth.signUpWithEmail(email: email, password: password);
         // 🔴 AFTER THE ACCOUNT EXISTS, and the order was the other way round
         // for a day. Recording first was justified as "a user through the door

@@ -22,14 +22,15 @@ void main() {
     core.AuthLinkProblem? problem,
     Future<void> Function(String)? onSubmit,
     VoidCallback? onLeave,
-  }) => ResetPasswordView(
-    hasSession: hasSession,
-    recovering: recovering,
-    arrival: arrival,
-    problem: problem,
-    onSubmit: onSubmit ?? (String _) async {},
-    onLeave: onLeave ?? () {},
-  );
+  }) =>
+      ResetPasswordView(
+        hasSession: hasSession,
+        recovering: recovering,
+        arrival: arrival,
+        problem: problem,
+        onSubmit: onSubmit ?? (String _) async {},
+        onLeave: onLeave ?? () {},
+      );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────
   //
@@ -48,9 +49,7 @@ void main() {
       () {
     Future<double> fieldWidthAt(WidgetTester tester, Size size) async {
       await pumpChassis(tester, size, view());
-      return tester
-          .getSize(find.byKey(ResetPasswordView.passwordField))
-          .width;
+      return tester.getSize(find.byKey(ResetPasswordView.passwordField)).width;
     }
 
     testWidgets('kPhone — narrower than the cap, so the pane yields',
@@ -62,8 +61,7 @@ void main() {
       expect(await fieldWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await fieldWidthAt(tester, kDesktop), AppBreakpoints.form,
           reason:
               'a form that grew to 1280 px is a form nobody decided the width of');
@@ -102,9 +100,8 @@ void main() {
           problem: core.AuthLinkProblem.expiredOrUsed,
         ),
       );
-      final String expired = tester
-          .widget<Text>(find.byKey(ResetPasswordView.linkDeadHint))
-          .data!;
+      final String expired =
+          tester.widget<Text>(find.byKey(ResetPasswordView.linkDeadHint)).data!;
 
       await pumpChassis(
         tester,
@@ -115,13 +112,11 @@ void main() {
           problem: core.AuthLinkProblem.verifierMissing,
         ),
       );
-      final String missing = tester
-          .widget<Text>(find.byKey(ResetPasswordView.linkDeadHint))
-          .data!;
+      final String missing =
+          tester.widget<Text>(find.byKey(ResetPasswordView.linkDeadHint)).data!;
 
       expect(expired, isNot(missing),
-          reason:
-              'one sentence for both causes is the shape that makes the '
+          reason: 'one sentence for both causes is the shape that makes the '
               'same-device instruction noise for the half it does not apply to');
       expect(expired, isNotEmpty);
       expect(missing, isNotEmpty);

@@ -14,10 +14,11 @@ void main() {
   Widget view({
     String email = 'someone@example.com',
     VoidCallback? onBackToSignIn,
-  }) => CheckInboxView(
-    email: email,
-    onBackToSignIn: onBackToSignIn ?? () {},
-  );
+  }) =>
+      CheckInboxView(
+        email: email,
+        onBackToSignIn: onBackToSignIn ?? () {},
+      );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────
   group('property: check-inbox-fills-the-form-pane at every window class', () {
@@ -37,8 +38,7 @@ void main() {
       expect(await paneWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await paneWidthAt(tester, kDesktop), AppBreakpoints.form);
     });
   });

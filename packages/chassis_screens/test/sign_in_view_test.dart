@@ -22,16 +22,17 @@ void main() {
     core.AccountDeletionOutcome? deletion,
     String? deletionDetail,
     VoidCallback? onDismissDeletionNotice,
-  }) => SignInView(
-    onSignIn: onSignIn ?? (String _, String __) async {},
-    onForgotPassword: onForgotPassword ?? (String _) async {},
-    onNeedAccount: onNeedAccount ?? () {},
-    showAppleButton: showAppleButton,
-    onSignInWithApple: onSignInWithApple ?? () async {},
-    deletion: deletion,
-    deletionDetail: deletionDetail,
-    onDismissDeletionNotice: onDismissDeletionNotice,
-  );
+  }) =>
+      SignInView(
+        onSignIn: onSignIn ?? (String _, String __) async {},
+        onForgotPassword: onForgotPassword ?? (String _) async {},
+        onNeedAccount: onNeedAccount ?? () {},
+        showAppleButton: showAppleButton,
+        onSignInWithApple: onSignInWithApple ?? () async {},
+        deletion: deletion,
+        deletionDetail: deletionDetail,
+        onDismissDeletionNotice: onDismissDeletionNotice,
+      );
 
   Future<void> fill(
     WidgetTester tester, {
@@ -59,8 +60,7 @@ void main() {
       expect(await paneWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await paneWidthAt(tester, kDesktop), AppBreakpoints.form,
           reason:
               'a form that grew to 1280 px is a form nobody decided the width of');
@@ -214,8 +214,7 @@ void main() {
   testWidgets('property: sign-in-offers-the-sign-up-door',
       (WidgetTester tester) async {
     int taps = 0;
-    await pumpChassis(
-        tester, kPhone, view(onNeedAccount: () => taps++));
+    await pumpChassis(tester, kPhone, view(onNeedAccount: () => taps++));
     await tester.tap(find.byKey(SignInView.needAccountButton));
     await tester.pump();
     expect(taps, 1);

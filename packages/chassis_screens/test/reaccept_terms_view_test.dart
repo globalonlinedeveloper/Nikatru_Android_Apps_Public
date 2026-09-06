@@ -18,20 +18,21 @@ void main() {
     Future<void> Function()? onSignOut,
     VoidCallback? onOpenTerms,
     VoidCallback? onOpenPrivacy,
-  }) => ReacceptTermsView(
-    onAccept: onAccept ?? () async {},
-    onSignOut: onSignOut ?? () async {},
-    // The real adapter hands the view the BRICK's `LegalConsentFields`; this
-    // suite hands it the package view directly, which is the same tree minus
-    // the URL launcher the package may not declare.
-    consentFields:
-        ({
+  }) =>
+      ReacceptTermsView(
+        onAccept: onAccept ?? () async {},
+        onSignOut: onSignOut ?? () async {},
+        // The real adapter hands the view the BRICK's `LegalConsentFields`; this
+        // suite hands it the package view directly, which is the same tree minus
+        // the URL launcher the package may not declare.
+        consentFields: ({
           required bool termsAccepted,
           required bool marketingAccepted,
           required bool enabled,
           required ValueChanged<bool> onTermsChanged,
           required ValueChanged<bool> onMarketingChanged,
-        }) => LegalConsentFieldsView(
+        }) =>
+            LegalConsentFieldsView(
           termsAccepted: termsAccepted,
           marketingAccepted: marketingAccepted,
           enabled: enabled,
@@ -41,7 +42,7 @@ void main() {
           onOpenTerms: onOpenTerms ?? () {},
           onOpenPrivacy: onOpenPrivacy ?? () {},
         ),
-  );
+      );
 
   // ── (1) THE WIDTH DECISION, AT ALL THREE WINDOW CLASSES ───────────────────
   group('property: reaccept-terms-fills-the-form-pane at every window class',
@@ -60,8 +61,7 @@ void main() {
       expect(await paneWidthAt(tester, kTablet), AppBreakpoints.form);
     });
 
-    testWidgets('kDesktop — the cap still holds',
-        (WidgetTester tester) async {
+    testWidgets('kDesktop — the cap still holds', (WidgetTester tester) async {
       expect(await paneWidthAt(tester, kDesktop), AppBreakpoints.form);
     });
   });
@@ -83,8 +83,7 @@ void main() {
       );
       expect(
         tester
-            .widget<Checkbox>(
-                find.byKey(LegalConsentFieldsView.termsCheckbox))
+            .widget<Checkbox>(find.byKey(LegalConsentFieldsView.termsCheckbox))
             .value,
         isFalse,
       );
@@ -93,8 +92,7 @@ void main() {
     testWidgets('ticking the box opens it, and accepting calls the recorder',
         (WidgetTester tester) async {
       int accepted = 0;
-      await pumpChassis(
-          tester, kPhone, view(onAccept: () async => accepted++));
+      await pumpChassis(tester, kPhone, view(onAccept: () async => accepted++));
       await tester.tap(find.byKey(LegalConsentFieldsView.termsCheckbox));
       await tester.pumpAndSettle();
       expect(
@@ -125,8 +123,7 @@ void main() {
   group('property: reaccept-terms-can-be-declined', () {
     testWidgets('decline calls the sign-out', (WidgetTester tester) async {
       int out = 0;
-      await pumpChassis(
-          tester, kPhone, view(onSignOut: () async => out++));
+      await pumpChassis(tester, kPhone, view(onSignOut: () async => out++));
       await tester.tap(find.byKey(ReacceptTermsView.signOutButton));
       await tester.pumpAndSettle();
       expect(out, 1);
