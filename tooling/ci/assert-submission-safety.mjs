@@ -214,7 +214,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readSubmissions, calendarMonth } from './deployment-record.mjs';
+import { readSubmissions, calendarMonth, SUBMISSION_STATES, STATE_MEANING } from './deployment-record.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(`--${n}`);
@@ -416,8 +416,25 @@ if (ledgerEntries === null) {
   for (const u of unreadable) {
     prints.push(`LEDGER ROW UNREADABLE: ${u.environment} — ${u.reason}`);
   }
+  // 🔴 A LEDGER ROW IS NOT AUTOMATICALLY A SUBMISSION, since 2026-09-06. The
+  // extension release lane records `pending_manual_publish` for each browser
+  // store row: the release is the ORIGIN of the artifact and NOTHING was sent to
+  // a store, because those rows are `submittable: false` and their first publish
+  // is manual ([ADR 067] decision 8). Counting them here would charge this
+  // factory a submission per store per tag against a cap that exists to stop a
+  // BURST OF REAL SUBMISSIONS reading as a content farm — and the burst would be
+  // three records nobody submitted. `SUBMISSION_STATES` is the one declaration of
+  // which states mean the store has the thing; the rest are printed, not counted,
+  // because a row nobody counts still has to be visible.
   const byMonth = new Map();
   for (const r of records) {
+    if (!SUBMISSION_STATES.includes(r.state)) {
+      prints.push(
+        `LEDGER ROW NOT A SUBMISSION: ${r.environment} — state=${r.state}, so it is recorded and NOT counted ` +
+          `towards ${CADENCE_LABEL}. ${STATE_MEANING[r.state] ?? ''}`,
+      );
+      continue;
+    }
     const m = calendarMonth(r.createdAt);
     if (m === null) {
       prints.push(`LEDGER ROW UNDATED: ${r.environment} carries no usable timestamp, so it counts towards no month.`);

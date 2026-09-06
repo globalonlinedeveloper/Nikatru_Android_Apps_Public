@@ -38,10 +38,24 @@
 // whose listing nobody can open is the second source of truth D-9 exists to
 // prevent: it says something shipped and gives no way to look at it.
 //
+// 🔴 …AND A STORE THIS FACTORY CANNOT SUBMIT TO IS A THIRD CASE, added
+// 2026-09-06. `submittable: false` says no lane here can submit through that
+// channel — the three browser add-on rows, whose first publish is manual ([ADR
+// 067] decision 8). A run that publishes the artifact and submits nothing has
+// neither a review state nor a listing to give, because the store has not been
+// sent anything and the listing does not exist until somebody publishes. Both
+// requirements above would therefore ask for facts that cannot exist, and the
+// only ways to satisfy them are fictions. Such a row records
+// `--state pending_manual_publish` and no listing URL; the state is REFUSED on
+// any row this factory can submit to, so it cannot become the easy way out of
+// naming a real submission.
+//
 // Usage:
 //   node tooling/ci/record-deployment.mjs <environment> [environment-url]
 //   node tooling/ci/record-deployment.mjs <environment> [url] \
 //        --state <in_review|live|rejected|pulled> --listing-url <url>
+//   node tooling/ci/record-deployment.mjs <environment> [url] \
+//        --state pending_manual_publish            # submittable:false store rows
 //   env:  GH_TOKEN (or GITHUB_TOKEN), GITHUB_REPOSITORY, GITHUB_SHA
 // ─────────────────────────────────────────────────────────────────────────────
 import { appendFileSync, readFileSync, existsSync } from 'node:fs';
@@ -53,6 +67,7 @@ import {
   STATES,
   STATE_MEANING,
   SUBMIT_TIME_STATES,
+  NOT_SUBMITTED_STATES,
 } from './deployment-record.mjs';
 
 const ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
@@ -213,11 +228,44 @@ async function main() {
           '{served channel} × {app} assertion in the tree.',
       );
     }
-    if (resolved.channel.kind === 'store' && !listingUrl) {
+    // ── IS THIS A CHANNEL THIS FACTORY CAN SUBMIT THROUGH? ────────────────────
+    // Read from the register, never from the environment name and never from the
+    // caller's flags: `submittable: false` is the row's own declaration that no
+    // lane here can submit to it, and it is what separates "the store has this
+    // and is reviewing it" from "the artifact exists and somebody still has to
+    // upload it by hand". `=== false` rather than falsy, so a row that forgot the
+    // field keeps the stricter submission rules rather than escaping them.
+    const isStore = resolved.channel.kind === 'store';
+    const cannotSubmit = isStore && resolved.channel.submittable === false;
+    const NOT_SUBMITTED = NOT_SUBMITTED_STATES[0];
+    if (state !== null && NOT_SUBMITTED_STATES.includes(state) && !cannotSubmit) {
+      return fail(
+        `--state ${state} was given for "${environment}", and ${
+          isStore
+            ? `the ${resolved.channel.id} row is \`submittable: ${JSON.stringify(resolved.channel.submittable ?? null)}\` — this factory CAN submit through it`
+            : `the ${resolved.channel.id} channel is kind: "${resolved.channel.kind}", which nobody submits to`
+        }. ${STATE_MEANING[NOT_SUBMITTED]} It is the one thing this state may say, and saying it here would ` +
+          'file a manual publish that is owed for a channel that has a lane. Pass the state that is true instead.',
+      );
+    }
+    if (isStore && !cannotSubmit && !listingUrl) {
       return fail(
         `"${environment}" is the ${resolved.channel.id} channel (kind: store) and no --listing-url was given. ` +
           'A store record whose listing nobody can open says something shipped and gives no way to look at ' +
           'it — the second source of truth [10]D-9 exists to prevent.',
+      );
+    }
+    // A `submittable: false` store row is asked for the state and NOT for a
+    // listing: the listing does not exist until the manual publish happens, so
+    // demanding it would be demanding a fiction. The state below is still
+    // mandatory, which is where the honesty is enforced.
+    if (cannotSubmit && state !== null && !NOT_SUBMITTED_STATES.includes(state)) {
+      return fail(
+        `--state ${state} was given for "${environment}", and the ${resolved.channel.id} row is ` +
+          '`submittable: false` — no lane in this factory can submit through it, so no run here can have ' +
+          `put it in that state. ${STATE_MEANING[state] ?? ''} If the manual publish HAS happened, the row is ` +
+          'what is out of date: flip `submittable`/`served` in the register first, so the ledger and the ' +
+          'register cannot disagree about whether a submission path exists.',
       );
     }
     // 🔴 A STORE CHANNEL MAY NOT INHERIT THE `live` DEFAULT.
@@ -228,12 +276,13 @@ async function main() {
     // possibly never. A forgotten flag must not be the difference between "we
     // submitted it" and "the store approved it", so a store record has to say
     // which one it means, out loud, at the call site.
-    if (resolved.channel.kind === 'store' && state === null) {
+    if (isStore && state === null) {
       return fail(
         `"${environment}" is the ${resolved.channel.id} channel (kind: store) and no --state was given. ` +
           `A store submission is NOT live when the upload succeeds — it is "${SUBMIT_TIME_STATES[0]}" until the ` +
           `store decides, which happens after this run has ended. There is no default here on purpose: pass ` +
-          `--state ${STATES.join('|')} explicitly. ${STATE_MEANING.in_review}`,
+          `--state ${(cannotSubmit ? NOT_SUBMITTED_STATES : STATES.filter((s) => !NOT_SUBMITTED_STATES.includes(s))).join('|')} explicitly. ` +
+          `${cannotSubmit ? STATE_MEANING[NOT_SUBMITTED] : STATE_MEANING.in_review}`,
       );
     }
     if (state === null) state = 'live'; // web / service: the upload IS the go-live

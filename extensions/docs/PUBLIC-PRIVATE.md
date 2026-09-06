@@ -1,15 +1,23 @@
 # What is public, what is private, and how to tell
 
-This repository is public. Two sibling repositories are not. Until 2026-08-20 the only statement of
+This subtree is public. It lives at `extensions/` inside `Nikatru_Platform_Public`. Its private half is a subtree too. Until 2026-08-20 the only statement of
 where a file belongs lived in `.gitignore` comments — legible to somebody reading 205 lines of ignore
 rules, and to nobody else. This is that rule, written where a contributor will find it.
+
+> 🔴 **Repointed 2026-09-06.** Until 2026-09-05 the two halves were their own repositories,
+> `globalonlinedeveloper/Nikatru_Extensions_Public` and `…_Private`. Under [ADR 067] decision 1 they
+> were merged into `Nikatru_Platform_Public/extensions/` and `Nikatru_Platform_Private/extensions/`,
+> and **both old repositories were then DELETED on GitHub** — measured 2026-09-06, `gh api
+> repos/globalonlinedeveloper/Nikatru_Extensions_Public` exits non-zero. Frozen local snapshots are at
+> `Projects/_archived-2026-09-05/`. Every old name below has been repointed; the old names resolve to
+> nothing, not to a redirect.
 
 ## The three tiers
 
 | Tier | Repository | Holds |
 |---|---|---|
-| **Public** | `Nikatru_Extensions_Public` (this one) | Source, tests, build tooling, the gates — and **everything a store publishes**: listing copy, store assets, submission paperwork. |
-| **Private** | `Nikatru_Extensions_Private` | The specification (`pipeline/`, ten numbered stages), the roadmap, market analysis, revenue model, competitor teardowns, audit findings, session logs. |
+| **Public** | `Nikatru_Platform_Public` → `extensions/` (this one) | Source, tests, build tooling, the gates — and **everything a store publishes**: listing copy, store assets, submission paperwork. |
+| **Private** | `Nikatru_Platform_Private` → `extensions/` | The specification (`pipeline/`, ten numbered stages), the roadmap, market analysis, revenue model, competitor teardowns, audit findings, session logs. |
 | **Business** | `nikatru/` | Legal identity, GST, store **publisher accounts**, the owner queue. Shared by every product, not just this one. |
 
 ## The test, in the order to apply it
@@ -73,15 +81,15 @@ that will be "fixed" in the wrong direction by whoever finds the contradiction n
 Root-level strategy (`TOOLS-PIPELINE.md`, `DISTRIBUTION.md`, `DECISIONS.md`, `APP-STACK.md`, `NAMING.md`,
 `I18N-LESSONS.md`, `OPERATIONS.md`, `FULLSHOT-RESEARCH-2026.md`, `MARKET-ANALYSIS.md`) and the per-extension
 planning set (`ROADMAP.md`, `HANDOFF.md`, `GIT-SETUP.md`, `V2-FEATURE-COMPLETE-PLAN.md`,
-`RESUME-PROMPT.md`) are all in `Nikatru_Extensions_Private`, at the same relative paths.
+`RESUME-PROMPT.md`) are all in `Nikatru_Platform_Private/extensions/`, at the same relative paths.
 
 They are **not** also kept here. Four of them were, byte-identical, until 2026-08-20 — two copies of one
 document, and whichever was edited the other went stale with no signal. One copy, in the private repo.
 
-## The repositories are siblings, not nested
+## The two halves are sibling SUBTREES, not nested
 
 `.gitignore` carries `private/` and describes it as "that repository, cloned in place". **No such directory
-exists**, and the arrangement it describes is not in effect. The two repositories sit side by side under
+exists**, and the arrangement it describes is not in effect. The two halves sit in sibling repositories, each under `extensions/`, both directly under
 `Projects/`. The ignore rule is kept because a future clone-in-place must not become committable by
 accident, but do not read it as a description of the layout.
 
@@ -90,5 +98,5 @@ reach outside the search root, so a single-root sweep returns a confident, clean
 both roots when sweeping:
 
 ```
-rg "<pattern>" . ../Nikatru_Extensions_Private/
+rg "<pattern>" . ../Nikatru_Platform_Private/extensions/
 ```

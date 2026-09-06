@@ -34,6 +34,7 @@ import {
   readSubmissions,
   calendarMonth,
   SUBMIT_TIME_STATES,
+  SUBMISSION_STATES,
   STATE_MEANING,
 } from '../deployment-record.mjs';
 import { RECORD_CALL, expandMatrixEnvironment, isShellVariableEnvironment } from '../workflow-scan.mjs';
@@ -463,6 +464,59 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
     assert.match(out, /could not record the deployment/);
     assert.doesNotMatch(out, /no --state was given/);
   });
+
+  // ── THE THIRD CASE: A STORE THIS FACTORY CANNOT SUBMIT TO ───────────────────
+  // 🔴 THESE RUN AGAINST THE REAL REGISTER, and that is the point: the three
+  // browser add-on rows are `submittable: false`, so the extensions release lane
+  // publishes the artifact and submits nothing. Asking it for a review state or a
+  // listing URL asks for facts that do not exist — the listing is not issued
+  // until somebody publishes by hand — and both of the two ways to satisfy the
+  // old rule were fictions. Measured 2026-09-05 by review, on the real tree: the
+  // loop, which passed only a URL, died AFTER `gh release create` under
+  // `set -euo pipefail`.
+  test('a NON-submittable store row gets past the shape checks with the origin state and NO listing URL', () => {
+    const { code, out } = record([
+      'fullshot-chrome-webstore',
+      'https://github.com/x/y/releases/tag/fullshot-v1.0.0',
+      '--state', 'pending_manual_publish',
+    ]);
+    assert.equal(code, 1);
+    assert.match(out, /could not record the deployment/); // reached the API: the shape gate passed
+    assert.doesNotMatch(out, /--listing-url was given/);
+  });
+
+  test('a NON-submittable store row still refuses to inherit ANY default', () => {
+    const { code, out } = record(['fullshot-chrome-webstore']);
+    assert.equal(code, 1);
+    assert.match(out, /no --state was given/);
+    assert.match(out, /pending_manual_publish/);
+    assert.doesNotMatch(out, /could not record the deployment/); // refused BEFORE the API
+  });
+
+  test('a NON-submittable store row REFUSES `in_review` — no lane here can have submitted it', () => {
+    const { code, out } = record([
+      'fullshot-chrome-webstore',
+      '--state', 'in_review',
+      '--listing-url', 'https://chromewebstore.google.com/detail/X',
+    ]);
+    assert.equal(code, 1);
+    assert.match(out, /no lane in this factory can submit through it/);
+    assert.doesNotMatch(out, /could not record the deployment/);
+  });
+
+  test('a SUBMITTABLE store row REFUSES the origin state — it is not the easy way past naming a submission', () => {
+    const { code, out } = record(['subly-android-play', '--state', 'pending_manual_publish']);
+    assert.equal(code, 1);
+    assert.match(out, /this factory CAN submit through it/);
+    assert.doesNotMatch(out, /could not record the deployment/);
+  });
+
+  test('a WEB row REFUSES the origin state too — nobody submits to a web channel', () => {
+    const { code, out } = record(['subly-web', '--state', 'pending_manual_publish']);
+    assert.equal(code, 1);
+    assert.match(out, /which nobody submits to/);
+    assert.doesNotMatch(out, /could not record the deployment/);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,6 +596,17 @@ describe('deployment-record — SUBMIT_TIME_STATES draws the submitted/live line
     for (const s of ['live', 'rejected', 'pulled']) {
       assert.equal(SUBMIT_TIME_STATES.includes(s), false, `${s} is decided after the submitting run has ended`);
     }
+  });
+
+  // 🔴 THE LINE [10]D-6's CADENCE COUNTS ON. `pending_manual_publish` is in the
+  // vocabulary and OUT of the submission set: it says the release is an artifact's
+  // origin and that nobody submitted anything. A state that drifted into
+  // SUBMISSION_STATES would charge three submissions per tag against a cap of two.
+  test('the origin state is a state, and it is not a submission', () => {
+    assert.equal(STATES.includes('pending_manual_publish'), true);
+    assert.equal(SUBMISSION_STATES.includes('pending_manual_publish'), false);
+    assert.equal(SUBMIT_TIME_STATES.includes('pending_manual_publish'), false);
+    assert.deepEqual([...SUBMISSION_STATES], ['in_review', 'live', 'rejected', 'pulled']);
   });
 });
 

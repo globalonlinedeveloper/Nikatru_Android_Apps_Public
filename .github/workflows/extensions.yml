@@ -418,8 +418,14 @@ jobs:
         run: node scripts/check-core-sync.mjs ${{ matrix.tool }}
       - name: Version agreement (manifest ↔ CHANGELOG)
         run: node scripts/check-version.mjs ${{ matrix.tool }}
+      # why: the same wrapper as the `package` leg below, for the same reason. This
+      # call has never been the one that hung, but it is the same gate on the same
+      # runner image, and a ceiling that only covers the leg that has already failed
+      # is a ceiling that will be absent from wherever it fails next.
       - name: The BUILT store packages carry the right add-on identity
-        run: node scripts/check-store-packages.mjs ${{ matrix.tool }}
+        run: >-
+          node scripts/lib/hang-guard.mjs --seconds 180 --retries 1 --report-dir diag
+          -- node scripts/check-store-packages.mjs ${{ matrix.tool }}
       - name: One listing per store, and the store axis has not drifted
         run: node scripts/check-store-metadata.mjs ${{ matrix.tool }}
       - name: The tool's own AMO submission gate (FullShot)
@@ -467,7 +473,13 @@ jobs:
         target: [chromium, firefox]
         os: [ubuntu-24.04, windows-2022]   # windows leg catches path/CRLF/casing bugs
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # why: 30 -> 15 on 2026-09-06. Measured on run 34007402189's clean attempt, all four
+    # legs: 8s, 13s, 20s and 22s wall-clock for the WHOLE job. The step-level ceiling in
+    # the hang guard below fires first at ~6.5 min worst case (two attempts of 180s plus
+    # the report grace), so this number is the backstop for a hang somewhere the guard
+    # does not wrap — and at 15 it costs a wasted runner a quarter of an hour instead of
+    # the six hours GitHub's default would have.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { persist-credentials: false }
@@ -493,8 +505,51 @@ jobs:
           echo "$a"; echo "$b"
           [ "$a" = "$b" ] || { echo "::error::zip is not reproducible"; exit 1; }
 
+      # why: 🔴 THIS EXACT STEP HUNG TWICE ON 2026-09-06, ON THE firefox · ubuntu-24.04
+      # LEG ONLY, AFTER PRINTING ITS ENTIRE OUTPUT. Run 34007402189 attempt 1: started
+      # 02:51:53Z, still running at 03:17:00Z when it was cancelled — 25 minutes for a
+      # command the other three legs of the same matrix ran in under a second, and that
+      # every re-run finishes in ~20s. Run 34015605278 attempt 1, 13 minutes, same leg.
+      # In both the log ended with the `3 passed` summary line the gate writes
+      # immediately before process.exit, so the work was DONE and the process did not
+      # leave. The gate and its whole import set were read for anything that can hold a
+      # Node event loop open — no sockets, no child processes, no workers, no fs.watch,
+      # no timers, no exit handlers, and zlib is used only through inflateRawSync — and
+      # there is nothing in it to fix. So the wrapper does not pretend to know the
+      # cause: it bounds the wait and it makes the child write a Node diagnostic report
+      # (JS stack of every thread + every open libuv handle) BEFORE killing it, which
+      # is the one artefact a blind re-run destroys. 124 here is a real failure and is
+      # meant to be — a red job in minutes with evidence attached beats an amber one
+      # for GitHub's six-hour default with none. Never widen --seconds to make it green.
       - name: The built package carries the right store identity
-        run: node scripts/check-store-packages.mjs ${{ matrix.tool }} --dir dist
+        run: >-
+          node scripts/lib/hang-guard.mjs --seconds 180 --retries 1 --report-dir diag
+          -- node scripts/check-store-packages.mjs ${{ matrix.tool }} --dir dist
+
+      # why: 🔴 `always()`, NOT `failure()`, AND THE FIRST RUN OF THIS BRANCH IS WHY.
+      # This step was written `if: failure()` on the reasoning that a green run leaves an
+      # empty directory. Then the defect reproduced live, on this leg, in the very run
+      # that was meant to prove the guard — job 101443310052:
+      #
+      #   06:45:39.350  3 passed                      <- the gate had finished its work
+      #   06:48:39.317  ::warning:: attempt 1 passed its 180s ceiling (elapsed 180.1s)
+      #   06:48:51.328  ::warning:: retrying (attempt 2 of 2)
+      #   06:48:51.477  attempt 2 finished in 0.1s with code 0
+      #
+      # The retry took ONE TENTH OF A SECOND, so the step passed, so the job was GREEN —
+      # and `failure()` threw away the diagnostic report the guard had just stopped to
+      # collect. That is the exact case the report exists for: the guard fires, the retry
+      # saves the build, and the ONLY record of what was wedged is discarded because
+      # nothing went red. `if-no-files-found: ignore` already makes a clean run upload
+      # nothing, so `always()` costs an empty check and buys the evidence.
+      - name: The hang guard's diagnostic report, if the ceiling fired
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hang-report-${{ matrix.tool }}-${{ matrix.target }}-${{ matrix.os }}
+          path: extensions/diag/**
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: The tool's own AMO submission gate, on the built zip (FullShot)
         if: matrix.tool == 'fullshot' && matrix.target == 'firefox' && matrix.os == 'ubuntu-24.04'
@@ -555,6 +610,14 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}' }
       - name: Every gate must be proven to fail on a real mutation
         run: node scripts/test/selftest.node.js
+
+      # why: the hang guard's own red/green pair. selftest.node.js cannot host it —
+      # its run() helper appends `--repo-root <root>`, which the guard forwards to the
+      # child, and node answers `bad option: --repo-root` and exits 9 (measured
+      # 2026-09-06). So the pair lives in a node:test file and runs in the same job, and
+      # the exemption in selftest.node.js's NO_CASE_RECORDED points at it by name.
+      - name: The hang guard's ceiling must be proven to fire
+        run: node --test scripts/test/hang-guard.test.mjs
 
   templates:
     if: github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && github.event.action != 'labeled' && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')
@@ -2054,7 +2117,7 @@ jobs:
         run: |
           set -euo pipefail
           for environment in $(node tooling/ci/release-manifest.mjs --emit-environments extensions/dist --app "$TOOL"); do
-            node tooling/ci/record-deployment.mjs "$environment" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+            node tooling/ci/record-deployment.mjs "$environment" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" --state pending_manual_publish
           done
       - name: Rehearsal complete — nothing was published
         if: github.event_name == 'workflow_dispatch'

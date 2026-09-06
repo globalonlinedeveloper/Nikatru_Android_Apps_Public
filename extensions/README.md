@@ -4,9 +4,13 @@
 >
 > It is now a **subtree of `Nikatru_Platform_Public`**, at `extensions/`, under
 > [ADR 067] decision 1 — *"a sovereign, build-free `extensions/` subtree"*. The old
-> repository, `globalonlinedeveloper/Nikatru_Extensions_Public`, is **archived, not
-> deleted**: all 61 of its commits came across with `git subtree add` and are in this
-> repository's history, and the archived original stays addressable.
+> repository, `globalonlinedeveloper/Nikatru_Extensions_Public`, was **DELETED on GitHub on
+> 2026-09-05** — not archived. Re-measured 2026-09-06: `gh api
+> repos/globalonlinedeveloper/Nikatru_Extensions_Public` exits non-zero and the name is absent from
+> `gh api user/repos`. All 61 of its commits came across with `git subtree add` and are in this
+> repository's history, **which is now the only copy of them on GitHub**. A frozen local snapshot
+> is at `Projects/_archived-2026-09-05/Nikatru_Extensions_Public`. Any old link 404s; it does not
+> redirect.
 >
 > **What did not change, and is the reason the word "sovereign" is in that sentence:**
 > there is still no package manager, no bundler and no transpiler under this

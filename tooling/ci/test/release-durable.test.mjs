@@ -30,7 +30,9 @@ import {
   laneIsWorkflow,
   expectedReleaseFormats,
   missingReleaseFormats,
-  originEnvironments,
+  originEnvironments as originEnvironmentsRaw,
+  channelIsOnSurface,
+  productSurfaces,
   signingPosture,
   renderManifest,
   parseManifest,
@@ -79,12 +81,20 @@ const CONFIGURED_PIN = {
  *  rather than decoration: since originEnvironments gates on `signingPosture`, a
  *  fixture row with no signing block is 'undeclared' and is WITHHELD — so a
  *  fixture without this would have quietly turned every positive case below into
- *  a test of the omission path while still reading as a test of the match path. */
+ *  a test of the omission path while still reading as a test of the match path.
+ *  🔴 EVERY ROW DECLARES `surface: 'app'`, added 2026-09-06 and load-bearing.
+ *  The register's schema REQUIRES the field and assert-channel-register.mjs fails
+ *  the build without it, so a surface-less fixture row was modelling a register
+ *  that cannot exist — and it read as green only because `channelIsOnSurface`
+ *  used to hand a surface-less row to the app surface. That fail-open is the
+ *  refutation this file now holds a case for; the fixture has to be a register
+ *  the guard would accept, or the cases below measure the guess and not the gate. */
 const REGISTER = {
   channels: [
     {
       id: 'web',
       kind: 'web',
+      surface: 'app',
       served: true,
       artifactFormats: ['static-bundle'],
       deploymentEnvironment: '{app}-web',
@@ -92,6 +102,7 @@ const REGISTER = {
     {
       id: 'android-play',
       kind: 'store',
+      surface: 'app',
       served: false,
       artifactFormats: ['.aab'],
       deploymentEnvironment: '{app}-android-play',
@@ -99,6 +110,7 @@ const REGISTER = {
     {
       id: 'windows-direct',
       kind: 'direct',
+      surface: 'app',
       served: false,
       artifactFormats: ['.msix', '.exe'],
       deploymentEnvironment: '{app}-windows-direct',
@@ -115,14 +127,36 @@ function registerWith(mutate) {
   return r;
 }
 
+/**
+ * `originEnvironments` takes the release's SURFACE as a required fourth argument
+ * (added 2026-09-05 — without it `--app subly` emitted three browser-store
+ * environments). Every case in this file that does not name one is an APP-surface
+ * release, so this wrapper supplies `'app'` and the extension cases pass
+ * `'extension'` explicitly. The REQUIREMENT itself — that the raw function
+ * refuses a missing surface — is asserted directly against `originEnvironmentsRaw`
+ * in "the surface is REQUIRED" below, so the default here cannot hide it.
+ */
+const originEnvironments = (register, app, assets, surface = 'app') => originEnvironmentsRaw(register, app, assets, surface);
+
 /** Every fixture root carries the real release-manifest.mjs, because the guard
  *  reads MANIFEST_NAME and the extension derivation OUT of it — that single
  *  declaration is one of the guard's REQUIRED_COVERAGE identities, so a fixture
  *  without it is testing a different guard. */
-function fixture({ workflows = {}, register = REGISTER, withManifestScript = true } = {}) {
+function fixture({ workflows = {}, register = REGISTER, withManifestScript = true, apps = ['subly'], tools = [] } = {}) {
   const root = join(TMP, `f${seq++}`);
   mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
   mkdirSync(join(root, 'tooling', 'ci'), { recursive: true });
+  // 🔴 THE FIXTURE CARRIES THE PRODUCTS ITS CLI CASES NAME. `--app <id>` is
+  // resolved to a surface against the TREE (apps/<id>/ or a tool.json declaring
+  // that id), and a root holding neither is refused — correctly, and that
+  // refusal would otherwise be what every `--emit-environments` case below
+  // measured instead of the behaviour it names.
+  for (const a of apps) mkdirSync(join(root, 'apps', a), { recursive: true });
+  for (const t of tools) {
+    const dir = join(root, 'extensions', 'Extension', t.dir ?? t.id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'tool.json'), JSON.stringify({ id: t.id, surface: t.surface ?? 'extension' }, null, 2));
+  }
   if (register !== null) writeFileSync(join(root, 'tooling', 'channel-register.json'), JSON.stringify(register, null, 2));
   if (withManifestScript) copyFileSync(MANIFEST_SCRIPT, join(root, 'tooling', 'ci', 'release-manifest.mjs'));
   if (withManifestScript) copyFileSync(TREE_WALK, join(root, 'tooling', 'ci', 'tree-walk.mjs'));
@@ -477,7 +511,7 @@ describe('assert-release-durable.mjs — limb 3 (the register supplies "publishe
 describe('assert-release-durable.mjs — REQUIRED_COVERAGE', () => {
   test('the installable set grows with the register — a new `.dmg` channel is covered with no edit', () => {
     const register = JSON.parse(JSON.stringify(REGISTER));
-    register.channels.push({ id: 'macos-direct', kind: 'direct', served: false, artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-macos-direct' });
+    register.channels.push({ id: 'macos-direct', surface: 'app', kind: 'direct', served: false, artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-macos-direct' });
     const r = run(fixture({ register, workflows: { 'build.yml': lane() } }));
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /REQUIRED_COVERAGE — .*\.dmg/);
@@ -534,7 +568,8 @@ describe('release-manifest.mjs — the derivations', () => {
     assert.ok(exts.has('.msix'));
     assert.ok(exts.has('.apk'), 'the only sideloadable Android artifact must be covered');
     assert.ok(!exts.has('static-bundle'), 'a shape name is not a file extension');
-    assert.ok(EXTRA_INSTALLABLE.get('.apk').length > 60, 'an extra without a reason is a hole with a comment');
+    assert.ok(EXTRA_INSTALLABLE.get('.apk').why.length > 60, 'an extra without a reason is a hole with a comment');
+    assert.equal(EXTRA_INSTALLABLE.get('.apk').surface, 'app', 'an extra with no surface is an extra offered to every surface');
   });
 
   test('originEnvironments takes DIRECT channels only, and only when the release carries their format', () => {
@@ -652,7 +687,7 @@ describe('release-manifest.mjs — the derivations', () => {
 //        is NOT loose-able: `/all 2 matching direct channel\(s\)/` relaxed to
 //        `all \d matching` unpins `all ${omitted.length}` in release-manifest.mjs
 //        — measured, that pair goes GREEN. The digit is the assertion.
-//      · the `\.` escapes in `/The release holds: README\.md, notes\.txt\./`.
+//      · the `\.` escapes in `/The release holds: README\.md, notes\.txt, …/`.
 //        Unescaped, `.` matches the same characters here and nothing else.
 //
 // C. ASSERTIONS THAT ARE REDUNDANT WITH A STRONGER ONE BESIDE THEM — kept
@@ -785,6 +820,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // unchanged, so removing it changes no answer here.)
     const arrayKeyKind = JSON.parse(JSON.stringify({
       id: 'array-keykind',
+      surface: 'app',
       kind: 'direct',
       deploymentEnvironment: '{app}-array-keykind',
       artifactFormats: ['.msix'],
@@ -874,6 +910,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // reader in this repository can interpret.
     const arrayRow = {
       id: 'windows-direct',
+      surface: 'app',
       kind: 'direct',
       artifactFormats: ['.msix'],
       deploymentEnvironment: '{app}-windows-direct',
@@ -912,13 +949,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // `null` is legal JSON in an array. `c?.kind` is what makes it a skip.
         null,
         // no `deploymentEnvironment` at all — `typeof tpl !== 'string'`.
-        { id: 'no-env', kind: 'direct', artifactFormats: ['.msix'] },
+        { id: 'no-env', surface: 'app', kind: 'direct', artifactFormats: ['.msix'] },
         // a template that forgot `{app}` — `!tpl.includes('{app}')`.
-        { id: 'literal-env', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: 'windows-direct' },
+        { id: 'literal-env', surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: 'windows-direct' },
         // no `artifactFormats` key — `c.artifactFormats ?? []`.
-        { id: 'no-formats', kind: 'direct', deploymentEnvironment: '{app}-no-formats' },
+        { id: 'no-formats', surface: 'app', kind: 'direct', deploymentEnvironment: '{app}-no-formats' },
         // non-string entries beside the real one — `typeof f === 'string'`.
-        { id: 'junk-formats', kind: 'direct', artifactFormats: [42, null, '.msix'], deploymentEnvironment: '{app}-junk-formats' },
+        { id: 'junk-formats', surface: 'app', kind: 'direct', artifactFormats: [42, null, '.msix'], deploymentEnvironment: '{app}-junk-formats' },
         // 🔴 A FORMAT WITH NO LEADING DOT — `f.startsWith('.')`, which survived
         // `if (false)` with this file at EXIT 0 / 85 pass / 0 fail on 2026-08-24
         // because every fixture format had always begun with one. `static-bundle`
@@ -928,9 +965,17 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // degenerates to "the asset name ends with this word", `keyKind: "none"`
         // makes the row recordable, and the release writes a [10]D-9 row for a
         // channel that declared no file extension at all.
-        { id: 'dotless-format', kind: 'direct', artifactFormats: ['static-bundle'], deploymentEnvironment: '{app}-dotless', signing: { keyKind: 'none' } },
+        { id: 'dotless-format', surface: 'app', kind: 'direct', artifactFormats: ['static-bundle'], deploymentEnvironment: '{app}-dotless', signing: { keyKind: 'none' } },
         // no `id` — the omission line still has to name something.
-        { kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-unnamed' },
+        { surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-unnamed' },
+        // 🔴 NO `surface` AT ALL — skipped at the surface gate, BEFORE posture is
+        // asked, so it appears in neither list below. Added 2026-09-06 with the
+        // real equality in `channelIsOnSurface`: the register's schema requires
+        // the field, and the fail-closed answer to a row that does not declare one
+        // is "this release is not on your surface". It carries a `.msix` and a
+        // `{app}` template on purpose — every other clause would have let it
+        // through, so this case fails the moment the gate goes back to guessing.
+        { id: 'surfaceless', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-surfaceless', signing: { keyKind: 'none' } },
         good,
       ],
     };
@@ -945,6 +990,11 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // clause failing open.
     assert.deepEqual(r.omitted.map((o) => o.id), ['junk-formats', '(unnamed)']);
     assert.deepEqual(r.omitted.map((o) => o.environment), ['subly-junk-formats', 'subly-unnamed']);
+    // ...and the surface-less row is in NEITHER list: not emitted, not withheld,
+    // skipped. `deepEqual` on both lists above already holds that, and this says
+    // so by name so the next reader does not have to count.
+    assert.ok(!r.environments.includes('subly-surfaceless'), 'a row that declares no surface may not reach the ledger');
+    assert.ok(!r.omitted.some((o) => o.id === 'surfaceless'), 'it is skipped BEFORE posture, so it is not a withheld row either');
 
     // A register with no `channels` key, and no register at all, are both empty
     // answers rather than a crash in the middle of a release job.
@@ -970,13 +1020,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const reg = {
       channels: [
         // format SHOUTED in the register, asset lowercase on disk.
-        { id: 'upper-fmt', kind: 'direct', artifactFormats: ['.MSIX'], deploymentEnvironment: '{app}-upper', signing: nosign },
+        { id: 'upper-fmt', surface: 'app', kind: 'direct', artifactFormats: ['.MSIX'], deploymentEnvironment: '{app}-upper', signing: nosign },
         // format lowercase, asset SHOUTED on disk — which is how several Windows
         // and installer tools name what they emit.
-        { id: 'upper-asset', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-lower', signing: nosign },
+        { id: 'upper-asset', surface: 'app', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-lower', signing: nosign },
         // two rows, one environment: it must be recorded once.
-        { id: 'dup-a', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
-        { id: 'dup-b', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
+        { id: 'dup-a', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
+        { id: 'dup-b', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-dup', signing: nosign },
         // 🔴 THE SECOND DECLARED FORMAT MATCHES AND THE FIRST DOES NOT. The
         // `formats.some(…)` BOUND had nothing holding it — it survived
         // `formats.slice(0, 1).some(…)` on 2026-08-24 with this file at EXIT 0 /
@@ -984,7 +1034,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // FIRST format. windows-direct really declares `['.msix', '.exe']`, so a
         // release carrying only the .exe is the ordinary shape of this row, and a
         // bound that stops at the first format withholds its ledger row silently.
-        { id: 'second-format', kind: 'direct', artifactFormats: ['.msi', '.exe'], deploymentEnvironment: '{app}-second', signing: nosign },
+        { id: 'second-format', surface: 'app', kind: 'direct', artifactFormats: ['.msi', '.exe'], deploymentEnvironment: '{app}-second', signing: nosign },
         // 🔴 THE EXTENSION IS A SUFFIX, NEVER A SUBSTRING. `endsWith` relaxed to
         // `includes` survived on 2026-08-24 at EXIT 0 / 85 pass / 0 fail: no
         // fixture asset had ever CARRIED a declared extension anywhere but at its
@@ -992,7 +1042,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         // `.zip` and is not the artifact — so under `includes` this row matches a
         // release that ships no .zip at all and the ledger records a channel the
         // release never served.
-        { id: 'suffix-only', kind: 'direct', artifactFormats: ['.zip'], deploymentEnvironment: '{app}-zip', signing: nosign },
+        { id: 'suffix-only', surface: 'app', kind: 'direct', artifactFormats: ['.zip'], deploymentEnvironment: '{app}-zip', signing: nosign },
       ],
     };
     const r = originEnvironments(reg, 'subly', ['subly-v1.msix', 'SUBLY-V1.EXE', 'subly-v1.dmg', 'subly-v1.zip.sha256']);
@@ -1180,6 +1230,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const r = JSON.parse(JSON.stringify(REGISTER));
     r.channels.push({
       id: 'linux-appimage',
+      surface: 'app',
       kind: 'direct',
       served: false,
       artifactFormats: ['.AppImage'],
@@ -1245,10 +1296,10 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const onSentinel = () => ({ keyKind: 'code-signing-certificate', codeSigningCertificate: { ...CONFIGURED_PIN, sha256: SENTINEL } });
     const register = {
       channels: [
-        { id: 'ok-msix', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-ok-msix', signing: pinned() },
-        { id: 'ok-exe', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-ok-exe', signing: pinned() },
-        { id: 'held-dmg', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-held-dmg', signing: onSentinel() },
-        { id: 'held-appimage', kind: 'direct', artifactFormats: ['.AppImage'], deploymentEnvironment: '{app}-held-appimage', signing: onSentinel() },
+        { id: 'ok-msix', surface: 'app', kind: 'direct', artifactFormats: ['.msix'], deploymentEnvironment: '{app}-ok-msix', signing: pinned() },
+        { id: 'ok-exe', surface: 'app', kind: 'direct', artifactFormats: ['.exe'], deploymentEnvironment: '{app}-ok-exe', signing: pinned() },
+        { id: 'held-dmg', surface: 'app', kind: 'direct', artifactFormats: ['.dmg'], deploymentEnvironment: '{app}-held-dmg', signing: onSentinel() },
+        { id: 'held-appimage', surface: 'app', kind: 'direct', artifactFormats: ['.AppImage'], deploymentEnvironment: '{app}-held-appimage', signing: onSentinel() },
       ],
     };
     const root = fixture({ register });
@@ -1309,11 +1360,11 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // No direct row matched at all — the pre-existing fail-closed path, which
     // this increment must not have swallowed into the new exit-0 branch.
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /no `kind: "direct"` channel/);
+    assert.match(r.out, /no `kind: "direct"` and no `surface: "extension"` channel/);
     assert.doesNotMatch(r.out, /omitted {2}/, 'a row that never matched is not a row that was withheld');
     // The die names what the release DID hold, so the reader can see it was a
     // .txt and not an empty stage.
-    assert.match(r.out, /The release holds: notes\.txt\./);
+    assert.match(r.out, /The release holds: notes\.txt, and `--app subly` is on the "app" surface/);
 
     // ...and an EMPTY release directory reaches the same die by a different road.
     // `${names.join(', ') || '(nothing)'}` — the `|| '(nothing)'` fallback is
@@ -1326,7 +1377,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     mkdirSync(empty, { recursive: true });
     const e = cli(['--emit-environments', empty, '--app', 'subly', '--repo-root', root]);
     assert.equal(e.code, 1, e.out);
-    assert.match(e.out, /The release holds: \(nothing\)\./);
+    assert.match(e.out, /The release holds: \(nothing\), and `--app subly` is on the "app" surface/);
     assert.equal(e.stdout.trim(), '');
 
     // ...and the join RANGES OVER EVERY STAGED FILE. `names.join(', ')` sliced to
@@ -1344,7 +1395,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     writeFileSync(join(two, 'README.md'), 'x');
     const t = cli(['--emit-environments', two, '--app', 'subly', '--repo-root', root]);
     assert.equal(t.code, 1, t.out);
-    assert.match(t.out, /The release holds: README\.md, notes\.txt\./, t.out);
+    assert.match(t.out, /The release holds: README\.md, notes\.txt, and `--app subly` is on the "app" surface/, t.out);
   });
 
   // 🔴 THE NAME BELOW SAID "both direct rows sit on their sentinels today" until
@@ -1537,7 +1588,14 @@ describe('release-manifest.mjs — the expected-format set is DERIVED, not typed
   // can answer it, instead of a silent pass over a release missing a platform.
   test('the REAL register resolves to every format a lane in this factory emits', () => {
     const real = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
-    assert.deepEqual([...expectedReleaseFormats(real)].sort(), ['.aab', '.apk', '.msix', '.snap']);
+    // ⚠️ `.zip` JOINED THIS SET ON 2026-09-05, and it is the reason `--for-workflow`
+    // exists rather than a reason to widen the narrowing. The register acquired
+    // three extension store rows whose lane is extensions.yml's `release` job,
+    // and that job emits dist/<tool>-<target>.zip — so a release staged from
+    // build-platforms.yml legitimately does not carry it, exactly as it does not
+    // carry the `.snap` submit-snap.yml emits. The narrowed cases below are what
+    // a real lane asks.
+    assert.deepEqual([...expectedReleaseFormats(real)].sort(), ['.aab', '.apk', '.msix', '.snap', '.zip']);
   });
 
   // ⚠️ THE QUESTION THE NOTE ABOVE PARKED WAS ANSWERED 2026-08-27, AND ONLY HALF
@@ -1637,11 +1695,18 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // test. These cases drive the CLI against the real register, so "complete" here
   // means every format a lane emits, which is not the same as every format
   // build-platforms.yml's release job stages. That divergence is recorded there.
+  // NOTE 2026-09-05: `.zip` joined the UNNARROWED expectation when the register
+  // acquired the three extension store rows, whose lane is extensions.yml#release
+  // and which emits dist/<tool>-<target>.zip. These cases exercise the unnarrowed
+  // form on purpose, so the fixture carries one — exactly as it carries the .snap
+  // no build-platforms dist holds either. The narrowed cases below are what a
+  // real lane asks.
   const COMPLETE = [
     'subly-v1-app-release.apk',
     'subly-v1-app-release.aab',
     'subly-v1-subly.msix',
     'subly-v1-subly.snap',
+    'fullshot-v1-chromium.zip',
   ];
 
   test('THE RECORDED FAILING CASE — a release with no .msix verifies clean and IS NOT COMPLETE', () => {
@@ -1658,7 +1723,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = staged(COMPLETE);
     const r = cli(['--verify', d, '--expect-formats']);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all 4 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap/);
+    assert.match(r.out, /all 5 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap, \.zip/);
   });
 
   test('DEFAULT BEHAVIOUR IS UNCHANGED — without the flag nothing new can go red', () => {
@@ -1759,7 +1824,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = staged(BUILD_PLATFORMS);
     const r = cli(['--verify', d, '--expect-formats']);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /missing 1 expected release format\(s\): \.snap/);
+    assert.match(r.out, /missing 2 expected release format\(s\): \.snap, \.zip/);
   });
 
   test('--for-workflow WITHOUT --expect-formats refuses — a silent no-op would print ok', () => {
@@ -1803,7 +1868,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = staged(COMPLETE);
     const r = cli(['--verify', d, '--expect-formats']);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all 4 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap/);
+    assert.match(r.out, /all 5 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap, \.zip/);
   });
 });
 
@@ -1905,7 +1970,7 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
     writeFileSync(join(d, 'notes.txt'), 'x');
     const r = cli(['--emit-environments', d, '--app', 'subly']);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /no `kind: "direct"` channel/);
+    assert.match(r.out, /no `kind: "direct"` and no `surface: "extension"` channel/);
   });
 
   test('--emit-environments resolves the real register to a real environment NAME', () => {
@@ -1974,5 +2039,430 @@ describe('the real tree still satisfies the mechanism it declares', () => {
     const needs = wf.match(/needs:\s*\[([^\]]+)\]/)[1];
     assert.match(needs, /\brelease\b/);
     assert.match(needs, /\ball_platforms\b|\bgate\b/, 'the aggregator is the job this matched');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE EXTENSION SURFACE — added 2026-09-05 with the chrome-webstore /
+// edge-addons / amo rows. Two independent changes are held here:
+//
+//   · `originEnvironments` emits a `surface: "extension"` row as well as a
+//     `kind: "direct"` one, because on that surface the GitHub Release IS the
+//     origin of the very bytes the store takes.
+//   · limb 1's "is this a release lane?" moved from the WORKFLOW to the JOB,
+//     because one file now holds three lanes and the job that uploads the zip
+//     cannot run on a tag at all.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('release-manifest.mjs — the extension surface is an origin too', () => {
+  const EXT_ROW = {
+    id: 'chrome-webstore',
+    kind: 'store',
+    surface: 'extension',
+    served: false,
+    artifactFormats: ['.zip'],
+    deploymentEnvironment: '{app}-chrome-webstore',
+    signing: { keyKind: 'none', identity: null },
+  };
+
+  test('a surface:"extension" store row IS an origin — the store takes the bytes this release published', () => {
+    const r = originEnvironments({ channels: [EXT_ROW] }, 'fullshot', ['fullshot-chromium.zip'], 'extension');
+    assert.deepEqual(r.environments, ['fullshot-chrome-webstore']);
+    assert.deepEqual(r.omitted, []);
+  });
+
+  test('a kind:"store" row on the APP surface is still withheld — the rule did not widen', () => {
+    const appStore = { ...EXT_ROW, id: 'android-play', surface: 'app', artifactFormats: ['.aab'], deploymentEnvironment: '{app}-android-play' };
+    const r = originEnvironments({ channels: [appStore] }, 'subly', ['subly-v1-app-release.aab']);
+    assert.deepEqual(r.environments, [], 'recording an app-store submission from a release would write a submission that never happened');
+    assert.deepEqual(r.omitted, []);
+  });
+
+  test('an extension row whose format this release does NOT carry is not emitted', () => {
+    const r = originEnvironments({ channels: [EXT_ROW] }, 'fullshot', ['subly-v1-app-release.aab'], 'extension');
+    assert.deepEqual(r.environments, []);
+  });
+
+  test('an extension row with an UNDECLARED signing posture is withheld, exactly as a direct row is', () => {
+    const noSigning = { ...EXT_ROW, signing: { keyKind: 'mystery' } };
+    const r = originEnvironments({ channels: [noSigning] }, 'fullshot', ['fullshot-chromium.zip'], 'extension');
+    assert.deepEqual(r.environments, []);
+    assert.equal(r.omitted.length, 1);
+    assert.equal(r.omitted[0].state, 'undeclared');
+  });
+});
+
+describe('release-manifest.mjs — the SURFACE of the release, not just of the row', () => {
+  // 🔴 WHY THIS SUITE EXISTS. The commit that added the three extension rows made
+  // `.zip` a format of THE REGISTER, and both readers of the register ranged over
+  // every row with no surface question. Two defects, both measured on the real
+  // tree on 2026-09-05 against main:
+  //   · `--stage <dl> --out <out> --app subly --tag v1.0.0` over a directory
+  //     holding subly-1.0.0.zip: main exited 1, "no installable artifact found";
+  //     the branch exited 0 and staged the .zip as an APP installable.
+  //   · `--emit-environments <dir> --app subly` over a dist holding a .zip: main
+  //     exited 1, "no `kind: "direct"` channel … declares a format this release
+  //     carries"; the branch exited 0 printing subly-amo, subly-chrome-webstore
+  //     and subly-edge-addons — three [10]D-9 records of browser-store origins
+  //     for a Flutter app that ships to no browser store.
+  // An honest refusal became three false environments, so every case below is
+  // written from the app side as well as the extension side.
+  const EXT_ROWS = [
+    {
+      id: 'chrome-webstore',
+      kind: 'store',
+      surface: 'extension',
+      served: false,
+      artifactFormats: ['.zip'],
+      deploymentEnvironment: '{app}-chrome-webstore',
+      signing: { keyKind: 'none', identity: null },
+    },
+    {
+      id: 'amo',
+      kind: 'store',
+      surface: 'extension',
+      served: false,
+      artifactFormats: ['.zip'],
+      deploymentEnvironment: '{app}-amo',
+      signing: { keyKind: 'none', identity: null },
+    },
+  ];
+  const BOTH_SURFACES = { channels: [...REGISTER.channels.map((c) => ({ ...c, surface: 'app' })), ...EXT_ROWS] };
+
+  test('channelIsOnSurface is a REAL equality on both sides', () => {
+    assert.equal(channelIsOnSurface({ surface: 'extension' }, 'extension'), true);
+    assert.equal(channelIsOnSurface({ surface: 'extension' }, 'app'), false);
+    assert.equal(channelIsOnSurface({ surface: 'app' }, 'app'), true);
+    assert.equal(channelIsOnSurface({ surface: 'app' }, 'extension'), false);
+    // 🔴 THE REFUTATION, 2026-09-06. The first spelling was
+    // `(c?.surface === 'extension') === (surface === 'extension')` — an
+    // is-extension boolean wearing a surface name. It answered TRUE for a THIRD
+    // surface against EVERY non-extension surface, measured:
+    // `channelIsOnSurface({surface:'site'},'app')` was `true` AND
+    // `channelIsOnSurface({surface:'site'},'site')` was `true`. The vocabulary is
+    // open — assert-channel-register.mjs asks only `SURFACES.has(c.surface)` and
+    // derives SURFACES from the register's own `surfaces` block — so a third
+    // surface is a register edit and this predicate must see it.
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'app'), false, 'a third surface is not the app surface');
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'extension'), false);
+    assert.equal(channelIsOnSurface({ surface: 'site' }, 'site'), true, 'and it IS its own surface — an equality, not a ban');
+    // A row with NO surface, or an unreadable one, matches NOTHING. Both
+    // narrowing readers get smaller as rows drop out, so the fail-closed answer
+    // is a refusal ("no installable artifact found" / no environment emitted),
+    // never a false stage. The register's schema requires the field, so such a
+    // row is a tree assert-channel-register.mjs has already reddened.
+    assert.equal(channelIsOnSurface({}, 'app'), false);
+    assert.equal(channelIsOnSurface({}, 'extension'), false);
+    assert.equal(channelIsOnSurface(null, 'app'), false);
+    assert.equal(channelIsOnSurface({ surface: 42 }, 'app'), false);
+    assert.equal(channelIsOnSurface({ surface: 'app' }, null), false, 'null is the UNNARROWED sentinel and never reaches here');
+  });
+
+  test('a THIRD surface\'s format is not an APP installable — the fail-open the equality closes', () => {
+    // The reviewer's measured case, held as a case. Against the old spelling
+    // this set came back `['.html', '.aab', '.apk']`.
+    const THIRD = {
+      channels: [
+        { id: 'nikatru-site', surface: 'site', kind: 'direct', served: true, artifactFormats: ['.html'], deploymentEnvironment: '{app}-site', signing: { keyKind: 'none', identity: null } },
+        { id: 'android-play', surface: 'app', kind: 'store', served: true, artifactFormats: ['.aab'], deploymentEnvironment: '{app}-android-play', signing: { keyKind: 'none', identity: null } },
+      ],
+    };
+    const app = installableExtensions(THIRD, 'app');
+    assert.deepEqual([...app].sort(), ['.aab', '.apk'], 'a site channel\'s .html is not an app installable');
+    assert.ok(!app.has('.html'), 'the third surface\'s format must not fold into the --app set');
+    const site = installableExtensions(THIRD, 'site');
+    assert.deepEqual([...site].sort(), ['.html'], 'and the third surface still gets its own, so this is a narrowing and not a ban');
+    // The mirror reader: a site row is not an origin of an APP release either.
+    const originsForApp = originEnvironments(THIRD, 'subly', ['subly-1.0.0.html'], 'app');
+    assert.deepEqual(originsForApp.environments, [], 'a .html carried by a site channel emits no app-surface origin');
+  });
+
+  test('installableExtensions narrows to one surface, and UNNARROWED is still the whole register', () => {
+    const all = installableExtensions(BOTH_SURFACES);
+    assert.ok(all.has('.zip') && all.has('.aab') && all.has('.apk'), 'the guards ask the whole-tree question and must keep getting it');
+    const app = installableExtensions(BOTH_SURFACES, 'app');
+    assert.ok(!app.has('.zip'), 'a .zip is an extension channel format and nothing else — an app release must not stage one');
+    assert.ok(app.has('.aab') && app.has('.msix'));
+    assert.ok(app.has('.apk'), 'the declared extra is on the app surface and stays there');
+    const ext = installableExtensions(BOTH_SURFACES, 'extension');
+    assert.deepEqual([...ext].sort(), ['.zip'], 'an extension release carries the packer output and nothing a Flutter build makes');
+    assert.ok(!ext.has('.apk'), 'the .apk extra must not be offered to a lane that can never build one');
+  });
+
+  test('the surface is REQUIRED — originEnvironments throws rather than defaulting to every surface', () => {
+    // A default would be the defect itself: the caller that forgets the argument
+    // gets the widened answer and every log line still reads correct.
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip']), /needs the SURFACE/);
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip'], ''), /needs the SURFACE/);
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip'], null), /needs the SURFACE/);
+  });
+
+  test('an APP release carrying a .zip emits NO extension environment — the 2026-09-05 defect, pinned', () => {
+    const r = originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-1.0.0.zip'], 'app');
+    assert.deepEqual(r.environments, [], 'subly-amo / subly-chrome-webstore / subly-edge-addons are submissions that cannot exist');
+    assert.deepEqual(r.omitted, [], 'a row on another surface never matched, so it was never withheld either');
+  });
+
+  test('an EXTENSION release emits its store rows and no direct row', () => {
+    const r = originEnvironmentsRaw(BOTH_SURFACES, 'fullshot', ['fullshot-chromium.zip'], 'extension');
+    assert.deepEqual(r.environments, ['fullshot-amo', 'fullshot-chrome-webstore']);
+    // windows-direct is a `kind: "direct"` row on the app surface. An extension
+    // release has no direct-download channel, and emitting one would record a
+    // download origin for a file this lane never built.
+    const withMsix = originEnvironmentsRaw(BOTH_SURFACES, 'fullshot', ['fullshot-chromium.zip', 'fullshot-v1.msix'], 'extension');
+    assert.deepEqual(withMsix.environments, ['fullshot-amo', 'fullshot-chrome-webstore']);
+  });
+
+  test('productSurfaces reads the tool.json DECLARATION, not the directory it sits in', () => {
+    const root = fixture({ apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    assert.deepEqual(productSurfaces(root, 'fullshot').map((f) => f.surface), ['extension']);
+    assert.deepEqual(productSurfaces(root, 'subly').map((f) => f.surface), ['app']);
+    assert.deepEqual(productSurfaces(root, 'nothing-here'), [], 'an id the tree does not hold resolves to nothing, and the CLI refuses on it');
+    // The id comes from tool.json's `id`, never from the directory name.
+    assert.deepEqual(productSurfaces(root, 'Full_Screen_Shot'), []);
+  });
+
+  test('CLI --emit-environments refuses an APP id over a .zip, and names the surface it used', () => {
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const d = join(TMP, `d${seq++}`);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'subly-1.0.0.zip'), 'z');
+    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no `kind: "direct"` and no `surface: "extension"` channel/);
+    assert.match(r.out, /is on the "app" surface/);
+    assert.equal(r.stdout.trim(), '', 'a refusal must put no environment name on stdout — the lane reads stdout as a word list');
+    // ...and the same directory under the extension id records the two rows.
+    const e = cli(['--emit-environments', d, '--app', 'fullshot', '--repo-root', root]);
+    assert.equal(e.code, 0, e.out);
+    assert.deepEqual(e.stdout.trim().split(String.fromCharCode(10)).sort(), ['fullshot-amo', 'fullshot-chrome-webstore']);
+  });
+
+  test('CLI refuses an --app id no product in the tree claims, rather than ranging over every surface', () => {
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'] });
+    const d = join(TMP, `d${seq++}`);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'subly-1.0.0.zip'), 'z');
+    const r = cli(['--emit-environments', d, '--app', 'nosuchthing', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST/);
+    assert.match(r.out, /this tree holds no such product/);
+  });
+
+  test('CLI --stage over a stray .zip finds no APP installable again, and says which surface it looked on', () => {
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const from = join(TMP, `s${seq++}`);
+    mkdirSync(from, { recursive: true });
+    writeFileSync(join(from, 'subly-1.0.0.zip'), 'z');
+    const out = join(TMP, `o${seq++}`);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no installable artifact found/);
+    assert.match(r.out, /surface "app"/);
+    assert.doesNotMatch(r.out, /Looked for:[^\n]*\.zip/, 'the .zip must not appear in the app surface expectation at all');
+    // The same file under the extension id IS its installable.
+    const from2 = join(TMP, `s${seq++}`);
+    mkdirSync(from2, { recursive: true });
+    writeFileSync(join(from2, 'fullshot-chromium.zip'), 'z');
+    const out2 = join(TMP, `o${seq++}`);
+    const e = cli(['--stage', from2, '--out', out2, '--app', 'fullshot', '--tag', 'fullshot-v1.0.0', '--repo-root', root]);
+    assert.equal(e.code, 0, e.out);
+    assert.deepEqual(assetFiles(out2).names, ['fullshot-v1.0.0-fullshot-chromium.zip']);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🔴 THE THIRD SURFACE, THROUGH THE CLI. Added 2026-09-06 for the carry-forward
+  // refutation. The two cases above are written against `extension`, which the
+  // old `(c?.surface === 'extension') === (surface === 'extension')` spelling DID
+  // answer correctly — that is why they passed over a fail-open predicate. The
+  // vocabulary is open (assert-channel-register.mjs asks `SURFACES.has(c.surface)`
+  // and derives SURFACES from the register's own `surfaces` block), so the axis
+  // has to be measured on a surface that is NEITHER of the two the token knows.
+  // ───────────────────────────────────────────────────────────────────────────
+  const SITE_ROW = {
+    id: 'nikatru-site',
+    kind: 'direct',
+    surface: 'site',
+    served: true,
+    artifactFormats: ['.html'],
+    deploymentEnvironment: '{app}-site',
+    signing: { keyKind: 'none', identity: null },
+  };
+  const THREE_SURFACES = { channels: [...BOTH_SURFACES.channels, SITE_ROW] };
+
+  test('CLI --stage refuses a THIRD surface\'s format for --app subly, and never lists it as expected', () => {
+    const root = fixture({ register: THREE_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const from = join(TMP, `s${seq++}`);
+    mkdirSync(from, { recursive: true });
+    writeFileSync(join(from, 'subly-1.0.0.html'), 'h');
+    const out = join(TMP, `o${seq++}`);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no installable artifact found/);
+    assert.match(r.out, /surface "app"/);
+    assert.doesNotMatch(r.out, /Looked for:[^\n]*\.html/, 'a site channel\'s format is not part of the app surface expectation');
+  });
+
+  test('CLI --emit-environments emits NO third-surface origin for an APP release', () => {
+    // Against the old spelling this emitted `subly-site`: the site row is
+    // `kind: "direct"`, and `channelIsOnSurface({surface:'site'},'app')` answered
+    // true, so a Flutter release recorded a [10]D-9 origin on a surface it does
+    // not ship to — the same class of false record as `subly-amo`.
+    const root = fixture({ register: THREE_SURFACES, apps: ['subly'] });
+    const d = join(TMP, `d${seq++}`);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'subly-1.0.0.html'), 'h');
+    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    assert.equal(r.code, 1, r.out);
+    assert.equal(r.stdout.trim(), '', 'the lane reads stdout as a word list — a third-surface name here IS the false record');
+    assert.doesNotMatch(r.out, /subly-site/);
+    assert.match(r.out, /is on the "app" surface/);
+  });
+});
+
+describe('assert-release-durable.mjs — a job that cannot run on a tag is a build proof', () => {
+  const TAGGED = [
+    'name: three lanes in one file',
+    'on:',
+    '  push:',
+    '    tags:',
+    "      - '*-v*'",
+    'jobs:',
+    '  package:',
+    '    IFLINE',
+    '    runs-on: ubuntu-24.04',
+    '    steps:',
+    '      - uses: actions/upload-artifact@v7',
+    '        with:',
+    '          path: extensions/dist/*.zip',
+    '          retention-days: 14',
+    '',
+  ].join(String.fromCharCode(10));
+
+  const withIf = (line) => TAGGED.replace('    IFLINE', line);
+  // `.zip` must be in the register or it is not an INSTALLABLE extension and the
+  // classifier finds no upload at all — the guard's own coverage floor fires
+  // first and the case would prove nothing.
+  const EXT_REGISTER = {
+    channels: [
+      ...REGISTER.channels,
+      {
+        id: 'chrome-webstore',
+        kind: 'store',
+        surface: 'extension',
+        served: false,
+        artifactFormats: ['.zip'],
+        deploymentEnvironment: '{app}-chrome-webstore',
+        lane: { workflow: '.github/workflows/extensions.yml', job: 'package' },
+        signing: { keyKind: 'none', identity: null },
+      },
+    ],
+  };
+
+  test('GREEN CONTROL — the package job carries the tag exclusion and is PRINTED, not failed', () => {
+    const root = fixture({
+      register: EXT_REGISTER,
+      workflows: { 'extensions.yml': withIf("    if: github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/')") },
+    });
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /its own `if:` carries/);
+  });
+
+  test('THE MUTATION — delete the tag exclusion and the same job fails again, by name', () => {
+    const root = fixture({
+      register: EXT_REGISTER,
+      workflows: { 'extensions.yml': withIf("    if: github.event_name != 'schedule'") },
+    });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job "package" uploads an installable artifact/);
+  });
+
+  test('a job with NO `if:` at all is graded — the narrowing is one condition, not a mood', () => {
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': TAGGED.replace('    IFLINE' + String.fromCharCode(10), '') } });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job "package" uploads an installable artifact/);
+  });
+
+  // 🔴 THESE TWO CASES REPLACE ONE THAT COULD NOT FAIL, AND THE REPLACEMENT IS THE
+  // POINT. The case here until 2026-09-05 wrote the step condition on the step's
+  // BULLET line — `      - if: "..."` — which the guard's own `/^(\\s*)if:/` matcher
+  // can never see, so it passed for the same reason "a job with NO `if:` at all"
+  // above passes and exercised nothing. The ordinary spelling is an `if:` on its
+  // own line inside the step, which is what `.github/workflows/extensions.yml`
+  // itself writes, and it is the spelling that bypassed the guard: reproduced on
+  // the real tree, the guard went from EXIT 1 to EXIT 0 and PRINTED that the job's
+  // own `if:` carried a clause the job did not have.
+  const STEP_IF =
+    String.fromCharCode(10) +
+    '        if: ' + String.fromCharCode(34) + '!startsWith(github.ref, ' + String.fromCharCode(39) + 'refs/tags/' + String.fromCharCode(39) + ')' + String.fromCharCode(34);
+
+  test('a STEP-level tag exclusion does not excuse a job with NO `if:` — the spelling extensions.yml uses', () => {
+    const stepLevel = TAGGED
+      .replace('    IFLINE' + String.fromCharCode(10), '')
+      .replace('      - uses: actions/upload-artifact@v7', '      - uses: actions/upload-artifact@v7' + STEP_IF);
+    assert.match(stepLevel, /^ {8}if: /m, 'the fixture must carry the condition on its OWN line, or it tests the matcher and not the rule');
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': stepLevel } });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job \"package\" uploads an installable artifact/);
+    assert.doesNotMatch(r.out, /its own `if:` carries/, 'the job carries no `if:` of its own and the guard must not say it does');
+  });
+
+  // ⚠️ THIS SECOND CASE IS A REGRESSION GUARD, NOT A REPRODUCTION, and the two are
+  // recorded apart so nobody reads it as the proof. Measured 2026-09-05 with the OLD
+  // (bypassable) body put back: the case above FAILS and this one still PASSES,
+  // because with a job-level `if:` present the shallowest `if:` in the body IS the
+  // job's and the old reading happened to be right. Only the case above bites.
+  test('a STEP-level tag exclusion does not top up a job `if:` that lacks one', () => {
+    const both = withIf("    if: github.event_name != 'schedule'")
+      .replace('      - uses: actions/upload-artifact@v7', '      - uses: actions/upload-artifact@v7' + STEP_IF);
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': both } });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job \"package\" uploads an installable artifact/);
+  });
+
+  // 🔴 THE DISJUNCTION. Reproduced on the real tree 2026-09-05 by review, against
+  // the SUBSTRING reading this exemption shipped with: the clause is present, so
+  // `.includes()` matched — and the condition is TRUE on a tag, so the job runs on
+  // a tag, uploads an expiring `.zip`, and was dropped from [9]R-4's domain while
+  // the guard printed that it "CANNOT RUN on a tag". This is the case that fails
+  // against that reading and passes against the structural one.
+  test('a `tag || (!tag && …)` job condition is GRADED — one disjunct that survives a tag is enough', () => {
+    const disjunction =
+      "    if: startsWith(github.ref, 'refs/tags/') || (!startsWith(github.ref, 'refs/tags/') && needs.discover.outputs.count != '0')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(disjunction) } });
+    const r = run(root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /job \"package\" uploads an installable artifact/);
+    assert.doesNotMatch(r.out, /its own `if:` carries/, 'the condition is true on a tag and the guard must not say the job cannot run on one');
+  });
+
+  // The other direction, and it is the shape `.github/workflows/extensions.yml`
+  // actually writes — the exclusion nested two levels down inside a conjunction
+  // of parenthesised groups. A rule that only understood a flat `a && b` would
+  // grade the real `package` job and redden the real tree, so the fix is pinned
+  // against BOTH mistakes rather than only against the loose one.
+  test('the exclusion nested inside a parenthesised conjunction still exempts — the real extensions.yml shape', () => {
+    const real =
+      "    if: (github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')) && (needs.discover.outputs.count != '0')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(real) } });
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /its own `if:` carries/);
+  });
+
+  // A disjunction where EVERY branch excludes tags is genuinely false on a tag,
+  // and grading it would be the opposite defect: a true finding refused. Pinned
+  // so the fix is a reading of the condition and not a ban on the `||` character.
+  test('a disjunction whose every branch excludes tags is still an exemption', () => {
+    const bothExclude =
+      "    if: (!startsWith(github.ref, 'refs/tags/') && github.event_name == 'schedule') || (!startsWith(github.ref, 'refs/tags/') && github.event_name == 'pull_request')";
+    const root = fixture({ register: EXT_REGISTER, workflows: { 'extensions.yml': withIf(bothExclude) } });
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /its own `if:` carries/);
   });
 });
