@@ -5,7 +5,6 @@ import 'package:nikatru_auth_supabase/nikatru_auth_supabase.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 
 /// Sign-in — [pipeline C-13], inherited by every stamped app.
@@ -91,7 +90,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final core.AuthRepository auth = ref.watch(authRepositoryProvider);
     // What identity can actually do HERE — declared, not assumed
     // ([pipeline C-7]). Offering an OAuth button on a platform that cannot
@@ -254,7 +253,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _signIn(core.AuthRepository auth) => _run(() async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final String email = _email.text.trim();
     // 🔴 THIS SCREEN SENT WHATEVER WAS IN THE BOXES. Measured 2026-09-04:
     // `grep -c "contains('@')"` over this file answered 0, so a blank form and
@@ -285,7 +284,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     // racing to be the top of the stack.
   });
 
-  Future<void> _forgot(core.AuthRepository auth, AppLocalizations l10n) =>
+  Future<void> _forgot(core.AuthRepository auth, ChassisLocalizations l10n) =>
       _run(() async {
         final String email = _email.text.trim();
         if (core.passwordResetProblem(email: email) != null) {

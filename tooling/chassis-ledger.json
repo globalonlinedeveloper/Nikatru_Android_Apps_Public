@@ -11,12 +11,12 @@
     "(17 were red both before and after, all of them needing build artifacts, credentials or CLI args). This ledger is the first",
     "thing that makes the template a declared set."
   ],
-  "measuredOn": "2026-09-05",
-  "measuredAtCommit": "271b7d3",
+  "measuredOn": "2026-09-06",
+  "measuredAtCommit": "3e66efb3",
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 18255,
+    "lines": 17508,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -53,7 +53,7 @@
     },
     {
       "path": "dod.json",
-      "lines": 189,
+      "lines": 191,
       "verdict": "STAYS",
       "why": "The per-app done-record. assert-app-dod.mjs reads it per root and its mutation rows are dated against the files they probe."
     },
@@ -65,9 +65,9 @@
     },
     {
       "path": "lib/app.dart",
-      "lines": 561,
+      "lines": 570,
       "verdict": "STAYS",
-      "why": "MEASURED: undeletable, 6 new reds. assert-vendor-portability:480 matches `valueOrNull?.updateUrl ??` here; dod.json:121,123 (AnalyticsGate) and :133,135 (darkTheme); assert-consent-withdrawal-surface:201,527; seven screen-register rows; 14 stamp-properties APP_ROOT anchors."
+      "why": "MEASURED: undeletable, 6 new reds. assert-vendor-portability:480 matches `valueOrNull?.updateUrl ??` here; dod.json:123,125 (AnalyticsGate) and :135,137 (darkTheme); assert-consent-withdrawal-surface:201,527; seven screen-register rows; 14 stamp-properties APP_ROOT anchors."
     },
     {
       "path": "lib/core/app_config.dart",
@@ -77,93 +77,97 @@
     },
     {
       "path": "lib/core/router.dart",
-      "lines": 553,
+      "lines": 552,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable, 7 new reds. assert-purchase-path:96 requires >=5 declared routes; assert-a11y-coverage and assert-responsive-coverage parse their ROUTED set FROM this file, so deleting it makes both judge an empty set; six screen-register rows; dod.json:87,89 names `router.dart:refreshListenable`; 9 stamp-properties ROUTER anchors. Routes are per-app by construction."
     },
     {
       "path": "lib/features/auth/check_inbox_screen.dart",
-      "lines": 80,
+      "lines": 78,
       "verdict": "STAYS",
       "why": "MEASURED: deleting it reddens assert-a11y-coverage, assert-responsive-coverage (surface floor 12) and assert-no-seam-forks (:627 existsSync on its WATCHED_PAIRS entry). Its BODY is pinned by nothing — a 13-line stub kept the whole sweep green. Step 4 empties it; it cannot be removed."
     },
     {
       "path": "lib/features/auth/legal_consent_fields.dart",
-      "lines": 266,
+      "lines": 265,
       "verdict": "STAYS",
       "why": "MEASURED: deleting it reddens assert-no-seam-forks (:627) and assert-signup-consent-shape. Its BODY is pinned by nothing beyond its two Key constants — a 27-line stub kept the sweep green."
     },
     {
       "path": "lib/features/auth/reaccept_terms_screen.dart",
-      "lines": 175,
+      "lines": 174,
       "verdict": "STAYS",
       "why": "MEASURED: deleting it reddens a11y, responsive, no-seam-forks and signup-consent-shape. Nearly stubbable: it must keep `bool _accepted` used BOTH in an early-return guard AND to disable its button."
     },
     {
       "path": "lib/features/auth/reset_password_screen.dart",
-      "lines": 306,
+      "lines": 310,
       "verdict": "STAYS",
       "why": "MEASURED: deleting it reddens a11y, responsive, no-seam-forks and assert-screen-set (a class-symbol row). Its BODY is pinned by nothing — 306 lines behind one class name and seven Key constants, a 25-line stub kept the sweep green. The largest free reduction of the twelve."
     },
     {
       "path": "lib/features/auth/sign_in_screen.dart",
-      "lines": 299,
+      "lines": 298,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, app-dod) and NOT fully stubbable — assert-no-seam-forks:610-616 fails when a PARITY chassis file yields zero `caps.<field>` reads, and assert-app-dod needs `signInWithEmail(`. Roughly 270 of 299 lines are unpinned."
     },
     {
       "path": "lib/features/auth/sign_up_screen.dart",
-      "lines": 192,
+      "lines": 194,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable; must retain the two consent flags with guard-and-disable (assert-signup-consent-shape) and the check-inbox navigation (assert-stamp-properties SIGN_UP, :100)."
     },
     {
       "path": "lib/features/auth/verify_email_screen.dart",
-      "lines": 155,
+      "lines": 154,
       "verdict": "STAYS",
       "why": "MEASURED: deleting it reddens a11y, responsive and no-seam-forks. Its BODY is pinned by nothing — a 20-line stub kept the sweep green."
     },
     {
       "path": "lib/features/firstrun/onboarding_screen.dart",
-      "lines": 195,
+      "lines": 194,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, app-dod, stamp-properties); must retain `onboardingSeenProvider` and the l10n-fallback anchor behind the onboarding-shown-once property."
     },
     {
       "path": "lib/features/home/home_screen.dart",
-      "lines": 593,
+      "lines": 595,
       "verdict": "STAYS",
       "why": "MEASURED: the second most pinned file here — deleting it reddens ten guards including assert-ads-declarations and assert-sworn-store-files, because apps/subly/store/android-play/ads-declaration.json cites it by path. Must keep the PaywallGate wiring, `const UpgradePromoCard()`, the promo gate decision and impression, the nudge mount, a `caps.<field>` read and a `context.go` to /settings. About half is reachable."
     },
     {
       "path": "lib/features/monetization/manage_plan_screen.dart",
-      "lines": 239,
+      "lines": 245,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable (a11y, responsive, no-seam-forks, screen-set, purchase-path); must retain `_restore` calling `refreshEntitlements` and `.requestCancellation()`."
     },
     {
       "path": "lib/features/monetization/paywall_screen.dart",
-      "lines": 298,
+      "lines": 297,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable; must retain `_PaywallPhase`, `.formattedPrice`, `PurchaseRail.startCheckout` and the four `funnel.on*` money-funnel emissions (assert-seams-wired, assert-no-price-literals, stamp-properties PAYWALL :300)."
     },
     {
       "path": "lib/features/settings/settings_screen.dart",
-      "lines": 967,
+      "lines": 968,
       "verdict": "STAYS",
       "why": "MEASURED: the most pinned file in the template — eleven guards on deletion, nine on a stub. Sixteen tooling/screen-register.json rows, the whole assert-deletion-control flow, AboutListTile, `recordAnalyticsConsent(`, both upgrade/manage entry points and a `caps.canSchedule` read all live here. The route out is DELEGATION, not deletion: assert-deletion-control states that constructing `DestructiveConfirmDialog(` from packages/design_system discharges three of its seven limbs, and calls that how [ADR 065] step 4 is meant to land."
     },
     {
       "path": "lib/l10n/app_en.arb",
-      "lines": 692,
-      "verdict": "STAYS",
-      "why": "ADR 065:68 — there is no .arb anywhere in packages/, and chassis step 3 decided to rehome NONE. Copy is a required constructor parameter the caller supplies from its own arb, so this GROWS as widgets move."
+      "lines": 51,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — 149 of the 161 keys are CHASSIS copy and moved to packages/design_system/lib/src/l10n/chassis_en.arb, where gen-l10n emits ChassisLocalizations and one translation fix reaches every stamped app. What stays is the app-owned residue: appTitle (its value is the {{display_name_json}} mustache tag, and assert-stamp-text-fidelity reads it out of THIS file) plus the eleven keys whose English value carries a cloneTells.domainNoun — assert-no-clone-tells forbids that vocabulary in packages/, so copy naming what an app SELLS cannot be shared.",
+      "target": "packages/design_system/lib/src/l10n/chassis_en.arb",
+      "callSiteDelta": -641
     },
     {
       "path": "lib/l10n/app_ta.arb",
-      "lines": 164,
-      "verdict": "STAYS",
-      "why": "ADR 065:68 — there is no .arb anywhere in packages/, and chassis step 3 decided to rehome NONE. Copy is a required constructor parameter the caller supplies from its own arb, so this GROWS as widgets move."
+      "lines": 15,
+      "verdict": "MOVES",
+      "why": "[ADR 067] decision 2 — the Tamil half of the same move, key for key. Parity in both directions is enforced by packages/design_system/test/chassis_l10n_parity_test.dart, which also proves the delegate loads and every key renders non-empty in both locales.",
+      "target": "packages/design_system/lib/src/l10n/chassis_ta.arb",
+      "callSiteDelta": -149
     },
     {
       "path": "lib/main.dart",
@@ -527,7 +531,7 @@
     },
     {
       "path": "test/asset_licences_surface_test.dart",
-      "lines": 208,
+      "lines": 212,
       "verdict": "STAYS",
       "why": "MEASURED: pinned by NOTHING but this ledger. Stays on value, and it is the case that justifies keeping ALL of these: registerVendoredAssetLicences() was implemented, exported and unit-tested in packages/design_system while the brick never CALLED it, so every stamped app shipped a CC BY breach the package suite could not see. A package test cannot prove the app wired it."
     },
@@ -539,7 +543,7 @@
     },
     {
       "path": "test/chassis_properties_test.dart",
-      "lines": 5461,
+      "lines": 5471,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable — assert-stamp-properties:2197 exits 1 with COVERAGE LOST, and all SIX feature rows in the brick dod.json resolve to declarations that exist ONLY in this file. 26 property groups, 123 cases, 3,595 code lines. Its bulk is WIRING proof, not duplication: 42 cases boot the real stamped app root and none unit-tests a package class. Reducible only per-property, which the file itself sanctions. One genuine candidate: the content-pack group (117 lines) tests a rail 0 of 600 shipped Dart files read."
     },
@@ -563,7 +567,7 @@
     },
     {
       "path": "test/promo_objection_surface_test.dart",
-      "lines": 492,
+      "lines": 498,
       "verdict": "STAYS",
       "why": "MEASURED: pinned by NOTHING but this ledger — against 488cf1d^ it deleted in silence. It stays on VALUE, not compulsion: it proves a GDPR Art 21 objection yields zero promo renders, including under GPC."
     },
@@ -575,13 +579,13 @@
     },
     {
       "path": "test/responsive_width_test.dart",
-      "lines": 273,
+      "lines": 276,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable — assert-responsive-coverage:600 parses this corpus and floors it (:492)."
     },
     {
       "path": "test/smoke_test.dart",
-      "lines": 40,
+      "lines": 43,
       "verdict": "STAYS",
       "why": "MEASURED: pinned by NOTHING but this ledger. Stays on value: home renders inside the design-system AppShell/AppScaffold."
     },

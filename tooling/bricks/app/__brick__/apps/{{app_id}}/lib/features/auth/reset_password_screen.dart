@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 
 /// Where a password-reset link lands — the completion half of a feature that
@@ -90,15 +89,20 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   ///
   /// One sentence per arm. "Invalid password" would satisfy a test and tell the
   /// user nothing about which of the two boxes to look at.
-  String? _problemMessage(AppLocalizations l10n, core.NewPasswordProblem? p) =>
-      switch (p) {
-        core.NewPasswordProblem.empty => l10n.resetPasswordEnterOne,
-        core.NewPasswordProblem.tooShort => l10n.passwordTooShort,
-        core.NewPasswordProblem.mismatched => l10n.resetPasswordMismatch,
-        null => null,
-      };
+  String? _problemMessage(
+    ChassisLocalizations l10n,
+    core.NewPasswordProblem? p,
+  ) => switch (p) {
+    core.NewPasswordProblem.empty => l10n.resetPasswordEnterOne,
+    core.NewPasswordProblem.tooShort => l10n.passwordTooShort,
+    core.NewPasswordProblem.mismatched => l10n.resetPasswordMismatch,
+    null => null,
+  };
 
-  Future<void> _submit(core.AuthRepository auth, AppLocalizations l10n) async {
+  Future<void> _submit(
+    core.AuthRepository auth,
+    ChassisLocalizations l10n,
+  ) async {
     if (_busy) return;
     // 🔴 CHECKED BEFORE THE NETWORK, and the mismatch arm is why. A confirmation
     // typo is the one error on this screen that the SERVER cannot catch: both
@@ -164,7 +168,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
     final core.AuthRepository auth = ref.watch(authRepositoryProvider);
     final bool recovering = ref.watch(passwordRecoveryProvider);
     final core.PasswordResetArrivalReport arrival = ref.watch(
@@ -195,7 +199,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   List<Widget> _body(
     BuildContext context,
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
     core.AuthRepository auth, {
     required bool recovering,
     required core.PasswordResetArrival arrival,

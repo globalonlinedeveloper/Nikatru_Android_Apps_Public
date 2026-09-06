@@ -573,7 +573,10 @@ ProviderContainer _funnelContainer({
 Widget _paywallHost(ProviderContainer c, Key key) => UncontrolledProviderScope(
   container: c,
   child: MaterialApp(
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+      ...AppLocalizations.localizationsDelegates,
+      ChassisLocalizations.delegate,
+    ],
     supportedLocales: AppLocalizations.supportedLocales,
     home: PaywallScreen(key: key),
   ),
@@ -2091,9 +2094,8 @@ void main() {
     // and only the identity survived: the user is told nothing happened while
     // their data is already destroyed and their login still works. [ADR 027].
     test('501 and 502 do NOT collapse into one message', () async {
-      final AppLocalizations l10n = await AppLocalizations.delegate.load(
-        const Locale('en'),
-      );
+      final ChassisLocalizations l10n = await ChassisLocalizations.delegate
+          .load(const Locale('en'));
 
       final String nothing = deleteAccountFailureMessage(
         l10n,
@@ -3112,7 +3114,10 @@ void main() {
         UncontrolledProviderScope(
           container: c,
           child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+              ...AppLocalizations.localizationsDelegates,
+              ChassisLocalizations.delegate,
+            ],
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(body: CatchUpNudgeBanner(clock: () => now)),
           ),
@@ -3330,18 +3335,21 @@ void main() {
   group('property: locale-actually-switches', () {
     test('both locales are offered', () {
       // A picker over one locale is a control that cannot change anything.
-      expect(AppLocalizations.supportedLocales.length, greaterThanOrEqualTo(2));
       expect(
-        AppLocalizations.supportedLocales.map((Locale l) => l.languageCode),
+        ChassisLocalizations.supportedLocales.length,
+        greaterThanOrEqualTo(2),
+      );
+      expect(
+        ChassisLocalizations.supportedLocales.map((Locale l) => l.languageCode),
         containsAll(<String>['en', 'ta']),
       );
     });
 
     test('the same key yields DIFFERENT text in each locale', () async {
-      final AppLocalizations en = await AppLocalizations.delegate.load(
+      final ChassisLocalizations en = await ChassisLocalizations.delegate.load(
         const Locale('en'),
       );
-      final AppLocalizations ta = await AppLocalizations.delegate.load(
+      final ChassisLocalizations ta = await ChassisLocalizations.delegate.load(
         const Locale('ta'),
       );
       expect(
@@ -3354,7 +3362,7 @@ void main() {
     });
 
     test('a placeholder still interpolates in the second locale', () async {
-      final AppLocalizations ta = await AppLocalizations.delegate.load(
+      final ChassisLocalizations ta = await ChassisLocalizations.delegate.load(
         const Locale('ta'),
       );
       // Placeholders are where a translation most often breaks: a translator
@@ -3372,10 +3380,10 @@ void main() {
     // back to English without failing, which is why byte-equality between the
     // two locales is asserted as a defect rather than trusted as a translation.
     test('the clickwrap carries the 18 floor in both locales', () async {
-      final AppLocalizations en = await AppLocalizations.delegate.load(
+      final ChassisLocalizations en = await ChassisLocalizations.delegate.load(
         const Locale('en'),
       );
-      final AppLocalizations ta = await AppLocalizations.delegate.load(
+      final ChassisLocalizations ta = await ChassisLocalizations.delegate.load(
         const Locale('ta'),
       );
       expect(
@@ -5155,7 +5163,9 @@ void main() {
       await _turnsAndSettleRoute(tester);
       // The SHIPPED label, resolved the way the app resolves it. A test that
       // re-types the sentence goes on passing after the arb changes.
-      final AppLocalizations l10n = lookupAppLocalizations(const Locale('en'));
+      final ChassisLocalizations l10n = lookupChassisLocalizations(
+        const Locale('en'),
+      );
       await tester.tap(find.text(l10n.needAccount));
       await _turnsAndSettleRoute(tester);
       expect(

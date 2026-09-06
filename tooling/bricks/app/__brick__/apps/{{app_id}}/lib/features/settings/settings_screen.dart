@@ -21,7 +21,8 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ChassisLocalizations l10n = context.chassisL10n;
+    final AppLocalizations appL10n = AppLocalizations.of(context);
     final ThemeMode mode = ref.watch(themeModeProvider);
     // WATCHED as a stream, not read off `currentUser`: the tile below shows a
     // value the user can edit from this very screen, and a snapshot read would
@@ -305,7 +306,7 @@ class SettingsScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: Text(
-                  l10n.plan,
+                  appL10n.plan,
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
@@ -316,7 +317,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.receipt_long_outlined),
-                title: Text(l10n.managePlanTitle),
+                title: Text(appL10n.managePlanTitle),
                 onTap: () => context.go('/manage-plan'),
               ),
               const Divider(),
@@ -456,7 +457,7 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _setReminders(
     BuildContext context,
     WidgetRef ref,
-    AppLocalizations l10n, {
+    ChassisLocalizations l10n, {
     required bool on,
   }) async {
     if (!on) {
@@ -524,7 +525,7 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _signOut(
     BuildContext context,
     WidgetRef ref,
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
   ) async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     try {
@@ -560,7 +561,7 @@ class SettingsScreen extends ConsumerWidget {
   void _editProfile(
     BuildContext context,
     WidgetRef ref,
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
     core.AuthUser user,
   ) {
     final TextEditingController name = TextEditingController(
@@ -579,7 +580,7 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _saveProfile(
     BuildContext dialogContext,
     WidgetRef ref,
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
     String displayName,
   ) async {
     final NavigatorState nav = Navigator.of(dialogContext);
@@ -614,7 +615,7 @@ class SettingsScreen extends ConsumerWidget {
   void _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    AppLocalizations l10n,
+    ChassisLocalizations l10n,
   ) {
     // 🔴 OWNED HERE, NOT BY THE DIALOG, and disposed by [_DeleteAccountDialog]
     // as the last reader. `tooling/ci/assert-stamp-properties.mjs:1042` pins the
@@ -799,7 +800,7 @@ class SettingsScreen extends ConsumerWidget {
 /// these strings, because `sites/nikatru/delete-account.html` publishes none —
 /// an app promising one would be committing the business to it.
 String deleteAccountFailureMessage(
-  AppLocalizations l10n,
+  ChassisLocalizations l10n,
   core.AccountDeletionOutcome outcome,
 ) {
   switch (outcome) {
@@ -839,7 +840,7 @@ class _EditProfileDialog extends StatelessWidget {
     required this.onSave,
   });
 
-  final AppLocalizations l10n;
+  final ChassisLocalizations l10n;
   final TextEditingController name;
   final VoidCallback onSave;
 
@@ -896,7 +897,7 @@ class _DeleteAccountDialog extends StatefulWidget {
     required this.onConfirm,
   });
 
-  final AppLocalizations l10n;
+  final ChassisLocalizations l10n;
 
   /// Owned by the caller so [onConfirm] can be the zero-argument closure the
   /// stamp-properties anchor names; disposed here, the last reader.
@@ -947,7 +948,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = widget.l10n;
+    final ChassisLocalizations l10n = widget.l10n;
     return DestructiveConfirmDialog(
       title: l10n.deleteAccountConfirmTitle,
       body: l10n.deleteAccountConfirmBody,

@@ -104,6 +104,9 @@ function swornCount() {
   return n;
 }
 
+/** The chassis arb the UI anchors' copy half falls back to ([ADR 067] d2). */
+const CHASSIS_ARB = 'packages/design_system/lib/src/l10n/chassis_en.arb';
+
 /** A real-tree copy carrying exactly what the guard reads. */
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-sworn-'));
@@ -137,6 +140,13 @@ function realTree() {
   // about it, so it is seeded explicitly, beside the reduction library the
   // guard imports for the code half.
   put('apps/subly/lib/l10n/app_en.arb');
+  // …and the CHASSIS arb, for the same reason one level out. [ADR 067]
+  // decision 2 moved the 149 shared keys — `exportDataCsv` among them — into
+  // `packages/design_system`, so an anchor's copy half resolves the app arb
+  // FIRST and this one second. Without it seeded, every case in this file dies
+  // on "STALE ANCHOR — …chassis_en.arb does not exist", which is the guard
+  // reporting, correctly, that the harness had starved it.
+  put(CHASSIS_ARB);
   // Limb 8's inputs, seeded for the same reason and worth stating precisely:
   // `buildPosture._why` cites these three by BASENAME and line
   // (`providers.dart:540-545`), and `CITED_RE` matches repo-relative paths only,
@@ -693,6 +703,79 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /rests on a screen row that is GONE/);
+      },
+    );
+  });
+
+  // ── 2026-09-06 · THE ONE-LEVEL RESOLVE ([ADR 067] decision 2) ─────────────
+  // `exportDataCsv` moved into the chassis arb with the other 148 shared keys.
+  // `apps/subly` does NOT adopt (ADR 065), so its own arb still declares it and
+  // the app half of the resolve is what answers here — but a FRESHLY STAMPED app
+  // has an arb holding only the twelve keys it owns, and its settings screen
+  // reads the shared key. Before the fallback, that shape failed the copy half
+  // with "(found: null)" on a screen that is perfectly present: a true sentence
+  // about a false problem, on every probe CI stamps.
+  //
+  // The three cases below are the fallback's whole contract: it RESOLVES, it
+  // still FAILS when the copy is gone, and "declared nowhere" is a failure
+  // rather than a skip. The last one is the shape that would have made this a
+  // waiver with extra steps.
+  // The fixture PLANTS the key in the chassis arb, because on this tree
+  // `exportDataCsv` is a Subly-only key — measured 2026-09-06, it is in neither
+  // the brick arb nor the chassis arb — so the app half still answers on the
+  // real repository and the fallback has NO live input. That is stated rather
+  // than hidden: the fallback exists for the shape the next wave creates (a
+  // stamped app whose settings screen reads a shared key its own arb no longer
+  // declares), and until then these three cases are its only inputs.
+  const moveKeyToChassis = (root) => {
+    let copy = 'Export data (CSV)';
+    editDoc(root, 'apps/subly/lib/l10n/app_en.arb', (j) => {
+      copy = j.exportDataCsv;
+      delete j.exportDataCsv;
+      delete j['@exportDataCsv'];
+    });
+    editDoc(root, CHASSIS_ARB, (j) => {
+      j.exportDataCsv = copy;
+    });
+  };
+
+  test('the copy resolves ONE LEVEL out when the app arb no longer declares the key', () => {
+    withTree(moveKeyToChassis, (r) => {
+      assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /rests on screen copy that is GONE/);
+    });
+  });
+
+  test('🔴 BLANKING THE CHASSIS COPY FAILS once the app arb no longer declares it', () => {
+    withTree(
+      (root) => {
+        moveKeyToChassis(root);
+        editDoc(root, CHASSIS_ARB, (j) => {
+          j.exportDataCsv = '';
+        });
+      },
+      (r) => {
+        assert.equal(r.status, 1, 'the fallback resolved to an empty string and called it copy');
+        assert.match(r.stderr, /rests on screen copy that is GONE/);
+        assert.match(r.stderr, /in any of apps\/subly\/lib\/l10n\/app_en\.arb or packages\/design_system/);
+      },
+    );
+  });
+
+  test('🔴 DECLARED IN NEITHER ARB IS A FAILURE, NOT A SKIP', () => {
+    withTree(
+      (root) => {
+        for (const rel of ['apps/subly/lib/l10n/app_en.arb', CHASSIS_ARB]) {
+          editDoc(root, rel, (j) => {
+            delete j.exportDataCsv;
+            delete j['@exportDataCsv'];
+          });
+        }
+      },
+      (r) => {
+        assert.equal(r.status, 1, '"found in neither" was read as "nothing to check"');
+        assert.match(r.stderr, /rests on screen copy that is GONE/);
+        assert.match(r.stderr, /\(found: null\)/);
       },
     );
   });

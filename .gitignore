@@ -199,3 +199,29 @@ apps/*/lib/l10n/app_localizations*.dart
 # a reviewer would have no way to tell which one was current. The parity
 # assertion lives in `test/l10n_parity_test.dart`, which is tracked and does fail.
 apps/*/l10n-untranslated.json
+
+# …and the SAME TRIPLET for the CHASSIS strings in the design system
+# ([ADR 067] decision 2, unit `chassis-l10n`). `packages/design_system/l10n.yaml`
+# drives gen-l10n over `lib/src/l10n/chassis_*.arb`, and `flutter pub get` at the
+# WORKSPACE ROOT regenerates it — measured 2026-09-06 by deleting the triplet and
+# re-resolving, which brought back all three beside `apps/subly`'s.
+#
+# 🔴 UNTRACKED IS NOT A CONVENIENCE HERE, IT IS WHAT KEEPS assert-no-gate-weakening
+# HONEST. gen-l10n emits `// ignore_for_file: type=lint` and `// ignore:
+# unused_import`, and that guard's domain is `git ls-files`. Measured the same
+# day by `git add -f`-ing the triplet and re-running it: `FAIL gate weakening —
+# 5 problem(s)`, every one of them a blanket suppression in a SHARED package.
+# Committing the output would therefore have to be paid for with five allowlist
+# entries in a guard nobody in this unit should be widening.
+#
+# What replaces the committed-file drift check is the `chassis l10n regenerates
+# from the arb, byte for byte` step in ci.yml's `workspace-gate` job: it sha256s
+# what `flutter pub get` produced, DELETES the triplet, regenerates it, and fails
+# if a file did not come back, if any hash moved, or if the untranslated-messages
+# diagnostic is not empty. The hash half is what makes it able to fail at all —
+# the `git diff --exit-code` form it replaced exited 0 with all three generated
+# files corrupted, because `git diff` cannot see an untracked file. The parity
+# assertion that fails the suite and NAMES the keys lives in
+# packages/design_system/test/chassis_l10n_parity_test.dart.
+packages/design_system/lib/src/l10n/chassis_localizations*.dart
+packages/design_system/chassis-l10n-untranslated.json

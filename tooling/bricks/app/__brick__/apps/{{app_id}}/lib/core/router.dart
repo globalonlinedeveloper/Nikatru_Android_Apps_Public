@@ -14,7 +14,6 @@ import '../features/auth/sign_up_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/monetization/manage_plan_screen.dart';
 import '../features/monetization/paywall_screen.dart';
-import '../l10n/app_localizations.dart';
 import '../state/providers.dart';
 import '../features/settings/settings_screen.dart';
 
@@ -324,9 +323,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
     // internal route patterns — and a 404 matters most on web, where a user can
     // type a URL, follow a stale link, or land on a route an update removed.
     errorBuilder: (BuildContext context, GoRouterState state) => NotFoundScreen(
-      title: AppLocalizations.of(context).notFoundTitle,
-      message: AppLocalizations.of(context).notFoundMessage,
-      goHomeLabel: AppLocalizations.of(context).goHome,
+      title: context.chassisL10n.notFoundTitle,
+      message: context.chassisL10n.notFoundMessage,
+      goHomeLabel: context.chassisL10n.goHome,
       attemptedLocation: state.uri.toString(),
       onGoHome: () => context.go('/'),
     ),

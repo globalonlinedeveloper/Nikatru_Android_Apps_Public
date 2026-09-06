@@ -32,3 +32,14 @@ export 'src/widgets/paywall_gate.dart';
 export 'src/widgets/promo_card.dart';
 export 'src/widgets/promo_objection_control.dart';
 export 'src/widgets/promo_surface.dart';
+
+// ── THE CHASSIS STRINGS ([ADR 067] decision 2, unit `chassis-l10n`) ──────────
+// `ChassisLocalizations` is gen-l10n output over `src/l10n/chassis_*.arb`, and
+// `ChassisL10nX` is the one-token accessor the brick screens read it through.
+// Both are on the barrel for the reason `brand_tokens.dart` is: measured on this
+// tree, every app reaches this package through this file and nothing in `apps/`
+// imports a `src/` path, so a name that is not exported here is a name no app
+// can read. The app composes `ChassisLocalizations.delegate` BESIDE its own
+// `AppLocalizations.localizationsDelegates` — neither replaces the other.
+export 'src/l10n/chassis_localizations.dart';
+export 'src/l10n/chassis_l10n_x.dart';
