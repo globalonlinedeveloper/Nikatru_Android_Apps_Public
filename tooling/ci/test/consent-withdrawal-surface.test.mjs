@@ -70,7 +70,7 @@ function realTree() {
   // limbs 1-3 read the settings tree UNIONED with the delegation target — so a
   // copy without the package is COVERAGE LOST for a reason none of these cases
   // is about, and every one of them would fail for the wrong sentence. Copied,
-  // never stubbed: a stub encodes this session'''s belief about what moved rather
+  // never stubbed: a stub encodes this session's belief about what moved rather
   // than what did.
   mkdirSync(join(root, CHASSIS_PKG_DIR), { recursive: true });
   cpSync(join(REPO, CHASSIS_PKG_DIR, 'lib'), join(root, CHASSIS_PKG_DIR, 'lib'), { recursive: true });

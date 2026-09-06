@@ -128,6 +128,22 @@ class SettingsView extends StatelessWidget {
   static const Key managePlanTile = Key('settingsManagePlan');
   static const Key deleteAccountTile = Key('settingsDeleteAccount');
   static const Key contactSupportTile = Key('settingsContactSupport');
+  // 🔴 THESE FOUR KEYS WERE ADDED 2026-09-06 SO THE CONTROLS COULD BE TAPPED IN
+  // A TEST, and that is not tidying — it is the second half of a defect a review
+  // measured on this branch. Before the settings body moved here, each of these
+  // tiles carried its own handler in the brick, so ONE string
+  // (`onTap: () => _signOut(context, ref, l10n)`) proved both that the handler
+  // existed and that a control reached it, and deleting the tile reddened
+  // `assert-seams-wired` and `assert-screen-set`. After the move the handler
+  // stays in the adapter and only the TILE is here, so severing `onTap: onSignOut`
+  // changed nothing any check could see. `assert-screen-set.mjs` now closes that
+  // statically for every delegated callback; these keys close it BEHAVIOURALLY
+  // for the six controls the review named, which is the stronger of the two
+  // claims — a tap that reaches the callback cannot be satisfied by a string.
+  static const Key signOutTile = Key('settingsSignOut');
+  static const Key editProfileTile = Key('settingsEditProfile');
+  static const Key privacyPolicyTile = Key('settingsPrivacyPolicy');
+  static const Key termsTile = Key('settingsTerms');
 
   /// The signed-in identity, or null when there is none. Offering "edit your
   /// name" to a signed-out user is an offer the app cannot honour — the same
@@ -239,6 +255,7 @@ class SettingsView extends StatelessWidget {
             if (profile != null) ...<Widget>[
               heading(l10n.profile),
               ListTile(
+                key: editProfileTile,
                 leading: CircleAvatar(child: Text(profile!.initial)),
                 title: Text(
                   profile!.displayName.isEmpty
@@ -395,12 +412,14 @@ class SettingsView extends StatelessWidget {
             //    only from a store listing. [pipeline C-13]
             heading(l10n.legal),
             ListTile(
+              key: privacyPolicyTile,
               leading: const Icon(Icons.privacy_tip_outlined),
               title: Text(l10n.privacyPolicy),
               trailing: const Icon(Icons.open_in_new, size: 18),
               onTap: onOpenPrivacyPolicy,
             ),
             ListTile(
+              key: termsTile,
               leading: const Icon(Icons.description_outlined),
               title: Text(l10n.termsOfService),
               trailing: const Icon(Icons.open_in_new, size: 18),
@@ -432,6 +451,7 @@ class SettingsView extends StatelessWidget {
             // first invites a misfire.
             if (hasSession)
               ListTile(
+                key: signOutTile,
                 leading: const Icon(Icons.logout),
                 title: Text(l10n.signOut),
                 onTap: onSignOut,

@@ -38,6 +38,11 @@ void main() {
     VoidCallback? onDeleteAccount,
     VoidCallback? onEditProfile,
     VoidCallback? onContactSupport,
+    VoidCallback? onSignOut,
+    VoidCallback? onUpgrade,
+    VoidCallback? onManagePlan,
+    VoidCallback? onOpenPrivacyPolicy,
+    VoidCallback? onOpenTerms,
   }) => SettingsView(
     profile: profile,
     onEditProfile: onEditProfile,
@@ -56,14 +61,14 @@ void main() {
     hasSession: hasSession,
     planSectionLabel: 'Plan',
     managePlanLabel: 'Manage plan',
-    onUpgrade: () {},
-    onManagePlan: () {},
-    onOpenPrivacyPolicy: () {},
-    onOpenTerms: () {},
+    onUpgrade: onUpgrade ?? () {},
+    onManagePlan: onManagePlan ?? () {},
+    onOpenPrivacyPolicy: onOpenPrivacyPolicy ?? () {},
+    onOpenTerms: onOpenTerms ?? () {},
     onOpenRefundPolicy: () {},
     supportEmail: 'support@example.com',
     onContactSupport: onContactSupport ?? () {},
-    onSignOut: () {},
+    onSignOut: onSignOut ?? () {},
     onDeleteAccount: onDeleteAccount ?? () {},
     applicationName: 'Probe',
     applicationVersion: '1.2.3',
@@ -226,6 +231,107 @@ void main() {
       expect(find.text('support@example.com'), findsOneWidget);
       await tester.tap(find.byKey(SettingsView.contactSupportTile));
       expect(mailed, isTrue);
+    });
+  });
+
+  // ── (3b) EVERY OTHER CONTROL REACHES ITS HANDLER TOO ──────────────────────
+  //
+  // 🔴 THIS GROUP EXISTS BECAUSE A REVIEW MEASURED WHAT MOVING THE BODY COST.
+  // While these tiles lived in the brick they carried their own handlers —
+  // `onTap: () => _signOut(context, ref, l10n)`, `onTap: () => context.go('/paywall')`,
+  // `onTap: () => _openUrl(AppConfig.privacyUrl)` — so ONE string proved both
+  // halves at once, and severing a tile (`onTap: () {}`) reddened
+  // `assert-seams-wired`, `assert-screen-set`, `assert-stamp-properties` and
+  // `assert-purchase-path` on `origin/main`. Here only the TILE lives; the
+  // handler stays in the adapter and arrives as a callback. So severing
+  // `onTap: onSignOut` in this file changed NOTHING any check could see — a
+  // refactor that turned four reds into greens without changing what the app
+  // does, which is the exact shape this corpus refuses.
+  //
+  // Two things close it, and both are here on purpose rather than one of them:
+  //   · `assert-screen-set.mjs` now fails when a callback the adapter hands
+  //     across the delegation is declared and never used — STATIC, general, and
+  //     it covers all 41 delegated callbacks in the tree including ones nobody
+  //     writes a case for;
+  //   · these cases, which are BEHAVIOURAL and therefore the stronger claim: a
+  //     tap that reaches the callback cannot be satisfied by a string in the
+  //     right shape. They are modelled exactly on the delete-account and
+  //     contact-support cases above, which already had them.
+  //
+  // Each one FAILS when its `onTap:` is severed in the widget — measured, not
+  // assumed, with a green control before and after.
+  group('property: every settings control reaches the handler it was handed', () {
+    Future<void> tapReaches(
+      WidgetTester tester,
+      Key key,
+      Widget Function(VoidCallback fire) build,
+    ) async {
+      bool fired = false;
+      await pumpChassis(tester, kDesktop, build(() => fired = true));
+      // SCROLLED TO, not merely looked for: a `ListView` does not build its
+      // offscreen children, so a `findsNothing` further down the page is
+      // indistinguishable from a row that is not in the tree at all.
+      await tester.scrollUntilVisible(find.byKey(key), 200);
+      await tester.tap(find.byKey(key));
+      expect(fired, isTrue);
+    }
+
+    testWidgets('sign out', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.signOutTile,
+        (VoidCallback fire) => view(onSignOut: fire),
+      );
+    });
+
+    testWidgets('edit profile', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.editProfileTile,
+        (VoidCallback fire) => view(
+          profile: const SettingsProfile(
+            displayName: 'Rajasekar',
+            email: 'r@example.com',
+            initial: 'R',
+          ),
+          onEditProfile: fire,
+        ),
+      );
+    });
+
+    testWidgets('upgrade', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.upgradeTile,
+        (VoidCallback fire) => view(onUpgrade: fire),
+      );
+    });
+
+    testWidgets('manage plan', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.managePlanTile,
+        (VoidCallback fire) => view(onManagePlan: fire),
+      );
+    });
+
+    // The two legal rows both stores require to be reachable IN-APP. A link that
+    // renders and opens nothing is the store-rejection shape, and it looks
+    // identical to a working one in a screenshot.
+    testWidgets('privacy policy', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.privacyPolicyTile,
+        (VoidCallback fire) => view(onOpenPrivacyPolicy: fire),
+      );
+    });
+
+    testWidgets('terms of service', (WidgetTester tester) async {
+      await tapReaches(
+        tester,
+        SettingsView.termsTile,
+        (VoidCallback fire) => view(onOpenTerms: fire),
+      );
     });
   });
 

@@ -943,7 +943,7 @@ describe('a screen that DELEGATES into the chassis is judged where it now lives'
     // four money/first-run/settings adapters [ADR 067] phase 2 landed do too.
     // This fixture re-points the settings one at its own target, which changes
     // WHERE that surface is judged and not HOW MANY delegate. Re-measured from
-    // the guard'''s own report on 2026-09-06, never incremented blind.
+    // the guard's own report on 2026-09-06, never incremented blind.
     assert.match(out, /10 reachable surface\(s\) in .*\{\{app_id\}\} DELEGATE into `packages\/chassis_screens`/);
     assert.match(out, /SettingsScreen .* — SWEPT there/);
     // And it has LEFT the owed list, which is the difference the widening makes.

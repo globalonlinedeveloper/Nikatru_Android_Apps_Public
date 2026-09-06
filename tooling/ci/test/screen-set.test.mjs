@@ -52,7 +52,50 @@ const BRICK_LIB = `${BRICK}/lib`;
  * A register at or above the floor of 16 — a thinner one fails for a reason
  * unrelated to the case under test.
  */
-function tree({ mutate = (r) => r, widgets = null, router = null } = {}) {
+// ── THE DELEGATED-CALLBACK FIXTURE (2026-09-06) ─────────────────────────────
+//
+// 🔴 IT IS PART OF THE BASE TREE, NOT A CASE-LOCAL EXTRA, because the limb it
+// feeds carries a FLOOR. `assert-screen-set.mjs` refuses a run in which fewer
+// than MIN_DELEGATED_CALLBACKS callbacks were checked — the emptiness this
+// corpus keeps paying for, where a scan finds nothing and reports it cheerfully.
+// A fixture below that floor would fail every case in this file for a reason
+// unrelated to the one under test, which is exactly how a fixture ends up
+// weakened to keep itself green (the same note the `padding` array carries).
+//
+// 32, against a floor of 30 and 41 measured on the real tree 2026-09-06.
+const DELEGATED_CALLBACKS = [
+  'onSignOut',
+  ...Array.from({ length: 31 }, (_, i) => `onPad${i}`),
+];
+const CHASSIS_SETTINGS = 'packages/chassis_screens/lib/settings/settings_screen.dart';
+const BRICK_SETTINGS_REL = 'features/settings/settings_screen.dart';
+
+/** The chassis view that RECEIVES the callbacks. `unwire` severs exactly one
+ *  control — the defect the limb exists for: the adapter still hands the closure
+ *  across, the field is still declared, and nothing taps it. */
+const chassisSettingsBody = (unwire = null) =>
+  'class SettingsView extends StatelessWidget {\n  const SettingsView({\n' +
+  DELEGATED_CALLBACKS.map((n) => `    required this.${n},\n`).join('') +
+  '    super.key,\n  });\n\n' +
+  DELEGATED_CALLBACKS.map((n) => `  final VoidCallback ${n};\n`).join('') +
+  '\n  Widget build(BuildContext context) => ListView(\n    children: <Widget>[\n' +
+  DELEGATED_CALLBACKS.map(
+    (n) => `      ListTile(onTap: ${n === unwire ? '() {}' : n}),\n`,
+  ).join('') +
+  '    ],\n  );\n}\n';
+
+/** The adapter that HANDS THEM ACROSS. It names `SettingsView`, a public symbol
+ *  the target declares and the adapter does not — without that the shared
+ *  resolver reads the import as dead code, which is `{ lost }` and not a
+ *  delegation. */
+const BRICK_SETTINGS_BODY =
+  "import 'package:nikatru_chassis_screens/settings/settings_screen.dart';\n\n" +
+  'class SettingsScreen extends StatelessWidget {\n' +
+  '  Widget build(BuildContext context) => SettingsView(\n' +
+  DELEGATED_CALLBACKS.map((n) => `    ${n}: () => handle('${n}'),\n`).join('') +
+  '  );\n}\n';
+
+function tree({ mutate = (r) => r, widgets = null, router = null, unwire = null } = {}) {
   const root = join(TMP, `r${seq++}`);
 
   const present = [
@@ -181,6 +224,9 @@ function tree({ mutate = (r) => r, widgets = null, router = null } = {}) {
       'await rail.startCheckout(o);\nawait c.awaitUnlock(appId: a);\nawait funnel.onPurchaseSuccess(o.productId);\n',
     [`${BRICK_LIB}/features/monetization/manage_plan_screen.dart`]:
       'await rail.requestCancellation();\n',
+    // The delegation whose LAST LINK the limb added 2026-09-06 checks.
+    [`${BRICK_LIB}/${BRICK_SETTINGS_REL}`]: BRICK_SETTINGS_BODY,
+    [CHASSIS_SETTINGS]: chassisSettingsBody(unwire),
   };
 
   for (const [f, body] of Object.entries(files)) {
@@ -549,7 +595,13 @@ describe('an anchor whose screen moved into the chassis is judged there', () => 
     const { code, out } = run(root);
     assert.equal(code, 0, out);
     assert.match(out, /purchase path whole/);
-    assert.match(out, /the purchase-path scan read 1 chassis file\(s\) the template delegates to/);
+    // 2, not 1, since 2026-09-06: the base tree now also carries the settings
+    // adapter that feeds the delegated-callback limb, and it delegates too. The
+    // number is re-measured rather than loosened to a `\d+` — what this line is
+    // for is that the scan FOLLOWED the delegation, and a count that cannot
+    // change has stopped saying so.
+    assert.match(out, /the purchase-path scan read 2 chassis file\(s\) the template delegates to/);
+    assert.match(out, /paywall_body\.dart/);
   });
 
   // And the same move with the package file missing is COVERAGE LOST, not a
@@ -566,5 +618,79 @@ describe('an anchor whose screen moved into the chassis is judged there', () => 
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /that file is not on disk/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE LAST LINK OF A DELEGATION — added 2026-09-06 ([ADR 067] phase 2, unit
+// screens-money-settings).
+//
+// 🔴 THE DEFECT THESE CASES ARE ABOUT WAS MEASURED ON THE REAL TREE, TWICE.
+// While the settings body lived in the brick, one string proved two things:
+//
+//     onTap: () => _signOut(context, ref, l10n),
+//
+// the handler exists, and a control reaches it. Severing it
+// (`onTap: () {}`) reddened `assert-seams-wired` and `assert-screen-set` on
+// `origin/main` — verified in a detached worktree of main, green control
+// before and after. After the body moved into the chassis package the chain has
+// three links and every path-pinned pattern lands on the first: the adapter
+// passes `onSignOut: () => _signOut(…)`, and `onTap: onSignOut` in the package
+// could be deleted with all twenty-two guards at EXIT 0. Six settings controls
+// were in that state (sign-out, edit-profile, upgrade, manage-plan, privacy,
+// terms); with this limb all twenty-two delegated callbacks in the four moved
+// files exit 1 when severed.
+//
+// A refactor that turns a red into a green without changing what the app does
+// is the shape this corpus exists to refuse, so it is checked in BOTH
+// directions here: S-L1 is the green control, S-L2 the defect, S-L3 the
+// emptiness that would otherwise report it cheerfully.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a callback handed across a delegation must reach a control', () => {
+  // GREEN CONTROL. Without it every red below is consistent with a limb that
+  // refuses every tree it is handed.
+  test('S-L1 · passes when every delegated callback is used by the receiving file', () => {
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.match(out, /32 delegated callback\(s\) are wired to a control in the chassis file that receives them/);
+  });
+
+  test('S-L2 · FAILS when the adapter hands a callback across and nothing uses it', () => {
+    const { code, out } = run(tree({ unwire: 'onSignOut' }));
+    assert.equal(code, 1, out);
+    assert.match(out, /A CONTROL THAT REACHES NOTHING/);
+    assert.match(out, /hands `onSignOut` across the delegation/);
+    assert.match(out, /settings\/settings_screen\.dart` declares it, but nothing in that file USES it/);
+  });
+
+  // ⚠️ THE DECLARATION IS NOT A USE, and that is the whole reason the limb
+  // blanks the field and the `this.` parameter before it looks. `onSignOut` is
+  // still spelled twice in the mutated file above — once as
+  // `required this.onSignOut` and once as `final VoidCallback onSignOut;` — so
+  // a "does the name appear?" check would have passed the defect. This repo has
+  // shipped that exact confusion three times (`assert-seams-wired.mjs` carries
+  // the scar), which is why it is asserted rather than trusted.
+  test('S-L2b · the mutated fixture still SPELLS the name it no longer uses', () => {
+    const root = tree({ unwire: 'onSignOut' });
+    const body = readFileSync(join(root, CHASSIS_SETTINGS), 'utf8');
+    assert.match(body, /required this\.onSignOut,/);
+    assert.match(body, /final VoidCallback onSignOut;/);
+    assert.doesNotMatch(body, /onTap: onSignOut\b/);
+  });
+
+  // The emptiness. Delete the delegation and the loop above ranges over
+  // nothing — the shape this corpus keeps paying for, where a scan that found
+  // no work reports success.
+  test('S-L3 · COVERAGE LOST when no delegated callback is checked at all', () => {
+    const root = tree();
+    writeFileSync(
+      join(root, `${BRICK_LIB}/${BRICK_SETTINGS_REL}`),
+      'class SettingsScreen extends StatelessWidget {\n' +
+        '  Widget build(BuildContext context) => const SizedBox.shrink();\n}\n',
+    );
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /only 0 delegated callback\(s\) were checked/);
+    assert.match(out, /both read as green here and neither is/);
   });
 });
