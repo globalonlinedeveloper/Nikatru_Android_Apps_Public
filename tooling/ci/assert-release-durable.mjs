@@ -356,6 +356,146 @@ export function stepPaths(step) {
   return out;
 }
 
+/**
+ * A JOB-level `if:` that provably excludes tag refs, i.e. `!startsWith(
+ * github.ref, 'refs/tags/')` anywhere in the condition.
+ *
+ * 🔴 WHY THIS EXISTS: LIMB 1'S "IS THIS A RELEASE LANE?" WAS ONE LEVEL TOO
+ * COARSE, AND A REAL FILE PROVED IT. The question was asked of the WORKFLOW —
+ * does it trigger on `push: tags:` — which was exactly right while a release
+ * lane was its own file. `.github/workflows/extensions.yml` is three lanes in
+ * one file: its `release` job runs on a tag and publishes durably, and its
+ * `package` job carries `!startsWith(github.ref, 'refs/tags/')` in its own
+ * `if:`, so it CANNOT RUN on a tag at all. Limb 1 nevertheless graded package's
+ * `extensions/dist/*.zip` upload as a release artifact with no destination and
+ * failed the build — a finding about a job that does not exist on the trigger it
+ * was being judged for.
+ *
+ * ⚠️ NOT A WEAKENING, AND HERE IS THE LINE. This does not evaluate expressions
+ * and does not accept "some condition that looks restrictive": the ATOM it
+ * accepts is ONE normalised token sequence, the negated `startsWith` on
+ * `github.ref` against `refs/tags/`, which is the only spelling in this
+ * repository and the mirror of the one-entry `CANONICAL_PUBLISH_IF` allowlist
+ * above. A job that merely *might* not run on a tag is still graded. Recorded
+ * failing case in release-durable.test.mjs: delete that clause from
+ * extensions.yml's `package` job and this guard exits 1 again, naming the same
+ * job.
+ *
+ * 🔴 AND THE STRUCTURE AROUND THAT ATOM IS READ, NOT SCANNED FOR. Until
+ * 2026-09-06 this was `conditionTokens(cond).includes(TAG_EXCLUDING_TOKENS)` —
+ * a SUBSTRING test, one page away from `conditionIsLive`'s exact equality — and
+ * review refuted it on the real tree with a condition that is TRUE on a tag:
+ *
+ *     startsWith(github.ref, 'refs/tags/') ||
+ *       (!startsWith(github.ref, 'refs/tags/') && needs.discover.outputs.count != '0')
+ *
+ * The clause is in there, so the substring matched, so a job that DOES run on a
+ * tag and uploads an expiring `.zip` was dropped from [9]R-4's domain while the
+ * guard PRINTED "it CANNOT RUN on a tag". `||` is exactly where a scan for a
+ * clause and a reading of a condition disagree.
+ *
+ * So the operand structure is parsed, at paren depth only, with no evaluation:
+ *   · every top-level `||` disjunct must exclude tags — one disjunct that can be
+ *     true on a tag makes the whole condition true on a tag;
+ *   · some top-level `&&` conjunct must exclude tags — one is enough to make the
+ *     conjunction false on a tag;
+ *   · a leaf must EQUAL the atom, whole. Nothing else is accepted, and anything
+ *     this reader cannot decompose — a `!` in front of a group, a function call
+ *     it does not know — stays a leaf and is therefore NOT an exclusion, so the
+ *     job is graded. Unreadable resolves to graded, never to exempt.
+ */
+export const TAG_EXCLUDING_TOKENS = conditionTokens("!startsWith(github.ref, 'refs/tags/')");
+export function jobExcludesTags(job) {
+  // 🔴 `job.jobIf`, NOT THE SHALLOWEST `if:` IN THE JOB BODY. This function was
+  // written the second way and it was a BYPASS, found by review and reproduced on
+  // the real tree 2026-09-05: `job.lines` holds the job's steps as well as its own
+  // keys (parseSteps slices them back out of it), so a job with NO job-level `if:`
+  // has a STEP's `if:` as the shallowest one — and this excused the whole job from
+  // [9]R-4 while PRINTING that "its own `if:` carries" a clause the job did not
+  // have. Measured: delete `package`'s own `if:` from extensions.yml and append
+  // `&& !startsWith(github.ref, 'refs/tags/')` to its first step-level `if:`, and
+  // the guard went from EXIT 1 (the correct finding) to EXIT 0.
+  //
+  // `workflow-scan.mjs` already parses the job-level condition, anchored at
+  // exactly four spaces — `jobs:` at 0, the job name at 2, the job's own keys at
+  // 4, a step's keys at 8 — and its own comment says that anchor is what keeps a
+  // step's `if:` from being mistaken for a job condition. Reading it from there
+  // rather than re-deriving it here is also the single-declaration rule this file
+  // applies to MANIFEST_NAME: a second reading of one fact is the reading that
+  // drifts, and this one drifted before it was ever written down.
+  const cond = job?.jobIf?.cond;
+  if (typeof cond !== 'string' || cond.trim() === '') return false;
+  return conditionExcludesTags(conditionTokens(cond));
+}
+
+/**
+ * Split a NORMALISED condition on `op` (`||` or `&&`) at paren depth 0 only.
+ * Returns a single-element list when the operator does not occur at the top
+ * level, so a caller can recurse without special-casing the leaf.
+ *
+ * Depth is the only thing tracked. Operator PRECEDENCE is not: `a && b || c` is
+ * split on `||` first, which reads it as `(a && b) || c` — GitHub's own
+ * precedence, and the reading that errs towards grading either way, because a
+ * disjunct that fails the test refuses the exemption for the whole condition.
+ */
+export function splitTopLevel(tokens, op) {
+  const parts = [];
+  let current = [];
+  let depth = 0;
+  for (const word of String(tokens).split(' ')) {
+    if (word === '(') depth += 1;
+    else if (word === ')') depth -= 1;
+    if (word === op && depth === 0) {
+      parts.push(current.join(' ').trim());
+      current = [];
+      continue;
+    }
+    current.push(word);
+  }
+  parts.push(current.join(' ').trim());
+  return parts.filter((p) => p !== '');
+}
+
+/** Peel parentheses that wrap the WHOLE expression, and only those: `( a && b )`
+ *  loses its pair, `( a ) && ( b )` keeps both because neither pair wraps the
+ *  whole, and `! ( a )` is untouched because the expression does not begin with
+ *  the paren. */
+export function stripOuterParens(tokens) {
+  let s = String(tokens).trim();
+  for (;;) {
+    const words = s.split(' ');
+    if (words.length < 2 || words[0] !== '(' || words[words.length - 1] !== ')') return s;
+    let depth = 0;
+    let wraps = true;
+    for (let i = 0; i < words.length; i++) {
+      if (words[i] === '(') depth += 1;
+      else if (words[i] === ')') {
+        depth -= 1;
+        if (depth === 0 && i < words.length - 1) {
+          wraps = false;
+          break;
+        }
+      }
+    }
+    if (!wraps || depth !== 0) return s;
+    s = words.slice(1, -1).join(' ').trim();
+  }
+}
+
+/**
+ * Is this normalised condition FALSE on every tag ref? Structure only — see the
+ * header of `jobExcludesTags` for why a substring test was not, and for the
+ * refuting condition that reached the real tree.
+ */
+export function conditionExcludesTags(tokens) {
+  const s = stripOuterParens(tokens);
+  const disjuncts = splitTopLevel(s, '||');
+  if (disjuncts.length > 1) return disjuncts.every((d) => conditionExcludesTags(d));
+  const conjuncts = splitTopLevel(s, '&&');
+  if (conjuncts.length > 1) return conjuncts.some((c) => conditionExcludesTags(c));
+  return s === TAG_EXCLUDING_TOKENS;
+}
+
 /** Step-level `if:` — one indent deeper than the step's own bullet. */
 export function stepIf(step) {
   for (const l of step.lines) {
@@ -611,6 +751,15 @@ for (const wf of workflows) {
       printed.push(
         `${wf.rel}: job "${job.name}" uploads ${job.installable.length} installable artifact(s) and this workflow has NO release tag trigger, ` +
           `so its uploads are build PROOFS and \`retention-days\` is correct for them${found.length ? ` (it publishes durably anyway: ${found[0].what})` : ''}.`,
+      );
+      continue;
+    }
+    if (jobExcludesTags(job)) {
+      printed.push(
+        `${wf.rel}: job "${job.name}" uploads ${job.installable.length} installable artifact(s) and its own \`if:\` carries ` +
+          `\`!startsWith(github.ref, 'refs/tags/')\`, so it CANNOT RUN on a tag — its uploads are build PROOFS and ` +
+          `\`retention-days\` is correct for them, exactly as in a workflow with no tag trigger at all. ` +
+          'This clause exists because one file now holds three lanes; see `jobExcludesTags`.',
       );
       continue;
     }

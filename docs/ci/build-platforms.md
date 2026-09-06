@@ -1183,6 +1183,15 @@ actually carries. Today it resolves to `<app>-windows-direct` and nothing
 else — store rows are excluded because a GitHub Release is a download
 ORIGIN and not a store submission ([ADR 015] §4), and record-deployment
 would rightly refuse a store row with no --state and no --listing-url.
+⚠️ SCOPED TO THE `app` SURFACE, said out loud since 2026-09-06: the
+emitter asks which surface `--app <id>` is on before it reads `kind`, so
+the browser-store rows added for the extension surface can never reach
+THIS loop (`--emit-environments dist --app subly` over a stray `.zip`
+refuses, naming the surface). The extension lane in extensions.yml runs
+its own loop, over rows that ARE `kind: "store"`, and records them with
+`--state pending_manual_publish` — the release is their artifact's origin
+and nothing was submitted. That is a different sentence from this one, not
+a widening of it.
 Nothing is hardcoded, so an AppImage lane joins this loop by being given a
 register row, not by anybody editing this file.
 

@@ -50,7 +50,34 @@
  *  actually ask. `pulled` is distinct from `rejected` on purpose: rejected is
  *  the store refusing, pulled is us withdrawing, and the response to each is a
  *  different runbook. */
-export const STATES = Object.freeze(['in_review', 'live', 'rejected', 'pulled']);
+export const STATES = Object.freeze(['in_review', 'live', 'rejected', 'pulled', 'pending_manual_publish']);
+
+/** 🔴 `pending_manual_publish` IS NOT A SUBMISSION STATE, AND THAT IS THE WHOLE
+ *  REASON IT EXISTS. Added 2026-09-06 with the three browser add-on store rows.
+ *
+ *  A release on the EXTENSION surface publishes the exact bytes the store will
+ *  take — `extensions/dist/<tool>-<target>.zip`, built once and uploaded to the
+ *  GitHub Release by the same job — but it submits to no store: all three rows
+ *  are `submittable: false`, and [ADR 067] decision 8 puts a MANUAL first
+ *  publish in front of every one of them. So the run knows a fact the four
+ *  states above cannot say: *this release is the ORIGIN of the artifact destined
+ *  for that channel, and nobody has submitted it*.
+ *
+ *  Saying it with `in_review` would be a fiction — the store has not been sent
+ *  anything and has nothing to review — and it would be COUNTED as a submission
+ *  by [10]D-6's cadence limb, which caps submissions per calendar month to keep
+ *  a burst from reading as a content farm. Saying nothing at all would leave the
+ *  release with no ledger row and the artifact with no recorded origin.
+ *
+ *  It carries no listing URL because there is none: a listing does not exist
+ *  before the first publish (`tool.json`'s `listings` are null on all three
+ *  today), which is exactly what this state says out loud. */
+export const NOT_SUBMITTED_STATES = Object.freeze(['pending_manual_publish']);
+
+/** The states that mean the store HAS the thing — what [10]D-6's cadence counts,
+ *  and the one declaration of that boundary. `STATES` is the vocabulary; this is
+ *  the half of it that describes a submission. */
+export const SUBMISSION_STATES = Object.freeze(STATES.filter((s) => !NOT_SUBMITTED_STATES.includes(s)));
 
 /** 🔴 WHAT A SUBMITTING RUN IS ENTITLED TO ASSERT, AND NOTHING MORE.
  *
@@ -80,6 +107,8 @@ export const STATE_MEANING = Object.freeze({
   live: 'the store approved it and the listing is installable — a store-issued fact, known only after the submitting run has ended.',
   rejected: 'the store refused it. Store-issued, and a different runbook from `pulled`.',
   pulled: 'we withdrew it. Ours, not the store\'s, and deliberately distinct from `rejected`.',
+  pending_manual_publish:
+    'the release is the ORIGIN of the artifact destined for this channel and nothing was submitted: the channel is `submittable: false`, so the publish is a manual act somebody still owes. NOT a submission — [10]D-6\'s cadence does not count it.',
 });
 
 /** GitHub truncates a Deployment Status description past this. A record that
