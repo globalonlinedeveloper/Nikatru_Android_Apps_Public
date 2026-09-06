@@ -259,7 +259,7 @@ void main() {
         find.byKey(SettingsView.languagePicker),
       );
       expect(group.groupValue, 'ta');
-      group.onChanged?.call(null);
+      group.onChanged(null);
       expect(chosen, <String>['']);
     });
   });

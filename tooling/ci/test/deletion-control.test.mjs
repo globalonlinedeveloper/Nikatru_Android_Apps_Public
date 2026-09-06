@@ -52,6 +52,8 @@ const SUBLY_AUTH_PROVIDERS = `${SUBLY}/lib/state/providers/auth.dart`;
 const CHASSIS = 'packages/design_system/lib/src/widgets/destructive_confirm_dialog.dart';
 // The guard's own full-checkout sentinel. See [realTree].
 const SENTINEL = 'tooling/ci/assert-deletion-control.mjs';
+// Where the chassis screen bodies live, so [realTree] can carry them.
+const CHASSIS_PKG_DIR = 'packages/chassis_screens';
 
 /** A real-tree copy carrying exactly what the guard reads. */
 function realTree() {
@@ -73,6 +75,15 @@ function realTree() {
   // apps/subly and the real widget, byte for byte. Leaving the sentinel out
   // would make the floor the one limb no test could ever reach.
   cpSync(join(REPO, SENTINEL), join(root, SENTINEL));
+  // 🔴 AND THE CHASSIS SCREEN PACKAGE, FROM THE REAL TREE ([ADR 067] phase 2,
+  // screens-money-settings). The brick settings screen DELEGATES into it, and
+  // this guard reads the settings file UNIONED with its delegation target — so a
+  // copy without the package is COVERAGE LOST for a reason none of these cases
+  // is about, and every one of them would then fail for the wrong sentence.
+  // Copied, never stubbed: a stub encodes this session'''s belief about what moved
+  // rather than what did.
+  mkdirSync(join(root, CHASSIS_PKG_DIR), { recursive: true });
+  cpSync(join(REPO, CHASSIS_PKG_DIR, 'lib'), join(root, CHASSIS_PKG_DIR, 'lib'), { recursive: true });
   return root;
 }
 

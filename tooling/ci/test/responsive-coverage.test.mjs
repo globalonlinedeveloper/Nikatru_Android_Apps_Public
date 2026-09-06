@@ -190,7 +190,7 @@ describe('the guard says YES on the tree as it is', () => {
     );
     assert.match(out, /\{\{app_id\}\} \(brick template, declared by tooling\/bricks\/app\/brick\.yaml\)/);
     assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
-    assert.match(out, /packages\/chassis_screens: 7 surface\(s\) reachable, 7 measured — the two sets are EQUAL/);
+    assert.match(out, /packages\/chassis_screens: 12 surface\(s\) reachable, 12 measured — the two sets are EQUAL/);
 
     assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
     assert.match(
@@ -198,7 +198,7 @@ describe('the guard says YES on the tree as it is', () => {
       /apps\/subly: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/,
     );
     // The two report-mode roots, and the shape of what they report.
-    assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 3 PRINTED and not failed/);
+    assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 2 PRINTED and not failed/);
     assert.match(out, /packages\/design_system: 11 of 19 surface\(s\) measured — 8 PRINTED and not failed/);
   });
 
@@ -435,8 +435,21 @@ describe('a report-mode root can get better, never quietly worse', () => {
     rmSync(join(root, `${BRICK}/test/responsive_width_test.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `tooling\/bricks.*` has 6 measured surface\(s\) and its measured floor is 9/s);
+    // 🔴 THE BACKSTOP THAT FIRES HERE IS THE CORPUS FLOOR, AND SAYING SO IS THE
+    // POINT. Until [ADR 067] phase 2 the brick's own suite measured six surfaces
+    // that no longer live in the brick, so deleting it dropped `measured` from 9
+    // to 6 and the `coveredSurfaces` backstop fired. Now the brick's own suite
+    // measures three, deleting it leaves ZERO, and the `coveredSurfaces` check
+    // deliberately does not fire on a zero — a root that measures NOTHING is the
+    // corpus floor's subject, not the ratchet's, and reporting it as a ratchet
+    // failure would send the fix to the wrong file.
+    //
+    // The `coveredSurfaces` backstop is NOT left unproven: R-D2 below deletes the
+    // width suite of ONE chassis widget the brick delegates to, which is the
+    // mutation that lowers `measured` without emptying the corpus, and it asserts
+    // the 9-below-10 sentence this case used to carry.
     assert.match(out, /COVERAGE LOST — `tooling\/bricks.*` yielded only 0 width test file\(s\)/s);
+    assert.match(out, /and the checked-in floor is 1/s);
   });
 
   test('R10b · one design_system width case is deleted — the same backstop fires there', () => {
@@ -498,7 +511,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     assert.equal(code, 0, out);
     assert.ok(printedUnmeasured(out, BRICK).includes('showG3ProbeSheet'), out);
     assert.ok(printedUnmeasured(out, DS).includes('G3ProbeWidget'), out);
-    assert.match(out, /\{\{app_id\}\}: 3 of 13 surface\(s\) measured — 4 PRINTED/);
+    assert.match(out, /\{\{app_id\}\}: 3 of 13 surface\(s\) measured — 3 PRINTED/);
     assert.match(out, /packages\/design_system: 11 of 20 surface\(s\) measured — 9 PRINTED/);
   });
 });
@@ -610,14 +623,14 @@ describe('a screen that DELEGATES into the chassis is measured where it now live
     const { code, out } = run(treeWithChassis());
     assert.equal(code, 0, out);
     assert.match(out, /4 derived root\(s\)/);
-    assert.match(out, /7 measured where they delegate to/);
+    assert.match(out, /8 measured where they delegate to/);
   });
 
   // THE MUTATION — the screen moved and NO width test arrived with it.
   test('R-D2 · the chassis widget has no width test: the brick floor fires', () => {
     const { code, out } = run(treeWithChassis({ chassisWidthTest: false }));
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — .*\{\{app_id\}\}` has 8 measured surface\(s\) and its measured floor is 9/);
+    assert.match(out, /COVERAGE LOST — .*\{\{app_id\}\}` has 9 measured surface\(s\) and its measured floor is 10/);
   });
 
   // Same mutation seen from the other side: the delegation resolves to nothing.

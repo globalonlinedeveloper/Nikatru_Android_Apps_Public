@@ -16,7 +16,7 @@
   "root": "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "totals": {
     "files": 96,
-    "lines": 15873,
+    "lines": 15871,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -161,11 +161,11 @@
     },
     {
       "path": "lib/features/monetization/paywall_screen.dart",
-      "lines": 214,
+      "lines": 212,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 297 -> 214 brick lines, 240 package lines, callSiteDelta -83. The RENDERING moved; the phase machine did not. Retained here and each for a named reason: the four `funnel.on*` emissions (stamp-properties `money-funnel-emitted-as-a-set`, and they take a WidgetRef), `PurchaseRail.startCheckout` and `awaitUnlock` (the purchase seam, assert-purchase-path/:287 and assert-seams-wired:473), `.formattedPrice` read where the Offering is still in scope (assert-no-price-literals:371 reads adapter ∪ chassis, so either side satisfies it), and `_PaywallPhase` — now `typedef _PaywallPhase = PaywallPhase;`, an ALIAS of the package enum, because screen-register's reachability limb reads ONE file and does not follow the delegation. One enum, not two.",
+      "why": "[ADR 067] decision 2 — MEASURED 2026-09-06: 297 -> 212 brick lines, 240 package lines, callSiteDelta -85. The RENDERING moved; the phase machine did not. Retained here and each for a named reason: the four `funnel.on*` emissions (stamp-properties `money-funnel-emitted-as-a-set`, and they take a WidgetRef), `PurchaseRail.startCheckout` and `awaitUnlock` (the purchase seam, assert-purchase-path/:287 and assert-seams-wired:473), `.formattedPrice` read where the Offering is still in scope (assert-no-price-literals:371 reads adapter ∪ chassis, so either side satisfies it), and `_PaywallPhase` — now `typedef _PaywallPhase = PaywallPhase;`, an ALIAS of the package enum, because screen-register's reachability limb reads ONE file and does not follow the delegation. One enum, not two.",
       "target": "packages/chassis_screens/lib/monetization/paywall_screen.dart",
-      "callSiteDelta": -83
+      "callSiteDelta": -85
     },
     {
       "path": "lib/features/settings/settings_screen.dart",

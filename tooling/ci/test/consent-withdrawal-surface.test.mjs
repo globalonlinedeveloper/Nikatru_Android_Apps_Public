@@ -55,6 +55,9 @@ const POLICY = `sites/nikatru/legal/${
 /** A real-tree copy carrying exactly what the guard reads: the workspace list,
  *  both roots' lib/ trees, core's consent purposes and the published notice.
  *  Nothing else is read, so nothing else is copied. */
+/** Where the chassis screen bodies live, so the copy below can carry them. */
+const CHASSIS_PKG_DIR = 'packages/chassis_screens';
+
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-withdrawal-'));
   cpSync(join(REPO, 'pubspec.yaml'), join(root, 'pubspec.yaml'));
@@ -62,6 +65,15 @@ function realTree() {
     mkdirSync(join(root, r), { recursive: true });
     cpSync(join(REPO, r, 'lib'), join(root, r, 'lib'), { recursive: true });
   }
+  // 🔴 AND THE CHASSIS PACKAGE, FROM THE REAL TREE ([ADR 067] phase 2,
+  // screens-money-settings). The brick settings screen DELEGATES into it, and
+  // limbs 1-3 read the settings tree UNIONED with the delegation target — so a
+  // copy without the package is COVERAGE LOST for a reason none of these cases
+  // is about, and every one of them would fail for the wrong sentence. Copied,
+  // never stubbed: a stub encodes this session'''s belief about what moved rather
+  // than what did.
+  mkdirSync(join(root, CHASSIS_PKG_DIR), { recursive: true });
+  cpSync(join(REPO, CHASSIS_PKG_DIR, 'lib'), join(root, CHASSIS_PKG_DIR, 'lib'), { recursive: true });
   for (const f of [CORE_CONSENT, POLICY]) {
     mkdirSync(dirname(join(root, f)), { recursive: true });
     cpSync(join(REPO, f), join(root, f));
