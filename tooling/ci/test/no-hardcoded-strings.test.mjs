@@ -522,6 +522,28 @@ function tree({
 } = {}) {
   const root = join(TMP, `r${seq++}`);
   const files = {};
+  // ── 2026-09-06 · EVERY PLANTED ROOT CARRIES A RENDER SET ───────────────────
+  // The guard now floors how many `.dart` files each enforced tree hands to the
+  // matchers (`MIN_RENDER_FILES_PER_ROOT`), because "3 enforced tree(s) are
+  // clean" was true of a scan that had stopped looking: a narrowed walk leaves
+  // the directory in place and the print unchanged. A fixture root of one file
+  // is exactly the shape that floor refuses, so a root that is planted at all is
+  // planted with a render set above the floor — the same arrangement
+  // `dirtyTree(25)` has with `MIN_CANARY`.
+  //
+  // The fillers are INERT: no literal in any position the matchers look at, no
+  // `.key` accessor for the reverse limb, no `l10n` reference. A case that means
+  // to test a literal still plants exactly one, and the count it changes is the
+  // floor's, not the finding's.
+  const FILLERS_PER_ROOT = 14;
+  const fillRoot = (rootPath) => {
+    for (let i = 0; i < FILLERS_PER_ROOT; i++) {
+      files[`${rootPath}/_fill/filler_${i}.dart`] = `class Filler${i} {\n  static const int n = ${i};\n}\n`;
+    }
+  };
+  if (!omitBrick && brick !== null) fillRoot(BRICK);
+  if (subly !== null || allowlisted !== null) fillRoot(SUBLY);
+  if (shelf !== null || shelfAllowlisted !== null) fillRoot(SHELF);
   if (!omitBrick) {
     if (brick !== null) files[`${BRICK}/features/home/home_screen.dart`] = brick;
     if (brickArb !== null) files[`${BRICK}/l10n/app_en.arb`] = arb(brickArb);
@@ -830,7 +852,17 @@ describe('assert-no-hardcoded-strings', () => {
       const root = tree();
       const p = join(root, BRICK, 'l10n/app_localizations.dart');
       mkdirSync(dirname(p), { recursive: true });
-      writeFileSync(p, "String get navHome => 'Home';\nText('Welcome to it');\n");
+      // Shaped like real gen-l10n output — it DECLARES the class its config
+      // names. From 2026-09-06 that is load-bearing: a file skipped by name that
+      // declares no configured output class is COVERAGE LOST, because a skip
+      // over a hand-written file is a hole rather than a skip.
+      writeFileSync(
+        p,
+        'class AppLocalizationsEn extends AppLocalizations {\n' +
+          "  String get navHome => 'Home';\n" +
+          "  Widget build() => Text('Welcome to it');\n" +
+          '}\n',
+      );
       assert.equal(run(root).code, 0);
     });
   });
@@ -1078,12 +1110,15 @@ const b = Text('Hardcoded right after a URL');
       // so replacing the line with a literal `DOMAIN: (elided)` left this file
       // at EXIT 0, 69/69 — and that sentence is the entire difference between a
       // measurement and a blind spot. The fixture is fully known, so the numbers
-      // are exact here rather than `\d+`: 6 union keys from 3 arbs, 5 .dart
-      // render files (both home screens plus the allowlisted login screen), and
-      // 1 consumer file outside the enforced trees.
+      // are exact here rather than `\d+`: 6 union keys from 3 arbs, 47 .dart
+      // render files (both home screens, the shelf gate, the two allowlisted
+      // files, and the 14 inert fillers each of the three roots carries so the
+      // per-root render floor is met — see `FILLERS_PER_ROOT`), and 1 consumer
+      // file outside the enforced trees. That count read 5 until 2026-09-06,
+      // when the floor arrived and every planted root grew a render set.
       assert.match(
         out,
-        /DOMAIN, so the number above is a measurement and not a blind spot: 6 message key\(s\) from 3 tracked template arb file\(s\) \(l10n\/app_en\.arb\) · 5 non-test \.dart file\(s\) in 3 enforced tree\(s\) searched for a `\.<key>` accessor · 1 non-test \.mjs\/\.js\/\.ts\/\.tsx\/\.dart file\(s\) elsewhere searched for any other reader\./,
+        /DOMAIN, so the number above is a measurement and not a blind spot: 6 message key\(s\) from 3 tracked template arb file\(s\) \(l10n\/app_en\.arb\) · 47 non-test \.dart file\(s\) in 3 enforced tree\(s\) searched for a `\.<key>` accessor · 1 non-test \.mjs\/\.js\/\.ts\/\.tsx\/\.dart file\(s\) elsewhere searched for any other reader\./,
       );
       // …and the sentence that says WHY the generated accessors are out of both
       // halves. Without it the exclusion looks like a scan that missed them.
@@ -1110,9 +1145,9 @@ const b = Text('Hardcoded right after a URL');
       assert.equal(code, 0, out);
       assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
-      // …and the printed domain stays at 3, so the file was EXCLUDED rather than
-      // scanned-and-missed. A count of 4 here would mean the word is still a label.
-      assert.match(out, /5 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
+      // …and the printed domain stays at its baseline of 47, so the file was EXCLUDED rather than
+      // scanned-and-missed. A count of 48 here would mean the word is still a label.
+      assert.match(out, /47 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
     });
 
     // 🔴 THE NEGATIVE HALF, AND THE ONLY ONE THAT PROVES THE LIMB IS DERIVED
@@ -1300,9 +1335,9 @@ const b = Text('Hardcoded right after a URL');
       }));
       assert.equal(code, 0, out);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
-      // …and the printed domain stays at 3, so the file was EXCLUDED rather than
+      // …and the printed domain stays at its baseline of 47, so the file was EXCLUDED rather than
       // scanned-and-missed.
-      assert.match(out, /5 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
+      assert.match(out, /47 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
     });
 
     // 🔴 THE THIRD RENDER-DOMAIN NARROWING, AND THE ONE NO SWEEP HAD REACHED:
@@ -1335,9 +1370,9 @@ const b = Text('Hardcoded right after a URL');
       assert.equal(code, 0, out);
       assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
-      // …and the printed domain stays at 3. A 4 here would mean the file was
+      // …and the printed domain stays at its baseline of 47. A 48 here would mean the file was
       // scanned and merely happened not to match, which is a different guard.
-      assert.match(out, /5 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
+      assert.match(out, /47 non-test \.dart file\(s\) in 3 enforced tree\(s\)/);
     });
 
     // 🔴 THE ACCESSOR MATCHER'S TRAILING `\b`, IN THE WIDENING DIRECTION. The
@@ -1443,7 +1478,11 @@ const b = Text('Hardcoded right after a URL');
           // the mutation that deletes the clause stayed GREEN at 80/80.
           '.github/scripts/reader.mjs': names,
           'docs/notes.md': names, // CONSUMER_EXTS
-          'packages/design_system/lib/app_localizations.dart': names, // the generated-name skip
+          // The generated-name skip. Shaped like real gen-l10n output — it
+          // DECLARES the class its config names — because from 2026-09-06 a file
+          // skipped by name that declares no configured output class is COVERAGE
+          // LOST: a skip over a hand-written file is a hole, not a skip.
+          'packages/design_system/lib/app_localizations.dart': `class AppLocalizationsEn extends AppLocalizations {\n  ${names}}\n`,
         },
       }));
       assert.equal(code, 0, out);
@@ -1949,6 +1988,272 @@ const b = Text('Hardcoded right after a URL');
       assert.equal(code, 1, 'an unfollowable delegation was read as "no delegation"');
       assert.match(out, /COVERAGE LOST — /);
       assert.match(out, /the adapter is empty and the package it points at was not read/);
+    });
+  });
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE FLOORS UNDER THE CONFIG-DERIVED SKIP (2026-09-06).
+  //
+  // 🔴 THE REFUTATION THIS BLOCK EXISTS FOR, MEASURED BEFORE IT WAS WRITTEN.
+  // Deriving the generated-file skip from each tree's own `l10n.yaml` fixed a
+  // real false negative — the hand-typed `app_localizations` was blind to
+  // `chassis_localizations*.dart` and deleted an owner line naming a key nothing
+  // renders. But the derived value was UNCONSTRAINED and PREFIX-matched, so one
+  // line of yaml decided how much of a tree the guard could see. Measured on the
+  // real repository at e9076def: a literal in
+  // `packages/design_system/lib/src/widgets/system_screens.dart` plus
+  // `output-localization-file: chassis_localizations.dart` → `system.dart` gave
+  // origin/main's guard EXIT 1 — it named the literal — and the derived guard
+  // EXIT 0, printing "ok — 3 enforced tree(s) are clean". Same tree, two guards.
+  //
+  // Three independent floors answer it, and each has its own failing input here:
+  // the stem's SHAPE, the exactness of the MATCH, and whether the skipped FILE
+  // is really the generator's output. The green control for all of them is the
+  // same tree with the config left alone.
+  describe('the config-derived generated-file skip has a floor under it', () => {
+    const SHELF_PKG = 'packages/design_system';
+    const yamlFor = (outputFile, outputClass = 'ChassisLocalizations') =>
+      'arb-dir: lib/src/l10n\n' +
+      'template-arb-file: chassis_en.arb\n' +
+      'output-dir: lib/src/l10n\n' +
+      `output-localization-file: ${outputFile}\n` +
+      `output-class: ${outputClass}\n`;
+    const CHASSIS_ARB = `${SHELF_PKG}/lib/src/l10n/chassis_en.arb`;
+    const SCREENS = `${SHELF}/src/widgets/system_screens.dart`;
+    const LITERAL =
+      'class SystemScreens extends StatelessWidget {\n' +
+      "  Widget build(BuildContext c) => Text('Something went badly wrong here');\n" +
+      '}\n';
+
+    const shelfTree = (outputFile, extra = {}) =>
+      tree({
+        shelfArb: null,
+        l10nYaml: { pkg: SHELF_PKG, body: yamlFor(outputFile) },
+        extra: { [CHASSIS_ARB]: arb({ '@@locale': 'en', shelfNotice: 'A shared notice' }), ...extra },
+      });
+
+    // THE GREEN CONTROL. Config left alone, no literal planted: the derived skip
+    // is doing its job and the tree is clean.
+    test('the unmutated tree passes', () => {
+      const { code, out } = run(shelfTree('chassis_localizations.dart'));
+      assert.equal(code, 0, out);
+    });
+
+    // THE POSITIVE CONTROL. Config left alone, literal planted: the forward limb
+    // still names it, so the cases below differ from this one ONLY in the yaml.
+    test('a literal in the shelf is named when the config is left alone', () => {
+      const { code, out } = run(shelfTree('chassis_localizations.dart', { [SCREENS]: LITERAL }));
+      assert.equal(code, 1, out);
+      assert.match(out, /Something went badly wrong here/);
+    });
+
+    // FLOOR 1 — THE STEM'S SHAPE. `system` is neither the snake_case of that
+    // tree's own `output-class` nor a name ending in `_localizations`, and this
+    // is the exact two-line mutation that refuted the previous PR.
+    test('FAILS when output-localization-file is not named after its own output-class', () => {
+      const { code, out } = run(shelfTree('system.dart', { [SCREENS]: LITERAL }));
+      assert.equal(code, 1, 'the yaml line decided how much of the tree the guard could see');
+      assert.match(
+        out,
+        /COVERAGE LOST — packages\/design_system\/l10n\.yaml sets `output-localization-file: system\.dart`/,
+      );
+      assert.match(out, /is not `chassis_localizations`/);
+      assert.doesNotMatch(out, /ok — 3 enforced tree\(s\) are clean/);
+    });
+
+    // …and the file it would have swallowed is named too, by the third floor,
+    // because a name check alone still leaves the hole open for any stem that
+    // happens to be spelled correctly.
+    test('names the source file the derived skip was hiding', () => {
+      const { out } = run(shelfTree('system.dart', { [SCREENS]: LITERAL }));
+      assert.match(
+        out,
+        /system_screens\.dart was SKIPPED as generated localisations and declares none of the configured output class/,
+      );
+    });
+
+    // FLOOR 3 ON ITS OWN — a stem that passes the shape check and still swallows
+    // a hand-written file, because gen-l10n's `<stem>_<locale>.dart` shape is
+    // also the shape of an ordinary sibling module.
+    test('FAILS when a correctly-named stem swallows a hand-written file', () => {
+      const { code, out } = run(
+        shelfTree('chassis_localizations.dart', {
+          [`${SHELF}/src/l10n/chassis_localizations_helpers.dart`]:
+            "class Helpers {\n  Widget build(BuildContext c) => Text('A hand written sentence');\n}\n",
+        }),
+      );
+      assert.equal(code, 1, 'a hand-written file wearing the generated name was skipped in silence');
+      assert.match(out, /chassis_localizations_helpers\.dart was SKIPPED as generated localisations/);
+      assert.doesNotMatch(out, /ok — 3 enforced tree\(s\) are clean/);
+    });
+
+    // FLOOR 2 — THE MATCH IS EXACT, NOT A PREFIX. `chassis_localizationsx.dart`
+    // starts with the stem and is not gen-l10n output, so the old
+    // `basename.startsWith(stem)` form skipped it and this one does not.
+    test('a file that merely STARTS with the stem is still scanned', () => {
+      const { code, out } = run(
+        shelfTree('chassis_localizations.dart', {
+          [`${SHELF}/src/l10n/chassis_localizationsx.dart`]:
+            "class X {\n  Widget build(BuildContext c) => Text('A prefix is not a name');\n}\n",
+        }),
+      );
+      assert.equal(code, 1, 'a prefix match is wider than the tool it models');
+      assert.match(out, /A prefix is not a name/);
+    });
+
+    // THE OUTPUT-CLASS IS REQUIRED: without it nothing distinguishes gen-l10n
+    // output from a hand-written file of the same name, and floor 3 cannot be
+    // asked at all.
+    test('COVERAGE LOST when the l10n.yaml declares no output-class', () => {
+      const body =
+        'arb-dir: lib/src/l10n\ntemplate-arb-file: chassis_en.arb\noutput-dir: lib/src/l10n\n' +
+        'output-localization-file: chassis_localizations.dart\n';
+      const { code, out } = run(
+        tree({
+          shelfArb: null,
+          l10nYaml: { pkg: SHELF_PKG, body },
+          extra: { [CHASSIS_ARB]: arb({ '@@locale': 'en', shelfNotice: 'A shared notice' }) },
+        }),
+      );
+      assert.equal(code, 1, out);
+      assert.match(out, /declares no `output-class`/);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE PER-ROOT RENDER FLOOR. "3 enforced tree(s) are clean" was true of a scan
+  // that had stopped looking: a narrowed walk leaves the directory in place and
+  // the print unchanged, so the existence check could not see it. Measured on
+  // the real repository the day this landed — mutating the walk to
+  // `entry.endsWith('.dart') && entry.startsWith('a')` dropped the brick to 2
+  // files and the shelf to 6, and this was the guard's only complaint.
+  describe('a tree that stopped handing over its files is COVERAGE LOST', () => {
+    test('FAILS when a root contributes fewer .dart files than the floor', () => {
+      const root = tree();
+      rmSync(join(root, SHELF, '_fill'), { recursive: true, force: true });
+      const { code, out } = run(root);
+      assert.equal(code, 1, 'a shrinking render set printed as a clean one');
+      assert.match(
+        out,
+        /COVERAGE LOST — only \d+ \.dart file\(s\) under packages\/design_system\/lib reached the matchers, expected >= 12/,
+      );
+      assert.doesNotMatch(out, /ok — 3 enforced tree\(s\) are clean/);
+    });
+
+    test('the same tree with its render set intact passes', () => {
+      assert.equal(run(tree()).code, 0);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE TWO LIVE COPIES OF A SHARED KEY.
+  //
+  // 🔴 [ADR 065]'s FINDING, WORD FOR WORD: "Nothing compares the two trees. Not
+  // one of the 148 guards diffs them." The chassis-l10n unit moved 149 keys into
+  // `packages/design_system` and left all 149 declared in
+  // `apps/subly/lib/l10n/app_*.arb` as well, read at 222 sites in 29 Subly
+  // files. Measured on the branch before this limb existed: THREE English values
+  // and FOUR Tamil ones already disagreed — deleteAccountConfirmTitle,
+  // deleteAccountConfirmBody, deleteAccountReauthHint, and authEnterBoth in
+  // Tamil, that last one a decomposed vowel sign against a precomposed one. The
+  // drift was inherited from main rather than introduced, which is exactly why
+  // moving a copy without comparing it leaves ADR 065's sentence true.
+  describe('a key declared in two trees says the same thing in both', () => {
+    const SUBLY_TA = `${SUBLY}/l10n/app_ta.arb`;
+    const BRICK_TA = `${BRICK}/l10n/app_ta.arb`;
+
+    test('passes, and says how many pairs it compared, when the copies agree', () => {
+      const { code, out } = run(
+        tree({
+          brickArb: { ...BRICK_ARB, shared: 'One sentence' },
+          sublyArb: { ...SUBLY_ARB, shared: 'One sentence' },
+        }),
+      );
+      assert.equal(code, 0, out);
+      assert.match(out, /1 key\/locale pair\(s\) declared by two enforced trees carry identical values/);
+    });
+
+    test('FAILS when the same key carries different copy in two trees', () => {
+      const { code, out } = run(
+        tree({
+          brickArb: { ...BRICK_ARB, shared: 'Delete account?' },
+          sublyArb: { ...SUBLY_ARB, shared: 'Delete your account?' },
+        }),
+      );
+      assert.equal(code, 1, 'a wording fix in one tree reached only one of the apps that ship it');
+      assert.match(out, /shared \[en\] is declared in TWO trees with DIFFERENT values/);
+      assert.match(out, /"Delete account\?"/);
+      assert.match(out, /"Delete your account\?"/);
+    });
+
+    // …and it reads every locale the tree declares, not only the template arb.
+    // A limb that compared English alone would have missed authEnterBoth, whose
+    // two copies differ ONLY in Tamil.
+    test('FAILS on a disagreement that exists only in a non-template locale', () => {
+      const { code, out } = run(
+        tree({
+          brickArb: { ...BRICK_ARB, shared: 'One sentence' },
+          sublyArb: { ...SUBLY_ARB, shared: 'One sentence' },
+          extra: {
+            [BRICK_TA]: arb({ '@@locale': 'ta', shared: 'ஒரு வாக்கியம்' }),
+            [SUBLY_TA]: arb({ '@@locale': 'ta', shared: 'வேறு வாக்கியம்' }),
+          },
+        }),
+      );
+      assert.equal(code, 1, 'only the English copies were compared');
+      assert.match(out, /shared \[ta\] is declared in TWO trees with DIFFERENT values/);
+    });
+
+    // A mason tag is a placeholder the factory substitutes per app, not copy.
+    // The brick's real `appTitle` is `{{{display_name_json}}}`, and asserting
+    // that it equals a stamped app's title asserts that two different things are
+    // the same thing. Skipped, COUNTED and PRINTED, so the exemption cannot grow
+    // quietly.
+    test('a mason template value is not compared, and the count says so', () => {
+      const { code, out } = run(
+        tree({
+          brickArb: { ...BRICK_ARB, shared: '{{{display_name_json}}}' },
+          sublyArb: { ...SUBLY_ARB, shared: 'Subly — Subscription Tracker' },
+        }),
+      );
+      assert.equal(code, 0, out);
+      assert.match(out, /1 more were mason template values/);
+    });
+
+    // ZERO SHARED KEYS IS NOT A FAILURE — it is what Subly adopting
+    // ChassisLocalizations looks like, and failing on it would be RED BY
+    // IMPROVEMENT. What must never be zero is the number of tree/locale pairs
+    // that could be lined up at all.
+    test('disjoint corpora pass, because that is the state this limb wants', () => {
+      const { code, out } = run(tree());
+      assert.equal(code, 0, out);
+      assert.match(
+        out,
+        /0 key\/locale pair\(s\) declared by two enforced trees carry identical values, across 3 tree-pair\/locale overlap\(s\)/,
+      );
+    });
+
+    test('COVERAGE LOST when no two trees declare the same locale', () => {
+      const { code, out } = run(
+        tree({
+          brickArb: { '@@locale': 'en', appTitle: 'Demo', navHome: 'Home', welcomeTo: 'Welcome to {name}' },
+          sublyArb: { '@@locale': 'fr', homeTitle: 'Vos abonnements' },
+          shelfArb: { '@@locale': 'de', shelfNotice: 'Ein Hinweis' },
+        }),
+      );
+      assert.equal(code, 1, 'the limb compared nothing and said nothing');
+      assert.match(out, /COVERAGE LOST — no two enforced trees declare arbs for the same locale/);
+    });
+
+    test('COVERAGE LOST when a locale arb does not parse', () => {
+      const { code, out } = run(tree({ extra: { [SUBLY_TA]: '{ not json\n' } }));
+      assert.equal(code, 1, out);
+      assert.match(out, /COVERAGE LOST — apps\/subly\/lib\/l10n\/app_ta\.arb did not parse as JSON/);
+    });
+
+    test('COVERAGE LOST when a locale arb declares no @@locale', () => {
+      const { code, out } = run(tree({ extra: { [SUBLY_TA]: arb({ homeTitle: 'Sans locale' }) } }));
+      assert.equal(code, 1, out);
+      assert.match(out, /declares no @@locale/);
     });
   });
 });

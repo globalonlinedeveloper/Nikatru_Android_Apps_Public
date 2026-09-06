@@ -117,6 +117,9 @@ dev_dependencies:
 # "Attempted to generate localizations code without having the flutter: generate
 # flag turned on" and exits 0, which is a silent no-op wearing a success code.
 # `l10n.yaml` beside this file carries the rest of the configuration, including
-# why the OUTPUT of gen-l10n is committed here while it is gitignored for apps.
+# why the OUTPUT of gen-l10n is gitignored here exactly as it is for apps — and
+# what replaces a committed-file drift check now that it is. (This line claimed
+# the opposite until 2026-09-06; the triplet has never been tracked on this
+# branch.)
 flutter:
   generate: true

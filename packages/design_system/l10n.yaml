@@ -9,14 +9,34 @@
 # "going around the seam". This package is excluded from that derivation by
 # construction, and its own limb B forbids it only `nikatru_*` dependencies.
 #
-# 🔴 THE OUTPUT IS COMMITTED, WHICH IS THE OPPOSITE OF THE APP RULE. `.gitignore`
-# ignores `apps/*/lib/l10n/app_localizations*.dart` because every app regenerates
-# its own on `flutter pub get` (`flutter: generate: true`). A PACKAGE cannot rely
-# on that: a consumer resolving `nikatru_design_system` runs no gen-l10n for it,
-# so an ungenerated `chassis_localizations.dart` is a package that does not
-# compile. The staleness that rule exists to prevent is closed by the
-# `chassis-l10n drift` step in `ci.yml`'s `workspace-gate` job, which DELETES the
-# generated files, regenerates them and fails on `git diff --exit-code`.
+# 🔴 THE OUTPUT IS **NOT** COMMITTED. It is gitignored exactly like every app's,
+# and this paragraph said the opposite until 2026-09-06 — measured then by
+# `git check-ignore -v lib/src/l10n/chassis_localizations.dart` → `.gitignore:223`
+# and `git ls-files lib/src/l10n/` → only the two `.arb` files and the
+# hand-written `chassis_l10n_x.dart`.
+#
+# WHY UNTRACKED, since a package is not an app: gen-l10n emits blanket
+# `// ignore_for_file: type=lint` headers, and `assert-no-gate-weakening`'s domain
+# is `git ls-files`. Measured by `git add -f`-ing the triplet and re-running it:
+# `FAIL gate weakening — 5 problem(s)`, every one a blanket suppression in a
+# SHARED package. Committing the output would have to be paid for with five
+# allowlist entries in a guard this unit has no business widening.
+#
+# WHAT STANDS IN FOR A COMMITTED-FILE DRIFT CHECK: the `chassis l10n regenerates
+# from the arb, byte for byte` step in `ci.yml`'s `workspace-gate` job. It
+# sha256s what `flutter pub get` produced, DELETES the triplet, regenerates, and
+# fails when the hashes differ. It has a failing input, which the `git
+# diff --exit-code` form it replaced did not: corrupting a generated file left
+# that one at EXIT 0, because `git diff` cannot see an untracked file.
+#
+# ⚠️ OPEN, AND NOT CLOSED BY ANY OF THE ABOVE: a consumer resolving
+# `nikatru_design_system` from OUTSIDE this workspace runs no gen-l10n for it, so
+# it would get a package that does not compile. Today no such consumer exists —
+# every app is a workspace member (`pubspec.yaml:17`) and every stamped app takes
+# the package by path (`__brick__/…/pubspec.yaml:40`), so `flutter pub get` at the
+# workspace root generates the triplet for all of them. It becomes real the day
+# this package is published or taken as a git dependency, and the answer then is
+# a `tool/` pre-publish step, not a comment.
 #
 # `output-localization-file` is also the NAME-SHAPE the guards derive their
 # generated-file skip from — `assert-no-hardcoded-strings.mjs` reads this file

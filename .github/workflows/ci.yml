@@ -750,31 +750,58 @@ jobs:
       # `ignore_for_file: type=lint` headers and assert-no-gate-weakening walks
       # `git ls-files`, so committing them was measured at FAIL, 5 problem(s).
       #
-      # Untracked means `git diff` cannot be the drift gate, so this asserts the
-      # three things that CAN go silently wrong instead: the generator still
-      # runs, it produces every file, and nothing TRACKED depends on it. The step
-      # DELETES the triplet first, so a stale copy on the runner cannot answer
-      # for a generator that no longer works.
+      # 🔴 `git diff` CANNOT BE THIS GATE, AND SHIPPING IT AS ONE WAS THE DEFECT.
+      # The first version of this step ran `git diff --exit-code --
+      # packages/design_system/lib` and called that the drift check. The triplet is
+      # UNTRACKED, so `git diff` cannot see it: measured by writing `BROKEN
+      # GENERATOR OUTPUT` over all three files and running the step verbatim —
+      # EXIT 0, with `git status --ignored=matching` showing all three as `!!`. A
+      # gate whose only demonstrated property is that it passes is worse than no
+      # gate, because the next reader stops looking.
+      #
+      # What replaces it compares the BUILD PRODUCT to itself across a rebuild:
+      # hash what `flutter pub get` produced from the committed .arb files, delete
+      # it, regenerate, hash again. That has a failing input — flip one byte of one
+      # generated file, or change one .arb value without the arb being what the
+      # generator reads, and the hashes differ — and it still asserts the three
+      # things that can go silently wrong: the generator runs, it produces every
+      # file, and what it produces is what the workspace resolved.
+      - name: Record what the workspace resolved for the chassis localisations
+        run: |
+          set -euo pipefail
+          # Missing files fail HERE, under `set -e`, rather than being hashed as
+          # an empty set — "pub get produced nothing" and "the rebuild matched"
+          # must not share an exit code.
+          sha256sum packages/design_system/lib/src/l10n/chassis_localizations.dart \
+                    packages/design_system/lib/src/l10n/chassis_localizations_en.dart \
+                    packages/design_system/lib/src/l10n/chassis_localizations_ta.dart \
+            > "$RUNNER_TEMP/chassis-l10n-before.sha256"
       - name: Delete the generated chassis localisations so gen-l10n has to produce them
         run: rm -f packages/design_system/lib/src/l10n/chassis_localizations*.dart
-      - name: chassis l10n regenerates from the arb
+      - name: chassis l10n regenerates from the arb, byte for byte
         run: |
           set -euo pipefail
           (cd packages/design_system && flutter gen-l10n)
           for f in chassis_localizations.dart chassis_localizations_en.dart chassis_localizations_ta.dart; do
             test -s "packages/design_system/lib/src/l10n/$f"
           done
+          # The half with a failing input: `sha256sum -c` fails on a file that
+          # came back different and on a file that did not come back at all.
+          sha256sum -c "$RUNNER_TEMP/chassis-l10n-before.sha256"
           # Tamil parity, from gen-l10n's own diagnostic. The ENFORCEMENT half is
           # packages/design_system/test/chassis_l10n_parity_test.dart, which names
           # the keys; this is the cheap early read of the same fact.
           test "$(cat packages/design_system/chassis-l10n-untranslated.json)" = '{}'
-      # why: scoped to lib/ and not the package root. `flutter gen-l10n` REWRITES
-      # `packages/design_system/analysis_options.yaml` as a side effect, adding an
-      # `analyzer: exclude: build/**` block — measured on the runner, run
-      # 34028952850. That is the tool editing its own project config, not drift in
-      # what this step is about; the thing that must not move is the SOURCE, and
-      # a committed generated triplet would land under lib/src/l10n/.
-      - name: Regenerating the chassis localisations moved no tracked byte
+      # why: this one is about TRACKED bytes and says so. `flutter gen-l10n`
+      # REWRITES `packages/design_system/analysis_options.yaml` as a side effect,
+      # adding an `analyzer: exclude: build/**` block — measured on the runner, run
+      # 34028952850 — which is why the path is `lib` and not the package root. Its
+      # failing input is a generator pointed at a tracked source file: set
+      # `output-localization-file: chassis_l10n_x.dart` and gen-l10n overwrites the
+      # hand-written extension, which this step catches and the hash check above
+      # does not. It is NOT the generated-output drift check; that is the step
+      # above.
+      - name: gen-l10n overwrote no TRACKED source file under the package
         run: git diff --exit-code -- packages/design_system/lib
       - name: The shipping app is dart format-clean
         run: dart format --output=none --set-exit-if-changed apps/subly

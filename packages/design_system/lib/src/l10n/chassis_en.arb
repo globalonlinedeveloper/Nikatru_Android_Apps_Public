@@ -32,11 +32,11 @@
   "@deleteAccountSubtitle": {
     "description": "Explains what the delete-account entry does."
   },
-  "deleteAccountConfirmTitle": "Delete account?",
+  "deleteAccountConfirmTitle": "Delete your account?",
   "@deleteAccountConfirmTitle": {
     "description": "Title of the irreversible delete-account confirmation dialog."
   },
-  "deleteAccountConfirmBody": "This permanently deletes your account and all its data. This cannot be undone.",
+  "deleteAccountConfirmBody": "This cannot be undone. Deleting removes your sign-in, so the same email and password will no longer work.",
   "@deleteAccountConfirmBody": {
     "description": "Body of the delete-account confirmation. Must state that the action cannot be undone."
   },
@@ -114,7 +114,7 @@
   "@deleteAccountPassword": {
     "description": "Re-authentication field before an irreversible account deletion."
   },
-  "deleteAccountReauthHint": "Confirm your password to continue.",
+  "deleteAccountReauthHint": "Enter your password to confirm it is you.",
   "@deleteAccountReauthHint": {
     "description": "Explains why a password is required to delete the account."
   },

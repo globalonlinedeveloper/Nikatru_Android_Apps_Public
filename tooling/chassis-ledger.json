@@ -67,7 +67,7 @@
       "path": "lib/app.dart",
       "lines": 570,
       "verdict": "STAYS",
-      "why": "MEASURED: undeletable, 6 new reds. assert-vendor-portability:480 matches `valueOrNull?.updateUrl ??` here; dod.json:121,123 (AnalyticsGate) and :133,135 (darkTheme); assert-consent-withdrawal-surface:201,527; seven screen-register rows; 14 stamp-properties APP_ROOT anchors."
+      "why": "MEASURED: undeletable, 6 new reds. assert-vendor-portability:480 matches `valueOrNull?.updateUrl ??` here; dod.json:123,125 (AnalyticsGate) and :135,137 (darkTheme); assert-consent-withdrawal-surface:201,527; seven screen-register rows; 14 stamp-properties APP_ROOT anchors."
     },
     {
       "path": "lib/core/app_config.dart",
