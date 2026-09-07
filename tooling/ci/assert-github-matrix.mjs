@@ -43,6 +43,18 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+/* 🔴 2026-09-07 — THE TWO `git` READS BELOW ARE POINTED AT OTHER REPOSITORIES: the
+   slot checkouts under the products root, one per registry row. `-C` does not select
+   a repository when the caller environment carries `GIT_DIR`, `GIT_INDEX_FILE` or any
+   of the four siblings, all of which git exports into a hook process — measured this
+   day on `tooling/scripts/assert-public-citations.mjs`, which enumerated the private
+   corpus 567 files while pointed at this tree 2022. Under such an environment the
+   `origin` read here would answer with THIS checkout remote for every slot, and every
+   row would reconcile against the wrong repository while printing the slot name. This
+   guard has no hook path today, so it was correct by coincidence; `repoGitRaw` deletes
+   the six variables from the child environment and proves each slot directory is a
+   repository ROOT before reading it. */
+import { repoGitRaw, RepoGitError } from '../scripts/repo-git.mjs';
 // 2026-08-18: this guard's ONLY directory listing is of tooling/ci and tooling/scripts, which are
 // directories of THIS repository, so it imports `listDir` and nothing else. It deliberately does NOT
 // import `listCheckoutsAcrossWorkspace`: that primitive is for the guards whose subject is the store
@@ -524,9 +536,19 @@ for (const s of reg.slots) {
     }
     let url = null;
     try {
-      url = execFileSync('git', ['-C', abs, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-    } catch {
-      url = null; // no `origin` configured — a real, measured state, not an error
+      const r = repoGitRaw(abs, ['remote', 'get-url', 'origin']);
+      // A non-zero status here is DATA: no `origin` configured is a real, measured
+      // state, not an error. It was already read that way; what changed is that the
+      // repository answering is now the one named by `abs` and nothing else.
+      url = r.status === 0 ? String(r.stdout ?? '').trim() : null;
+    } catch (e) {
+      if (!(e instanceof RepoGitError)) throw e;
+      // git absent, or `abs` is not a repository root at all. NOT folded into "no
+      // origin": that would report a considered comparison over a read that never
+      // happened, which is the vacuous pass this file exists to refuse.
+      note(`${p} ${side}: local remote NOT read — ${e.message} ${e.detail}`.replace(/\s+/g, ' ').trim());
+      localUnreachable++;
+      continue;
     }
     localCompared++;
     if (url === null) {
@@ -635,12 +657,14 @@ function reportOldNameDependents(oldName, indent = '   ') {
     let lines = [];
     let scanned = true;
     try {
-      const res = execFileSync('git', ['-C', abs, 'grep', '-n', '-I', '-F', full], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-      lines = res.split('\n').filter(Boolean);
-    } catch (err) {
+      const res = repoGitRaw(abs, ['grep', '-n', '-I', '-F', full]);
       // git grep exits 1 for "no matches" — a real answer. Anything else is a failed scan.
-      if (err.status === 1) lines = [];
+      if (res.status === 0) lines = String(res.stdout ?? '').split('\n').filter(Boolean);
+      else if (res.status === 1) lines = [];
       else scanned = false;
+    } catch (e) {
+      if (!(e instanceof RepoGitError)) throw e;
+      scanned = false; // git absent, or `abs` is not a repository root — a limb that did not run
     }
     if (!scanned) {
       out.push(`${I}   ${label}: git grep FAILED — occurrences NOT counted here.`);
