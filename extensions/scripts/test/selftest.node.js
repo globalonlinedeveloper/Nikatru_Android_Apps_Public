@@ -2092,6 +2092,131 @@ expect('a decoy workflow path cannot move the self-check off this checkout', {
 });
 
 /* =====================================================================
+   🔴 A SCHEDULED RUN IS NOT ITS OWN PROOF — MEASURED 2026-09-07, RUN 34168610730
+   =====================================================================
+   The FIRST scheduled run of extensions.yml on main was RED, and the only
+   failed job was this gate. The 2026-09-05 merge (7a057553) put the
+   `e2e-proof-record` job ON the `schedule` event; it had been written for the
+   old extensions repository where it ran in ci.yml on push and pull_request,
+   OUTSIDE the run it grades. On the schedule event the newest scheduled run in
+   the history IS the run executing the gate. Run 34168610730 started 23:01:12,
+   read itself at 23:01:17 while its own leg had not started — that leg,
+   `e2e · Extension/Full_Screen_Shot`, began 23:01:22 and PASSED at 23:19:35 —
+   graded itself `legs=1/1 not-green … NEVER EXERCISED` and exited 1.
+
+   ⛔ ON A FIRST-EVER SCHEDULED RUN THAT RED IS GUARANTEED BY ARITHMETIC. One
+   row, that row is this run, and this run cannot have finished. Nothing about
+   the timer or the proof was measured, which is the class the Private corpus
+   carries as "the measurement is inside the thing measured".
+
+   THE MUTATION IS THE ENVIRONMENT, NOT THE SOURCE, and that is why these cases
+   come in PAIRS. Each fixture below is run twice, once with GITHUB_RUN_ID
+   naming the newest row and once with it cleared, so the pair states the defect
+   and the fix in the same breath rather than asserting that the fixed gate is
+   merely green. Cleared EXPLICITLY, never left to inherit: GITHUB_RUN_ID is set
+   in every real GitHub Actions step, so a case that says "unset" and does not
+   say it would be testing the runner's id on CI and an empty environment
+   locally — two different subjects wearing one label.
+   ===================================================================== */
+const SELF_ID = '34168610730';
+/* The in-flight run carries NO jobs at all, which is what the API really
+   returned at 23:01:17: the leg had not started for another five seconds. A
+   `conclusion: null` leg would reach the same verdict by a different road, and
+   the road that was measured is the empty one. */
+const withSelfNewest = (extra = () => {}) => withProof((h, wf) => {
+  h.workflow_runs = [
+    { id: Number(SELF_ID), event: 'schedule', created_at: proofAgo(0) },
+    { id: 2, event: 'schedule', created_at: proofAgo(1) }
+  ];
+  h.jobs = { [SELF_ID]: [], 2: proofLeg('success') };
+  extra(h, wf);
+});
+/* The first-ever scheduled run: the history is ONE row and that row is this
+   run. This is the exact shape of 34168610730. */
+const withSelfOnly = () => withProof(h => {
+  h.workflow_runs = [{ id: Number(SELF_ID), event: 'schedule', created_at: proofAgo(0) }];
+  h.jobs = { [SELF_ID]: [] };
+});
+const selfEnv = root => ({ ...proofEnv(root), GITHUB_RUN_ID: SELF_ID });
+const noSelfEnv = root => ({ ...proofEnv(root), GITHUB_RUN_ID: '' });
+
+expect('the in-flight run is excluded and the notice NAMES it', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'EXCLUDING RUN 34168610730',
+  root: withSelfNewest(), env: selfEnv
+});
+/* 🔴 THE FALSE GREEN, WHICH NO EXIT CODE CAN SEE. With an older green run
+   present the gate exits 0 either way — the walk simply steps past the in-flight
+   run to the green one — so the pair below is the only thing that separates a
+   timer measured off a COMPLETED run from a timer measured off the run doing the
+   measuring. The mutation asserts the defect verbatim, `0.0 day(s) ago` off a
+   run that has proved nothing, because a gate that certifies freshness off its
+   own start time would go on exiting 0 for as long as the cron kept firing. */
+expect('the TIMER is read off the newest COMPLETED run, not off the in-flight one', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'proof-fresh TIMER ok  newest scheduled run 2 fired 1.0 day(s) ago',
+  root: withSelfNewest(), env: selfEnv
+});
+expect('MUTATION — with GITHUB_RUN_ID cleared the gate certifies the timer off ITSELF', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'proof-fresh TIMER ok  newest scheduled run 34168610730 fired 0.0 day(s) ago',
+  root: withSelfNewest(), env: noSelfEnv
+});
+/* 🔴 THE MEASURED RED ITSELF, REPRODUCED. One scheduled run, it is this run,
+   its legs have not started. This pair is run 34168610730 on both sides of the
+   filter: exit 1 without it, the bootstrap notice with it. */
+expect('MUTATION — the first-ever scheduled run grades ITSELF and exits 1 (run 34168610730)', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1,
+  contains: 'NO GREEN SCHEDULED RUN',
+  root: withSelfOnly(), env: noSelfEnv
+});
+expect('with itself excluded the first-ever scheduled run is the BOOTSTRAP, not a red', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'WHICH IS THIS RUN',
+  root: withSelfOnly(), env: selfEnv
+});
+/* ⚠️ AND THE EMPTY-HISTORY SENTENCE HAS TO BE TRUE. Limb 1 otherwise offers a
+   reader two causes — "the timer has never fired" and "the workflow was
+   renamed" — and with this run removed BOTH are false: the timer fired, and it
+   fired on the name queried. A gate that removes a row has to say what the list
+   looked like before it did. */
+expect('the bootstrap notice says the timer FIRED rather than blaming a dead cron', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'The timer fired — it fired this run',
+  root: withSelfOnly(), env: selfEnv
+});
+/* 🔴 THE EXCLUSION IS NOT A WAIVER, AND THE BOOTSTRAP IS WHAT KEEPS IT FROM
+   BECOMING ONE. Same history, same exclusion, clock moved past BOOTSTRAP_UNTIL:
+   a repository whose only scheduled run is forever the one in flight is a
+   repository with no proof, and after that date it is an error again with no
+   code change and nothing for anybody to remember. */
+expect('the exclusion does not outlive the bootstrap — after BOOTSTRAP_UNTIL it is a red', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1,
+  contains: 'WHICH IS THIS RUN',
+  root: withSelfOnly(),
+  env: root => ({ ...selfEnv(root), PROOF_ALARM_NOW: '2026-09-20T00:00:00Z' })
+});
+/* 🔴 THE GUARD STILL BITES, WHICH IS THE WHOLE RISK OF AN EXCLUSION. It removes
+   exactly one row — the one whose answer was never about the timer — and every
+   other run is graded as before. With the older run's leg FAILED there is no
+   green proof and this is a red, on the same fixture and the same exclusion as
+   the passing case above. */
+expect('a failed older run is still caught with the in-flight run excluded', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1,
+  contains: 'NO GREEN SCHEDULED RUN',
+  root: withSelfNewest(h => { h.jobs[2] = proofLeg('failure'); }), env: selfEnv
+});
+/* ⚠️ AND AN ID THAT MATCHES NOTHING MUST CHANGE NOTHING. ci.yml's call site
+   runs on push and pull_request, outside every workflow it reads, so its
+   GITHUB_RUN_ID is never a row in this history — the list has to come through
+   whole rather than lose its newest row to a near-miss. */
+expect('a GITHUB_RUN_ID that is in no row leaves the history untouched', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 0,
+  contains: 'proof-fresh TIMER ok  newest scheduled run 34168610730 fired 0.0 day(s) ago',
+  root: withSelfNewest(), env: root => ({ ...proofEnv(root), GITHUB_RUN_ID: '99999999999' })
+});
+
+/* =====================================================================
    argument handling
    ===================================================================== */
 console.log('\nargument handling');
