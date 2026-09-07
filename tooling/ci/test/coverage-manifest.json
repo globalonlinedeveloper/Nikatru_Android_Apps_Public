@@ -108,6 +108,7 @@
   "price-literals.test.mjs": 15,
   "privacy-manifest.test.mjs": 20,
   "prod-provenance.test.mjs": 49,
+  "propagate-versions.test.mjs": 11,
   "provider-graph-acyclic.test.mjs": 12,
   "provision-backend.test.mjs": 9,
   "pseudonymity-firewall.test.mjs": 17,
