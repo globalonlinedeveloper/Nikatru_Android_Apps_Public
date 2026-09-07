@@ -1,6 +1,6 @@
 name: E2E live
 
-run-name: "E2E live against production (${{ github.event_name }})"
+run-name: "E2E live against ${{ inputs.auth_target || 'hosted' }} auth (${{ github.event_name }})"
 
 # The measurements, retractions and traps behind this file are in
 # docs/ci/e2e.md. Only `# why:` lines live here, and
@@ -8,6 +8,22 @@ run-name: "E2E live against production (${{ github.event_name }})"
 
 on:
   workflow_dispatch:
+    inputs:
+      # why: ONE SUITE, TWO AUTH TARGETS, AND THE NIGHTLY NEVER MOVES. The
+      # cutover's blocker was that the live suite could only ever be run against
+      # the auth project it was already pointed at, so "does this still pass on
+      # Box A" could only be answered inside the cutover window itself. This
+      # input answers it on demand, from the same code, before the window.
+      # `hosted` stays the default and the schedule below carries no input at
+      # all, so the unattended proof keeps grading production.
+      auth_target:
+        description: 'Which auth stack to run against: hosted Supabase, or Box A (self-hosted GoTrue).'
+        type: choice
+        required: false
+        default: hosted
+        options:
+          - hosted
+          - boxa
   # why: 03:17, computed rather than chosen -- including the wrap past midnight,
   # which a sorted list of slots never shows. This lane runs against LIVE Supabase,
   # the live Worker and live D1, so a red night may mean production is broken.
@@ -52,16 +68,135 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Preflight — the service-role secret must be present
-        id: pre
+      # why: THE TARGET IS VALIDATED IN ITS OWN STEP, FOR THE SAME REASON THE
+      # SITEKEY CHECK IS — AND THIS ONE WAS LEARNED THE EXPENSIVE WAY.
+      #
+      # `auth_target` is a `type: choice` with exactly the two options declared
+      # above, and the `schedule` trigger sends no input at all, so
+      # `${{ inputs.auth_target || 'hosted' }}` can only ever be `hosted` or
+      # `boxa`: this refusal is UNREACHABLE today. That is precisely why it may
+      # not live inside the secrets preflight. assert-green-means-ran.mjs
+      # section B1 asks whether a step that reads a secret and branches on its
+      # emptiness contains ANY `exit <n>` (:378-385) — it cannot tell WHICH
+      # branch exits. While this arm sat in step `pre`, deleting the REACHABLE
+      # missing-secret refusal left this unreachable `exit 1` standing and the
+      # guard stayed GREEN. Measured 2026-09-07 against head f045baf9, on a copy
+      # of .github/workflows/ with that one edit applied:
+      # `node tooling/ci/assert-green-means-ran.mjs <root>` EXIT 0, still
+      # printing "1 secret-presence check(s) fail closed"; the identical deletion
+      # on origin/main (c6f80ed4), whose step held one `exit`, gave EXIT 1.
+      # Hoisted here, step `pre` holds exactly ONE `exit` again and it is the one
+      # that protects the live suite.
+      - name: Preflight — auth_target must be one of the declared options
         env:
-          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TARGET: ${{ inputs.auth_target || 'hosted' }}
         run: |
-          if [ -z "$KEY" ]; then
-            echo "::error title=E2E cannot run::SUPABASE_SERVICE_ROLE_KEY is not set. The nightly end-to-end proof did NOT run — this is a failed run, not a skipped one. Add or re-add the secret in Settings → Secrets and variables → Actions."
+          set -uo pipefail
+          if [ "$TARGET" != 'hosted' ] && [ "$TARGET" != 'boxa' ]; then
+            echo "::error title=E2E cannot run::auth_target \"$TARGET\" is not one of hosted, boxa."
             exit 1
           fi
-          echo "SUPABASE_SERVICE_ROLE_KEY present — running the live suite."
+          echo "auth_target=${TARGET} is one of the two declared options."
+
+      # why: THE TARGET IS NAMED HERE, AND EVERY INPUT THE RUN NEEDS IS CHECKED
+      # HERE, AND IT FAILS CLOSED. Each of the three secrets for the chosen set
+      # is checked for emptiness BY NAME, and a missing one ENDS the job naming
+      # the secret — never a skip, never a fallback. This step does NOT hand the
+      # values on: the ONLY thing it writes to $GITHUB_ENV is E2E_AUTH_TARGET,
+      # which is not a secret. See the block above "Provision throwaway confirmed
+      # user" for how the resolved values reach the steps that consume them.
+      #
+      # 🔴 NO COMMENT MAY SIT INSIDE THE `env:` BLOCK BELOW. assert-green-means-ran.mjs
+      # reads a step's env line by line and STOPS at the first line that is not
+      # `NAME: value` (:187-188), so one `#` between two bindings hides every
+      # binding under it — and with the secret bindings hidden the guard cannot
+      # see this preflight at all and exits 2, COVERAGE LOST. Measured on this
+      # branch, with a `# why:` inside the block: EXIT 2, "e2e.yml contains no
+      # secret-presence check this scan can see". That is the guard working, and
+      # it is the reason every `# why:` for a binding lives above its step.
+      - name: Preflight — the chosen auth target's secrets must be present
+        id: pre
+        env:
+          TARGET: ${{ inputs.auth_target || 'hosted' }}
+          HOSTED_URL: ${{ secrets.SUPABASE_URL }}
+          HOSTED_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+          HOSTED_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BOXA_URL: ${{ secrets.BOXA_SUPABASE_URL }}
+          BOXA_ANON: ${{ secrets.BOXA_SUPABASE_ANON_KEY }}
+          BOXA_KEY: ${{ secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -uo pipefail
+          missing=''
+          # why: the emptiness of each SECRET is tested BY NAME, not through a
+          # shell alias for it. assert-green-means-ran.mjs section B recognises a
+          # secret-presence check by finding `-z "$VAR"` for a var this step's
+          # `env:` bound to `secrets.*` — indirecting through `key="$HOSTED_KEY"`
+          # first makes the preflight invisible to it, and an invisible preflight
+          # is how e2e.yml green-skipped its own body once already.
+          # 🔴 ONE `exit` IN THIS STEP, AND IT IS THE MISSING-SECRET ONE. The
+          # unknown-target arm lives in its own step above; see its `# why:` for
+          # the two-tree measurement that forced the split. There is no `else`
+          # here that ends the job, so section B1's "does this step exit?" can
+          # only ever be answered by the refusal below.
+          if [ "$TARGET" = 'boxa' ]; then
+            prefix=BOXA_SUPABASE
+            if [ -z "$BOXA_URL" ];  then missing="${missing} BOXA_SUPABASE_URL"; fi
+            if [ -z "$BOXA_ANON" ]; then missing="${missing} BOXA_SUPABASE_ANON_KEY"; fi
+            if [ -z "$BOXA_KEY" ];  then missing="${missing} BOXA_SUPABASE_SERVICE_ROLE_KEY"; fi
+          else
+            prefix=SUPABASE
+            if [ -z "$HOSTED_URL" ];  then missing="${missing} SUPABASE_URL"; fi
+            if [ -z "$HOSTED_ANON" ]; then missing="${missing} SUPABASE_ANON_KEY"; fi
+            if [ -z "$HOSTED_KEY" ];  then missing="${missing} SUPABASE_SERVICE_ROLE_KEY"; fi
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error title=E2E cannot run::auth_target=${TARGET} needs${missing}, and it is not set. The end-to-end proof did NOT run — this is a failed run, not a skipped one. Add or re-add the secret in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "E2E_AUTH_TARGET=${TARGET}" >> "$GITHUB_ENV"
+          echo "auth_target=${TARGET}: ${prefix}_URL, ${prefix}_ANON_KEY and ${prefix}_SERVICE_ROLE_KEY are all present — running the live suite."
+          echo "Auth target: **${TARGET}** (${prefix}_*)" >> "$GITHUB_STEP_SUMMARY"
+
+      # why: A SECOND PREFLIGHT, AND THE SEPARATION IS DELIBERATE — IT IS NOT
+      # TIDINESS AND IT IS NOT A SECOND CLASS OF CHECK.
+      #
+      # The sitekey is a repository VARIABLE, public by design: it ships inside
+      # the web bundle and is meaningless without the secret half, which never
+      # leaves Box A. It still has to be present, for the same reason the three
+      # secrets do: an empty `vars.TURNSTILE_SITE_KEY` makes TurnstileGate render
+      # SizedBox.shrink(), so the suite signs in with NO captcha token and goes
+      # green — and that green says nothing about the stack this lane exists to
+      # rehearse, because Box A ENFORCES Turnstile on signup,
+      # token?grant_type=password, recover, otp, magiclink and resend (runbook
+      # §4.7). Run 34068306612 was exactly that run: green, define empty, and the
+      # phase-3 brief refuses it as acceptance (scope §7.4.9).
+      #
+      # 🔴 WHY IT IS NOT A LIMB OF THE SECRETS PREFLIGHT. assert-green-means-ran.mjs
+      # section B1 asks whether a step that reads a SECRET and branches on its
+      # emptiness contains ANY `exit <n>` — it cannot tell which branch exits. An
+      # extra refusal inside that one step therefore makes its own mutation case
+      # (green-means-ran.test.mjs "a secret-presence preflight that does not exit
+      # non-zero fails") pass while the secret refusal is gone: measured on this
+      # branch, EXIT 0 where the case expects 1.
+      #
+      # 🔄 CORRECTED 2026-09-07 (second review pass). Splitting the SITEKEY out
+      # was necessary and not sufficient: the unknown-`auth_target` arm was still
+      # sitting in the secrets preflight as a second, UNREACHABLE `exit 1`, and
+      # it kept the guard green over the deletion of the reachable one. It now
+      # has its own step too — see the first `# why:` in this job. B1's
+      # coarseness is real and is still not edited around here (that guard
+      # belongs to the store-lanes unit, scope §5 forbiddenPaths); it is carried
+      # as residue R12 in phase3-cutover-blockers.md §8.8, measured in §8.2.
+      - name: Preflight — the Turnstile sitekey must be present
+        env:
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "$TURNSTILE_SITE_KEY" ]; then
+            echo "::error title=E2E cannot run::the repository VARIABLE TURNSTILE_SITE_KEY is unset, so --dart-define=TURNSTILE_SITE_KEY would arrive empty, TurnstileGate would render nothing, and this run would prove the suite passes WITHOUT the captcha gate. OWNER STEP: Settings → Secrets and variables → Actions → Variables → New repository variable, name TURNSTILE_SITE_KEY, value = the PUBLIC Turnstile sitekey from runbooks/auth-cutover.md section 4 row 5 (a sitekey is public: it ships inside the web bundle; the secret half never leaves Box A). It is a variable, not a secret, and it can be unset again in seconds."
+            exit 1
+          fi
+          echo "TURNSTILE_SITE_KEY is set — the gated screens will render a real widget."
 
       - name: Stamp this run's build identity (APP_VERSION)
         run: |
@@ -80,27 +215,68 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: flutter pub get --enforce-lockfile
 
+      # why: THE RESOLVED VALUES ARE BOUND PER STEP, AND CROSS-CONTAMINATION IS
+      # IMPOSSIBLE BY CONSTRUCTION. Two things had to be true at once here.
+      #
+      # (a) NOTHING JOB-WIDE. A `SUPABASE_SERVICE_ROLE_KEY` written to
+      #     $GITHUB_ENV is inherited by EVERY later step in the job, including
+      #     the third-party actions this job runs (setup-chromedriver,
+      #     upload-artifact). That key is the one that BYPASSES THE TURNSTILE
+      #     GATE — tooling/channel-register.json says so in its own row — and it
+      #     is why the harness, never the browser, is the only thing that holds
+      #     it. On origin/main it was bound per step at five places; it is bound
+      #     per step again here, at the eight steps that actually consume it.
+      #
+      # (b) NO SILENT FALLBACK. A plain `A && B || C` ternary cannot carry the
+      #     target axis: an EMPTY BOXA_* secret is falsey, so the ternary hands
+      #     back the HOSTED value and the run grades production while its own
+      #     name says "boxa". The three-armed form below cannot do that — the
+      #     second arm tests `== 'hosted'` rather than being a bare else, so a
+      #     boxa run with an empty BOXA_* secret resolves to the EMPTY STRING and
+      #     the step dies on its own `need()`, never on the wrong stack. The
+      #     preflight above still fails first, and with the secret's NAME in the
+      #     error; this shape is what makes that message the only way through
+      #     rather than the only thing standing in the way.
       - name: Provision throwaway confirmed user
         id: user
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: node tooling/e2e/provision_user.mjs
 
       - name: Provision the throwaway user the delete leg destroys
         id: delete_user
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: node tooling/e2e/provision_user.mjs
+
+      # why: THE ANSWER TO runbook §4.6's "expected, NOT YET MEASURED", taken on
+      # every run rather than once. Shipping TURNSTILE_SITE_KEY to the web build
+      # ahead of the cutover is safe only if a hosted GoTrue IGNORES a captcha
+      # token it never asked for; on Box A the same request must be REFUSED.
+      # Both are positive expectations, and the script asserts the one that
+      # belongs to this run's target, so neither half can rot unobserved.
+      - name: Measure the target's captcha posture (ignores it, or enforces it)
+        env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
+        run: node tooling/e2e/captcha_posture.mjs
 
       - name: Run integration tests (headless Chrome)
         id: drive
         working-directory: apps/${{ matrix.app }}
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          # why: a repository VARIABLE, not a secret. The Turnstile SITE key is
+          # public by design — it ships inside the web bundle and is meaningless
+          # without the secret half, which lives only on Box A. It can never
+          # arrive here empty: the preflight refuses the run when it is unset,
+          # because a suite that signs in with no captcha token proves nothing
+          # about the stack this lane exists to rehearse.
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           E2E_EMAIL: ${{ steps.user.outputs.email }}
           E2E_PASSWORD: ${{ steps.user.outputs.password }}
           E2E_DELETE_EMAIL: ${{ steps.delete_user.outputs.email }}
@@ -166,6 +342,8 @@ jobs:
             --dart-define=E2E_DELETE_EMAIL="$E2E_DELETE_EMAIL" \
             --dart-define=E2E_TOKEN_HASH="$E2E_TOKEN_HASH" \
             --dart-define=E2E_DELETE_TOKEN_HASH="$E2E_DELETE_TOKEN_HASH" \
+            --dart-define=TURNSTILE_SITE_KEY="$TURNSTILE_SITE_KEY" \
+            --dart-define=E2E_AUTH_TARGET="$E2E_AUTH_TARGET" \
             --dart-define=E2E_DELETE_PASSWORD="$E2E_DELETE_PASSWORD" 2>&1 | tee "${RUNNER_TEMP}/drive.log"
           kill "$CHROMEDRIVER_PID" || true
 
@@ -211,11 +389,27 @@ jobs:
           SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
         run: node tooling/e2e/verify_row.mjs
 
+      # why: THE ONE-ISSUER FACT, ASSERTED IN BOTH DIRECTIONS RATHER THAN SKIPPED.
+      # The Workers trust exactly one issuer (runbook Phase 5), so a Box A-minted
+      # JWT must be REFUSED by the deployed Worker until the cutover moves that
+      # issuer — and a hosted-minted one must be accepted. Running this on every
+      # target means the boxa expectation is exercised code, not a comment, and
+      # the day it flips the run says so instead of a golden-path leg going red
+      # for a reason nobody can read off the screenshot.
+      - name: The Workers trust exactly one issuer (positive, both targets)
+        env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          E2E_EMAIL: ${{ steps.user.outputs.email }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: node tooling/e2e/assert_one_issuer.mjs
+
       - name: Verify the in-app deletion really purged (leg 6)
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_DELETE_USER_ID: ${{ steps.delete_user.outputs.user_id }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
@@ -244,6 +438,8 @@ jobs:
       - name: Purge test data (always — keep prod pristine)
         if: always() && steps.user.outcome != 'skipped'
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_USER_ID: ${{ steps.user.outputs.user_id }}
           E2E_APP_ID: ${{ matrix.app }}
           E2E_RESPONSE_DATA: apps/${{ matrix.app }}/build/integration_response_data.json
@@ -252,19 +448,17 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
           PLATFORM_D1_DATABASE_ID: 9d1c5c63-97fe-4f82-bc7d-f3fd22e9b351
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node tooling/e2e/purge.mjs
 
       - name: Purge the delete-leg user too (already gone on a green run)
         if: always() && steps.delete_user.outcome != 'skipped'
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_USER_ID: ${{ steps.delete_user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node tooling/e2e/purge.mjs
 
   alert:

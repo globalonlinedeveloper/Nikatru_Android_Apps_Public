@@ -200,6 +200,41 @@ pubspec.
 
 ### before step **Build web (release, no service worker)**
 
+🟢 **`TURNSTILE_SITE_KEY`, ADDED 2026-09-07, AND IT IS A REPOSITORY VARIABLE
+RATHER THAN A SECRET ON PURPOSE** ([ADR 067] decision 6, unit
+`cutover-blockers`; `runbooks/auth-cutover.md` §4 row 5 and §4.6). A Cloudflare
+Turnstile SITE key is the public half of a pair — it only works by being IN the
+page, and it is meaningless without the secret half, which lives on the auth box
+as `CAPTCHA_SECRET` and never reaches this repository. Reading it from
+`vars.` rather than `secrets.` is that fact written down where the next reader
+will see it.
+
+**WHY IT IS HERE BEFORE ANYTHING NEEDS IT.** The Phase 5 window already has to
+carry three acts that must land together — the Workers' `SUPABASE_URL`, a web
+deploy, and the `supabase_jwks` KV purge. A workflow edit inside that window
+would be a fourth, made under time pressure, on the one lane that decides whether
+anybody can sign in. With the line already merged, turning the app-side captcha
+on is a repository VARIABLE being set: no code change, no workflow change, and it
+can be done and undone in seconds.
+
+**AND IT IS INERT UNTIL THEN, BY CONSTRUCTION.** `vars.TURNSTILE_SITE_KEY` is
+unset today, so the define arrives EMPTY;
+`apps/subly/lib/features/auth/turnstile_gate.dart` reads it as a
+`String.fromEnvironment` with an empty default, `isConfigured` is false, the gate
+renders `SizedBox.shrink()` and every caller's token stays null — byte-for-byte
+today's deployed behaviour.
+
+⚠️ **THE ONE THING THAT MADE THIS SAFE WAS A MEASUREMENT, NOT AN ARGUMENT.** The
+claim underneath it is that a hosted GoTrue IGNORES a captcha token it was never
+configured to want, so a build carrying the key keeps working against the CURRENT
+auth project. §4.6 recorded that as *"expected, not yet measured"*.
+`tooling/e2e/captcha_posture.mjs` now measures it on every `E2E live` run and
+fails the run if hosted ever starts enforcing a gate — which would be the
+warning that a deploy is about to ship a build nobody can sign in to.
+
+⚫ **THIS IS NOT THE CUTOVER.** Adding the define moves no Worker secret, purges
+no KV key and points nothing at Box A.
+
 VERSIONING. `github.run_number` supplies BOTH the patch and the build
 number, because it is the only monotonic value the lane has. Re-running a
 run does not bump it, so the same commit rebuilds to the same version.
