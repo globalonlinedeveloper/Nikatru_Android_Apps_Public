@@ -44,7 +44,7 @@
 // Usage:  node tooling/scripts/install-hooks.mjs           install + verify
 //         node tooling/scripts/install-hooks.mjs --check   verify only, exit 1 if not installed
 // ─────────────────────────────────────────────────────────────────────────────
-import { spawnSync } from 'node:child_process';
+import { repoGitRaw, RepoGitError } from './repo-git.mjs';
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { resolve, dirname, basename, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -168,8 +168,29 @@ const REPOS = [
   { name: 'private corpus', path: PRIVATE, expected: true, movedFrom: PRIVATE_WAS },
 ];
 
+/* 🔴 2026-09-07 — THIS RUNS `git config` IN A REPOSITORY THAT IS NOT THIS ONE, and
+   until today it selected that repository by `cwd` alone. `cwd` loses to an exported
+   `GIT_DIR`, and git exports `GIT_DIR` into every hook process, so this script run
+   from inside any hook would have READ AND WRITTEN the hooking repository config
+   while printing the other one name — i.e. it could install the corpus hooksPath
+   into the public repo and report success. Nothing had ever caught it because the
+   installer is normally run from a plain shell, which is the definition of correct
+   by coincidence. `repoGitRaw` deletes the six redirecting variables from the child
+   environment, pins `-C` as well as `cwd`, and proves the root is its own repository
+   root before a single answer is read. See `repo-git.mjs`.
+
+   The three states this returns are unchanged, and the non-zero `code` is still DATA
+   — `git config --get` exits 1 for "unset", which is a real answer this script reads
+   rather than an error. A `RepoGitError` is the separate case: git absent, or a root
+   that is not a repository, and it becomes code 2 with the reason on `err`. */
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  let r;
+  try {
+    r = repoGitRaw(cwd, args);
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    return { code: 2, out: '', err: `${e.message} ${e.detail}`.replace(/\s+/g, ' ').trim() };
+  }
   return { code: r.status === null ? 2 : r.status, out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim() };
 }
 
