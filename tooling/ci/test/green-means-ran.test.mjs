@@ -226,22 +226,78 @@ describe('§B — a job cannot green-skip its own body when a secret is absent',
     // hand-kept count of the real tree wearing the costume of a property test:
     // it went red the moment a fourth store lane grew a preflight (6 today), and
     // the cheap repair — bump the 1 — would have re-armed the same trap for the
-    // next writer. The PROPERTY this case is about is SELECTIVITY, so that is
-    // what is asserted now, derived from the tree on every run: at least one
-    // presence check is found, and far fewer than the number of steps that merely
-    // NAME a secret. Neither number is written down anywhere.
-    const r = run(mutant([]));
-    assert.equal(r.code, 0, r.out);
-    const m = r.out.match(/(\d+) secret-presence check\(s\) fail closed/);
-    assert.ok(m !== null, r.out);
-    const reported = Number(m[1]);
-    assert.ok(reported >= 1, `the detector found no presence check at all: ${r.out}`);
-    const namesASecret = readdirSync(join(REPO, '.github', 'workflows'))
-      .filter((f) => /\.ya?ml$/.test(f))
-      .reduce((n, f) => n + (readFileSync(join(REPO, '.github', 'workflows', f), 'utf8').match(/\$\{\{\s*secrets\./g) ?? []).length, 0);
-    assert.ok(
-      reported * 3 < namesASecret,
-      `the guard reported ${reported} presence check(s) against ${namesASecret} secret references — it is firing on nearly every secret-using step, which is how a guard gets switched off.`,
+    // next writer.
+    //
+    // ⏱ SUPERSEDED 2026-09-07 (second pass, review finding F1). The first repair
+    // was WORSE than the number it removed: `assert.ok(reported * 3 < namesASecret)`
+    // against 228 secret references passes for ANY reported value from 1 to 75 —
+    // a 12.7x headroom over today's 6 — so the very regression this case is named
+    // for (the detector starting to count a step that tests nothing: 6 -> 7) was
+    // undetectable by it. A regression net turned into an inequality is a
+    // weakened guard test.
+    //
+    // What replaces it is the shape this file already uses everywhere else and
+    // pins NO number: two MUTATIONS of the real workflow set, read as a DELTA
+    // against the same base.
+    //   · a step that reads a secret and never tests it  -> the count is UNCHANGED
+    //   · a step that reads a secret and DOES test it    -> the count is +1 exactly
+    // Both are measured against the unmutated copy in the same run, so the pair
+    // stays true at 6, at 60, and on a tree neither number describes.
+    const base = run(mutant([]));
+    assert.equal(base.code, 0, base.out);
+    const reportedIn = (r) => {
+      const m = r.out.match(/(\d+) secret-presence check\(s\) fail closed/);
+      assert.ok(m !== null, `the guard printed no presence-check tally at all:\n${r.out}`);
+      return Number(m[1]);
+    };
+    const baseline = reportedIn(base);
+    assert.ok(baseline >= 1, `the detector found no presence check at all: ${base.out}`);
+
+    // The step bullet anchor is the one §B already uses: the `sites:` job's keys,
+    // whatever they are, followed by `steps:`. See the case above for why it is
+    // written this way and not as a verbatim block.
+    const SITES_STEPS = /( {2}sites:\n(?: {4}(?!steps:)\S[^\n]*\n)* {4}steps:\n)/;
+
+    // MUTATION 1 — reads a secret, tests NOTHING. The detector must not see it.
+    const silent = run(
+      mutant([
+        [
+          'ci.yml',
+          SITES_STEPS,
+          '$1      - name: reads a secret and never tests it\n        env:\n          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n' +
+            '        run: |\n          printf %s "$TOKEN" | wc -c\n',
+        ],
+      ]),
+    );
+    assert.equal(silent.code, 0, silent.out);
+    assert.equal(
+      reportedIn(silent),
+      baseline,
+      `a step that reads a secret and never tests it for emptiness moved the tally from ${baseline} to ${reportedIn(silent)}. ` +
+        'The detector is firing on secret USE rather than on a presence BRANCH, which is how a guard that flags every ' +
+        `step gets switched off:\n${silent.out}`,
+    );
+
+    // MUTATION 2 — reads a secret and DOES branch on its emptiness, exiting
+    // non-zero (B1's requirement) and gating nothing else (B2's). Exactly one
+    // more, so the detector is proven to be selective rather than merely quiet.
+    const branching = run(
+      mutant([
+        [
+          'ci.yml',
+          SITES_STEPS,
+          '$1      - name: reads a secret and fails closed on it\n        env:\n          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n' +
+            '        run: |\n          if [ -z "$TOKEN" ]; then\n            echo "TOKEN is empty"\n            exit 1\n          fi\n',
+        ],
+      ]),
+    );
+    assert.equal(branching.code, 0, branching.out);
+    assert.equal(
+      reportedIn(branching),
+      baseline + 1,
+      `a step that branches on \`-z "$TOKEN"\` and exits 1 moved the tally from ${baseline} to ${reportedIn(branching)}; ` +
+        `it must be exactly ${baseline + 1}. A detector that misses this one has stopped detecting the shape ` +
+        `assert-green-means-ran exists for:\n${branching.out}`,
     );
   });
 });
