@@ -391,6 +391,34 @@
 //       BRICK and one in DESIGN_SYSTEM and watch each appear, by name, in that
 //       root's printed ⬜ list. A root that is derived but whose surfaces never
 //       reach the report is a root this guard cannot see.
+//   M13 🔴 THE CHASSIS_SCREENS FLOOR, ADDED 2026-09-07 WITH THE FIRST SWEEPS IN
+//       THAT ROOT ([ADR 067] post-audit, unit chassis-screens-a11y). Every one
+//       of these ran against a byte copy of the live repo, with a GREEN CONTROL
+//       FIRST — the unmutated tree exits 0 and prints
+//       `packages/chassis_screens: 17 of 17 reachable surface(s) carry an a11y
+//       sweep, from 3 a11y test file(s) across 51 case(s)`:
+//       M13a delete the `meetsGuideline(androidTapTargetGuideline)` AND
+//            `meetsGuideline(textContrastGuideline)` calls from the ONE
+//            check-inbox sweep that carries them
+//                                → `REGRESSION — CheckInboxView` by name, from
+//                                  SWEPT_FLOOR_BY_ROOT. exit 1.
+//            ⚠️ BOTH families have to go, and that is the M5 lesson applied at
+//            surface scale: this root's sweeps are DOUBLE-FAMILY by
+//            construction, so deleting one call leaves the surface swept and
+//            the guard is RIGHT to still report it.
+//       M13b delete one whole a11y file (`a11y_shell_test.dart`)
+//                                → COVERAGE LOST on `a11yFiles` (2 < 3), which
+//                                  is what M4 proves for subly and could not be
+//                                  proven here while the floor was 0.
+//       M13c delete four cases, keeping every surface's sweep
+//                                → COVERAGE LOST on `cases` (47 < 51). Every set
+//                                  above is byte-identical; this is the limb
+//                                  that sees real assertions leave in silence.
+//       M13d RAISE the floor above what the tree measures (cases 51 → 52)
+//                                → COVERAGE LOST, exit 1, which is the check
+//                                  that this floor is a MEASUREMENT and not a
+//                                  hoped number. A floor above the tree is not a
+//                                  stricter guard, it is a broken one.
 // ═══════════════════════════════════════════════════════════════════════════
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -704,12 +732,30 @@ const REQUIRED_COVERAGE = [
     // calls "the real one here". Landing app-shell moved the pin and left this
     // at 12 for one review cycle, which let four surfaces vanish before the
     // ratchet would have bitten — that is the defect this line repairs.
+    //
+    // 🔴 `a11yFiles` 0 → 3 AND `cases` 0 → 51 ON 2026-09-07 ([ADR 067]
+    // post-audit, unit chassis-screens-a11y). THE ZERO IS DISCHARGED, AND IT IS
+    // DISCHARGED THE WAY THE WARNING ABOVE ASKED — in the same change that
+    // lands the sweeps, from this guard's OWN per-root line on the branch
+    // (`packages/chassis_screens: 17 of 17 reachable surface(s) carry an a11y
+    // sweep, from 3 a11y test file(s) across 51 case(s)`), never counted off a
+    // diff and never rounded to a hoped number. The three files are
+    // `a11y_auth_test.dart` (21), `a11y_firstrun_money_settings_test.dart` (18)
+    // and `a11y_shell_test.dart` (12); `SWEPT_FLOOR_BY_ROOT` below gains this
+    // root's seventeen keys in the same change, which is what turns a count
+    // into a NAMED set — see (0d), and the reason a count alone would let one
+    // surface's sweep be traded for another's in silence.
+    // ⚠️ AND `cases` MUST BE RE-MEASURED IN EVERY DIMENSION A LATER INCREMENT
+    // TOUCHES. `apps/subly`'s row above records this floor going blind THREE
+    // TIMES IN ONE DAY because a membership set was raised and the count was
+    // not. Raising the sweeps here without re-reading the `case(s)` figure on
+    // this line reproduces exactly that.
     surfaces: 17,
-    a11yFiles: 0,
-    cases: 0,
+    a11yFiles: 3,
+    cases: 51,
     label:
       'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens plus the ' +
-      'money/settings bodies and the app shell, mounted by every stamped app, ZERO a11y sweeps',
+      'money/settings bodies and the app shell, mounted by every stamped app, all seventeen swept',
   },
   {
     dir: 'packages/design_system',
@@ -804,6 +850,15 @@ const NOT_A_PANE_BY_ROOT = new Map([
 // the printed ⬜ list on every run, and the first sweep to land in either root
 // belongs in this map in the same change.
 //
+// 📌 APPENDED 2026-09-07 ([ADR 067] post-audit, unit chassis-screens-a11y).
+// The paragraph above was written when there were three roots and it is left
+// exactly as it stood. There are now FOUR, and one of the empty floors has been
+// discharged: `packages/chassis_screens` carries seventeen keys below, measured
+// off this guard's own ✅ list on the day the sweeps landed — which is the
+// "belongs in this map in the same change" clause being obeyed rather than
+// merely stated. The brick and design_system floors are STILL empty and still
+// print their whole domain as owed; the brick's is the one M11e depends on.
+//
 // ⚠️ AN EMPTY FLOOR ALSO BUYS SOMETHING M7 LOST. With subly's floor covering
 // its whole domain, no mutation there can fire the `surfaces` floor ALONE. The
 // brick's floor is empty, so deleting one brick route fires its `surfaces`
@@ -838,6 +893,54 @@ const SWEPT_FLOOR_BY_ROOT = new Map([
     ),
   ],
   [BRICK, new Set()],
+  // MEASURED 2026-09-07 ([ADR 067] post-audit, unit chassis-screens-a11y) by
+  // running this guard against the working tree and reading its own ✅ list:
+  // these SEVENTEEN keys were reported swept — every one of them by a
+  // `meetsGuideline(androidTapTargetGuideline)` + `meetsGuideline(
+  // textContrastGuideline)` pair with `meetsGuideline(labeledTapTargetGuideline)`
+  // beside it, in `packages/chassis_screens/test/a11y_*_test.dart`. That is the
+  // WHOLE domain of this root, which is why its `⬜` list is empty for the
+  // first time since [ADR 071] created it.
+  //
+  // 🔴 A SET, NOT THE COUNT ON THE `cases` FLOOR ABOVE, AND (0d) SAYS WHY:
+  // delete one surface's sweep and add another's in the same change and every
+  // count stays put while a surface loses its coverage in silence. Deleting the
+  // check-inbox sweep from `a11y_auth_test.dart` now reports
+  // `REGRESSION — CheckInboxView` BY NAME.
+  //
+  // ⚠️ THE THREE FAMILIES ARE NOT ALL PRESENT HERE AND THAT IS RECORDED RATHER
+  // THAN LEFT TO BE INFERRED FROM THE TALLY. `naked-controls` reads ×0 for this
+  // root: `expectNothingNaked` / `nakedControls` live in
+  // `apps/subly/test/a11y_semantics_test.dart`, a TEST file of an APP, which no
+  // package can import — and copying the walk would make a second copy of a
+  // parse nothing compares. The NAME half of that walk is covered by
+  // `labeledTapTargetGuideline`; the ROLE half (a tap action announcing no
+  // `isButton` / `isLink`) is covered NOWHERE for this root and is the one thing
+  // these seventeen sweeps do not assert.
+  [
+    'packages/chassis_screens',
+    new Set(
+      [
+        'auth/check_inbox_screen.dart#CheckInboxView',
+        'auth/legal_consent_fields.dart#LegalConsentFieldsView',
+        'auth/reaccept_terms_screen.dart#ReacceptTermsView',
+        'auth/reset_password_screen.dart#ResetPasswordView',
+        'auth/sign_in_screen.dart#SignInView',
+        'auth/sign_up_screen.dart#SignUpView',
+        'auth/verify_email_screen.dart#VerifyEmailView',
+        'firstrun/onboarding_screen.dart#OnboardingView',
+        'monetization/manage_plan_screen.dart#ManagePlanView',
+        'monetization/paywall_screen.dart#PaywallView',
+        'settings/settings_screen.dart#EditProfileDialog',
+        'settings/settings_screen.dart#SettingsView',
+        'shell/app_shell.dart#AppLifecycleFlush',
+        'shell/app_shell.dart#ConsentPromptCard',
+        'shell/app_shell.dart#ConsentScrim',
+        'shell/app_shell.dart#NikatruApp',
+        'shell/app_shell.dart#OfflineBannerHost',
+      ].map((k) => `packages/chassis_screens/lib/${k}`),
+    ),
+  ],
   ['packages/design_system', new Set()],
 ]);
 
@@ -1560,8 +1663,17 @@ for (const a of analyses) {
         const [file, symbol] = key.split('#');
         const alsoNamed = a.namedOnly.get(key);
         a.problems.push(
-          `REGRESSION — \`${symbol}\` (${file}) was swept when this floor was measured (2026-08-13, all ` +
-            `${SWEPT_FLOOR.size} surfaces of ${label}) and NO a11y case sweeps it now. ` +
+          // ⚠️ THE DATE IS NOT SPELLED HERE ANY MORE. It read `2026-08-13`
+          // literally, which was the day SUBLY's floor was measured and was
+          // printed for every root — so on 2026-09-07, the first day a SECOND
+          // root had a non-empty floor, this sentence would have dated
+          // `packages/chassis_screens`'s seventeen keys to a day three weeks
+          // before that root existed. Each root's floor carries its own
+          // measurement date in the comment beside its entry in
+          // SWEPT_FLOOR_BY_ROOT, which is the one copy that cannot go stale.
+          `REGRESSION — \`${symbol}\` (${file}) was swept when this root's floor was measured (all ` +
+            `${SWEPT_FLOOR.size} surface(s) of ${label}; the date is recorded beside that root's entry ` +
+            'in SWEPT_FLOOR_BY_ROOT) and NO a11y case sweeps it now. ' +
             (alsoNamed
               ? `${[...alsoNamed].join(', ')} still NAMES it, and naming is not sweeping: a case that ` +
                 'asserts one label says nothing about whether the screen carries a tap action with no role ' +

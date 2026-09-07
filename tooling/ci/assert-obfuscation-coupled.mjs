@@ -5,6 +5,13 @@
 //
 // [pipeline 9]R-7 "Release builds are obfuscated with split debug info, and the
 //                  symbols are retained so a crash report can still be read."
+// [ADR 067] decision 6 "--obfuscate --split-debug-info plus symbol upload on
+//                  every release build." The FLOOR limb below is that decision;
+//                  the COUPLING limb is R-7. ⏱ THIS CITATION MOVED UP HERE on
+//                  2026-09-07 — it was first written at :93 and
+//                  build-enforcement-index.mjs reads only HEADER_LINES = 60, so
+//                  the index recorded the guard as claiming R-7 alone while the
+//                  writer's report said otherwise (guard-integrity §4.1).
 //
 // ── WHY THIS IS A GUARD AND NOT A BUILD FLAG ─────────────────────────────────
 // `--obfuscate --split-debug-info=<dir>` renames every Dart symbol in the AOT
@@ -87,8 +94,57 @@
 // exist on that CLI, verified by running it), THOSE are the patterns to add
 // here, and the addition is then load-bearing rather than cosmetic.
 //
+// ── ➕ APPENDED 2026-09-07 · THE GUARD GAINS A FLOOR, BECAUSE UNTIL TODAY IT ──
+//    PASSED OVER AN EMPTY SET AND SAID SO.
+//
+// [ADR 067] decision 6 asks for `--obfuscate --split-debug-info` plus symbol
+// upload on EVERY release build. The end-to-end audit of 2026-09-07 measured
+// the result: 15 release `flutter build` commands across 7 workflows, **0**
+// carrying either flag, and this guard printing
+// `ok … 16 flutter build command(s), 0 obfuscating`, exit 0. Every sentence of
+// that output was true and the obligation was entirely unmet — the coupling
+// limb below asks "did an obfuscating build keep its mapping", and with nothing
+// obfuscating it quantified over nothing. That is [C-COVERAGE-LOST-IS-NOT-PASS]
+// exactly: an assertion that cannot fail, inflating apparent coverage.
+//
+// So there are now TWO limbs and they are different questions:
+//
+//   THE FLOOR (new)     every release build on a target Flutter can obfuscate
+//                       MUST pass --obfuscate. Zero obfuscating release builds
+//                       is exit 1, not ok. The count is printed either way.
+//   THE COUPLING (old)  every build that DOES obfuscate must retain its mapping
+//                       in its own job. Unchanged, and still the sharper of the
+//                       two — the floor can be satisfied by a flag, the coupling
+//                       cannot.
+//
+// ── WHY WEB IS EXEMPT, AND WHY THAT IS NOT AN ALLOWLIST ──────────────────────
+// The 2026-08-03 note below left web unexempted because the claim "Flutter Web
+// has no symbol obfuscation" rested on a corpus summary. It has since been read
+// from the primary source: docs.flutter.dev/deployment/obfuscate lists the
+// targets obfuscation applies to — `aar, apk, appbundle, ios, ios-framework,
+// ipa, linux, macos, macos-framework, windows` — and states "Web apps don't
+// support obfuscation. A web app can be minified…". So the exemption is not a
+// judgement about web, it is the toolchain's own domain, and it is written here
+// as that list rather than as a list of things to skip: a target outside BOTH
+// sets is COVERAGE LOST naming the target, because a Flutter release that grows
+// a new target must not fall silently outside this floor. `deploy-web.yml`
+// carries web's own separate obligation (`--source-maps` plus an upload) and is
+// not this guard's subject.
+//
+// ── ➕ AND `glitchtip-cli` IS NOW IN `SYMBOL_UPLOAD` ─────────────────────────
+// The 2026-09-03 note below predicted the day: "the day a mobile build starts
+// obfuscating and uploads its symbols with `glitchtip-cli debug-files upload`
+// … THOSE are the patterns to add here, and the addition is then load-bearing
+// rather than cosmetic." That day is today, so both the CLI call and this
+// repository's wrapper for it (`tooling/ops/upload-native-symbols.mjs`, which
+// exists because the CLI exits 0 over an empty directory, over failed chunks
+// and over an assembly that never completed) are accepted. `dart-symbol-map
+// upload` is deliberately NOT accepted: GlitchTip has no code that reads a Dart
+// obfuscation map, so a lane doing only that would be retaining nothing.
+//
 // Usage:  node tooling/ci/assert-obfuscation-coupled.mjs [repoRoot]
-// Exit 0 = no build obfuscates without retaining its symbols.
+// Exit 0 = every release build obfuscates, and no build obfuscates without
+//          retaining its symbols.
 // ─────────────────────────────────────────────────────────────────────────────
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,6 +154,54 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 
 /** A Flutter build command. `web-server` is a dev server, not an artifact. */
 const BUILD_CMD = /flutter\s+build\s+(?!web-server\b)\S+/;
+
+/** The build TARGET, for the floor's domain. */
+const BUILD_TARGET = /flutter\s+build\s+(\S+)/;
+
+/** A release build. `--release` is Flutter's own word for it — but it is NOT
+ *  the signal, because it is not required. `flutter build <target>` DEFAULTS to
+ *  release mode (docs.flutter.dev/deployment/*: "flutter build … builds a
+ *  release … by default"; `--debug` and `--profile` are the documented opt-outs
+ *  and `flutter build --help` lists `--release` as the default build mode). So
+ *  the flag is decoration on every line this repository ships, and keying the
+ *  floor's domain on it left a silent escape hatch: deleting five characters
+ *  from `flutter build apk --release` changed nothing about the artefact and
+ *  removed a shipping build from the floor at exit 0. Measured 2026-09-07 by
+ *  the guard-integrity reviewer — the count fell 13 → 12 and nothing named the
+ *  build that left.
+ *
+ *  The rule is therefore INVERTED, in the same spirit as the target sets above:
+ *  a build is a release build UNLESS it says otherwise in Flutter's own words.
+ *  Only an explicit `--debug` or `--profile` takes a build out of the domain,
+ *  and those exits are COUNTED AND PRINTED, never silent. A command carrying
+ *  BOTH `--release` and `--debug`/`--profile` is contradictory and is COVERAGE
+ *  LOST, not a guess. */
+const RELEASE = /--release(?=\s|$)/;
+const NOT_RELEASE = /--(?:debug|profile)(?=\s|$)/;
+
+/** DECLARED, from Flutter's own documentation rather than from taste:
+ *  docs.flutter.dev/deployment/obfuscate — "Obfuscation is supported on these
+ *  targets". A release build on one of these MUST obfuscate. */
+const OBFUSCATABLE_TARGETS = new Set([
+  'aar', 'apk', 'appbundle', 'ios', 'ios-framework', 'ipa',
+  'linux', 'macos', 'macos-framework', 'windows',
+]);
+
+/** DECLARED. `web` is from the same source and the same sentence: "Web apps
+ *  don't support obfuscation." `web-server` is Flutter's dev server rather than
+ *  an artifact, which is why BUILD_CMD above already refuses to see it; it is
+ *  named here as well so the two lists read as one statement.
+ *
+ *  ⏱ CORRECTED 2026-09-07 — `bundle` WAS in this set and is now REMOVED. The
+ *  header called both sets "DECLARED, from Flutter's own documentation", but
+ *  the cited page says only that web is unsupported; `bundle` was an unsourced
+ *  entry in an exemption set, which is exactly the shape the header argues
+ *  against. It exempted nothing (`grep -rn "flutter build bundle" .github/
+ *  tooling/` → no match), so removing it costs no coverage and hands the
+ *  verdict back to the COVERAGE LOST limb, where an unsourced target belongs.
+ *
+ *  A target in NEITHER set is COVERAGE LOST — see the header. */
+const NON_OBFUSCATABLE_TARGETS = new Set(['web', 'web-server']);
 
 /** The two flags that make a build unreadable without its mapping file. */
 const OBFUSCATE = /--obfuscate\b/;
@@ -114,6 +218,14 @@ const SYMBOL_UPLOAD = [
   /upload-symbols/,
   /getsentry\/action-release/,
   /symbol-collector/,
+  // GlitchTip's own CLI, added 2026-09-07 when the first native lane started
+  // uploading. `debug-files upload` is the DIF path the server implements;
+  // `dart-symbol-map upload` is NOT here because GlitchTip stores nothing from
+  // it. The wrapper is accepted alongside the bare call because it is what this
+  // repository actually invokes, and it exists to make the CLI's exit code mean
+  // what it says.
+  /glitchtip-cli[^\n]*\bdebug-files\b[^\n]*\bupload\b/,
+  /upload-native-symbols\.mjs/,
 ];
 
 const problems = [];
@@ -165,6 +277,11 @@ const uploadedPaths = (job) => {
 
 let buildsChecked = 0;
 let obfuscating = 0;
+let releaseBuilds = 0;
+let webReleaseBuilds = 0;
+const unknownTargets = [];
+const contradictoryModes = [];
+const nonReleaseBuilds = [];
 
 for (const wf of workflows) {
   for (const job of wf.jobs.values()) {
@@ -178,10 +295,49 @@ for (const wf of workflows) {
         buildsChecked++;
         const obf = OBFUSCATE.test(seg);
         const split = SPLIT_DEBUG.exec(seg);
-        if (!obf && !split) continue;
-        obfuscating++;
 
         const at = `${wf.rel}:${l.n} (job "${job.name}")`;
+
+        // ── THE FLOOR ─────────────────────────────────────────────────────
+        // Its domain is a RELEASE build on a target Flutter can obfuscate.
+        // A target in neither declared set is COVERAGE LOST, not a skip:
+        // silently falling outside a floor is how a floor stops being one.
+        // And "release" is decided by ABSENCE of --debug/--profile, not by the
+        // presence of --release, because Flutter builds release by default —
+        // see NOT_RELEASE above. Contradictory mode flags are COVERAGE LOST.
+        const target = (BUILD_TARGET.exec(seg)?.[1] ?? '').replace(/^['"]|['"]$/g, '');
+        const notRelease = NOT_RELEASE.test(seg);
+        if (!OBFUSCATABLE_TARGETS.has(target) && !NON_OBFUSCATABLE_TARGETS.has(target)) {
+          unknownTargets.push(`${at} builds target "${target}"`);
+        } else if (notRelease && RELEASE.test(seg)) {
+          contradictoryModes.push(
+            `${at} passes --release AND ${(seg.match(NOT_RELEASE) ?? [''])[0]} on the same command`,
+          );
+        } else if (!notRelease) {
+          if (OBFUSCATABLE_TARGETS.has(target)) {
+            releaseBuilds++;
+            if (!obf) {
+              problems.push(
+                `${at} is a RELEASE build of "${target}" and does not pass --obfuscate. ` +
+                  '[ADR 067] decision 6: every release build is obfuscated with split debug info and its ' +
+                  'symbols retained. An un-obfuscated release ships every Dart symbol name in the binary, ' +
+                  'and the audit of 2026-09-07 found 15 of these and zero obfuscating — which this guard ' +
+                  'reported as "ok, 0 obfuscating" because it had no floor. Add ' +
+                  `--obfuscate --split-debug-info=<dir> and retain <dir> in job "${job.name}".`,
+              );
+            }
+          } else {
+            webReleaseBuilds++;
+          }
+        } else {
+          // An EXPLICIT --debug/--profile. Counted and printed, never silent:
+          // the whole point of inverting the rule was that a build must not be
+          // able to leave the floor's domain without saying so out loud.
+          nonReleaseBuilds.push(`${at} builds "${target}" in ${(seg.match(NOT_RELEASE) ?? [''])[0]} mode`);
+        }
+
+        if (!obf && !split) continue;
+        obfuscating++;
 
         // The two flags travel together or the build is broken in a way no
         // upload can repair: `--obfuscate` with no `--split-debug-info` writes
@@ -226,11 +382,45 @@ if (buildsChecked === 0) {
   ]);
 }
 
+if (unknownTargets.length) {
+  coverageLost([
+    `${unknownTargets.length} \`flutter build\` command(s) name a target this guard has no verdict for:`,
+    ...unknownTargets,
+    'The floor below asks "does every release build on an obfuscatable target obfuscate", and both',
+    'sets are DECLARED from docs.flutter.dev/deployment/obfuscate. An unrecognised target is not a',
+    'pass — it is a target that would fall outside the floor in silence. Put it in',
+    'OBFUSCATABLE_TARGETS or NON_OBFUSCATABLE_TARGETS, with the doc line that says which.',
+  ]);
+}
+
+if (contradictoryModes.length) {
+  coverageLost([
+    `${contradictoryModes.length} \`flutter build\` command(s) name TWO build modes at once:`,
+    ...contradictoryModes,
+    "This guard decides the floor's domain by the ABSENCE of --debug/--profile, because Flutter",
+    'builds release by default. A command carrying both words does not have an answer, and guessing',
+    'one would either exempt a shipping build or fail a debug build. Pick one mode on the command.',
+  ]);
+}
+
+if (releaseBuilds === 0) {
+  coverageLost([
+    `parsed ${workflows.length} workflow file(s), found ${buildsChecked} \`flutter build\` command(s) and`,
+    'ZERO of them a release build on a target Flutter can obfuscate — so the floor has no subject and',
+    'would report "every release build obfuscates" over an empty set. That is precisely the shape this',
+    'guard printed for a month while [ADR 067] decision 6 went unmet. build-platforms.yml alone carries',
+    'six release builds across linux, android, windows, macOS and iOS.',
+  ]);
+}
+
 if (problems.length) {
-  console.error(`✗ obfuscation coupling — ${problems.length} problem(s):`);
+  console.error(
+    `✗ obfuscation — ${problems.length} problem(s) over ${releaseBuilds} release build(s), ${obfuscating} obfuscating:`,
+  );
   for (const p of problems) console.error(`    ${p}`);
   console.error('');
   console.error('  [pipeline 9]R-7 — obfuscation and symbol retention are one increment or neither.');
+  console.error('  [ADR 067] decision 6 — every release build obfuscates and keeps its symbols.');
   console.error('  See the header of tooling/ci/assert-obfuscation-coupled.mjs for why the order matters.');
   process.exit(1);
 }
@@ -241,6 +431,13 @@ if (notes.length) {
 }
 
 console.log(
-  `ok  obfuscation coupling — ${workflows.length} workflow(s), ${buildsChecked} \`flutter build\` command(s), ` +
-    `${obfuscating} obfuscating; every obfuscating build retains its symbol mapping in its own job`,
+  `ok  obfuscation — ${workflows.length} workflow(s), ${buildsChecked} \`flutter build\` command(s), ` +
+    `${releaseBuilds} release build(s) on an obfuscatable target, ${obfuscating} obfuscating; ` +
+    `FLOOR: all ${releaseBuilds} of them pass --obfuscate. COUPLING: every obfuscating build retains ` +
+    `its symbol mapping in its own job. ${webReleaseBuilds} web release build(s) are outside the floor ` +
+    'because Flutter does not support obfuscation on web' +
+    (nonReleaseBuilds.length
+      ? `; ${nonReleaseBuilds.length} build(s) are outside it on an EXPLICIT --debug/--profile: ` +
+        nonReleaseBuilds.join(', ')
+      : '; no build claims --debug or --profile, so nothing left the floor by opting out'),
 );

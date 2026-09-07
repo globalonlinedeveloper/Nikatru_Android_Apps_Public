@@ -68,6 +68,7 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build linux --release
+          --obfuscate --split-debug-info=build/symbols/linux
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${GITHUB_SHA::7}
           --dart-define=RELEASE_CHANNEL=linux-snap
@@ -124,6 +125,17 @@ jobs:
         with:
           name: subly-linux-snap
           path: apps/subly/build/linux/snap/subly.snap
+          retention-days: 7
+          if-no-files-found: error
+      # why: the snap above is built from an OBFUSCATED bundle, so its crash
+      # reports are unreadable without this directory and a rebuild produces a
+      # DIFFERENT one. 7 days matches the dry-run snap beside it — this lane
+      # ships nothing. tooling/ci/assert-obfuscation-coupled.mjs refuses the
+      # build without it.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-linux-snap-dry-run
+          path: apps/subly/build/symbols/linux
           retention-days: 7
           if-no-files-found: error
 
@@ -190,6 +202,7 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build linux --release
+          --obfuscate --split-debug-info=build/symbols/linux
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${GITHUB_SHA::7}
           --dart-define=RELEASE_CHANNEL=linux-snap
@@ -233,6 +246,17 @@ jobs:
           sudo mv "$built" "$collected"
           sudo chown "$(id -u):$(id -g)" "$collected"
           ls -l "$collected"
+      # why: BEFORE the upload, not after. This is the only copy of the mapping
+      # for a snap that is about to reach real users, and a step placed after a
+      # store upload does not run when that upload fails — which is exactly when
+      # the build still exists and the symbols still can be kept. 90 days, not
+      # 7: this snap ships.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-linux-snap
+          path: apps/subly/build/symbols/linux
+          retention-days: 90
+          if-no-files-found: error
       - name: Upload to the Snap Store
         id: upload
         env:

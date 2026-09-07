@@ -101,10 +101,19 @@ jobs:
         run: >
           flutter build web --release
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # why: --obfuscate and --split-debug-info are ONE flag, and the directory
+      # they write is the ONLY thing that turns a crash report from this build
+      # back into source. A rebuild produces a DIFFERENT mapping, so it leaves
+      # this runner or it is gone. Both destinations are wired below and
+      # tooling/ci/assert-obfuscation-coupled.mjs refuses the pair being split.
+      # Web is absent from this deliberately: Flutter does not support
+      # obfuscation on web at all, and deploy-web.yml carries web's own
+      # --source-maps path. docs/ci/build-platforms.md §obfuscation.
       - name: Build linux
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build linux --release
+          --obfuscate --split-debug-info=build/symbols/linux
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=linux-appimage
@@ -136,6 +145,7 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build apk --release
+          --obfuscate --split-debug-info=build/symbols/android-apk
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
@@ -147,6 +157,7 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build appbundle --release
+          --obfuscate --split-debug-info=build/symbols/android-aab
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --build-number=${{ github.run_number }}
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
@@ -155,6 +166,31 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=android-play
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED 2026-09-07 (fix pass) — THIS STEP USED TO BE THE LAST ONE IN THE
+      # JOB, and that lost the mapping it exists to keep. This unit states the
+      # rule in the store lanes ("BEFORE the upload, not after -- a step placed
+      # after a store upload does not run when that upload fails, which is
+      # exactly when the build still exists and the symbols still can be kept")
+      # and applied the inverse here. Proof, not theory: in dispatch run
+      # 34093704881, `Build linux` succeeded WITH the flags, a later step failed,
+      # and this artifact was `skipped` -- the obfuscated build's only mapping
+      # was written and then destroyed with the runner. It now sits immediately
+      # after the last `flutter build` of the job, ahead of every assertion and
+      # every network call, so nothing downstream can take the symbols with it.
+      # why: the crash sink is where the symbols are READ, and this artifact is
+      # what survives the sink losing them. Named `symbols-*` on purpose: the
+      # `release` job downloads `<app>-*` and publishes it, and an obfuscation
+      # mapping attached to a public GitHub Release un-obfuscates the build for
+      # everyone. 90 days matches the installable artifacts beside it.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-${{ matrix.app }}-linux-android
+          path: |
+            apps/${{ matrix.app }}/build/symbols/linux
+            apps/${{ matrix.app }}/build/symbols/android-apk
+            apps/${{ matrix.app }}/build/symbols/android-aab
+          retention-days: 90
+          if-no-files-found: error
       - name: The .aab must be signed by the upload key, not the debug key
         run: >
           node tooling/ci/assert-artifact-signed.mjs
@@ -167,6 +203,44 @@ jobs:
         run: >
           node tooling/ci/assert-elf-page-alignment.mjs
           apps/${{ matrix.app }}/build/app/outputs/bundle/release/app-release.aab
+      # why: pinned by version AND by digest, byte-identical to deploy-web.yml's
+      # step. The release asset is a GitLab JOB ARTIFACT, which is a re-runnable
+      # address rather than an immutable object — so the version alone is a
+      # label, and the digest is what makes it an address. Both halves live in
+      # tooling/versions.json.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').glitchtip_cli")"
+          sum="$(node -p "require('./tooling/versions.json').glitchtip_cli_sha256")"
+          url="https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v${ver}/raw/artifacts/glitchtip-cli-linux-x86_64?job=build-linux-x86_64"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --output "${RUNNER_TEMP}/glitchtip-cli" "$url"
+          printf '%s  %s\n' "$sum" "${RUNNER_TEMP}/glitchtip-cli" | sha256sum --check --strict -
+          chmod +x "${RUNNER_TEMP}/glitchtip-cli"
+          got="$("${RUNNER_TEMP}/glitchtip-cli" --version)"
+          if [ "$got" != "glitchtip-cli ${ver}" ]; then
+            echo "::error title=glitchtip-cli::the pinned binary reports \"${got}\", not \"glitchtip-cli ${ver}\""
+            exit 1
+          fi
+          echo "$got"
+      # why: FAILS CLOSED on a missing GLITCHTIP_TOKEN, never skips. The wrapper
+      # exists because `debug-files upload` exits 0 over an empty directory, over
+      # failed chunks and over an assembly that never completed — its header
+      # names all three and the source lines they were read from.
+      - name: Upload the native debug symbols to GlitchTip
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+          APP: ${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          for lane in linux android-apk android-aab; do
+            node tooling/ops/upload-native-symbols.mjs \
+              --cli "${RUNNER_TEMP}/glitchtip-cli" \
+              --dir "apps/${APP}/build/symbols/${lane}" \
+              --org nikatru --project "$APP"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.app }}-linux-web-android-${{ env.ANDROID_SIGNING_POSTURE }}
@@ -201,6 +275,7 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build windows --release
+          --obfuscate --split-debug-info=build/symbols/windows
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --build-number=${{ github.run_number }}
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
@@ -209,6 +284,31 @@ jobs:
           --dart-define=APP_VERSION=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}+${{ needs.prepare.outputs.GITHUB_SHA_SHORT }}
           --dart-define=RELEASE_CHANNEL=windows-store
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED 2026-09-07 (fix pass) — THIS STEP USED TO BE THE LAST ONE IN THE
+      # JOB, and that lost the mapping it exists to keep. This unit states the
+      # rule in the store lanes ("BEFORE the upload, not after -- a step placed
+      # after a store upload does not run when that upload fails, which is
+      # exactly when the build still exists and the symbols still can be kept")
+      # and applied the inverse here. Proof, not theory: in dispatch run
+      # 34093704881, `Build linux` succeeded WITH the flags, a later step failed,
+      # and this artifact was `skipped` -- the obfuscated build's only mapping
+      # was written and then destroyed with the runner. It now sits immediately
+      # after the last `flutter build` of the job, ahead of every assertion and
+      # every network call, so nothing downstream can take the symbols with it.
+      # why: retained as an artifact and NOT uploaded to the crash sink, because
+      # tooling/versions.json pins ONE glitchtip-cli binary and it is
+      # linux-x86_64. Arming this runner would mean a second pinned binary and a
+      # second digest; until then the 90-day artifact is the mapping's only copy
+      # and this step is what stops it being lost. Recorded in
+      # docs/ci/build-platforms.md §obfuscation as an open residue, not a gap
+      # nobody noticed.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-${{ matrix.app }}-windows
+          path: |
+            apps/${{ matrix.app }}/build/symbols/windows
+          retention-days: 90
+          if-no-files-found: error
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/${{ matrix.app }}
         run: dart run msix:create
@@ -286,6 +386,7 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build macos --release
+          --obfuscate --split-debug-info=build/symbols/macos
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
@@ -298,10 +399,33 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: >
           flutter build ios --release --no-codesign
+          --obfuscate --split-debug-info=build/symbols/ios
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED 2026-09-07 (fix pass) — THIS STEP USED TO BE THE LAST ONE IN THE
+      # JOB, and that lost the mapping it exists to keep. This unit states the
+      # rule in the store lanes ("BEFORE the upload, not after -- a step placed
+      # after a store upload does not run when that upload fails, which is
+      # exactly when the build still exists and the symbols still can be kept")
+      # and applied the inverse here. Proof, not theory: in dispatch run
+      # 34093704881, `Build linux` succeeded WITH the flags, a later step failed,
+      # and this artifact was `skipped` -- the obfuscated build's only mapping
+      # was written and then destroyed with the runner. It now sits immediately
+      # after the last `flutter build` of the job, ahead of every assertion and
+      # every network call, so nothing downstream can take the symbols with it.
+      # why: same reason as the windows lane — one pinned glitchtip-cli binary,
+      # and it is linux-x86_64. The .symbols directories are the only copy of
+      # each mapping, so they are retained for the same 90 days as the bundles.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-${{ matrix.app }}-apple
+          path: |
+            apps/${{ matrix.app }}/build/symbols/macos
+            apps/${{ matrix.app }}/build/symbols/ios
+          retention-days: 90
+          if-no-files-found: error
       - name: The iOS bundle is signed by the identity this lane intended
         run: >
           node tooling/ci/assert-artifact-signed-apple.mjs

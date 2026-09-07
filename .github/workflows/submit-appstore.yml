@@ -52,6 +52,7 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build ios --release --no-codesign
+          --obfuscate --split-debug-info=build/symbols/ios
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
@@ -60,10 +61,25 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build macos --release
+          --obfuscate --split-debug-info=build/symbols/macos
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # why: both builds above are obfuscated, so their crash reports are
+      # unreadable without these directories, and a rebuild produces DIFFERENT
+      # ones. Retained rather than sent to the crash sink because
+      # tooling/versions.json pins ONE glitchtip-cli binary and it is
+      # linux-x86_64; this job runs on macOS. docs/ci/build-platforms.md
+      # §obfuscation carries that residue.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-appstore
+          path: |
+            apps/subly/build/symbols/ios
+            apps/subly/build/symbols/macos
+          retention-days: 90
+          if-no-files-found: error
       - name: Dry-run the App Store submission (iOS)
         env:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
