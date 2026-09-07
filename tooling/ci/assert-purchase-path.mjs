@@ -4,6 +4,14 @@
 // [pipeline 5]M-6 (checkout) · M-8 (the revocation bound) · M-9 (ROSCA) ·
 // M-10 (restore) · M-15 (platform declaration).
 //
+// [ADR 038], [ADR 039] and [ADR 067] decision 7 are cited HERE, in the header,
+// because the enforcement index is built from a file's first 60 lines and every
+// one of these was claimed only beside its limb, several hundred lines down.
+// [ADR 038] and [ADR 039] lock ONE merchant of record and the per-channel rail
+// assignment, which §G limbs (d) and (e) grade against the register. [ADR 067]
+// decision 7 put `ChassisBilling.railFor` between an app and its rail, and §H
+// is the census of who still constructs the hosted rail by hand instead.
+//
 // 🔴 EVERY LIMB HERE REPLACES AN ACCEPTANCE CRITERION THAT COULD NOT FAIL. That
 // is not a stylistic note — it is what the file is for, and each replacement is
 // named beside the limb that carries it:

@@ -4,6 +4,14 @@
 // questionnaire are SWORN DECLARATIONS ABOUT WHAT THE CODE DOES, so they are
 // compared to the code.
 //
+// [ADR 067] decision 7 and [ADR 059] shape A are cited HERE, in the header, so
+// the enforcement index — which reads a file's first 60 lines — records the IAP
+// limb that lives near line 2000: an app whose `app.yaml` declares
+// `billing.mobileIap` sells on the store, so its Data safety label must declare
+// purchase history, and an app that declares no rail must not. [ADR 059] shape A
+// is what makes the second half of that sentence the DEFAULT rather than the
+// exception.
+//
 // [pipeline K-8 / G-32] (absent from origins.lock.json by construction — G-32 is a MASTER_PLAN §3 chassis-gap id, a different register from the pipeline ids; see Private/MASTER_PLAN.md) Two Play Console artefacts had NO representation in this
 // repository at all until 2026-08-04, and the store README said so in prose:
 // "⬜ Data safety form — a Play Console questionnaire. Blocking, and it has no

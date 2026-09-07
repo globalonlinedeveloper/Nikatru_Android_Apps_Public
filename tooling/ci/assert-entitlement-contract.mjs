@@ -3,6 +3,14 @@
 // assert-entitlement-contract.mjs — the money rail's schema is COMPLETE, and it
 // is complete BEFORE the first payment lands.
 //
+// [ADR 067] decision 7 and [ADR 039] D5 are cited HERE rather than only beside
+// limbs 6 and 7 (line 1000-odd), because the enforcement index reads a file's
+// first 60 lines and would otherwise record neither. Those limbs hold the
+// RevenueCat event map equal across every runtime copy, and hold the ONE
+// runtime that already reads a RevenueCat event to a DECLARED divergence from
+// the authored table — with a sweep of every deployed Worker, so a third
+// transcription cannot appear unwatched.
+//
 // [pipeline 5]M-3 · M-2 · M-7. `Private/requirements/` makes migrations
 // ADDITIVE-ONLY — the prose `schema-evolution.md` this line used to name was
 // folded into that JSON spec on 2026-08-16 in commit e88fdcf, and the rule is

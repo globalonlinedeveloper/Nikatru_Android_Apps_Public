@@ -6,6 +6,14 @@
 // [ADR 067] decision 2 — "an app is `app.yaml` + its own screens". This is the
 // guard that makes that sentence mechanical rather than aspirational.
 //
+// [ADR 067] decision 7 and [ADR 059] shape A are cited HERE, in the header, and
+// not only beside the limb that enforces them: the enforcement index is built
+// from a file's first 60 lines, so a claim made at line 447 is a claim the
+// register cannot record. Limb 6 (the optional `billing.mobileIap` opt-in)
+// enforces both — an app declares a STORE billing rail, or it does not have
+// one, because [ADR 059] shape A makes mobile FREE-ONLY at v1 and the sworn
+// files [ADR 037] governs must agree with the pubspec either way.
+//
 // ── THE DEFECT IT CLOSES, IN THE OTHER GUARD'S OWN WORDS ─────────────────────
 // `assert-store-metadata.mjs` opens by quoting [pipeline 10]D-5 — "store listing
 // metadata is GENERATED from the spec and lives in the repo" — and its own
