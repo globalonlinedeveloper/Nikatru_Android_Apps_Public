@@ -185,14 +185,47 @@ this step's output — the job simply stops here, which is what makes the
 🔄 **REWRITTEN 2026-09-07 — IT NOW RESOLVES THE TARGET AS WELL AS CHECKING IT**
 ([ADR 067] decision 6, unit `cutover-blockers`). The step reads both secret sets,
 picks the one `auth_target` names, refuses if ANY of that set's three names is
-empty, and writes the three chosen values to `$GITHUB_ENV` under the plain names
-`SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`. Every step
-below therefore reads the RESOLVED value and none of them names `secrets.` any
-more — a step that re-declared them from `secrets.` would silently override the
-resolution and run `boxa` against production.
+empty, and ends the job naming the ones that are missing.
 
-🔴 **WHY THE CHOICE IS MADE IN SHELL AND NOT IN A GITHUB EXPRESSION.** The
-obvious spelling is a ternary in the job's `env:` —
+🔄 **CORRECTED 2026-09-07 (second pass) — IT NO LONGER HANDS THE VALUES ON.** The
+first pass wrote the three chosen values to `$GITHUB_ENV` under the plain names
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`. That is
+**job-wide**: every step after it inherits them, including
+`nanasess/setup-chromedriver` and `actions/upload-artifact`, neither of which ever
+saw `SUPABASE_SERVICE_ROLE_KEY` before — and `tooling/channel-register.json`'s own
+row for that name calls it *the key that bypasses the Turnstile gate*, which is
+exactly why the harness and never the browser holds it. On `origin/main` it was
+bound **per step**, at five places.
+
+It is bound per step again, at the **eight** steps that consume it, and the ONLY
+thing the preflight writes to `$GITHUB_ENV` is `E2E_AUTH_TARGET` — a literal
+`hosted` or `boxa`, which is not a credential. The binding each of those steps
+carries is three-armed:
+
+```
+${{ (inputs.auth_target || 'hosted') == 'boxa'   && secrets.BOXA_SUPABASE_URL
+ || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL
+ || '' }}
+```
+
+🔴 **THE THIRD ARM IS THE WHOLE POINT AND IT IS NOT DECORATION.** A two-armed
+ternary — `cond && BOXA || HOSTED` — is wrong in the one case that matters: an
+**empty** `BOXA_*` secret is falsey, so it falls through to the hosted value and
+the run reports `boxa` in its own name while grading production. Written this way
+the second arm is a POSITIVE `== 'hosted'` test rather than a bare else, so a
+`boxa` run whose secret is empty resolves to the EMPTY STRING and the step dies on
+its own `need()` — never on the wrong stack. The preflight still fails first, and
+with the secret's NAME in the message; the shape is what makes that message the
+only way through rather than the only thing in the way.
+
+The suite `tooling/ci/test/e2e-auth-target.test.mjs` holds all three properties
+with a green control and a mutation each: re-adding the `$GITHUB_ENV` write,
+dropping one step's binding, and weakening the ternary back to two arms.
+
+🔴 **WHY THE *REFUSAL* IS MADE IN SHELL AND NOT IN A GITHUB EXPRESSION.**
+(Reworded 2026-09-07 second pass: the *resolution* is now an expression, per the
+block above; what stays in shell is the refusal, because only shell can name the
+missing secret in the error.) The obvious spelling is a ternary in the job's `env:` —
 `${{ inputs.auth_target == 'boxa' && secrets.BOXA_SUPABASE_URL || secrets.SUPABASE_URL }}`.
 It is wrong in the one case that matters: an **empty** `BOXA_*` secret is falsey,
 so the ternary falls through to the hosted value, and the run reports `boxa` in
@@ -267,10 +300,37 @@ reading of the fact Phase 5 is going to move.
 is the public half of the pair: it ships inside every web bundle and is
 meaningless without the secret half, which lives only on the auth box as
 `CAPTCHA_SECRET` and never reaches this repository. Passing it from a variable is
-how that is said out loud. The variable is unset today, so the define arrives
-EMPTY, `TurnstileGate` renders `SizedBox.shrink()` and the suite behaves exactly
-as it did before the line existed
-(`apps/subly/lib/features/auth/turnstile_gate.dart`).
+how that is said out loud.
+
+🔴 **CORRECTED 2026-09-07 (second pass) — AN EMPTY SITEKEY NOW REFUSES THE RUN.**
+The first pass said the variable is unset today, so the define arrives EMPTY,
+`TurnstileGate` renders `SizedBox.shrink()` and the suite behaves exactly as it
+did before the line existed. All true — and that is precisely the problem the
+phase-3 brief refuses at §7.4.9: *a green run with an empty sitekey is not
+acceptance*. Run `34068306612` was that run. A suite that signs in with no captcha
+token proves the gate is not needed, not that it works, and Box A ENFORCES
+Turnstile on `signup`, `token?grant_type=password`, `recover`, `otp`,
+`magiclink` and `resend` for **every** client (runbook §4.7) — so an empty sitekey
+makes the whole `boxa` rehearsal meaningless.
+
+A second preflight, **Preflight — the Turnstile sitekey must be present**, now
+tests `-z "$TURNSTILE_SITE_KEY"` and exits 1 printing the owner step. The
+repository variable does not exist yet, so **every run of this workflow is refused
+today, including the nightly** — that is the designed behaviour and it is recorded
+as such. The owner step is one field (Settings → Secrets and variables → Actions →
+Variables), the value is public, and it can be unset again in seconds.
+
+⚠️ **IT IS A SEPARATE STEP, AND THAT IS NOT TIDINESS.**
+`assert-green-means-ran.mjs` section B1 asks whether a step that reads a SECRET and
+branches on its emptiness contains ANY `exit <n>`; it cannot tell WHICH branch
+exits. Folding a third refusal into the secrets preflight therefore makes that
+guard's own mutation case (`green-means-ran.test.mjs`, *"a secret-presence
+preflight that does not exit non-zero fails"*) pass with both secret refusals
+removed — measured on this branch: EXIT 0 where the case expects 1. Splitting the
+sitekey out keeps that net at full strength and leaves the secrets preflight in
+the exact shape the guard recognises (the secret-presence count stays at **1**).
+The coarseness of B1 is reported, not edited around: that guard and its suite
+belong to the `store-lanes` unit.
 
 `--dart-define=E2E_AUTH_TARGET=$E2E_AUTH_TARGET` carries the resolved target into
 the suite, which uses it to pick between two POSITIVE expectations rather than to
