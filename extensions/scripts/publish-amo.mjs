@@ -30,9 +30,10 @@
 // Exit 0 = published, or the register does not arm this channel and the owner
 // step was printed. 1 = the channel is armed and something is missing or failed.
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { laneVerdict, ArmingCoverageLost } from './publish-arming.mjs';
+import { laneVerdict, ArmingCoverageLost, REPO_ROOT } from './publish-arming.mjs';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIMARY SOURCES — every remote fact this lane acts on, and where it came from.
@@ -45,8 +46,46 @@ const PRIMARY_SOURCES = Object.freeze({
   webExtVersion: 'https://registry.npmjs.org/web-ext',
 });
 
-/** The pinned tool. EXACT: see the header. */
-const WEB_EXT_PIN = 'web-ext@10.6.0';
+/**
+ * The pinned tool. EXACT: see the header.
+ *
+ * ⏱ CORRECTED 2026-09-07 (store-lanes second pass) — THE PIN IS READ, NOT
+ * RESTATED. It was the literal `'web-ext@10.6.0'` here and nowhere else, which
+ * put it outside the domain of `tooling/ci/assert-update-coverage.mjs`: that
+ * guard quantifies over the KEYS of `tooling/versions.json`, so its EXIT 0 was
+ * silent about this pin while the unit's own acceptance recorded the green as
+ * though it covered it. The version now lives in `tooling/versions.json`
+ * (`web_ext`), a Renovate customManager extracts it, and this line reads it.
+ *
+ * 🔴 READING RATHER THAN COPYING IS THE POINT, and it is the opposite of the
+ * gitleaks decision: there, `scan-secrets.mjs` keeps a literal precisely BECAUSE
+ * it compares the pin against the installed binary, and reading it would make
+ * that comparison compare a value with itself. Nothing here compares anything —
+ * the pin IS the version to install — so a second copy could only drift.
+ *
+ * A missing or empty key is a REFUSAL, not a fallback to a range: falling back
+ * would let a rehearsal and the tag push that follows it sign under different
+ * releases of the tool, which is the exact failure the exact pin exists to stop.
+ */
+const WEB_EXT_PIN = (() => {
+  const rel = 'tooling/versions.json';
+  const abs = join(REPO_ROOT, rel);
+  let v;
+  try {
+    v = JSON.parse(readFileSync(abs, 'utf8')).web_ext;
+  } catch (e) {
+    console.error(`FAIL ${rel} could not be read for the web-ext pin — ${e.message}`);
+    console.error('     The pin is declared once, in that file, so that Renovate and assert-update-coverage can both');
+    console.error('     see it. This lane will not fall back to a range: a range resolves at run time and a rehearsal');
+    console.error('     would then be green about a version the publish never ran.');
+    process.exit(1);
+  }
+  if (typeof v !== 'string' || !/^\d+\.\d+\.\d+$/.test(v)) {
+    console.error(`FAIL ${rel} key \`web_ext\` is ${JSON.stringify(v)}; an exact three-part version is required.`);
+    process.exit(1);
+  }
+  return `web-ext@${v}`;
+})();
 
 const argv = process.argv.slice(2);
 const opt = (name, fallback = null) => {

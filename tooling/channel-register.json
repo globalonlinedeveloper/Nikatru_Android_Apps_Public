@@ -852,11 +852,6 @@
         "why": "The long-lived OAuth refresh token minted once through the OAuth playground. It is the credential the cws-token-keepalive job in extensions.yml exercises weekly, because a refresh token that goes unused is revoked and nothing else in this tree would notice."
       },
       {
-        "name": "CWS_ITEM_ID",
-        "kind": "publishing-credential",
-        "why": "The Chrome Web Store item id the API path addresses. Issued by the store at the first MANUAL publish (ADR 067 decision 8) and not derivable, which is why it is held rather than computed. It identifies a listing; it authenticates nothing on its own and signs nothing."
-      },
-      {
         "name": "CWS_PUBLISHER_ID",
         "kind": "publishing-credential",
         "why": "The publisher id the Chrome Web Store v2 API path carries between `publishers/` and `items/`, read from the Developer Dashboard under Publisher -> Settings. It exists in this list because the v2 path documented at https://developer.chrome.com/docs/webstore/using-api (fetched 2026-09-07) needs it and the older v1.1 path did not; a guessed publisher id would address somebody else's account. Identifies a publisher, signs nothing."
@@ -870,11 +865,6 @@
         "name": "EDGE_API_KEY",
         "kind": "publishing-credential",
         "why": "The Partner Center API key sent as `Authorization: ApiKey <key>` by the Edge Add-ons v1.1 API. It authorises an upload and a publish; it is not a code-signing key, which is a property of the channel rather than a choice."
-      },
-      {
-        "name": "EDGE_PRODUCT_ID",
-        "kind": "publishing-credential",
-        "why": "The Edge Add-ons product id in the API path, shown on the extension overview page in Partner Center. Issued at the first MANUAL publish and not derivable. Identifies a listing, signs nothing."
       },
       {
         "name": "GITHUB_TOKEN",

@@ -176,11 +176,23 @@ jobs:
       # primary source for (the Azure Blob upload of the ZIP, and the full submission
       # body). The version is EXACT -- a range resolves at run time, so the rehearsal and
       # the submission could speak to different tools.
-      - name: Install the Microsoft Store Developer CLI (exact pin)
+      # ⏱ CORRECTED 2026-09-07 (store-lanes second pass) — THE PIN IS READ FROM
+      # tooling/versions.json, NOT WRITTEN HERE. `--version 0.4.2` was a literal in
+      # this line and nowhere else, which put it outside the domain of
+      # tooling/ci/assert-update-coverage.mjs: that guard quantifies over the KEYS of
+      # tooling/versions.json, so a pin written inside a workflow is advanced by
+      # nobody and no check in the tree can say so. Same shape as the gitleaks,
+      # zizmor, OSV-Scanner and Trivy installs in ci.yml.
+      - name: Install the Microsoft Store Developer CLI (exact pin from tooling/versions.json)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          winget install --exact --id Microsoft.MSStoreCLI --version 0.4.2 --accept-source-agreements --accept-package-agreements --disable-interactivity
+          $ver = node -p "require('./tooling/versions.json').msstore_cli"
+          if (-not ($ver -match '^\d+\.\d+\.\d+$')) {
+            Write-Error "tooling/versions.json key msstore_cli is '$ver'; an exact three-part version is required. A range resolves at run time, so the rehearsal and the submission could speak to different tools."
+          }
+          Write-Host "msstore-cli pin $ver (tooling/versions.json)"
+          winget install --exact --id Microsoft.MSStoreCLI --version $ver --accept-source-agreements --accept-package-agreements --disable-interactivity
       - name: Submit to the Microsoft Store
         id: submit
         env:

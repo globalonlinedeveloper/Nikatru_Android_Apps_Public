@@ -190,11 +190,18 @@ it is a lane that cannot run until the credential is created.
 | `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the Monday `cws-token-keepalive` job |
 | `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
 | `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
-| `CWS_ITEM_ID` | `extensions.yml` | as above; issued by the store at the first MANUAL publish |
 | `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |
 | `EDGE_CLIENT_ID` | `extensions.yml` | the Edge Add-ons v1.1 four-call submission |
 | `EDGE_API_KEY` | `extensions.yml` | as above |
-| `EDGE_PRODUCT_ID` | `extensions.yml` | as above; issued at the first MANUAL publish |
+
+**The two listing ids are NOT secrets, and stopped being repository ones on 2026-09-07.** `CWS_ITEM_ID` and
+`EDGE_PRODUCT_ID` were rows in this table until then. They identify a listing and authenticate nothing, and the
+extensions release lane is multi-tool by construction — `.github/workflows/extensions.yml` derives the tool from the
+tag `<tool>-v<semver>` — so one repository-wide value meant a second extension's tag would upload its package to the
+FIRST tool's listing and print `SUBMITTED` naming the second: a wrong success in the one act this repository treats as
+irreversible. Each tool now declares its own destination at `extensions/Extension/<tool>/tool.json`
+`storeMetadata.stores.chrome.listingId` / `.edge.listingId`, and `extensions/scripts/publish-cws.mjs` /
+`publish-edge.mjs` REFUSE while it is `null` rather than falling back to anything.
 
 The Apple items are gated on hardware, not on money: there is no web enrolment
 in India, so the developer account cannot be created from this machine.
