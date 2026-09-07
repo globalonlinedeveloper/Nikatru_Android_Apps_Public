@@ -565,8 +565,22 @@ const REQUIRED_COVERAGE = [
     // `test/app_shell_view_test.dart` — so the root stays at
     // reachable == measured and the floor is what stops any of them going
     // quiet later.
+    // 🔴 `widthTestFiles` RAISED 13 → 17 ON 2026-09-07 ([ADR 067] post-audit,
+    // unit chassis-screens-a11y), AND THE RAISE IS OWED BY THIS FILE'S OWN
+    // RULE. That unit landed four files under `packages/chassis_screens/test`
+    // — `a11y_auth_test.dart`, `a11y_firstrun_money_settings_test.dart`,
+    // `a11y_shell_test.dart` and `support/a11y_harness.dart` — and this root's
+    // CORPUS is "every .dart under that test directory", not the width suites
+    // alone. Left at 13, deleting a width suite would have taken the corpus to
+    // 16 and cleared a floor of 13: the ratchet would have gone slack in the
+    // one direction it exists to refuse, and the a11y unit's own suite could
+    // not have seen it. Read off this guard's own per-root line
+    // (`corpus: … — 17 file(s)`), never counted off the diff.
+    // ⚠️ A FILE ADDED UNDER `test/` FOR ANY REASON MOVES THIS NUMBER. It is a
+    // corpus floor, not a width-suite floor, and the two only look the same
+    // while every file under `test/` happens to be a width suite.
     surfaces: 17,
-    widthTestFiles: 13,
+    widthTestFiles: 17,
     coveredSurfaces: 17,
     label:
       'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens every stamped ' +
