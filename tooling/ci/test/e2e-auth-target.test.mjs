@@ -283,12 +283,27 @@ function jobWideWrites(text) {
 
 /** FINDING when the preflight has no fail-closed empty-sitekey limb. */
 function sitekeyLimbMissing(text) {
-  const pre = e2eSteps(text).find((s) => /Preflight/.test(s.name));
-  if (!pre) return ['no preflight step at all'];
+  const steps = e2eSteps(text);
+  const pre = steps.find((s) => /sitekey must be present/.test(s.name));
+  if (!pre) return ['no sitekey preflight step at all'];
   const bad = [];
   if (!/-z\s+"\$TURNSTILE_SITE_KEY"/.test(pre.text)) bad.push('no -z "$TURNSTILE_SITE_KEY" test');
   if (!pre.env.has('TURNSTILE_SITE_KEY')) bad.push('the preflight env does not bind TURNSTILE_SITE_KEY');
   if (!/TURNSTILE_SITE_KEY is unset[\s\S]*?exit 1/.test(pre.text)) bad.push('the empty branch does not end the job');
+  // 🔴 AND IT MUST RUN BEFORE ANYTHING REAL. A fail-closed check that sits after
+  // the drive step refuses a run that already happened.
+  const at = steps.indexOf(pre);
+  const drive = steps.findIndex((s) => /Run integration tests/.test(s.name));
+  if (drive !== -1 && at > drive) bad.push('the sitekey check runs after the suite it is supposed to gate');
+  // 🔴 AND IT MUST NOT LIVE INSIDE THE SECRETS PREFLIGHT. assert-green-means-ran
+  // section B1 asks only whether that step contains ANY exit, so a third refusal
+  // there makes green-means-ran.test.mjs's "does not exit non-zero" mutation
+  // pass with both secret refusals removed — measured EXIT 0 where it expects 1.
+  // env, not text: a block ends at the next step's , so the trailing   // of the NEXT step is part of this one's text — the binding is the fact.
+  const secrets = steps.find((s) => /secrets must be present/.test(s.name));
+  if (secrets && secrets.env.has('TURNSTILE_SITE_KEY')) {
+    bad.push('the sitekey check is folded back into the secrets preflight, blunting section B1');
+  }
   return bad;
 }
 
@@ -383,15 +398,36 @@ describe('e2e.yml — an empty TURNSTILE_SITE_KEY refuses the run', () => {
   });
 
   test('MUTATION · softening the limb to a message that does not end the job is caught', () => {
-    const mutated = real.replace(/\n {12}exit 1\n {10}fi\n {10}echo "E2E_AUTH_TARGET/, '\n          fi\n          echo "E2E_AUTH_TARGET');
+    const mutated = real.replace(
+      /\n {12}exit 1\n {10}fi\n {10}echo "TURNSTILE_SITE_KEY is set/,
+      '\n          fi\n          echo "TURNSTILE_SITE_KEY is set',
+    );
     assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
     assert.ok(sitekeyLimbMissing(mutated).includes('the empty branch does not end the job'));
   });
 
-  test('MUTATION · unbinding the variable from the preflight env is caught', () => {
-    const mutated = real.replace('          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n          HOSTED_URL:', '          HOSTED_URL:');
+  test('MUTATION · unbinding the variable from the sitekey preflight env is caught', () => {
+    const mutated = real.replace(
+      '        env:\n          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n        run: |\n          set -uo pipefail\n          if [ -z "$TURNSTILE_SITE_KEY" ]',
+      '        run: |\n          set -uo pipefail\n          if [ -z "$TURNSTILE_SITE_KEY" ]',
+    );
     assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
     assert.ok(sitekeyLimbMissing(mutated).includes('the preflight env does not bind TURNSTILE_SITE_KEY'));
+  });
+
+  test('MUTATION · folding the sitekey check back into the secrets preflight is caught', () => {
+    // The exact regression this split exists to prevent: with the check inside
+    // the secrets step, assert-green-means-ran's B1 sees an `exit` that belongs
+    // to a different branch and its own mutation case passes for the wrong
+    // reason. Proven separately by running that case — EXIT 0 where it expects 1.
+    const mutated = real.replace(
+      '          TARGET: ${{ inputs.auth_target || \'hosted\' }}\n',
+      '          TARGET: ${{ inputs.auth_target || \'hosted\' }}\n          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n',
+    );
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(
+      sitekeyLimbMissing(mutated).includes('the sitekey check is folded back into the secrets preflight, blunting section B1'),
+    );
   });
 
   test('the drive step still passes the sitekey through as a --dart-define', () => {

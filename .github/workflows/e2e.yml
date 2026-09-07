@@ -81,22 +81,13 @@ jobs:
       # `NAME: value` (:187-188), so one `#` between two bindings hides every
       # binding under it — and with the secret bindings hidden the guard cannot
       # see this preflight at all and exits 2, COVERAGE LOST. Measured on this
-      # branch: with the sitekey's `# why:` inside the block, EXIT 2 "e2e.yml
-      # contains no secret-presence check this scan can see"; moved out here,
-      # EXIT 0. That is the guard working, and the reason every `# why:` for a
-      # binding lives above the step.
-      #
-      # why: TURNSTILE_SITE_KEY is the SITE key, not a secret — a repository
-      # VARIABLE, public by design. It is checked for the same reason the three
-      # secrets are: every gated screen on Box A needs a Turnstile token, so a
-      # run that drives with an empty sitekey proves the suite passes WITHOUT the
-      # gate and says nothing about the cutover it exists to rehearse. Run
-      # 34068306612 was exactly that: green, with the define empty.
+      # branch, with a `# why:` inside the block: EXIT 2, "e2e.yml contains no
+      # secret-presence check this scan can see". That is the guard working, and
+      # it is the reason every `# why:` for a binding lives above its step.
       - name: Preflight — the chosen auth target's secrets must be present
         id: pre
         env:
           TARGET: ${{ inputs.auth_target || 'hosted' }}
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           HOSTED_URL: ${{ secrets.SUPABASE_URL }}
           HOSTED_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
           HOSTED_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -130,23 +121,46 @@ jobs:
             echo "::error title=E2E cannot run::auth_target=${TARGET} needs${missing}, and it is not set. The end-to-end proof did NOT run — this is a failed run, not a skipped one. Add or re-add the secret in Settings → Secrets and variables → Actions."
             exit 1
           fi
-          # why: THE SITEKEY LIMB, AND IT IS FAIL-CLOSED ON PURPOSE. An empty
-          # `vars.TURNSTILE_SITE_KEY` makes TurnstileGate render
-          # SizedBox.shrink(), so the suite signs in with no captcha token and
-          # goes green — and that green says nothing about the cutover, because
-          # Box A ENFORCES Turnstile on signup, token?grant_type=password,
-          # recover, otp, magiclink and resend. There is no honest third ending
-          # here: either the sitekey is present and the run means something, or
-          # the run is refused. The variable does not exist yet, so this limb is
-          # RED until the owner step below is taken — that is the designed
-          # behaviour and it is recorded as such, not a defect.
+          echo "E2E_AUTH_TARGET=${TARGET}" >> "$GITHUB_ENV"
+          echo "auth_target=${TARGET}: ${prefix}_URL, ${prefix}_ANON_KEY and ${prefix}_SERVICE_ROLE_KEY are all present — running the live suite."
+          echo "Auth target: **${TARGET}** (${prefix}_*)" >> "$GITHUB_STEP_SUMMARY"
+
+      # why: A SECOND PREFLIGHT, AND THE SEPARATION IS DELIBERATE — IT IS NOT
+      # TIDINESS AND IT IS NOT A SECOND CLASS OF CHECK.
+      #
+      # The sitekey is a repository VARIABLE, public by design: it ships inside
+      # the web bundle and is meaningless without the secret half, which never
+      # leaves Box A. It still has to be present, for the same reason the three
+      # secrets do: an empty `vars.TURNSTILE_SITE_KEY` makes TurnstileGate render
+      # SizedBox.shrink(), so the suite signs in with NO captcha token and goes
+      # green — and that green says nothing about the stack this lane exists to
+      # rehearse, because Box A ENFORCES Turnstile on signup,
+      # token?grant_type=password, recover, otp, magiclink and resend (runbook
+      # §4.7). Run 34068306612 was exactly that run: green, define empty, and the
+      # phase-3 brief refuses it as acceptance (scope §7.4.9).
+      #
+      # 🔴 WHY IT IS NOT A LIMB OF THE STEP ABOVE. assert-green-means-ran.mjs
+      # section B1 asks whether a step that reads a SECRET and branches on its
+      # emptiness contains ANY `exit <n>` — it cannot tell which branch exits. A
+      # third refusal inside that one step therefore makes its own mutation case
+      # (green-means-ran.test.mjs "a secret-presence preflight that does not exit
+      # non-zero fails") pass while both secret refusals are gone: measured on
+      # this branch, EXIT 0 where the case expects 1. Splitting the sitekey out
+      # keeps that net at full strength and keeps the secrets preflight in the
+      # exact shape the guard already recognises. The coarseness of B1 is
+      # reported, not edited around — that guard and its suite belong to the
+      # store-lanes unit (scope §5 forbiddenPaths); the residue is in
+      # phase3-cutover-blockers.md §8.5.
+      - name: Preflight — the Turnstile sitekey must be present
+        env:
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          set -uo pipefail
           if [ -z "$TURNSTILE_SITE_KEY" ]; then
             echo "::error title=E2E cannot run::the repository VARIABLE TURNSTILE_SITE_KEY is unset, so --dart-define=TURNSTILE_SITE_KEY would arrive empty, TurnstileGate would render nothing, and this run would prove the suite passes WITHOUT the captcha gate. OWNER STEP: Settings → Secrets and variables → Actions → Variables → New repository variable, name TURNSTILE_SITE_KEY, value = the PUBLIC Turnstile sitekey from runbooks/auth-cutover.md section 4 row 5 (a sitekey is public: it ships inside the web bundle; the secret half never leaves Box A). It is a variable, not a secret, and it can be unset again in seconds."
             exit 1
           fi
-          echo "E2E_AUTH_TARGET=${TARGET}" >> "$GITHUB_ENV"
-          echo "auth_target=${TARGET}: ${prefix}_URL, ${prefix}_ANON_KEY and ${prefix}_SERVICE_ROLE_KEY are all present, and TURNSTILE_SITE_KEY is set — running the live suite."
-          echo "Auth target: **${TARGET}** (${prefix}_*)" >> "$GITHUB_STEP_SUMMARY"
+          echo "TURNSTILE_SITE_KEY is set — the gated screens will render a real widget."
 
       - name: Stamp this run's build identity (APP_VERSION)
         run: |
