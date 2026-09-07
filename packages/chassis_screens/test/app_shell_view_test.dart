@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikatru_chassis_screens/shell/app_shell.dart';
+import 'package:nikatru_chassis_screens/shell/bootstrap.dart';
+import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
 import 'support/width_harness.dart';
@@ -307,6 +310,109 @@ void main() {
   // — so the copy is passed from the chassis catalogue rather than defaulted to
   // English, which is what every app this template stamped shipped until
   // 2026-09-04.
+  // == (8) THE BOOT ORDER, OBSERVED RATHER THAN READ OFF THE SOURCE ==========
+  //
+  // Each of the five steps is load-bearing and each is stated in
+  // `bootstrapNikatru`'s own doc. The brick could only assert this by reading
+  // `lib/main.dart` as text, because `main()` cannot be run in a widget test.
+  // Here it runs.
+  group('property: boot-order-is-owned-by-the-chassis', () {
+    // `AppErrorScreen.install()` REPLACES `ErrorWidget.builder`, which is the
+    // whole point of step 3 - the default is the grey/yellow box in release and
+    // the red screen in debug, and shipping either to a user looks like a broken
+    // app and leaks widget internals. `testWidgets` asserts the builder is the
+    // one it started with, so every case here restores it. That the boot really
+    // does change it is itself part of the claim.
+    // ...and it is restored INSIDE the body, not in a tearDown: the framework
+    // makes that assertion at the end of `_runTestBody`, which runs BEFORE any
+    // tearDown, so an `addTearDown` restore is measurably too late.
+    Future<List<String>> boot({bool backendLive = true}) async {
+      final ErrorWidgetBuilder originalErrorWidget = ErrorWidget.builder;
+      final _OrderRecorder notifications = _OrderRecorder();
+      final List<String> steps = notifications.steps;
+      await bootstrapNikatru(
+        notifications: notifications,
+        runGuarded: (Future<void> Function() appRunner) async {
+          steps.add('telemetry.zone.enter');
+          await appRunner();
+          steps.add('telemetry.zone.exit');
+        },
+        initialiseIdentity: () async {
+          if (backendLive) steps.add('identity.init');
+        },
+        run: () => steps.add('runApp'),
+      );
+      ErrorWidget.builder = originalErrorWidget;
+      return steps;
+    }
+
+    testWidgets('the licences are registered BEFORE the app runs', (
+      WidgetTester tester,
+    ) async {
+      // LicenseRegistry is read LAZILY by LicensePage - the surface Settings
+      // offers - so a registration that lands after a user has already opened
+      // that page shows them an incomplete list, which is the same breach with
+      // an extra step. Observed on the REGISTRY rather than on a step marker:
+      // the claim is that the entries exist, not that a line ran.
+      final ErrorWidgetBuilder originalErrorWidget = ErrorWidget.builder;
+      // `run` is a `VoidCallback` by design - the brick's `runApp(...)` returns
+      // nothing - so the subscription is opened SYNCHRONOUSLY inside it and
+      // awaited afterwards. An `async` body here would have been a Future
+      // nothing awaited, and the assertion would have read a variable set after
+      // it: green or red by timing, which is worse than no case at all.
+      Future<bool>? emptyAtRun;
+      final _OrderRecorder notifications = _OrderRecorder();
+      await bootstrapNikatru(
+        notifications: notifications,
+        runGuarded: (Future<void> Function() appRunner) => appRunner(),
+        initialiseIdentity: () async {},
+        run: () => emptyAtRun = LicenseRegistry.licenses.isEmpty,
+      );
+      ErrorWidget.builder = originalErrorWidget;
+      expect(emptyAtRun, isNotNull, reason: 'run() was never called at all');
+      expect(await emptyAtRun!, isFalse);
+    });
+
+    testWidgets('every step happens, once, in the order the doc states', (
+      WidgetTester tester,
+    ) async {
+      expect(await boot(), <String>[
+        'telemetry.zone.enter',
+        'notifications.init',
+        'identity.init',
+        'runApp',
+        'telemetry.zone.exit',
+      ]);
+    });
+
+    testWidgets('the boot path NEVER asks for notification permission', (
+      WidgetTester tester,
+    ) async {
+      // Android 13+ turns a SECOND denial into USER_FIXED - permanently
+      // non-promptable - so a launch-time prompt can burn the channel for the
+      // life of the install. `assert-stamp-properties.mjs` walks this boot path
+      // for the same reason; this is the behavioural half.
+      expect(
+        (await boot()).where((String s) => s.contains('requestPermission')),
+        isEmpty,
+      );
+    });
+
+    testWidgets('an app with no backend still boots and still runs', (
+      WidgetTester tester,
+    ) async {
+      // The default stamp claims no Worker at all, so `initialiseIdentity` does
+      // nothing for it. The app must still reach `runApp` - a boot that only
+      // works for the backend variant is a boot that fails for the default one.
+      expect(await boot(backendLive: false), <String>[
+        'telemetry.zone.enter',
+        'notifications.init',
+        'runApp',
+        'telemetry.zone.exit',
+      ]);
+    });
+  });
+
   group('property: force-update-replaces-the-app', () {
     testWidgets('the routed screen is gone and the wall is localised', (
       WidgetTester tester,
@@ -338,4 +444,46 @@ class _OnePageRouterDelegate extends RouterDelegate<Object>
 
   @override
   Future<void> setNewRoutePath(Object configuration) async {}
+}
+
+/// Records the ORDER in which `bootstrapNikatru` does the five things it owns.
+///
+/// 🔴 THE ORDER IS THE WHOLE POINT AND IT IS NOW TESTABLE. In the brick it was
+/// 110 lines of comment inside a per-app `main()`: no test could run that
+/// function — it initialises telemetry, a platform plugin and (when configured)
+/// the Supabase SDK before `runApp` — so the brick's `asset_licences_surface_
+/// test.dart` had to assert the ordering by READING THE SOURCE, and said so.
+/// `bootstrapNikatru` takes every one of those as a seam, so the same claim is
+/// an observation here instead of a text match.
+class _OrderRecorder implements core.NotificationService {
+  final List<String> steps = <String>[];
+
+  @override
+  Future<void> init() async => steps.add('notifications.init');
+
+  @override
+  Future<bool> requestPermission() async {
+    // ⚠️ IT MUST NEVER ASK ON THE BOOT PATH. Android 13+ turns a SECOND denial
+    // into USER_FIXED — permanently non-promptable — so a launch-time prompt
+    // can burn the channel for the life of the install. Recorded rather than
+    // thrown so the case below can name it.
+    steps.add('notifications.requestPermission');
+    return false;
+  }
+
+  @override
+  Future<void> showNow({required String title, required String body}) async {}
+
+  @override
+  Future<void> scheduleDaily(core.DailyReminder reminder) async {}
+
+  @override
+  Future<void> cancel(int id) async {}
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  Stream<core.NotificationTap> notificationTaps() =>
+      const Stream<core.NotificationTap>.empty();
 }

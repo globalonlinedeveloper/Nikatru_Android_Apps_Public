@@ -27,6 +27,22 @@
 // twice. A raw `contains` is satisfied by the prose alone — delete the live
 // line, keep the comment, and an unstripped version of this file still prints
 // green. That is the prose-grep false green this repository has a scar about.
+//
+// 🔴 AND SINCE 2026-09-07 THE BOOT PATH IS TWO FILES, SO THIS GROUP FOLLOWS
+// THE DELEGATION - [ADR 067] decision 2, unit app-shell. `main()` now hands the
+// ORDER to `bootstrapNikatru` in
+// `package:nikatru_chassis_screens/shell/bootstrap.dart` and supplies only what
+// a package declaring no third-party dependency cannot carry. Read at
+// `lib/main.dart` alone this group went RED on a tree that registers the
+// licences perfectly well - the same shape eleven guards in `tooling/ci` had to
+// be taught, and for the same reason: the property moved with the body and must
+// be judged where it now lives.
+//
+// The resolution is the app's OWN - the single `package:nikatru_chassis_screens/`
+// import in `main.dart`, under the `path:` dependency `pubspec.yaml` declares for
+// that package. Every step of it fails LOUDLY (no import, no path dependency, no
+// file on disk), because "the delegation could not be followed" and "the call is
+// missing" are the same red from a text matcher and completely different facts.
 // ─────────────────────────────────────────────────────────────────────────────
 import 'dart:io';
 
@@ -71,23 +87,69 @@ String _stripComments(String src) {
       .join('\n');
 }
 
+/// The file on the boot path that CARRIES the registration: `lib/main.dart`, or
+/// the one chassis file it delegates to.
+///
+/// Resolved the way the app itself resolves it - the single
+/// `package:nikatru_chassis_screens/<path>` import, under the `path:` dependency
+/// `pubspec.yaml` declares for that package. Every failure is NAMED, because a
+/// delegation this cannot follow is a registration it cannot see, and an unseen
+/// registration reads exactly like an absent one.
+File _bootPathFile(String mainSource) {
+  if (mainSource.contains('registerVendoredAssetLicences()')) {
+    return File('lib/main.dart');
+  }
+  final RegExpMatch? imp = RegExp(
+    "import 'package:nikatru_chassis_screens/([^']+[.]dart)'",
+  ).firstMatch(mainSource);
+  if (imp == null) {
+    fail(
+      'lib/main.dart neither calls registerVendoredAssetLicences() nor imports '
+      'package:nikatru_chassis_screens, so there is no boot path to follow and '
+      'the registration is genuinely absent',
+    );
+  }
+  final RegExpMatch? dep = RegExp(
+    r'nikatru_chassis_screens:\s*\n\s*path:\s*(\S+)',
+  ).firstMatch(File('pubspec.yaml').readAsStringSync());
+  if (dep == null) {
+    fail(
+      'pubspec.yaml declares no `path:` dependency for nikatru_chassis_screens, '
+      'so the import above cannot be resolved to a file - reported as a broken '
+      'resolution, never as a missing call',
+    );
+  }
+  final File f = File('${dep!.group(1)}/lib/${imp!.group(1)}');
+  if (!f.existsSync()) {
+    fail(
+      'lib/main.dart delegates to package:nikatru_chassis_screens/'
+      '${imp.group(1)}, which resolves to ${f.path} and that file is not on '
+      'disk. The boot order has been emptied into a package that does not '
+      'carry it.',
+    );
+  }
+  return f;
+}
+
 void main() {
   group('the boot half — the registration the licence condition needs', () {
     late String source;
 
     setUpAll(() {
-      final File f = File('lib/main.dart');
-      if (!f.existsSync()) {
+      final File main = File('lib/main.dart');
+      if (!main.existsSync()) {
         fail(
           'lib/main.dart not found from ${Directory.current.path} — every '
           'assertion in this group would range over an empty string and pass '
           'for the wrong reason',
         );
       }
-      source = _stripComments(f.readAsStringSync());
+      source = _stripComments(
+        _bootPathFile(_stripComments(main.readAsStringSync())).readAsStringSync(),
+      );
     });
 
-    test('main.dart calls registerVendoredAssetLicences()', () {
+    test('the boot path calls registerVendoredAssetLicences()', () {
       expect(
         source.contains('registerVendoredAssetLicences()'),
         isTrue,
@@ -101,19 +163,34 @@ void main() {
       );
     });
 
-    test('it happens BEFORE runApp, not after the first frame', () {
+    test('it happens BEFORE the app runs, not after the first frame', () {
       final int register = source.indexOf('registerVendoredAssetLicences()');
-      final int run = source.indexOf('runApp(');
-      // PRECONDITION, and the reason this is not a tautology: if `runApp(`
-      // could not be found the comparison below would be `n < -1`, i.e. always
+      // The token that STARTS THE APP inside whichever file carries the
+      // registration: `runApp(` when the boot path is `main.dart` itself, and
+      // the chassis's own `run()` — the callback `main.dart` hands it, whose
+      // body is that same `runApp(` — when the order lives in the package. The
+      // EARLIEST of the two is used, and both are looked for in ONE file, so
+      // the ordering is never measured across a concatenation where
+      // `main.dart`'s `runApp(` would sort before a registration that genuinely
+      // precedes it.
+      final List<int> starts = <int>[
+        source.indexOf('runApp('),
+        source.indexOf('run();'),
+      ].where((int i) => i > -1).toList();
+      final int run = starts.isEmpty
+          ? -1
+          : starts.reduce((int a, int b) => a < b ? a : b);
+      // PRECONDITION, and the reason this is not a tautology: if neither token
+      // could be found the comparison below would be `n < -1`, i.e. always
       // false — red for the wrong reason — or, with the operands the other way
       // round, always true. Name it instead.
       expect(
         run,
         greaterThan(-1),
         reason:
-            'no runApp( in lib/main.dart — the ordering assertion below has '
-            'nothing to order against',
+            'nothing in the boot-path file starts the app (no runApp( and no '
+            'run();) — the ordering assertion below has nothing to order '
+            'against',
       );
       expect(
         register,
