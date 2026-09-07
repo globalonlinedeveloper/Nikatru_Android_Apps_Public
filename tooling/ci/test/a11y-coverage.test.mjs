@@ -352,8 +352,15 @@ describe('the guard says YES on the tree as it is', () => {
     // 50 → 57 on 2026-09-06: [ADR 071] added the seven chassis auth views as a
     // fourth root. The brick's twelve are unchanged — an adapter is still a
     // routed surface — so the seven are additions, not a re-count.
-    assert.match(out, /62 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
-    assert.match(out, /43 unswept and PRINTED/);
+    // 62 → 67 on 2026-09-07 ([ADR 067] phase 2, unit app-shell): NikatruApp,
+    // ConsentScrim, ConsentPromptCard, OfflineBannerHost and AppLifecycleFlush
+    // joined `packages/chassis_screens` when the app shell left the brick. The
+    // brick's twelve are unchanged for the same reason as above, so these are
+    // five additions and not a re-count — and the SWEPT half is deliberately
+    // still 19, because none of the five carries a sweep. Read off the guard's
+    // own closing line.
+    assert.match(out, /67 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
+    assert.match(out, /48 unswept and PRINTED/);
     // The per-family tally for subly, pinned. It read `tap-target ×0` from the
     // day this guard was written until 2026-08-13, and a family that has never
     // been non-zero is a limb nothing has exercised — so the number that proves
@@ -442,7 +449,13 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     assert.equal(code, 0, out);
     assert.match(out, /4 root\(s\) DERIVED/);
     assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
-    assert.match(out, /packages\/chassis_screens: 0 of 12 reachable surface\(s\) carry an a11y sweep/);
+    // 17 since 2026-09-07 ([ADR 067] phase 2, unit app-shell): NikatruApp,
+    // ConsentScrim, ConsentPromptCard, OfflineBannerHost and AppLifecycleFlush
+    // joined this root when the app shell left the brick. The ZERO is the half
+    // that matters and it is unchanged - none of the seventeen carries an a11y
+    // sweep yet, and this root is in report mode for that. Read off the guard's
+    // own per-root line, never incremented blind.
+    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\) carry an a11y sweep/);
     // Each root gets its own accounting line. A root that is derived but whose
     // surfaces never reach the report is a root this guard cannot see.
     assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
@@ -526,6 +539,66 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 17 reachable surface\(s\).*floor is 19/s);
+  });
+
+  // ── M11g · THE CHASSIS FLOOR, PINNED BY NUMBER ────────────────────────────
+  //
+  // 🔴 THE DEFECT THIS CLOSES, AND IT IS THIS SUITE'S OWN. [ADR 067] phase 2,
+  // unit app-shell, moved five shell widgets into `packages/chassis_screens`
+  // and moved this suite's REPORT pin from `0 of 12` to `0 of 17` — and left
+  // the guard's `surfaces` floor sitting at 12. The report pin catches a
+  // surface leaving only while the suite runs against the REAL checkout; the
+  // FLOOR is what fires on a fixture too, and the guard's own note beside that
+  // root calls it "the real one here". For one review cycle FOUR surfaces
+  // could have left `packages/chassis_screens` before anything bit.
+  //
+  // So this case pins the NUMBER, not the prose: it is the half M11e and M11f
+  // already give the brick and design_system, and the half the chassis root has
+  // never had. It removes ONE surface, not the file — `lib/shell/app_shell.dart`
+  // declares five, so deleting it would drop 17→12 and prove nothing about
+  // where the boundary actually sits.
+  test("M11g · one chassis shell widget goes private — that root's surfaces floor fires, and ALONE", () => {
+    const root = treeWithNewRoots();
+    const rel = `${CHASSIS}/lib/shell/app_shell.dart`;
+    const src = readIn(root, rel);
+    // ⚠️ LAND-CHECK BEFORE THE MUTATION IS TRUSTED (trap flutter-10): a
+    // `String.replace(<string>, …)` takes only the FIRST occurrence, so a
+    // second declaration of this name would leave the surface in place and this
+    // case would pass for the wrong reason.
+    assert.equal(
+      (src.match(/class ConsentPromptCard\b/g) ?? []).length,
+      1,
+      'ConsentPromptCard is no longer declared exactly once in the chassis shell',
+    );
+    // A leading underscore is how a surface really leaves a package: the class
+    // is still there and still compiles, it has simply stopped being public,
+    // and nothing but this floor notices.
+    writeIn(root, rel, src.replace('class ConsentPromptCard', 'class _ConsentPromptCard'));
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` has only 16 reachable surface\(s\).*floor is 17/s,
+    );
+    // AND ALONE — the property M11e records and M7 cannot have. This root's
+    // SWEPT_FLOOR is empty (it carries no a11y sweep at all yet), so nothing
+    // else can be stranded by the removal and the floor is demonstrable on its
+    // own rather than riding on another finding.
+    assert.equal(
+      out.split('\n').filter((l) => l.startsWith('FAIL ')).length,
+      1,
+      `the chassis surfaces floor did not fire alone:\n${out}`,
+    );
+  });
+
+  test('M11g-control · GREEN CONTROL — the same fixture, unmutated, is 17 and passes', () => {
+    // Without this half, M11g is equally consistent with a fixture that fails
+    // for some unrelated reason — which is exactly how a floor that never held
+    // reads as a floor that fires.
+    const { code, out } = run(treeWithNewRoots());
+    assert.equal(code, 0, out);
+    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\)/);
   });
 
   test("M12 · a NEW surface in EACH new root reaches that root's printed list", () => {

@@ -57,6 +57,12 @@ const POLICY = `sites/nikatru/legal/${
  *  Nothing else is read, so nothing else is copied. */
 /** Where the chassis screen bodies live, so the copy below can carry them. */
 const CHASSIS_PKG_DIR = 'packages/chassis_screens';
+/** Where the brick's first-run prompt LIVES since 2026-09-07 ([ADR 067]
+ *  phase 2, unit app-shell). `lib/app.dart` keeps `_ConsentPrompt` as an
+ *  adapter that supplies the one Riverpod writer; the card that renders
+ *  `consentPrivacy` — and therefore the scroll view limb 4 is about — is
+ *  `ConsentPromptCard` here. */
+const CHASSIS_SHELL = `${CHASSIS_PKG_DIR}/lib/shell/app_shell.dart`;
 
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-withdrawal-'));
@@ -286,12 +292,61 @@ describe('the first-run prompt is scrollable — limb 4', () => {
     );
   });
 
+  // ── THE BRICK'S PROMPT MOVED, AND THE LIMB FOLLOWED IT ────────────────
+  //
+  // 🔴 THE OLD MUTATION HERE SILENTLY STOPPED APPLYING ON 2026-09-07 and that
+  // is the finding, not a detail: it replaced `child: SingleChildScrollView(` in
+  // the BRICK's `lib/app.dart`, and after unit app-shell that string is not in
+  // that file — `String.replace` found nothing, changed nothing, and the case
+  // failed because the guard was correctly green on an unmutated tree. Trap
+  // `agents-05` verbatim. The subject is now the file that carries the card, and
+  // the case beneath it proves the brick still reaches it.
   test('🔴 AND FROM THE BRICK FAILS TOO — app #2 must not be born with it', () => {
     withTree(
-      (root) => edit(root, BRICK_APP, (s) => s.replace('child: SingleChildScrollView(', 'child: SizedBox(')),
+      (root) => {
+        const before = readFileSync(join(root, CHASSIS_SHELL), 'utf8');
+        edit(root, CHASSIS_SHELL, (s) => s.replace('child: SingleChildScrollView(', 'child: SizedBox('));
+        const after = readFileSync(join(root, CHASSIS_SHELL), 'utf8');
+        // LAND-CHECKED before the exit code is trusted (`agents-05`): a mutation
+        // that did not apply reports the guard's honest green as a test failure.
+        assert.notEqual(after, before, `${CHASSIS_SHELL} was not mutated — the anchor text has moved again`);
+      },
       (r) => {
         assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stderr, /renders consentPrivacy with NO scroll view/);
+        assert.match(r.stderr, /ConsentPromptCard[\s\S]*renders consentPrivacy with NO scroll view/);
+        // The finding must name the file it really read, not the adapter.
+        assert.match(r.stderr, /packages\/chassis_screens\/lib\/shell\/app_shell\.dart/);
+      },
+    );
+  });
+
+  test('🔴 AND THE BRICK REACHING NOTHING IS COVERAGE LOST, NEVER A PASS', () => {
+    // The half that makes the case above evidence about the BRICK rather than
+    // about a package file that happens to exist. Break the delegation — the
+    // adapter imports a chassis path that is not on disk — and limb 4 must
+    // refuse: "no prompt found" and "the derivation stopped working" are the
+    // same output from a text matcher and completely different facts.
+    withTree(
+      (root) =>
+        edit(root, BRICK_APP, (s) =>
+          s.replace(
+            "import 'package:nikatru_chassis_screens/shell/app_shell.dart';",
+            "import 'package:nikatru_chassis_screens/shell/gone.dart';",
+          ),
+        ),
+      (r) => {
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stderr, /COVERAGE LOST[\s\S]*delegation could not be followed/);
+      },
+    );
+  });
+
+  test('the GREEN CONTROL — the unmutated tree finds the card through the delegation', () => {
+    withTree(
+      () => {},
+      (r) => {
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /first-run prompt: ConsentPromptCard scrollable/);
       },
     );
   });
