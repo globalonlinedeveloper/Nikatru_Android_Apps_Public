@@ -734,6 +734,16 @@ describe('the chassis_screens floors are floors, not report lines', () => {
   // `widthTestFiles` is the third floor the landing raised (8 → 13) and the one
   // neither of the other two can stand in for: it is the CORPUS check, and it
   // fires when the scan stops reaching the files rather than when a surface goes.
+  //
+  // 🔴 RE-POINTED 13 → 17 ON 2026-09-07 ([ADR 067] post-audit, unit
+  // chassis-screens-a11y), AND THIS CASE IS WHAT CAUGHT THE SLACK. That unit
+  // added four files under `packages/chassis_screens/test` (three a11y suites
+  // and their harness), which is the CORPUS this floor counts — so with the
+  // floor still at 13, deleting a width suite left 16 and cleared it, and this
+  // case failed in CI naming exactly that. The floor was raised in the same
+  // change, from the guard's own `corpus: … — 17 file(s)` line, rather than
+  // this assertion being loosened: a mutation that stops firing is a floor that
+  // has gone slack, never a test that needs relaxing.
   test("R14b · one chassis width test file is deleted — that root's corpus floor fires", () => {
     const root = treeWithNewRoots();
     const rel = `${CHASSIS}/test/check_inbox_view_test.dart`;
@@ -744,10 +754,25 @@ describe('the chassis_screens floors are floors, not report lines', () => {
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /COVERAGE LOST — `packages\/chassis_screens` yielded only 12 width test file\(s\).*checked-in floor is 13/s,
+      /COVERAGE LOST — `packages\/chassis_screens` yielded only 16 width test file\(s\).*checked-in floor is 17/s,
     );
     // This root ENFORCES, so the surface the deleted file measured is a FAIL and
     // not a print — the half R12 pins for apps/subly, here for the new root.
-    assert.match(out, /FAIL UNCOVERED SURFACE — `CheckInboxView`/);
+    //
+    // 🔴 THE MESSAGE MOVED FROM `UNCOVERED SURFACE` TO `UNMEASURED WIDTH` ON
+    // 2026-09-07, AND THE MOVE IS STRICTER RATHER THAN WEAKER. The a11y suites
+    // landed by unit chassis-screens-a11y pump every chassis surface at kPhone
+    // and kDesktop — deliberately NOT at kTablet, because they are a11y sweeps
+    // and this root's THREE-window requirement belongs to the width suites. So
+    // with `check_inbox_view_test.dart` deleted the surface is still SEEN by
+    // the corpus, and the guard says the sharper thing: it is measured by
+    // `a11y_auth_test.dart` and *not one case pumps kTablet*. Had the a11y
+    // suites pumped all three, this deletion would have left the surface
+    // reading fully measured and only the corpus floor would have fired — which
+    // is the weaker outcome and the reason those suites stay at two windows.
+    assert.match(
+      out,
+      /FAIL UNMEASURED WIDTH — `CheckInboxView`.*not one case pumps kTablet/,
+    );
   });
 });

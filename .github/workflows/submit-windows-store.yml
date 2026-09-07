@@ -62,6 +62,7 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build windows --release
+          --obfuscate --split-debug-info=build/symbols/windows
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
@@ -84,6 +85,17 @@ jobs:
         with:
           name: subly-windows-store-msix
           path: apps/subly/build/windows/msix/subly.msix
+          retention-days: 7
+          if-no-files-found: error
+      # why: the .msix above wraps an OBFUSCATED build, so its crash reports are
+      # unreadable without this directory and a rebuild produces a DIFFERENT
+      # one. 7 days matches the dry-run package beside it. Retained rather than
+      # sent to the crash sink because tooling/versions.json pins ONE
+      # glitchtip-cli binary and it is linux-x86_64; this job runs on Windows.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-windows-store-dry-run
+          path: apps/subly/build/symbols/windows
           retention-days: 7
           if-no-files-found: error
 
@@ -163,6 +175,7 @@ jobs:
         working-directory: apps/subly
         run: >
           flutter build windows --release
+          --obfuscate --split-debug-info=build/symbols/windows
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
@@ -170,6 +183,19 @@ jobs:
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/subly
         run: dart run msix:create
+      # why: BEFORE the submission, not after. This is the only copy of the mapping for
+      # the .msix that is about to reach real users, and a step that runs after a store
+      # submission does not run when that submission fails -- which is exactly when the
+      # build still exists and the symbols still can be kept. 90 days, not 7: this
+      # package ships. Retained rather than sent to the crash sink because
+      # tooling/versions.json pins ONE glitchtip-cli binary and it is linux-x86_64;
+      # this job runs on Windows (O-NATIVE-SYMBOL-UPLOAD-LINUX-ONLY).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-windows-store
+          path: apps/subly/build/symbols/windows
+          retention-days: 90
+          if-no-files-found: error
       # why: the Microsoft Store Developer CLI is the transport, for the same reason the
       # Snap lane speaks `snapcraft`: it is Microsoft's own, documented, cross-platform
       # and actively released, and it already holds the two links this repository has no

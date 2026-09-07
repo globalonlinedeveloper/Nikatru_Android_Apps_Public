@@ -12,7 +12,9 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "D-10"
+    ],
     "invokedBy": [
       ".github/workflows/build-platforms.yml#linux_web_android",
       ".github/workflows/submit-play.yml#dry-run",
@@ -38,7 +40,9 @@
   },
   {
     "claims": [
-      "C-6"
+      "C-6",
+      "D-10",
+      "R-3"
     ],
     "invokedBy": [
       ".github/workflows/build-platforms.yml#apple"
@@ -50,7 +54,11 @@
   },
   {
     "claims": [
+      "ADR 048",
       "ADR 065",
+      "ADR 066",
+      "ADR 067",
+      "ADR 071",
       "C-6"
     ],
     "invokedBy": [
@@ -63,7 +71,9 @@
   },
   {
     "claims": [
-      "C-7"
+      "C-7",
+      "T-6",
+      "T-7"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-chassis"
@@ -74,7 +84,10 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 031",
+      "ADR 040"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-store"
     ],
@@ -86,6 +99,7 @@
   {
     "claims": [
       "C-6",
+      "E-9",
       "O-5"
     ],
     "invokedBy": [
@@ -98,7 +112,10 @@
   },
   {
     "claims": [
+      "ADR 011",
+      "ADR 020",
       "B-14",
+      "C-6",
       "E-1",
       "E-2",
       "E-3"
@@ -123,6 +140,7 @@
   },
   {
     "claims": [
+      "C-6",
       "N-2",
       "N-3",
       "N-5",
@@ -139,7 +157,11 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "D-2b",
+      "R-2",
+      "S-3"
+    ],
     "invokedBy": [
       ".github/workflows/build-platforms.yml#linux_web_android",
       ".github/workflows/build-platforms.yml#prepare",
@@ -235,7 +257,10 @@
       "C-1",
       "C-2",
       "C-3",
-      "T-12"
+      "G-7",
+      "T-12",
+      "T-9",
+      "T-9a"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
@@ -247,6 +272,7 @@
   },
   {
     "claims": [
+      "ADR 066",
       "C-6"
     ],
     "invokedBy": [
@@ -271,6 +297,7 @@
   },
   {
     "claims": [
+      "ADR 020",
       "ADR 055"
     ],
     "invokedBy": [
@@ -284,9 +311,12 @@
   {
     "claims": [
       "ADR 006",
+      "D-11",
       "D-2b",
       "S-7",
-      "S-7a"
+      "S-7a",
+      "W-2a",
+      "W-9"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#sites",
@@ -312,8 +342,10 @@
   },
   {
     "claims": [
+      "ADR 015",
       "D-1",
       "D-7",
+      "R-5",
       "W-1"
     ],
     "invokedBy": [
@@ -326,8 +358,15 @@
   },
   {
     "claims": [
+      "ADR 015",
+      "ADR 022",
+      "ADR 054",
+      "C-6",
+      "D-10",
       "D-4",
       "D-5",
+      "F-2",
+      "R-10",
       "R-3",
       "R-5"
     ],
@@ -355,7 +394,11 @@
   {
     "claims": [
       "ADR 020",
-      "ADR 057"
+      "ADR 057",
+      "ADR 067",
+      "F-10",
+      "S-6",
+      "T-1a"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -367,7 +410,9 @@
   },
   {
     "claims": [
-      "B-2"
+      "ADR 067",
+      "B-2",
+      "C-6"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
@@ -379,6 +424,8 @@
   },
   {
     "claims": [
+      "ADR 066",
+      "ADR 067",
       "C-6",
       "K-11"
     ],
@@ -416,6 +463,8 @@
   {
     "claims": [
       "B-2",
+      "D-8",
+      "F-10",
       "S-11"
     ],
     "invokedBy": [
@@ -464,6 +513,7 @@
     "claims": [
       "ADR 027",
       "ADR 065",
+      "ADR 066",
       "C-15"
     ],
     "invokedBy": [
@@ -512,8 +562,18 @@
   },
   {
     "claims": [
+      "C-4",
+      "C-6",
+      "M-11",
       "W-1",
+      "W-2",
       "W-2a",
+      "W-2b",
+      "W-2d",
+      "W-3b",
+      "W-3e",
+      "W-4",
+      "W-5",
       "W-9"
     ],
     "invokedBy": [
@@ -531,6 +591,7 @@
   },
   {
     "claims": [
+      "ADR 027",
       "N-6"
     ],
     "invokedBy": [
@@ -544,7 +605,9 @@
   {
     "claims": [
       "ADR 067",
-      "N-6"
+      "N-6",
+      "R-1",
+      "R-9"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
@@ -584,6 +647,7 @@
   },
   {
     "claims": [
+      "ADR 020",
       "ADR 039",
       "ADR 067",
       "M-2",
@@ -673,7 +737,8 @@
   },
   {
     "claims": [
-      "F-10"
+      "F-10",
+      "S-12r"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guard-meta"
@@ -695,7 +760,11 @@
   },
   {
     "claims": [
-      "S-1"
+      "ADR 006",
+      "S-1",
+      "S-12",
+      "S-13",
+      "S-1r"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -707,7 +776,9 @@
   },
   {
     "claims": [
-      "F-9"
+      "ADR 067",
+      "F-9",
+      "P-1"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
@@ -772,7 +843,8 @@
       "ADR 066",
       "K-10",
       "K-11",
-      "P-5"
+      "P-5",
+      "S-2"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick",
@@ -797,6 +869,8 @@
   },
   {
     "claims": [
+      "ADR 019",
+      "ADR 067",
       "C-6",
       "D-5"
     ],
@@ -833,6 +907,7 @@
   },
   {
     "claims": [
+      "ADR 071",
       "F-10"
     ],
     "invokedBy": [
@@ -845,6 +920,7 @@
   },
   {
     "claims": [
+      "ADR 004",
       "ADR 039",
       "M-1",
       "M-12"
@@ -875,8 +951,12 @@
       "ADR 020",
       "ADR 039",
       "ADR 044",
+      "B-3",
+      "K-5",
       "M-1",
-      "M-14"
+      "M-12",
+      "M-14",
+      "M-4"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
@@ -941,6 +1021,9 @@
   },
   {
     "claims": [
+      "ADR 065",
+      "ADR 066",
+      "ADR 067",
       "C-12",
       "C-4",
       "DoD E"
@@ -955,6 +1038,7 @@
   },
   {
     "claims": [
+      "ADR 066",
       "M-11"
     ],
     "invokedBy": [
@@ -967,9 +1051,12 @@
   },
   {
     "claims": [
+      "ADR 036",
       "ADR 042",
+      "ADR 066",
       "C-15",
       "C-3",
+      "C-7",
       "C-9"
     ],
     "invokedBy": [
@@ -977,7 +1064,10 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-no-seam-forks.mjs",
-    "references": [],
+    "references": [
+      "ADR 037",
+      "B-8"
+    ],
     "state": "WIRED"
   },
   {
@@ -1007,6 +1097,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "R-7"
     ],
     "invokedBy": [
@@ -1019,8 +1110,21 @@
   },
   {
     "claims": [
+      "ADR 023",
+      "ADR 054",
+      "ADR 067",
+      "B-11",
+      "D-2b",
+      "F-9",
       "O-1",
-      "O-2"
+      "O-10",
+      "O-11",
+      "O-14",
+      "O-17",
+      "O-2",
+      "O-3",
+      "O-4",
+      "O-7"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform",
@@ -1061,7 +1165,9 @@
   },
   {
     "claims": [
-      "C-5"
+      "C-15",
+      "C-5",
+      "M-13"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-chassis"
@@ -1101,7 +1207,9 @@
   },
   {
     "claims": [
-      "F-4"
+      "F-4",
+      "R-1",
+      "R-5"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
@@ -1115,6 +1223,7 @@
     "claims": [
       "B-1",
       "B-13",
+      "B-15",
       "B-18"
     ],
     "invokedBy": [
@@ -1156,6 +1265,8 @@
   },
   {
     "claims": [
+      "C-6",
+      "K-14",
       "K-4"
     ],
     "invokedBy": [
@@ -1193,7 +1304,8 @@
   },
   {
     "claims": [
-      "B-17"
+      "B-17",
+      "R-1"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
@@ -1244,6 +1356,7 @@
     "claims": [
       "ADR 020",
       "B-18",
+      "P-10",
       "P-13"
     ],
     "invokedBy": [
@@ -1256,6 +1369,7 @@
   },
   {
     "claims": [
+      "D-4",
       "D-9"
     ],
     "invokedBy": [
@@ -1283,13 +1397,20 @@
     "claims": [
       "ADR 038",
       "ADR 039",
+      "ADR 066",
       "ADR 067",
+      "B-12",
       "B-2",
+      "D-13",
+      "F-2",
+      "K-13",
       "M-10",
+      "M-11",
       "M-15",
       "M-6",
       "M-8",
-      "M-9"
+      "M-9",
+      "T-11"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
@@ -1301,7 +1422,9 @@
   },
   {
     "claims": [
-      "P-1"
+      "ADR 017",
+      "P-1",
+      "P-8"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#content-gate"
@@ -1314,7 +1437,8 @@
   {
     "claims": [
       "ADR 015",
-      "R-4"
+      "R-4",
+      "R-5"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-store"
@@ -1326,6 +1450,8 @@
   },
   {
     "claims": [
+      "ADR 067",
+      "D-2b",
       "R-1"
     ],
     "invokedBy": [
@@ -1341,11 +1467,15 @@
   },
   {
     "claims": [
+      "ADR 015",
       "D-9",
       "F-10",
+      "F-2",
       "F-5b",
       "R-4",
-      "R-6"
+      "R-5",
+      "R-6",
+      "S-3"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-store"
@@ -1379,7 +1509,11 @@
   },
   {
     "claims": [
-      "ADR 065"
+      "ADR 065",
+      "ADR 066",
+      "ADR 067",
+      "ADR 071",
+      "C-6"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-chassis"
@@ -1391,6 +1525,7 @@
   },
   {
     "claims": [
+      "K-8",
       "O-17"
     ],
     "invokedBy": [
@@ -1439,7 +1574,9 @@
   },
   {
     "claims": [
+      "ADR 067",
       "C-13",
+      "C-6",
       "DoD A"
     ],
     "invokedBy": [
@@ -1452,7 +1589,17 @@
   },
   {
     "claims": [
-      "C-6"
+      "ADR 037",
+      "ADR 066",
+      "ADR 067",
+      "B-18",
+      "C-1",
+      "C-3",
+      "C-6",
+      "E-10",
+      "K-9",
+      "P-9",
+      "W-7b"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
@@ -1463,7 +1610,10 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 067",
+      "ADR 071"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
     ],
@@ -1503,7 +1653,8 @@
   {
     "claims": [
       "DoD G",
-      "S-14"
+      "S-14",
+      "S-3"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -1515,6 +1666,7 @@
   },
   {
     "claims": [
+      "F-10",
       "S-3",
       "S-4"
     ],
@@ -1528,12 +1680,36 @@
   },
   {
     "claims": [
+      "ADR 027",
+      "ADR 065",
+      "ADR 066",
+      "ADR 067",
+      "B-2",
+      "C-11",
+      "C-13",
+      "C-15",
       "C-16",
+      "C-3",
+      "D-8",
       "DoD C",
       "DoD D",
       "DoD F",
+      "E-5",
+      "E-6",
+      "F-10",
+      "K-6",
+      "K-9",
       "M-13",
-      "N-4"
+      "M-16",
+      "M-5",
+      "N-4",
+      "P-9",
+      "S-2",
+      "T-4",
+      "T-5",
+      "T-7",
+      "T-8",
+      "T-9"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -1566,7 +1742,10 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 015",
+      "ADR 037"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-store"
     ],
@@ -1616,6 +1795,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "D-10",
       "D-6"
     ],
@@ -1639,6 +1819,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "G-32",
       "G-49",
       "K-8"
@@ -1665,6 +1846,8 @@
   },
   {
     "claims": [
+      "ADR 004",
+      "ADR 067",
       "C-8"
     ],
     "invokedBy": [
@@ -1702,6 +1885,7 @@
   {
     "claims": [
       "ADR 023",
+      "C-6",
       "R-9"
     ],
     "invokedBy": [
@@ -1716,6 +1900,7 @@
     "claims": [
       "ADR 067",
       "E-8",
+      "R-1",
       "R-2"
     ],
     "invokedBy": [
@@ -1807,7 +1992,9 @@
     "state": "LIBRARY"
   },
   {
-    "claims": [],
+    "claims": [
+      "B-8"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-platform"
     ],
@@ -1818,7 +2005,14 @@
   },
   {
     "claims": [
-      "F-9"
+      "C-6",
+      "F-9",
+      "INC-12",
+      "K-2a",
+      "K-7",
+      "W-3a",
+      "W-3b",
+      "W-3c"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#sites",
@@ -1839,6 +2033,10 @@
   },
   {
     "claims": [
+      "ADR 067",
+      "D-10",
+      "D-4",
+      "D-6",
       "D-9"
     ],
     "invokedBy": [],
@@ -1910,8 +2108,13 @@
   },
   {
     "claims": [
+      "ADR 015",
+      "C-6",
+      "D-6",
+      "D-9",
       "R-1",
       "R-4",
+      "R-5",
       "R-6"
     ],
     "invokedBy": [
@@ -1927,7 +2130,11 @@
   },
   {
     "claims": [
-      "F-6"
+      "ADR 004",
+      "F-10",
+      "F-6",
+      "M-1",
+      "M-12"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#security-scan"
@@ -1951,7 +2158,9 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "K-3"
+    ],
     "invokedBy": [],
     "kind": "guard",
     "ref": "tooling/ci/text-reductions.mjs",
@@ -1989,7 +2198,11 @@
     "state": "LIBRARY"
   },
   {
-    "claims": [],
+    "claims": [
+      "D-2b",
+      "O-7",
+      "R-1"
+    ],
     "invokedBy": [],
     "kind": "guard",
     "ref": "tooling/ci/workflow-scan.mjs",
@@ -1998,7 +2211,8 @@
   },
   {
     "claims": [
-      "ADR 007"
+      "ADR 007",
+      "ADR 019"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#content-gate"
@@ -2051,6 +2265,7 @@
   },
   {
     "claims": [
+      "B-17",
       "N-6"
     ],
     "invokedBy": [
@@ -2122,6 +2337,7 @@
   },
   {
     "claims": [
+      "B-11",
       "O-4"
     ],
     "invokedBy": [
@@ -2147,6 +2363,8 @@
   },
   {
     "claims": [
+      "ADR 023",
+      "D-9",
       "O-7",
       "O-8",
       "R-13"
@@ -2175,6 +2393,19 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/status.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 067",
+      "R-7"
+    ],
+    "invokedBy": [
+      ".github/workflows/build-platforms.yml#linux_web_android"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/upload-native-symbols.mjs",
     "references": [],
     "state": "WIRED"
   },
@@ -2246,9 +2477,11 @@
   },
   {
     "claims": [
+      "ADR 013",
       "ADR 015",
       "D-10",
-      "D-5"
+      "D-5",
+      "F-2"
     ],
     "invokedBy": [
       ".github/workflows/build-platforms.yml#linux_web_android",
@@ -2262,7 +2495,9 @@
   },
   {
     "claims": [
+      "C-6",
       "D-10",
+      "D-6",
       "D-9",
       "F-2"
     ],
@@ -2278,6 +2513,8 @@
   {
     "claims": [
       "D-10",
+      "D-3",
+      "D-6",
       "D-9"
     ],
     "invokedBy": [
@@ -2293,7 +2530,9 @@
   {
     "claims": [
       "ADR 031",
+      "C-6",
       "D-10",
+      "D-6",
       "D-9"
     ],
     "invokedBy": [
@@ -2308,7 +2547,9 @@
   },
   {
     "claims": [
+      "C-6",
       "D-10",
+      "D-6",
       "D-9"
     ],
     "invokedBy": [
@@ -2322,7 +2563,9 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 067"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#guard-meta"
     ],
@@ -2346,7 +2589,9 @@
   },
   {
     "claims": [
-      "S-12"
+      "F-2",
+      "S-12",
+      "S-12r"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -2368,7 +2613,10 @@
   },
   {
     "claims": [
+      "ADR 015",
+      "D-11",
       "M-11",
+      "M-8",
       "W-1",
       "W-2a",
       "W-2c",
