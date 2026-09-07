@@ -160,6 +160,18 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+/* 🔴 2026-09-07 — THE TRACKED-SET ENUMERATION BELOW READS A REPOSITORY THAT IS NOT
+   THIS ONE. Every slot in `catalog/store-matrix.json` is its own checkout, so
+   `gitTracked()` is handed the ORIGIN repo and each COPY repo in turn. `-C` alone
+   does not select a repository when the caller environment carries `GIT_DIR` or
+   `GIT_INDEX_FILE`, which git exports into every hook process — measured this day on
+   `tooling/scripts/assert-public-citations.mjs`, which enumerated 567 files of the
+   private corpus while pointed at this tree 2022. This guard has no hook path today,
+   so it was correct by coincidence rather than by construction; `repoGitRaw` removes
+   the coincidence. It also proves each slot root IS a repository root before reading
+   it, which is a limb this guard did not have: a slot that is really a subdirectory
+   of some enclosing checkout used to enumerate the enclosing tree. */
+import { repoGitRaw, RepoGitError } from '../scripts/repo-git.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
 const REPO = resolve(dirname(SELF), '..', '..');   // tooling/ci -> repo root. Inside this repo only.
@@ -504,9 +516,23 @@ function classify(relPath, slot) {
 }
 
 // ── enumeration ─────────────────────────────────────────────────────────────
+/** Why the last `gitTracked` returned null, so a refusal can say which of the three
+ *  states it hit instead of collapsing them into "not a git repository". */
+let lastGitTrackedWhy = null;
 function gitTracked(root) {
-  const r = spawnSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 });
-  if (r.status !== 0) return null;
+  lastGitTrackedWhy = null;
+  let r;
+  try {
+    r = repoGitRaw(root, ['ls-files', '-z'], { encoding: 'buffer' });
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    lastGitTrackedWhy = `${e.message} ${e.detail}`.replace(/\s+/g, ' ').trim();
+    return null;
+  }
+  if (r.status !== 0) {
+    lastGitTrackedWhy = `\`git ls-files\` exited ${r.status} in ${root}: ${String(r.stderr ?? '').trim() || '(no stderr)'}`;
+    return null;
+  }
   return r.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 function walkFs(root, ignoreDirs) {
@@ -556,7 +582,8 @@ if (!originRes.ok) {
 const originTracked = gitTracked(originDir);
 if (!originTracked) {
   refuse([
-    `the origin at ${originDir} is not a git repository, so its tracked set cannot be enumerated.`,
+    `the origin at ${originDir} could not be enumerated as a git repository.`,
+    `  ${lastGitTrackedWhy ?? '(no reason recorded)'}`,
     'The origin defines what "source" means for every copy. Falling back to a filesystem walk here',
     'would let build output and node_modules define the shared set, which is not a comparison anyone',
     'can act on. Refusing.',

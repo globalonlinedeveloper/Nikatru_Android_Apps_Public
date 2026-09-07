@@ -115,7 +115,17 @@
 //
 // Usage:  node tooling/scripts/assert-public-citations.mjs
 // ─────────────────────────────────────────────────────────────────────────────
-import { spawnSync } from 'node:child_process';
+/* 🔴 2026-09-07 — `git` IS NOT SPAWNED DIRECTLY FROM HERE ANY MORE, and the reason
+   is the one defect that had been refusing every private commit on this machine.
+   This guard runs in the pre-commit hook of the PRIVATE corpus as well as this
+   repo — both are pointed at this repo `.githooks/` — and git EXPORTS
+   `GIT_DIR` and `GIT_INDEX_FILE` into every hook process, where they BEAT `-C`.
+   So `git -C <public repo> ls-files` inside a private commit enumerated the
+   PRIVATE index: 567 files against this tree 2022, below `FILE_FLOOR` below, so
+   this guard refused in 170 ms on a subject that was never its own. See
+   `repo-git.mjs`, which deletes the six redirecting variables from the child
+   environment and proves the root is its own repository before reading it. */
+import { repoGit, RepoGitError, strippedNote } from './repo-git.mjs';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -273,12 +283,18 @@ const SPEC = join(PRIVATE, 'requirements');
 /* The domain is `git ls-files`, never a filesystem walk: the question is what the
    PUBLIC repository publishes, and an untracked file is not published. This also
    makes the guard's domain identical to the thing it is making a claim about. */
-const ls = spawnSync('git', ['-C', REPO, 'ls-files'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-if (ls.status !== 0) {
-  console.error('✗  could not enumerate tracked files: ' + (ls.stderr || '').trim());
+let lsOut;
+try {
+  lsOut = repoGit(REPO, 'ls-files');
+} catch (e) {
+  if (!(e instanceof RepoGitError)) throw e;
+  console.error('✗  could not enumerate tracked files: ' + e.message);
+  if (e.detail) console.error('   ' + e.detail.split('\n').join('\n   '));
+  console.error('   The tracked manifest IS the subject. Without it this guard would report a clean');
+  console.error('   empty tree, so this is exit 2 COVERAGE LOST and never a pass.');
   process.exit(2);
 }
-const files = ls.stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+const files = lsOut.split('\n').map((s) => s.trim()).filter(Boolean);
 
 /* 🔴 COVERAGE FLOOR. A guard that finds no subject and prints ok has checked
    nothing — the defect this corpus has found about ten times. The floor is set
@@ -288,6 +304,13 @@ const FILE_FLOOR = 800;
 if (files.length < FILE_FLOOR) {
   console.error(`✗  only ${files.length} tracked file(s) — below the floor of ${FILE_FLOOR}.`);
   console.error('   Refusing: an empty or truncated subject list would pass every assertion below.');
+  console.error(`   Enumerated at ${REPO}.`);
+  /* Printed on THIS limb specifically, because this limb is where the 2026-09-07
+     leak surfaced: a hook inherited environment redirected the enumeration at the
+     other repository and the count arrived truncated rather than wrong-looking. The
+     variables are deleted now, so the note normally reads "none set" — which is
+     itself the evidence a reader of a future truncation needs. */
+  console.error('   ' + strippedNote());
   process.exit(2);
 }
 
