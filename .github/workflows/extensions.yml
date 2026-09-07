@@ -12,9 +12,29 @@ on:
       - '!core-v*'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
-  # why: 04:17 Monday, computed rather than chosen, including the wrap past midnight
-  # that a sorted list of slots never shows.
-  schedule: [{ cron: '17 4 * * 1' }]          # Mondays 04:17 UTC
+  # why: FIRED DAILY, THOUGH THE DUTY IS DECLARED WEEKLY -- TRAPS ci-19, and this is
+  # the sanctioned shape rather than a hedge. duty.workflow.extensions.yml in
+  # tooling/ops/register.json declares `cadence: 7d`, so its freshness window is
+  # 7d x 1.5 = 252h. The Monday-only cron this replaces gave that window ONE or TWO
+  # chances at a run on a scheduler this portfolio has measured delivering 10.1% of
+  # scheduled slots on time (899 of 8,928, TRAPS ci-15) -- and the row still held
+  # ZERO scheduled runs, so its `firstDue` bootstrap was about to expire on an empty
+  # record and freeze every merge (TRAPS ci-26). A DAILY cron gives the same window
+  # about ten chances. The margin is given to the EVIDENCE, not to the duty: the
+  # cadence, the window and the lane guards are all unchanged, and `schedule` still
+  # selects the e2e lane on every one of those days.
+  #
+  # why: AND THE SLOT IS COMPUTED, NOT EYEBALLED -- TRAPS ci-16. The daily slots
+  # across this repository were 00:30 02:30 03:00 03:17 04:30 05:23 07:30 08:50
+  # 11:00 12:30 13:41 15:30 17:30 19:30 22:30 UTC. Measured CIRCULARLY, including
+  # the wrap past midnight that a sorted list never shows, the worst gap was the
+  # 3.00h at 19:30 -> 22:30 -- the last of the three joint-worst 3.00h holes
+  # codeql.yml (05:23) and trufflehog.yml (13:41) each took one of. 20:53 splits it
+  # into 1.38h and 1.62h and leaves the worst gap anywhere at 2.17h (08:50 ->
+  # 11:00). Not on the hour and not on the half hour on purpose: those are the
+  # minutes every other repository also picks, and a scheduler measured at 10.1%
+  # on-time delivery does not need the extra queue.
+  schedule: [{ cron: '53 20 * * *' }]         # 20:53 UTC daily -- splits the 19:30 -> 22:30 hole
   workflow_dispatch:
     inputs:
       lane:
@@ -981,7 +1001,7 @@ jobs:
     needs: e2e-discover
     if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e') || (github.event_name == 'workflow_dispatch' && inputs.lane == 'e2e'))) && (needs.e2e-discover.result == 'success' && needs.e2e-discover.outputs.count != '0')
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -989,11 +1009,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { persist-credentials: false }
+      # why: THE `extensions/` PREFIX IS NOT OPTIONAL HERE, AND ITS ABSENCE COST THE
+      # WHOLE LANE. `defaults.run.working-directory: extensions` governs `run:` steps
+      # only -- it does not touch an action's `with:` inputs, which setup-node
+      # resolves from the REPOSITORY ROOT. e2e-discover walks the tree from inside
+      # `extensions/`, so `matrix.suite.dir` is a path RELATIVE TO `extensions/`
+      # (`Extension/Full_Screen_Shot`, log line 564 of run 34064261771), and the
+      # unprefixed value resolved to `Extension/Full_Screen_Shot/test/e2e/package-lock.json`,
+      # which is nothing. The job died in 9 s on "Some specified paths were not
+      # resolved, unable to cache dependencies" and e2e-suite had never completed a
+      # run since the 2026-09-05 repo merge. The prefix is DERIVED from the matrix
+      # value the same way the three `working-directory:` lines below derive theirs,
+      # so a second <Category>/<Tool> suite is cached correctly the day it appears --
+      # nothing here names a tool.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: ${{ matrix.suite.dir }}/test/e2e/package-lock.json
+          cache-dependency-path: extensions/${{ matrix.suite.dir }}/test/e2e/package-lock.json
 
       - name: Install e2e dependencies
         working-directory: extensions/${{ matrix.suite.dir }}/test/e2e

@@ -163,6 +163,8 @@ jobs:
         run: node tooling/ci/assert-lockfile-discipline.mjs
       - name: Workflows are SHA-pinned and least-privilege
         run: node tooling/ci/assert-workflow-hardening.mjs
+      - name: Every job is bounded once, at a number somebody chose
+        run: node tooling/ci/assert-workflow-timeouts.mjs
       - name: A green tick means the work ran
         run: node tooling/ci/assert-green-means-ran.mjs
       - name: Every deploy trigger can reach a deploy job

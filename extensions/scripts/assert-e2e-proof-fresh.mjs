@@ -34,12 +34,23 @@
  *    limbs are about, and it is the field the page is ordered by, so the
  *    created_at/updated_at ordering caveat the siblings carry cannot arise.
  *
- * MAX_AGE_DAYS = 15, DERIVED FROM THE CRON RATHER THAN CHOSEN. One weekly slot
- * gives a 14-day ceiling exactly ONE reliable chance to renew, because the
- * day-14 slot fires AT the ceiling and measured GitHub schedule drift in this
- * org reaches +226 minutes (HANDOFF-2026-08-26 §1, four samples). 15 leaves
- * that second slot a full day of drift room. A second cron slot is the lever
- * that brings this DOWN; raising it is not a lever, it is a retreat.
+ * MAX_AGE_DAYS = 10, DERIVED FROM THE CRON RATHER THAN CHOSEN, AND RE-DERIVED
+ * 2026-09-07 WHEN THE CRON WENT DAILY. It read 15 while the cron was one Monday
+ * slot: a 14-day ceiling gave that exactly ONE reliable chance to renew, because
+ * the day-14 slot fires AT the ceiling and measured GitHub schedule drift in this
+ * org reaches +226 minutes (HANDOFF-2026-08-26 §1, four samples), and 15 left a
+ * second slot a full day of drift room. The header said in the same breath that a
+ * second cron slot is the lever that brings this number DOWN.
+ *
+ * 🔴 THAT LEVER HAS NOW BEEN PULLED, AND THIS IS THE OTHER HALF OF IT.
+ * extensions.yml fires DAILY as of 2026-09-07 (TRAPS ci-19: give the margin to the
+ * EVIDENCE, not to the duty), so the ceiling is re-derived from the duty it is
+ * really about. The register row duty.workflow.extensions.yml declares
+ * `cadence: 7d`, whose freshness window is 7d x 1.5 = 252h = 10.5 days. A ceiling
+ * of 10 sits just INSIDE that window, so this gate -- the one that names the cause
+ * -- reddens before ops-watch reddens on the symptom, and ten daily slots stand
+ * inside it where one weekly slot used to. Raising it is still not a lever, it is
+ * still a retreat.
  *
  * ⛔ ITS RED CANNOT BE CLEARED BY PRESSING THE BUTTON. `workflow_dispatch` runs
  * are excluded by the query, so a hand-press REVEALS a dead cron instead of
@@ -96,10 +107,11 @@ const WORKFLOW_CANDIDATES = ['extensions.yml', 'e2e.yml'];
 const BOOTSTRAP_UNTIL = Date.parse('2026-09-12T00:00:00Z');
 const BRANCH = 'main';
 /* Derived from the cron, and re-derived by the self-check below, which reddens
-   if the cadence stops being weekly. */
-const MAX_AGE_DAYS = 15;
+   if the cadence stops being DAILY. Weekly is refused down there on purpose now:
+   a weekly slot against this ceiling is ONE chance, which is the whole defect. */
+const MAX_AGE_DAYS = 10;
 /* The maximum this endpoint accepts. The query filters event=schedule, so a
-   hand-press cannot consume a row and 100 rows is ~100 weeks of this cron. */
+   hand-press cannot consume a row and 100 rows is ~100 days of this cron. */
 const RUNS_PAGE_SIZE = 100;
 /* How far back the GREEN limb walks before reporting that it found none. */
 const WALK_BACK = 12;
@@ -119,7 +131,7 @@ const LEG = /^e2e[^A-Za-z0-9]/;
    beginning with a non-alphanumeric is discovered by the walk below (it skips
    only dot-names and LEG_SKIP), so that shape is reachable. LEG_WS is tried
    first and resolves it by taking the separator as WHITESPACE-DELIMITED, which
-   is what extensions.yml:917 actually emits (it was line 84 of the pre-merge
+   is what extensions.yml:1000 actually emits (it was line 84 of the pre-merge
    extensions repository's own e2e workflow, a file that does not exist in this
    tree; re-measured against extensions.yml 2026-09-06);
    the greedy form stays as a fallback so an
@@ -205,12 +217,22 @@ let WORKFLOW = '';
 const yaml = raw.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
 
 const crons = [...yaml.matchAll(/cron:\s*['"]([^'"]+)/g)].map(m => m[1].trim());
-const weekly = e => { const f = e.trim().split(/\s+/); return f.length === 5 && f[2] === '*' && f[3] === '*' && /^[0-6]$/.test(f[4]); };
+/* Only the last three fields decide WHICH DAYS a cron fires; the minute and the
+   hour say when in the day, which a ceiling measured in days does not depend on.
+   A bare star, and a star with a step of one, are the two spellings of "every"
+   -- and the second one is written below rather than here, because the two
+   characters that spell it also CLOSE A BLOCK COMMENT. Measured: the first draft
+   of this comment put it inline and node refused the whole file with
+   `SyntaxError: Invalid or unexpected token`. Anything else -- a weekday list,
+   an `@weekly`, a form this three-field read cannot follow -- falls out as NOT
+   DAILY and is refused, which is the fail-closed direction. */
+const everyValue = x => x === '*' || x === '*/1';
+const daily = e => { const f = e.trim().split(/\s+/); return f.length === 5 && everyValue(f[2]) && everyValue(f[3]) && everyValue(f[4]); };
 if (!crons.length) {
-  err(`COVERAGE LOST — ${WORKFLOW} declares no cron. MAX_AGE_DAYS = ${MAX_AGE_DAYS} is derived from a weekly cadence, and with no timer at all this is a countdown rather than a guard.`);
+  err(`COVERAGE LOST — ${WORKFLOW} declares no cron. MAX_AGE_DAYS = ${MAX_AGE_DAYS} is derived from a DAILY cadence, and with no timer at all this is a countdown rather than a guard.`);
 } else {
-  const odd = crons.filter(c => !weekly(c));
-  if (odd.length) err(`COVERAGE LOST — ${WORKFLOW} cron(s) ${odd.join(', ')} are not weekly. MAX_AGE_DAYS = ${MAX_AGE_DAYS} is DERIVED from one slot every 7 days plus a day of drift room; against another cadence it stops describing anything.`);
+  const odd = crons.filter(c => !daily(c));
+  if (odd.length) err(`COVERAGE LOST — ${WORKFLOW} cron(s) ${odd.join(', ')} do not fire every day. MAX_AGE_DAYS = ${MAX_AGE_DAYS} is DERIVED from a daily slot inside the duty's own 7d x 1.5 = 252h window; against a slower cadence the ceiling stops describing anything and the evidence is back to the one or two chances TRAPS ci-19 exists about, on a scheduler measured delivering 10.1% of scheduled slots on time (TRAPS ci-15).`);
   if (crons.length > 1) console.log(`::notice::${crons.length} cron slots (${crons.join(', ')}). More slots than the derivation assumes is safe but LOOSE — re-derive MAX_AGE_DAYS downward rather than leaving it at ${MAX_AGE_DAYS}.`);
 }
 /* The GREEN limb keys on the matrix job name, so a rename blinds it. ANCHORED
@@ -422,7 +444,7 @@ const api = async p => {
   if (!sched.length) {
     const why = `no scheduled run of ${WORKFLOW} on ${BRANCH} is in the run history at all. Either the timer has never fired, or the workflow was renamed and this query is watching a name nothing uses.`;
     if (NOW < BOOTSTRAP_UNTIL) {
-      console.log(`::notice::${why} BOOTSTRAP: this repository's history for this workflow begins 2026-09-05 and the cron is weekly, so an empty history is expected until ${new Date(BOOTSTRAP_UNTIL).toISOString()}. This escape expires on that date by arithmetic, not by anybody remembering it.`);
+      console.log(`::notice::${why} BOOTSTRAP: this repository's history for this workflow begins 2026-09-05 and the cron only began firing daily on 2026-09-07, so an empty history is expected until ${new Date(BOOTSTRAP_UNTIL).toISOString()}. This escape expires on that date by arithmetic, not by anybody remembering it.`);
     } else {
       err(why);
     }

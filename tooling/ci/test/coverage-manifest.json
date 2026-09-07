@@ -161,5 +161,6 @@
   "worker-error-sink.test.mjs": 18,
   "worker-shared-modules.test.mjs": 13,
   "workflow-scan.test.mjs": 16,
+  "workflow-timeouts.test.mjs": 18,
   "xcode-floor.test.mjs": 19
 }
