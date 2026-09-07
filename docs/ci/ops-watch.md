@@ -143,6 +143,80 @@ would have told you something else. Its own exit code still fails the job.
 runs on a clock; ci.yml runs on a push. When a schedule dies, this is now
 the one that says so first.
 
+── 🔴 AND SINCE 2026-09-07 IT ALSO NOTICES A **FAILED** RUN, NOT ONLY A
+   MISSING SUCCESSFUL ONE ─────────────────────────────────────────────
+
+Coverage unit `alarm-on-red`, [ADR 067] decision 4, closing audit finding
+N10 and TRAPS `ci-38`.
+
+**What was wrong, measured in the guard's own source rather than inferred.**
+`assert-ops-register.mjs` asked GitHub for `status=success`, and
+`assert-platform-proof-fresh.mjs` still does. A failed run was therefore
+not ignored by the verdict logic — **it never arrived**. The only thing
+that could notice `main` going red was the staleness window quietly
+expiring: `duty.workflow.build-platforms.yml` is a `7d` duty against a
+`7d × 1.5 = 252h` window, so a failure was invisible for **up to ten and
+a half days**, and even then surfaced as *"the newest SUCCESSFUL run is
+old"* — which reads like a quiet week, not a broken build. It bit this
+repository for three days in the week of 2026-09-01.
+
+**The limb.** `[14]O-3b` in `assert-ops-register.mjs`. For every
+`duty.workflow.*` row **on a clock** it reads two more answers at the
+same width — the newest `status=success` **and** the newest
+`status=failure` run on the row's own `headBranch`, **event filter
+dropped on both** — and orders them. A failure newer than the success is
+`RED SINCE <date>`, and it routes into the guard's `errors`, i.e. **the
+duty is FAILING**, which is the register's own existing word for a record
+that says the mechanism failed. The domain size prints beside the verdict
+on every run, so `0 RED over 7 workflows` and `0 RED over 0 workflows`
+can never read alike.
+
+**Why the event filter is dropped for redness and kept for freshness.**
+`duty.workflow.codeql.yml` reads `event: schedule` for its cadence, and
+codeql also runs on `push` to `main`. Comparing a `push` failure at T2
+against the newest **scheduled** success at T1 < T2 would report RED even
+after a later `push` success at T3 > T2 had made `main` green again. A
+false alarm on the merge queue is how a guard gets switched off, so both
+halves of the redness comparison are read at the same width.
+
+**Where the page comes from.** Nowhere new. A red limb fails this
+`heartbeats` job, and on a scheduled run the `alert` job below
+(`if: failure() && github.event_name == 'schedule'`) files it against the
+durable issue *"Scheduled duty is not reporting healthy"* — within at
+most one of the twelve daily slots. `tooling/ops/alarm-chains.json` is
+**not** touched: it ledgers GlitchTip monitor → recipient chains, and
+this finding does not travel a monitor.
+
+**Why `ci.yml`, `deploy-web.yml`, `deploy-workers.yml` and
+`site-drift-repair.yml` are OUT of the domain, stated rather than left to
+be discovered.** They are `cadence: trigger` rows. `ci.yml`'s newest run
+on `main` can be made green **only by merging**, so blocking merges on it
+would be a deadlock with no exit — the `ci-18` bootstrap shape, and this
+repository has already paid ~46h of frozen queue for a milder version of
+it. Every workflow that IS in the domain accepts `workflow_dispatch`, and
+the comparison accepts a success of **any** event, so one dispatched
+green run on the branch clears the red without a merge. A red `ci.yml` on
+`main` is looked at by the checks on the pull request that produced it; a
+red nightly proof was looked at by nobody, and that is the gap this
+closes.
+
+**Exit 2 here, not 1.** If a watched workflow has failed runs and **no**
+successful run at all, *"is the newest failure newer than the newest
+success"* has one term. That is **COVERAGE LOST** — `process.exit(2)`,
+per `AGENTS.md` and `C-COVERAGE-LOST-IS-NOT-PASS` — and never a pass and
+never a RED. The duty is not unwatched while that holds: the sibling
+`[14]O-3` limb still grades *"no successful run at all"* as FAILING.
+⚠️ This file's older `coverageLost()` helper exits **1** at all of its
+other call sites; that inconsistency predates this limb, is recorded
+rather than silently repaired here, and both codes fail CI.
+
+**And no second copy in `assert-platform-proof-fresh.mjs`.** It reads
+`build-platforms.yml`'s history independently and also asks for
+`status=success`, but `build-platforms.yml` **is**
+`duty.workflow.build-platforms.yml`; this limb grades it, and both guards
+run in the same `ci.yml` job with the same token. A second copy of the
+rule is what `grep-10` forbids, and it would buy nothing.
+
 ### before step **Live D1 still runs every statement the Workers send it**
 
 ── [pipeline K-7] · DOES LIVE D1 STILL RUN THE SQL WE DEPLOYED? ────────
