@@ -126,7 +126,9 @@ jobs:
       # assert-store-build-config.mjs:127-158 DERIVES grows a named place and the
       # guard names all twelve lanes itself. That file is the app-shell unit's
       # (scope 1.2) and submit-*.yml is unit 1's, so the edit is not owed here —
-      # the residue is, and it is carried in phase3-cutover-blockers.md 8.2.
+      # the residue is, and it is carried in phase3-cutover-blockers.md 8.6 (residue
+      # R10). Corrected 2026-09-07: this line said 8.2, which is the empty-sitekey
+      # section, not the twelve-lane residue.
       - name: Build web (release, no service worker)
         run: >
           flutter build web --release --pwa-strategy=none --source-maps
