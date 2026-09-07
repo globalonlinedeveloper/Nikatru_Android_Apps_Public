@@ -59,6 +59,7 @@ import { fileURLToPath } from 'node:url';
 // `stripSourceComments` blanks comments only; `stripStringLiterals` is the separate composable tool,
 // used below ONLY to prove what would break if the guard ever reached for it.
 import { stripSourceComments, stripStringLiterals } from '../text-reductions.mjs';
+import { repoGit } from '../../scripts/repo-git.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
@@ -76,10 +77,16 @@ const REGISTRY = join(REPO, 'catalog', 'store-matrix.json');
  *  ⚠️ KNOWN NARROWNESS, stated rather than left to be discovered: this matches only a single-line
  *  `'./name.mjs'` with SINGLE quotes at the start of a line. A double-quoted import, or one naming a
  *  subdirectory, is silently missed and comes back as ERR_MODULE_NOT_FOUND in the planting cases.
- *  As of 2026-08-21 the guard has exactly two, both in that form: tree-walk.mjs, text-reductions.mjs. */
+ *  As of 2026-08-21 the guard has exactly two, both in that form: tree-walk.mjs, text-reductions.mjs.
+ *  🔴 2026-09-07 — THE NARROWNESS ABOVE CAME DUE, exactly as it was written down. The guard's two
+ *  cross-repo `git` reads moved behind `../scripts/repo-git.mjs` (git exports GIT_DIR/GIT_INDEX_FILE
+ *  into hooks and they beat `-C`), which is an import "naming a subdirectory" — the case this comment
+ *  says is silently missed. It is no longer missed: entries are now TOOLING-RELATIVE (`ci/x.mjs`,
+ *  `scripts/x.mjs`) and both plants below recreate that shape, so a sibling one directory over
+ *  resolves in a planted tree exactly as it does in the real one. */
 const GUARD_SIBLINGS = [
-  ...stripSourceComments(readFileSync(GUARD, 'utf8'), '.mjs').matchAll(/^import\s.*?from\s+'\.\/([\w.-]+\.mjs)';/gm),
-].map((m) => m[1]);
+  ...stripSourceComments(readFileSync(GUARD, 'utf8'), '.mjs').matchAll(/^import\s.*?from\s+'\.(\.\/scripts)?\/([\w.-]+\.mjs)';/gm),
+].map((m) => (m[1] ? `scripts/${m[2]}` : `ci/${m[2]}`));
 
 /** The environment the guard must not inherit. `gh` reads GH_TOKEN/GITHUB_TOKEN,
  *  and a machine that happens to be authenticated would send the no-flag cases
@@ -323,7 +330,7 @@ describe('assert-github-matrix', () => {
       // relative import and this case went red with ERR_MODULE_NOT_FOUND, status 1 where 2 was
       // expected, saying nothing whatever about the anchor. The list is now DERIVED from the guard's
       // own relative imports rather than typed, so the next sibling does not cost a third red run.
-      for (const sib of GUARD_SIBLINGS) copyFileSync(join(CI_DIR, sib), join(base, 'tooling', 'ci', sib));
+      for (const sib of GUARD_SIBLINGS) { const dest = join(base, 'tooling', sib); mkdirSync(dirname(dest), { recursive: true }); copyFileSync(join(CI_DIR, '..', sib), dest); }
       writeFileSync(join(base, 'catalog', 'store-matrix.json'), readFileSync(REGISTRY, 'utf8'));
       const r = runRaw(copy, '--offline');
       assert.equal(r.status, 2, r.stdout + r.stderr);
@@ -576,7 +583,7 @@ describe('assert-github-matrix', () => {
       mkdirSync(join(base, 'catalog'), { recursive: true });
       const copy = join(base, 'tooling', 'ci', 'assert-github-matrix.mjs');
       writeFileSync(copy, readFileSync(GUARD, 'utf8'));
-      for (const sib of SIBLINGS) copyFileSync(join(CI_DIR, sib), join(base, 'tooling', 'ci', sib));
+      for (const sib of SIBLINGS) { const dest = join(base, 'tooling', sib); mkdirSync(dirname(dest), { recursive: true }); copyFileSync(join(CI_DIR, '..', sib), dest); }
       writeFileSync(join(base, 'catalog', 'store-matrix.json'), readFileSync(REGISTRY, 'utf8'));
       for (const [name, body] of Object.entries(probes)) {
         writeFileSync(join(base, 'tooling', 'ci', name), `${body}\n`);
@@ -599,7 +606,7 @@ describe('assert-github-matrix', () => {
     test('the carried siblings are scanned but query nothing — the baseline the counts rest on', () => {
       assert.ok(CARRIED >= 2, `expected the guard to import its siblings relatively, derived: ${SIBLINGS.join(', ')}`);
       for (const sib of SIBLINGS) {
-        const p = join(CI_DIR, sib);
+        const p = join(CI_DIR, '..', sib);
         const stripped = stripSourceComments(readFileSync(p, 'utf8'), '.mjs');
         assert.doesNotMatch(
           stripped,
@@ -735,4 +742,53 @@ describe('assert-github-matrix', () => {
       assert.ok(!bare.includes(ORG), 'blanking strings would also hide its copy of the org literal');
     });
   });
+});
+
+// ── ADDED 2026-09-07 — THE SLOT READS MUST NOT INHERIT THE CALLER'S GIT ──────
+// This guard reads `remote get-url origin` and `git grep` in the SLOT checkouts —
+// other repositories, none of them the process's own cwd. Git exports GIT_DIR and
+// GIT_INDEX_FILE into every hook process and they BEAT `-C`, so under such an
+// environment every row would reconcile against THIS checkout's remote while
+// printing the slot's name: a confident wrong answer, which is worse than none.
+// Measured this day on tooling/scripts/assert-public-citations.mjs — 567 files of
+// the private corpus while pointed at this tree's 2022.
+test('the slot remote and grep reads go through repo-git.mjs, and the environment cannot redirect them', () => {
+  const src = readFileSync(GUARD, 'utf8');
+  assert.match(src, /from '\.\.\/scripts\/repo-git\.mjs'/, 'the guard no longer imports the helper — its slot reads depend on the caller environment again');
+  assert.doesNotMatch(src, /execFileSync\(\s*'git',\s*\[\s*'-C'/, 'a raw `git -C` spawn is back in this guard; -C does not select a repository when GIT_DIR is exported');
+
+  // MUTANT — the matcher must be able to see the shape it forbids, or it forbids nothing.
+  const withRaw = src + "\nexecFileSync('git', ['-C', abs, 'remote', 'get-url', 'origin']);\n";
+  assert.match(withRaw, /execFileSync\(\s*'git',\s*\[\s*'-C'/, 'the matcher cannot see a raw `git -C` spawn and is asserting nothing');
+
+  // And the behaviour, not just the shape.
+  const base = mkdtempSync(join(tmpdir(), 'github-matrix-gitenv-'));
+  try {
+    const mk = (dir, url) => {
+      mkdirSync(dir, { recursive: true });
+      const g = (...a) => spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' });
+      g('init', '-q');
+      g('config', 'user.email', 'f@e.test');
+      g('config', 'user.name', 'f');
+      g('remote', 'add', 'origin', url);
+      writeFileSync(join(dir, 'f.txt'), 'x\n');
+      g('add', '-A');
+      g('commit', '-q', '-m', 'f', '--no-gpg-sign');
+      return dir;
+    };
+    const slot = mk(join(base, 'slot'), 'https://github.com/example/slot.git');
+    const other = mk(join(base, 'other'), 'https://github.com/example/other.git');
+    const saved = { GIT_DIR: process.env.GIT_DIR, GIT_INDEX_FILE: process.env.GIT_INDEX_FILE };
+    process.env.GIT_DIR = join(other, '.git');
+    process.env.GIT_INDEX_FILE = join(other, '.git', 'index');
+    try {
+      assert.match(repoGit(slot, 'remote', 'get-url', 'origin').trim(), /example\/slot\.git$/, 'the helper reported the remote of the repository the ENVIRONMENT named, not the slot it was given');
+      const raw = spawnSync('git', ['-C', slot, 'remote', 'get-url', 'origin'], { encoding: 'utf8' });
+      assert.match(raw.stdout.trim(), /example\/other\.git$/, 'the unguarded control did not read the other repository, so this case does not reproduce the defect');
+    } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });

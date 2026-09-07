@@ -50,8 +50,11 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { repoGit } from '../../scripts/repo-git.mjs';
+
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
+const SCRIPTS_DIR = resolve(REPO, 'tooling', 'scripts');
 const GUARD = join(CI_DIR, 'assert-copy-parity.mjs');
 const REAL_REGISTRY = join(REPO, 'catalog', 'store-matrix.json');
 const REAL_DECL = join(REPO, 'catalog', 'copy-origins.json');
@@ -84,18 +87,30 @@ const run = (guardPath) => {
 // 🔴 IT GIVES THE GUARD NO SUBJECT. tree-walk.mjs is a directory-listing helper —
 // not a catalog, a registry or a repository — so a tree that has only it still has
 // nothing for this guard to check, and R10 below still measures a real refusal.
+// 🔴 2026-09-07 — THE COPY NOW FOLLOWS `../scripts/*.mjs` TOO, and it had to. The
+// guard's cross-repo `git ls-files` moved behind `../scripts/repo-git.mjs` (git
+// exports GIT_DIR/GIT_INDEX_FILE into hooks and they beat `-C`), and a matcher that
+// only understood `'./x.mjs'` copied the guard without it — which is the SAME loader
+// death this comment block was written about, arriving by a new door within the hour.
+// The sibling directory is created next to the ci directory so the relative specifier
+// resolves exactly as it does in the real tree.
 const copyGuardWithLocalImports = (destCiDir) => {
   mkdirSync(destCiDir, { recursive: true });
+  const destScriptsDir = resolve(destCiDir, '..', 'scripts');
+  mkdirSync(destScriptsDir, { recursive: true });
   const guardCopy = join(destCiDir, 'assert-copy-parity.mjs');
   cpSync(GUARD, guardCopy);
   const seen = new Set();
   const rec = (absSrc) => {
-    for (const m of readFileSync(absSrc, 'utf8').matchAll(/from\s+'\.\/([A-Za-z0-9._-]+\.mjs)'/g)) {
-      const name = m[1];
-      if (seen.has(name)) continue;
-      seen.add(name);
-      cpSync(join(CI_DIR, name), join(destCiDir, name));
-      rec(join(CI_DIR, name));
+    for (const m of readFileSync(absSrc, 'utf8').matchAll(/from\s+'(\.\.?)\/(?:(scripts)\/)?([A-Za-z0-9._-]+\.mjs)'/g)) {
+      const [, dots, sub, name] = m;
+      const fromDir = dots === '..' && sub === 'scripts' ? SCRIPTS_DIR : CI_DIR;
+      const toDir = fromDir === SCRIPTS_DIR ? destScriptsDir : destCiDir;
+      const key = `${toDir === destScriptsDir ? 'scripts/' : ''}${name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cpSync(join(fromDir, name), join(toDir, name));
+      rec(join(fromDir, name));
     }
   };
   rec(GUARD);
@@ -510,4 +525,50 @@ describe('assert-copy-parity — it must REFUSE rather than report on nothing (e
     assert.equal(code, 2, text);
     assert.match(text, /COVERAGE LOST/);
   });
+});
+
+// ── ADDED 2026-09-07 — THE CROSS-REPO READ MUST NOT INHERIT THE CALLER'S GIT ──
+// This guard enumerates the ORIGIN repository and each COPY repository, none of
+// which is the process's own cwd. Git exports GIT_DIR/GIT_INDEX_FILE into every
+// hook process and they BEAT `-C`, so a bare `git -C <slot> ls-files` answers about
+// whatever repository the environment names — every slot would enumerate the same
+// tree and the parity claim would be about one repository compared with itself.
+// Measured this day on tooling/scripts/assert-public-citations.mjs: 567 files of the
+// private corpus while pointed at this tree's 2022.
+test('the tracked-set read of another repository goes through repo-git.mjs, and the environment cannot redirect it', () => {
+  const src = readFileSync(GUARD, 'utf8');
+  assert.match(src, /from '\.\.\/scripts\/repo-git\.mjs'/, 'the guard no longer imports the helper — its slot reads depend on the caller environment again');
+  assert.doesNotMatch(src, /spawnSync\(\s*'git',\s*\[\s*'-C'/, 'a raw `git -C` spawn is back in this guard; -C does not select a repository when GIT_DIR is exported');
+
+  // MUTANT — the matcher must be able to see the shape it forbids, or it forbids nothing.
+  assert.match(`${src}\nspawnSync('git', ['-C', root, 'ls-files']);`, /spawnSync\(\s*'git',\s*\[\s*'-C'/, 'the matcher cannot see a raw `git -C` spawn and is asserting nothing');
+
+  // And the behaviour, not just the shape: the helper the guard now imports answers
+  // about the root it is given even when the environment insists on another one.
+  const base = mkdtempSync(join(tmpdir(), 'copy-parity-gitenv-'));
+  try {
+    const mk = (dir, prefix, n) => {
+      mkdirSync(dir, { recursive: true });
+      const g = (...a) => spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' });
+      g('init', '-q'); g('config', 'user.email', 'f@e.test'); g('config', 'user.name', 'f');
+      for (let i = 0; i < n; i += 1) writeFileSync(join(dir, `${prefix}${i}.txt`), 'x\n');
+      g('add', '-A'); g('commit', '-q', '-m', 'f', '--no-gpg-sign');
+      return dir;
+    };
+    const origin = mk(join(base, 'origin'), 'o', 2);
+    const other = mk(join(base, 'other'), 'p', 5);
+    const saved = { GIT_DIR: process.env.GIT_DIR, GIT_INDEX_FILE: process.env.GIT_INDEX_FILE };
+    process.env.GIT_DIR = join(other, '.git');
+    process.env.GIT_INDEX_FILE = join(other, '.git', 'index');
+    try {
+      const count = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean).length;
+      assert.equal(count(repoGit(origin, 'ls-files')), 2, 'the helper enumerated the repository the ENVIRONMENT named, not the slot it was given');
+      const raw = spawnSync('git', ['-C', origin, 'ls-files'], { encoding: 'utf8' });
+      assert.equal(count(raw.stdout), 5, 'the unguarded control did not read the other repository, so this case does not reproduce the defect');
+    } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });
