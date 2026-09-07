@@ -27,7 +27,26 @@ export function isRevocationReason(v: unknown): boolean;
 
 export function restoresAccess(reason: string): boolean;
 
+export interface RevenueCatEventReason {
+  readonly event: string;
+  /** The revocation reason this event means, or null when it is not a revocation. */
+  readonly reason: string | null;
+  /**
+   * Whether the ACCESS outcome is decided by the paid-through date on the event
+   * rather than by its name. CANCELLATION is both cancel-at-period-end and a
+   * refund; only `expiration_at_ms` tells them apart.
+   */
+  readonly dateDerived: boolean;
+  /** The sentence that forces the answer. A row with no ground cannot be re-decided. */
+  readonly why: string;
+}
+
+export const REVENUECAT_EVENT_REASONS: readonly RevenueCatEventReason[];
+
+export function revocationReasonForRevenueCatEvent(event: string): string | null;
+
 export const CONTRACT_TABLE: {
   readonly moneyEnvironments: readonly MoneyEnvironment[];
   readonly revocationReasons: readonly RevocationReason[];
+  readonly revenuecatEventReasons: readonly RevenueCatEventReason[];
 };

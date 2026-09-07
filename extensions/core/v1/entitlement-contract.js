@@ -111,8 +111,126 @@ export function restoresAccess(reason) {
   return REVOCATION_REASONS.some((r) => r.reason === reason && r.restores);
 }
 
+
+/**
+ * @typedef {{ readonly event: string, readonly reason: string | null, readonly dateDerived: boolean, readonly why: string }} RevenueCatEventReason
+ *
+ * WHICH REVENUECAT WEBHOOK EVENT MEANS WHICH OF OUR REVOCATION REASONS.
+ *
+ * 🔴 THE MAP IS DATA, IN THIS FILE, FOR THE SAME REASON THE REASON SET IS. Three
+ * runtimes have to agree about it: the platform Worker's `revenuecatVerifier`
+ * (when it is written — see the residue in
+ * `Private/research/revamp-2026-09-05/phase3-chassis-billing.md`), the Dart
+ * client, and any extension that reads an entitlement. A translation table
+ * restated in a Worker and remembered in a client is the fourth transcription
+ * this directory exists to prevent — and this one is worse than the reason set,
+ * because getting it wrong REVOKES A PAYING CUSTOMER rather than mislabelling a
+ * row somebody reads later.
+ *
+ * 🔒 `reason: null` MEANS "THIS EVENT IS NOT A REVOCATION", AND IT IS RECORDED
+ * RATHER THAN OMITTED. An absent event and an event we deliberately do not
+ * revoke on are different facts; leaving the second one out of the table makes
+ * them indistinguishable, and the next reader closes the gap by guessing. Every
+ * row carries the sentence that forces its answer, exactly as the channel
+ * register's `purchaseRail.why` does.
+ *
+ * ⚠️ EVERY ROW HERE IS A VENDOR FACT AND THE ACCOUNT DOES NOT EXIST YET. The
+ * conservative direction for a revocation table is the one that does NOT take
+ * access away: an event this table does not map revokes nothing, and the client
+ * still converges on `GET /v1/entitlements`, which is the only thing that ever
+ * unlocks or locks. `Private/runbooks/revenuecat-setup.md` carries the owner
+ * step that re-reads RevenueCat's webhook event reference against this table at
+ * the moment the project is created, and any event this list does not name is a
+ * deliberate refusal to guess rather than an omission.
+ *
+ * ⚠️ FIVE SEEDED REVOCATION REASONS ARE REACHABLE FROM NO REVENUECAT EVENT IN
+ * THIS TABLE: `refund_approved`, `chargeback`, `chargeback_reversed`,
+ * `trial_expired` and `payment_failed_final`. Four of those are Paddle-side or
+ * dispute-side outcomes and belong to the hosted rail; the fifth,
+ * `refund_approved`, is reachable from RevenueCat only as the PAST-DATED shape
+ * of `CANCELLATION` (see that row), which no event NAME distinguishes. Recorded
+ * here so the gap reads as measured rather than forgotten — and so nobody
+ * "completes" the table by inventing a store event for each unused reason.
+ *
+ * 🔴 A SECOND, UNGOVERNED COPY OF THIS VOCABULARY ALREADY EXISTS IN THE TREE.
+ * `services/subly-api/src/routes/webhooks.ts:95-106` carries `ACTIVE_TYPES` /
+ * `INACTIVE_TYPES` / `GRACE_TYPES` as hard-coded sets and imports nothing from
+ * `contracts/`; it is the ONE runtime that reads a RevenueCat event today
+ * (`POST /revenuecat`, `:430`). The two vocabularies already disagree: that
+ * Worker knows `NON_RENEWING_PURCHASE`, `PRODUCT_CHANGE` and
+ * `SUBSCRIPTION_EXTENDED`, which this table does not, and this table knows
+ * `SUBSCRIPTION_PAUSED`, which it does not. Limb 7 of
+ * `tooling/ci/assert-entitlement-contract.mjs` holds that divergence to a
+ * DECLARED list, in both directions, so it cannot widen unwatched — but the fix
+ * is not a third table: the `revenuecatVerifier` unit must IMPORT this file and
+ * DELETE those three sets, the way `services/platform/src/lib/mor/contract.ts`
+ * already imports the reason vocabulary rather than restating it.
+ */
+
+/** @type {readonly RevenueCatEventReason[]} */
+export const REVENUECAT_EVENT_REASONS = [
+  {
+    event: 'CANCELLATION',
+    reason: 'cancelled_at_period_end',
+    dateDerived: true,
+    why: 'ONE EVENT NAME, TWO OPPOSITE ACCESS OUTCOMES, AND THE NAME CANNOT TELL THEM APART. Auto-renew turned off leaves access running to the paid-through date, which is exactly what cancelled_at_period_end names — mapping that to subscription_expired would end access on the day the user pressed cancel. But RevenueCat sends the SAME event for a REFUND, and then expiration_at_ms is in the PAST, access ends at once, and the honest reason is refund_approved. The two shapes differ only by the DATE, never by the event name, which is why this row is dateDerived: the reason above is the cancel-at-period-end shape and a consumer that revokes on the event name alone is wrong on the other one. Already documented and already implemented in this tree: services/subly-api/src/routes/webhooks.ts:51-55 states the split in prose, :106 puts CANCELLATION in GRACE_TYPES, and resolveIsActive at :124 decides it by comparing expiration_at_ms against now. THE REFUND SHAPE, RECORDED RATHER THAN LEFT TO BE REDISCOVERED: on the refund reading of this event the honest reason is refund_approved and access ends at once; that outcome is DATE-DERIVED and it belongs to the VERIFIER, not to this mapper, because the event name cannot carry it and only expiration_at_ms against now can decide it (services/subly-api/src/routes/webhooks.ts:51-55 states the split in prose, :106 puts CANCELLATION in GRACE_TYPES beside BILLING_ISSUE, and resolveIsActive at :124 is the comparison). It is recorded in this why rather than as a second row because a second row keyed on the same event name would make the table answer twice for one key, and the reason a consumer must not take from the name is precisely the one it would then read first. FIVE OF THE EIGHT SEEDED REASONS ARE REACHABLE FROM NO REVENUECAT EVENT AT ALL TODAY: refund_approved, chargeback, chargeback_reversed, trial_expired and payment_failed_final. Every one of them arrives on the MoR (Paddle) rail or from an operator, never from this table, so a client that renders one of those strings did not learn it here.',
+  },
+  {
+    event: 'EXPIRATION',
+    reason: 'subscription_expired',
+    dateDerived: false,
+    why: 'The subscription reached its end and did not renew. This is the event that actually ends access on its own authority (services/subly-api/src/routes/webhooks.ts:104 is the same ruling, as INACTIVE_TYPES); the finer expiration_reason sub-field is NOT read here, because a per-sub-reason table would be a second vendor fact nobody has verified.',
+  },
+  {
+    event: 'SUBSCRIPTION_PAUSED',
+    reason: 'subscription_paused',
+    dateDerived: false,
+    why: 'Play lets a subscriber pause; the row stops being entitled and resumes later. subscription_paused exists in the reason set precisely so a pause is not recorded as an expiry, which would be read as churn. NOTE: services/subly-api/src/routes/webhooks.ts:95-106 does not name this event at all, so that Worker acks and ignores it — one of the four divergences limb 7 of tooling/ci/assert-entitlement-contract.mjs holds to a declared list.',
+  },
+  {
+    event: 'BILLING_ISSUE',
+    reason: null,
+    dateDerived: true,
+    why: 'NOT A REVOCATION BY NAME. It is a grace-period warning and the store retries; the final outcome arrives later as EXPIRATION. Mapping it to payment_failed_final would lock out a customer whose card recovers, which is the failure this whole table is shaped to avoid. It is dateDerived for the same reason CANCELLATION is: whether access still stands is the paid-through date, not the event name — services/subly-api/src/routes/webhooks.ts:106 puts it in GRACE_TYPES beside CANCELLATION.',
+  },
+  {
+    event: 'INITIAL_PURCHASE',
+    reason: null,
+    dateDerived: false,
+    why: 'NOT A REVOCATION — a grant. Recorded so the table is a complete answer for the events the client can see, rather than a list that goes quiet on the ones that matter most.',
+  },
+  {
+    event: 'RENEWAL',
+    reason: null,
+    dateDerived: false,
+    why: 'NOT A REVOCATION — the subscription continued.',
+  },
+  {
+    event: 'UNCANCELLATION',
+    reason: null,
+    dateDerived: false,
+    why: 'NOT A REVOCATION — auto-renew was turned back on before the period ended, so there is nothing to take away.',
+  },
+];
+
+const REVENUECAT_EVENT_MAP = new Map(REVENUECAT_EVENT_REASONS.map((r) => [r.event, r.reason]));
+
+/**
+ * The revocation reason a RevenueCat event means, or null when it means none.
+ *
+ * Returns null for an event this table does not name — the SAFE direction, and
+ * the one the header explains: an unknown event revokes nothing and the server
+ * read stays the only authority.
+ * @param {string} event
+ * @returns {string | null}
+ */
+export function revocationReasonForRevenueCatEvent(event) {
+  return REVENUECAT_EVENT_MAP.get(event) ?? null;
+}
+
 /** Machine-readable form, kept byte-identical to contract.json by generate.mjs. */
 export const CONTRACT_TABLE = {
   moneyEnvironments: MONEY_ENVIRONMENTS,
   revocationReasons: REVOCATION_REASONS,
+  revenuecatEventReasons: REVENUECAT_EVENT_REASONS,
 };
