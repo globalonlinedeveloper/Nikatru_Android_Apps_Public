@@ -556,15 +556,18 @@ const REQUIRED_COVERAGE = [
     // THAT LANDS THE NEXT SCREEN. A floor is only a floor on the day it is
     // measured.
     enforce: true,
-    surfaces: 7,
-    widthTestFiles: 8,
-    // 🔴 RAISED 7 → 12 ON 2026-09-06 ([ADR 067] phase 2,
-    // screens-money-settings): `PaywallView`, `ManagePlanView`,
-    // `OnboardingView`, `SettingsView` and `EditProfileDialog` arrived with
-    // their width suites in the same change, so the root stays at
-    // reachable == measured and this floor is what stops the five going
-    // quiet later. Read from this guard's own per-root line.
-    coveredSurfaces: 12,
+    // 🔴 RAISED 7 → 17 ON 2026-09-07 ([ADR 067] phase 2, unit
+    // app-shell), READ FROM THIS GUARD'S OWN PER-ROOT LINE AND NOT PREDICTED:
+    // `packages/chassis_screens: 17 surface(s) reachable, 17 measured`. The
+    // shell arrived with its width suite in the same change — `NikatruApp`,
+    // `ConsentScrim`, `ConsentPromptCard`, `OfflineBannerHost` and
+    // `AppLifecycleFlush`, all five pumped at kPhone/kTablet/kDesktop by
+    // `test/app_shell_view_test.dart` — so the root stays at
+    // reachable == measured and the floor is what stops any of them going
+    // quiet later.
+    surfaces: 17,
+    widthTestFiles: 13,
+    coveredSurfaces: 17,
     label:
       'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens every stamped ' +
       'app inherits, each measured at all three window classes',

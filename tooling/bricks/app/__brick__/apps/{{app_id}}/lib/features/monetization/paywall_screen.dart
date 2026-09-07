@@ -37,7 +37,7 @@ typedef _PaywallPhase = PaywallPhase;
 /// a preference:
 ///
 /// ⛔ THE FOUR `funnel.on*` EMISSIONS, AS A SET.
-/// `assert-stamp-properties.mjs:1333-1336` (`money-funnel-emitted-as-a-set`)
+/// `assert-stamp-properties.mjs:1364-1367` (`money-funnel-emitted-as-a-set`)
 /// anchors all four as CALL SITES in this file. They also cannot leave: the
 /// funnel is resolved with `ref.read(moneyFunnelProvider.future)` and this
 /// package declares no `flutter_riverpod` (see its pubspec for why declaring one

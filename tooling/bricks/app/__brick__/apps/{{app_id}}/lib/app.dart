@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nikatru_chassis_screens/shell/app_shell.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,7 +11,16 @@ import 'l10n/app_localizations.dart';
 import 'state/notification_tap_observer.dart';
 import 'state/providers.dart';
 
-/// Root widget for {{{display_name}}}.
+/// Root widget for {{{display_name}}} — the COMPOSITION ROOT half.
+///
+/// 🏗️ THE SHELL IS IN `package:nikatru_chassis_screens/shell/app_shell.dart`
+/// ([ADR 067] decision 2): [NikatruApp] owns `MaterialApp.router`, the clamped
+/// text scaling and the force-update gate; [ConsentScrim], [ConsentPromptCard],
+/// [OfflineBannerHost] and [AppLifecycleFlush] own the surfaces the gates below
+/// render. What stayed here is what a package declaring no Riverpod, no
+/// go_router and no plugin cannot carry: the stamped seed, this app's own
+/// localisation delegates, every provider read, the `url_launcher` call, and the
+/// one writer that records a consent answer.
 class {{app_id.pascalCase()}}App extends ConsumerWidget {
   const {{app_id.pascalCase()}}App({super.key});
 
@@ -34,9 +44,8 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
     final String updateUrl =
         ref.watch(appConfigProvider).valueOrNull?.updateUrl ??
         AppConfig.updateUrl;
-    return MaterialApp.router(
+    return NikatruApp(
       title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
       // [ADR 067] decision 2 — the CHASSIS delegate is composed BESIDE the
       // app's own, never instead of it. `AppLocalizations` carries the keys
       // this app owns (its title, and any copy naming what it sells);
@@ -66,45 +75,14 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
       // the build of every stamped app, not just this one.
       themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
-      // [pipeline C-14] TEXT SCALING, clamped at the ROOT so every screen in
-      // every stamped app inherits it — this is one of the invariants that is
-      // near-free here and near-impossible to retrofit across 50 shipped apps.
-      //
-      // The floor of 1.0 refuses to shrink text below the design size; the
-      // ceiling of 2.0 is what keeps a layout usable. Both stores' accessibility
-      // settings can push well past 2.0, and unbounded scaling does not degrade
-      // gracefully — it overflows, and an overflow is a screen the user cannot
-      // finish. Clamping is the honest trade: very large text still works,
-      // rather than every screen breaking at the extreme.
-      builder: (BuildContext context, Widget? child) =>
-          MediaQuery.withClampedTextScaling(
-            minScaleFactor: 1.0,
-            maxScaleFactor: 2.0,
-            // 🔴 THE COPY IS PASSED, AND UNTIL 2026-09-04 IT WAS NOT — in
-            // EVERY app this template has ever stamped. `ForceUpdateGate`
-            // carried English parameter defaults and this call site supplied
-            // none, so the one screen that REPLACES THE WHOLE APP and cannot be
-            // dismissed shipped English to every locale. No key for it had ever
-            // existed in any arb, in either tree.
-            //
-            // ⚠️ `context.chassisL10n` IS AVAILABLE HERE: this is
-            // `MaterialApp.router`'s `builder`, which runs BELOW the
-            // `Localizations` widget the MaterialApp installs.
-            child: ForceUpdateGate(
-              mustUpdate: mustUpdate,
-              onUpdate: () => _openUpdate(updateUrl),
-              title: context.chassisL10n.updateRequiredTitle,
-              message: context.chassisL10n.updateRequiredMessage,
-              buttonLabel: context.chassisL10n.updateRequiredAction,
-              child: AnalyticsGate(
-                child: _NotificationTapGate(
-                  child: _OfflineBanner(
-                    child: child ?? const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-            ),
-          ),
+      mustUpdate: mustUpdate,
+      onUpdate: () => _openUpdate(updateUrl),
+      // The gate chain, wrapped around the routed screen by NikatruApp's
+      // builder. Every one of the three is a ConsumerWidget, which is why the
+      // chain is written here and not in the package.
+      shell: (Widget routed) => AnalyticsGate(
+        child: _NotificationTapGate(child: _OfflineBanner(child: routed)),
+      ),
     );
   }
 
@@ -118,25 +96,13 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
   }
 }
 
-/// 🔴 [pipeline C-13] `OfflineNotice`'s ONLY CALL SITE — and until 2026-08-06
-/// there was none, anywhere in the repository.
+/// The offline banner's ADAPTER half — [pipeline C-13].
 ///
-/// The widget shipped in the design system on 2026-07-28, `offlineMessage` and
-/// `retry` shipped in both ARB files, the register recorded the screen as
-/// `present` with a valid anchor, and **no user of any stamped app could ever
-/// have seen it**. That is the [pipeline C-6] shape: the register asked whether
-/// the screen EXISTED and never whether anything reached it, so an absent
-/// consumer read exactly like a satisfied one.
-///
-/// 🔴 IT RETURNS THE CHILD UNTOUCHED WHEN REACHABLE, and that is deliberate
-/// rather than incidental: inserting a `Column` above the router on every
-/// launch would re-parent every screen in every stamped app in order to
-/// display nothing. The tree is byte-identical to the pre-banner one until a
-/// request has actually failed.
-///
-/// The retry re-runs the config resolution rather than "checking the network",
-/// because the only honest test of reachability is the request the app wanted
-/// to make in the first place.
+/// 🏗️ The banner itself is [OfflineBannerHost]. Two things stayed: the
+/// `networkUnreachableProvider` read and the retry, which re-runs the config
+/// resolution rather than "checking the network" — the only honest test of
+/// reachability is the request the app wanted to make in the first place. Both
+/// are Riverpod.
 class _OfflineBanner extends ConsumerWidget {
   const _OfflineBanner({required this.child});
 
@@ -144,17 +110,10 @@ class _OfflineBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(networkUnreachableProvider)) return child;
-    final ChassisLocalizations l10n = context.chassisL10n;
-    return Column(
-      children: <Widget>[
-        OfflineNotice(
-          message: l10n.offlineMessage,
-          retryLabel: l10n.retry,
-          onRetry: () => ref.invalidate(appConfigProvider),
-        ),
-        Expanded(child: child),
-      ],
+    return OfflineBannerHost(
+      unreachable: ref.watch(networkUnreachableProvider),
+      onRetry: () => ref.invalidate(appConfigProvider),
+      child: child,
     );
   }
 }
@@ -176,7 +135,9 @@ class _OfflineBanner extends ConsumerWidget {
 ///     never an event collected without permission;
 ///  3. flushes on background. The recorder batches at 20 events, so an app that
 ///     logs a handful per session would otherwise ship NOTHING until the
-///     twentieth event — a rail that looks wired and delivers nothing.
+///     twentieth event — a rail that looks wired and delivers nothing. The four
+///     lifecycle edges that mean "on the way out" live in [AppLifecycleFlush];
+///     the `flush()` itself is a provider read and stays here.
 class AnalyticsGate extends ConsumerStatefulWidget {
   const AnalyticsGate({required this.child, super.key});
 
@@ -186,14 +147,12 @@ class AnalyticsGate extends ConsumerStatefulWidget {
   ConsumerState<AnalyticsGate> createState() => _AnalyticsGateState();
 }
 
-class _AnalyticsGateState extends ConsumerState<AnalyticsGate>
-    with WidgetsBindingObserver {
+class _AnalyticsGateState extends ConsumerState<AnalyticsGate> {
   bool _launchLogged = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     // 🔴 [pipeline C-13] THE REVIEW PROMPT'S ONLY CALL SITE. A seam with no
     // caller is the [pipeline C-6] shape, and this one would be invisible: the
     // gate refuses on almost every launch by design, so "nothing happened" is
@@ -243,63 +202,6 @@ class _AnalyticsGateState extends ConsumerState<AnalyticsGate>
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  // 🔴 FOUR STATES, AND `inactive` IS THE ONE THAT COVERS DESKTOP — [11]E-4a.
-  //
-  // Read off dart:ui's own documentation of the enum, not off habit:
-  //   · `paused`  — "This state is only entered on iOS and Android."
-  //   · `detached`— entered on iOS, Android and web.
-  //   · `hidden`  — on non-web desktop this means MINIMIZED or moved to a
-  //                 desktop that is no longer visible. Closing a window is not
-  //                 minimizing it.
-  //   · `inactive`— on non-web desktop, "an application that is not in the
-  //                 foreground, but still has visible windows".
-  // So on Windows, macOS and Linux the previous three-state set fired on exactly
-  // one path — minimize — and never on the way out of the app. `inactive` is the
-  // last edge a desktop app reliably reports before the process ends.
-  //
-  // ⚠️ THE MOBILE COST, MEASURED RATHER THAN WAVED AWAY. On iOS and Android
-  // `inactive` also fires on transient interruptions: the notification shade,
-  // the app switcher, a phone call, a system dialog, split screen. Two things
-  // bound what that costs:
-  //   1. `flush()` returns immediately on an empty queue, so an interruption
-  //      with nothing queued costs nothing at all — no request, no wakeup.
-  //   2. When there IS something queued, the worst case is one request per
-  //      event, which is the same ceiling `batchSize: 1` would have. Each event
-  //      still ships at most once; the sink dedups on `event_id` regardless.
-  // Against that: on mobile the framework synthesizes `inactive` → `hidden` →
-  // `paused` on every backgrounding, so for the ordinary background transition
-  // this does not ADD a request — it moves the same one earlier, before the OS
-  // has a chance to freeze the process mid-POST.
-  //
-  // Not gated behind a platform check on purpose. A `Platform.isWindows` branch
-  // in the chassis would buy a bounded saving on transient mobile interruptions
-  // at the price of a per-platform behaviour in the one file every stamped app
-  // inherits — the same trade `AnalyticsRecorder` records for refusing a
-  // connectivity probe: one behaviour on all six platforms, no plugin, no
-  // branch.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached ||
-        state == AppLifecycleState.hidden) {
-      // Fire-and-forget: the framework will not wait, and a failed send just
-      // leaves the batch queued for next launch.
-      //
-      // This is the BEST-EFFORT half of delivery, and it is not sufficient on
-      // its own — a page unload beats an unawaited POST, and a killed process
-      // reports nothing at all. The guarantee lives in core's
-      // `kFlushInterval` deadline; this only makes the common case earlier.
-      ref.read(analyticsProvider).valueOrNull?.flush();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final bool enabled = ref.watch(analyticsEnabledProvider);
     final bool decided = ref.watch(consentDecidedProvider);
@@ -315,34 +217,17 @@ class _AnalyticsGateState extends ConsumerState<AnalyticsGate>
       logLaunchLifecycle(ref);
     }
 
-    // Rendered INLINE rather than via showDialog: this gate sits in
-    // MaterialApp's `builder`, which is ABOVE the router's Navigator, so
-    // `showDialog` here has no Navigator to push onto. An inline scrim also
-    // disappears reactively the moment the decision is recorded, with no
-    // post-frame callback and no "did I already ask?" bookkeeping to get wrong.
-    //
-    // 🔴 AN INLINE SCRIM IS NOT MODAL BY ITSELF, AND THE TWO LINES BELOW ARE
-    // WHAT BUY BACK WHAT `ModalRoute` USED TO GIVE FREE — measured on the
-    // stamped app, not assumed. Before them, with the prompt up, a walk of the
-    // compiled semantics tree found the screen BEHIND the scrim fully exposed,
-    // its buttons still carrying live tap actions. Semantic taps dispatch
-    // straight to the widget and DO NOT hit-test, so the opaque `ColoredBox`
-    // stops a finger and stops nothing for TalkBack or VoiceOver: a
-    // screen-reader user could drive the app underneath a modal they were never
-    // told they were inside.
-    //
-    // `excluding:` rather than conditionally WRAPPING, on purpose: the widget
-    // types stay in the tree across the answer, so recording the decision does
-    // not remount the whole app subtree and throw away the router's state.
     final bool asking = enabled && !decided;
-    return Stack(
-      children: <Widget>[
-        ExcludeFocus(
-          excluding: asking,
-          child: ExcludeSemantics(excluding: asking, child: widget.child),
-        ),
-        if (asking) const _ConsentPrompt(),
-      ],
+    return AppLifecycleFlush(
+      // Fire-and-forget: the framework will not wait, and a failed send just
+      // leaves the batch queued for next launch. The guarantee lives in core's
+      // `kFlushInterval` deadline; this only makes the common case earlier.
+      onBackground: () => ref.read(analyticsProvider).valueOrNull?.flush(),
+      child: ConsentScrim(
+        asking: asking,
+        prompt: const _ConsentPrompt(),
+        child: widget.child,
+      ),
     );
   }
 }
@@ -440,131 +325,23 @@ class _NotificationTapGateState extends ConsumerState<_NotificationTapGate> {
   }
 }
 
-/// The consent question. Deliberately plain Material so a stamped app owes the
-/// design system nothing for it — restyle freely, but keep BOTH answers equally
-/// prominent (see below).
+/// The consent question's ADAPTER half.
+///
+/// 🏗️ The card is [ConsentPromptCard]. What stayed is the one WRITER:
+/// `recordAnalyticsConsent(ref, granted:)`, which `assert-seams-wired.mjs`
+/// requires a non-test caller for and which is Riverpod besides. Not awaited:
+/// the decision applies in memory immediately and the upload is best-effort, so
+/// blocking the button on a network round trip would only make a declined choice
+/// feel like a broken one.
 class _ConsentPrompt extends ConsumerWidget {
   const _ConsentPrompt();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ThemeData theme = Theme.of(context);
-    final ChassisLocalizations l10n = context.chassisL10n;
-    return Positioned.fill(
-      // 🔴 THE DIALOG ROLE, RESTORED BY HAND. `ModalRoute` sets `scopesRoute`
-      // on every pushed route; an inline scrim is not a route and gets none of
-      // it, so a screen reader had no way to say a decision was being asked
-      // for. With the background excluded above, this node is the whole
-      // accessible tree while the question is open.
-      child: Semantics(
-        scopesRoute: true,
-        namesRoute: true,
-        explicitChildNodes: true,
-        label: l10n.consentTitle(AppConfig.appName),
-        child: ColoredBox(
-          color: Colors.black54,
-          // KEEPS `Center`, takes only the WIDTH from the chassis. This is a
-          // modal scrim over a dimmed app: sitting in the middle of the screen
-          // is the design, not an accident, so `ContentPane` (which pins to the
-          // top) would be the wrong primitive here. The 420 literal is gone
-          // either way — that was the copy, repeated in five other files.
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AppBreakpoints.form,
-                ),
-                child: Material(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  // Clipped because the content now scrolls: without it the
-                  // first and last lines paint over the rounded corners as they
-                  // pass under them.
-                  clipBehavior: Clip.antiAlias,
-                  // 🔴 SCROLLABLE, AND THIS IS A DEFECT REPAIR WITH A NUMBER ON
-                  // IT — NOT DEFENSIVE PADDING. `Column(mainAxisSize: min)`
-                  // inside `Center` is unbounded in the way that matters: it
-                  // takes the height it wants and overflows the screen when the
-                  // text is large. Measured on the real app at the largest text
-                  // this chassis PERMITS (`maxScaleFactor: 2.0` in the builder
-                  // above — 2.0 is in range by design, not an extreme):
-                  //   · 360×640 @2.0 en → RenderFlex overflowed by 644 px
-                  //   · 360×640 @2.0 ta → 1180 px
-                  // and the "Allow" button's rect came back at y 1140→1220 on a
-                  // 640-tall screen, i.e. entirely below the fold with no way to
-                  // reach it. The control was clean at the same size with the
-                  // scrim off, so the overflowing box was this Column and not a
-                  // screen beneath it. An unanswerable modal is worse than an
-                  // ugly one: `ColoredBox` is hit-test-opaque, so the app was
-                  // unusable, and because the recorder is fail-closed the
-                  // silence would have looked exactly like a user who declined.
-                  //
-                  // KEEP THE SCROLL VIEW. A stamped app is free to restyle this
-                  // card; deleting the scroll view re-opens the defect, and
-                  // `assert-consent-withdrawal-surface.mjs` limb 4 fails the
-                  // build for every root if it goes.
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            l10n.consentTitle(AppConfig.appName),
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            l10n.consentBody,
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.consentPrivacy,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 16),
-                          // Both answers get the same size and weight ON
-                          // PURPOSE. A prominent "Allow" beside a faint "No
-                          // thanks" is the dark pattern consent rules exist to
-                          // stop, and it also poisons the data with pressured
-                          // yeses.
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => _answer(ref, granted: false),
-                                  child: Text(l10n.consentDecline),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: () => _answer(ref, granted: true),
-                                  child: Text(l10n.consentAllow),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return ConsentPromptCard(
+      appName: AppConfig.appName,
+      onAnswer: ({required bool granted}) =>
+          recordAnalyticsConsent(ref, granted: granted),
     );
-  }
-
-  void _answer(WidgetRef ref, {required bool granted}) {
-    // Not awaited: the decision applies in memory immediately and the upload is
-    // best-effort, so blocking the button on a network round trip would only
-    // make a declined choice feel like a broken one.
-    recordAnalyticsConsent(ref, granted: granted);
   }
 }

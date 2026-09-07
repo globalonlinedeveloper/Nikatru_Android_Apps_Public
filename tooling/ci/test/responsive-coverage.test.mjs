@@ -190,7 +190,14 @@ describe('the guard says YES on the tree as it is', () => {
     );
     assert.match(out, /\{\{app_id\}\} \(brick template, declared by tooling\/bricks\/app\/brick\.yaml\)/);
     assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
-    assert.match(out, /packages\/chassis_screens: 12 surface\(s\) reachable, 12 measured — the two sets are EQUAL/);
+    // 17 since 2026-09-07 ([ADR 067] phase 2, unit app-shell): NikatruApp,
+    // ConsentScrim, ConsentPromptCard, OfflineBannerHost and AppLifecycleFlush
+    // arrived with test/app_shell_view_test.dart, which pumps all five at all
+    // three window classes. The number is read off the guard's own per-root
+    // line, and it is PINNED here for the same reason the root line is: the root
+    // staying at reachable == measured is the property, and "17 reachable, 12
+    // measured" would print as a cheerful report-mode line if it ever slipped.
+    assert.match(out, /packages\/chassis_screens: 17 surface\(s\) reachable, 17 measured — the two sets are EQUAL/);
 
     assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
     assert.match(
