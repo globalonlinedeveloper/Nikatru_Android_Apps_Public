@@ -12,7 +12,7 @@
   "app-yaml.test.mjs": 54,
   "appimage-signing.test.mjs": 73,
   "apple-privacy-manifest.test.mjs": 42,
-  "apple-signing.test.mjs": 107,
+  "apple-signing.test.mjs": 114,
   "appstore-submission.test.mjs": 37,
   "artifact-shape.test.mjs": 25,
   "artifact-signed-apple.test.mjs": 35,
