@@ -158,9 +158,66 @@ These replaced **18 copies of the setup-node block and 14 of the
 flutter-action block**, and five separate `FLUTTER_VERSION: '3.47.2'` env
 declarations.
 
+### 5.1 Moving a version: one command, and one thing it does not do
+
+Renovate's `customManager` moves the value in `tooling/versions.json` and
+nothing else — that is the whole design — so
+`tooling/ci/assert-version-consistency.mjs` then refuses the build until every
+call site follows. It names each one, with file, line, current value and wanted
+value. To move all of them:
+
+```bash
+node tooling/scripts/propagate-versions.mjs          # dry run: what would move
+node tooling/scripts/propagate-versions.mjs --write  # move it
+```
+
+It imports the guard's own rule table and target discovery rather than carrying
+a second copy, so it can only ever write sites the guard reads, and the two
+cannot drift apart. It **refuses the whole run (exit 2) and writes nothing** at
+any site that cannot hold the declared value — the `java` and `node` floors that
+`renovate.json` explains at length, where five of java's eight sites are enum
+constants, an apt package name and a JVM directory with no patch spelling.
+`17 -> 21` is expressible and it will write all eight; `17 -> 17.0.20+8` is not,
+and refusing is the design rather than a gap (PR #316 is what that proposal
+looks like when nothing refuses: red forever, closable only by hand). It also
+refuses to touch the gitleaks constant in `tooling/ci/scan-secrets.mjs`, which
+records the release its byte-volume parser was *measured* against and moves with
+the canary lines beside it.
+
+**It does not touch `pubspec.lock`, and a `melos` bump needs that too.** The
+workspace gate runs `flutter pub get --enforce-lockfile`, so moving the
+`melos:` dev_dependency without the lock's `melos` entry fails the resolve. That
+entry is two lines — the version and the `sha256` from
+`https://pub.dev/api/packages/melos` — and it is the *only* line that may move:
+a plain `flutter pub get` on a machine whose Flutter is not the pinned one
+re-resolves the SDK-pinned packages and downgrades `intl`, `vector_math` and the
+`test` trio in the root lockfile, which is the trap CLAUDE.md records.
+
+**Why this is a command and not a Renovate `postUpgradeTask`.** Self-hosted
+Renovate can run one (`.github/workflows/renovate.yml` uses
+`renovatebot/github-action`, and `allowedCommands` would have to be added there
+as `RENOVATE_ALLOWED_COMMANDS`), and the token demonstrably can push workflow
+files — PR #131 and #268 are Renovate commits under `.github/workflows/`. Three
+things stop it being an improvement today:
+
+1. **A refusal would suppress the proposal instead of surfacing it.** This
+   script exits non-zero exactly where `renovate.json` wants a PR *surfaced and
+   red* — `gitleaks`, `glitchtip_cli`, the floor class. A `postUpgradeTask` that
+   fails does not leave a red PR behind in any version this repo has run, and
+   turning a loud red into a missing PR is the failure mode §8 exists to prevent.
+2. **It would not make a `melos` bump green anyway**, because of the lockfile
+   above — so the claim "the PR arrives in sync" would be false for the very
+   bump that motivated this.
+3. **It could not be proven here.** Renovate runs daily at 03:00 and the option
+   name changed in Renovate 39; a claim about an unattended write path that
+   nothing in the tree can re-derive is the kind this repo does not keep.
+
+Re-open it when the failure semantics are measured against the pinned Renovate
+image rather than reasoned about.
+
 ## 6. Secrets the owner still has to add
 
-17 secrets exist. **15 are referenced by a workflow and do not exist**, at
+17 secrets exist. **26 are referenced by a workflow and do not exist**, at
 repository or environment level. Every path that needs one fails closed with a
 named secret rather than skipping — see §4 — so nothing here is a silent pass;
 it is a lane that cannot run until the credential is created.
@@ -184,6 +241,24 @@ it is a lane that cannot run until the credential is created.
 | `WINDOWS_CODESIGN_PASSWORD` | `build-platforms.yml` | as above |
 | `SNAPCRAFT_STORE_CREDENTIALS` | `submit-snap.yml` | the Snap live upload path |
 | `APPIMAGE_SIGNING_KEY_B64` | `build-platforms.yml` | AppImage unsigned |
+| `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` | `submit-snap.yml` | the Snap lane refuses a credential whose expiry it cannot read — the date passed to `snapcraft export-login --expires`, recorded because the exported blob's format is documented nowhere |
+| `AMO_JWT_ISSUER` | `extensions.yml` | the Firefox (AMO) submission — the ONE store whose API can make a first submission |
+| `AMO_JWT_SECRET` | `extensions.yml` | as above |
+| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the daily `cws-token-keepalive` job |
+| `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
+| `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
+| `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |
+| `EDGE_CLIENT_ID` | `extensions.yml` | the Edge Add-ons v1.1 four-call submission |
+| `EDGE_API_KEY` | `extensions.yml` | as above |
+
+**The two listing ids are NOT secrets, and stopped being repository ones on 2026-09-07.** `CWS_ITEM_ID` and
+`EDGE_PRODUCT_ID` were rows in this table until then. They identify a listing and authenticate nothing, and the
+extensions release lane is multi-tool by construction — `.github/workflows/extensions.yml` derives the tool from the
+tag `<tool>-v<semver>` — so one repository-wide value meant a second extension's tag would upload its package to the
+FIRST tool's listing and print `SUBMITTED` naming the second: a wrong success in the one act this repository treats as
+irreversible. Each tool now declares its own destination at `extensions/Extension/<tool>/tool.json`
+`storeMetadata.stores.chrome.listingId` / `.edge.listingId`, and `extensions/scripts/publish-cws.mjs` /
+`publish-edge.mjs` REFUSE while it is `null` rather than falling back to anything.
 
 The Apple items are gated on hardware, not on money: there is no web enrolment
 in India, so the developer account cannot be created from this machine.

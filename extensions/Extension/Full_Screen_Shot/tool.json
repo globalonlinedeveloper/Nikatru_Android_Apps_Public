@@ -62,6 +62,8 @@
     "stores": {
       "chrome": {
         "target": "chromium", "dir": "store/chrome", "served": false,
+        "listingId": null,
+        "_listingIdWhy": "THE CHROME WEB STORE ITEM ID, AND IT BELONGS TO THIS TOOL RATHER THAN TO THE REPOSITORY. It was a repository-global secret CWS_ITEM_ID until 2026-09-07; on a lane that is multi-tool by construction (.github/workflows/extensions.yml derives the tool from the tag `<tool>-v<semver>`) a repository-global destination means a SECOND extension's tag uploads its zip to THIS tool's listing and prints SUBMITTED naming the other tool — failing open into the one act this repository treats as irreversible. Issued by the store at the first MANUAL publish (ADR 067 decision 8) and not derivable, so it is null until that publish happens and extensions/scripts/publish-cws.mjs REFUSES while it is null.",
         "limits": {
           "title.txt": { "max": 75, "source": "https://developer.chrome.com/docs/extensions/reference/manifest/name (fetched 2026-08-20) — verbatim: \"short, plain text string (maximum of 75 characters)\"" },
           "short-description.txt": { "max": 132, "source": "https://developer.chrome.com/docs/webstore/best-listing (fetched 2026-08-20) — verbatim: \"132 characters or less\"" }
@@ -69,6 +71,8 @@
       },
       "edge": {
         "target": "chromium", "dir": "store/edge", "served": false,
+        "listingId": null,
+        "_listingIdWhy": "THE MICROSOFT EDGE ADD-ONS PRODUCT ID, per tool for the same reason the Chrome item id is: it was the repository-global secret EDGE_PRODUCT_ID until 2026-09-07 and a second extension's release would have addressed this tool's Partner Center product. Shown on the extension overview page in Partner Center; issued at the first MANUAL publish and not derivable, so it is null until then and extensions/scripts/publish-edge.mjs REFUSES while it is null.",
         "manifestPatch": null,
         "_patchWhy": "Microsoft documents exactly two required edits to a Chrome package: remove `update_url`, and rebrand if the name or description says 'Chrome'. FullShot's manifest carries no update_url and its name is __MSG_appName__ — measured 2026-08-20 — so no patch is needed TODAY. The key is present and null so that the day one is needed it is a value, not a new mechanism.",
         "limits": {
@@ -77,6 +81,8 @@
       },
       "firefox": {
         "target": "firefox", "dir": "store/firefox", "served": false,
+        "listingId": "fullshot@nikatru.com",
+        "_listingIdWhy": "THE ADD-ON ID, AND IT IS THE ONE LISTING IDENTITY THIS FACTORY OWNS. AMO reads it from the manifest in web-ext's --source-dir rather than from a URL path, so extensions/scripts/publish-amo.mjs names no id at all and this row is DECLARATIVE: it records what the package carries so a reader can see all three destinations in one place. It is not null because Mozilla does not issue it — we do, in the package — which is the same fact that makes AMO the only store whose API can make a first submission.",
         "limits": {
           "short-description.txt": { "max": 250, "source": "https://extensionworkshop.com/documentation/develop/create-an-appealing-listing/ (fetched 2026-08-20) — verbatim: \"The summary description for your add-on is limited to 250 characters\"" }
         }

@@ -35,7 +35,6 @@ export const STATES = new Set(['WIRED', 'IMPORTED', 'LIBRARY', 'NOT-CI-RUNNABLE'
 
 const CI_REL = 'tooling/ci';
 const DOD_REL = 'tooling/dod-register.json';
-const HEADER_LINES = 60;
 
 export class CoverageLost extends Error {
   constructor(lines) {
@@ -82,8 +81,45 @@ const idRun = (text, from, into) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE WINDOW IS EVERY COMMENT LINE, NOT THE FIRST 60.
+//
+// From 2026-08 until 2026-09-07 this reader began `source.split(…).slice(0, 60)`
+// and a `const HEADER_LINES = 60` stood above it. That cap was never a contract.
+// It was a cheap stand-in for the word "header", and it silently decided what
+// the index was allowed to know. Re-measured on the tree at ec404f0d with this
+// file's own ADR regex: 156 enforcers in tooling/ci, 65 cite an ADR on a comment
+// line, and 30 of those cite one ONLY below line 60 — so tooling/enforcement-
+// index.json recorded the ADR claim of none of them. 223 citations in all were
+// outside the cap.
+//
+// The tell was already in the tree, written by hand twice. Two guards carry a
+// paragraph explaining that their own citation had to be MOVED to survive the
+// window — assert-workflow-hardening.mjs, whose F-11 line slid to 64 when a limb
+// was documented and stopped being derived at all, and assert-deletion-control
+// .mjs, whose C-15 slid from 47 to 89 and vanished from its row "without a
+// word". A window that a later paragraph can evict is not a window; it is a race
+// between prose and a derived artefact, and prose wins by accident.
+//
+// ⛔ WHAT DID NOT CHANGE, AND MUST NOT. The SELECTION RULE is untouched: a
+// citation counts when it stands on a COMMENT line (`//`, `*`, `/*`, `#!`) and
+// never when it stands in executable code. A requirement id inside a string
+// literal is FAILURE TEXT, not a claim — several guards name their requirement
+// only in the message they print — and the canary below still holds that line.
+// Only the cap is gone. Widening the RULE instead of the window would compile
+// every failure message in the tree that quotes a bracketed ADR id into a claim
+// no guard makes.
+//
+// ⛔ AND IT IS NOT "THE LEADING COMMENT BLOCK" EITHER. That was the other
+// candidate and it LOSES claims: measured the same way on the same tree, ending
+// the window at the first non-comment line dropped K-10, P-5, B-2, F-10 and
+// ADR 066 from four rows, because those guards open with a short banner, import,
+// and then explain themselves in the next comment block down. A change that
+// deletes true rows in order to add true rows is not a fix, and an index that
+// forgets is worse than an index that under-collects in one known direction.
+// ─────────────────────────────────────────────────────────────────────────────
 export const readCitations = (source, selfName, siblingNames) => {
-  const lines = source.split(/\r?\n/).slice(0, HEADER_LINES);
+  const lines = source.split(/\r?\n/);
   const claims = new Set();
   const references = new Set();
   for (let i = 0; i < lines.length; i++) {
@@ -245,12 +281,23 @@ const canaries = () => {
   const deny = c('// [pipeline SHA-256 · UTF-8] · [INV-505] · [10]CFG-1 · [ADR-15]\n');
   const prose = c('// Pipeline requirement: Private/requirements/ → F-8.\n');
   const attrib = c('//   · [3]S-7a  assert-other.mjs — CATALOGUE REACHABILITY\n');
+  // ── THE WINDOW CANARIES ────────────────────────────────────────────────────
+  // Both halves of the 2026-09-07 widening, pinned. A citation 81 lines down IS
+  // read, which is what the old `slice(0, 60)` refused; and the SAME citation 81
+  // lines down inside a string literal still is not, which is the rule the
+  // widening had to leave alone. Re-introducing any line cap fails the first;
+  // widening the rule from "comment line" to "any line" fails the second.
+  const filler = Array.from({ length: 80 }, (_, i) => '// filler ' + (i + 1)).join('\n');
+  const deepComment = c(filler + '\n// [ADR 067] far below any header window\n');
+  const deepLiteral = c(filler + "\nconsole.error('  [ADR 067] far below any header window');\n");
   const bad = [];
   if (comment.claims.join(',') !== 'D-4,D-5') bad.push(`a bracket citation in a comment read as [${comment.claims}] (must be D-4,D-5)`);
   if (literal.claims.length || literal.references.length) bad.push(`the SAME citation inside a string literal read as [${literal.claims}] (must be empty)`);
   if (deny.claims.join(',') !== 'ADR 015') bad.push(`SHA-256 / UTF-8 / INV-505 / CFG-1 / [ADR-15] in claim position read as [${deny.claims}] (must be ADR 015 alone)`);
   if (prose.claims.join(',') !== 'F-8') bad.push(`the prose declaration form read as [${prose.claims}] (must be F-8)`);
   if (attrib.claims.length || attrib.references.join(',') !== 'S-7a') bad.push(`a routing-table line crediting another guard read as claims [${attrib.claims}] / references [${attrib.references}] (must be [] / S-7a)`);
+  if (deepComment.claims.join(',') !== 'ADR 067') bad.push(`a comment citation 81 lines down read as [${deepComment.claims}] (must be ADR 067 — a line cap is back)`);
+  if (deepLiteral.claims.length || deepLiteral.references.length) bad.push(`the SAME citation 81 lines down in a STRING LITERAL read as [${deepLiteral.claims}] (must be empty)`);
   if (bad.length) lose(['the citation reader no longer reads what it is documented to read.', ...bad]);
 };
 
