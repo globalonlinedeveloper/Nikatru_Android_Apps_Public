@@ -118,9 +118,22 @@ class NikatruApp extends StatelessWidget {
       // The store screenshot capture runs through `flutter drive`, which builds
       // in DEBUG — so every captured frame would otherwise carry Flutter's red
       // DEBUG ribbon and the listing would advertise an unfinished build. It is
-      // one identifier and nothing else is holding it;
-      // `tooling/ci/assert-listing-assets.mjs` follows the delegation from each
-      // app's `lib/app.dart` to find it here.
+      // one identifier and nothing else is holding it.
+      //
+      // 🔴 AND NOTHING GUARDS THIS LINE TODAY. CORRECTED 2026-09-07 ([ADR 067]
+      // phase 2b, unit app-shell-residues). This comment claimed that
+      // `tooling/ci/assert-listing-assets.mjs` "follows the delegation from each
+      // app's lib/app.dart to find it here" — WITHDRAWN. That limb iterates
+      // `catalog/apps.json` (`assert-listing-assets.mjs:156`) and reads
+      // `apps/<slug>/lib/app.dart` plus what THAT file delegates to; the brick
+      // template, where the delegation lives, is not in its domain. The
+      // catalogue holds one app, `apps/subly`, and it does not delegate — it
+      // sets the flag inline at `apps/subly/lib/app.dart:44` ([ADR 065]: Subly
+      // does not adopt the packages this phase). Measured, not read: deleting
+      // this line from THIS file (land-check `grep -c` 1 → 0) left
+      // `assert-listing-assets` at EXIT 0. Registered as an `open.json` row
+      // rather than described, because widening that limb's domain to the brick
+      // template edits a guard this unit does not own.
       debugShowCheckedModeBanner: false,
       localizationsDelegates: localizationsDelegates,
       supportedLocales: supportedLocales,
