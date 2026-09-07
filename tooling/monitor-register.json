@@ -91,7 +91,24 @@
       "whose name does not start with an underscore as a derivation source and reports COVERAGE LOST",
       "when one yields no row. Prose belongs at the top level of this file or behind a leading",
       "underscore — a note filed here as a bare key fails [14]O-2's derivation, which is how the first",
-      "attempt was caught."
+      "attempt was caught.",
+      "",
+      "⏱ 2026-09-07 — THIS HATCH NOW CARRIES FIVE ROWS, NOT ONE, AND THE SENTENCE ABOVE IS APPENDED TO",
+      "RATHER THAN REWRITTEN. glitchtip.nikatru.com was joined by the four Box B services — ntfy, vault,",
+      "beszel and logs (gap G4 of the 2026-09-07 end-to-end audit: 'nothing watches the pager'). The",
+      "widening is DELIBERATE and its bound is unchanged, which is the only reason it is safe:",
+      "  · A DEPLOYED HOST CANNOT HIDE IN HERE. assert-monitor-coverage.mjs's dead-row limb reaches a",
+      "    row only after `if (derived.has(h)) continue;` — every hostname the three derived sources",
+      "    produce is checked by the undeclared limb no matter what its `derivedFrom` says. So the hatch",
+      "    can admit a host the tree does not deploy; it can never excuse one the tree does.",
+      "  · role: \"observability\" is still capped at EXACTLY ONE row by the same guard. The bound was",
+      "    never the count of `declared` rows — it was that one, and it still holds.",
+      "  · The 2026-09-03 revert was NOT about the count either. It was reason 2: a row here is an entry",
+      "    in [14]O-2's unauthenticated probe set, and api-auth.nikatru.com would have gone red while",
+      "    healthy. ntfy and vault answer an unauthenticated 200 with a probeable body, measured before",
+      "    the rows were written; beszel and logs cannot be probed from outside without weakening",
+      "    Cloudflare Access, so they carry `monitor: null` and a stated gap and never enter the probe",
+      "    set at all. The reason that reverted the first attempt is answered, not overridden."
     ]
   },
 
@@ -211,7 +228,40 @@
     "other cron row in tooling/ops/register.json is watched by a monitor on its own machine, which is",
     "the failure `observability.spof` below is about. The auth box dying leaves the monitors, the alert",
     "evaluation and both notification hops alive. It does not narrow `observability.spof` — that gap is",
-    "about the SERVICES box, where all of this watching lives, and it is exactly as open as it was."
+    "about the SERVICES box, where all of this watching lives, and it is exactly as open as it was.",
+    "",
+    "───────────────────────────────────────────────────────────────────────────────────────────────",
+    "⏱ 2026-09-07 — THE 2026-09-05 BLOCK ABOVE IS SUPERSEDED IN ONE SENTENCE AND LEFT STANDING IN THE",
+    "REST. That block's ⚠️ line reads 'NOTHING WATCHES THE FOUR HOSTNAMES'. As of today two of the four",
+    "are watched and the other two are ROWS in `hosts` above rather than paragraphs here, so this file",
+    "no longer needs a block to say they exist. The 2026-09-05 wording is kept verbatim because it was",
+    "true on its date and because the reasoning in it — why a Heartbeat has no hostname, why an",
+    "Access-fronted host cannot be probed from outside — is unchanged and still load-bearing.",
+    "",
+    "WHAT ACTUALLY CHANGED (gap G4 of the 2026-09-07 end-to-end audit, 'nothing watches the pager'):",
+    "  · monitor 31 `ntfy.nikatru.com`  — GET https://ntfy.nikatru.com/v1/health, 200, body",
+    "    \"healthy\":true, every 60 s, confirmationThreshold 2, project `ops`. Created 06:34:49Z.",
+    "  · monitor 32 `vault.nikatru.com` — GET https://vault.nikatru.com/alive, 200, body Z\", every",
+    "    60 s, confirmationThreshold 2, project `ops`. Created 06:34:49Z, and PROVEN BY BREAKING IT the",
+    "    same hour: down at 06:37:06Z, on the phone topic at 06:37:09Z, restored and back up at",
+    "    06:38:17Z. The full record is in that row's `closedGap.🔴 forcedDownProof`.",
+    "  · beszel.nikatru.com and logs.nikatru.com are rows with `monitor: null` and a stated gap, so",
+    "    assert-monitor-coverage.mjs names them on stdout on every single run.",
+    "Both new ids are in tooling/ops/alarm-chains.json → expectedMonitors, which is still the only",
+    "guard in the tree that fails when a monitor is deleted and recreated.",
+    "",
+    "🔴 AND IT NARROWS `observability.spof` BY NOTHING AT ALL, for the third time in this file. The two",
+    "new monitors run inside GlitchTip on Box B; ntfy runs on Box B; the webhook hop is on Box B. If",
+    "that box is gone, the pager and the thing watching the pager are gone together and neither says",
+    "so. What the ntfy monitor buys is the failure that actually happens to containers — one service",
+    "down while the box is up — and in that case the alert leaves by alert rule 2's EMAIL recipient,",
+    "through Resend, off this box. E-9b is exactly as open as it was on 2026-08-03.",
+    "",
+    "📌 STILL UNDECLARED, MEASURED THE SAME DAY: live monitors 29 `Laptop routine: ops check` and 30",
+    "`Laptop routine: CI watchdog` (Heartbeats, created 2026-09-06) are in NEITHER this file (correctly",
+    "— a Heartbeat has no hostname) NOR alarm-chains.json → expectedMonitors (which is the gap: nothing",
+    "would notice either being deleted). Named here rather than fixed because they are the routines",
+    "unit's rows, not this one's."
   ],
 
   "hosts": [
@@ -316,6 +366,62 @@
         "closedOn": "2026-08-05",
         "howItWasClosed": "Created via the GlitchTip API and exercised with the production perform_checks task against https://config.nikatru.com/config/subly — up, 36 ms.",
         "note": "⚠️ THE MONITORED PATH NAMES ONE APP. `/config/:app` is per-app, so a monitor has to pick one, and `subly` is the only shipping client today. When a second app ships, this checks that the config surface ANSWERS, not that the second app's config exists — and nothing here will say so. Revisit when the portfolio grows past one client."
+      }
+    },
+    {
+      "hostname": "ntfy.nikatru.com",
+      "what": "ntfy v2.28.0 on Box B — THE PAGER. Every GlitchTip alert this platform raises leaves through this host, and until 2026-09-07 nothing watched it",
+      "derivedFrom": "declared",
+      "why": "No wrangler.jsonc route, no catalog/apps.json field and no site canonical names it — this repository does not deploy Box B — so the three derived sources structurally CANNOT produce it, which is the same position glitchtip.nikatru.com has always been in. It is filed here anyway because it is the LAST HOP OF EVERY ALARM THIS TREE RAISES: a hostname that carries the alerts and is not itself watched is the one absence that cannot announce itself. And it does not repeat the 2026-09-03 api-auth mistake: it answers an unauthenticated 200 with a JSON document, so [14]O-2 can probe it without reddening a healthy surface.",
+      "monitor": { "id": 31, "name": "ntfy.nikatru.com", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "expectedBody": "\"healthy\":true", "confirmationThreshold": 2, "intervalSeconds": 60, "verifiedOn": "2026-09-07" },
+      "closedGap": {
+        "why": "`phase3a-ntfy.md` §9.5 named this on the day ntfy shipped and left it: \"Nothing checks that ntfy is up… a GET monitor whose ONLY alert path is the ntfy webhook is a circular alarm\". The 2026-09-07 end-to-end audit re-measured it as gap G4 — `list_monitors` → 20 monitors, none for vault./ntfy./beszel./logs.; `grep -ci ntfy tooling/ops/register.json` → 16, all as the alert ROUTE, none as a watched service.",
+        "openedOn": "2026-09-05",
+        "closedOn": "2026-09-07",
+        "howItWasClosed": "POST /api/0/organizations/nikatru/monitors/ → HTTP 201, id 31, with `project` sent as the STRING \"2\" (project `ops`) in the creation body — monitor 6's defect is a monitor that belongs to no project, therefore to no alert rule, therefore to no recipient. Read back at 2026-09-07T06:35:15Z: projectName `ops`, and TWO REAL SCHEDULED CHECKS already recorded, up in 38 ms and 82 ms. That matters: every GlitchTip save writes an instant `isUp:false, responseTime:0` row before any real check lands, so a monitor is only evidence once a row with a non-zero responseTime follows — which is precisely the control that showed the SSL monitor type is broken on this instance (see `observability.🔴 tlsExpiry`).",
+        "🔴 theCircularityIsRealAndTheAnswerIsTheEmailLegNotACleverierShape": "A monitor on the pager, hosted by the thing that pages, cannot report the case where the whole box is gone. That case is `observability.spof` / [pipeline E-9b], it is owner-gated, and NOTHING in this change narrows it. What this monitor DOES catch is the failure that has actually happened to containers on this estate: ntfy down, or its tunnel route lost, while Box B and GlitchTip are up. In that case the alert leaves by the OTHER recipient on the same rule — alert rule id 2 in project `ops` carries an email recipient (id 2) as well as the ntfy webhook (id 6), measured 2026-09-07 — and email leaves through Resend, off this box entirely. So the alarm about the dead pager does not travel through the dead pager.",
+        "whyNotAHeartbeatOfThePager": "The alternative shape — something publishes to `nikatru-page`, reads it back and beats a GlitchTip Heartbeat — was considered and REJECTED. It needs a new publisher, a new credential in a new place, and it is still evaluated by GlitchTip on the same box: it buys end-to-end reach at the cost of a moving part and narrows nothing that matters. The residual failure both shapes share is the box, and the box is E-9b. Recorded so the next reader does not re-derive it.",
+        "note": "The monitored path is ntfy's own `/v1/health`, which answers `{\"healthy\":true}` unauthenticated — `auth-default-access: deny-all` governs topics, not this endpoint — measured 2026-09-07, 17 bytes. The body matcher is `\"healthy\":true` with NO SPACE after the colon, byte-checked against the live response; the near-miss with a space is exactly the silently-permissive matcher this file warns about on monitor 11."
+      }
+    },
+    {
+      "hostname": "vault.nikatru.com",
+      "what": "Vaultwarden 1.37.2 on Box B — the human password vault, and the custody path every credential in this platform is recovered through",
+      "derivedFrom": "declared",
+      "why": "Same structural reason as ntfy: this repository does not deploy Box B, so no derivation source can name it. It is filed because a vault nobody can reach is a recovery path nobody can walk, and because it is one of exactly two of the four Box B hostnames that answer an unauthenticated 200 and can therefore be watched from outside without weakening anything.",
+      "monitor": { "id": 32, "name": "vault.nikatru.com", "type": "GET", "expectedStatus": 200, "expectedBody": "Z\"", "confirmationThreshold": 2, "intervalSeconds": 60, "verifiedOn": "2026-09-07" },
+      "⚠️ theLiveMonitorTargetsAliveAndThisRowDeclaresNoPathOnPurpose": "That asymmetry is the point, not an omission. `path` is not decoration in this register: tooling/ops/status.mjs reads it as \"this surface is DATA-BEARING\" and then requires the body to parse as JSON *and* carry something. `GET https://vault.nikatru.com/alive` answers 200 with `\"2026-09-07T06:31:44.496919Z\"` — a JSON SCALAR, not a document — measured 2026-09-07, so a row declaring that path would make [14]O-2 report `vacuous` RED on a service that is perfectly up. That is the failure that forced the 2026-09-03 api-auth.nikatru.com row to be reverted, and this file's rule is that a register entry which reddens a healthy surface teaches people to ignore the prober. With no `path`, O-2 probes the door — `https://vault.nikatru.com/`, measured 200 with a 23,139-byte web-vault shell — and GlitchTip keeps the stricter endpoint check. THE ROW THEREFORE CLAIMS LESS THAN THE LIVE MONITOR ASSERTS, NEVER MORE, which is the safe direction and the one `api.nikatru.com`'s `openBodyGap` block also takes.",
+      "closedGap": {
+        "why": "Named as gap G4 by the 2026-09-07 end-to-end audit and, before that, by this file's own 2026-09-05 `_notInThisRegister` block: \"NOTHING WATCHES THE FOUR HOSTNAMES… any of them can be down indefinitely with every guard in this repo green\".",
+        "openedOn": "2026-09-05",
+        "closedOn": "2026-09-07",
+        "howItWasClosed": "POST /api/0/organizations/nikatru/monitors/ → HTTP 201, id 32, `project` sent as the string \"2\" (`ops`). Read back at 2026-09-07T06:35:15Z with two real scheduled checks, up in 59 ms and 63 ms — a real ok record before anything watched it.",
+        "🔴 forcedDownProof": "THIS IS THE ONE MONITOR THAT WAS PROVEN BY BREAKING IT, because a monitor that has never gone down is a monitor whose alert path is unproven. 2026-09-07, all times UTC: 06:36:33 a full-replace PUT moved `url` to https://vault.nikatru.com/alive-forced-down-drill-2026-09-07 and the whole object was diffed before and after — `url` was THE ONLY field that moved, so `confirmationThreshold`, `project` and `expectedBody` all survived the replace (TRAPS ci-10). 06:36:34 first failing check (reason 2, wrong status) and `isUp` STAYED TRUE — the confirmationThreshold of 2 visibly doing its job. 06:37:06 second failing check → `isUp` false. 06:37:09 the page landed on the `nikatru-page` ntfy topic: \"GlitchTip Uptime Alert | vault.nikatru.com: The monitored site has gone down.\" — THREE SECONDS after the transition. 06:38:13 the PUT was reversed, again full-replace, again diffed: the only fields differing from the pre-drill object were `isUp` and `lastChange`, which are runtime state and not configuration. 06:38:14 the next check passed. 06:38:17 \"…is back up.\" on the same topic. Down transition to phone topic: 3 s. Up transition: 3 s.",
+        "note": "The body matcher is `Z\"` — the JSON-quoted UTC terminator of Vaultwarden's `/alive` timestamp. It is deliberately NOT a date fragment: a matcher containing `2026` would have to be edited on 1 January, and a matcher nobody maintains is one that silently starts failing. `Z\"` is absent from the tunnel's 502 page and from Cloudflare's edge error pages, both of which are HTML."
+      }
+    },
+    {
+      "hostname": "beszel.nikatru.com",
+      "what": "Beszel hub 0.19.0 on Box B — host metrics for BOTH boxes, including the read-only agent that is the ONE sanctioned exception to C-BOXA-SUPABASE-ONLY",
+      "derivedFrom": "declared",
+      "why": "Same structural reason as ntfy and vault — nothing in this tree deploys Box B. It is filed here WITH `monitor: null` rather than left as a paragraph in `_notInThisRegister` so that the absence is machine-read and PRINTED on every CI run, instead of being prose a reader has to find. \"Absent from this file\" and \"nobody has looked\" are indistinguishable; a null row with a stated reason is the difference.",
+      "monitor": null,
+      "gap": {
+        "why": "It sits behind Cloudflare Access, so from outside it answers 302 to the Access login — re-measured 2026-09-07, a 143-byte nginx redirect body. A GET monitor asserting 302 would be GREEN whenever the EDGE is healthy, because the 302 is produced at the edge BEFORE the origin is consulted (`phase3a-beszel-dozzle.md` §8 states exactly this). It would watch Cloudflare and read as coverage of Beszel — the same defect this file recorded for `Ping` monitors on 2026-08-11 and refused for SSL monitors on 2026-09-03.",
+        "action": "Do NOT weaken Access to make it probeable; a dashboard is not worth that trade. Two honest closures exist and neither belongs to the unit that filed this row: (a) an origin-side check on Box B beating a GlitchTip Heartbeat, which needs a cron on a box this repository does not own; (b) a Cloudflare Access service token on a bypass path, which is a change to the Access application itself. Until one is chosen, this row IS the coverage — it is the thing that says out loud, on every run, that nothing watches it.",
+        "openedOn": "2026-09-05"
+      }
+    },
+    {
+      "hostname": "logs.nikatru.com",
+      "what": "Dozzle v10.9.2 on Box B — read-only container logs for the services box",
+      "derivedFrom": "declared",
+      "why": "Same structural reason and the same choice as beszel.nikatru.com: filed with a null monitor so the gap is machine-read and printed rather than described in prose.",
+      "monitor": null,
+      "gap": {
+        "why": "Behind Cloudflare Access, 302 from outside — re-measured 2026-09-07, the same 143-byte redirect. Identical reasoning to beszel.nikatru.com: an edge-produced 302 tells you nothing about the origin.",
+        "action": "As beszel.nikatru.com. Note that of the four Box B services this is the LEAST consequential to lose — Dozzle reads logs and holds no state — which is why neither honest closure was worth buying for it today, and why that judgement is written down rather than left implicit.",
+        "openedOn": "2026-09-05"
       }
     }
   ],

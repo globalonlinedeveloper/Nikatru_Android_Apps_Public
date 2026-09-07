@@ -46,6 +46,17 @@
 // keys. What must never happen is the gap becoming INVISIBLE, so the count is
 // on stdout every single run, gap or no gap.
 //
+// ⏱ 2026-09-07 — THE SENTENCE ABOVE IS APPENDED TO, NOT REWRITTEN, AND HALF OF
+// IT IS WRONG. "work only the owner can do" is the claim
+// tooling/monitor-register.json's own `🔴 whyItStayedOpen` records as WRONG:
+// creating a monitor takes the vault GLITCHTIP_TOKEN and one POST, an agent has
+// now done it four times (ids 11, 12, 31, 32), and believing otherwise parked
+// the tree's highest-consequence unwatched host for three days. What survives is
+// the OTHER half, which is the real reason this prints: a guard that reddens
+// every branch over the state of a third-party instance gets disabled, and a
+// disabled guard checks nothing. The printed line below was corrected on the
+// same day for the same reason — see the note at the print itself.
+//
 // ⚠️ NO THRESHOLD IS CHECKED AND NONE IS INVENTED. "How many consecutive
 // failures should page, and how fast" has no derivable answer in this tree, so
 // this guard asserts nothing about it. The register records each monitor's
@@ -308,7 +319,17 @@ for (const [h, row] of [...byHost.entries()].sort()) {
 
 // ── the printed gap, on every run, pass or fail ─────────────────────────────
 if (gaps.length) {
-  console.log(`--   ${gaps.length} deployed hostname(s) with NO monitor — OWNER-GATED, printed not hidden:`);
+  // ⏱ 2026-09-07 — THIS LINE SAID "deployed hostname(s) … — OWNER-GATED" AND BOTH
+  // WORDS WERE FALSE. `declared` is the true set: limb 2 above admits a row for a
+  // hostname this repo does not deploy when it carries `derivedFrom: "declared"`
+  // and a `why`, and four such rows landed on 2026-09-07 for the Box B services
+  // (ntfy, vault — both with monitors — and beszel, logs — both behind Cloudflare
+  // Access, so each carries a stated gap instead). A gap printed here is
+  // therefore not necessarily a deployed host. "OWNER-GATED" went for the reason
+  // in the header note above. THE LIMB IS UNCHANGED: this is the wording of a
+  // print, not a check, and both halves the suite pins — that the gap is named on
+  // stdout and that the guard still exits 0 — are asserted exactly as before.
+  console.log(`--   ${gaps.length} declared hostname(s) with NO monitor — printed not hidden:`);
   for (const g of gaps) console.log(`       ${g}`);
   console.log('     Creating a monitor is an action on the GlitchTip instance, not a change to this repo, so');
   console.log('     this prints rather than failing the build. It stops being printed when it stops being true.');
