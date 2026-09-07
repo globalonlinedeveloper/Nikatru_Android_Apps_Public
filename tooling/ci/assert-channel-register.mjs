@@ -645,7 +645,49 @@ for (const c of channels) {
       typeof c.storeMetadataDir === 'string' && c.storeMetadataDir.includes('{app}'),
       'is a store channel with no `storeMetadataDir` template. [10]D-5 requires one metadata directory per declared channel, per app.',
     );
-    req(c.submittable === true, 'is a store channel but is not `submittable`. A store you cannot submit to is not a store channel.');
+    // ⏱ NARROWED 2026-09-07, AND THE NARROWING IS A NEW REQUIREMENT RATHER THAN
+    // A RELAXATION. This limb read `req(c.submittable === true, …)` — "a store
+    // you cannot submit to is not a store channel" — which was true of every app
+    // store this register had ever carried, because each of them publishes an
+    // API somebody could script. `apps-gov-in` is the first that does not:
+    // research/revamp-2026-09-05/09-selfhost-build-release.md §1.9 measured the
+    // Mobile Seva developer portal and found NO publishing API at all (the
+    // "APIs" it advertises are open-data APIs for apps to consume), so the
+    // channel is a manual web form forever, not until somebody writes a script.
+    //
+    // 🔴 AND THE OLD ABSOLUTE WAS UNSATISFIABLE AGAINST THE REST OF THE TREE.
+    // `submittable: true` forced the row into assert-publish-records.mjs's
+    // `submittableRows`, which refuses COVERAGE LOST on any such row with no
+    // complete `submission` block — correctly, since it cannot classify a
+    // publishing step that does not exist. So the two guards between them made
+    // the channel undeclarable, and "undeclarable" is exactly the state that let
+    // manifest.json claim an `apps-gov-in` store for two days with no register
+    // row anywhere (audit 2026-09-07 §4 N1).
+    //
+    // WHAT REPLACES IT IS STRICTER WHERE IT MATTERS. [10]D-10 quantifies over
+    // this flag, so a `false` must never be the duty being switched off quietly.
+    // A non-submittable store row therefore costs TWO things a `true` never did:
+    // it may carry no `submission` block (the same tie the extension branch has
+    // always made, in the same direction), and it must carry a written
+    // `noSubmissionApi` reason — which is PRINTED on every run, so the gap stays
+    // as visible as the `NO SUBMISSION PATH` print it replaces. A sentence a
+    // reviewer can disagree with is more than the flag alone ever offered.
+    const storeHasSubmission = c.submission !== null && c.submission !== undefined;
+    if (c.submittable !== true) {
+      req(
+        !storeHasSubmission,
+        'declares a `submission` block and is not `submittable`. A scripted submission path this register says cannot be used is a path nothing exercises — and it is the one shape in which `false` really is the [10]D-10 duty being switched off.',
+      );
+      const reason = typeof c.noSubmissionApi === 'string' ? c.noSubmissionApi.trim() : '';
+      if (
+        req(
+          reason.length >= 20,
+          'is a store channel that is not `submittable` and carries no written `noSubmissionApi` reason. [10]D-10 quantifies over this flag; a bare `false` is the duty disappearing with nothing for a reviewer to disagree with. Say which store publishes no submission API, and where that was measured.',
+        )
+      ) {
+        prints.push(`NO SUBMISSION API: channel "${c.id}" is a store channel this factory can never script — ${reason}`);
+      }
+    }
     // [10]D-4 "every store channel has a publisher account" is mapped by the
     // register's own _readme onto `kind=store + ownerQueue`. The id's CONTENTS
     // stay uncheckable in CI by design (Private/ is gitignored, and the _readme

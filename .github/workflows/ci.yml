@@ -267,6 +267,8 @@ jobs:
         run: node tooling/ci/assert-app-versioning.mjs
       - name: Every claimed channel is a served channel
         run: node tooling/ci/assert-channel-register.mjs
+      - name: Every store in the platform manifest has a channel row, and every store channel has a store
+        run: node tooling/ci/assert-store-bijection.mjs
       - name: No public surface advertises an unserved or dead channel
         run: node tooling/ci/assert-channel-claims.mjs
       - name: Every declared store channel has a complete, spec-derived listing
