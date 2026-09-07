@@ -68,6 +68,36 @@ jobs:
         with:
           persist-credentials: false
 
+      # why: THE TARGET IS VALIDATED IN ITS OWN STEP, FOR THE SAME REASON THE
+      # SITEKEY CHECK IS — AND THIS ONE WAS LEARNED THE EXPENSIVE WAY.
+      #
+      # `auth_target` is a `type: choice` with exactly the two options declared
+      # above, and the `schedule` trigger sends no input at all, so
+      # `${{ inputs.auth_target || 'hosted' }}` can only ever be `hosted` or
+      # `boxa`: this refusal is UNREACHABLE today. That is precisely why it may
+      # not live inside the secrets preflight. assert-green-means-ran.mjs
+      # section B1 asks whether a step that reads a secret and branches on its
+      # emptiness contains ANY `exit <n>` (:379-386) — it cannot tell WHICH
+      # branch exits. While this arm sat in step `pre`, deleting the REACHABLE
+      # missing-secret refusal left this unreachable `exit 1` standing and the
+      # guard stayed GREEN. Measured 2026-09-07 against head f045baf9, on a copy
+      # of .github/workflows/ with that one edit applied:
+      # `node tooling/ci/assert-green-means-ran.mjs <root>` EXIT 0, still
+      # printing "1 secret-presence check(s) fail closed"; the identical deletion
+      # on origin/main (c6f80ed4), whose step held one `exit`, gave EXIT 1.
+      # Hoisted here, step `pre` holds exactly ONE `exit` again and it is the one
+      # that protects the live suite.
+      - name: Preflight — auth_target must be one of the declared options
+        env:
+          TARGET: ${{ inputs.auth_target || 'hosted' }}
+        run: |
+          set -uo pipefail
+          if [ "$TARGET" != 'hosted' ] && [ "$TARGET" != 'boxa' ]; then
+            echo "::error title=E2E cannot run::auth_target \"$TARGET\" is not one of hosted, boxa."
+            exit 1
+          fi
+          echo "auth_target=${TARGET} is one of the two declared options."
+
       # why: THE TARGET IS NAMED HERE, AND EVERY INPUT THE RUN NEEDS IS CHECKED
       # HERE, AND IT FAILS CLOSED. Each of the three secrets for the chosen set
       # is checked for emptiness BY NAME, and a missing one ENDS the job naming
@@ -103,19 +133,21 @@ jobs:
           # `env:` bound to `secrets.*` — indirecting through `key="$HOSTED_KEY"`
           # first makes the preflight invisible to it, and an invisible preflight
           # is how e2e.yml green-skipped its own body once already.
-          if [ "$TARGET" = 'hosted' ]; then
-            prefix=SUPABASE
-            if [ -z "$HOSTED_URL" ];  then missing="${missing} SUPABASE_URL"; fi
-            if [ -z "$HOSTED_ANON" ]; then missing="${missing} SUPABASE_ANON_KEY"; fi
-            if [ -z "$HOSTED_KEY" ];  then missing="${missing} SUPABASE_SERVICE_ROLE_KEY"; fi
-          elif [ "$TARGET" = 'boxa' ]; then
+          # 🔴 ONE `exit` IN THIS STEP, AND IT IS THE MISSING-SECRET ONE. The
+          # unknown-target arm lives in its own step above; see its `# why:` for
+          # the two-tree measurement that forced the split. There is no `else`
+          # here that ends the job, so section B1's "does this step exit?" can
+          # only ever be answered by the refusal below.
+          if [ "$TARGET" = 'boxa' ]; then
             prefix=BOXA_SUPABASE
             if [ -z "$BOXA_URL" ];  then missing="${missing} BOXA_SUPABASE_URL"; fi
             if [ -z "$BOXA_ANON" ]; then missing="${missing} BOXA_SUPABASE_ANON_KEY"; fi
             if [ -z "$BOXA_KEY" ];  then missing="${missing} BOXA_SUPABASE_SERVICE_ROLE_KEY"; fi
           else
-            echo "::error title=E2E cannot run::auth_target \"$TARGET\" is not one of hosted, boxa."
-            exit 1
+            prefix=SUPABASE
+            if [ -z "$HOSTED_URL" ];  then missing="${missing} SUPABASE_URL"; fi
+            if [ -z "$HOSTED_ANON" ]; then missing="${missing} SUPABASE_ANON_KEY"; fi
+            if [ -z "$HOSTED_KEY" ];  then missing="${missing} SUPABASE_SERVICE_ROLE_KEY"; fi
           fi
           if [ -n "$missing" ]; then
             echo "::error title=E2E cannot run::auth_target=${TARGET} needs${missing}, and it is not set. The end-to-end proof did NOT run — this is a failed run, not a skipped one. Add or re-add the secret in Settings → Secrets and variables → Actions."
@@ -139,18 +171,22 @@ jobs:
       # §4.7). Run 34068306612 was exactly that run: green, define empty, and the
       # phase-3 brief refuses it as acceptance (scope §7.4.9).
       #
-      # 🔴 WHY IT IS NOT A LIMB OF THE STEP ABOVE. assert-green-means-ran.mjs
+      # 🔴 WHY IT IS NOT A LIMB OF THE SECRETS PREFLIGHT. assert-green-means-ran.mjs
       # section B1 asks whether a step that reads a SECRET and branches on its
-      # emptiness contains ANY `exit <n>` — it cannot tell which branch exits. A
-      # third refusal inside that one step therefore makes its own mutation case
+      # emptiness contains ANY `exit <n>` — it cannot tell which branch exits. An
+      # extra refusal inside that one step therefore makes its own mutation case
       # (green-means-ran.test.mjs "a secret-presence preflight that does not exit
-      # non-zero fails") pass while both secret refusals are gone: measured on
-      # this branch, EXIT 0 where the case expects 1. Splitting the sitekey out
-      # keeps that net at full strength and keeps the secrets preflight in the
-      # exact shape the guard already recognises. The coarseness of B1 is
-      # reported, not edited around — that guard and its suite belong to the
-      # store-lanes unit (scope §5 forbiddenPaths); the residue is in
-      # phase3-cutover-blockers.md §8.5.
+      # non-zero fails") pass while the secret refusal is gone: measured on this
+      # branch, EXIT 0 where the case expects 1.
+      #
+      # 🔄 CORRECTED 2026-09-07 (second review pass). Splitting the SITEKEY out
+      # was necessary and not sufficient: the unknown-`auth_target` arm was still
+      # sitting in the secrets preflight as a second, UNREACHABLE `exit 1`, and
+      # it kept the guard green over the deletion of the reachable one. It now
+      # has its own step too — see the first `# why:` in this job. B1's
+      # coarseness is real and is still not edited around here (that guard
+      # belongs to the store-lanes unit, scope §5 forbiddenPaths); it is carried
+      # as residue R12 in phase3-cutover-blockers.md §8.8, measured in §8.2.
       - name: Preflight — the Turnstile sitekey must be present
         env:
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}

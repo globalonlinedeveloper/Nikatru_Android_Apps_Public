@@ -328,18 +328,60 @@ function unboundConsumers(text) {
   return bad;
 }
 
-/** FINDING when a binding can hand back the OTHER target's value. */
+/** FINDING when a binding can hand back the OTHER target's value.
+ *
+ * 🔴 THE `secrets.BOXA_` GUARD-CLAUSE IS THE LIMB THIS FUNCTION WAS MISSING, NOT
+ * A FILTER. Until 2026-09-07 this loop opened with
+ * `if (!/secrets\.BOXA_/.test(value)) continue;`, so a binding whose value never
+ * NAMES a Box A secret was skipped before any check ran — and that is precisely
+ * the wrong shape. `unboundConsumers()` above only asks whether the NAME is
+ * bound; nothing asked what it was bound TO. The eighteen consuming bindings are
+ * eighteen hand-copied ternaries with no source of truth, and re-binding one of
+ * them to the raw `${{ secrets.SUPABASE_URL }}` left this suite at 25/25, EXIT 0
+ * (measured on head f045baf9, step "Provision throwaway confirmed user"). At
+ * run time that is an `auth_target=boxa` run provisioning its throwaway user on
+ * the HOSTED PRODUCTION project while the run is named boxa — verbatim the false
+ * green tooling/publishable-inputs.json's E2E_AUTH_TARGET residual says this
+ * axis exists to make impossible. One limb, one place, and every future
+ * consuming step is graded for free.
+ */
 function crossContaminating(text) {
   const bad = [];
   for (const step of e2eSteps(text)) {
     for (const [name, value] of step.env) {
       if (!JOB_WIDE.includes(name)) continue;
-      if (!/secrets\.BOXA_/.test(value)) continue;
+      if (!/secrets\.BOXA_/.test(value)) {
+        if (/secrets\.(SUPABASE_URL|SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY)\b/.test(value)) {
+          bad.push(
+            `${step.name}: ${name} resolves to the hosted secret with no target axis at all — ` +
+              'an auth_target=boxa run would drive this step against the hosted production project',
+          );
+        }
+        continue;
+      }
       if (!/== 'hosted' && secrets\./.test(value)) bad.push(`${step.name}: ${name} falls back instead of resolving`);
       if (!/\|\| '' \}\}$/.test(value)) bad.push(`${step.name}: ${name} has no empty final arm`);
     }
   }
   return bad;
+}
+
+/** FINDING when the SECRETS preflight ends the job anywhere but the one place it
+ *  is allowed to.
+ *
+ * 🔴 WHY A COUNT AND NOT A SHAPE. assert-green-means-ran.mjs section B1
+ * (:379-386) asks whether a step that reads a secret and branches on its
+ * emptiness contains ANY `exit <n>`; it cannot tell which branch exits. So the
+ * moment step `pre` holds a SECOND `exit`, that guard goes green over the
+ * deletion of the first — measured on head f045baf9, where an unreachable
+ * `auth_target` refusal kept the guard at EXIT 0 while the missing-secret
+ * refusal was gone, against EXIT 1 for the identical deletion on origin/main.
+ * The count is the property; the arm was hoisted into its own step to restore it.
+ */
+function preflightExits(text) {
+  const pre = e2eSteps(text).find((s) => /secrets must be present/.test(s.name));
+  if (!pre) return ['no secrets preflight step at all'];
+  return pre.text.split('\n').filter((l) => /^\s*exit\s+[1-9]\d*\s*$/.test(l));
 }
 
 describe('e2e.yml — the resolved auth values are bound per step, never job-wide', () => {
@@ -372,6 +414,40 @@ describe('e2e.yml — the resolved auth values are bound per step, never job-wid
 
   test('GREEN CONTROL · no binding can fall back to the other target', () => {
     assert.deepEqual(crossContaminating(real), []);
+  });
+
+  test('MUTATION · re-binding one step to the raw hosted secret is caught', () => {
+    // The proven hole, shipped as its own case. On head f045baf9 this exact edit
+    // left the suite at 25/25 EXIT 0, because crossContaminating() skipped any
+    // value that did not name `secrets.BOXA_` before checking anything.
+    const line = real.split('\n').find((l) => /^ {10}SUPABASE_URL: .*BOXA_SUPABASE_URL/.test(l));
+    assert.ok(line, 'no three-armed SUPABASE_URL binding to flatten');
+    const mutated = real.replace(line, '          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    const found = crossContaminating(mutated);
+    assert.ok(found.length >= 1, 'the raw hosted binding was not seen');
+    assert.match(found[0], /no target axis at all/);
+  });
+
+  test('MUTATION · re-binding the service-role key to the raw hosted secret is caught', () => {
+    const line = real.split('\n').find((l) => /^ {10}SUPABASE_SERVICE_ROLE_KEY: .*BOXA_SUPABASE_SERVICE_ROLE_KEY/.test(l));
+    assert.ok(line, 'no three-armed SUPABASE_SERVICE_ROLE_KEY binding to flatten');
+    const mutated = real.replace(line, '          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(crossContaminating(mutated).length >= 1, 'the raw hosted binding was not seen');
+  });
+
+  test('GREEN CONTROL · the secrets preflight ends the job in exactly one place', () => {
+    assert.deepEqual(preflightExits(real), ['            exit 1']);
+  });
+
+  test('MUTATION · a second `exit` folded back into the secrets preflight is caught', () => {
+    const mutated = real.replace(
+      "          if [ \"$TARGET\" = 'boxa' ]; then\n",
+      "          if [ \"$TARGET\" = 'nonsense' ]; then\n            echo \"::error title=E2E cannot run::unknown target\"\n            exit 1\n          elif [ \"$TARGET\" = 'boxa' ]; then\n",
+    );
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.equal(preflightExits(mutated).length, 2);
   });
 
   test('MUTATION · the two-armed ternary (an empty BOXA_* silently reads hosted) is caught', () => {
@@ -420,9 +496,12 @@ describe('e2e.yml — an empty TURNSTILE_SITE_KEY refuses the run', () => {
     // the secrets step, assert-green-means-ran's B1 sees an `exit` that belongs
     // to a different branch and its own mutation case passes for the wrong
     // reason. Proven separately by running that case — EXIT 0 where it expects 1.
+    // Anchored on HOSTED_URL, not on TARGET: the auth_target validation step
+    // binds TARGET too and comes first, so a TARGET anchor would fold the
+    // sitekey into the WRONG step and the case would pass over nothing.
     const mutated = real.replace(
-      '          TARGET: ${{ inputs.auth_target || \'hosted\' }}\n',
-      '          TARGET: ${{ inputs.auth_target || \'hosted\' }}\n          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n',
+      '          HOSTED_URL: ${{ secrets.SUPABASE_URL }}\n',
+      '          HOSTED_URL: ${{ secrets.SUPABASE_URL }}\n          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n',
     );
     assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
     assert.ok(
