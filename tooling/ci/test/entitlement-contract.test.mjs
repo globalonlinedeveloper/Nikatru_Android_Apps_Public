@@ -138,6 +138,7 @@ const ALL_REASONS = [
   ['trial_expired', 0],
   ['payment_failed_final', 0],
   ['cancelled_at_period_end', 0],
+  ['subscription_paused', 0],
 ];
 
 function migration0004(o = {}) {
@@ -255,13 +256,67 @@ ${bypass}  if (typeof v !== 'string') return { ok: false };
 `;
 }
 
+/** The RevenueCat event → revocation reason map, in every copy that speaks it.
+ *  [ADR 067] decision 7. Kept beside ALL_REASONS for the same reason that list
+ *  is: a fixture whose default is already wrong makes every case a failing one.
+ *  `null` is an event deliberately NOT a revocation. */
+//  The third element is dateDerived — whether the ACCESS outcome is decided by
+//  the paid-through date on the event rather than by its NAME. It mirrors the
+//  real table because limb 7 compares this fixture against the Worker's own
+//  event sets, and the DECLARED divergence between the two is a constant in the
+//  guard: a fixture that models fewer events would show a wider divergence than
+//  the guard declares and fail for the wrong reason.
+const RC_EVENTS = [
+  ['CANCELLATION', 'cancelled_at_period_end', true],
+  ['EXPIRATION', 'subscription_expired', false],
+  ['SUBSCRIPTION_PAUSED', 'subscription_paused', false],
+  ['BILLING_ISSUE', null, true],
+  ['INITIAL_PURCHASE', null, false],
+  ['RENEWAL', null, false],
+  ['UNCANCELLATION', null, false],
+];
+
+const rcJs = (events = RC_EVENTS) =>
+  `
+/** @type {readonly RevenueCatEventReason[]} */
+export const REVENUECAT_EVENT_REASONS = [
+${events
+  .map(
+    ([e, r, d]) =>
+      `  { event: '${e}', reason: ${r === null ? 'null' : `'${r}'`}, dateDerived: ${d === true}, why: 'a sourced sentence' },`,
+  )
+  .join('\n')}
+];
+`;
+
+const rcDart = (events = RC_EVENTS) =>
+  `
+const List<RevenueCatEventReason> kRevenueCatEventReasons =
+    <RevenueCatEventReason>[
+${events
+  .map(
+    ([e, r, d]) =>
+      `  RevenueCatEventReason('${e}', ${r === null ? 'null' : `'${r}'`}, dateDerived: ${d === true}),`,
+  )
+  .join('\n')}
+];
+`;
+
+const rcJson = (events = RC_EVENTS) =>
+  events.map(([event, reason, dateDerived]) => ({
+    event,
+    reason,
+    dateDerived: dateDerived === true,
+    why: 'a sourced sentence',
+  }));
+
 // ── the four RUNTIME COPIES limb 4 now compares against the seed ─────────────
 // Each is written in its own syntax, because that is the whole point: four
 // languages cannot be byte-compared, so each is parsed and the SET is what has
 // to agree — including which member restores access.
 
 /** contracts/entitlement/contract.js — the authored copy. */
-function contractJs(entries = ALL_REASONS) {
+function contractJs(entries = ALL_REASONS, rcEvents = RC_EVENTS) {
   return `// @ts-check
 /** @type {readonly MoneyEnvironment[]} */
 export const MONEY_ENVIRONMENTS = ['live', 'sandbox'];
@@ -270,26 +325,29 @@ export const MONEY_ENVIRONMENTS = ['live', 'sandbox'];
 export const REVOCATION_REASONS = [
 ${entries.map(([r, restores]) => `  { reason: '${r}', restores: ${restores === 1} },`).join('\n')}
 ];
-export const CONTRACT_TABLE = { moneyEnvironments: MONEY_ENVIRONMENTS, revocationReasons: REVOCATION_REASONS };
+${rcJs(rcEvents)}
+export const CONTRACT_TABLE = { moneyEnvironments: MONEY_ENVIRONMENTS, revocationReasons: REVOCATION_REASONS, revenuecatEventReasons: REVENUECAT_EVENT_REASONS };
 `;
 }
 
 /** contracts/entitlement/contract.json — generated from contract.js. */
-function contractJson(entries = ALL_REASONS) {
+function contractJson(entries = ALL_REASONS, rcEvents = RC_EVENTS) {
   return JSON.stringify({
     $schema: './contract.schema.json',
     moneyEnvironments: ['live', 'sandbox'],
     revocationReasons: entries.map(([reason, restores]) => ({ reason, restores: restores === 1 })),
+    revenuecatEventReasons: rcJson(rcEvents),
   }, null, 2) + '\n';
 }
 
 /** packages/purchases/lib/src/generated/entitlement_contract.g.dart. */
-function contractDart(entries = ALL_REASONS) {
+function contractDart(entries = ALL_REASONS, rcEvents = RC_EVENTS) {
   return `// GENERATED FILE — DO NOT EDIT.
 const List<EntitlementRevocationReason> kRevocationReasons =
     <EntitlementRevocationReason>[
 ${entries.map(([r, restores]) => `  EntitlementRevocationReason('${r}', restoresAccess: ${restores === 1}),`).join('\n')}
 ];
+${rcDart(rcEvents)}
 `;
 }
 
@@ -340,6 +398,29 @@ export async function upsertEntitlement(db: D1Database, n: { userId: string; app
 `;
 }
 
+const WORKER_ACTIVE = [
+  'INITIAL_PURCHASE',
+  'RENEWAL',
+  'PRODUCT_CHANGE',
+  'UNCANCELLATION',
+  'NON_RENEWING_PURCHASE',
+  'SUBSCRIPTION_EXTENDED',
+];
+const WORKER_INACTIVE = ['EXPIRATION'];
+const WORKER_GRACE = ['CANCELLATION', 'BILLING_ISSUE'];
+
+/** The hard-coded event sets the real webhooks.ts carries, for limb 7. */
+const workerSets = (o = {}) => {
+  if (o.workerSets === null) return '';
+  const set = (name, members) =>
+    `const ${name} = new Set([\n${members.map((m) => `  '${m}',`).join('\n')}\n]);\n`;
+  return (
+    set('ACTIVE_TYPES', o.workerActive ?? WORKER_ACTIVE) +
+    set('INACTIVE_TYPES', o.workerInactive ?? WORKER_INACTIVE) +
+    set('GRACE_TYPES', o.workerGrace ?? WORKER_GRACE)
+  );
+};
+
 /**
  * services/subly-api/src/routes/webhooks.ts — the bearer-gated legacy writer.
  *
@@ -349,8 +430,12 @@ export async function upsertEntitlement(db: D1Database, n: { userId: string; app
  */
 function webhooksTs(o = {}) {
   const call = o.rcUncalled ? 'Number(ev.event_timestamp_ms)' : 'isoFromEpochMs(ev.event_timestamp_ms)';
+  const imports = o.workerImportsContract
+    ? "import { revocationReasonForRevenueCatEvent } from '../../../../../contracts/entitlement/contract.js';\n"
+    : '';
   return `
 import { isoFromEpochMs } from '../lib/validate';
+${imports}${workerSets(o)}
 
 // ORDERING — the same defence services/platform/src/lib/mor/store.ts applies:
 //   \`DO UPDATE … WHERE entitlements.occurred_at IS NULL
@@ -392,13 +477,13 @@ function run(o = {}) {
   mkdirSync(contracts, { recursive: true });
   mkdirSync(generated, { recursive: true });
   mkdirSync(extCore, { recursive: true });
-  if (o.js !== null) writeFileSync(join(contracts, 'contract.js'), o.js ?? contractJs(o.jsReasons ?? codeReasons));
-  if (o.json !== null) writeFileSync(join(contracts, 'contract.json'), o.json ?? contractJson(o.jsonReasons ?? codeReasons));
+  if (o.js !== null) writeFileSync(join(contracts, 'contract.js'), o.js ?? contractJs(o.jsReasons ?? codeReasons, o.jsRc ?? RC_EVENTS));
+  if (o.json !== null) writeFileSync(join(contracts, 'contract.json'), o.json ?? contractJson(o.jsonReasons ?? codeReasons, o.jsonRc ?? RC_EVENTS));
   if (o.vendored !== null) {
-    writeFileSync(join(extCore, 'entitlement-contract.js'), o.vendored ?? contractJs(o.vendoredReasons ?? codeReasons));
+    writeFileSync(join(extCore, 'entitlement-contract.js'), o.vendored ?? contractJs(o.vendoredReasons ?? codeReasons, o.vendoredRc ?? RC_EVENTS));
   }
   if (o.dart !== null) {
-    writeFileSync(join(generated, 'entitlement_contract.g.dart'), o.dart ?? contractDart(o.dartReasons ?? codeReasons));
+    writeFileSync(join(generated, 'entitlement_contract.g.dart'), o.dart ?? contractDart(o.dartReasons ?? codeReasons, o.dartRc ?? RC_EVENTS));
   }
   if (o.store !== null) writeFileSync(join(mor, 'store.ts'), o.store ?? storeTs(o));
   if (o.webhooks !== null) writeFileSync(join(routes, 'webhooks.ts'), o.webhooks ?? webhooksTs(o));
@@ -1007,3 +1092,255 @@ describe('the Dart drift gate is wired, and it bites', () => {
     assert.ok(invokes(workflowLines(WORKFLOW_DIR), 'contracts/entitlement/generate.mjs'));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-entitlement-contract limb 6 — the RevenueCat event map is one map', () => {
+  // [ADR 067] decision 7. The translation from RevenueCat's event vocabulary to
+  // ours is the one place the two vocabularies touch, and its error mode is
+  // worse than the reason set's: a wrong MAPPING revokes a paying customer.
+
+  test('POSITIVE CONTROL — every copy carries the same map', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /the RevenueCat event map is equal across all 4 runtime copy\/copies/);
+  });
+
+  test('FAILS when one copy LOSES an event', () => {
+    const r = run({ dartRc: RC_EVENTS.filter(([e]) => e !== 'EXPIRATION') });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /'EXPIRATION' is mapped in contracts\/entitlement\/contract\.js but ABSENT/);
+  });
+
+  test('FAILS when one copy DISAGREES about what an event means', () => {
+    // The expensive shape: both copies name the event, and one of them revokes
+    // a subscription the other keeps.
+    const r = run({
+      vendoredRc: RC_EVENTS.map(([e, reason, d]) =>
+        e === 'BILLING_ISSUE' ? [e, 'payment_failed_final', d] : [e, reason, d],
+      ),
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /'BILLING_ISSUE' disagrees/);
+    assert.match(r.out, /One of the two revokes a subscription the other keeps/);
+  });
+
+  test('FAILS when a copy knows an event the authored table does not', () => {
+    const r = run({ jsonRc: [...RC_EVENTS, ['TRANSFER', null]] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /maps RevenueCat event 'TRANSFER', which/);
+    assert.match(r.out, /A copy that knows more than the authored table is a second author/);
+  });
+
+  test('FAILS when an event maps to a reason the migration never seeded', () => {
+    // The limb limb 4 cannot reach: the reason never appears in the reason
+    // ARRAY, so the per-copy loop up there never sees it — and the write would
+    // fail after the money has moved.
+    const rc = RC_EVENTS.map(([e, r, d]) =>
+      e === 'EXPIRATION' ? [e, 'vanished_into_thin_air', d] : [e, r, d],
+    );
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /which the migration does NOT seed/);
+  });
+
+  test('FAILS when the table maps every event to NOTHING', () => {
+    // Valid data that silently means "no store event ever revokes anything",
+    // and it renders, compiles and reads exactly like a working table.
+    const rc = RC_EVENTS.map(([e, , d]) => [e, null, d]);
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /a translation table that translates nothing/);
+  });
+
+  test('COVERAGE LOST when the authored map cannot be parsed at all', () => {
+    const r = run({ jsRc: [] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no RevenueCat event mapping could be parsed/);
+  });
+
+  test('FAILS when a copy loses the dateDerived flag — the CANCELLATION correction', () => {
+    // The flag is the whole answer to "one event name, two opposite access
+    // outcomes". A Dart consumer reading only (event, reason) revokes a paying
+    // customer on a cancel-at-period-end, or keeps a refunded one; prose in the
+    // authored copy's why: field never reaches the generated table.
+    const r = run({
+      dartRc: RC_EVENTS.map(([e, reason, d]) => [e, reason, e === 'CANCELLATION' ? !d : d]),
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /'CANCELLATION' disagrees about dateDerived/);
+    assert.match(r.out, /revokes a paying customer or keeps a refunded one/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-entitlement-contract limb 7 — the one runtime that already reads a RevenueCat event', () => {
+  // services/subly-api/src/routes/webhooks.ts serves POST /revenuecat today and
+  // imports nothing from contracts/: it carries ACTIVE_TYPES / INACTIVE_TYPES /
+  // GRACE_TYPES as literal sets. So limb 6's four guarded copies are the four
+  // nothing consumes, and the unguarded fifth takes the money decisions. This
+  // limb does not demand equality — the two vocabularies legitimately differ and
+  // services/** is not this unit's to edit — it demands that the difference be
+  // DECLARED, in both directions, so it cannot widen unwatched.
+
+  test('POSITIVE CONTROL — the divergence is exactly the declared one', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /restates 9 event name\(s\)/);
+    assert.match(r.out, /exactly the declared 3 worker-only \+ 1 contract-only name\(s\)/);
+  });
+
+  test('FAILS when the Worker learns an event the authored table has never heard of', () => {
+    const r = run({ workerActive: [...['INITIAL_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE', 'UNCANCELLATION', 'NON_RENEWING_PURCHASE', 'SUBSCRIPTION_EXTENDED'], 'TEMPORARY_ENTITLEMENT_GRANT'] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /TEMPORARY_ENTITLEMENT_GRANT/);
+    assert.match(r.out, /this limb declares/);
+  });
+
+  test('FAILS when the declared divergence goes STALE because the Worker caught up', () => {
+    // The other direction, and the one a SUBSET check would miss: the Worker
+    // stops handling PRODUCT_CHANGE, the divergence SHRINKS, and a declaration
+    // nobody re-measured now overstates the gap. A stale declaration is how a
+    // guard quietly becomes a record of a tree that no longer exists.
+    const r = run({ workerActive: ['INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'NON_RENEWING_PURCHASE', 'SUBSCRIPTION_EXTENDED'] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /diverges from contracts\/entitlement\/contract\.js by/);
+    assert.match(r.out, /a divergence that SHRANK means the declaration is stale/);
+  });
+
+  test('FAILS when the authored table maps an event the Worker silently ignores', () => {
+    const rc = [...RC_EVENTS, ['SUBSCRIPTION_TRANSFERRED', 'subscription_expired', false]];
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /SUBSCRIPTION_TRANSFERRED/);
+    assert.match(r.out, /money the rail never records/);
+  });
+
+  test('FAILS when a GRACE-class event is not dateDerived — the refuted CANCELLATION row', () => {
+    // This is the state the reviewer found on the landed tree: the contract said
+    // CANCELLATION means cancelled_at_period_end, full stop, while this very
+    // repository already documented and implemented the refund shape of the
+    // same event.
+    const rc = RC_EVENTS.map(([e, r2, d]) => [e, r2, e === 'CANCELLATION' ? false : d]);
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /treats RevenueCat event 'CANCELLATION' as GRACE-class/);
+    assert.match(r.out, /only expiration_at_ms tells them apart/);
+  });
+
+  test('FAILS when the Worker revokes outright on an event the contract calls no revocation', () => {
+    const rc = RC_EVENTS.map(([e, r2, d]) => [e, e === 'EXPIRATION' ? null : r2, d]);
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /revokes access outright on RevenueCat event 'EXPIRATION'/);
+  });
+
+  test('FAILS when the Worker GRANTS outright on an event the contract revokes on', () => {
+    const rc = RC_EVENTS.map(([e, r2, d]) => [e, e === 'RENEWAL' ? 'subscription_expired' : r2, d]);
+    const r = run({ jsRc: rc, jsonRc: rc, vendoredRc: rc, dartRc: rc });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /GRANTS access outright on RevenueCat event 'RENEWAL'/);
+    assert.match(r.out, /in opposite directions on one webhook/);
+  });
+
+  test('COVERAGE LOST when the Worker sets cannot be parsed and it imports nothing either', () => {
+    const r = run({ workerSets: null });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — limb 7 parsed ZERO event names/);
+    assert.match(r.out, /An empty right-hand side agrees with any left-hand side/);
+  });
+
+  test('COVERAGE LOST when that Worker file is gone entirely', () => {
+    const r = run({ webhooks: null });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — services\/subly-api\/src\/routes\/webhooks\.ts does not exist/);
+  });
+
+  test('THE INTENDED FIX SATISFIES THIS LIMB BY DELETION — the Worker imports the contract', () => {
+    // When the revenuecatVerifier work makes that Worker read the authored table
+    // instead of restating it, the divergence this limb watches stops existing.
+    // The limb records that and stops holding a declaration nobody needs.
+    const r = run({ workerSets: null, workerImportsContract: true });
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /now IMPORTS the contract instead of restating it/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-entitlement-contract limb 7b — the SWEEP, so a THIRD copy is not invisible', () => {
+  // Limb 7 above watches ONE hard-coded path. The finding it answers is "a
+  // second, ungoverned copy of this vocabulary exists" — so answering it by
+  // naming that one copy governs exactly one file and a second app's Worker gets
+  // nothing for free. These cases are the reviewer's own mutation, promoted to
+  // the suite: a third transcription anywhere under services/ must redden, and
+  // the ONLY thing that clears one is importing the contract.
+
+  test('FAILS on a THIRD Worker restating ACTIVE_TYPES / INACTIVE_TYPES / GRACE_TYPES', () => {
+    const r = run({
+      extraFile: {
+        dir: 'services/probe-api/src/routes',
+        name: 'webhooks.ts',
+        body:
+          "const ACTIVE_TYPES = new Set(['INITIAL_PURCHASE', 'RENEWAL', 'TRANSFER']);\n" +
+          "const INACTIVE_TYPES = new Set(['EXPIRATION']);\n" +
+          "const GRACE_TYPES = new Set(['CANCELLATION']);\n" +
+          'export const sets = [ACTIVE_TYPES, INACTIVE_TYPES, GRACE_TYPES];\n',
+      },
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /services\/probe-api\/src\/routes\/webhooks\.ts restates the RevenueCat vocabulary/);
+    assert.match(r.out, /it declares ACTIVE_TYPES \/ INACTIVE_TYPES \/ GRACE_TYPES/);
+    assert.match(r.out, /third author of the same money decision/);
+  });
+
+  test('FAILS on the EVENT-NAME shape alone — no set names, three event literals', () => {
+    // The set names are one spelling of the duplication, not the duplication.
+    // A file that switches on the raw event strings is the same second author.
+    const r = run({
+      extraFile: {
+        dir: 'services/probe2-api/src',
+        name: 'rc.ts',
+        body:
+          'export function classify(event: string): string {\n' +
+          "  if (event === 'INITIAL_PURCHASE' || event === 'RENEWAL') return 'grant';\n" +
+          "  if (event === 'EXPIRATION') return 'revoke';\n" +
+          "  if (event === 'CANCELLATION') return 'grace';\n" +
+          "  return 'ignore';\n" +
+          '}\n',
+      },
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /services\/probe2-api\/src\/rc\.ts restates the RevenueCat vocabulary/);
+    assert.match(r.out, /it names 4 RevenueCat event\(s\)/);
+  });
+
+  test('PASSES when that third runtime IMPORTS the contract — the intended fix clears it', () => {
+    const r = run({
+      extraFile: {
+        dir: 'services/probe-api/src/routes',
+        name: 'webhooks.ts',
+        body:
+          "import { revocationReasonForRevenueCatEvent } from '../../../../contracts/entitlement/contract.js';\n" +
+          "export const classify = (e) => revocationReasonForRevenueCatEvent(e);\n" +
+          "export const seen = ['INITIAL_PURCHASE', 'RENEWAL', 'EXPIRATION', 'CANCELLATION'];\n",
+      },
+    });
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /found 2 transcription\(s\) of that vocabulary/);
+  });
+
+  test('the POSITIVE CONTROL reports the sweep it actually did', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /limb 7's sweep read \d+ \.ts source\(s\) under services\/ and found 1 transcription\(s\)/);
+  });
+
+  test('COVERAGE LOST when the sweep no longer recognises the required member', () => {
+    // The half limb 5 puts on its own sweep. A sweep that matched nothing reads
+    // exactly like a tree with no duplication left in it.
+    const r = run({ webhooks: 'export const nothing = 1;\n' });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /did not recognise services\/subly-api\/src\/routes\/webhooks\.ts as a\s+RevenueCat transcription/);
+  });
+});
+
+
