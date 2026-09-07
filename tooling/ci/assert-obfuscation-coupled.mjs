@@ -142,9 +142,47 @@
 // upload` is deliberately NOT accepted: GlitchTip has no code that reads a Dart
 // obfuscation map, so a lane doing only that would be retaining nothing.
 //
+// ── ➕ APPENDED 2026-09-07 · A THIRD LIMB, BECAUSE RETAINING IS NOT SENDING ──
+//    unit `symbols-everywhere` · [ADR 067] decision 6 · programme.json P1-11.
+//
+// 🔴 THE COUPLING LIMB ABOVE ACCEPTS AN ARTIFACT, AND ELEVEN OF FOURTEEN LANES
+// TOOK IT. That was the honest choice when shape (a) existed nowhere — see the
+// 2026-08-03 note: "refusing it would push the first honest implementation into
+// disabling the guard". But once ONE lane uploaded, the guard went green over a
+// state nobody would have chosen: 3 of 14 release builds sent their symbols to
+// the crash sink and 11 sent them to a 90-day workflow artifact that no
+// symbolicator can read, and the printed sentence "every obfuscating build
+// retains its symbol mapping in its own job" was TRUE of every one of them. The
+// end-to-end audit of 2026-09-07 (§4, gap N9) had to count `grep -rn
+// 'upload-native-symbols.mjs' .github/workflows/*.yml` by hand to see it.
+//
+// So there is now a limb that asks the OTHER question:
+//
+//   THE SINK (new)   every RELEASE build that obfuscates must be followed, in
+//                    its OWN job and at a LATER line than the build, by a real
+//                    symbol upload — SYMBOL_UPLOAD below, the same named list
+//                    the coupling limb uses for shape (a). An artifact does not
+//                    satisfy it. A job that cannot upload must be named in
+//                    SINK_UPLOAD_EXEMPT with a written reason.
+//
+// ⚠️ WHY "AT A LATER LINE" AND NOT MERELY "IN THE SAME JOB". An upload step that
+// runs BEFORE its build uploads whatever the previous run left on the runner, or
+// nothing at all, and it does so at exit 0 — the shape this whole family exists
+// to refuse. The line number is the `run:` line of the logical command, which
+// workflow-scan.mjs preserves through block-scalar joining, so this compares
+// step order and not text position inside a step.
+//
+// ⚠️ AND WHY THE EXEMPTION LIST IS A DECLARED TABLE RATHER THAN AN ALLOWLIST.
+// It is graded in BOTH directions, exactly like tooling/versions.json's
+// `$updateExemptions`: an entry naming a job that has no obfuscating release
+// build, or one that DOES upload, is a stale excuse and fails the build. A
+// waiver that outlives the thing it waived is how a list stops describing the
+// tree. It is empty today, on purpose — all fourteen upload.
+//
 // Usage:  node tooling/ci/assert-obfuscation-coupled.mjs [repoRoot]
-// Exit 0 = every release build obfuscates, and no build obfuscates without
-//          retaining its symbols.
+// Exit 0 = every release build obfuscates, no build obfuscates without
+//          retaining its symbols, and every obfuscating release build sends
+//          them to the crash sink from its own job.
 // ─────────────────────────────────────────────────────────────────────────────
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -228,6 +266,26 @@ const SYMBOL_UPLOAD = [
   /upload-native-symbols\.mjs/,
 ];
 
+/** DECLARED EXEMPTIONS FROM THE SINK LIMB, and nothing else exempts.
+ *
+ *  A job that runs an obfuscating RELEASE build and does not send the mapping
+ *  to the crash sink belongs here, named, with the reason written out — never
+ *  silently outside the limb. Shape: `{ workflow, job, why }`, matched on the
+ *  workflow's path relative to the repository root and the job's YAML key.
+ *
+ *  ⛔ THIS IS GRADED IN BOTH DIRECTIONS. An entry whose job has no obfuscating
+ *  release build, or whose job DOES upload, fails the build as a stale excuse —
+ *  the same rule tooling/versions.json's `$updateExemptions` is held to. An
+ *  exemption that outlives its subject is how a list stops describing the tree.
+ *
+ *  EMPTY ON PURPOSE, 2026-09-07: all fourteen release builds upload. The four
+ *  ubuntu-24.04 store lanes never needed a new pin at all — the linux-x86_64
+ *  binary they run on was already pinned — and the windows and macOS lanes are
+ *  wired against `glitchtip_cli_windows_x86_64_sha256` and
+ *  `glitchtip_cli_macos_arm64_sha256`, two digests of the SAME pinned release.
+ *  @type {{workflow: string, job: string, why: string}[]} */
+const SINK_UPLOAD_EXEMPT = [];
+
 const problems = [];
 const notes = [];
 
@@ -282,11 +340,21 @@ let webReleaseBuilds = 0;
 const unknownTargets = [];
 const contradictoryModes = [];
 const nonReleaseBuilds = [];
+/** THE SINK LIMB's subject set: one entry per obfuscating RELEASE build.
+ *  @type {{wf: string, job: string, line: number, dir: string, sinkAfter: boolean}[]} */
+const sinkSubjects = [];
 
 for (const wf of workflows) {
   for (const job of wf.jobs.values()) {
     const jobText = job.logical.map((l) => l.text).join('\n');
     const hasSinkUpload = SYMBOL_UPLOAD.some((re) => re.test(jobText));
+    // The `run:` line of every real symbol upload in this job. workflow-scan
+    // keeps a folded or literal block's OWN `run:` line number, so these are
+    // step positions, not offsets inside a step — which is what makes
+    // "the upload comes after the build" a meaningful comparison.
+    const sinkLines = job.logical
+      .filter((l) => SYMBOL_UPLOAD.some((re) => re.test(l.text)))
+      .map((l) => l.n);
     const paths = uploadedPaths(job);
 
     for (const l of job.logical) {
@@ -307,6 +375,10 @@ for (const wf of workflows) {
         // see NOT_RELEASE above. Contradictory mode flags are COVERAGE LOST.
         const target = (BUILD_TARGET.exec(seg)?.[1] ?? '').replace(/^['"]|['"]$/g, '');
         const notRelease = NOT_RELEASE.test(seg);
+        /** Set by the floor below: this command IS a release build on a target
+         *  Flutter can obfuscate. The sink limb's domain is exactly that set
+         *  intersected with "and it does obfuscate". */
+        let inFloorDomain = false;
         if (!OBFUSCATABLE_TARGETS.has(target) && !NON_OBFUSCATABLE_TARGETS.has(target)) {
           unknownTargets.push(`${at} builds target "${target}"`);
         } else if (notRelease && RELEASE.test(seg)) {
@@ -316,6 +388,7 @@ for (const wf of workflows) {
         } else if (!notRelease) {
           if (OBFUSCATABLE_TARGETS.has(target)) {
             releaseBuilds++;
+            inFloorDomain = true;
             if (!obf) {
               problems.push(
                 `${at} is a RELEASE build of "${target}" and does not pass --obfuscate. ` +
@@ -358,6 +431,20 @@ for (const wf of workflows) {
         }
 
         const dir = split[1].replace(/^['"]|['"]$/g, '');
+
+        // ── THE SINK ──────────────────────────────────────────────────────
+        // Recorded here rather than judged here: the verdict needs the whole
+        // set so a stale exemption can be found in the same pass.
+        if (inFloorDomain) {
+          sinkSubjects.push({
+            wf: wf.rel,
+            job: job.name,
+            line: l.n,
+            dir,
+            sinkAfter: sinkLines.some((n) => n > l.n),
+          });
+        }
+
         const named = paths.some((p) => p.includes(dir) || dir.includes(p.replace(/\/\*+$/, '')));
         if (hasSinkUpload || named) continue;
 
@@ -413,6 +500,77 @@ if (releaseBuilds === 0) {
   ]);
 }
 
+// ── THE SINK LIMB'S VERDICT ─────────────────────────────────────────────────
+// Its subject is every obfuscating release build. With none, it would report
+// "every release build reaches the crash sink" over an empty set — the shape
+// [C-COVERAGE-LOST-IS-NOT-PASS] names, and the shape the floor was added for.
+if (sinkSubjects.length === 0) {
+  coverageLost([
+    `counted ${releaseBuilds} release build(s) on an obfuscatable target and ZERO of them obfuscating,`,
+    'so the sink limb has no subject and would report "every release build sends its symbols to the',
+    'crash sink" over an empty set. The floor above should already have refused this; reaching here',
+    'means the two limbs disagree about the same set, which is worse than either failing.',
+  ]);
+}
+
+const exemptKey = (w, j) => `${w}#${j}`;
+const sinkExempt = new Map();
+for (const e of SINK_UPLOAD_EXEMPT) {
+  if (!e?.workflow || !e?.job || !e?.why?.trim()) {
+    coverageLost([
+      'a SINK_UPLOAD_EXEMPT entry is missing `workflow`, `job` or `why`.',
+      'An exemption with no written reason is a silent skip wearing a label, and this guard cannot',
+      'tell which job it was meant to excuse.',
+    ]);
+  }
+  sinkExempt.set(exemptKey(e.workflow, e.job), e.why);
+}
+
+const sinkExemptUsed = new Set();
+for (const s of sinkSubjects) {
+  const key = exemptKey(s.wf, s.job);
+  if (s.sinkAfter) {
+    if (sinkExempt.has(key)) sinkExemptUsed.add(`STALE:${key}`);
+    continue;
+  }
+  if (sinkExempt.has(key)) {
+    sinkExemptUsed.add(key);
+    notes.push(
+      `${s.wf}:${s.line} (job "${s.job}") obfuscates into "${s.dir}" and sends nothing to the crash sink — ` +
+        `EXEMPT, declared: ${sinkExempt.get(key)}`,
+    );
+    continue;
+  }
+  problems.push(
+    `${s.wf}:${s.line} (job "${s.job}") is an obfuscating RELEASE build into "${s.dir}" and NOTHING LATER IN ` +
+      `job "${s.job}" uploads those symbols to the crash sink. ` +
+      '[ADR 067] decision 6 asks for --obfuscate --split-debug-info PLUS SYMBOL UPLOAD on every release ' +
+      'build, and a retained workflow artifact is not an upload: no symbolicator reads it, it expires, ' +
+      'and by then a rebuild produces a DIFFERENT mapping. This is exactly the state the audit of ' +
+      '2026-09-07 found on 11 of 14 lanes while this guard printed ok. Add the ' +
+      '`tooling/ops/upload-native-symbols.mjs` step AFTER the build and AFTER the retention artifact in ' +
+      `this same job — or, if this job genuinely cannot, add {workflow, job, why} to SINK_UPLOAD_EXEMPT.`,
+  );
+}
+
+for (const [key, why] of sinkExempt) {
+  if (sinkExemptUsed.has(`STALE:${key}`)) {
+    problems.push(
+      `SINK_UPLOAD_EXEMPT names ${key}, and that job DOES upload its symbols to the crash sink. ` +
+        `A waiver outliving the thing it waived is how a list stops describing the tree — delete it. Its ` +
+        `stated reason was: ${why}`,
+    );
+    continue;
+  }
+  if (!sinkExemptUsed.has(key)) {
+    problems.push(
+      `SINK_UPLOAD_EXEMPT names ${key}, and no obfuscating release build was found in that job at all. ` +
+        `Either the workflow or the job was renamed and the waiver did not follow, or it excuses nothing. ` +
+        `Its stated reason was: ${why}`,
+    );
+  }
+}
+
 if (problems.length) {
   console.error(
     `✗ obfuscation — ${problems.length} problem(s) over ${releaseBuilds} release build(s), ${obfuscating} obfuscating:`,
@@ -434,7 +592,10 @@ console.log(
   `ok  obfuscation — ${workflows.length} workflow(s), ${buildsChecked} \`flutter build\` command(s), ` +
     `${releaseBuilds} release build(s) on an obfuscatable target, ${obfuscating} obfuscating; ` +
     `FLOOR: all ${releaseBuilds} of them pass --obfuscate. COUPLING: every obfuscating build retains ` +
-    `its symbol mapping in its own job. ${webReleaseBuilds} web release build(s) are outside the floor ` +
+    `its symbol mapping in its own job. SINK: all ${sinkSubjects.length} of them upload those symbols to ` +
+    `the crash sink from a later step of the same job` +
+    (sinkExempt.size ? `, except ${sinkExempt.size} declared exemption(s) printed above` : ', with no declared exemption') +
+    `. ${webReleaseBuilds} web release build(s) are outside the floor ` +
     'because Flutter does not support obfuscation on web' +
     (nonReleaseBuilds.length
       ? `; ${nonReleaseBuilds.length} build(s) are outside it on an EXPLICIT --debug/--profile: ` +
