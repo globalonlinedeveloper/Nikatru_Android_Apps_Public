@@ -193,11 +193,74 @@ describe('assert-obfuscation-coupled', () => {
     assert.match(out, /1 web release build\(s\) are outside the floor/);
   });
 
-  test('a build that is not a --release build is outside the floor', () => {
+  // ⏱ INVERTED 2026-09-07 (fix pass). This case READ:
+  //     "a build that is not a --release build is outside the floor" ⇒ exit 0.
+  // It was WRONG, and it locked the wrong answer in as intended behaviour. The
+  // guard-integrity reviewer proved it on the real tree: delete `--release`
+  // from `flutter build linux`, delete its `--obfuscate`, and the guard printed
+  // `ok … 12 release build(s), 12 obfuscating`, code=0 — a shipping,
+  // un-obfuscated Linux release had left the floor and NOTHING named it.
+  // `flutter build <target>` defaults to release mode, so the flag was
+  // decoration. The domain is now keyed on the ABSENCE of --debug/--profile.
+  test('a build with NO mode flag is INSIDE the floor — flutter build defaults to release', () => {
     const root = fixture({ 'build.yml': `${wf({ release: '' })}${FLOOR_ANCHOR}` });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /is a RELEASE build of "linux" and does not pass --obfuscate/);
+    assert.match(out, /over 2 release build\(s\), 1 obfuscating/);
+  });
+
+  test('GREEN CONTROL for that inversion — the same build WITH --obfuscate passes at 2 of 2', () => {
+    const compliantNoFlag = wf({
+      release: '',
+      buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
+      uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+    });
+    const { code, out } = run(fixture({ 'build.yml': `${compliantNoFlag}${FLOOR_ANCHOR}` }));
+    assert.equal(code, 0, out);
+    assert.match(out, /2 release build\(s\) on an obfuscatable target, 2 obfuscating/);
+  });
+
+  test('an EXPLICIT --debug leaves the floor, and the guard NAMES the build that left', () => {
+    const root = fixture({ 'build.yml': `${wf({ release: ' --debug' })}${FLOOR_ANCHOR}` });
     const { code, out } = run(root);
     assert.equal(code, 0, out);
     assert.match(out, /1 release build\(s\) on an obfuscatable target, 1 obfuscating/);
+    assert.match(out, /1 build\(s\) are outside it on an EXPLICIT --debug\/--profile/);
+    assert.match(out, /builds "linux" in --debug mode/);
+  });
+
+  test('an EXPLICIT --profile leaves it the same way, and is named the same way', () => {
+    const root = fixture({ 'build.yml': `${wf({ release: ' --profile' })}${FLOOR_ANCHOR}` });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+    assert.match(out, /builds "linux" in --profile mode/);
+  });
+
+  test('a tree where nothing opts out says so, rather than printing nothing', () => {
+    const { code, out } = run(fixture({ 'build.yml': COMPLIANT }));
+    assert.equal(code, 0, out);
+    assert.match(out, /no build claims --debug or --profile, so nothing left the floor by opting out/);
+  });
+
+  test('COVERAGE LOST on --release AND --profile together — a command with two modes has no answer', () => {
+    const root = fixture({ 'build.yml': `${wf({ release: ' --release --profile' })}${FLOOR_ANCHOR}` });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /name TWO build modes at once/);
+    assert.match(out, /passes --release AND --profile on the same command/);
+  });
+
+  test('COVERAGE LOST on `bundle`, which was an UNSOURCED exemption until today', () => {
+    // `bundle` sat in NON_OBFUSCATABLE_TARGETS cited to a doc page that names
+    // only web. It exempted nothing in the tree, so it is removed and the
+    // COVERAGE LOST limb answers for it — an unsourced exemption is not a pass.
+    const root = fixture({ 'build.yml': `${wf({ target: 'bundle' })}${FLOOR_ANCHOR}` });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /builds target "bundle"/);
   });
 
   test('COVERAGE LOST when the only release build is one Flutter cannot obfuscate', () => {
@@ -348,7 +411,10 @@ jobs:
 
   test('--split-debug-info WITHOUT --obfuscate is a printed note, not a failure', () => {
     const root = fixture({
-      'build.yml': `${wf({ buildFlags: ' --split-debug-info=build/symbols', release: '' })}${FLOOR_ANCHOR}`,
+      // ⏱ CORRECTED 2026-09-07 — `release: ''` used to put this fixture outside
+      // the floor; a bare `flutter build` is now INSIDE it, so the opt-out has
+      // to be said out loud for the note to be the only verdict.
+      'build.yml': `${wf({ buildFlags: ' --split-debug-info=build/symbols', release: ' --profile' })}${FLOOR_ANCHOR}`,
     });
     const { code, out } = run(root);
     assert.equal(code, 0, out);

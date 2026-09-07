@@ -1007,6 +1007,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "R-7"
     ],
     "invokedBy": [
