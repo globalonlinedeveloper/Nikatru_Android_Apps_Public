@@ -370,7 +370,7 @@ function crossContaminating(text) {
  *  is allowed to.
  *
  * 🔴 WHY A COUNT AND NOT A SHAPE. assert-green-means-ran.mjs section B1
- * (:379-386) asks whether a step that reads a secret and branches on its
+ * (:378-385) asks whether a step that reads a secret and branches on its
  * emptiness contains ANY `exit <n>`; it cannot tell which branch exits. So the
  * moment step `pre` holds a SECOND `exit`, that guard goes green over the
  * deletion of the first — measured on head f045baf9, where an unreachable

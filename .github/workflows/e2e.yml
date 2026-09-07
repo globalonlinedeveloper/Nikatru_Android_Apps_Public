@@ -77,7 +77,7 @@ jobs:
       # `boxa`: this refusal is UNREACHABLE today. That is precisely why it may
       # not live inside the secrets preflight. assert-green-means-ran.mjs
       # section B1 asks whether a step that reads a secret and branches on its
-      # emptiness contains ANY `exit <n>` (:379-386) — it cannot tell WHICH
+      # emptiness contains ANY `exit <n>` (:378-385) — it cannot tell WHICH
       # branch exits. While this arm sat in step `pre`, deleting the REACHABLE
       # missing-secret refusal left this unreachable `exit 1` standing and the
       # guard stayed GREEN. Measured 2026-09-07 against head f045baf9, on a copy
