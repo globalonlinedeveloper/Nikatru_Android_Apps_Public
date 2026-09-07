@@ -269,7 +269,13 @@ describe('assert-monitor-coverage — the gap prints and does not fail', () => {
     // Both halves. Checking only the exit code would pass just as happily if the
     // gap stopped being mentioned, which is how a "printed, not hidden" limb
     // becomes hidden.
-    assert.match(r.out, /1 deployed hostname\(s\) with NO monitor — OWNER-GATED, printed not hidden/);
+    // ⏱ 2026-09-07 — the wording moved from "deployed … — OWNER-GATED" to
+    // "declared", because a gap row need not be a deployed host (the Box B
+    // service rows are `derivedFrom: "declared"`) and because creating a monitor
+    // is proven agent work. The ASSERTION is unchanged in what it protects: the
+    // count and the hostname are still named on stdout, and the guard still
+    // exits 0.
+    assert.match(r.out, /1 declared hostname\(s\) with NO monitor — printed not hidden/);
     assert.match(r.out, /platform\.example\.test — nothing watches the shared ingest/);
     assert.match(r.out, /1 gap\(s\)/);
   });
