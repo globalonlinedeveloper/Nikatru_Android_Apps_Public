@@ -124,7 +124,8 @@
     ],
     "site:nikatru": "Deployed by Cloudflare Git integration, not by a workflow — there is no job to probe from. Covered by O-2's external prober (tooling/ops/status.mjs) against the hostname enumerated in tooling/monitor-register.json, which is stage 11's derivation and strictly wider than anything this file would restate. ✅ CLOSED 2026-08-11. This line read '⚠️ THREE of that register's monitors are still `Ping` rather than `GET`+expectedStatus — nikatru.com (id 4), rajasekarselvam.com (id 5) and Subly web (id 3) — and a Pages project serving a 500 or a blank shell answers a ping … OWNER_QUEUE S-8.' All three were converted on the live instance with the vault GLITCHTIP_TOKEN and one PUT each; tooling/ops/status.mjs now probes 7 of 7 declared hostnames and prints `0 of 7 … are unprobeable`. 🔴 IT WAS NEVER OWNER WORK — the same wrong filing tooling/monitor-register.json records for the two monitors it CREATED on 2026-08-05, repeated on the conversion. ✅ AND THE RESIDUAL IS CLOSED FOR THE TWO HTML SITES, 2026-08-11: monitors 4 and 5 now assert an `expectedBody` — each site's own canonical link tag, which is host-specific and is absent from the 404 these Pages projects serve, so a blank shell or an edge error page no longer passes. Deleting or retargeting that tag also fails the build, because tooling/ci/assert-monitor-coverage.mjs derives the hostname from it; a mere REFORMAT of it does not, because that guard's regex tolerates whitespace and single quotes while the monitor's match is exact. Monitor 3 (Subly web) asserts the built shell's base-href tag, which proves the served bytes are a real flutter build web output and NOT that the app booted: a monitor runs no JavaScript, so that half stays with the nightly e2e. The count in this file was also wrong twice (`Two` until 2026-08-09 against a register carrying three), which is why the number belongs to the printed count and not to this sentence. ⏱ 2026-09-07 — APPENDED, NOT REWRITTEN, AND THE SENTENCE IT CORRECTS IS THE ONE ABOVE READING 'tooling/ops/status.mjs now probes 7 of 7 declared hostnames and prints `0 of 7 … are unprobeable`'. It was true on 2026-08-11. BOTH HALVES ARE FALSE NOW, and the pager-monitors unit (ADR 067) is what made them false. Re-measured today: `node tooling/ops/status.mjs` (exit 0) prints 'probing 9 surface(s)' and '2 of 11 declared hostname(s) CANNOT BE PROBED', and `node tooling/ci/assert-monitor-coverage.mjs` (exit 0) prints `11 declared, 9 monitored, 2 gap(s)`. FOUR Box B rows landed in tooling/monitor-register.json: ntfy.nikatru.com and vault.nikatru.com, each with a real GlitchTip monitor (ids 31, 32) against a health endpoint whose body is asserted, and beszel.nikatru.com and logs.nikatru.com, both behind Cloudflare Access, where the 302 a prober sees is produced at the EDGE before the origin is consulted — so each carries `monitor: null` and a stated gap that this file, assert-monitor-coverage and verify-monitors all print on every run, rather than a GET+302 monitor that would have read 11 of 11 while watching Cloudflare. COVERAGE WENT UP — 7 of 7 declared to 9 of 11 declared — and the shortfall is louder, not quieter. The closing sentence of this same paragraph, 'which is why the number belongs to the printed count and not to this sentence', is its own rule, and this is the THIRD time this sentence has broken it (`Two` until 2026-08-09, then `7 of 7` until today). No guard grades this prose, so it is corrected by a dated measurement set beside the frozen wording instead of by editing it — and the rule stands: read the printed count, never this sentence.",
     "site:rajasekarselvam": "Same mechanism and the same caveat as site:nikatru: Cloudflare Git integration, no workflow job, covered by O-2's external prober over the delegated hostname set.",
-    "subly-linux-snap": "🔴 NOT \"stores are slow\" — a SPECIFIC surface carries nothing a probe can join on, for three separate reasons, and closing ANY ONE of them retires this entry. (1) THERE IS NO JOIN KEY. `snapcraft upload` documents no machine-readable output, and the REVISION ID is recorded UNSOURCED in tooling/release/submit-snap.mjs (UNSOURCED[0]): `manageRevisions` says a number \"can be obtained with the `snapcraft revisions` command\", whose output FORMAT is documented on no page fetched. The only value a probe could compare is the snap VERSION — and a version is NOT unique across revisions, so a channel already carrying an earlier revision of the same version answers such a probe correctly while THIS upload shipped nothing. That is green over precisely the failure it exists to catch: the `Ping` finding tooling/monitor-register.json records, repeated on a store. (2) A NEGATIVE READ IS NOT EVIDENCE EITHER, SO THE PROBE CANNOT EVEN FAIL HONESTLY. `--release` takes effect only \"if the store review passes\"; that review is AUTOMATIC and happens ON UPLOAD; and `need_manual_review` is an enumerated status. So a channel map that does not yet name this upload is a documented, expected state of a GOOD submission, and failing on it would be a false red on the honest path — the 2026-08-04 lesson tooling/ops/post-deploy-smoke.mjs carries in its own header. (3) THERE IS NO TRANSPORT TO READ FROM. Everything this repo sends to the store goes through `snapcraft`, because UNSOURCED[1] records that the mapping from SNAPCRAFT_STORE_CREDENTIALS onto the store API’s `Authorization: Macaroon root=…, discharge=…` header is not sourced — no request in this tree reaches dashboard.snapcraft.io. And `snapcraft whoami`’s output is ALREADY refused as a parse target in that same file because its format is undocumented; parsing `snapcraft status` would break that rule one command over. 🔴 WHAT COVERS IT INSTEAD: NOTHING DOES, AND THAT IS WRITTEN DOWN AS A GAP RATHER THAN DRESSED AS COVERAGE. The two site: entries above delegate to O-2’s external prober; this one delegates to nobody. The [10]D-9 row this job writes says `in_review` and claims only \"we submitted\"; the transition to `live` is a separate act nothing in this repository performs. The row is also `served: false` in tooling/channel-register.json and the job has never run, so the gap is real but not yet load-bearing — which is the moment to write it down, not the moment to forget it. WHAT RETIRES THIS ENTRY, and it is one fact either way: a SOURCED machine-readable revision id (UNSOURCED[0]) or the macaroon header mapping (UNSOURCED[1]). Either makes a read-after-upload joinable, and tooling/ops/post-deploy-smoke.mjs then gets a snap limb the way it got a Play one on 2026-08-26. ⚠️ DO NOT COPY THIS ONTO THE PLAY LANE — it was checked on 2026-08-26 and came out the OTHER WAY. .github/workflows/submit-play.yml:submit now runs a real post-deploy smoke, because androidpublisher’s `edits.tracks.list` returns the versionCodes each track carries and the versionCode IS a machine-readable key the upload produces. \"The store has a review queue\" is true of BOTH channels and settles NEITHER: it is an argument about the LISTING, and the Play probe does not read the listing."
+    "subly-linux-snap": "🔴 NOT \"stores are slow\" — a SPECIFIC surface carries nothing a probe can join on, for three separate reasons, and closing ANY ONE of them retires this entry. (1) THERE IS NO JOIN KEY. `snapcraft upload` documents no machine-readable output, and the REVISION ID is recorded UNSOURCED in tooling/release/submit-snap.mjs (UNSOURCED[0]): `manageRevisions` says a number \"can be obtained with the `snapcraft revisions` command\", whose output FORMAT is documented on no page fetched. The only value a probe could compare is the snap VERSION — and a version is NOT unique across revisions, so a channel already carrying an earlier revision of the same version answers such a probe correctly while THIS upload shipped nothing. That is green over precisely the failure it exists to catch: the `Ping` finding tooling/monitor-register.json records, repeated on a store. (2) A NEGATIVE READ IS NOT EVIDENCE EITHER, SO THE PROBE CANNOT EVEN FAIL HONESTLY. `--release` takes effect only \"if the store review passes\"; that review is AUTOMATIC and happens ON UPLOAD; and `need_manual_review` is an enumerated status. So a channel map that does not yet name this upload is a documented, expected state of a GOOD submission, and failing on it would be a false red on the honest path — the 2026-08-04 lesson tooling/ops/post-deploy-smoke.mjs carries in its own header. (3) THERE IS NO TRANSPORT TO READ FROM. Everything this repo sends to the store goes through `snapcraft`, because UNSOURCED[1] records that the mapping from SNAPCRAFT_STORE_CREDENTIALS onto the store API’s `Authorization: Macaroon root=…, discharge=…` header is not sourced — no request in this tree reaches dashboard.snapcraft.io. And `snapcraft whoami`’s output is ALREADY refused as a parse target in that same file because its format is undocumented; parsing `snapcraft status` would break that rule one command over. 🔴 WHAT COVERS IT INSTEAD: NOTHING DOES, AND THAT IS WRITTEN DOWN AS A GAP RATHER THAN DRESSED AS COVERAGE. The two site: entries above delegate to O-2’s external prober; this one delegates to nobody. The [10]D-9 row this job writes says `in_review` and claims only \"we submitted\"; the transition to `live` is a separate act nothing in this repository performs. The row is also `served: false` in tooling/channel-register.json and the job has never run, so the gap is real but not yet load-bearing — which is the moment to write it down, not the moment to forget it. WHAT RETIRES THIS ENTRY, and it is one fact either way: a SOURCED machine-readable revision id (UNSOURCED[0]) or the macaroon header mapping (UNSOURCED[1]). Either makes a read-after-upload joinable, and tooling/ops/post-deploy-smoke.mjs then gets a snap limb the way it got a Play one on 2026-08-26. ⚠️ DO NOT COPY THIS ONTO THE PLAY LANE — it was checked on 2026-08-26 and came out the OTHER WAY. .github/workflows/submit-play.yml:submit now runs a real post-deploy smoke, because androidpublisher’s `edits.tracks.list` returns the versionCodes each track carries and the versionCode IS a machine-readable key the upload produces. \"The store has a review queue\" is true of BOTH channels and settles NEITHER: it is an argument about the LISTING, and the Play probe does not read the listing.",
+    "subly-windows-store": "🔴 THE SAME SHAPE AS subly-linux-snap, AND FOR A DIFFERENT REASON EACH TIME — so it is written out rather than pointed at that entry. Recorded 2026-09-07, when submit-windows-store.yml grew a `submit` job that records `subly-windows-store --state in_review`. (1) THE SUBMISSION IS NOT THE LISTING, AND ONLY THE LISTING IS PROBEABLE. learn.microsoft.com \"Manage app submissions\" (fetched 2026-09-07) says a committed submission moves `CommitStarted → PreProcessing`, and everything after PreProcessing is Microsoft's certification queue — so at the moment this job ends, nothing is live at apps.microsoft.com and a probe of the storefront would be reading the PREVIOUS version, or a 404 on a first submission. A green probe there would mean \"the old build is still up\", which is the exact false comfort tooling/ops/post-deploy-smoke.mjs's own header records from 2026-08-04. (2) THE ONLY READ-AFTER-WRITE THAT WOULD MEAN ANYTHING IS THE SUBMISSION STATUS, AND THE LANE ALREADY MAKES IT: `msstore submission poll` is the fourth call the script runs, and it is what turns a `CommitFailed` into a non-zero exit before this record is written at all — the record step carries `if: always() && steps.submit.outcome == 'success'`. So the read exists; it is not a `post-deploy-smoke.mjs` step and it cannot become one, because the value it reads is a submission id inside Partner Center rather than a public surface a prober can reach without the four MS_STORE_* credentials. (3) THE JOB HAS NEVER RUN AND CANNOT RUN YET. The Partner Center account has no Entra tenant, so `msstore reconfigure` has nothing to authenticate against, and `served: false` in tooling/channel-register.json still holds for this row. The gap is real and not yet load-bearing, which is the moment to write it down rather than the moment to forget it. 🔴 WHAT RETIRES THIS ENTRY: a first real submission that yields a PUBLIC join key — the storefront URL for the product id, once one listing exists — at which point post-deploy-smoke.mjs can assert that apps.microsoft.com serves that product at the version this run submitted, the way the Play lane got a real smoke on 2026-08-26 off `edits.tracks.list`'s versionCodes. Until a first listing exists there is nothing on the public internet to join on. ⚠️ DO NOT READ THIS AS \"stores are slow\": the Play lane was checked on 2026-08-26 and came out the OTHER WAY."
   },
   "_delegated": {
     "_why": [
@@ -260,6 +261,7 @@
   ],
   "_providers": [
     "github",
+    "mozilla",
     "google",
     "cloudflare",
     "oci",
@@ -468,9 +470,39 @@
       "     becomes 'unread from a named source', which is actionable; deleting the field reddens.",
       "  2. `_maxNull` is a CEILING that ratchets DOWN as dates arrive. A thirteenth null expiry fails.",
       "  3. The count of rows whose lead-window arithmetic ACTUALLY EXECUTED prints on every run, so",
-      "     '0 of 12' can never again look like twelve checked expiries."
+      "     '0 of 12' can never again look like twelve checked expiries.",
+      "",
+      "MOVED 12 -> 18 ON 2026-09-07, AND THE DERIVATION IS THE WHOLE OF THE JUSTIFICATION. This ceiling",
+      "ratchets DOWN and the paragraph above says so in as many words, so raising it is the one move that",
+      "has to show its arithmetic rather than assert good faith. It is:",
+      "",
+      "    12 (the rows this ceiling was set for, unchanged and still null)",
+      "  +  6 (the store PUBLISHING credentials the extensions and store lanes now depend on:",
+      "        amo-api-key, cws-oauth-client, cws-refresh-token, edge-api-key, ms-store-client-secret,",
+      "        snapcraft-macaroon)",
+      "  = 18",
+      "",
+      "NOT ONE OF THE SIX EXISTS YET. No account has issued any of them, so there is no console page",
+      "anywhere that shows a date — the expiry is unknown UNTIL MINTED, which each row says in those words",
+      "in its `ownerGap`. The alternative to adding them was leaving six credentials that a release lane",
+      "now depends on out of the only register that watches expiry, which is what the phase-3 critic",
+      "measured and refused (`grep -c -i expiring phase3-store-lanes.md` -> 0). A ceiling that stays at 12",
+      "by not writing the rows is not coverage; it is the same absence with a tidier number.",
+      "",
+      "🔴 THE RATCHET IS NOT SUSPENDED, IT IS RE-ARMED SIX ROWS HIGHER, AND EACH OF THE SIX COMES BACK",
+      "DOWN INDIVIDUALLY. The moment a credential is minted its `expires` is written from the source its",
+      "`expiryKnownAt` names and this number drops by one, in the same commit — 18 -> 17 -> ... -> 12. A",
+      "NINETEENTH null fails today. Two of the six will get a real date the day they are created and",
+      "nothing else has to happen first: expiring.store-credential.snapcraft-macaroon (we pass `--expires`",
+      "ourselves) and expiring.store-credential.ms-store-client-secret (Entra shows the date once, at",
+      "creation, and never again).",
+      "",
+      "⚠️ AND THE ARITHMETIC STILL HAS NOT RUN. 19 expiring rows, 18 nulls, and the one row with a real",
+      "date (expiring.ceilings-citations) is the only one the lead-window comparison executes on. The",
+      "executed-count print below is what keeps that visible; it is the reason this raise is recorded as a",
+      "debt with six named owners rather than as coverage."
     ],
-    "_maxNull": 12
+    "_maxNull": 18
   },
   "_retentionCoverage": {
     "_why": [
@@ -2640,6 +2672,153 @@
       "ownerGap": "Console-only. Owner action.",
       "source": "verified",
       "expiryKnownAt": "Snapcraft dashboard -> the Ubuntu One account and its developer agreement. Console-only."
+    },
+    {
+      "id": "expiring.store-credential.amo-api-key",
+      "kind": "expiring",
+      "what": "The addons.mozilla.org API credentials AMO_JWT_ISSUER + AMO_JWT_SECRET, which extensions/scripts/publish-amo.mjs hands to `web-ext sign --channel listed`. AMO is the ONE extension store whose API can make a first submission, so this pair is the only extension credential that can block a release before any manual publish has happened.",
+      "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
+      "response": "Open the AMO developer hub API-key page, confirm the key is still listed and active, and re-issue it if it is not — a re-issue replaces BOTH halves, so both repository secrets move together or the lane refuses on the half that did not.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "the addons.mozilla.org developer hub, Manage API Keys",
+        "failingValue": "the key revoked or re-issued without the repository secrets being updated",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "mozilla"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: create the AMO developer account and issue the API key pair, then set AMO_JWT_ISSUER and AMO_JWT_SECRET and write the issue date here. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+      "source": "unverified",
+      "unverifiedWhy": "No page fetched for this row states a fixed lifetime for an AMO API key — the credential is revocable and re-issuable rather than dated. The row is therefore a RE-READ obligation on a 180d cadence, not a countdown; `expires` stays null until the owner records an issue date and a policy read that gives it meaning.",
+      "expiryKnownAt": "addons.mozilla.org -> Developer Hub -> Manage API Keys. Console-only. Private/runbooks/store-submission-extensions.md"
+    },
+    {
+      "id": "expiring.store-credential.cws-oauth-client",
+      "kind": "expiring",
+      "what": "The Chrome Web Store OAuth client CWS_CLIENT_ID + CWS_CLIENT_SECRET in the Google Cloud project authorised for the chromewebstore scope. It is the half of the refresh-token exchange that lives in a console rather than in a token.",
+      "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
+      "response": "Open the Google Cloud console credentials page for that project and confirm the OAuth client still exists and is not disabled. If it was deleted, a new client invalidates the refresh token as well: both CWS_CLIENT_* secrets AND CWS_REFRESH_TOKEN are re-minted together, in one change, or the lane refuses on whichever half is stale.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "Google Cloud console -> APIs & Services -> Credentials, for the project holding the chromewebstore scope",
+        "failingValue": "the OAuth client deleted or disabled, which also kills every refresh token issued under it",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "google"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: pay the $5 Chrome Web Store developer fee, create the OAuth client, then set CWS_CLIENT_ID and CWS_CLIENT_SECRET. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+      "source": "unverified",
+      "unverifiedWhy": "No page fetched for this row states a fixed lifetime for a Google OAuth client secret. What this row watches is therefore EXISTENCE and non-disablement on a 180d re-read, not a calendar expiry — and it is recorded rather than researched again because the credential does not exist yet to be researched about.",
+      "expiryKnownAt": "Google Cloud console -> APIs & Services -> Credentials -> the OAuth 2.0 Client ID row. Console-only. Private/runbooks/store-submission-extensions.md"
+    },
+    {
+      "id": "expiring.store-credential.cws-refresh-token",
+      "kind": "expiring",
+      "what": "The Chrome Web Store OAuth refresh token CWS_REFRESH_TOKEN. It is the one store credential with a NON-USE clock rather than a calendar date: a refresh token that is not exercised is revoked, and a release lane that publishes a few times a year is exactly the shape that lets that happen unnoticed.",
+      "detector": "The `cws-token-keepalive` job on the DAILY 20:53 UTC schedule (`53 20 * * *`) in .github/workflows/extensions.yml — it exchanges the refresh token on every scheduled run and fails when the exchange fails while the chrome-webstore row is armed. ⚠️ 2026-09-07, CORRECTED IN PLACE: this sentence was drafted against the Monday-only cron `17 4 * * 1` and #519 widened that cron to daily while this branch was open; the job rides `if: github.event_name == 'schedule'`, so it now fires daily. `cadence` stays `7d` because the DUTY did not change — only the number of chances the evidence gets (TRAPS ci-19 gives the margin to the evidence, not to the duty), exactly as duty.workflow.extensions records at its own `what`. ⚠️ THAT JOB HAS NO `duty.*` ROW YET AND THAT IS CORRECT, NOT AN OVERSIGHT: assert-ops-register grades a watched job with zero run rows as ABSENT with no grace (TRAPS ci-26), and the job cannot have a run history until the file is on the default branch. The duty row lands with its first scheduled run. Until then this row is the only place the obligation is written down.",
+      "response": "Confirm the keep-alive job has run inside the non-use window. If it has not — the lane was disabled, the schedule was skipped (TRAPS ci-15: GitHub delivers a minority of scheduled slots), or the token was revoked — re-mint the refresh token through the OAuth playground and set CWS_REFRESH_TOKEN again.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "the cws-token-keepalive job run history in .github/workflows/extensions.yml",
+        "failingValue": "the keep-alive not having run inside the non-use window, or its exchange failing while the row is armed",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "google"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: exchange a refresh token once through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope and set CWS_REFRESH_TOKEN. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down. 🔴 `satisfiedBy` IS DELIBERATELY NOT SET, even though the keep-alive is exactly the duty that would satisfy it: this guard resolves satisfiedBy to a real row and grades that row's cadence against windowDays, and the duty row cannot exist until the job has a run history. Claiming satisfaction by a row that does not exist is the failure mode the field exists to prevent. It is set in the same change that adds duty.extensions.cws-token-keepalive.",
+      "source": "unverified",
+      "unverifiedWhy": "The six-month non-use figure is this repository's own, carried over from expiring.drive-refresh-token-non-use, and no Google page was fetched for THIS row. It is recorded as unconfirmed for the same reason that row is: the mitigation (a weekly exchange) is orders of magnitude inside any plausible window.",
+      "expiryKnownAt": "NO CALENDAR DATE EXISTS for this one, by construction: it is a non-use clock. The checkable fact is the keep-alive job's own run history, once that job has one. Private/runbooks/store-submission-extensions.md"
+    },
+    {
+      "id": "expiring.store-credential.edge-api-key",
+      "kind": "expiring",
+      "what": "The Microsoft Edge Add-ons Partner Center API key EDGE_API_KEY (sent as `Authorization: ApiKey <key>` beside the EDGE_CLIENT_ID header). Partner Center shows an expiry against the key on the page that issues it, which makes this the one extension credential with a real date to read.",
+      "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
+      "response": "Open Partner Center -> Microsoft Edge program -> Publish API and read the key's expiry. Write it into `expires` here, and re-issue before the lead window closes — a key that expires between two releases fails a tag push, not a rehearsal.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "Partner Center -> Microsoft Edge program -> Publish API",
+        "failingValue": "the API key past its Partner Center expiry, or re-issued without EDGE_API_KEY being updated",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "microsoft"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: register the tool in Partner Center, publish it manually once, enable the Publish API and set EDGE_CLIENT_ID and EDGE_API_KEY — then write the expiry Partner Center shows into `expires` on this row. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+      "source": "verified",
+      "expiryKnownAt": "Partner Center -> Microsoft Edge program -> Publish API, beside the key. Console-only. Private/runbooks/store-submission-extensions.md"
+    },
+    {
+      "id": "expiring.store-credential.ms-store-client-secret",
+      "kind": "expiring",
+      "what": "The Entra application client secret MS_STORE_CLIENT_SECRET that .github/workflows/submit-windows-store.yml hands to `msstore reconfigure`. Entra client secrets are created with an explicit lifetime and stop working on that date; the account has no Entra tenant yet, so neither the app registration nor the secret exists.",
+      "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
+      "response": "Open the Entra app registration -> Certificates & secrets, read the client secret's expiry, write it into `expires` here, and roll the secret before the lead window closes. Rolling it is a one-line repository-secret change; discovering it expired is a failed store submission.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "Entra ID -> App registrations -> the Store submission app -> Certificates & secrets",
+        "failingValue": "the client secret past its declared lifetime, so `msstore reconfigure` cannot authenticate",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "microsoft"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: create the Entra tenant and app registration, associate it in Partner Center, then set MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET and MS_STORE_PRODUCT_ID — and write the secret's expiry into `expires` here on the day it is created, which is the only day it is shown. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+      "source": "verified",
+      "expiryKnownAt": "Entra ID -> App registrations -> Certificates & secrets, the Expires column. Console-only. Private/runbooks/store-submission-windows.md"
+    },
+    {
+      "id": "expiring.store-credential.snapcraft-macaroon",
+      "kind": "expiring",
+      "what": "The exported Snap Store macaroon SNAPCRAFT_STORE_CREDENTIALS, and the date it was issued with. It is the only store credential in this register whose expiry WE choose: `snapcraft export-login --expires <date>` takes it as an argument.",
+      "detector": "tooling/release/submit-snap.mjs's expiry limb, which reads the DECLARED date from the SNAPCRAFT_STORE_CREDENTIALS_EXPIRES repository secret and refuses a dry run or a submit when the credential is absent, the date is unparseable, or it falls inside 30 days. 🔴 IT DOES NOT PARSE `snapcraft whoami`: that output's format is documented on no page fetched for this work, and a date read out of an undocumented format is a date that changes under you (scope §7.4.4).",
+      "response": "Re-run `snapcraft export-login --acls package_push,package_release --expires <date>`, set SNAPCRAFT_STORE_CREDENTIALS to the new blob and SNAPCRAFT_STORE_CREDENTIALS_EXPIRES to the date you passed, and write that same date into `expires` here.",
+      "cadence": "180d",
+      "expires": null,
+      "leadDays": 30,
+      "mechanism": {
+        "substrate": "external-registry",
+        "anchor": "tooling/channel-register.json",
+        "record": "the SNAPCRAFT_STORE_CREDENTIALS_EXPIRES repository secret, declared in tooling/channel-register.json",
+        "failingValue": "the declared expiry inside 30 days, absent, or unparseable — all three refuse in submit-snap.mjs",
+        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+      },
+      "accessProviders": [
+        "canonical"
+      ],
+      "ownerGated": true,
+      "ownerGap": "Owner: register the snap name, run `snapcraft export-login --acls package_push,package_release --expires <date>`, set both secrets, and write the date here. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down. Of the six store-credential rows this is the one that will get a real date first, because we pass it ourselves.",
+      "source": "verified",
+      "expiryKnownAt": "The `--expires` argument the owner passes to `snapcraft export-login`, mirrored into the SNAPCRAFT_STORE_CREDENTIALS_EXPIRES repository secret and read by tooling/release/submit-snap.mjs. Private/runbooks/store-submission-snap.md"
     },
     {
       "id": "expiring.ceilings-citations",

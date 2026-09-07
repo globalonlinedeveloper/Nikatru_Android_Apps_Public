@@ -1,6 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // windows-store-submission.test.mjs — tooling/release/submit-windows-store.mjs
-// must be able to FAIL, and --submit must refuse.
+// must be able to FAIL, and --submit must fail CLOSED at every preflight.
+//
+// ⏱ APPENDED 2026-09-07 — the paragraphs below are left EXACTLY as written; this
+// corpus appends dated corrections rather than rewriting them. --submit is now
+// IMPLEMENTED against primary sources fetched 2026-09-07, which is the outcome
+// the refusal case below said its own failure would mean.
 //
 // [pipeline D-10] limb (i): "a submission script exists AND resolves to a step
 // in a workflow". A script that exists and has stopped working satisfies the
@@ -26,7 +31,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, cpSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -137,7 +142,7 @@ function run(root, args, env = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('submit-windows-store — the submission path is walkable, and --submit refuses', () => {
+describe('submit-windows-store — the submission path is walkable, and --submit fails closed', () => {
   test('--dry-run PASSES over a complete tree and a real artifact, and sends nothing', () => {
     const { code, out } = run(tree({ withArtifact: true }), ['--dry-run', '--app', 'subly']);
     assert.equal(code, 0, out);
@@ -145,15 +150,123 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     assert.match(out, /artifact apps\/subly\/build\/windows\/msix\/subly\.msix/);
   });
 
-  // 🔴 the refusal, and it must be BEFORE any validation
-  test('--submit REFUSES with UNVERIFIED, before running a single check', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly']);
+  // ── THE FOUR PREFLIGHTS OF THE REAL --submit PATH ─────────────────────────
+  // 🔴 THE TEST THAT USED TO STAND HERE ASSERTED A REFUSAL, and its own header
+  // said what its failure would mean: "If somebody later implements `--submit`,
+  // this test failing is the correct signal — it means the refusal is gone and
+  // the UNVERIFIED list must have been replaced by SOURCED FACTS, not deleted."
+  // That is what happened on 2026-09-07. Six of the seven UNVERIFIED lines were
+  // replaced by pages fetched that day and recorded in `PRIMARY_SOURCES`; the
+  // seventh (raw-HTTP transport) survives in `UNSOURCED` with the limb it
+  // refuses. The cases below are what replaces the refusal — one per preflight,
+  // because a submission that fails without saying which gate stopped it sends
+  // somebody to a console to find out.
+  const CREDS = {
+    MS_STORE_TENANT_ID: 'tenant-fixture',
+    MS_STORE_CLIENT_ID: 'client-fixture',
+    MS_STORE_CLIENT_SECRET: 'the-actual-secret',
+    MS_STORE_PRODUCT_ID: 'product-fixture',
+  };
+
+  test('--submit FAILS CLOSED with no credentials, NAMING the empty secrets', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE']);
     assert.equal(code, 1, out);
-    assert.match(out, /--submit is NOT IMPLEMENTED, and refusing is the implementation/);
-    assert.match(out, /UNVERIFIED: the Microsoft Store submission API base URL/);
-    assert.match(out, /Nothing was validated/);
-    // Nothing was validated means nothing was printed about the tree either.
-    assert.doesNotMatch(out, /metadata tree .* field\(s\) present/);
+    assert.match(out, /4 of 4 Microsoft Store credential\(s\) are EMPTY: MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET, MS_STORE_PRODUCT_ID/);
+    assert.match(out, /green tick over a store that received nothing/);
+  });
+
+  test('--submit REFUSES without the typed confirm phrase', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly'], CREDS);
+    assert.equal(code, 1, out);
+    assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
+    assert.doesNotMatch(out, /the-actual-secret/);
+  });
+
+  test('--submit REFUSES on a WRONG confirm phrase — a near miss is not a confirmation', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STOR'], CREDS);
+    assert.equal(code, 1, out);
+    assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
+  });
+
+  test('--submit FAILS CLOSED with no GITHUB_TOKEN — PG-6 cannot read the approval gate', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+      ...CREDS,
+      GITHUB_TOKEN: '',
+      GH_TOKEN: '',
+      GITHUB_REPOSITORY: '',
+    });
+    assert.equal(code, 1, out);
+    assert.match(out, /needs GITHUB_REPOSITORY and GITHUB_TOKEN to read the publish environment/);
+    assert.match(out, /environments/);
+  });
+
+  test('--submit prints the sourced-citation tally before it touches anything remote', () => {
+    const { out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+      ...CREDS,
+      GITHUB_TOKEN: '',
+      GH_TOKEN: '',
+      GITHUB_REPOSITORY: '',
+    });
+    assert.match(out, /primary sources — \d+ citation\(s\) present/);
+  });
+
+  // 🔴 THE MUTATION THAT PROVES THE CITATIONS ARE LOAD-BEARING. Blanking one URL
+  // in PRIMARY_SOURCES must make --submit REFUSE naming it. Without this case the
+  // block is a comment: a citation nothing reads is a citation nobody has to keep
+  // true, which is exactly how the seven UNVERIFIED lines came to exist.
+  //
+  // The mutated copy is written into a FIXTURE TREE together with the flat
+  // tooling/ci sources it spawns, because the script resolves
+  // assert-submission-safety.mjs relative to ITSELF — `shell-16`: a guard copied
+  // out of tooling/ci dies on LOAD with exit 1, which reads exactly like the
+  // mutation being caught. Copying its siblings is what keeps the red honest.
+  test('MUTATION: a blanked primary source makes --submit refuse, naming the key', () => {
+    const root = tree({ withArtifact: true });
+    cpSync(join(REPO, 'tooling', 'ci'), join(root, 'tooling', 'ci'), {
+      recursive: true,
+      filter: (src) => !src.split(/[\\/]/).includes('test'),
+    });
+    const mutated = join(root, 'tooling', 'release', 'submit-windows-store.mjs');
+    mkdirSync(dirname(mutated), { recursive: true });
+    const source = readFileSync(SCRIPT, 'utf8');
+    const before = source.match(/msstoreCli: '(https:\/\/[^']+)'/);
+    assert.ok(before !== null, 'the msstoreCli citation is not where this mutation expects it');
+    writeFileSync(mutated, source.replace(before[0], "msstoreCli: ''"));
+
+    // GREEN CONTROL FIRST: the UNMUTATED copy in the same fixture tree gets past
+    // the citation check and stops at PG-6, so a red below is about the citation
+    // and not about the copy.
+    const controlPath = join(root, 'tooling', 'release', 'control.mjs');
+    writeFileSync(controlPath, source);
+    const control = spawnSync(
+      process.execPath,
+      [controlPath, '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
+      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
+    );
+    const controlOut = `${control.stdout ?? ''}${control.stderr ?? ''}`;
+    assert.match(controlOut, /primary sources — \d+ citation\(s\) present/, controlOut);
+
+    const r = spawnSync(
+      process.execPath,
+      [mutated, '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
+      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
+    );
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    assert.equal(r.status, 1, out);
+    assert.match(out, /the primary source for "msstoreCli" is ""/);
+    assert.doesNotMatch(out, /primary sources — \d+ citation\(s\) present/);
+  });
+
+  test('the seven UNVERIFIED lines are gone and what survives is named in UNSOURCED', () => {
+    const source = readFileSync(SCRIPT, 'utf8');
+    assert.ok(!source.includes('--submit is NOT IMPLEMENTED'), 'the refusal is back');
+    assert.match(source, /const UNSOURCED = Object\.freeze\(\[/);
+    assert.match(source, /const PRIMARY_SOURCES = Object\.freeze\(\{/);
+    // limb 4 of assert-release-provenance.mjs reads BOTH of these out of the
+    // script with comments stripped; they are asserted here too so a refactor
+    // that drops one is caught by this suite as well as by that guard.
+    assert.match(source.replace(/^\s*\/\/.*$/gm, ''), /\/environments\//);
+    assert.match(source.replace(/^\s*\/\/.*$/gm, ''), /protection_rules/);
   });
 
   test('FAILS when neither --dry-run nor --submit is given', () => {

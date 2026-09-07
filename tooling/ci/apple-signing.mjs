@@ -29,10 +29,16 @@
 //                         OWNER_QUEUE A-4) — UNLESS this is a release lane AND
 //                         the register ARMS one of the two Apple rows, where the
 //                         absence is a FAILURE and not a posture
-//   some supplied       → FAIL, always, on every lane. Three of four is an
-//                         artifact nobody can explain, and Apple's notion of a
-//                         "correctly signed but wrong identity" build is
-//                         rejected at upload, after the account is spent.
+//   some supplied       → FAIL. Three of four is an artifact nobody can
+//                         explain, and Apple's notion of a "correctly signed but
+//                         wrong identity" build is rejected at upload, after the
+//                         account is spent. ONE EXCEPTION, and it is stated as a
+//                         narrowing rather than folded in silently: on a BUILD
+//                         PROOF lane a set consisting only of `KEYLESS_ENV`
+//                         names — today just `APPLE_TEAM_ID` — is the
+//                         `unsigned-build-proof` ending with the supplied name
+//                         PRINTED as deliberately unused. See `resolvePosture`.
+//                         On a release lane it is still a failure.
 //
 // 🔴 THE RELEASE-LANE FAILURE IS SCOPED BY THE REGISTER, NOT BY THE TAG ALONE,
 // AND THAT CORRECTION WAS MEASURED. Until 2026-08-09 the middle ending read
@@ -201,6 +207,27 @@ export const ROLE_ENV = Object.freeze({
  *  exactly these. A name that arrives here starts being required of every row. */
 export const WANTED = Object.freeze([ROLE_ENV.p12, ROLE_ENV.p12Password, ROLE_ENV.profiles, ROLE_ENV.teamId]);
 
+/** THE WANTED NAMES THAT CARRY NO KEY MATERIAL — today, exactly one.
+ *
+ *  `APPLE_TEAM_ID` is a ten-character public identifier. It appears in
+ *  ExportOptions.plist, in an .xcodeproj, in the App Store Connect URL and on
+ *  the developer portal; it is a secret in this repository only because the
+ *  owner has not published which team the apps belong to. Everything else in
+ *  `WANTED` is a private key, its password, or the profiles that name it.
+ *
+ *  🔴 THIS LIST EXISTS TO KEEP ONE CASE OFF THE ALL-OR-NONE LAW, AND NOTHING
+ *  MORE. On a BUILD PROOF lane nothing is signed, so a team id that is present
+ *  is not half a signing arrangement — it is an identifier for an arrangement
+ *  this lane was never going to make. `resolvePosture` uses it for exactly that,
+ *  and only when `proofLane` is true; a RELEASE lane still gets the all-or-none
+ *  refusal on every partial set, team-id-only included. See the box on
+ *  `resolvePosture` for why the two lanes must answer differently.
+ *
+ *  ⚠️ A NAME ADDED HERE STOPS BEING ABLE TO FAIL A BUILD PROOF. Add one only if
+ *  supplying it alone cannot produce a differently-signed artifact — which for
+ *  anything holding or unlocking a key it cannot. */
+export const KEYLESS_ENV = Object.freeze([ROLE_ENV.teamId]);
+
 /** Names one row declares and the other must not, keyed by that row's channel id.
  *
  *  🔴 `WANTED` AND THIS MAP MUST PARTITION `ROLE_ENV`, AND A TEST SAYS SO. These
@@ -347,7 +374,8 @@ export function releaseLane({ gitRef = '', workflowRef = '', submissionWorkflows
 }
 
 /**
- * THE THREE ENDINGS, plus the one this platform adds.
+ * THE THREE ENDINGS, plus the one this platform adds — and, since 2026-09-07,
+ * one narrowing of the first: `proofLane` with a team id and no key material.
  *
  * Returns `{ posture, fatal }`. `fatal` is null or `{ lines }`; a caller that
  * ignores `fatal` and reads `posture` gets null, which cannot be exported.
@@ -369,8 +397,39 @@ export function releaseLane({ gitRef = '', workflowRef = '', submissionWorkflows
  * `required: true` with no `armed` rows still produces the exact message it
  * always did — which is why every existing case of this function is unchanged.
  */
-export function resolvePosture({ law, required, platform = process.platform, armed = [] } = {}) {
+export function resolvePosture({ law, required, platform = process.platform, armed = [], proofLane = false } = {}) {
   if (law.kind === 'partial') {
+    // 🔴 THE TEAM-ID-ONLY BUILD PROOF — ADDED 2026-09-07, AND IT IS A NARROWING
+    // OF ONE CASE, NOT A HOLE IN THE LAW.
+    //
+    // MEASURED: run 34094776599's Apple job failed here with `supplied:
+    // APPLE_TEAM_ID` while the line directly above it read `lane requires
+    // signing: no ... a BUILD PROOF is legal here`. Run 33870692144 had passed
+    // the identical step four days earlier — nothing in this file moved between
+    // them; an `APPLE_TEAM_ID` repository secret was created in between, for the
+    // store-metadata work. So a lane that declares it needs no signing was
+    // failed by the arrival of a value it had already decided not to use.
+    //
+    // THE FIX IS NOT TO WEAKEN THE ALL-OR-NONE LAW, AND IT IS NOT A PLACEHOLDER
+    // SECRET. The Apple enrolment does not exist (OWNER_QUEUE A-4), so the other
+    // three CANNOT be created by anybody working in this repository, and a build
+    // PROOF that depends on them is a proof that can never run. What is wrong is
+    // the ARITHMETIC: "three of four are missing" is a statement about a signing
+    // arrangement, and on a proof lane there is no arrangement to be partial
+    // about. The one supplied name carries no key material (`KEYLESS_ENV`), so
+    // nothing here can produce a differently-signed artifact — the posture is
+    // the same UNSIGNED-BUILD-PROOF it was when the secret did not exist.
+    //
+    // WHAT STAYS EXACTLY AS IT WAS. `proofLane` defaults to false, so every
+    // existing caller and every existing case is unchanged. On a RELEASE lane
+    // (`proofLane: false`) a team-id-only set is still fatal — there the missing
+    // three are the whole point. And on a proof lane a set containing ANY key
+    // material (a .p12 without its password, profiles without a certificate) is
+    // still fatal, because that IS half an arrangement and it would go on to
+    // produce a bundle signed by something nobody chose.
+    if (proofLane && law.supplied.every((n) => KEYLESS_ENV.includes(n))) {
+      return { posture: UNSIGNED_PROOF, fatal: null, ignoredIdentity: [...law.supplied] };
+    }
     return {
       posture: null,
       fatal: {
@@ -1027,12 +1086,18 @@ function main() {
   const releaseFatal = lane.required && gap.fatal;
 
   // ── partial and the missing-on-an-ARMED-release-lane endings ──────────────
+  // `proofLane` is the NEGATION of the derived release signal, never a flag a
+  // workflow can set — the same argument the `releaseLane()` box makes one level
+  // up. It lets exactly one partial set through: a team id and no key material,
+  // on a lane that already printed that it needs no signing. See `resolvePosture`.
+  const early = resolvePosture({ law, required: releaseFatal, armed: gap.armed, proofLane: !lane.required });
   if (law.kind === 'partial' || (law.kind === 'none' && releaseFatal)) {
-    die(resolvePosture({ law, required: releaseFatal, armed: gap.armed }).fatal.lines);
+    if (early.fatal !== null) die(early.fatal.lines);
   }
+  const identityOnly = law.kind === 'partial' && early.fatal === null;
 
   // ── the legal unsigned ending — LABELLED, which is the whole difference ───
-  if (law.kind === 'none') {
+  if (law.kind === 'none' || identityOnly) {
     // A release lane whose channels are NOT armed. Printed in full and not
     // fatal: no lane in this repository emits an .ipa or a .pkg, so failing
     // would block the release of five ready channels on an enrolment only the
@@ -1051,10 +1116,21 @@ function main() {
     }
     console.log('');
     console.log(`⬜ SIGNING POSTURE: ${UNSIGNED_PROOF.toUpperCase()}`);
-    console.log(`   🔴 NO APPLE SIGNING SECRETS ARE SET, AND THE REASON IS NOT A MISSING SECRET.`);
+    if (identityOnly) {
+      // Say which names arrived and that they were IGNORED. A run that quietly
+      // treated a supplied value as absent would be the same class of silence
+      // this file exists to refuse — the difference between the two endings has
+      // always been the label, not the artifact.
+      console.log(`   ⬜ SUPPLIED AND DELIBERATELY UNUSED ON THIS LANE: ${early.ignoredIdentity.join(', ')}`);
+      console.log('      No key material was supplied, so there is nothing to arrange and nothing was arranged.');
+      console.log('      A team identifier alone cannot sign, and this lane already reported it needs no signing.');
+      console.log('      🔴 ON A RELEASE LANE THIS SAME SET IS STILL FATAL. Nothing about the all-or-none law moved.');
+    } else {
+      console.log(`   🔴 NO APPLE SIGNING SECRETS ARE SET, AND THE REASON IS NOT A MISSING SECRET.`);
+    }
     console.log(`   🔴 THE MISSING ITEM IS THE ${OWNER_GAP.toUpperCase()}.`);
-    console.log('   Without the enrolment there is no distribution certificate, no provisioning profile and no');
-    console.log('   team identifier to put in a secret, so nobody working in this repository can close this.');
+    console.log('   Without the enrolment there is no distribution certificate and no provisioning profile,');
+    console.log('   so nobody working in this repository can close this.');
     console.log('   🔴 AN UNSIGNED BUNDLE CANNOT BE UPLOADED TO APP STORE CONNECT. This artifact is a build');
     console.log('      proof: it proves the Apple modules compile, and nothing about a signing identity.');
     console.log('   This is the correct outcome for a branch, a fork PR and the weekly platform proof.');

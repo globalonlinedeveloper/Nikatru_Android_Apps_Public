@@ -8,6 +8,17 @@ run-name: "Store submit: Microsoft Store (dry run) by @${{ github.actor }}"
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type SUBMIT-TO-MICROSOFT-STORE to run the submission job. Anything else runs the dry run only.'
+        required: false
+        default: ''
+        type: string
+      listing_url:
+        description: 'The Microsoft Store listing URL this submission will be recorded against, e.g. https://apps.microsoft.com/detail/<product-id>. Required for a real submission; ignored by the dry run.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -75,3 +86,129 @@ jobs:
           path: apps/subly/build/windows/msix/subly.msix
           retention-days: 7
           if-no-files-found: error
+
+  submit:
+    name: Submit to the Microsoft Store (owner-approved)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    needs: [gate, dry-run]
+    # why: a typed phrase, not a checkbox, and the dispatch default is empty.
+    if: inputs.confirm == 'SUBMIT-TO-MICROSOFT-STORE'
+    # why: this line is the owner-approval PAUSE (ADR 031 class A), and on its own it
+    # FAILS OPEN -- GitHub creates a referenced environment that does not exist, with
+    # no protection rules, and runs. tooling/release/submit-windows-store.mjs therefore
+    # also reads the environment's protection rules at run time, and
+    # assert-release-provenance.mjs fails the build for a lane carrying only one half.
+    environment: store-publish
+    permissions:
+      contents: read
+      checks: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: A real submission must name the listing it will be recorded against
+        shell: bash
+        env:
+          LISTING_URL: ${{ inputs.listing_url }}
+        run: |
+          set -euo pipefail
+          case "${LISTING_URL}" in
+            https://*)
+              echo "⬜ [10]D-9 the submission will be recorded against ${LISTING_URL}"
+              ;;
+            '')
+              echo "FAIL the \`listing_url\` dispatch input is EMPTY, and this job is a REAL submission." >&2
+              echo "     [10]D-9: a store record whose listing nobody can open says something shipped and" >&2
+              echo "     gives no way to look at it. The [10]D-9 recorder refuses a store environment with" >&2
+              echo "     no --listing-url, so this run could submit and then be unable to record what it did." >&2
+              echo "     Re-dispatch with listing_url set, e.g.  https://apps.microsoft.com/detail/<product-id>" >&2
+              exit 1
+              ;;
+            *)
+              echo "FAIL \`listing_url\` is ${LISTING_URL}, which is not an https URL." >&2
+              echo "     The ledger row is the ONLY address anybody will have for this submission once the" >&2
+              echo "     dashboard is behind an account nobody can open." >&2
+              exit 1
+              ;;
+          esac
+      # why: the shape assert-green-means-ran.mjs section B counts -- the branch that
+      # discovers the secret is absent ENDS the job. A submission job that finds it
+      # cannot authenticate and then reports success is a green tick over a store that
+      # received nothing.
+      - name: Preflight — every Microsoft Store credential must be present
+        shell: bash
+        env:
+          MS_STORE_TENANT_ID: ${{ secrets.MS_STORE_TENANT_ID }}
+          MS_STORE_CLIENT_ID: ${{ secrets.MS_STORE_CLIENT_ID }}
+          MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+          MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
+        run: |
+          set -euo pipefail
+          missing=''
+          if [ -z "$MS_STORE_TENANT_ID" ];     then missing="$missing MS_STORE_TENANT_ID"; fi
+          if [ -z "$MS_STORE_CLIENT_ID" ];     then missing="$missing MS_STORE_CLIENT_ID"; fi
+          if [ -z "$MS_STORE_CLIENT_SECRET" ]; then missing="$missing MS_STORE_CLIENT_SECRET"; fi
+          if [ -z "$MS_STORE_PRODUCT_ID" ];    then missing="$missing MS_STORE_PRODUCT_ID"; fi
+          if [ -n "$missing" ]; then
+            echo "::error title=Microsoft Store submission cannot run::these repository secrets are empty:$missing. They come from an Entra application associated with the Partner Center account (Private/runbooks/store-submission-windows.md). This is a FAILED submission, not a skipped one."
+            exit 1
+          fi
+          echo "all four MS_STORE_* secrets present — the submission may proceed."
+      - uses: ./.github/actions/setup-flutter
+      - name: Resolve the workspace
+        run: flutter pub get --enforce-lockfile
+      - name: Build windows
+        working-directory: apps/subly
+        run: >
+          flutter build windows --release
+          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
+          --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      - name: Package MSIX (Microsoft Store)
+        working-directory: apps/subly
+        run: dart run msix:create
+      # why: the Microsoft Store Developer CLI is the transport, for the same reason the
+      # Snap lane speaks `snapcraft`: it is Microsoft's own, documented, cross-platform
+      # and actively released, and it already holds the two links this repository has no
+      # primary source for (the Azure Blob upload of the ZIP, and the full submission
+      # body). The version is EXACT -- a range resolves at run time, so the rehearsal and
+      # the submission could speak to different tools.
+      # ⏱ CORRECTED 2026-09-07 (store-lanes second pass) — THE PIN IS READ FROM
+      # tooling/versions.json, NOT WRITTEN HERE. `--version 0.4.2` was a literal in
+      # this line and nowhere else, which put it outside the domain of
+      # tooling/ci/assert-update-coverage.mjs: that guard quantifies over the KEYS of
+      # tooling/versions.json, so a pin written inside a workflow is advanced by
+      # nobody and no check in the tree can say so. Same shape as the gitleaks,
+      # zizmor, OSV-Scanner and Trivy installs in ci.yml.
+      - name: Install the Microsoft Store Developer CLI (exact pin from tooling/versions.json)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = node -p "require('./tooling/versions.json').msstore_cli"
+          if (-not ($ver -match '^\d+\.\d+\.\d+$')) {
+            Write-Error "tooling/versions.json key msstore_cli is '$ver'; an exact three-part version is required. A range resolves at run time, so the rehearsal and the submission could speak to different tools."
+          }
+          Write-Host "msstore-cli pin $ver (tooling/versions.json)"
+          winget install --exact --id Microsoft.MSStoreCLI --version $ver --accept-source-agreements --accept-package-agreements --disable-interactivity
+      - name: Submit to the Microsoft Store
+        id: submit
+        env:
+          MS_STORE_TENANT_ID: ${{ secrets.MS_STORE_TENANT_ID }}
+          MS_STORE_CLIENT_ID: ${{ secrets.MS_STORE_CLIENT_ID }}
+          MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+          MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >
+          node tooling/release/submit-windows-store.mjs --submit --app subly
+          --confirm SUBMIT-TO-MICROSOFT-STORE
+      - name: Record the submission in the [10]D-9 ledger
+        if: always() && steps.submit.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LISTING_URL: ${{ inputs.listing_url }}
+        run: node tooling/ci/record-deployment.mjs subly-windows-store --state in_review --listing-url "$LISTING_URL"
