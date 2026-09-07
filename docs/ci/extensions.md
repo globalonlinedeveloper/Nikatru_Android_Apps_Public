@@ -14,9 +14,12 @@ it carries the rules every workflow in this repository has to obey.
 > never offset, and there is nothing left to re-measure them against. Where the
 > text they name is still live, it is in `extensions.yml` — for example the
 > matrix job the e2e gate parses, `name: e2e · ${{ matrix.suite.dir }}`, was
-> line 84 of *that* `ci.yml` and is `extensions.yml:917` here (re-measured
-> 2026-09-06, and again after this branch's own two insertions moved it: 896
-> on main, 913 with the contracts-sync steps, 917 with the Dart drift gate). This repository's own `ci.yml:84` is an unrelated line.
+> line 84 of *that* `ci.yml` and is `extensions.yml:1000` here (re-measured
+> 2026-09-07, after the daily-cron comment block at the top of the file moved
+> it again; the history of the number is 896, 913, 917, then 980 once every job
+> acquired a `timeout-minutes`, and 1000 now. Each of those was measured with
+> `grep -n`, never offset, which is why the last one was found to have been
+> stale on `main` before this branch touched anything). This repository's own `ci.yml:84` is an unrelated line.
 
 ## File header
 
@@ -56,7 +59,8 @@ jobs which actually ran matches the lane the event selected, and fails if a
 lane came out empty.
 
   ci        push to main · pull_request · workflow_dispatch(lane=ci)
-  e2e       Monday cron · a PR labelled `run-e2e` · workflow_dispatch(lane=e2e)
+  e2e       daily cron (20:53 UTC) · a PR labelled `run-e2e`
+            · workflow_dispatch(lane=e2e)
   release   a tag push `<tool>-v<x.y.z>` (never `core-v*`)
             · workflow_dispatch(lane=release), which is a rehearsal and refuses
               to publish
@@ -1057,8 +1061,8 @@ is the slow machine this favours.
 A RED WEEKLY RUN AND A DEAD CRON LOOK IDENTICAL, AND BOTH LOOK LIKE NOTHING.
 Every check above this line runs INSIDE the weekly run, so none of them says
 anything when the weekly run stops happening — or when it happens, goes red,
-and lands in a list nobody opens. Six wired suites can be red every Monday
-for months and no build anywhere turns a colour.
+and lands in a list nobody opens. Six wired suites can be red on every one of
+those runs for months and no build anywhere turns a colour.
 
 This job asks the two questions the run cannot ask about itself: did the
 TIMER fire, and was the last thing it produced GREEN.
@@ -1077,7 +1081,8 @@ One file now carries both limbs and both call sites run it, and the case
 that separates them is in the self-test: with the count mutated back out it
 returns exit 0 over `legs=1/2  GREEN`. The script's header carries the
 reasoning that used to live here — the three divergences from the
-Platform_Public siblings, and why MAX_AGE_DAYS is 15 and not 14 — and
+Platform_Public siblings, and why MAX_AGE_DAYS is 10 — re-derived from the
+DAILY cron on 2026-09-07; it read 15 while the cron was one Monday slot — and
 scripts/test/selftest.node.js holds the red/green cases for it. NO COUNT IS
 WRITTEN HERE — one was, as `eleven`, and it had rotted. Ask the file:
   grep -cE "script:.*assert-e2e-proof-fresh" scripts/test/selftest.node.js
