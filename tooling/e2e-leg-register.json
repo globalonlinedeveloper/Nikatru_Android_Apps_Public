@@ -76,6 +76,18 @@
       "id": "sign-in",
       "asks": "real credentials against live Supabase move the user off the login screen and into the app",
       "status": "asserted",
+      "_targetAxis": [
+        "APPENDED 2026-09-07 (ADR 067 · cutover-blockers). e2e.yml now carries an auth_target axis",
+        "(hosted | boxa), and `asserted` above is a HOSTED fact. Under auth_target=boxa the suite",
+        "returns early at apps/subly/integration_test/app_test.dart into expectOneIssuerRefusal, whose",
+        "own expectation is that find.text('Go to dashboard') findsNothing — the anchors listed below",
+        "are still IN the file, which is what assert-e2e-legs greps for and why it still prints",
+        "'3 of 6 ... equality holds', but under boxa they are not REACHED. What a boxa run proves is",
+        "the one-issuer refusal (the deployed Worker rejects a Box A-minted session), not this leg.",
+        "Prose, deliberately: making the status target-shaped would need the guard to learn the axis,",
+        "and assert-e2e-legs.mjs is not this unit's file. Recorded so the first reader of a green",
+        "'asserted' after a boxa dispatch is not told the dashboard was reached."
+      ],
       "anchors": [
         "E2EKeys.loginSubmit",
         "shot('03-scan')",
@@ -108,6 +120,15 @@
       "asks": "deleting the account from inside the app really erases the user and its rows",
       "status": "asserted",
       "declaredOn": "2026-08-08",
+      "_targetAxis": [
+        "APPENDED 2026-09-07 (ADR 067 · cutover-blockers). Same axis as sign-in, same reading:",
+        "`asserted` is a HOSTED fact. Under auth_target=boxa this leg's anchors",
+        "(E2EKeys.accountDeletionNotice, find.text('Account deleted'), shot('20-account-deleted'))",
+        "are not reached — the run returns early into the one-issuer refusal, because the deployed",
+        "Worker that performs the erasure trusts exactly one issuer and a Box A-minted session is",
+        "refused by design until Phase 5 moves it. tooling/e2e/verify_purged.mjs still runs and still",
+        "re-reads the admin API, so nothing is skipped; what changes is which fact the run proves."
+      ],
       "_why": [
         "PROMOTED 2026-08-08, and the excuse it replaced is the THIRD this leg has killed — which is the",
         "design working three times. v1 'apps/subly has no delete-account call site' died when [ADR 027]",

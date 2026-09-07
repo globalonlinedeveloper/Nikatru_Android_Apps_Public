@@ -29,6 +29,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -216,5 +217,184 @@ describe('assert_one_issuer.mjs — the Workers trust exactly one issuer', () =>
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /No hashed_token in generate_link response/);
     plan.generateLinkBody = { hashed_token: 'pkce_deadbeefdeadbeefdeadbeefdeadbeef' };
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DELIVERY SHAPE OF THE RESOLVED SECRETS — added 2026-09-07 after the
+// constraints-and-traps review's M1 and the carry-forward review's §5.3.
+//
+// The first pass resolved the target in the preflight and handed the three
+// values on through `$GITHUB_ENV`. That is job-wide: every later step in the
+// job inherits them, including `nanasess/setup-chromedriver` and
+// `actions/upload-artifact`, neither of which ever saw SUPABASE_SERVICE_ROLE_KEY
+// on origin/main (bound per step there, at five places). The register row this
+// unit wrote for that name calls it "the key that BYPASSES THE TURNSTILE GATE",
+// so the blast radius of a job-wide binding is the whole point.
+//
+// These cases hold the SHAPE that replaced it. Each one runs its predicate
+// against the real file first (the green control) and then against a mutated
+// copy that reintroduces exactly the defect (the mutation), so a case that
+// passes because the predicate stopped looking is caught by its own sibling.
+// ─────────────────────────────────────────────────────────────────────────────
+const E2E_YML = join(REPO, '.github', 'workflows', 'e2e.yml');
+
+/** Splits the `e2e` job's steps into { name, env, text } — the same 6/8/10-space
+ *  shape assert-green-means-ran.mjs:165-207 reads, deliberately: a step this
+ *  splitter and that guard disagree about is a step nobody is grading. */
+function e2eSteps(text) {
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => /^ {2}e2e:\s*$/.test(l));
+  if (at === -1) throw new Error('no e2e job in e2e.yml');
+  const blocks = [];
+  let inSteps = false;
+  for (const line of lines.slice(at + 1)) {
+    if (/^ {2}\S/.test(line)) break; // the next job
+    if (/^ {4}steps:\s*$/.test(line)) { inSteps = true; continue; }
+    if (!inSteps) continue;
+    if (/^ {6}-/.test(line)) blocks.push([line]);
+    else if (blocks.length) blocks[blocks.length - 1].push(line);
+  }
+  return blocks.map((block) => {
+    const body = block.join('\n');
+    const name = body.match(/name:\s*(.+)$/m)?.[1]?.trim() ?? '(unnamed)';
+    const env = new Map();
+    const envAt = block.findIndex((l) => /^ {8}env:\s*$/.test(l));
+    if (envAt !== -1) {
+      for (const l of block.slice(envAt + 1)) {
+        const m = l.match(/^ {10}([A-Za-z_][A-Za-z0-9_]*):\s*(.+)$/);
+        if (!m) break;
+        env.set(m[1], m[2].trim());
+      }
+    }
+    return { name, env, text: body };
+  });
+}
+
+/** The three resolved identity names this workflow may not hand to a whole job. */
+const JOB_WIDE = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
+
+/** FINDING for every line that writes a resolved identity value job-wide. */
+function jobWideWrites(text) {
+  return text
+    .split('\n')
+    .filter((l) => JOB_WIDE.some((n) => new RegExp(`echo "${n}=`).test(l)));
+}
+
+/** FINDING when the preflight has no fail-closed empty-sitekey limb. */
+function sitekeyLimbMissing(text) {
+  const pre = e2eSteps(text).find((s) => /Preflight/.test(s.name));
+  if (!pre) return ['no preflight step at all'];
+  const bad = [];
+  if (!/-z\s+"\$TURNSTILE_SITE_KEY"/.test(pre.text)) bad.push('no -z "$TURNSTILE_SITE_KEY" test');
+  if (!pre.env.has('TURNSTILE_SITE_KEY')) bad.push('the preflight env does not bind TURNSTILE_SITE_KEY');
+  if (!/TURNSTILE_SITE_KEY is unset[\s\S]*?exit 1/.test(pre.text)) bad.push('the empty branch does not end the job');
+  return bad;
+}
+
+/** What each harness script needs from the resolved set, read off its own header. */
+const NEEDS = new Map([
+  ['tooling/e2e/provision_user.mjs', ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']],
+  ['tooling/e2e/captcha_posture.mjs', ['SUPABASE_URL', 'SUPABASE_ANON_KEY']],
+  ['tooling/e2e/assert_one_issuer.mjs', ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']],
+  ['tooling/e2e/verify_purged.mjs', ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']],
+  ['tooling/e2e/purge.mjs', ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']],
+]);
+
+/** FINDING for every step that runs a script needing a name it does not bind. */
+function unboundConsumers(text) {
+  const bad = [];
+  for (const step of e2eSteps(text)) {
+    for (const [script, names] of NEEDS) {
+      if (!step.text.includes(script)) continue;
+      for (const n of names) if (!step.env.has(n)) bad.push(`${step.name} runs ${script} without binding ${n}`);
+    }
+  }
+  return bad;
+}
+
+/** FINDING when a binding can hand back the OTHER target's value. */
+function crossContaminating(text) {
+  const bad = [];
+  for (const step of e2eSteps(text)) {
+    for (const [name, value] of step.env) {
+      if (!JOB_WIDE.includes(name)) continue;
+      if (!/secrets\.BOXA_/.test(value)) continue;
+      if (!/== 'hosted' && secrets\./.test(value)) bad.push(`${step.name}: ${name} falls back instead of resolving`);
+      if (!/\|\| '' \}\}$/.test(value)) bad.push(`${step.name}: ${name} has no empty final arm`);
+    }
+  }
+  return bad;
+}
+
+describe('e2e.yml — the resolved auth values are bound per step, never job-wide', () => {
+  const real = readFileSync(E2E_YML, 'utf8');
+
+  test('GREEN CONTROL · no SUPABASE_* value is written to $GITHUB_ENV', () => {
+    assert.deepEqual(jobWideWrites(real), []);
+  });
+
+  test('MUTATION · re-adding the $GITHUB_ENV write is caught', () => {
+    const mutated = real.replace(
+      'echo "E2E_AUTH_TARGET=${TARGET}" >> "$GITHUB_ENV"',
+      'echo "SUPABASE_SERVICE_ROLE_KEY=${key}" >> "$GITHUB_ENV"',
+    );
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.equal(jobWideWrites(mutated).length, 1);
+  });
+
+  test('GREEN CONTROL · every consuming step binds the names its script needs', () => {
+    assert.deepEqual(unboundConsumers(real), []);
+  });
+
+  test('MUTATION · dropping one per-step SUPABASE_SERVICE_ROLE_KEY binding is caught', () => {
+    const line = real.split('\n').find((l) => /^ {10}SUPABASE_SERVICE_ROLE_KEY:/.test(l));
+    assert.ok(line, 'no per-step SUPABASE_SERVICE_ROLE_KEY binding to remove');
+    const mutated = real.replace(`${line}\n`, '');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(unboundConsumers(mutated).length >= 1, 'the removal was not seen');
+  });
+
+  test('GREEN CONTROL · no binding can fall back to the other target', () => {
+    assert.deepEqual(crossContaminating(real), []);
+  });
+
+  test('MUTATION · the two-armed ternary (an empty BOXA_* silently reads hosted) is caught', () => {
+    const two = "${{ inputs.auth_target == 'boxa' && secrets.BOXA_SUPABASE_URL || secrets.SUPABASE_URL }}";
+    const three = real.split('\n').find((l) => /^ {10}SUPABASE_URL: .*BOXA_SUPABASE_URL/.test(l));
+    assert.ok(three, 'no three-armed SUPABASE_URL binding to weaken');
+    const mutated = real.replace(three, `          SUPABASE_URL: ${two}`);
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(crossContaminating(mutated).length >= 1, 'the weakening was not seen');
+  });
+});
+
+describe('e2e.yml — an empty TURNSTILE_SITE_KEY refuses the run', () => {
+  const real = readFileSync(E2E_YML, 'utf8');
+
+  test('GREEN CONTROL · the preflight carries the fail-closed sitekey limb', () => {
+    assert.deepEqual(sitekeyLimbMissing(real), []);
+  });
+
+  test('MUTATION · removing the -z test is caught', () => {
+    const mutated = real.replace('if [ -z "$TURNSTILE_SITE_KEY" ]; then', 'if false; then');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(sitekeyLimbMissing(mutated).includes('no -z "$TURNSTILE_SITE_KEY" test'));
+  });
+
+  test('MUTATION · softening the limb to a message that does not end the job is caught', () => {
+    const mutated = real.replace(/\n {12}exit 1\n {10}fi\n {10}echo "E2E_AUTH_TARGET/, '\n          fi\n          echo "E2E_AUTH_TARGET');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(sitekeyLimbMissing(mutated).includes('the empty branch does not end the job'));
+  });
+
+  test('MUTATION · unbinding the variable from the preflight env is caught', () => {
+    const mutated = real.replace('          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}\n          HOSTED_URL:', '          HOSTED_URL:');
+    assert.notEqual(mutated, real, 'the mutation did not apply — agents-05');
+    assert.ok(sitekeyLimbMissing(mutated).includes('the preflight env does not bind TURNSTILE_SITE_KEY'));
+  });
+
+  test('the drive step still passes the sitekey through as a --dart-define', () => {
+    assert.match(real, /--dart-define=TURNSTILE_SITE_KEY="\$TURNSTILE_SITE_KEY"/);
   });
 });

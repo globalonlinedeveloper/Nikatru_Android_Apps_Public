@@ -99,11 +99,34 @@ jobs:
       # unset the define arrives EMPTY, TurnstileGate renders SizedBox.shrink()
       # and the deployed app behaves byte-for-byte as it does today
       # (apps/subly/lib/features/auth/turnstile_gate.dart). Setting the variable
-      # is then the whole of the app-side cutover work: no workflow edit inside
-      # the Phase 5 window, which is the window that has to carry three acts
-      # already. Safe to ship ahead of the cutover because hosted GoTrue IGNORES
-      # a captcha token it never asked for — measured, not assumed, by
-      # tooling/e2e/captcha_posture.mjs on every E2E run.
+      # is then the whole of the app-side cutover work FOR THIS CHANNEL: no
+      # workflow edit inside the Phase 5 window, which is the window that has to
+      # carry three acts already. Safe to ship ahead of the cutover because
+      # hosted GoTrue IGNORES a captcha token it never asked for — measured, not
+      # assumed, by tooling/e2e/captcha_posture.mjs on every E2E run.
+      #
+      # 🔴 "THIS CHANNEL" IS THE WHOLE QUALIFIER, AND IT IS LOAD-BEARING.
+      # Corrected 2026-09-07: the sentence above was written without it and read
+      # as a portfolio-wide fact. Measured on this branch —
+      #   grep -rn "dart-define=SUPABASE_ANON_KEY" .github/workflows/*.yml
+      #     | grep -v "e2e.yml\|deploy-web.yml" | wc -l   ->  12
+      # Those twelve are build-platforms.yml:141,153,207,290,302;
+      # submit-appstore.yml:56,64; submit-play.yml:84,176; submit-snap.yml:75,196;
+      # submit-windows-store.yml:55 — every one a shipping store or desktop
+      # artifact carrying the identity defines and NOT this one. TurnstileGate is
+      # not platform-gated (no kIsWeb, no conditional import) and Box A enforces
+      # Turnstile for every client, not only browsers, so an artifact from any of
+      # those lanes built after the cutover cannot authenticate anybody on the
+      # four gated screens. It is survivable today only because
+      # runbooks/auth-cutover.md:556 records `web` as the ONLY channel with
+      # served: true — "and it stops being true at first store release".
+      # The durable fix is NOT twelve more define lines: it is declaring the key
+      # in apps/subly/lib/core/app_config.dart with an isTurnstileConfigured
+      # getter beside isRevenueCatConfigured, so the set
+      # assert-store-build-config.mjs:127-158 DERIVES grows a named place and the
+      # guard names all twelve lanes itself. That file is the app-shell unit's
+      # (scope 1.2) and submit-*.yml is unit 1's, so the edit is not owed here —
+      # the residue is, and it is carried in phase3-cutover-blockers.md 8.2.
       - name: Build web (release, no service worker)
         run: >
           flutter build web --release --pwa-strategy=none --source-maps

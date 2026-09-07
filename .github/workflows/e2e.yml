@@ -75,16 +75,27 @@ jobs:
       # values on: the ONLY thing it writes to $GITHUB_ENV is E2E_AUTH_TARGET,
       # which is not a secret. See the block above "Provision throwaway confirmed
       # user" for how the resolved values reach the steps that consume them.
+      #
+      # 🔴 NO COMMENT MAY SIT INSIDE THE `env:` BLOCK BELOW. assert-green-means-ran.mjs
+      # reads a step's env line by line and STOPS at the first line that is not
+      # `NAME: value` (:187-188), so one `#` between two bindings hides every
+      # binding under it — and with the secret bindings hidden the guard cannot
+      # see this preflight at all and exits 2, COVERAGE LOST. Measured on this
+      # branch: with the sitekey's `# why:` inside the block, EXIT 2 "e2e.yml
+      # contains no secret-presence check this scan can see"; moved out here,
+      # EXIT 0. That is the guard working, and the reason every `# why:` for a
+      # binding lives above the step.
+      #
+      # why: TURNSTILE_SITE_KEY is the SITE key, not a secret — a repository
+      # VARIABLE, public by design. It is checked for the same reason the three
+      # secrets are: every gated screen on Box A needs a Turnstile token, so a
+      # run that drives with an empty sitekey proves the suite passes WITHOUT the
+      # gate and says nothing about the cutover it exists to rehearse. Run
+      # 34068306612 was exactly that: green, with the define empty.
       - name: Preflight — the chosen auth target's secrets must be present
         id: pre
         env:
           TARGET: ${{ inputs.auth_target || 'hosted' }}
-          # why: the SITE key, not a secret — a repository VARIABLE, public by
-          # design. It is checked here for the same reason the three secrets are:
-          # every gated screen on Box A needs a Turnstile token, so a run that
-          # drives with an empty sitekey proves the suite passes WITHOUT the gate
-          # and says nothing about the cutover it exists to rehearse. Run
-          # 34068306612 was exactly that: green, with the define empty.
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           HOSTED_URL: ${{ secrets.SUPABASE_URL }}
           HOSTED_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
