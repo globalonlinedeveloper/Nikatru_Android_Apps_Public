@@ -726,12 +726,17 @@ for (const row of withGraphics) {
     // skip.
     const dg = delegationOf(rel);
     if (dg && dg.lost) {
-      problems.push(
-        `COVERAGE LOST — ${rel} ${dg.lost} The DEBUG-ribbon check reads that file plus whatever it ` +
-          'delegates to, so a delegation this scan cannot follow is a MaterialApp it cannot see — and an ' +
-          'unseen shell is skipped by the very branch below that exists to skip files which build no app.',
-      );
-      continue;
+      // COVERAGE LOST rather than a `problems.push`, and the difference is
+      // measured: the `debugBannerAppsChecked === 0` limb below EXITS before
+      // the problem list is ever printed, so a pushed finding here was
+      // swallowed by a message about a different fact. Reported where it
+      // belongs — the scan could not see this app's shell.
+      coverageLost([
+        `${rel} ${dg.lost}`,
+        'The DEBUG-ribbon check reads that file plus whatever it delegates to, so a delegation this scan',
+        'cannot follow is a MaterialApp it cannot see — and an unseen shell is skipped by the very branch',
+        'below that exists to skip catalogue rows with no app tree.',
+      ]);
     }
     // Comment-stripped: the file explains the flag directly above it in several
     // apps, and prose satisfying a structural check is the trap this repo has

@@ -581,6 +581,59 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
     assert.match(r.out, /does not set `debugShowCheckedModeBanner: false`/);
   });
 
+  // ── THE SHELL MOVED INTO THE PACKAGE, AND THE LIMB FOLLOWED IT ──────────
+  //
+  // 🔴 THE SILENT SKIP THIS CLOSES, 2026-09-07 ([ADR 067] phase 2, unit
+  // app-shell). `MaterialApp.router` is now `NikatruApp` in
+  // `package:nikatru_chassis_screens/shell/app_shell.dart`, and the flag went
+  // with it because it is a property of the app SHELL. Read at the adapter
+  // alone a stamped app no longer matches `MaterialApp`, so it is skipped by
+  // the `continue` that exists for catalogue rows with no app tree — and
+  // `debugBannerAppsChecked` still counts every OTHER app, so the COVERAGE LOST
+  // beneath never fires. A limb judging nothing while printing a healthy count
+  // is the exact shape this guard's neighbours have been bitten by.
+  test('D1 · GREEN CONTROL — the flag is found in the chassis file the app delegates to', () => {
+    const r = run(build((s) => {
+      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+        "import 'package:nikatru_chassis_screens/shell/app_shell.dart';\n" +
+          'Widget build() => const NikatruApp();\n',
+      );
+      s.files['packages/chassis_screens/lib/shell/app_shell.dart'] = Buffer.from(
+        'class NikatruApp extends StatelessWidget {\n' +
+          '  Widget build(BuildContext c) => MaterialApp.router(\n' +
+          '    debugShowCheckedModeBanner: false,\n  );\n}\n',
+      );
+    }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1 app\(s\) building a MaterialApp all set `debugShowCheckedModeBanner: false`/);
+  });
+
+  test('D2 · FAILS when the chassis shell does not set the flag either', () => {
+    const r = run(build((s) => {
+      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+        "import 'package:nikatru_chassis_screens/shell/app_shell.dart';\n" +
+          'Widget build() => const NikatruApp();\n',
+      );
+      s.files['packages/chassis_screens/lib/shell/app_shell.dart'] = Buffer.from(
+        'class NikatruApp extends StatelessWidget {\n' +
+          '  Widget build(BuildContext c) => MaterialApp.router();\n}\n',
+      );
+    }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /does not set `debugShowCheckedModeBanner: false`/);
+  });
+
+  test('D3 · a delegation that cannot be followed is a problem, never a quiet skip', () => {
+    const r = run(build((s) => {
+      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+        "import 'package:nikatru_chassis_screens/shell/gone.dart';\n" +
+          'Widget build() => const NikatruApp();\n',
+      );
+    }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — apps\/subly\/lib\/app\.dart/);
+  });
+
   test('COVERAGE LOST when no app builds a MaterialApp at all', () => {
     const r = run(build((s) => {
       delete s.files['apps/subly/lib/app.dart'];
