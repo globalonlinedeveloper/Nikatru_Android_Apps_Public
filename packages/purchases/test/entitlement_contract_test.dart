@@ -109,5 +109,41 @@ group('the RevenueCat event map is generated, and it maps into OUR set', () {
           .toSet();
       expect(unique.length, kRevenueCatEventReasons.length);
     });
+
+    test('CANCELLATION is dateDerived — one event name, two access outcomes',
+        () {
+      // 🔴 THE CORRECTION THIS FLAG EXISTS FOR. RevenueCat sends CANCELLATION
+      // both when auto-renew is turned off (access continues to the paid-through
+      // date) and for a REFUND (that date is in the PAST, access ends now, and
+      // the honest reason is refund_approved). Only the date tells them apart.
+      // The reason alone therefore does NOT decide access for this event, and
+      // this table is the only thing that can say so in Dart: the authored
+      // contract's prose does not survive code generation.
+      final RevenueCatEventReason cancellation = kRevenueCatEventReasons
+          .singleWhere((RevenueCatEventReason r) => r.event == 'CANCELLATION');
+      expect(cancellation.dateDerived, isTrue);
+      expect(cancellation.reason, 'cancelled_at_period_end');
+    });
+
+    test('EXPIRATION is NOT dateDerived — it revokes on its own authority', () {
+      // The counterpart, so the flag is proved to discriminate rather than to
+      // be true everywhere.
+      final RevenueCatEventReason expiration = kRevenueCatEventReasons
+          .singleWhere((RevenueCatEventReason r) => r.event == 'EXPIRATION');
+      expect(expiration.dateDerived, isFalse);
+    });
+
+    test('every dateDerived event is one the grace path has to resolve', () {
+      // Exactly the two the Worker calls GRACE-class today. A third arriving
+      // here without a matching decision on the server side is a client that
+      // would act on a date nobody resolved.
+      expect(
+        kRevenueCatEventReasons
+            .where((RevenueCatEventReason r) => r.dateDerived)
+            .map((RevenueCatEventReason r) => r.event)
+            .toSet(),
+        <String>{'CANCELLATION', 'BILLING_ISSUE'},
+      );
+    });
   });
 }

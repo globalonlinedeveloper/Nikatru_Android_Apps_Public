@@ -42,7 +42,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["event", "reason", "why"],
+        "required": ["event", "reason", "dateDerived", "why"],
         "properties": {
           "event": {
             "type": "string",
@@ -53,6 +53,10 @@
             "type": ["string", "null"],
             "pattern": "^[a-z][a-z0-9_]*$",
             "description": "The revocation reason this event means, or null when the event is not a revocation at all. An event this table does not name revokes nothing — the conservative direction for a table whose error mode is locking out a paying customer."
+          },
+          "dateDerived": {
+            "type": "boolean",
+            "description": "TRUE when the event's ACCESS outcome is decided by the paid-through date carried on the event, not by the event name — so a consumer that acts on the name alone is wrong for one of the shapes the name covers. CANCELLATION is the case that forces the field: the same event name is sent for cancel-at-period-end (access continues) and for a REFUND (expiration_at_ms in the past, access ends now, and the honest reason is refund_approved). The Dart and JSON copies carry this field for exactly that reason: prose in a why: string does not reach the generated Dart table, and a Dart consumer reading only (event, reason) would revoke a paying customer. services/subly-api/src/routes/webhooks.ts:106 already calls these events grace-class."
           },
           "why": {
             "type": "string",

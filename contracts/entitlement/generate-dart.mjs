@@ -39,7 +39,11 @@ const check = process.argv.includes('--check');
 
 const environments = [...CONTRACT_TABLE.moneyEnvironments];
 const reasons = CONTRACT_TABLE.revocationReasons.map((r) => ({ reason: r.reason, restores: r.restores }));
-const events = CONTRACT_TABLE.revenuecatEventReasons.map((r) => ({ event: r.event, reason: r.reason ?? null }));
+const events = CONTRACT_TABLE.revenuecatEventReasons.map((r) => ({
+  event: r.event,
+  reason: r.reason ?? null,
+  dateDerived: r.dateDerived === true,
+}));
 
 // A COVERAGE SELF-CHECK, because an empty table renders as valid Dart and reads
 // exactly like a clean run. `restores` is called out separately: a table with
@@ -148,13 +152,23 @@ lines.push('/// A null [reason] is an event that is deliberately NOT a revocatio
 lines.push('/// a different fact from an event nobody mapped — the table records both so the');
 lines.push('/// next reader does not close the gap by guessing.');
 lines.push('class RevenueCatEventReason {');
-lines.push('  const RevenueCatEventReason(this.event, this.reason);');
+lines.push('  const RevenueCatEventReason(this.event, this.reason, {required this.dateDerived});');
 lines.push('');
 lines.push('  /// The vendor event type, verbatim.');
 lines.push('  final String event;');
 lines.push('');
 lines.push('  /// The revocation reason, or null when this event revokes nothing.');
 lines.push('  final String? reason;');
+lines.push('');
+lines.push('  /// Whether the ACCESS outcome is decided by the paid-through date carried');
+lines.push('  /// on the event rather than by its name.');
+lines.push('  ///');
+lines.push('  /// CANCELLATION is BOTH cancel-at-period-end (access continues to the paid-');
+lines.push('  /// through date) and a REFUND (that date is in the past, access ends now, and');
+lines.push('  /// the honest reason is refund_approved). Only the date tells them apart, so');
+lines.push('  /// a caller that acts on [reason] alone for a date-derived event is wrong for');
+lines.push('  /// one of the two shapes the vendor spells the same way.');
+lines.push('  final bool dateDerived;');
 lines.push('');
 lines.push('  @override');
 lines.push("  String toString() => reason == null ? '$event -> (no revocation)' : '$event -> $reason';");
@@ -164,7 +178,10 @@ lines.push('/// The RevenueCat event to revocation-reason map, in the order it i
 lines.push('const List<RevenueCatEventReason> kRevenueCatEventReasons =');
 lines.push('    <RevenueCatEventReason>[');
 for (const e of events) {
-  lines.push(`  RevenueCatEventReason(${dq(e.event)}, ${e.reason === null ? 'null' : dq(e.reason)}),`);
+  lines.push(
+    `  RevenueCatEventReason(${dq(e.event)}, ${e.reason === null ? 'null' : dq(e.reason)}, ` +
+      `dateDerived: ${e.dateDerived ? 'true' : 'false'}),`,
+  );
 }
 lines.push('];');
 lines.push('');
