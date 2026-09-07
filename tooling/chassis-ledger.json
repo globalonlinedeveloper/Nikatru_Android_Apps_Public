@@ -19,8 +19,8 @@
   ],
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged.",
   "totals": {
-    "files": 109,
-    "lines": 16571,
+    "files": 117,
+    "lines": 16687,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -731,6 +731,54 @@
       "lines": 117,
       "verdict": "STAYS",
       "why": "Per-app Worker config: name, routes, D1 binding. Stamped, never shared."
+    },
+    {
+      "path": "store/apps-gov-in/README.md",
+      "lines": 56,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/category.txt",
+      "lines": 1,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/long-description.txt",
+      "lines": 18,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/privacy-policy-url.txt",
+      "lines": 1,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/screenshots/README.md",
+      "lines": 37,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/short-description.txt",
+      "lines": 1,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/support-url.txt",
+      "lines": 1,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
+    },
+    {
+      "path": "store/apps-gov-in/title.txt",
+      "lines": 1,
+      "verdict": "STAYS",
+      "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
     }
   ],
   "_classified": "All 28 measured 2026-09-05 by deleting each file, running the full assert-*.mjs sweep, and diffing against a per-worktree baseline. NOT ONE of the 28 is deletable on its own: every source file is held by a named guard, and the three that only this ledger holds are tests kept on value. So chassis step 4 does not DELETE files. It shrinks the ones that stay, and delegates behaviour into packages where the call site measurably shrinks. AND THE HEADROOM IS SMALLER THAN IT LOOKS: 6,608 of these 15,560 lines (42%) are comment or blank. Stripping them from the six spine files alone removes 2,463 lines against a green sweep — but those comments are this corpus's recorded measurements and the reason several defects were ever found. Removing them would be measurable progress against a number and a real loss. Step 4 shrinks CODE."
