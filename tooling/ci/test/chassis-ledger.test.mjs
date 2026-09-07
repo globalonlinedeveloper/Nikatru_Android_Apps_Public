@@ -27,6 +27,11 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GUARD = join(HERE, '..', 'assert-chassis-ledger.mjs');
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
+// The SECOND root, since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The
+// guard owns the root list; the fixture must build BOTH or the per-root
+// coverage limb refuses before any other limb is reached, which is the guard
+// working and would make every case below untestable.
+const WORKER = 'tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api';
 
 const write = (root, rel, body) => {
   const abs = join(root, rel);
@@ -44,20 +49,39 @@ function fixture(mutate = () => {}) {
   };
   for (const [rel, body] of Object.entries(files)) write(root, `${BRICK}/${rel}`, body);
 
+  // The Worker half of the template. ONE file is enough: what the fixture has to
+  // reproduce is that the root is non-empty and its rows are keyed by it, and the
+  // fixture is not a checkout so no file floor applies.
+  const workerFiles = { 'src/index.ts': 'export default {};\n' };
+  for (const [rel, body] of Object.entries(workerFiles)) write(root, `${WORKER}/${rel}`, body);
+
+  const countLines = (body) => body.split('\n').length - (body.endsWith('\n') ? 1 : 0);
   const rows = Object.entries(files).map(([path, body]) => ({
     path,
-    lines: body.split('\n').length - (body.endsWith('\n') ? 1 : 0),
+    lines: countLines(body),
     verdict: 'STAYS',
     why: 'per-app by construction',
   }));
+  // `root` is written EXPLICITLY on the second root's rows and OMITTED on the
+  // first's, because that is exactly how the real ledger is shaped: the 96 rows
+  // written before there was a second root default to ROOTS[0] and were not
+  // re-keyed.
+  const workerRows = Object.entries(workerFiles).map(([path, body]) => ({
+    root: WORKER,
+    path,
+    lines: countLines(body),
+    verdict: 'STAYS',
+    why: 'per-app Worker by construction',
+  }));
+  const allRows = [...rows, ...workerRows];
   const ledger = {
-    root: BRICK,
+    roots: [BRICK, WORKER],
     totals: {
-      files: rows.length,
-      lines: rows.reduce((n, r) => n + r.lines, 0),
+      files: allRows.length,
+      lines: allRows.reduce((n, r) => n + r.lines, 0),
       unclassified: 0,
     },
-    files: rows,
+    files: allRows,
   };
 
   const bag = { root, ledger, files };
@@ -87,8 +111,8 @@ describe('assert-chassis-ledger · the control', () => {
   test('an accounted-for template passes, and says what it counted', () => {
     withFixture(() => {}, (r) => {
       assert.equal(r.code, 0, r.out);
-      assert.match(r.out, /3 tracked file\(s\)/);
-      assert.match(r.out, /STAYS=3/);
+      assert.match(r.out, /4 tracked file\(s\) across 2 root\(s\)/);
+      assert.match(r.out, /STAYS=4/);
       // The fixture is not a checkout of this repo, and the guard must SAY so
       // rather than silently skipping its floor.
       assert.match(r.out, /NOT applied/);
@@ -266,6 +290,88 @@ describe('assert-chassis-ledger · the real repository', () => {
     assert.match(r.out, /every one accounted for/);
     // The real repo IS a checkout, so the floor must have been applied — the
     // opposite branch from the fixture control above, and it must say so.
-    assert.match(r.out, /full checkout, so the \d+-file floor was applied/);
+    assert.match(r.out, /full checkout, so each root's own file floor was applied/);
+  });
+});
+
+// ── THE SECOND ROOT ─────────────────────────────────────────────
+// Added 2026-09-07 with the roots change. Each of these was proven able to fail
+// by removing the limb it names and re-running this file.
+describe('assert-chassis-ledger · two roots, and nothing between them', () => {
+  test('a tracked template file under NEITHER root FAILS — limb 0', () => {
+    withFixture((b) => {
+      write(b.root, 'tooling/bricks/app/__brick__/orphan.txt', 'stray\n');
+    }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /orphan\.txt[\s\S]*falls under NO declared root/);
+    });
+  });
+
+  test('a file in the SECOND root with no row FAILS the bijection', () => {
+    withFixture((b) => {
+      write(b.root, `${WORKER}/src/lib/health.ts`, 'export {};\n');
+    }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /health\.ts[\s\S]*NO ledger row/);
+    });
+  });
+
+  test("a second-root row whose line count drifts FAILS — the recount reads that root's tree", () => {
+    withFixture((b) => {
+      b.ledger.files.find((f) => f.root === WORKER).lines = 99;
+      b.ledger.totals.lines += 98;
+    }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /records 99 line\(s\); the tree has 1/);
+    });
+  });
+
+  test('a row naming a root the guard does not scan FAILS', () => {
+    withFixture((b) => {
+      b.ledger.files.push({
+        root: 'tooling/bricks/app/__brick__/somewhere-else',
+        path: 'x.ts', lines: 1, verdict: 'STAYS', why: 'x',
+      });
+      b.ledger.totals.files += 1;
+      b.ledger.totals.lines += 1;
+    }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /which this guard does not scan/);
+    });
+  });
+
+  test("a ledger `roots` that disagrees with the guard is COVERAGE LOST", () => {
+    withFixture((b) => { b.ledger.roots = [BRICK]; }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /COVERAGE LOST[\s\S]*roots` disagrees/);
+    });
+  });
+
+  test('a ledger with NO `roots` at all is COVERAGE LOST, never a pass', () => {
+    withFixture((b) => { delete b.ledger.roots; }, (r) => {
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /COVERAGE LOST[\s\S]*declares no `roots`/);
+    });
+  });
+
+  test('the SAME relative path under both roots is two rows, not a duplicate', () => {
+    withFixture((b) => {
+      write(b.root, `${WORKER}/pubspec.yaml`, 'name: worker\n');
+      b.ledger.files.push({ root: WORKER, path: 'pubspec.yaml', lines: 1, verdict: 'STAYS', why: 'x' });
+      b.ledger.totals.files += 1;
+      b.ledger.totals.lines += 1;
+    }, (r) => {
+      assert.equal(r.code, 0, r.out);
+      assert.doesNotMatch(r.out, /twice/);
+      assert.match(r.out, /5 tracked file\(s\)/);
+    });
+  });
+
+  test('the real repository prints a per-root breakdown, not one blended total', () => {
+    const repo = join(HERE, '..', '..', '..');
+    const r = run(repo);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /apps\/\{\{app_id\}\} — \d+ file\(s\), \d+ line\(s\)/);
+    assert.match(r.out, /\{\{app_id\}\}-api — \d+ file\(s\), \d+ line\(s\)/);
   });
 });

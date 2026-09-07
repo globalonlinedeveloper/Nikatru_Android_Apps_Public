@@ -1009,11 +1009,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { persist-credentials: false }
+      # why: THE `extensions/` PREFIX IS NOT OPTIONAL HERE, AND ITS ABSENCE COST THE
+      # WHOLE LANE. `defaults.run.working-directory: extensions` governs `run:` steps
+      # only -- it does not touch an action's `with:` inputs, which setup-node
+      # resolves from the REPOSITORY ROOT. e2e-discover walks the tree from inside
+      # `extensions/`, so `matrix.suite.dir` is a path RELATIVE TO `extensions/`
+      # (`Extension/Full_Screen_Shot`, log line 564 of run 34064261771), and the
+      # unprefixed value resolved to `Extension/Full_Screen_Shot/test/e2e/package-lock.json`,
+      # which is nothing. The job died in 9 s on "Some specified paths were not
+      # resolved, unable to cache dependencies" and e2e-suite had never completed a
+      # run since the 2026-09-05 repo merge. The prefix is DERIVED from the matrix
+      # value the same way the three `working-directory:` lines below derive theirs,
+      # so a second <Category>/<Tool> suite is cached correctly the day it appears --
+      # nothing here names a tool.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: ${{ matrix.suite.dir }}/test/e2e/package-lock.json
+          cache-dependency-path: extensions/${{ matrix.suite.dir }}/test/e2e/package-lock.json
 
       - name: Install e2e dependencies
         working-directory: extensions/${{ matrix.suite.dir }}/test/e2e
