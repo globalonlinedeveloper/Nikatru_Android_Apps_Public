@@ -67,6 +67,63 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED AND CORRECTED 2026-09-07 (unit `symbols-everywhere`) — THIS STEP
+      # USED TO BE THE LAST ONE IN THE JOB, behind `dart run msix:create` and the
+      # store dry run, and its comment said the symbols were retained rather than
+      # sent to the crash sink "because tooling/versions.json pins ONE
+      # glitchtip-cli binary and it is linux-x86_64; this job runs on Windows".
+      # Both halves are now wrong: the ordering is the one
+      # post-audit-obfuscation-and-symbols.md §9.3 reproduced on a real runner
+      # (dispatch 34093704881 — a build succeeded WITH the flags, a later step
+      # failed, and the symbols artifact was `skipped`), and the Windows binary
+      # of the same release is now pinned by digest as
+      # `glitchtip_cli_windows_x86_64_sha256`.
+      # why: the .msix below wraps an OBFUSCATED build, so its crash reports are
+      # unreadable without this directory and a rebuild produces a DIFFERENT one.
+      # 7 days matches the dry-run package beside it — this lane ships nothing,
+      # and the sink upload below is now the copy that lasts.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-windows-store-dry-run
+          path: apps/subly/build/symbols/windows
+          retention-days: 7
+          if-no-files-found: error
+      # why: pwsh, for the same reason the msstore-cli install below is — this is
+      # a Windows runner and `$RUNNER_TEMP` is a backslash path, which MSYS
+      # coreutils inside `shell: bash` handle badly. `Invoke-WebRequest` +
+      # `Get-FileHash` is exactly the shape used there. Both halves of the pin are
+      # read from tooling/versions.json at run time.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = node -p "require('./tooling/versions.json').glitchtip_cli"
+          $sum = node -p "require('./tooling/versions.json').glitchtip_cli_windows_x86_64_sha256"
+          $url = "https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v$ver/raw/artifacts/glitchtip-cli-windows-x86_64.exe?job=build-windows-x86_64"
+          $out = Join-Path $env:RUNNER_TEMP 'glitchtip-cli.exe'
+          Invoke-WebRequest -Uri $url -OutFile $out -MaximumRetryCount 3 -RetryIntervalSec 5
+          $got = (Get-FileHash -Algorithm SHA256 -Path $out).Hash.ToLower()
+          if ($got -ne $sum) {
+            Write-Error "glitchtip-cli digest mismatch: the download hashes to $got and tooling/versions.json declares $sum. A version names a release; the sha256 names the BYTES, and the asset is a GitLab JOB ARTIFACT URL, which is re-runnable. This refusal is the mechanism, not a gap in it."
+          }
+          $reported = & $out --version
+          if ($reported -ne "glitchtip-cli $ver") {
+            Write-Error "the pinned binary reports '$reported', not 'glitchtip-cli $ver'"
+          }
+          Write-Host $reported
+      # why: FAILS CLOSED on a missing GLITCHTIP_TOKEN, never skips. Placed AFTER
+      # the retention step above and BEFORE the MSIX packaging and the store dry
+      # run below, so a GlitchTip outage cannot take the mapping with it.
+      - name: Upload the native debug symbols to GlitchTip
+        shell: pwsh
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: >
+          node tooling/ops/upload-native-symbols.mjs
+          --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
+          --dir apps/subly/build/symbols/windows
+          --org nikatru --project subly
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/subly
         run: dart run msix:create
@@ -85,17 +142,6 @@ jobs:
         with:
           name: subly-windows-store-msix
           path: apps/subly/build/windows/msix/subly.msix
-          retention-days: 7
-          if-no-files-found: error
-      # why: the .msix above wraps an OBFUSCATED build, so its crash reports are
-      # unreadable without this directory and a rebuild produces a DIFFERENT
-      # one. 7 days matches the dry-run package beside it. Retained rather than
-      # sent to the crash sink because tooling/versions.json pins ONE
-      # glitchtip-cli binary and it is linux-x86_64; this job runs on Windows.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: symbols-subly-windows-store-dry-run
-          path: apps/subly/build/symbols/windows
           retention-days: 7
           if-no-files-found: error
 
@@ -180,22 +226,68 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      - name: Package MSIX (Microsoft Store)
-        working-directory: apps/subly
-        run: dart run msix:create
-      # why: BEFORE the submission, not after. This is the only copy of the mapping for
-      # the .msix that is about to reach real users, and a step that runs after a store
-      # submission does not run when that submission fails -- which is exactly when the
-      # build still exists and the symbols still can be kept. 90 days, not 7: this
-      # package ships. Retained rather than sent to the crash sink because
-      # tooling/versions.json pins ONE glitchtip-cli binary and it is linux-x86_64;
-      # this job runs on Windows (O-NATIVE-SYMBOL-UPLOAD-LINUX-ONLY).
+      # ⏱ MOVED AND CORRECTED 2026-09-07 (unit `symbols-everywhere`) — this step
+      # was already "BEFORE the submission, not after" and is now earlier still,
+      # ahead of `dart run msix:create`: packaging is a step like any other, and
+      # GitHub skips the rest of a failed job, so a mapping kept only after the
+      # packaging is a mapping the packaging can take with it. Its comment also
+      # said the symbols were retained rather than sent to the crash sink
+      # "because tooling/versions.json pins ONE glitchtip-cli binary and it is
+      # linux-x86_64; this job runs on Windows (O-NATIVE-SYMBOL-UPLOAD-LINUX-ONLY)".
+      # The Windows binary of the same release is now pinned by digest as
+      # `glitchtip_cli_windows_x86_64_sha256` and the sink upload is two steps
+      # below, which is what closes that open row.
+      # why: this is the only copy of the mapping for the .msix that is about to
+      # reach real users, and a rebuild produces a DIFFERENT one. 90 days, not 7:
+      # this package ships.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symbols-subly-windows-store
           path: apps/subly/build/symbols/windows
           retention-days: 90
           if-no-files-found: error
+      # why: pwsh, for the same reason the msstore-cli install below is — this is
+      # a Windows runner and `$RUNNER_TEMP` is a backslash path. Both halves of
+      # the pin are read from tooling/versions.json at run time, so a bump cannot
+      # advance one without the other.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = node -p "require('./tooling/versions.json').glitchtip_cli"
+          $sum = node -p "require('./tooling/versions.json').glitchtip_cli_windows_x86_64_sha256"
+          $url = "https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v$ver/raw/artifacts/glitchtip-cli-windows-x86_64.exe?job=build-windows-x86_64"
+          $out = Join-Path $env:RUNNER_TEMP 'glitchtip-cli.exe'
+          Invoke-WebRequest -Uri $url -OutFile $out -MaximumRetryCount 3 -RetryIntervalSec 5
+          $got = (Get-FileHash -Algorithm SHA256 -Path $out).Hash.ToLower()
+          if ($got -ne $sum) {
+            Write-Error "glitchtip-cli digest mismatch: the download hashes to $got and tooling/versions.json declares $sum. A version names a release; the sha256 names the BYTES, and the asset is a GitLab JOB ARTIFACT URL, which is re-runnable. This refusal is the mechanism, not a gap in it."
+          }
+          $reported = & $out --version
+          if ($reported -ne "glitchtip-cli $ver") {
+            Write-Error "the pinned binary reports '$reported', not 'glitchtip-cli $ver'"
+          }
+          Write-Host $reported
+      # why: BEFORE the submission, for the same reason the artifact above is.
+      # This package reaches real users, so its mapping is the one that will
+      # actually be needed. The 90-day artifact above is already written when this
+      # runs, so a GlitchTip outage costs the sink copy and nothing else — and it
+      # FAILS THE JOB rather than skipping, deliberately: a release that reaches
+      # the Microsoft Store with no readable symbols is the state this unit exists
+      # to stop. The wrapper names GLITCHTIP_TOKEN when it is absent.
+      - name: Upload the native debug symbols to GlitchTip
+        shell: pwsh
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: >
+          node tooling/ops/upload-native-symbols.mjs
+          --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
+          --dir apps/subly/build/symbols/windows
+          --org nikatru --project subly
+      - name: Package MSIX (Microsoft Store)
+        working-directory: apps/subly
+        run: dart run msix:create
       # why: the Microsoft Store Developer CLI is the transport, for the same reason the
       # Snap lane speaks `snapcraft`: it is Microsoft's own, documented, cross-platform
       # and actively released, and it already holds the two links this repository has no

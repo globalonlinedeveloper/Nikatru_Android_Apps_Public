@@ -2403,7 +2403,16 @@
       "R-7"
     ],
     "invokedBy": [
-      ".github/workflows/build-platforms.yml#linux_web_android"
+      ".github/workflows/build-platforms.yml#apple",
+      ".github/workflows/build-platforms.yml#linux_web_android",
+      ".github/workflows/build-platforms.yml#windows",
+      ".github/workflows/submit-appstore.yml#dry-run",
+      ".github/workflows/submit-play.yml#dry-run",
+      ".github/workflows/submit-play.yml#submit",
+      ".github/workflows/submit-snap.yml#dry-run",
+      ".github/workflows/submit-snap.yml#submit",
+      ".github/workflows/submit-windows-store.yml#dry-run",
+      ".github/workflows/submit-windows-store.yml#submit"
     ],
     "kind": "script",
     "ref": "tooling/ops/upload-native-symbols.mjs",
