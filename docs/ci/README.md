@@ -217,7 +217,7 @@ image rather than reasoned about.
 
 ## 6. Secrets the owner still has to add
 
-17 secrets exist. **15 are referenced by a workflow and do not exist**, at
+17 secrets exist. **26 are referenced by a workflow and do not exist**, at
 repository or environment level. Every path that needs one fails closed with a
 named secret rather than skipping — see §4 — so nothing here is a silent pass;
 it is a lane that cannot run until the credential is created.
@@ -241,6 +241,24 @@ it is a lane that cannot run until the credential is created.
 | `WINDOWS_CODESIGN_PASSWORD` | `build-platforms.yml` | as above |
 | `SNAPCRAFT_STORE_CREDENTIALS` | `submit-snap.yml` | the Snap live upload path |
 | `APPIMAGE_SIGNING_KEY_B64` | `build-platforms.yml` | AppImage unsigned |
+| `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` | `submit-snap.yml` | the Snap lane refuses a credential whose expiry it cannot read — the date passed to `snapcraft export-login --expires`, recorded because the exported blob's format is documented nowhere |
+| `AMO_JWT_ISSUER` | `extensions.yml` | the Firefox (AMO) submission — the ONE store whose API can make a first submission |
+| `AMO_JWT_SECRET` | `extensions.yml` | as above |
+| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the daily `cws-token-keepalive` job |
+| `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
+| `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
+| `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |
+| `EDGE_CLIENT_ID` | `extensions.yml` | the Edge Add-ons v1.1 four-call submission |
+| `EDGE_API_KEY` | `extensions.yml` | as above |
+
+**The two listing ids are NOT secrets, and stopped being repository ones on 2026-09-07.** `CWS_ITEM_ID` and
+`EDGE_PRODUCT_ID` were rows in this table until then. They identify a listing and authenticate nothing, and the
+extensions release lane is multi-tool by construction — `.github/workflows/extensions.yml` derives the tool from the
+tag `<tool>-v<semver>` — so one repository-wide value meant a second extension's tag would upload its package to the
+FIRST tool's listing and print `SUBMITTED` naming the second: a wrong success in the one act this repository treats as
+irreversible. Each tool now declares its own destination at `extensions/Extension/<tool>/tool.json`
+`storeMetadata.stores.chrome.listingId` / `.edge.listingId`, and `extensions/scripts/publish-cws.mjs` /
+`publish-edge.mjs` REFUSE while it is `null` rather than falling back to anything.
 
 The Apple items are gated on hardware, not on money: there is no web enrolment
 in India, so the developer account cannot be created from this machine.

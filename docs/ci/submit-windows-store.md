@@ -73,3 +73,78 @@ Center account that issues them — and the script reports their ABSENCE as
 a printed gap rather than a failure. `secrets` are empty strings when
 unset, which is what the script's presence check reads.
 
+---
+
+## `--submit` is implemented — 2026-09-07, and what it is implemented *against*
+
+**Appended, not rewritten.** Everything above describes the tree as it stood
+while `--submit` refused; the refusal is gone and the reason it existed is not.
+
+Six of the seven `UNVERIFIED` facts were replaced by pages fetched on
+2026-09-07 and recorded in `PRIMARY_SOURCES` inside
+`tooling/release/submit-windows-store.mjs`. Every one of them is re-checked at
+run time: blank a URL and `--submit` refuses naming the key, before any call is
+made — `windows-store-submission.test.mjs` mutates one and proves the exit 1
+with a green control first.
+
+| fact | source (fetched 2026-09-07) |
+|---|---|
+| base URL + API version | `https://manage.devcenter.microsoft.com/v1.0/my` — *Manage app submissions* |
+| create a submission | `POST .../applications/{applicationId}/submissions` |
+| the package upload URL | the `fileUploadUrl` SAS URI in the create response — *Create an app submission* |
+| listing metadata shape | `listings.<lang>.baseListing`, `applicationPackages[]` — same page |
+| commit + status | `POST .../submissions/{id}/commit`, `GET .../submissions/{id}/status`; `CommitStarted → PreProcessing` on success, `CommitFailed` on error |
+| the token exchange | `POST https://login.microsoftonline.com/<tenant_id>/oauth2/token`, `grant_type=client_credentials`, `resource=https://manage.devcenter.microsoft.com`, 60-minute lifetime |
+| which transport is supported | the **Microsoft Store Developer CLI**, v0.4.2 published 2026-09-02, repository active — read from the GitHub releases API |
+
+### What is still refused, by name
+
+Two `UNSOURCED` entries survive and each names the limb it costs:
+
+1. whether `msstore reconfigure` **requires `--sellerId`** in CI. The options
+   table marks nothing required and no page says. The lane passes tenant, client
+   and secret only; if the CLI needs a seller id it fails with its own message
+   and the lane fails **closed**. No fifth `MS_STORE_*` name was invented.
+2. the **raw-HTTP transport** — the exact Azure Blob request for the ZIP (the
+   documentation demonstrates it only through .NET's `CloudBlockBlob`) and the
+   field-by-field submission body. So no request in the script reaches
+   `manage.devcenter.microsoft.com`; the CLI holds both links. Listing sync stays
+   a console act.
+
+### The `submit` job
+
+`submit-windows-store.yml` now carries a third job, `submit`, `timeout-minutes: 30`:
+
+* `if: inputs.confirm == 'SUBMIT-TO-MICROSOFT-STORE'` — a typed phrase, default empty
+* `environment: store-publish` — the owner-approval pause, one environment for the whole factory
+* a `listing_url` input, refused unless it is `https://…`, so the `[10]D-9` record has an address
+* a secret preflight that **ends the job** when any `MS_STORE_*` is empty (the `e2e.yml:56-63` shape `assert-green-means-ran` section B counts)
+* the CLI installed at an exact version, then
+  `submit-windows-store.mjs --submit --app subly --confirm SUBMIT-TO-MICROSOFT-STORE`
+* `record-deployment.mjs subly-windows-store --state in_review --listing-url "$LISTING_URL"`
+
+### `environment:` on its own fails open — so the script reads the rules back
+
+GitHub creates a referenced environment that does not exist, with no protection
+rules, and runs the job. So `--submit` performs a run-time
+`GET /repos/{owner}/{repo}/environments/store-publish` and refuses a
+`protection_rules` array carrying no `required_reviewers` entry.
+`assert-release-provenance.mjs` limb 4 requires exactly both halves and now sees
+them on this lane as it already did on Play and Snap.
+
+### The first publish is still MANUAL, and that is the API's own rule
+
+*Create and manage submissions*, verbatim: "You cannot use the Microsoft Store
+submission API to create an app in Partner Center", and "Before you can create a
+submission for a given app using this API, you must first create one submission
+for the app in Partner Center, including answering the age ratings
+questionnaire." That is `C-MANUAL-FIRST-PUBLISH` and [ADR 067] decision 8 stated
+by Microsoft rather than by us. The owner steps are in
+`Private/runbooks/store-submission-windows.md`.
+
+### The risk that is not ours to close
+
+The Partner Center account has **no Entra tenant** today, and the API needs one
+with Global administrator permission plus an application assigned the Manager
+role. Until the owner creates it, this lane is fail-closed and cannot be
+exercised end to end. Nothing here invents an endpoint to work around that.

@@ -173,6 +173,26 @@ void run(HookContext context) {
         'also run:  node tooling/store/render-linux-icons.mjs --app $id  '
         '(writes linux/packaging/; CI re-derives it and fails on drift).',
       )
+      ..warn(
+        '  1b. AND THE MOMENT YOU ADD android OR windows, TWO WAIVERS COME '
+        'WITH THEM. `flutter create` writes the stock template, which carries '
+        'neither, and the first app in this portfolio needed both the day a '
+        'transitive plugin arrived: cloudflare_turnstile pulls '
+        'flutter_inappwebview, whose Android side calls '
+        'getDefaultProguardFile(proguard-android.txt) — AGP 9 makes that '
+        'throw — and whose Windows side includes <experimental/coroutine>, '
+        'which the MSVC 14.51 STL makes a hard error. Neither plugin has a '
+        'newer release to move to. Copy the two DATED WAIVERS, comments and '
+        'all, out of the app that already carries them:  '
+        'android/gradle.properties  '
+        'android.r8.proguardAndroidTxt.disallowed=false  '
+        'windows/CMakeLists.txt  add_compile_definitions('
+        '_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)  '
+        'at DIRECTORY scope, above flutter/generated_plugins.cmake.  '
+        'ci.yml compiles Dart and the web and builds no native binary, so a '
+        'missing waiver is invisible on every required check and only '
+        'build-platforms.yml ever finds out.',
+      )
       ..info(
         '  2. ONE COMMAND provisions the backend — create the D1 in apac, '
         'patch APP_DB.database_id, apply the starter migration, and PROVE '
@@ -258,6 +278,26 @@ void run(HookContext context) {
         'embedder has no icon slot — the icon there is a PACKAGING artefact, so '
         'also run:  node tooling/store/render-linux-icons.mjs --app $id  '
         '(writes linux/packaging/; CI re-derives it and fails on drift).',
+      )
+      ..warn(
+        '  1b. AND THE MOMENT YOU ADD android OR windows, TWO WAIVERS COME '
+        'WITH THEM. `flutter create` writes the stock template, which carries '
+        'neither, and the first app in this portfolio needed both the day a '
+        'transitive plugin arrived: cloudflare_turnstile pulls '
+        'flutter_inappwebview, whose Android side calls '
+        'getDefaultProguardFile(proguard-android.txt) — AGP 9 makes that '
+        'throw — and whose Windows side includes <experimental/coroutine>, '
+        'which the MSVC 14.51 STL makes a hard error. Neither plugin has a '
+        'newer release to move to. Copy the two DATED WAIVERS, comments and '
+        'all, out of the app that already carries them:  '
+        'android/gradle.properties  '
+        'android.r8.proguardAndroidTxt.disallowed=false  '
+        'windows/CMakeLists.txt  add_compile_definitions('
+        '_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)  '
+        'at DIRECTORY scope, above flutter/generated_plugins.cmake.  '
+        'ci.yml compiles Dart and the web and builds no native binary, so a '
+        'missing waiver is invisible on every required check and only '
+        'build-platforms.yml ever finds out.',
       )
       // [pipeline S-1r] (absent from the frozen pipeline origin lock by construction — S-1r is a residual id, never a pipeline heading) Same correction as the backend branch above — see the
       // note there for the measurement. The wildcard makes this a NON-step; the
