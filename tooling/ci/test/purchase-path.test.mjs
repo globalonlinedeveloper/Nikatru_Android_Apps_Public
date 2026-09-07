@@ -226,6 +226,30 @@ class HostedCheckoutRail implements PurchaseRail {
 }
 `;
 
+
+/** §H — the three DECLARED direct `HostedCheckoutRail` construction sites.
+ *  The facade builds one on purpose; the other two are the pre-facade
+ *  `purchaseRailProvider` that R10 records and §H now grades. Written into
+ *  every case, so the positive control is the real tree's shape. */
+const FACADE_CTOR = `
+class ChassisBilling {
+  static PurchaseRail railFor(String channel) => HostedCheckoutRail();
+}
+`;
+
+const MONEY_PROVIDERS = `
+PurchaseRail purchaseRailProvider() => HostedCheckoutRail();
+`;
+
+const FACADE_ONLY = `
+class ChassisBilling {
+  static PurchaseRail railFor(String channel) => throw UnimplementedError();
+}
+`;
+
+const VIA_FACADE = `
+PurchaseRail purchaseRailProvider() => ChassisBilling.railFor(kChannel);
+`;
 const IAP_RAIL = `
 class IapRail implements PurchaseRail {
   const IapRail();
@@ -425,6 +449,12 @@ function run(o = {}) {
   if (o.iapRail !== null) write(root, 'packages/purchases/lib/src/iap_rail.dart', o.iapRail ?? IAP_RAIL);
   if (o.railKind !== null) write(root, 'packages/purchases/lib/src/purchase_rail_kind.dart', o.railKind ?? RAIL_KIND);
   if (o.extraRailImpl) write(root, 'packages/purchases/lib/src/second_rail.dart', o.extraRailImpl);
+  // §H's census: the three declared construction sites, plus the hook a case
+  // uses to add a fourth or to move one of them onto the facade.
+  if (o.facadeCtor !== null) write(root, 'packages/purchases/lib/src/chassis_billing.dart', o.facadeCtor ?? FACADE_CTOR);
+  if (o.sublyMoney !== null) write(root, 'apps/subly/lib/state/money_providers.dart', o.sublyMoney ?? MONEY_PROVIDERS);
+  if (o.brickMoney !== null) write(root, `${BRICK}/lib/state/money_providers.dart`, o.brickMoney ?? MONEY_PROVIDERS);
+  if (o.extraCtorSite) write(root, o.extraCtorSite.file, o.extraCtorSite.body);
   if (o.morPaddle !== null) write(root, 'services/platform/src/lib/mor/paddle.ts', o.morPaddle ?? 'export const paddle = {};\n');
   write(root, 'packages/purchases/test/purchase_capabilities_test.dart', 'void main() {}');
   if (o.railTest !== null) write(root, 'packages/purchases/test/hosted_checkout_rail_test.dart', o.railTest ?? RAIL_TEST);
@@ -1345,5 +1375,47 @@ describe('assert-purchase-path — a screen whose body moved into the chassis', 
     const r = run({ home: adapter(false), extraFiles: { [CHASSIS_REL]: packageBody } });
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /never references anything it declares \(HomeBody\)/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-purchase-path §H — who still builds the hosted rail by hand', () => {
+  // [ADR 067] decision 7 made `ChassisBilling.railFor` the one place a build
+  // picks its rail, and landing the facade moved no caller. §G limb (e) checks
+  // what the rail MAP answers; only this census checks who ASKS.
+
+  test('POSITIVE CONTROL — the three declared sites, two of them still bypassing the facade', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /3 direct HostedCheckoutRail construction site\(s\), all declared/);
+    assert.match(r.out, /2 of them still bypass ChassisBilling\.railFor/);
+  });
+
+  test('FAILS on a FOURTH construction site — a third app copying money_providers.dart', () => {
+    const r = run({
+      extraCtorSite: {
+        file: 'apps/probeapp/lib/state/money_providers.dart',
+        body: 'PurchaseRail buildRail() => HostedCheckoutRail();\n',
+      },
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /apps\/probeapp\/lib\/state\/money_providers\.dart CONSTRUCTS/);
+    assert.match(r.out, /anti-steering violation/);
+  });
+
+  test('FAILS when a declared site stops constructing — the declaration goes stale in the same commit', () => {
+    // The direction that makes the row self-pruning: when the brick moves to
+    // `ChassisBilling.railFor`, §H says so in that commit instead of going on
+    // describing a tree that stopped existing.
+    const r = run({ brickMoney: VIA_FACADE });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /declares tooling\/bricks[^\n]*money_providers\.dart as a direct/);
+    assert.match(r.out, /this declaration is stale in the same commit/);
+  });
+
+  test('COVERAGE LOST when nothing constructs the rail anywhere, not even the facade', () => {
+    const r = run({ facadeCtor: FACADE_ONLY, sublyMoney: VIA_FACADE, brickMoney: VIA_FACADE });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — §H read \d+ Dart file\(s\) and found no direct/);
   });
 });

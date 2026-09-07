@@ -1361,6 +1361,131 @@ const flat = (v) =>
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// H · WHO STILL BUILDS THE HOSTED RAIL BY HAND — the construction census
+// ═══════════════════════════════════════════════════════════════════════════
+// [ADR 067] decision 7 put `ChassisBilling.railFor(channel, config)` between an
+// app and its rail, so the CHANNEL decides which rail a build opens. Landing the
+// facade moved NOT ONE CALLER: `purchaseRailProvider` — the single place every
+// stamped app gets its rail — still calls `HostedCheckoutRail(...)` directly, in
+// `apps/subly` and in the brick template both, with `capabilities` left to the
+// platform-restrictive `forPlatform` default.
+//
+// 🔴 SO THE FACADE HAS ZERO CONSUMERS AND NOTHING GRADED THAT. §G limb (e)
+// checks which rail the map ANSWERS with; it never checks who ASKS. A third app
+// copying `money_providers.dart` adds a third hand-wired rail and every limb
+// above stays green while it happens. That is the same failure limb 7 of
+// assert-entitlement-contract.mjs was refuted for: the finding was "a copy that
+// nothing governs", and a check that names the copies it already knows about
+// governs only those.
+//
+// THE SHAPE IS A DECLARED SET HELD IN BOTH DIRECTIONS, because a plain refusal
+// is not available today — the two hand-wired call sites are real, they are
+// owned by other units (`apps/subly/lib/**` and the brick are outside this
+// unit's ownedPaths), and deleting the check until they move is how a defect
+// becomes permanent:
+//   · a construction site this list does not name → FAIL. The widening cannot
+//     happen quietly, and it cannot be argued away as "the pattern already
+//     existed".
+//   · a named site that is GONE → FAIL. When the brick and subly move to
+//     `ChassisBilling.railFor`, this declaration is stale IN THE SAME COMMIT and
+//     says so, instead of preserving a fiction about who calls what.
+//   · zero sites anywhere → COVERAGE LOST. The facade constructs one itself, so
+//     finding none means the sweep stopped reaching Dart, not that the repo
+//     stopped constructing rails.
+//
+// The file that DECLARES `class HostedCheckoutRail` is skipped: its own
+// constructor declaration is spelled the same as a call and is not one.
+//
+// Carried in the record as R10 and as `O-BILLING-REVENUECAT-LANDING` (next-wave
+// unit 9): `purchaseRailProvider` calls `ChassisBilling.railFor` with the app's
+// CHANNEL as a DECLARED value — the facade deliberately refuses to guess it.
+{
+  const FACADE = 'packages/purchases/lib/src/chassis_billing.dart';
+  const CTOR_SCAN_DIRS = ['apps', 'packages', 'tooling/bricks'];
+  const DECLARED_CTOR_SITES = [
+    {
+      file: FACADE,
+      why: 'the facade itself — the ONE site that is SUPPOSED to construct the hosted rail, because railFor is what decides that a Paddle channel gets it',
+    },
+    {
+      file: 'apps/subly/lib/state/money_providers.dart',
+      why: "R10 — `purchaseRailProvider` predates the facade and still hand-builds the rail. Repair belongs to the unit that owns apps/subly/lib/**, and needs the app's CHANNEL declared because ChassisBilling.railFor refuses to guess it",
+    },
+    {
+      file: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/money_providers.dart',
+      why: 'R10 — the same line in the BRICK, which is the one that matters: every app stamped from it gets the pre-facade construction. The stamp traps (flutter-01/02/04/05/07) and the app-shell-owned assert-stamp-text-fidelity make that edit a unit of its own',
+    },
+  ];
+  const isTestPath = (rel) =>
+    rel.includes('/test/') || rel.includes('/integration_test/') || rel.endsWith('_test.dart');
+  const relOfDart = (abs) =>
+    abs.slice(ROOT.length).split(String.fromCharCode(92)).join(String.fromCharCode(47)).replace(/^[/]+/, '');
+  const CTOR = /(?<![\w.$])HostedCheckoutRail\s*\(/;
+  const sites = new Set();
+  let dartScanned = 0;
+  const walkCtor = (d) => {
+    let entries;
+    try {
+      entries = listDir(d);
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const f = join(d, e);
+      let st;
+      try {
+        st = statSync(f);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        walkCtor(f);
+        continue;
+      }
+      if (!e.endsWith('.dart')) continue;
+      const rel = relOfDart(f);
+      if (isTestPath(rel)) continue;
+      dartScanned += 1;
+      const src = code(readFileSync(f, 'utf8'));
+      if (/class\s+HostedCheckoutRail\b/.test(src)) continue;
+      if (CTOR.test(src)) sites.add(rel);
+    }
+  };
+  for (const d of CTOR_SCAN_DIRS) walkCtor(join(ROOT, d));
+
+  if (dartScanned === 0) {
+    problems.push(
+      `COVERAGE LOST — §H swept [${CTOR_SCAN_DIRS.join(', ')}] for Dart and read ZERO files, so nobody was found constructing \`HostedCheckoutRail\` by hand and nobody was found NOT doing it either. A census over an empty tree is unanimous.`,
+    );
+  } else if (sites.size === 0) {
+    problems.push(
+      `COVERAGE LOST — §H read ${dartScanned} Dart file(s) and found no direct \`HostedCheckoutRail(\` construction at all, not even in ${FACADE}, which builds one itself. The facade's own site is the proof the scan can see a construction; finding none means the scan stopped matching, and a scan that matches nothing agrees with every tree.`,
+    );
+  } else {
+    const declaredFiles = DECLARED_CTOR_SITES.map((s) => s.file);
+    const undeclared = [...sites].filter((f) => !declaredFiles.includes(f)).sort();
+    const stale = DECLARED_CTOR_SITES.filter((s) => !sites.has(s.file));
+    for (const f of undeclared) {
+      problems.push(
+        `${f} CONSTRUCTS \`HostedCheckoutRail\` DIRECTLY, and §H does not declare it. [ADR 067] decision 7 made \`ChassisBilling.railFor(channel, config)\` the one place a build picks its rail — a hand-built hosted rail bypasses that decision entirely and hard-codes Paddle onto whatever channel the app ships on, which on a store channel is the anti-steering violation §G limb (e) exists to prevent. Call \`ChassisBilling.railFor\` with the app's declared channel. If this really is a fourth site that must stay hand-built, say so HERE with its reason — the declaration is the thing that makes the next one visible.`,
+      );
+    }
+    for (const s of stale) {
+      problems.push(
+        `§H declares ${s.file} as a direct \`HostedCheckoutRail\` construction site (${s.why}) and it no longer constructs one. If the caller moved to \`ChassisBilling.railFor\`, that is the repair R10 asks for and this declaration is stale in the same commit — delete the row. A declaration nobody prunes is how a guard ends up describing a tree that stopped existing.`,
+      );
+    }
+    if (undeclared.length === 0 && stale.length === 0) {
+      const bypass = [...sites].filter((f) => f !== FACADE).sort();
+      ok(
+        `${dartScanned} Dart file(s) swept: ${sites.size} direct HostedCheckoutRail construction site(s), all declared — ${bypass.length} of them still bypass ChassisBilling.railFor (${bypass.join(', ') || 'none'}), which is R10 / O-BILLING-REVENUECAT-LANDING and is now graded rather than remembered`,
+      );
+    }
+  }
+}
+
 if (problems.length) {
   console.error('');
   for (const p of problems) console.error(`FAIL ${p}`);
