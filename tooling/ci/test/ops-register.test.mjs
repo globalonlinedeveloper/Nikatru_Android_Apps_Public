@@ -139,6 +139,9 @@ import {
   dispatchTargetsFromSource,
   checkTimerTargetsAgainstDispatcher,
   deriveUnreadableCeiling,
+  redSinceDomain,
+  classifyRedSince,
+  evaluateRedSince,
 } from '../assert-ops-register.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1717,7 +1720,13 @@ describe('assert-ops-register — end to end, against the real repository', () =
   /** The record-query verdicts that ARE "a duty is failing": a reachable record
    *  with no success (or none inside the window), a mechanism that is gone, and
    *  a dark reader on a row held FAILING. */
-  const DUTY_IS_FAILING = /its record IS reachable and (holds NO SUCCESSFUL RUN AT ALL|the newest SUCCESSFUL run)|the mechanism its `recordQuery` names DOES NOT EXIST|reader `[^`]+` .+ AND the register holds its last readable observation as FAILING \(/;
+  // 🔴 `RED SINCE` JOINED THIS SET ON 2026-09-07, WITH THE LIMB THAT EMITS IT.
+  // It is a fourth shape of "a duty is failing" and it is the one the register
+  // was blind to: the watched workflow's newest run on its own branch FAILED and
+  // no success has landed since. Without it here, the very first red `main`
+  // would have made this test call the new limb doing exactly its job a
+  // "structural break" — and the reflex fix for that is to delete the limb.
+  const DUTY_IS_FAILING = /its record IS reachable and (holds NO SUCCESSFUL RUN AT ALL|the newest SUCCESSFUL run)|the mechanism its `recordQuery` names DOES NOT EXIST|reader `[^`]+` .+ AND the register holds its last readable observation as FAILING \(|— RED SINCE \d{4}-\d{2}-\d{2}T/;
 
   // ── 🔴 THE FIFTH SHAPE, AND WHY IT IS DELIBERATELY NOT IN THE SET ABOVE ────
   // `classifyRunRecord` emits one more failing shape — HELD-BUT-HEALTHY — the
@@ -2068,6 +2077,37 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
     const r = runRoot(fixtureRoot());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /delegated to tooling\/monitor-register\.json \(1 hosts\)/);
+  });
+
+  // ── [14]O-3b · THE EXIT CODE, PROVEN BY SPAWNING THE GUARD ────────────────
+  // The pure suite above proves the verdicts. These two prove the WIRING: that
+  // a green fixture really returns 0 with the limb having run, and that the
+  // empty-domain refusal really reaches `process.exit(2)`. A limb whose verdict
+  // is right and whose exit code never leaves main() is a limb nothing enforces.
+  // No network is involved in either: the fixture root's one watched workflow
+  // goes `unreadable` with the credentials scrubbed, and the empty-domain case
+  // refuses before a socket is opened.
+  test('[14]O-3b ran on the green fixture root, and printed its domain size beside its verdict', () => {
+    const r = runRoot(fixtureRoot());
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /\[14\]O-3b — RED SINCE: 1 scheduled workflow duty\(ies\) graded/);
+    assert.match(r.out, /ORDERED ZERO PAIRS ON THIS RUN/, 'with no token every read is unreadable, and that state must not read like a green branch');
+  });
+
+  test('🔴 [14]O-3b with an EMPTY domain exits **2** — COVERAGE LOST, which is neither a pass nor a finding', () => {
+    // The register keeps its `github-run-history` row (so [14]O-3 stays happy and
+    // the declared reader still has a member) and the row simply stops being a
+    // `duty.workflow.*` one — the smallest edit that empties the redness domain
+    // without breaking anything else, which is exactly why it must not be quiet.
+    const root = fixtureRoot((s) => {
+      const row = s.reg.rows.find((x) => x.id === 'duty.workflow.nightly');
+      assert.ok(row, 'the fixture lost the row this mutation ranges over');
+      row.id = 'duty.nightly';
+    });
+    const r = runRoot(root);
+    assert.equal(r.code, 2, `COVERAGE LOST must not share an exit code with a pass or a finding:\n${r.out}`);
+    assert.match(r.out, /COVERAGE LOST/);
+    assert.match(r.out, /ranges over the EMPTY SET/);
   });
 
   test('no `_delegated.hostnames` at all is COVERAGE LOST — the surfaces would be owned by nobody', () => {
@@ -3228,5 +3268,187 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
         `\`${name}\` is declared in _recordReaders and no branch of probeRunRecords dispatches it, so every row using it would go unreadable`,
       );
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 [14]O-3b · RED SINCE — the limb that grades a FAILED run.
+//
+// WHAT THIS SUITE IS ABOUT, and it is a measured defect rather than a worry.
+// `probeGithubRun` asks GitHub for `status=success`, so until 2026-09-07 a
+// failed run did not merely get ignored by the verdict logic — IT NEVER
+// ARRIVED. The only thing that could notice `main` going red was the staleness
+// window expiring: `duty.workflow.build-platforms.yml` is `7d` against a
+// `7d x 1.5 = 252h` window, i.e. a failure was invisible for up to ten and a
+// half days, and then surfaced as "the newest SUCCESSFUL run is old", which
+// reads like a quiet week. TRAPS `ci-38`. It bit this repository for three days
+// in the week of 2026-09-01.
+//
+// EVERY CASE BELOW IS DRIVEN THROUGH THE PURE FUNCTIONS, so each branch is
+// reachable with no network and no red branch on the real repository — the
+// same rule the [14]O-3 suite above states: a limb whose only evidence is "it
+// was green against production today" has no recorded failing case, and this
+// file's standard is that an assertion which cannot fail is worse than none.
+// The GREEN CONTROL IS FIRST in each pair, so every red below is proven to fail
+// for its own reason rather than for a defect inherited from the fixture.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded, not merely a missing successful one', () => {
+  const OK_OLD = { id: 111, at: '2026-09-05T00:00:00Z' };
+  const OK_NEW = { id: 222, at: '2026-09-07T12:00:00Z' };
+  const BAD = { id: 333, at: '2026-09-06T06:00:00Z' };
+
+  const wfDuty = (id, over = {}) => ({
+    id,
+    kind: 'duty',
+    what: 'a nightly scheduled workflow',
+    detector: 'its own alert job',
+    response: 'read the issue it files',
+    cadence: '1d',
+    mechanism: {
+      substrate: 'github-actions',
+      anchor: 'renovate.json',
+      record: 'GitHub Actions run history',
+      failingValue: 'conclusion = failure',
+      readBy: 'this guard',
+      recordQuery: { reader: 'github-run-history', workflow: 'nightly.yml', event: 'schedule', headBranch: 'main' },
+    },
+    ...over,
+  });
+  const regOf = (...rows) => ({ rows });
+  const probesOf = (o) => new Map(Object.entries(o));
+  const ID = 'duty.workflow.nightly';
+
+  // ── the two green controls, first ─────────────────────────────────────────
+  test('GREEN CONTROL — the newest success is newer than the newest failure: no error, and the pair is COUNTED', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: OK_NEW, failure: BAD } }));
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.coverageLost, undefined);
+    assert.equal(r.stats.green, 1);
+    assert.equal(r.stats.red, 0);
+    assert.equal(r.stats.domain, 1);
+    assert.ok(r.prints.some((p) => /RED SINCE: 1 scheduled workflow duty\(ies\) graded · 1 whose newest run/.test(p)));
+  });
+
+  test('GREEN CONTROL — a workflow that has never failed at all is green, and says so rather than saying nothing', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: OK_NEW, failure: null } }));
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.stats.green, 1);
+    assert.ok(r.prints.some((p) => /no FAILED run in its history at all/.test(p)));
+  });
+
+  // ── the mutation this limb exists for ─────────────────────────────────────
+  test('🔴 MUTATION — a failure NEWER than the last success is RED SINCE, it BLOCKS, and it names the workflow', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: OK_OLD, failure: BAD } }));
+    assert.equal(r.errors.length, 1, `the red went somewhere other than errors:\n${JSON.stringify(r, null, 1)}`);
+    assert.match(r.errors[0], /RED SINCE 2026-09-06T06:00:00Z/);
+    assert.match(r.errors[0], /nightly\.yml on main/, 'the finding must name the workflow and the branch, or nobody can act on it');
+    assert.match(r.errors[0], /run 333 FAILED/);
+    assert.match(r.errors[0], /run 111 at 2026-09-05T00:00:00Z/, 'and the success it is being compared against');
+    assert.equal(r.stats.red, 1);
+    assert.equal(r.stats.green, 0);
+    assert.equal(r.coverageLost, undefined, 'a red branch is a FAILING duty, not coverage lost');
+  });
+
+  test('the RED line states the elapsed hours and the remedy — a finding nobody can clear is one somebody deletes', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: OK_OLD, failure: BAD } }));
+    assert.match(r.errors[0], /30\.0h EARLIER/);
+    assert.match(r.errors[0], /A success of ANY event on that branch clears it/);
+  });
+
+  test('one hour is enough — the comparison is an ORDERING, not a window, and it has no grace of its own', () => {
+    // The staleness limb has 1.5x its cadence, deliberately, because one late
+    // run is not an alarm. A FAILED run is not a late run: it is the failing
+    // value the row itself declares, so there is nothing to be tolerant of.
+    const r = evaluateRedSince(
+      regOf(wfDuty(ID)),
+      probesOf({ [ID]: { success: { id: 1, at: '2026-09-07T10:00:00Z' }, failure: { id: 2, at: '2026-09-07T11:00:00Z' } } }),
+    );
+    assert.equal(r.stats.red, 1);
+  });
+
+  // ── COVERAGE LOST, twice, for two different reasons ───────────────────────
+  test('🔴 COVERAGE LOST — failures and NO success ever: the comparison has one term, and that is not a pass', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: null, failure: BAD } }));
+    assert.ok(r.coverageLost, 'a limb that could not order its two terms must not return a verdict');
+    assert.match(r.coverageLost.join(' '), /HAS NO SECOND TERM/);
+    assert.match(r.coverageLost.join(' '), /nightly\.yml on main/);
+    assert.match(r.coverageLost.join(' '), /the sibling \[14\]O-3 limb still grades/, 'and it must say the duty is still watched, or the next reader deletes the wrong thing');
+    assert.equal(r.stats, undefined);
+  });
+
+  test('🔴 COVERAGE LOST — an EMPTY domain, which is the one way this limb could be disabled without deleting it', () => {
+    // Moving every workflow duty to `trigger`, to `on-demand`, to `unreachable`
+    // or off `github-run-history` would leave this function ranging over nothing
+    // and printing a serene `0 RED`. That is the [14]O-3 defect one limb over.
+    const trig = wfDuty(ID, { cadence: 'trigger', trigger: 'every push' });
+    delete trig.mechanism.recordQuery;
+    const r = evaluateRedSince(regOf(trig), new Map());
+    assert.ok(r.coverageLost);
+    assert.match(r.coverageLost.join(' '), /ranges over the EMPTY SET/);
+    assert.match(r.coverageLost.join(' '), /ci-38/);
+  });
+
+  // ── "could not tell" is never "it is fine" ────────────────────────────────
+  test('an unreadable read PRINTS and does not block — and the ZERO PAIRS line makes that state unmistakable', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { unreadable: true, why: 'no token here' } }));
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.coverageLost, undefined);
+    assert.equal(r.stats.unreadable, 1);
+    assert.ok(r.prints.some((p) => /ORDERED ZERO PAIRS ON THIS RUN/.test(p)), 'zero-of-zero must not read like a green branch');
+  });
+
+  test('a MISSING probe is unreadable too, never a pass — the shape a row added after the probe loop takes', () => {
+    const r = evaluateRedSince(regOf(wfDuty(ID)), new Map());
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.stats.unreadable, 1);
+  });
+
+  test('a timestamp that does not parse is UNREADABLE, not green and not red — refusing to read is not reading a pass', () => {
+    const c = classifyRedSince(wfDuty(ID), { success: { id: 1, at: 'not-a-date' }, failure: BAD });
+    assert.equal(c.verdict, 'unreadable');
+    assert.match(c.line, /does not parse/);
+  });
+
+  // ── the domain is derived, and both exclusions are deliberate ─────────────
+  test('the domain is exactly the SCHEDULED WORKFLOW PROOFS — derived from the register, never listed', () => {
+    const rows = [
+      wfDuty('duty.workflow.nightly'),
+      // `trigger` rows are excluded ON PURPOSE and the reason is a deadlock, not
+      // taste: `ci.yml`'s newest run on `main` can be made green only BY
+      // MERGING, so blocking merges on it would have no exit at all.
+      wfDuty('duty.workflow.ci.yml', { cadence: 'trigger', trigger: 'every push' }),
+      // A row that reads a workflow's run history but is not a `duty.workflow.*`
+      // row is excluded because it would double-report the SAME workflow: this
+      // register carries two such rows against ops-watch.yml, and three findings
+      // naming one red workflow is how a real alarm gets skimmed past.
+      wfDuty('duty.analytics-silence-judgment'),
+    ];
+    delete rows[1].mechanism.recordQuery;
+    const d = redSinceDomain({ rows });
+    assert.deepEqual(d.map((r) => r.id), ['duty.workflow.nightly']);
+  });
+
+  test('a `duty.workflow.*` row that loses its headBranch leaves the domain — and an EMPTY domain is caught above', () => {
+    // Not a hole: [14]O-3's own schema limb already REFUSES a github-run-history
+    // read with no `headBranch`, so this row cannot reach a green build. What is
+    // asserted here is that the redness domain does not silently include a row
+    // whose branch it would have to guess.
+    const row = wfDuty(ID);
+    delete row.mechanism.recordQuery.headBranch;
+    assert.deepEqual(redSinceDomain({ rows: [row] }), []);
+  });
+
+  test('the committed register puts EVERY scheduled workflow proof in this domain — the bijection, restated where it bites', () => {
+    // The real negative test is the tree: if a workflow duty is moved off this
+    // reader, this assertion is what goes red rather than the alarm quietly
+    // shrinking. Read from the committed file, never from a copy.
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    const inDomain = redSinceDomain(real).map((r) => r.id).sort();
+    const scheduledWorkflowRows = real.rows
+      .filter((r) => String(r.id).startsWith('duty.workflow.') && /^\d+[hd]$/.test(String(r.cadence ?? '')))
+      .map((r) => r.id)
+      .sort();
+    assert.ok(inDomain.length > 0, 'the committed register grades no workflow for redness at all');
+    assert.deepEqual(inDomain, scheduledWorkflowRows, 'a scheduled workflow duty has fallen out of the RED-SINCE domain');
   });
 });
