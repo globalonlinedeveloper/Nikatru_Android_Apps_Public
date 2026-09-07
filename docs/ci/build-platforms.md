@@ -1195,3 +1195,168 @@ a widening of it.
 Nothing is hardcoded, so an AppImage lane joins this loop by being given a
 register row, not by anybody editing this file.
 
+
+## Obfuscation and native symbols
+
+*Added 2026-09-07 · [ADR 067] decision 6 · closes GAP G2 of the end-to-end audit ·
+`programme.json` P1-11.*
+
+### What was measured, and what it cost
+
+The audit of 2026-09-07 counted **15 release `flutter build` commands across 7 workflows and
+0 carrying `--obfuscate` or `--split-debug-info`**, with the only symbol upload anywhere being
+`deploy-web.yml`'s **web source maps**, which is web's own separate obligation. The guard that
+exists for this, `tooling/ci/assert-obfuscation-coupled.mjs`, printed
+`ok … 16 flutter build command(s), 0 obfuscating` and exited 0 — every word of that true, and the
+obligation entirely unmet, because the guard only ever asked *"did an obfuscating build keep its
+mapping"* and nothing obfuscated. That is `C-COVERAGE-LOST-IS-NOT-PASS` in its purest form, and it
+is why the guard now carries a **floor** as well as the **coupling** limb. See its header.
+
+### What every release build now does
+
+`--obfuscate --split-debug-info=build/symbols/<lane>`, on **13** release builds:
+
+| workflow · job | build | `--split-debug-info` |
+|---|---|---|
+| `build-platforms.yml` · `linux_web_android` | linux | `build/symbols/linux` |
+| `build-platforms.yml` · `linux_web_android` | apk | `build/symbols/android-apk` |
+| `build-platforms.yml` · `linux_web_android` | appbundle | `build/symbols/android-aab` |
+| `build-platforms.yml` · `windows` | windows | `build/symbols/windows` |
+| `build-platforms.yml` · `apple` | macos | `build/symbols/macos` |
+| `build-platforms.yml` · `apple` | ios | `build/symbols/ios` |
+| `submit-play.yml` · `dry-run`, `submit` | appbundle | `build/symbols/android-aab` |
+| `submit-appstore.yml` · `dry-run` | ios, macos | `build/symbols/{ios,macos}` |
+| `submit-snap.yml` · `dry-run`, `submit` | linux | `build/symbols/linux` |
+| `submit-windows-store.yml` · `dry-run` | windows | `build/symbols/windows` |
+
+The apk and the aab write to **separate** directories on purpose. They are two AOT compilations and
+nothing guarantees they produce the same mapping; one directory for both would leave whichever
+build ran second silently overwriting the other's symbols.
+
+### Why web is not in that table, and why that is not an exemption anybody chose
+
+Flutter's own documentation (docs.flutter.dev/deployment/obfuscate) lists the targets obfuscation
+applies to — `aar, apk, appbundle, ios, ios-framework, ipa, linux, macos, macos-framework,
+windows` — and states *"Web apps don't support obfuscation. A web app can be minified…"*. So the
+two web release builds (`build-platforms.yml`'s build proof and `deploy-web.yml`'s deploy) are
+outside the floor's **domain**, not excused from it. The guard holds both lists and treats a target
+in **neither** as COVERAGE LOST, so a Flutter release that adds a target cannot fall out of the
+floor in silence. Web's own symbolication path is `--source-maps` plus
+`tooling/ops/upload-web-sourcemaps.mjs`, in `deploy-web.yml`, and it is untouched by this.
+
+### The two destinations, and why there are two
+
+A `--split-debug-info` directory is the **only** thing that turns `_x12a` back into
+`SubscriptionRepository.refresh`, it exists for as long as the runner does, and **a rebuild
+produces a different mapping**. There is no recovery from losing it, only a re-release.
+
+1. **The crash sink**, on the `ubuntu-24.04` lane: `glitchtip-cli debug-files upload`, wrapped by
+   `tooling/ops/upload-native-symbols.mjs`. GlitchTip implements the DIF path for ELF/Mach-O/PDB
+   (`chunk-upload` → `files/difs/assemble/`), and CHANGELOG 6.1.5 *"Fix: Symbolicate obfuscated
+   Flutter Android stack traces"* is the maintainers saying so. **This is where symbols are read.**
+2. **A 90-day workflow artefact**, on every lane: `symbols-<app>-<platform>`. **This is what
+   survives the sink losing them.**
+
+The artefact is named `symbols-*` and **not** `<app>-*` deliberately: `build-platforms.yml`'s
+`release` job downloads `pattern: <app>-*` and publishes it, and an obfuscation mapping attached to
+a public GitHub Release un-obfuscates the build for everyone who downloads it.
+
+### Why the crash-sink upload is wrapped instead of called directly
+
+`glitchtip-cli debug-files upload` **exits 0 in three states that are not "the symbols are
+stored"**, all three read from `src/commands/debug_files.rs` at the pinned v1.0.0:
+
+* `found.is_empty()` prints *"No debug information files found."* and returns `Ok(())` — an empty
+  or mis-named directory is a green upload of nothing;
+* the per-file loop counts failures into `errors` and prints
+  `Upload complete: N chunk(s) uploaded, M error(s).` without failing;
+* `poll_assembly` gives up after 60 polls with *"Assembly did not complete within timeout."* and
+  returns `Ok(())`, and a per-file `"error"` state prints `Error: <name>: <detail>` and likewise
+  returns `Ok(())`. Assemble is asynchronous, so a 200 means **queued**, never **stored**.
+
+The wrapper counts the files itself and asserts the CLI's own output against that count, requires
+`0 error(s)`, and requires `Assembly completed.` — which `poll_assembly` prints only when the
+server has answered ok/created for every checksum. It **fails closed** naming `GLITCHTIP_TOKEN` if
+the credential is absent; it never skips. Negative test:
+`tooling/ci/test/native-symbol-upload.test.mjs`.
+
+This is the same lesson `tooling/ops/upload-web-sourcemaps.mjs` was written for, on a different
+endpoint — and note the difference: that one had to **replace** `glitchtip-cli sourcemaps upload`,
+because the release-files path stores nothing from a gzipped JS file. The **DIF** path this one
+uses is one GlitchTip really implements, so the CLI is used, and only its exit code is distrusted.
+
+### What is deliberately NOT uploaded
+
+`build/app/obfuscation.map.json` (from `--save-obfuscation-map`), through
+`glitchtip-cli dart-symbol-map upload`. That map fixes the **issue title**, not the stack trace,
+and GlitchTip cannot consume one: the assemble path is `Archive.open(file)` over what is a JSON
+array of strings, and grepping `apps/difs/*` and `apps/event_ingest/process_event.py` for `dart`,
+`symbol_map` and `obfuscat` returns nothing. Measured in the corpus at
+`research/68-GLITCHTIP-CAPABILITY-INVENTORY.md` §3.2. **Expect readable stack traces and mangled
+issue titles.** Wiring an upload the server discards would be coverage that is not, so
+`dart-symbol-map` is explicitly *not* in the guard's `SYMBOL_UPLOAD` accept list and a lane doing
+only that fails the coupling limb. Mitigate at the SDK — a stable `fingerprint` or `transaction` —
+not here.
+
+### Open residues, named rather than left to be discovered
+
+* **The `windows` and `apple` jobs retain their symbols but do not upload them to the sink.**
+  `tooling/versions.json` pins ONE `glitchtip-cli` binary and it is `linux-x86_64`; arming those
+  runners means a second and third pinned binary each with its own digest. Until then the 90-day
+  artefact is each mapping's only copy. Same for `submit-appstore.yml` and
+  `submit-windows-store.yml`.
+* **The store lanes (`submit-*.yml`) retain but do not upload**, for the same reason on Windows and
+  macOS, and on `submit-play.yml`/`submit-snap.yml` because those jobs run at the owner's manual
+  submission moment and an untested upload step between the build and a real store push is a risk
+  taken on the owner's behalf. The build flags and the retention are there; the sink wiring is a
+  later increment.
+* **`assert-obfuscation-coupled.mjs` cannot see whether the crash sink actually symbolicated
+  anything.** It reads workflow text. The end-to-end proof is
+  `research/58-SENTRY-VS-GLITCHTIP-AND-THE-ORACLE-BOX.md`'s standing action: ship a deliberate
+  crash in an obfuscated Android release build and read the frame back. That remains open.
+
+
+### ⏱ APPENDED 2026-09-07 (fix pass) — three things above are now WRONG, and this is what supersedes them
+
+Two adversarial reviews of the change described above found three defects. The wording above is
+left standing rather than rewritten; read this section as the correction.
+
+**1. The table says 13 release builds. It is 14.** [#518] landed a real `submit:` job in
+`submit-windows-store.yml` after this unit's last merge of `main`, carrying a
+`flutter build windows --release` this unit had never seen. It now obfuscates into
+`build/symbols/windows` and retains `symbols-subly-windows-store` for 90 days, placed **before** the
+store submission for the reason the Play and Snap lanes already state. So the row
+`submit-windows-store.yml · dry-run` reads **`dry-run`, `submit`**, and the guard prints
+`14 release build(s) on an obfuscatable target, 14 obfuscating`.
+
+**2. The floor no longer decides "is this a release build" by looking for `--release`.**
+`flutter build <target>` **defaults to release mode**; `--debug` and `--profile` are the documented
+opt-outs. Keying the floor's domain on the presence of `--release` therefore left a silent escape
+hatch, and the guard-integrity reviewer proved it on the real tree: delete `--release` and
+`--obfuscate` from `flutter build linux`, and the guard printed
+`ok … 12 release build(s), 12 obfuscating`, exit **0**. A shipping, un-obfuscated Linux release had
+left the floor and nothing named the build that left — the same vacuity, one layer down, that this
+whole change exists to remove. **The rule is inverted:** a build on an obfuscatable target is inside
+the floor **unless** it carries an explicit `--debug` or `--profile`, those opt-outs are **counted
+and printed by file, line, job and target**, and a command naming two modes at once is COVERAGE LOST
+rather than a guess. The same mutation now exits **1**. `bundle` was also dropped from
+`NON_OBFUSCATABLE_TARGETS`: the doc line cited for that set covers only web, `bundle` was an
+unsourced entry in an exemption set, and it exempted nothing in this tree — an unsourced target now
+gets the COVERAGE LOST verdict it deserves.
+
+**3. In `build-platforms.yml` the `symbols-*` retention step was the LAST step of every job**, behind
+`Install glitchtip-cli` (a `curl --fail` against gitlab.com) and `Upload the native debug symbols to
+GlitchTip` (fails closed on a missing token). Any earlier failure — a GitLab 404, a GlitchTip outage,
+a rotated token, an unrelated assertion — took the mapping with it. Not hypothetical: in this unit's
+own dispatch run `34093704881`, `Build linux` succeeded **with the flags**, a later step failed, and
+the symbols artefact was `skipped`. The obfuscated build's only mapping was written and destroyed
+with the runner. In all three jobs the retention step now sits **immediately after the last
+`flutter build`**, ahead of every assertion and every network call — the rule this unit already
+stated for the store lanes, finally applied to the lane it was written about.
+
+**Residual, stated rather than hidden.** A build step that fails *before* the retention step still
+takes the symbols of any build that succeeded before it, because GitHub skips the remaining steps of
+a failed job. That is the same property the installable `upload-artifact` step beside it has always
+had, and closing it means `if: always()` on both — which turns "the build failed, so there are no
+symbols" into a second, louder failure under `if-no-files-found: error`. Left as it is, deliberately,
+and recorded here.

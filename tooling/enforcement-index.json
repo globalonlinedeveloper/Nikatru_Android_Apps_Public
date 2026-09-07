@@ -1097,6 +1097,7 @@
   },
   {
     "claims": [
+      "ADR 067",
       "R-7"
     ],
     "invokedBy": [
@@ -2392,6 +2393,19 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/status.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 067",
+      "R-7"
+    ],
+    "invokedBy": [
+      ".github/workflows/build-platforms.yml#linux_web_android"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/upload-native-symbols.mjs",
     "references": [],
     "state": "WIRED"
   },
