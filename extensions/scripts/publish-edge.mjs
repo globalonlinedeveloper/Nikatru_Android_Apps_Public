@@ -26,6 +26,10 @@
 // ⚠️ NEVER `process.exit()` AFTER A `fetch` ON WINDOWS (TRAPS shell-12). Every
 // path below sets `process.exitCode`.
 //
+// ⏱ CORRECTED 2026-09-07 — the product id was the repository-global secret
+// EDGE_PRODUCT_ID; it is now extensions/Extension/<tool>/tool.json
+// storeMetadata.stores.edge.listingId, and the lane REFUSES while it is null.
+//
 // Usage:
 //   node scripts/publish-edge.mjs --tool <id> --zip <path> [--notes <text>]
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +79,7 @@ async function main() {
   }
   let result = null;
   try {
-    result = laneVerdict('edge-addons', opt('repo-root') === null ? {} : { root: opt('repo-root') });
+    result = laneVerdict('edge-addons', { toolId: TOOL, ...(opt('repo-root') === null ? {} : { root: opt('repo-root') }) });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) {
       die(e.lines);
@@ -97,7 +101,12 @@ async function main() {
     die([`FAIL ${err.message}`]);
     return;
   }
-  const product = encodeURIComponent(process.env.EDGE_PRODUCT_ID);
+  // 🔴 THE PRODUCT ID COMES OFF THE TOOL, NOT OUT OF THE ENVIRONMENT. Same
+  // correction as publish-cws.mjs and the same measured fail-open: one Partner
+  // Center account publishes every tool, so a repository-global EDGE_PRODUCT_ID
+  // made every tool's release address the FIRST tool's product. `laneVerdict`
+  // has already refused every path where this is null.
+  const product = encodeURIComponent(result.identity.listingId);
   const draftPackage = `${API_ROOT}/v1/products/${product}/submissions/draft/package`;
   const submissions = `${API_ROOT}/v1/products/${product}/submissions`;
 

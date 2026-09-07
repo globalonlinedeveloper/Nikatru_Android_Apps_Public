@@ -2050,6 +2050,10 @@ jobs:
           node tooling/ops/post-deploy-smoke.mjs --release-repo "$REPO"
           --release-tag "$GITHUB_REF_NAME" --release-manifest extensions/dist/SHA256SUMS
 
+      # why: the LISTING IDENTITY is per TOOL, not per repository. `--tool` selects the
+      # tool.json whose storeMetadata.stores.<key>.listingId names the destination; until
+      # 2026-09-07 the Chrome item id and the Edge product id were repository secrets and a
+      # second extension's tag would have uploaded to the first tool's listing.
       # why: the preflight carries NO dry-run guard on purpose. It publishes nothing, and a
       # rehearsal is exactly when a person wants to read which credential is still owed. The
       # verdict is the REGISTER's, taken through tooling/ci/channel-arming.mjs: armed row +
@@ -2063,7 +2067,7 @@ jobs:
           if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
             echo "one or more AMO_* repository secrets are empty; the register decides what that means."
           fi
-          if ! node scripts/publish-arming.mjs --channel amo; then
+          if ! node scripts/publish-arming.mjs --channel amo --tool "${{ steps.tag.outputs.id }}"; then
             echo "::error::the register ARMS the amo channel and its credentials are missing, so this release cannot submit to addons.mozilla.org. This is a failed release, not a skipped store."
             exit 1
           fi
@@ -2080,14 +2084,13 @@ jobs:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-          CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
         run: |
           set -euo pipefail
-          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ] || [ -z "$CWS_ITEM_ID" ] || [ -z "$CWS_PUBLISHER_ID" ]; then
+          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ] || [ -z "$CWS_PUBLISHER_ID" ]; then
             echo "one or more CWS_* repository secrets are empty; the register decides what that means."
           fi
-          if ! node scripts/publish-arming.mjs --channel chrome-webstore; then
+          if ! node scripts/publish-arming.mjs --channel chrome-webstore --tool "${{ steps.tag.outputs.id }}"; then
             echo "::error::the register ARMS the chrome-webstore channel and its credentials are missing, so this release cannot submit to the Chrome Web Store. This is a failed release, not a skipped store."
             exit 1
           fi
@@ -2098,7 +2101,6 @@ jobs:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-          CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
         run: node scripts/publish-cws.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
 
@@ -2106,13 +2108,12 @@ jobs:
         env:
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
         run: |
           set -euo pipefail
-          if [ -z "$EDGE_CLIENT_ID" ] || [ -z "$EDGE_API_KEY" ] || [ -z "$EDGE_PRODUCT_ID" ]; then
+          if [ -z "$EDGE_CLIENT_ID" ] || [ -z "$EDGE_API_KEY" ]; then
             echo "one or more EDGE_* repository secrets are empty; the register decides what that means."
           fi
-          if ! node scripts/publish-arming.mjs --channel edge-addons; then
+          if ! node scripts/publish-arming.mjs --channel edge-addons --tool "${{ steps.tag.outputs.id }}"; then
             echo "::error::the register ARMS the edge-addons channel and its credentials are missing, so this release cannot submit to Microsoft Edge Add-ons. This is a failed release, not a skipped store."
             exit 1
           fi
@@ -2125,7 +2126,6 @@ jobs:
         env:
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
         run: node scripts/publish-edge.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
 
       - name: Record what shipped, per channel this release is the origin for

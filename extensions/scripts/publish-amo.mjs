@@ -71,7 +71,12 @@ if (TOOL === null || TOOL.trim() === '') {
 } else {
   let result = null;
   try {
-    result = laneVerdict('amo', opt('repo-root') === null ? {} : { root: opt('repo-root') });
+    // The tool is passed for the SAME reason the other two lanes pass it, and the
+    // answer is different in kind rather than absent: AMO reads the add-on id from
+    // the package manifest in --source-dir, so this lane addresses no id of its own.
+    // Declaring it on the tool anyway keeps all three destinations readable in one
+    // place and keeps the verdict shape identical across the three stores.
+    result = laneVerdict('amo', { toolId: TOOL, ...(opt('repo-root') === null ? {} : { root: opt('repo-root') }) });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) die(e.lines);
     else throw e;

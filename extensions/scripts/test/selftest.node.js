@@ -2343,42 +2343,99 @@ let storeLaneNo = 0;
    an array of names produces eleven passing cases and zero coverage — measured
    2026-09-07, and it looks exactly like the gates being uncovered.
    ───────────────────────────────────────────────────────────────────────────── */
-function armedTree(id) {
+/* ⏱ EXTENDED 2026-09-07 — THE FIXTURE NOW CARRIES A TOOL, because the listing
+   identity moved OFF the repository and ONTO it. Until this date the Chrome item
+   id and the Edge product id were the repository-global secrets CWS_ITEM_ID and
+   EDGE_PRODUCT_ID, on a lane that is multi-tool by construction: a second
+   extension's tag would have uploaded its package to the FIRST tool's listing
+   and printed `SUBMITTED — <the second tool>`. `--tool` was read, validated, and
+   then used only in that log line.
+
+   So each tree below writes BOTH halves of the answer — the register row (with
+   its `extensionStoreKey`, which is how a channel names its store in the tool's
+   own manifest) and the tool.json that declares, or does not declare, a
+   `listingId` for that store. `listingId: null` is the real tree today: no
+   extension has ever been published anywhere, so no store has issued one. */
+const STORE_KEY = { amo: 'firefox', 'chrome-webstore': 'chrome', 'edge-addons': 'edge' };
+
+function laneTree({ id, submittable, listingId = null, tool = 'fullshot' }) {
   const root = path.join(TMP, 'storelane-' + (++storeLaneNo));
+  const key = STORE_KEY[id];
   w(root, 'tooling/channel-register.json', JSON.stringify({
-    channels: [{ id, kind: 'store', surface: 'extension', served: false, submittable: true,
+    channels: [{ id, kind: 'store', surface: 'extension', served: false, submittable,
+      extensionStoreKey: key,
       lane: { workflow: '.github/workflows/extensions.yml', job: 'release' } }]
+  }, null, 2));
+  w(root, 'extensions/Extension/' + tool + '/tool.json', JSON.stringify({
+    id: tool,
+    storeMetadata: { stores: { [key]: { target: 'chromium', dir: 'store/' + key, served: false, listingId } } }
   }, null, 2));
   return root;
 }
-function unarmedTree(id) {
-  const root = path.join(TMP, 'storelane-' + (++storeLaneNo));
-  w(root, 'tooling/channel-register.json', JSON.stringify({
-    channels: [{ id, kind: 'store', surface: 'extension', served: false, submittable: false,
-      lane: { workflow: '.github/workflows/extensions.yml', job: 'release' } }]
-  }, null, 2));
-  return root;
-}
+function armedTree(id, opts = {}) { return laneTree({ id, submittable: true, ...opts }); }
+function unarmedTree(id, opts = {}) { return laneTree({ id, submittable: false, ...opts }); }
+
+const LISTED = { amo: 'fixture@nikatru.com', 'chrome-webstore': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'edge-addons': 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff' };
 
 expect('publish-amo.mjs REFUSES when the register ARMS amo and its credentials are empty', {
-  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: armedTree('amo'), code: 1, contains: 'REFUSED'
+  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: armedTree('amo', { listingId: LISTED.amo }), code: 1, contains: 'REFUSED'
 });
 expect('publish-amo.mjs prints the owner step and exits 0 while amo is unarmed', {
-  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('amo'), code: 0, contains: 'OWNER STEP:'
+  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('amo', { listingId: LISTED.amo }), code: 0, contains: 'OWNER STEP:'
 });
 
 expect('publish-cws.mjs REFUSES when the register ARMS chrome-webstore and its credentials are empty', {
-  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: armedTree('chrome-webstore'), code: 1, contains: 'REFUSED'
+  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }), code: 1, contains: 'REFUSED'
 });
 expect('publish-cws.mjs prints the owner step and exits 0 while chrome-webstore is unarmed', {
-  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('chrome-webstore'), code: 0, contains: 'OWNER STEP:'
+  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }), code: 0, contains: 'OWNER STEP:'
 });
 
 expect('publish-edge.mjs REFUSES when the register ARMS edge-addons and its credentials are empty', {
-  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: armedTree('edge-addons'), code: 1, contains: 'REFUSED'
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: armedTree('edge-addons', { listingId: LISTED['edge-addons'] }), code: 1, contains: 'REFUSED'
 });
 expect('publish-edge.mjs prints the owner step and exits 0 while edge-addons is unarmed', {
-  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('edge-addons'), code: 0, contains: 'OWNER STEP:'
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('edge-addons', { listingId: LISTED['edge-addons'] }), code: 0, contains: 'OWNER STEP:'
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE TOOL AXIS — the fail-OPEN this change closed, driven both ways.
+
+   🔴 THE RED IS "ARMED, CREDENTIALLED, AND NO DESTINATION". That is the state
+   the old code could not represent at all: with the id in a repository secret it
+   was present for EVERY tool, so a release of tool B addressed tool A's listing
+   and reported success. The credentials below are FIXTURE STRINGS, never a real
+   value, so the only thing left to refuse on is the missing listing id.
+   ───────────────────────────────────────────────────────────────────────────── */
+const CWS_FIXTURE_ENV = { CWS_CLIENT_ID: 'fixture', CWS_CLIENT_SECRET: 'fixture', CWS_REFRESH_TOKEN: 'fixture', CWS_PUBLISHER_ID: 'fixture' };
+const EDGE_FIXTURE_ENV = { EDGE_CLIENT_ID: 'fixture', EDGE_API_KEY: 'fixture' };
+
+expect('publish-cws.mjs REFUSES an ARMED, fully credentialled channel when the TOOL declares no listing id', {
+  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: armedTree('chrome-webstore', { listingId: null }),
+  env: CWS_FIXTURE_ENV, code: 1, contains: 'has no declared listing id'
+});
+expect('publish-edge.mjs REFUSES an ARMED, fully credentialled channel when the TOOL declares no listing id', {
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: armedTree('edge-addons', { listingId: null }),
+  env: EDGE_FIXTURE_ENV, code: 1, contains: 'has no declared listing id'
+});
+expect('the unarmed print names the TOOL\'S OWN tool.json as the place the missing id is read from', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'second_tool'],
+  root: unarmedTree('chrome-webstore', { listingId: null, tool: 'second_tool' }), code: 0,
+  contains: 'extensions/Extension/second_tool/tool.json storeMetadata.stores.chrome.listingId'
+});
+expect('a SECOND tool with its own listing id is armed on its own row, not on the first tool\'s', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'second_tool'],
+  root: armedTree('chrome-webstore', { listingId: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz', tool: 'second_tool' }),
+  env: CWS_FIXTURE_ENV, code: 0, contains: 'extensions/Extension/second_tool/tool.json storeMetadata.stores.chrome.listingId'
+});
+expect('a tool the tree does not carry is COVERAGE LOST, never a quiet "not armed"', {
+  script: 'publish-cws.mjs', argv: ['--tool', 'no_such_tool'], root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }),
+  env: CWS_FIXTURE_ENV, code: 1, contains: 'COVERAGE LOST'
+});
+expect('a store key the tool has never heard of is COVERAGE LOST, not an unarmed channel', {
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'],
+  root: (() => { const r = armedTree('edge-addons', { listingId: null }); const f = path.join(r, 'extensions/Extension/fullshot/tool.json'); const t = JSON.parse(fs.readFileSync(f, 'utf8')); t.storeMetadata.stores = { chrome: t.storeMetadata.stores.edge }; fs.writeFileSync(f, JSON.stringify(t, null, 2)); return r; })(),
+  env: EDGE_FIXTURE_ENV, code: 1, contains: 'COVERAGE LOST'
 });
 
 expect('publish-arming.mjs REFUSES on an armed row with empty credentials — the workflow preflight', {

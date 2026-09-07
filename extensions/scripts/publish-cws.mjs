@@ -39,6 +39,14 @@
 // the socket, node dies inside libuv and leaves with 3221226505 rather than the
 // code the script chose (TRAPS shell-12). Every path below sets `process.exitCode`.
 //
+// ⏱ CORRECTED 2026-09-07 — `--tool` USED TO BE A LOG LINE. The item id was read
+// from the repository-global secret CWS_ITEM_ID while the release lane is
+// multi-tool by construction, so a second extension's tag would have uploaded to
+// the FIRST tool's listing and reported success naming the second. The id now
+// comes from extensions/Extension/<tool>/tool.json storeMetadata.stores.chrome.listingId
+// and the lane REFUSES while it is null. CWS_ITEM_ID is no longer a secret this
+// repository declares.
+//
 // Usage:
 //   node scripts/publish-cws.mjs --tool <id> --zip <path>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +86,7 @@ async function main() {
   }
   let result = null;
   try {
-    result = laneVerdict('chrome-webstore', opt('repo-root') === null ? {} : { root: opt('repo-root') });
+    result = laneVerdict('chrome-webstore', { toolId: TOOL, ...(opt('repo-root') === null ? {} : { root: opt('repo-root') }) });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) {
       die(e.lines);
@@ -109,7 +117,13 @@ async function main() {
   console.log(`ok   access token obtained (expires_in ${tok.expiresIn}s, scope ${tok.scope})`);
 
   const publisher = encodeURIComponent(process.env.CWS_PUBLISHER_ID);
-  const item = encodeURIComponent(process.env.CWS_ITEM_ID);
+  // 🔴 THE ITEM ID COMES OFF THE TOOL, NOT OUT OF THE ENVIRONMENT. `laneVerdict`
+  // above already refused every path where `result.identity.listingId` is null,
+  // so reaching this line means the tool declares its own destination. Reading
+  // it from a repository secret is what let `--tool` be a decoration: the id was
+  // the same for every tool in the repository, so a second extension's tag would
+  // have uploaded here and printed SUBMITTED naming itself.
+  const item = encodeURIComponent(result.identity.listingId);
   let bytes;
   try {
     bytes = readSubmittablePackage(ZIP);

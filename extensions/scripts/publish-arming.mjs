@@ -36,7 +36,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { armingOf } from '../../tooling/ci/channel-arming.mjs';
+import { armingOf, armingOfTool } from '../../tooling/ci/channel-arming.mjs';
 
 /** The repository root, resolved from THIS file rather than from the working
  *  directory: `extensions.yml` runs its steps with `working-directory: extensions`
@@ -44,6 +44,10 @@ import { armingOf } from '../../tooling/ci/channel-arming.mjs';
  *  resolve differently depending on which kind of step called in. */
 export const REPO_ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 export const REGISTER = 'tooling/channel-register.json';
+
+/** Where a TOOL declares its own per-store listing identity. `<tool>` is the id
+ *  the release tag carries. */
+export const TOOL_JSON_REL = 'extensions/Extension/<tool>/tool.json';
 
 /** The scan cannot continue and reporting "nothing to do" would be a lie about
  *  nothing. Callers exit 1 on this; a publish path that cannot find its own
@@ -83,6 +87,80 @@ export function readChannel(channelId, root = REPO_ROOT) {
 }
 
 /**
+ * THE TOOL'S OWN LISTING IDENTITY on a store, read from
+ * `extensions/Extension/<tool>/tool.json` `storeMetadata.stores.<key>.listingId`.
+ *
+ * 🔴 IT IS READ FROM THE TOOL AND NOT FROM THE ENVIRONMENT, AND THAT IS THE
+ * WHOLE POINT. Until 2026-09-07 the Chrome item id and the Edge product id were
+ * repository-global secrets (`CWS_ITEM_ID`, `EDGE_PRODUCT_ID`) on a lane that is
+ * multi-tool by construction — `.github/workflows/extensions.yml` requires a tag
+ * `^[a-z0-9][a-z0-9-]*-v<semver>$` and derives the tool from it. A second
+ * extension's tag would have uploaded its package to the FIRST tool's listing
+ * and printed `SUBMITTED — <the second tool>`: not a failure, a wrong success,
+ * in the one act this repository treats as irreversible.
+ *
+ * The store KEY is not invented here either: it is the register row's own
+ * `extensionStoreKey`, which `assert-channel-register.mjs` already holds against
+ * `tool.json`'s `storeMetadata.stores` in both directions — so a store this
+ * register claims and the tool has never heard of is already a build failure,
+ * and this function inherits that agreement rather than restating it.
+ *
+ * A missing tool.json, a missing store row, or a store key the row does not
+ * declare is COVERAGE LOST, never "no id, therefore not armed": deciding "unarmed"
+ * from an absence is how a publish path reports success having published nothing,
+ * or worse, having published somewhere else.
+ */
+export function toolListingId({ toolId, storeKey, root = REPO_ROOT }) {
+  if (typeof toolId !== 'string' || toolId.trim() === '') {
+    throw new ArmingCoverageLost([
+      'COVERAGE LOST — no tool id was given, so no per-tool listing identity can be read.',
+      'The release lane derives the tool from the tag; a publish with no tool is a publish with no destination.',
+    ]);
+  }
+  if (typeof storeKey !== 'string' || storeKey.trim() === '') {
+    throw new ArmingCoverageLost([
+      `COVERAGE LOST — the channel row for tool "${toolId}" declares no \`extensionStoreKey\`.`,
+      `That key is the store's name in ${TOOL_JSON_REL.replace('<tool>', toolId)}'s \`storeMetadata.stores\`, and`,
+      'without it there is no row to read the listing id from.',
+    ]);
+  }
+  const rel = TOOL_JSON_REL.replace('<tool>', toolId);
+  const abs = join(root, rel);
+  if (!existsSync(abs)) {
+    throw new ArmingCoverageLost([
+      `COVERAGE LOST — ${rel} does not exist under ${root}.`,
+      'The listing id lives on the tool, so a tool with no manifest has no declared destination — and treating',
+      'that as "not armed" would let a release with a mistyped tool id report a clean pending instead of stopping.',
+    ]);
+  }
+  let tool;
+  try {
+    tool = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch (e) {
+    throw new ArmingCoverageLost([`COVERAGE LOST — ${rel} is not valid JSON — ${e.message}`]);
+  }
+  const stores = tool?.storeMetadata?.stores;
+  if (stores === undefined || stores === null || typeof stores !== 'object') {
+    throw new ArmingCoverageLost([
+      `COVERAGE LOST — ${rel} declares no \`storeMetadata.stores\`.`,
+      'That block is the STORE axis of the tool and the only place a per-store listing id can be declared.',
+    ]);
+  }
+  if (!Object.prototype.hasOwnProperty.call(stores, storeKey)) {
+    throw new ArmingCoverageLost([
+      `COVERAGE LOST — ${rel} declares stores [${Object.keys(stores).join(', ')}] and the channel names "${storeKey}".`,
+      'A store the register claims and the tool has never heard of is a listing nobody writes; publishing to it',
+      'would be addressing a destination neither file describes.',
+    ]);
+  }
+  const raw = stores[storeKey]?.listingId ?? null;
+  return {
+    field: `${rel} storeMetadata.stores.${storeKey}.listingId`,
+    listingId: typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : null,
+  };
+}
+
+/**
  * The verdict.
  *
  * @param {object} o
@@ -93,7 +171,7 @@ export function readChannel(channelId, root = REPO_ROOT) {
  * @param {string} [o.root]         repository root
  * @returns {{verdict:'go'|'refuse'|'pending', row:object, arming:object, missing:string[], lines:string[]}}
  */
-export function publishVerdict({ channelId, secrets, ownerStep, env = process.env, root = REPO_ROOT }) {
+export function publishVerdict({ channelId, secrets, ownerStep, toolId = null, env = process.env, root = REPO_ROOT }) {
   if (!Array.isArray(secrets) || secrets.length === 0) {
     throw new ArmingCoverageLost([
       `COVERAGE LOST — no credential names were declared for channel "${channelId}".`,
@@ -102,35 +180,60 @@ export function publishVerdict({ channelId, secrets, ownerStep, env = process.en
     ]);
   }
   const row = readChannel(channelId, root);
-  const arming = armingOf(row);
+
+  // ── THE TOOL AXIS ──────────────────────────────────────────────────────────
+  // The register answers per CHANNEL; this lane runs per TOOL. `armingOfTool`
+  // is the same rule with the second axis, and the listing id comes off the
+  // tool's own manifest rather than out of the environment — see toolListingId
+  // above for the fail-open this closes. A caller that names no tool gets the
+  // channel-only answer, which is what the CLI preflight wants before a tag is
+  // even known.
+  let identity = null;
+  let arming;
+  if (toolId === null) {
+    arming = armingOf(row);
+  } else {
+    identity = toolListingId({ toolId, storeKey: row.extensionStoreKey, root });
+    arming = armingOfTool(row, { toolId, identityField: identity.field, listingId: identity.listingId });
+  }
   const missing = secrets.filter((s) => String(env[s.name] ?? '').trim() === '').map((s) => s.name);
+  const identified = toolId === null || arming.identified === true;
 
   const lines = [];
-  if (missing.length === 0 && arming.armed) {
+  if (missing.length === 0 && arming.armed && identified) {
     lines.push(`ARMED and CREDENTIALLED — channel "${channelId}": ${secrets.map((s) => s.name).join(', ')} all present (values never read or printed).`);
     for (const r of arming.reasons) lines.push(`   armed because ${r}`);
-    return { verdict: 'go', row, arming, missing, lines };
+    return { verdict: 'go', row, arming, identity, missing, lines };
   }
 
-  if (missing.length > 0 && arming.armed) {
-    lines.push(`🔴 REFUSED — channel "${channelId}" IS ARMED in ${REGISTER} and ${missing.length} of its ${secrets.length} credential(s) are EMPTY: ${missing.join(', ')}.`);
+  if (arming.armed && (missing.length > 0 || !identified)) {
+    // 🔴 AN ARMED CHANNEL WITH NO DESTINATION IS THE SAME REFUSAL AS AN ARMED
+    // CHANNEL WITH NO CREDENTIAL, and it is deliberately not a softer one. With
+    // a listing id absent the only ways to proceed are to guess or to fall back
+    // to a repository-wide default — and the repository-wide default is exactly
+    // what shipped one tool's package to another tool's listing.
+    const why = missing.length > 0 ? `${missing.length} of its ${secrets.length} credential(s) are EMPTY: ${missing.join(', ')}` : `tool "${arming.toolId}" has no declared listing id for it`;
+    lines.push(`🔴 REFUSED — channel "${channelId}" IS ARMED in ${REGISTER} and ${why}.`);
     for (const r of arming.reasons) lines.push(`   armed because ${r}`);
+    for (const b of arming.blockers) lines.push(`   ${b}`);
     for (const s of secrets) if (missing.includes(s.name)) lines.push(`   ${s.name} — ${s.why}`);
+    if (!identified) lines.push(`   the listing id is read from ${identity.field}; it is null, and this lane will not guess one`);
     lines.push(`   OWNER STEP: ${ownerStep}`);
     lines.push('   An armed channel with no credential is a release that would half-ship: the artifact is built,');
     lines.push('   the store call cannot be made, and nothing downstream would say so. Fail closed.');
-    return { verdict: 'refuse', row, arming, missing, lines };
+    return { verdict: 'refuse', row, arming, identity, missing, lines };
   }
 
-  if (missing.length > 0) {
+  if (missing.length > 0 || !identified) {
     lines.push(`⬜ PENDING MANUAL PUBLISH — channel "${channelId}" is NOT ARMED in ${REGISTER}, so this release publishes nothing to it.`);
     for (const b of arming.blockers) lines.push(`   ${b}`);
-    lines.push(`   absent credential(s): ${missing.join(', ')}`);
+    if (missing.length > 0) lines.push(`   absent credential(s): ${missing.join(', ')}`);
     for (const s of secrets) if (missing.includes(s.name)) lines.push(`   ${s.name} — ${s.why}`);
+    if (!identified) lines.push(`   absent listing identity: ${identity.field} is null — the store issues it at the first manual publish`);
     lines.push(`   OWNER STEP: ${ownerStep}`);
     lines.push('   ⚠️ THIS IS A TRIPWIRE, NOT A WAIVER. The same tag with the same empty secret REFUSES the');
     lines.push(`   moment ${REGISTER} arms this row. Arming a channel and creating its secrets belong in ONE change.`);
-    return { verdict: 'pending', row, arming, missing, lines };
+    return { verdict: 'pending', row, arming, identity, missing, lines };
   }
 
   lines.push(`⬜ CREDENTIALS PRESENT, CHANNEL NOT ARMED — channel "${channelId}" has every declared credential and ${REGISTER} does not arm it, so this release publishes nothing to it.`);
@@ -138,7 +241,7 @@ export function publishVerdict({ channelId, secrets, ownerStep, env = process.en
   lines.push('   🔴 A SECRET IS NOT AN AUTHORISATION. The register is the switch; a credential that exists for');
   lines.push('   a row nothing arms means the two halves of one change landed apart. Flip the row, or delete');
   lines.push('   the secret — do not let a publish decide on the strength of a vault entry.');
-  return { verdict: 'pending', row, arming, missing, lines };
+  return { verdict: 'pending', row, arming, identity, missing, lines };
 }
 
 
@@ -212,11 +315,10 @@ export const LANES = Object.freeze({
       { name: 'CWS_CLIENT_ID', why: `the OAuth client id of the Google Cloud project authorised for the chromewebstore scope (${CWS_DOC})` },
       { name: 'CWS_CLIENT_SECRET', why: `that client's secret (${CWS_DOC})` },
       { name: 'CWS_REFRESH_TOKEN', why: `the refresh token obtained once through the OAuth playground; the cws-token-keepalive job exists to keep it alive (${CWS_DOC})` },
-      { name: 'CWS_ITEM_ID', why: 'the Chrome Web Store item id — issued by the store at the first MANUAL publish and not derivable' },
       { name: 'CWS_PUBLISHER_ID', why: `the publisher id shown in the Developer Dashboard under Publisher → Settings; the v2 API path carries it and the older v1.1 path did not (${CWS_DOC})` },
     ],
     ownerStep:
-      `pay the $5 Chrome Web Store developer fee, publish FullShot MANUALLY once (no store API can create a first submission — ADR 067 decision 8), create an OAuth client, exchange a refresh token through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope, then add CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_ITEM_ID and CWS_PUBLISHER_ID as repository secrets. Runbook: ${EXT_RUNBOOK}`,
+      `pay the $5 Chrome Web Store developer fee, publish THE TOOL BEING RELEASED manually once (no store API can create a first submission — ADR 067 decision 8), create an OAuth client, exchange a refresh token through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope, then add CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN and CWS_PUBLISHER_ID as repository secrets — and write the item id the store issued into that tool's OWN ${TOOL_JSON_REL} \`storeMetadata.stores.chrome.listingId\`, never into a repository secret: the credentials are shared across tools and the listing is not. Runbook: ${EXT_RUNBOOK}`,
   },
   'edge-addons': {
     channelId: 'edge-addons',
@@ -224,16 +326,15 @@ export const LANES = Object.freeze({
     secrets: [
       { name: 'EDGE_CLIENT_ID', why: `the Partner Center client id sent as the X-ClientID header (${EDGE_DOC})` },
       { name: 'EDGE_API_KEY', why: `the Partner Center API key sent as Authorization: ApiKey <key> (${EDGE_DOC})` },
-      { name: 'EDGE_PRODUCT_ID', why: 'the product id on the extension overview page in Partner Center — issued at the first MANUAL publish and not derivable' },
     ],
     ownerStep:
-      `register FullShot in Partner Center → Microsoft Edge program, publish it MANUALLY once (ADR 067 decision 8), enable the v1.1 API in Partner Center (Publish API → Enable), then add EDGE_CLIENT_ID, EDGE_API_KEY and EDGE_PRODUCT_ID as repository secrets. Runbook: ${EXT_RUNBOOK}`,
+      `register THE TOOL BEING RELEASED in Partner Center → Microsoft Edge program, publish it MANUALLY once (ADR 067 decision 8), enable the v1.1 API in Partner Center (Publish API → Enable), then add EDGE_CLIENT_ID and EDGE_API_KEY as repository secrets — and write the product id Partner Center issued into that tool's OWN ${TOOL_JSON_REL} \`storeMetadata.stores.edge.listingId\`, never into a repository secret: one Partner Center account publishes every tool and each tool has its own product. Runbook: ${EXT_RUNBOOK}`,
   },
 });
 
 /** The verdict for a named lane, so a caller names a LANE and never a list of
  *  secrets it typed out again. */
-export function laneVerdict(laneId, { env = process.env, root = REPO_ROOT } = {}) {
+export function laneVerdict(laneId, { toolId = null, env = process.env, root = REPO_ROOT } = {}) {
   const lane = LANES[laneId];
   if (lane === undefined) {
     throw new ArmingCoverageLost([
@@ -242,7 +343,7 @@ export function laneVerdict(laneId, { env = process.env, root = REPO_ROOT } = {}
       'pass produced by a typo.',
     ]);
   }
-  return publishVerdict({ channelId: lane.channelId, secrets: lane.secrets, ownerStep: lane.ownerStep, env, root });
+  return publishVerdict({ channelId: lane.channelId, secrets: lane.secrets, ownerStep: lane.ownerStep, toolId, env, root });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -264,7 +365,8 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     process.exitCode = 1;
   } else {
     try {
-      const result = laneVerdict(laneId, rootArg === null ? {} : { root: rootArg });
+      const toolArg = arg('tool');
+      const result = laneVerdict(laneId, { ...(rootArg === null ? {} : { root: rootArg }), ...(toolArg === null ? {} : { toolId: toolArg }) });
       for (const l of result.lines) console.log(l);
       if (result.verdict === 'refuse') process.exitCode = 1;
     } catch (e) {

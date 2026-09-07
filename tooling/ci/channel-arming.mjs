@@ -149,6 +149,57 @@ export function armingOf(row) {
 }
 
 /**
+ * ARMING, PER TOOL — the same rule with the axis the register does not have.
+ *
+ * 🔴 WHY A SECOND FUNCTION AND NOT A WIDER `armingOf`. A register row answers
+ * "can this CHANNEL reach a user"; three signing seams already ask exactly that
+ * and must keep getting exactly that answer, so `armingOf` is untouched. What
+ * the register cannot answer is "can this channel reach a user WITH THIS TOOL'S
+ * PACKAGE", and on the extensions lane that second question is the load-bearing
+ * one: `.github/workflows/extensions.yml` derives the tool from the tag
+ * `<tool>-v<semver>`, so ONE armed channel serves N tools and each of them has
+ * its own permanent, store-issued listing id.
+ *
+ * ⚠️ MEASURED, 2026-09-07, and it is why this exists. The Chrome item id and the
+ * Edge product id were repository-global SECRETS (`CWS_ITEM_ID`,
+ * `EDGE_PRODUCT_ID`). A second extension's tag push would have uploaded its zip
+ * to the first tool's listing and printed `SUBMITTED — <the other tool>`: a
+ * fail-OPEN into the one act this repository treats as irreversible. The
+ * identity now lives on `extensions/Extension/<tool>/tool.json`
+ * `storeMetadata.stores.<key>.listingId`, and a channel that is armed for a tool
+ * with no listing id is NOT armed for that tool.
+ *
+ * Pure, like everything else here: the caller reads the row and the tool's
+ * declared id and hands both over.
+ *
+ * @param {object} row              the channel-register row
+ * @param {object} o
+ * @param {string} o.toolId         the tool the release is publishing
+ * @param {string} o.identityField  where the id is declared, for the message
+ * @param {string|null} o.listingId the tool's declared listing id, or null
+ * @returns {object} `armingOf(row)` plus `{ toolId, listingId, identified,
+ *          armedForTool }`, with `reasons`/`blockers` extended by the tool limb.
+ */
+export function armingOfTool(row, { toolId = null, identityField = 'listingId', listingId = null } = {}) {
+  const base = armingOf(row);
+  const id = typeof listingId === 'string' && listingId.trim() !== '' ? listingId.trim() : null;
+  const identified = id !== null;
+  const tool = typeof toolId === 'string' && toolId.trim() !== '' ? toolId.trim() : '(unnamed tool)';
+
+  const reasons = [...base.reasons];
+  const blockers = [...base.blockers];
+  if (identified) {
+    reasons.push(`tool "${tool}" declares its own \`${identityField}\` for this store, so the destination is this tool's listing and not another's`);
+  } else {
+    blockers.push(
+      `tool "${tool}" declares no \`${identityField}\` for this store — the listing id is issued by the store at the FIRST MANUAL publish (ADR 067 decision 8) and is not derivable, so there is no destination to address`,
+    );
+  }
+
+  return { ...base, toolId: tool, identityField, listingId: id, identified, armedForTool: base.armed && identified, reasons, blockers };
+}
+
+/**
  * THE RULE, applied to the set of rows one signing seam serves.
  *
  * `fatal` is true when AT LEAST ONE of them is armed: a seam serving two rows
