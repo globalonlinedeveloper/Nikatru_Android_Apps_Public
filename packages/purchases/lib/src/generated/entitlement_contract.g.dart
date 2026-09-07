@@ -60,3 +60,55 @@ bool isRevocationReason(String reason) =>
 /// Whether `reason` GIVES ACCESS BACK. Resolved, never remembered.
 bool revocationRestoresAccess(String reason) =>
     kRevocationReasons.any((r) => r.reason == reason && r.restoresAccess);
+
+/// One RevenueCat webhook event and the revocation reason it means.
+///
+/// A null [reason] is an event that is deliberately NOT a revocation, which is
+/// a different fact from an event nobody mapped — the table records both so the
+/// next reader does not close the gap by guessing.
+class RevenueCatEventReason {
+  const RevenueCatEventReason(this.event, this.reason, {required this.dateDerived});
+
+  /// The vendor event type, verbatim.
+  final String event;
+
+  /// The revocation reason, or null when this event revokes nothing.
+  final String? reason;
+
+  /// Whether the ACCESS outcome is decided by the paid-through date carried
+  /// on the event rather than by its name.
+  ///
+  /// CANCELLATION is BOTH cancel-at-period-end (access continues to the paid-
+  /// through date) and a REFUND (that date is in the past, access ends now, and
+  /// the honest reason is refund_approved). Only the date tells them apart, so
+  /// a caller that acts on [reason] alone for a date-derived event is wrong for
+  /// one of the two shapes the vendor spells the same way.
+  final bool dateDerived;
+
+  @override
+  String toString() => reason == null ? '$event -> (no revocation)' : '$event -> $reason';
+}
+
+/// The RevenueCat event to revocation-reason map, in the order it is authored.
+const List<RevenueCatEventReason> kRevenueCatEventReasons =
+    <RevenueCatEventReason>[
+  RevenueCatEventReason('CANCELLATION', 'cancelled_at_period_end', dateDerived: true),
+  RevenueCatEventReason('EXPIRATION', 'subscription_expired', dateDerived: false),
+  RevenueCatEventReason('SUBSCRIPTION_PAUSED', 'subscription_paused', dateDerived: false),
+  RevenueCatEventReason('BILLING_ISSUE', null, dateDerived: true),
+  RevenueCatEventReason('INITIAL_PURCHASE', null, dateDerived: false),
+  RevenueCatEventReason('RENEWAL', null, dateDerived: false),
+  RevenueCatEventReason('UNCANCELLATION', null, dateDerived: false),
+];
+
+/// The revocation reason a RevenueCat event means, or null when it means none.
+///
+/// An event this table does not name also answers null. That is the SAFE
+/// direction: nothing is revoked on an unrecognised event, and the server read
+/// stays the only thing that ever unlocks or locks.
+String? revocationReasonForRevenueCatEvent(String event) {
+  for (final RevenueCatEventReason r in kRevenueCatEventReasons) {
+    if (r.event == event) return r.reason;
+  }
+  return null;
+}
