@@ -81,9 +81,7 @@ class {{app_id.pascalCase()}}App extends ConsumerWidget {
       // builder. Every one of the three is a ConsumerWidget, which is why the
       // chain is written here and not in the package.
       shell: (Widget routed) => AnalyticsGate(
-        child: _NotificationTapGate(
-          child: _OfflineBanner(child: routed),
-        ),
+        child: _NotificationTapGate(child: _OfflineBanner(child: routed)),
       ),
     );
   }

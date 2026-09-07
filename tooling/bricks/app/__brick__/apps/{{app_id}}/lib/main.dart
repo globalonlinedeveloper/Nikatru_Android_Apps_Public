@@ -42,7 +42,8 @@ Future<void> main() async {
   // ONE adapter, constructed here and `init()`ed once by bootstrapNikatru before
   // the first frame — see its step 4 for why a second instance is a tap stream
   // that is silent forever.
-  final core.NotificationService notifications = createLocalNotificationService();
+  final core.NotificationService notifications =
+      createLocalNotificationService();
 
   await bootstrapNikatru(
     notifications: notifications,

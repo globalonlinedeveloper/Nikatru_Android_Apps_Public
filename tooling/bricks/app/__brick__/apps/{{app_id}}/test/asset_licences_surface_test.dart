@@ -119,7 +119,7 @@ File _bootPathFile(String mainSource) {
       'resolution, never as a missing call',
     );
   }
-  final File f = File('${dep!.group(1)}/lib/${imp!.group(1)}');
+  final File f = File('${dep.group(1)}/lib/${imp.group(1)}');
   if (!f.existsSync()) {
     fail(
       'lib/main.dart delegates to package:nikatru_chassis_screens/'
@@ -145,7 +145,8 @@ void main() {
         );
       }
       source = _stripComments(
-        _bootPathFile(_stripComments(main.readAsStringSync())).readAsStringSync(),
+        _bootPathFile(_stripComments(main.readAsStringSync()))
+            .readAsStringSync(),
       );
     });
 
