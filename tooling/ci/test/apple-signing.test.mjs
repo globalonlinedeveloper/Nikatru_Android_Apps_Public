@@ -52,6 +52,7 @@ import {
   homeRowOf,
   RELEASE_SIGNED,
   UNSIGNED_PROOF,
+  KEYLESS_ENV,
   secretSetLaw,
   releaseLane,
   resolvePosture,
@@ -561,11 +562,70 @@ describe('apple-signing — posture resolution', () => {
   });
 
   test('partial → fatal on EVERY lane, release or not', () => {
+    // `partial` here is the three KEY-MATERIAL names with the team id missing,
+    // which is fatal on every lane including a build proof — the 2026-09-07
+    // narrowing below goes the other way round and does not reach this fixture.
     for (const required of [true, false]) {
       const d = resolvePosture({ law: partial, required, platform: 'darwin' });
       assert.equal(d.posture, null, `required=${required} must still be fatal`);
       assert.match(d.fatal.lines.join('\n'), /HALF configured/);
     }
+  });
+
+  // ── the team-id-only build proof (2026-09-07) ──────────────────────────────
+  // Run 34094776599's Apple job died on `supplied: APPLE_TEAM_ID` one line after
+  // printing `lane requires signing: no`. Run 33870692144 had passed the same
+  // step four days earlier with no code change between them — an APPLE_TEAM_ID
+  // repository secret was created in between. These cases pin the narrowing AND
+  // its four edges, because a rule that only ever says yes is not a rule.
+  const teamIdOnly = (() => {
+    const v = Object.fromEntries(WANTED.map((n) => [n, '']));
+    v[ROLE_ENV.teamId] = 'ABCDE12345';
+    return secretSetLaw(v);
+  })();
+
+  test('🔴 team id ONLY on a BUILD PROOF lane → the labelled unsigned proof, not a failure', () => {
+    const d = resolvePosture({ law: teamIdOnly, required: false, platform: 'darwin', proofLane: true });
+    assert.equal(d.posture, UNSIGNED_PROOF);
+    assert.equal(d.fatal, null);
+    // The supplied name is carried back so the caller can PRINT that it was
+    // ignored. Silently treating a supplied value as absent is the failure shape
+    // this whole file exists to refuse.
+    assert.deepEqual(d.ignoredIdentity, [ROLE_ENV.teamId]);
+  });
+
+  test('🔴 team id only on a RELEASE lane is STILL fatal — the all-or-none law did not move', () => {
+    const d = resolvePosture({ law: teamIdOnly, required: true, platform: 'darwin', proofLane: false });
+    assert.equal(d.posture, null);
+    assert.match(d.fatal.lines.join('\n'), /HALF configured/);
+  });
+
+  test('🔴 `proofLane` DEFAULTS to false, so every pre-existing caller is unchanged', () => {
+    const d = resolvePosture({ law: teamIdOnly, required: false, platform: 'darwin' });
+    assert.equal(d.posture, null, 'omitting proofLane must not open the narrowing');
+    assert.match(d.fatal.lines.join('\n'), /HALF configured/);
+  });
+
+  test('🔴 KEY MATERIAL on a build proof lane is still fatal — with the team id and without it', () => {
+    // The narrowing is "no key material", never "some names are optional". A
+    // .p12 with no password would go on to sign with something nobody chose.
+    for (const extra of [[ROLE_ENV.p12], [ROLE_ENV.p12, ROLE_ENV.teamId], [ROLE_ENV.profiles]]) {
+      const v = Object.fromEntries(WANTED.map((n) => [n, '']));
+      for (const n of extra) v[n] = 'x';
+      const d = resolvePosture({ law: secretSetLaw(v), required: false, platform: 'darwin', proofLane: true });
+      assert.equal(d.posture, null, `${extra.join('+')} must stay fatal on a build proof lane`);
+      assert.match(d.fatal.lines.join('\n'), /HALF configured/);
+    }
+  });
+
+  test('🔴 KEYLESS_ENV holds NO name that can sign or unlock anything', () => {
+    // The guard on the guard: the day somebody adds a name here, this refuses
+    // any of the three that hold or unlock key material.
+    assert.deepEqual([...KEYLESS_ENV], [ROLE_ENV.teamId]);
+    for (const n of [ROLE_ENV.p12, ROLE_ENV.p12Password, ROLE_ENV.profiles, ROLE_ENV.installerP12]) {
+      assert.ok(!KEYLESS_ENV.includes(n), `${n} carries key material and must never be keyless`);
+    }
+    for (const n of KEYLESS_ENV) assert.ok(WANTED.includes(n), `${n} must be one of the WANTED names`);
   });
 
   test('the partial failure names the missing secret and the supplied ones', () => {
@@ -1154,6 +1214,26 @@ describe('apple-signing — the endings, run as a process', () => {
       assert.match(out(r), /HALF configured/);
       assert.match(out(r), new RegExp(`missing:\\s+${ROLE_ENV.p12Password}`));
     }
+  });
+
+  test('🔴 THE TEAM ID ALONE, ON A BRANCH PUSH: the build proof PASSES and says the name was ignored', () => {
+    // The end-to-end form of run 34094776599's failure. Everything else absent,
+    // no tag, no submission workflow — exactly the six-platform proof's state
+    // after an APPLE_TEAM_ID secret was created for the store-metadata work.
+    const { r } = runPrepare(makeRoot(), { [ROLE_ENV.teamId]: 'ABCDE12345' });
+    assert.equal(r.status, 0, out(r));
+    assert.doesNotMatch(out(r), /HALF configured/);
+    assert.match(out(r), /SIGNING POSTURE: UNSIGNED-BUILD-PROOF/);
+    assert.match(out(r), new RegExp(`SUPPLIED AND DELIBERATELY UNUSED ON THIS LANE: ${ROLE_ENV.teamId}`));
+    // …and the run must not claim the secret is absent, which it plainly is not.
+    assert.doesNotMatch(out(r), /NO APPLE SIGNING SECRETS ARE SET/);
+  });
+
+  test('🔴 THE TEAM ID ALONE, ON A TAG: still HALF configured, still exit 1', () => {
+    const { r } = runPrepare(makeRoot(), { [ROLE_ENV.teamId]: 'ABCDE12345', ...ON_TAG });
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /HALF configured/);
+    assert.match(out(r), new RegExp(`supplied:\\s+${ROLE_ENV.teamId}`));
   });
 
   test('the platform gate is honest about which side of it this box is on', () => {

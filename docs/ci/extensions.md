@@ -1763,3 +1763,89 @@ lane's whole problem is that nobody has ever watched it run.
 
 <<< RELEASE LANE <<<
 
+---
+
+## The three store lanes, the keep-alive, and the region that stopped being a comment — 2026-09-07
+
+**Appended, not rewritten.** The `<<< RELEASE LANE <<<` line above is the last
+trace of a mechanism that is gone; it is left where it is because a frozen record
+is superseded, never rewritten.
+
+### The defect that was found first
+
+The "Every publishing step carries the dry-run guard" step bounded itself with
+
+```
+sed -n '/^# >>> RELEASE LANE >>>/,/^# <<< RELEASE LANE <<</p' extensions.yml
+```
+
+Both sentinels were **comment lines**, and PR #500 stripped prose comments out of
+the workflows. Measured on `main` at `b61f15b6`: `grep -c '^# >>> RELEASE LANE >>>'`
+answers **0**; the commit before #500 answers 2. The region was empty, so on the
+first real tag push the step would read *0 step boundaries* and exit 1 — fail
+closed, and still a defect, because the check's SUBJECT was deletable by an edit
+that had nothing to do with publishing.
+
+The repair is not a third sentinel. `tooling/ci/assert-publish-steps-guarded.mjs`
+bounds the region **by the job**, through `workflow-scan.mjs`'s `parseWorkflow` —
+the one workflow parse this repository has — so the region can only be emptied by
+deleting the job, which is COVERAGE LOST rather than a clean sweep. It prints the
+same tally line the inline step printed:
+
+```
+N step boundaries read; K publishing-surface step(s), all K behind an if:.
+```
+
+### The three store steps
+
+Each store gets a pair inside the `release` job:
+
+* a **preflight** with no dry-run guard — it publishes nothing, and a rehearsal
+  is exactly when somebody wants to read which credential is still owed. It tests
+  each secret for emptiness (the shape `assert-green-means-ran` section B counts)
+  and takes the VERDICT from `extensions/scripts/publish-arming.mjs`.
+* a **submit** step behind `if: github.event_name == 'push' && inputs.dry_run != true`.
+
+| store | transport | source (fetched 2026-09-07) |
+|---|---|---|
+| AMO | `web-ext@10.6.0 sign --channel listed` — exact pin, because a range resolves at run time | extensionworkshop.com web-ext command reference |
+| Chrome Web Store | `POST …/upload/v2/publishers/{P}/items/{I}:upload` then `POST …/v2/publishers/{P}/items/{I}:publish`, on a refresh-token exchange at `https://oauth2.googleapis.com/token` | developer.chrome.com "Use the Chrome Web Store API" |
+| Edge Add-ons | four calls with `Authorization: ApiKey` + `X-ClientID` — upload, poll, publish, poll — at `https://api.addons.microsoftedge.microsoft.com` | learn.microsoft.com "Use the REST API" |
+
+⚠️ **The Chrome path is v2, and the brief said v1.1.** The primary source fetched
+2026-09-07 documents only `v2/publishers/{PUBLISHER_ID}/items/{EXTENSION_ID}`;
+the string "1.1" does not appear on it. That costs one more held value —
+`CWS_PUBLISHER_ID` — because the v2 path carries a publisher segment the v1.1
+path did not. A guessed publisher id would address somebody else's account, so it
+is named rather than substituted.
+
+⚠️ **"Edge Add-ons API v1.1" names the AUTH SCHEME, not the URL.** The
+documentation calls the ApiKey + X-ClientID headers v1.1 while every path stays
+`/v1/…`. Both halves are copied from the page rather than harmonised: a `/v1.1/`
+route would 404 against a live account.
+
+### The arming semantics — the register is the switch, never the vault
+
+`publish-arming.mjs` **imports** `tooling/ci/channel-arming.mjs` rather than
+restating it, and answers one of three ways:
+
+* `submittable: true` (or `served: true`) with a **lane**, and a credential empty
+  → **exit 1**. Fail closed.
+* row not armed, credential empty → the exact **owner step** is printed and the
+  release records `pending_manual_publish`, which is what `record-deployment.mjs`
+  already accepts for a `submittable: false` store row. That is not a skip; it is
+  the register's on-switch, and the same tag with the same empty secret REFUSES
+  the day the row is armed.
+* credentials present on an **unarmed** row → also pending, with its own loud
+  line. A secret is not an authorisation.
+
+### `cws-token-keepalive`
+
+A new job on the existing `schedule` (`53 20 * * *`, DAILY since #519 — it was the Monday-only
+`17 4 * * 1` when this job was written), `timeout-minutes: 10`.
+It runs the same refresh-token exchange the publish runs — imported from
+`publish-cws-token.mjs`, never restated, because a keep-alive that refreshes
+something adjacent keeps the wrong thing alive. Armed row and a failed exchange
+→ exit 1; unarmed → the owner step. `extensions-lane-accounting` grades it by
+EVENT rather than by lane: it must succeed on `schedule` and be SKIPPED on
+everything else.

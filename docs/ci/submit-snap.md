@@ -489,3 +489,48 @@ the two readers and is reported as UNATTRIBUTED — COVERAGE LOST. Every
 other record call in this repository is written on one line for the same
 reason (deploy-web.yml:256, deploy-workers.yml:165, :236).
 
+---
+
+## The credential expiry guard — 2026-09-07
+
+**Appended, not rewritten.**
+
+An exported Snap Store login carries a lifetime. `snapcraft export-login`,
+verbatim: `--expires  Date/time (in ISO 8601) when this exported login expires.`
+When it lapses, `snapcraft upload` fails at the one moment a release is in
+flight, and until 2026-09-07 nothing in this repository said a word beforehand.
+
+`tooling/release/submit-snap.mjs` now grades the credential in both modes:
+
+| state | verdict |
+|---|---|
+| `SNAPCRAFT_STORE_CREDENTIALS` absent | **print** on `--dry-run` (owner-gated work, [pipeline C-6]); **fail** on `--submit` |
+| present, `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` absent | **fail** — unknown must never read as fine |
+| present, expiry not a readable ISO 8601 date | **fail** — an unreadable expiry is not a long one |
+| present, expiry less than **30 days** away (or past) | **fail** |
+| present, expiry 30 days or more away | ok, printing the date and the margin |
+
+Every refusal prints the exact owner step:
+
+```
+snapcraft export-login --snaps <snap-name> --acls package_push,package_release \
+  --expires <YYYY-MM-DDTHH:MM:SSZ> credentials.txt
+```
+
+…then the file contents go into `SNAPCRAFT_STORE_CREDENTIALS` and the same date
+into `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES`.
+
+### Why a declared date and not the blob
+
+The exported credential's internal format is documented on no page fetched. This
+file already refuses to parse `snapcraft whoami` for exactly that reason — its
+output format is undocumented — so parsing the blob for an `expires` field would
+break that rule one command over to save one environment variable. What *is*
+sourced is the flag that sets the date, so the date is recorded beside the
+credential by the same hand in the same act. The runbook makes them one step.
+
+### Cases
+
+`tooling/ci/test/snap-submission.test.mjs` carries the four refusals and a
+**green control at 31 days**, without which every red would be consistent with a
+limb that refuses everything.
