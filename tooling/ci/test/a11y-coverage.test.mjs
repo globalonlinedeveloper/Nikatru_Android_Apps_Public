@@ -541,6 +541,66 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 17 reachable surface\(s\).*floor is 19/s);
   });
 
+  // ── M11g · THE CHASSIS FLOOR, PINNED BY NUMBER ────────────────────────────
+  //
+  // 🔴 THE DEFECT THIS CLOSES, AND IT IS THIS SUITE'S OWN. [ADR 067] phase 2,
+  // unit app-shell, moved five shell widgets into `packages/chassis_screens`
+  // and moved this suite's REPORT pin from `0 of 12` to `0 of 17` — and left
+  // the guard's `surfaces` floor sitting at 12. The report pin catches a
+  // surface leaving only while the suite runs against the REAL checkout; the
+  // FLOOR is what fires on a fixture too, and the guard's own note beside that
+  // root calls it "the real one here". For one review cycle FOUR surfaces
+  // could have left `packages/chassis_screens` before anything bit.
+  //
+  // So this case pins the NUMBER, not the prose: it is the half M11e and M11f
+  // already give the brick and design_system, and the half the chassis root has
+  // never had. It removes ONE surface, not the file — `lib/shell/app_shell.dart`
+  // declares five, so deleting it would drop 17→12 and prove nothing about
+  // where the boundary actually sits.
+  test("M11g · one chassis shell widget goes private — that root's surfaces floor fires, and ALONE", () => {
+    const root = treeWithNewRoots();
+    const rel = `${CHASSIS}/lib/shell/app_shell.dart`;
+    const src = readIn(root, rel);
+    // ⚠️ LAND-CHECK BEFORE THE MUTATION IS TRUSTED (trap flutter-10): a
+    // `String.replace(<string>, …)` takes only the FIRST occurrence, so a
+    // second declaration of this name would leave the surface in place and this
+    // case would pass for the wrong reason.
+    assert.equal(
+      (src.match(/class ConsentPromptCard\b/g) ?? []).length,
+      1,
+      'ConsentPromptCard is no longer declared exactly once in the chassis shell',
+    );
+    // A leading underscore is how a surface really leaves a package: the class
+    // is still there and still compiles, it has simply stopped being public,
+    // and nothing but this floor notices.
+    writeIn(root, rel, src.replace('class ConsentPromptCard', 'class _ConsentPromptCard'));
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` has only 16 reachable surface\(s\).*floor is 17/s,
+    );
+    // AND ALONE — the property M11e records and M7 cannot have. This root's
+    // SWEPT_FLOOR is empty (it carries no a11y sweep at all yet), so nothing
+    // else can be stranded by the removal and the floor is demonstrable on its
+    // own rather than riding on another finding.
+    assert.equal(
+      out.split('\n').filter((l) => l.startsWith('FAIL ')).length,
+      1,
+      `the chassis surfaces floor did not fire alone:\n${out}`,
+    );
+  });
+
+  test('M11g-control · GREEN CONTROL — the same fixture, unmutated, is 17 and passes', () => {
+    // Without this half, M11g is equally consistent with a fixture that fails
+    // for some unrelated reason — which is exactly how a floor that never held
+    // reads as a floor that fires.
+    const { code, out } = run(treeWithNewRoots());
+    assert.equal(code, 0, out);
+    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\)/);
+  });
+
   test("M12 · a NEW surface in EACH new root reaches that root's printed list", () => {
     const root = treeWithNewRoots();
     // The brick: a modal sheet, which enters the domain FROM DISK and so touches

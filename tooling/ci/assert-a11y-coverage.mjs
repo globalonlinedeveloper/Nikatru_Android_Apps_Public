@@ -688,12 +688,28 @@ const REQUIRED_COVERAGE = [
     // sweeps, and writing a floor of 0 for something that is genuinely 0 is
     // the finding rather than a shrug. What this raise buys is that the five
     // cannot leave the printed list by leaving the tree.
-    surfaces: 12,
+    // 🔴 RAISED 12 → 17 ON 2026-09-07 ([ADR 067] phase 2, unit app-shell),
+    // AND THE RAISE IS THE POINT OF THIS NOTE. The app shell left the brick in
+    // that unit and brought FIVE more widget classes into this root —
+    // `NikatruApp`, `ConsentScrim`, `ConsentPromptCard`, `OfflineBannerHost`
+    // and `AppLifecycleFlush`, all in
+    // `packages/chassis_screens/lib/shell/app_shell.dart`. The number was read
+    // off this guard's own per-root line on the branch
+    // (`packages/chassis_screens: 0 of 17 reachable surface(s) carry an a11y
+    // sweep`), never incremented by counting the diff.
+    // ⚠️ THE SUITE PIN IS NOT THIS FLOOR AND MOVING ONE IS NOT MOVING THE
+    // OTHER. `a11y-coverage.test.mjs`'s `0 of 17` pin catches a surface leaving
+    // the tree only while the suite runs against the REAL checkout; this floor
+    // is what fires on a fixture too, and it is the one the paragraph above
+    // calls "the real one here". Landing app-shell moved the pin and left this
+    // at 12 for one review cycle, which let four surfaces vanish before the
+    // ratchet would have bitten — that is the defect this line repairs.
+    surfaces: 17,
     a11yFiles: 0,
     cases: 0,
     label:
-      'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens, mounted by ' +
-      'every stamped app, ZERO a11y sweeps',
+      'the chassis SCREEN BODIES [ADR 067 decision 2 / ADR 071] — the seven auth screens plus the ' +
+      'money/settings bodies and the app shell, mounted by every stamped app, ZERO a11y sweeps',
   },
   {
     dir: 'packages/design_system',

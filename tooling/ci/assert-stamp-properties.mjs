@@ -1279,9 +1279,21 @@ const REQUIRED_COVERAGE = [
     // calls it inside its own `builder` — so the brick now writes
     // `shell: (Widget routed) => AnalyticsGate(` where it used to write
     // `child: AnalyticsGate(`. The claim is unchanged and so is its strength:
-    // `shell:` names the one parameter NikatruApp is contracted to invoke
-    // (`packages/chassis_screens/test/shell/nikatru_app_test.dart` proves it
-    // does), and a bare `=>` is deliberately NOT accepted — that would match a
+    // `shell:` names the one parameter NikatruApp is contracted to invoke, and
+    // `packages/chassis_screens/test/app_shell_view_test.dart` is what proves
+    // it does: that suite's `buildApp()` hands `NikatruApp` a `shell:` chain of
+    // `AppLifecycleFlush` → `ConsentScrim` → `OfflineBannerHost` → the routed
+    // body, and its cases then locate `ConsentPromptCard`, `OfflineBannerHost`
+    // and that routed body in the pumped tree — none of which is findable
+    // unless `shell` is actually invoked.
+    // ⚠️ THE PROOF PATH ABOVE IS RE-MEASURED, NEVER REMEMBERED. This comment
+    // shipped for one review cycle naming
+    // `packages/chassis_screens/test/shell/nikatru_app_test.dart`, a file that
+    // has never existed — the claim was true and the evidence for it was a
+    // phantom, which is the one shape a later reader trusts and cannot check.
+    // A guard header is also an input to `tooling/enforcement-index.json`
+    // (trap ci-27), so a citation here is compiled, not decoration.
+    // A bare `=>` is deliberately NOT accepted — that would match a
     // helper nothing calls, which is the declaration-vs-caller trap above
     // wearing a lambda.
     group: /group\(\s*'property: analytics-on-switch-mounted'/,
