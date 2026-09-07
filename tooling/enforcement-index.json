@@ -2000,6 +2000,26 @@
   {
     "claims": [],
     "invokedBy": [
+      ".github/workflows/e2e.yml#e2e"
+    ],
+    "kind": "script",
+    "ref": "tooling/e2e/assert_one_issuer.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/e2e.yml#e2e"
+    ],
+    "kind": "script",
+    "ref": "tooling/e2e/captcha_posture.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
       ".github/workflows/e2e.yml#e2e",
       ".github/workflows/store-screenshots.yml#capture"
     ],

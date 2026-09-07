@@ -38,6 +38,7 @@ import 'package:subly/features/home/home_screen.dart';
 import 'package:subly/features/insights/insights_screen.dart';
 import 'package:subly/features/settings/settings_screen.dart';
 import 'package:subly/features/shell/app_shell.dart';
+import 'package:subly/l10n/app_localizations.dart';
 import 'package:subly/main.dart' as app;
 import 'package:subly/state/analytics_providers.dart' show kInstallIdKey;
 
@@ -48,6 +49,36 @@ void main() {
   const String email = String.fromEnvironment('E2E_EMAIL');
   const String password = String.fromEnvironment('E2E_PASSWORD');
   const String tokenHash = String.fromEnvironment('E2E_TOKEN_HASH');
+
+  // ── WHICH AUTH STACK THIS RUN IS GRADING ────────────────────────────────────
+  //
+  // 🔴 THE SAME SUITE, TWO TARGETS, AND NEITHER OF THEM SKIPS ANYTHING. Until
+  // 2026-09-07 this file could only ever describe the auth project it happened
+  // to be pointed at, so "does the live suite still pass on Box A" was a
+  // question that could first be asked INSIDE the cutover window — the one
+  // window that must not carry a surprise. `e2e.yml` resolves the target and
+  // passes it here; `hosted` is the default and the nightly never sends
+  // anything else, so the unattended proof keeps grading production.
+  //
+  // Two behaviours genuinely differ between the targets, and both are ASSERTED
+  // rather than skipped:
+  //   · a wrong password. Hosted checks the password and answers
+  //     `invalid_credentials`. Box A enforces Turnstile on
+  //     `token?grant_type=password` and refuses at the captcha BEFORE the
+  //     password is looked at (auth-cutover.md §4.5 row 3), so the copy the user
+  //     sees is a different one — and `authErrorText` maps it deliberately, on
+  //     the reasoning in that file's own comment that "Incorrect email or
+  //     password" would be an outright lie to a user whose credentials were fine.
+  //   · everything behind the Worker. The Workers trust exactly one issuer
+  //     (auth-cutover.md Phase 5) and today that issuer is the hosted project,
+  //     so a Box A-minted session is refused 401 until Phase 5 moves it. That
+  //     refusal is the EXPECTED outcome against `boxa`, not a failure — see
+  //     `expectOneIssuerRefusal` below.
+  const String authTarget = String.fromEnvironment(
+    'E2E_AUTH_TARGET',
+    defaultValue: 'hosted',
+  );
+  final bool againstBoxA = authTarget == 'boxa';
 
   // 🔴 A SECOND, SEPARATE THROWAWAY USER, AND IT HAS TO BE SEPARATE.
   //
@@ -903,6 +934,63 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
   }
 
+  /// The `boxa` half of every Worker-dependent leg — a POSITIVE expectation, not
+  /// a skip.
+  ///
+  /// 🔴 WHY THESE LEGS CANNOT PASS AGAINST BOX A, BY CONSTRUCTION.
+  /// `runbooks/auth-cutover.md` Phase 5: "there is no dual-issuer path in the
+  /// code — the Workers trust exactly one issuer", and until Phase 5 runs that
+  /// issuer is the HOSTED project. So a session Box A minted is refused 401 by
+  /// `services/platform` and `services/subly-api` alike, and everything past the
+  /// login screen in this suite goes through one of them — the re-acceptance
+  /// gate first of all.
+  ///
+  /// ⚠️ SKIPPING WOULD BE THE WRONG ANSWER AND IT IS WORTH SAYING WHY. A skipped
+  /// test is a green tick over a question nobody asked, and this file's whole
+  /// history is failures that looked like passes. So the run asserts what IS
+  /// true against `boxa`, in two halves that fail for different reasons:
+  ///   1. Box A really did authenticate a browser. `currentSession` is non-null,
+  ///      which means `admin/generate_link` → `/verify` worked end to end
+  ///      through a real Chrome against the self-hosted GoTrue. That is the half
+  ///      the cutover actually needs proving, and it is proven here BEFORE the
+  ///      window rather than inside it.
+  ///   2. …and the deployed Worker did not let that session through, so the app
+  ///      never reaches the authenticated shell. If it ever does, the Workers
+  ///      have gained a second issuer that nothing in `services/` implements and
+  ///      nobody decided — a security finding, and this expectation is what
+  ///      turns it into a red line instead of a surprise.
+  ///
+  /// ⚬ WHAT THIS DELIBERATELY DOES NOT CLAIM. It does not read an HTTP status;
+  /// a widget test cannot. The precise `401` is asserted server-side, in the
+  /// same run, by `tooling/e2e/assert_one_issuer.mjs` — which also asserts the
+  /// mirror-image `200` against `hosted`, so neither direction is a comment.
+  Future<void> expectOneIssuerRefusal(WidgetTester tester, String leg) async {
+    final sb.Session? session = sb.Supabase.instance.client.auth.currentSession;
+    expect(
+      session,
+      isNotNull,
+      reason:
+          'auth_target=boxa and $leg could not even sign in: the self-hosted '
+          'GoTrue minted no session for the magic-link token. That is a Box A '
+          'auth failure, not the one-issuer refusal this leg expects. On '
+          'screen: ${onScreen(tester)}',
+    );
+    // The same window the hosted path gets before it asserts it has arrived.
+    await pumpFor(tester, const Duration(seconds: 12));
+    expect(
+      find.text('Go to dashboard'),
+      findsNothing,
+      reason:
+          'auth_target=boxa and $leg reached the authenticated app. The Workers '
+          'are configured for ONE issuer and it is not Box A, so a Box A-minted '
+          'session must be refused until the Phase 5 cutover moves SUPABASE_URL '
+          'on both Workers. Reaching the dashboard means they now accept two '
+          'issuers — treat it as a security finding, not a flaky test. On '
+          'screen: ${onScreen(tester)}',
+    );
+    await shot('$leg-boxa-one-issuer-refusal');
+  }
+
   testWidgets('login rejects empty + invalid credentials with clear messages', (
     WidgetTester tester,
   ) async {
@@ -968,10 +1056,27 @@ void main() {
     );
     await pumpFor(tester, const Duration(milliseconds: 300));
     await tester.tap(find.byKey(E2EKeys.loginSubmit));
+    // 🔴 THE EXPECTED COPY COMES FROM THE ARB, NEVER FROM A LITERAL, AND IT
+    // DEPENDS ON THE TARGET. Against hosted the password is checked and
+    // `authErrorText` returns `authIncorrect`; against Box A the request is
+    // refused at the captcha first and it returns `authCaptchaFailed`. Reading
+    // both out of AppLocalizations means this assertion cannot drift from the
+    // shipped words — a test that hardcodes English is a test that passes on a
+    // build whose copy changed underneath it, and it would have to be edited
+    // twice more the day the Tamil locale is the one under the driver.
+    final AppLocalizations l10n = AppLocalizations.of(
+      tester.element(find.byKey(E2EKeys.loginSubmit)),
+    );
+    final String expectedRefusal = againstBoxA
+        ? l10n.authCaptchaFailed
+        : l10n.authIncorrect;
     expect(
-      await waitFor(tester, find.textContaining('Incorrect email or password')),
+      await waitFor(tester, find.textContaining(expectedRefusal)),
       isTrue,
-      reason: 'friendly invalid-credentials message did not appear',
+      reason:
+          'the friendly refusal message did not appear. auth_target=$authTarget, '
+          'so the expected copy is "$expectedRefusal". On screen: '
+          '${onScreen(tester)}',
     );
     expect(find.text('Welcome back'), findsOneWidget);
     await shot('00c-invalid-credentials');
@@ -1034,6 +1139,16 @@ void main() {
       await tester.tap(find.byKey(E2EKeys.loginSubmit));
       // GoTrue sign-in + navigation to /scan.
       await pumpFor(tester, const Duration(seconds: 10));
+    }
+
+    // Every screen past this point reads or writes through the deployed
+    // Workers, starting with the re-acceptance gate. Against `boxa` they refuse
+    // the Box A-minted session, and that refusal is the assertion. See
+    // `expectOneIssuerRefusal`.
+    if (againstBoxA) {
+      await expectOneIssuerRefusal(tester, '22-full-walk');
+      restoreGlobals();
+      return;
     }
 
     // ── 02b Re-acceptance ────────────────────────────────────────────────────
@@ -1455,6 +1570,15 @@ void main() {
       await pumpFor(tester, const Duration(milliseconds: 500));
       await tester.tap(find.byKey(E2EKeys.loginSubmit));
       await pumpFor(tester, const Duration(seconds: 10));
+    }
+
+    // Everything below this line goes through the deployed Workers — the
+    // erasure route most of all. Against `boxa` they refuse the session, and
+    // that refusal is what this run asserts. See `expectOneIssuerRefusal`.
+    if (againstBoxA) {
+      await expectOneIssuerRefusal(tester, '22-account-delete');
+      restoreGlobals();
+      return;
     }
 
     // The delete-leg user is a SECOND admin-API user with its own empty

@@ -87,6 +87,38 @@ nightly that fails files no durable issue — and the Worker-dispatched run is n
 the unattended one. The reader was fixed by the unit that owned it; the alerter
 was not, because that unit did not own this workflow.
 
+### above `inputs:` — the `auth_target` axis
+
+🟢 **ONE SUITE, TWO AUTH STACKS, AND THE NIGHTLY NEVER MOVES.** Added 2026-09-07
+([ADR 067] decision 6, unit `cutover-blockers`) to remove the first of the two
+Phase-5 blockers `runbooks/auth-cutover.md` records.
+
+Until this input existed, the live suite could only ever describe the auth
+project it happened to be pointed at, so *"does the live end-to-end path still
+pass on Box A?"* was a question that could first be asked **inside** the cutover
+window — the one window that must not carry a surprise, because there is no
+dual-issuer path and a mistake there 401s the whole portfolio. Now it is asked on
+demand, from the same code, before the window.
+
+- `hosted` (the default) resolves to `SUPABASE_URL` / `SUPABASE_ANON_KEY` /
+  `SUPABASE_SERVICE_ROLE_KEY`.
+- `boxa` resolves to `BOXA_SUPABASE_URL` / `BOXA_SUPABASE_ANON_KEY` /
+  `BOXA_SUPABASE_SERVICE_ROLE_KEY`.
+
+⚠️ **THE SCHEDULE CARRIES NO INPUT AT ALL**, so `inputs.auth_target` is empty on
+a scheduled run and the `|| 'hosted'` fallback takes it. The unattended proof
+keeps grading production; nothing about the nightly's meaning changed.
+
+⚠️ **THE `BOXA_*` SECRETS DO NOT EXIST YET** — the 21 repository secrets measured
+2026-09-07 hold no `BOXA_` name. A `boxa` dispatch therefore FAILS AT THE
+PREFLIGHT naming the three it wants, which is the designed behaviour and the
+acceptance test for the fail-closed limb. Adding them is an owner step; nothing
+here can invent a key.
+
+⚫ **THIS IS NOT THE CUTOVER.** No Worker `SUPABASE_URL` moves, no KV key is
+purged and no web deploy is aimed at Box A. Phase 5 stays the owner's, at
+execution, with `auth.users` still 0.
+
 ### above `permissions:`
 
 Least privilege, and this is the DEFAULT for every job that does not override
@@ -144,11 +176,168 @@ does git push/tag/commit, so none of these checkouts need the credential.
 
 ## job `e2e`
 
-### before step **Preflight — the service-role secret must be present**
+### before step **Preflight — the chosen auth target's secrets must be present**
 
 THE RUN IS EITHER POSSIBLE OR IT IS RED. Nothing downstream is gated on
 this step's output — the job simply stops here, which is what makes the
 `alert` job below reachable when the secret goes missing unattended.
+
+🔄 **REWRITTEN 2026-09-07 — IT NOW RESOLVES THE TARGET AS WELL AS CHECKING IT**
+([ADR 067] decision 6, unit `cutover-blockers`). The step reads both secret sets,
+picks the one `auth_target` names, refuses if ANY of that set's three names is
+empty, and ends the job naming the ones that are missing.
+
+🔄 **CORRECTED 2026-09-07 (second pass) — IT NO LONGER HANDS THE VALUES ON.** The
+first pass wrote the three chosen values to `$GITHUB_ENV` under the plain names
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`. That is
+**job-wide**: every step after it inherits them, including
+`nanasess/setup-chromedriver` and `actions/upload-artifact`, neither of which ever
+saw `SUPABASE_SERVICE_ROLE_KEY` before — and `tooling/channel-register.json`'s own
+row for that name calls it *the key that bypasses the Turnstile gate*, which is
+exactly why the harness and never the browser holds it. On `origin/main` it was
+bound **per step**, at five places.
+
+It is bound per step again, at the **eight** steps that consume it, and the ONLY
+thing the preflight writes to `$GITHUB_ENV` is `E2E_AUTH_TARGET` — a literal
+`hosted` or `boxa`, which is not a credential. The binding each of those steps
+carries is three-armed:
+
+```
+${{ (inputs.auth_target || 'hosted') == 'boxa'   && secrets.BOXA_SUPABASE_URL
+ || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL
+ || '' }}
+```
+
+🔴 **THE THIRD ARM IS THE WHOLE POINT AND IT IS NOT DECORATION.** A two-armed
+ternary — `cond && BOXA || HOSTED` — is wrong in the one case that matters: an
+**empty** `BOXA_*` secret is falsey, so it falls through to the hosted value and
+the run reports `boxa` in its own name while grading production. Written this way
+the second arm is a POSITIVE `== 'hosted'` test rather than a bare else, so a
+`boxa` run whose secret is empty resolves to the EMPTY STRING and the step dies on
+its own `need()` — never on the wrong stack. The preflight still fails first, and
+with the secret's NAME in the message; the shape is what makes that message the
+only way through rather than the only thing in the way.
+
+The suite `tooling/ci/test/e2e-auth-target.test.mjs` holds all three properties
+with a green control and a mutation each: re-adding the `$GITHUB_ENV` write,
+dropping one step's binding, and weakening the ternary back to two arms.
+
+🔴 **WHY THE *REFUSAL* IS MADE IN SHELL AND NOT IN A GITHUB EXPRESSION.**
+(Reworded 2026-09-07 second pass: the *resolution* is now an expression, per the
+block above; what stays in shell is the refusal, because only shell can name the
+missing secret in the error.) The obvious spelling is a ternary in the job's `env:` —
+`${{ inputs.auth_target == 'boxa' && secrets.BOXA_SUPABASE_URL || secrets.SUPABASE_URL }}`.
+It is wrong in the one case that matters: an **empty** `BOXA_*` secret is falsey,
+so the ternary falls through to the hosted value, and the run reports `boxa` in
+its own name while grading the hosted project. A false green with a label on it
+is worse than a red, and this lane's history is failures that looked like passes.
+In shell each of the three names is tested for emptiness by itself and the job
+ENDS naming the ones that are missing.
+
+⚠️ **AND THE SHAPE IS LOAD-BEARING FOR `assert-green-means-ran` SECTION B.** That
+guard recognises a secret-presence check by finding `-z "$VAR"` for a variable
+this step's own `env:` bound to `secrets.*`. Indirecting through a shell alias
+first (`key="$HOSTED_KEY"`, then `-z "$key"`) makes the preflight INVISIBLE to it
+— which is not a failure, it is a silent loss of the coverage that exists because
+e2e.yml green-skipped its own body once already. Measured 2026-09-07: written
+that way the guard exited 1 with "contains no secret-presence check this scan can
+see". The three `-z "$HOSTED_*"` / `-z "$BOXA_*"` tests are written out longhand
+for that reason, and the secret-presence count stays at 1.
+
+### before step **Measure the target's captcha posture (ignores it, or enforces it)**
+
+🟢 **THIS IS THE ANSWER TO `runbooks/auth-cutover.md` §4.6's "expected, NOT YET
+MEASURED", AND IT IS RE-TAKEN EVERY RUN.** Shipping `TURNSTILE_SITE_KEY` into the
+web build ahead of the cutover — so the Phase 5 window carries three acts and not
+four — rests entirely on the claim that a hosted GoTrue IGNORES a captcha token
+it never asked for. That was reasoning about somebody else's server, and §4.5 is
+the record of what reasoning about this particular server cost: three variables
+set in the right-looking place, a green stack, and a wide-open signup that only a
+NEGATIVE test caught.
+
+`tooling/e2e/captcha_posture.mjs` sends one `token?grant_type=password` for an
+address that does not exist, carrying a deliberately invalid captcha token, and
+asserts the answer that belongs to this run's target:
+
+| target | required answer | what it proves |
+|---|---|---|
+| `hosted` | `400 invalid_credentials` | the token was ignored and the password was really checked, so the `deploy-web.yml` define is safe |
+| `boxa` | `400 captcha_failed` | the gate is on and refuses before the password, so the magic-link login path is load-bearing rather than optional |
+
+⚬ **IT CREATES NOTHING.** GoTrue makes no user on that route, so `auth.users` is
+untouched whatever the answer is — which is what makes it safe to run against
+production auth on every nightly. Its failing cases are exercised by
+`tooling/ci/test/e2e-auth-target.test.mjs` against a loopback server, green
+control first.
+
+### before step **The Workers trust exactly one issuer (positive, both targets)**
+
+🔴 **THE LEGS THAT CANNOT PASS AGAINST BOX A, ASSERTED RATHER THAN SKIPPED.**
+`runbooks/auth-cutover.md` Phase 5: *"there is no dual-issuer path in the code —
+the Workers trust exactly one issuer"*, and until Phase 5 runs that issuer is the
+hosted project. So against `boxa` every Worker-dependent leg is refused by
+construction, and a suite that SKIPPED them would report a green tick over a
+question nobody asked.
+
+`tooling/e2e/assert_one_issuer.mjs` mints its own magic-link token for the
+already-provisioned throwaway user — `admin/generate_link` is re-callable, the
+token it returns is the single-use half, so this does not spend the one the
+browser needs — exchanges it at `/verify`, and presents the session to the
+deployed Worker. `hosted` must be answered **200**; `boxa` must be answered
+**401**, and that refusal IS the pass. If `boxa` is ever answered 200 the Workers
+have gained a second issuer that nothing in `services/` implements and nobody
+decided: the step says so in those words, because it is a security finding and
+not a test failure.
+
+⚠️ It runs on BOTH targets on purpose. The `boxa` expectation is then exercised
+code rather than a comment, and the `hosted` expectation is a second, independent
+reading of the fact Phase 5 is going to move.
+
+### in step **Run integration tests (headless Chrome)**, the two defines added 2026-09-07
+
+`--dart-define=TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY` comes from the repository
+**variable** `vars.TURNSTILE_SITE_KEY`, never from a secret. A Turnstile SITE key
+is the public half of the pair: it ships inside every web bundle and is
+meaningless without the secret half, which lives only on the auth box as
+`CAPTCHA_SECRET` and never reaches this repository. Passing it from a variable is
+how that is said out loud.
+
+🔴 **CORRECTED 2026-09-07 (second pass) — AN EMPTY SITEKEY NOW REFUSES THE RUN.**
+The first pass said the variable is unset today, so the define arrives EMPTY,
+`TurnstileGate` renders `SizedBox.shrink()` and the suite behaves exactly as it
+did before the line existed. All true — and that is precisely the problem the
+phase-3 brief refuses at §7.4.9: *a green run with an empty sitekey is not
+acceptance*. Run `34068306612` was that run. A suite that signs in with no captcha
+token proves the gate is not needed, not that it works, and Box A ENFORCES
+Turnstile on `signup`, `token?grant_type=password`, `recover`, `otp`,
+`magiclink` and `resend` for **every** client (runbook §4.7) — so an empty sitekey
+makes the whole `boxa` rehearsal meaningless.
+
+A second preflight, **Preflight — the Turnstile sitekey must be present**, now
+tests `-z "$TURNSTILE_SITE_KEY"` and exits 1 printing the owner step. The
+repository variable does not exist yet, so **every run of this workflow is refused
+today, including the nightly** — that is the designed behaviour and it is recorded
+as such. The owner step is one field (Settings → Secrets and variables → Actions →
+Variables), the value is public, and it can be unset again in seconds.
+
+⚠️ **IT IS A SEPARATE STEP, AND THAT IS NOT TIDINESS.**
+`assert-green-means-ran.mjs` section B1 asks whether a step that reads a SECRET and
+branches on its emptiness contains ANY `exit <n>`; it cannot tell WHICH branch
+exits. Folding a third refusal into the secrets preflight therefore makes that
+guard's own mutation case (`green-means-ran.test.mjs`, *"a secret-presence
+preflight that does not exit non-zero fails"*) pass with both secret refusals
+removed — measured on this branch: EXIT 0 where the case expects 1. Splitting the
+sitekey out keeps that net at full strength and leaves the secrets preflight in
+the exact shape the guard recognises (the secret-presence count stays at **1**).
+The coarseness of B1 is reported, not edited around: that guard and its suite
+belong to the `store-lanes` unit.
+
+`--dart-define=E2E_AUTH_TARGET=$E2E_AUTH_TARGET` carries the resolved target into
+the suite, which uses it to pick between two POSITIVE expectations rather than to
+skip anything — see `apps/subly/integration_test/app_test.dart`. Both names carry
+an entry in `tooling/publishable-inputs.json`, because that register is checked
+for SET EQUALITY in both directions and a define nobody wrote a reason for is
+refused.
 
 ### before step **Stamp this run's build identity (APP_VERSION)**
 
