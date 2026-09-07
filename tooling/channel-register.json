@@ -2361,6 +2361,8 @@
     },
     {
       "id": "chrome-webstore",
+      "publishScript": "extensions/scripts/publish-cws.mjs",
+      "publishScriptWhy": "THE SCRIPT THAT PUBLISHES THIS ROW, DECLARED HERE SO A GUARD CAN DERIVE THE SET RATHER THAN ENUMERATE IT. tooling/ci/assert-publish-steps-guarded.mjs used to carry a hand-written alternation naming publish-amo, publish-cws and publish-edge by name: measured 2026-09-07, a fourth store's publish-<x>.mjs tested FALSE against it, the `graded === 0` floor could not fire because the existing three kept the count non-zero, and the step would have been ungraded, exit 0, and EXECUTED on a workflow_dispatch rehearsal. The guard now reads this field off every row whose `lane.workflow` is the file it is grading, so a new store lane is graded by the act of declaring its channel — and a publish-*.mjs the job invokes with no row here is COVERAGE LOST rather than a silent pass.",
       "name": "Chrome Web Store",
       "surface": "extension",
       "platforms": [
@@ -2451,6 +2453,8 @@
     },
     {
       "id": "edge-addons",
+      "publishScript": "extensions/scripts/publish-edge.mjs",
+      "publishScriptWhy": "THE SCRIPT THAT PUBLISHES THIS ROW, DECLARED HERE SO A GUARD CAN DERIVE THE SET RATHER THAN ENUMERATE IT. tooling/ci/assert-publish-steps-guarded.mjs used to carry a hand-written alternation naming publish-amo, publish-cws and publish-edge by name: measured 2026-09-07, a fourth store's publish-<x>.mjs tested FALSE against it, the `graded === 0` floor could not fire because the existing three kept the count non-zero, and the step would have been ungraded, exit 0, and EXECUTED on a workflow_dispatch rehearsal. The guard now reads this field off every row whose `lane.workflow` is the file it is grading, so a new store lane is graded by the act of declaring its channel — and a publish-*.mjs the job invokes with no row here is COVERAGE LOST rather than a silent pass.",
       "name": "Microsoft Edge Add-ons",
       "surface": "extension",
       "platforms": [
@@ -2532,6 +2536,8 @@
     },
     {
       "id": "amo",
+      "publishScript": "extensions/scripts/publish-amo.mjs",
+      "publishScriptWhy": "THE SCRIPT THAT PUBLISHES THIS ROW, DECLARED HERE SO A GUARD CAN DERIVE THE SET RATHER THAN ENUMERATE IT. tooling/ci/assert-publish-steps-guarded.mjs used to carry a hand-written alternation naming publish-amo, publish-cws and publish-edge by name: measured 2026-09-07, a fourth store's publish-<x>.mjs tested FALSE against it, the `graded === 0` floor could not fire because the existing three kept the count non-zero, and the step would have been ungraded, exit 0, and EXECUTED on a workflow_dispatch rehearsal. The guard now reads this field off every row whose `lane.workflow` is the file it is grading, so a new store lane is graded by the act of declaring its channel — and a publish-*.mjs the job invokes with no row here is COVERAGE LOST rather than a silent pass.",
       "name": "Firefox Add-ons (addons.mozilla.org)",
       "surface": "extension",
       "platforms": [

@@ -68,6 +68,7 @@
 // would grade the same job three times and say nothing the default does not.
 // ─────────────────────────────────────────────────────────────────────────────
 import { resolve, join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseWorkflow } from './workflow-scan.mjs';
 
@@ -85,6 +86,9 @@ const JOB = opt('job', 'release');
  *  because two spellings is how a step ends up "guarded" by a condition nobody
  *  compared to the one the other steps use. */
 const GUARD = 'inputs.dry_run != true';
+
+/** The register the publishing-script domain is derived from. */
+const REGISTER_REL = 'tooling/channel-register.json';
 
 /** Third-party actions a release job may use without the guard. Both fetch code
  *  into the runner and neither hands anything out of it. Anything else is a
@@ -109,19 +113,16 @@ const host = (h) => `https?://(?:[A-Za-z0-9-]+\\.)*${h}(?:[/:?#]|$)`;
 /** A `run:` line that hands bytes to something outside the run. Every alternative
  *  is a command or a host this repository actually reaches; a respelling that
  *  slips past it is what the "zero graded" floor below exists to catch. */
-const PUBLISH_SURFACE = new RegExp(
-  [
+const PUBLISH_SURFACE_PARTS = [
     'gh release (create|upload|edit|delete)',
     'web-ext (sign|submit)',
-    'publish-(amo|cws|edge)\\.mjs',
     'chrome-webstore-(upload|api)',
-    host('addons\\.mozilla\\.org'),
-    host('chromewebstore\\.googleapis\\.com'),
-    `${host('googleapis\\.com')}?upload`,
-    host('clients2\\.google\\.com'),
-    host('addons\\.microsoftedge\\.microsoft\\.com'),
-  ].join('|'),
-);
+    host('addons[.]mozilla[.]org'),
+    host('chromewebstore[.]googleapis[.]com'),
+    `${host('googleapis[.]com')}?upload`,
+    host('clients2[.]google[.]com'),
+    host('addons[.]microsoftedge[.]microsoft[.]com'),
+];
 
 /** The step-count floor. The release job carried well over twenty steps when this
  *  guard was written; the floor is deliberately far below that, because its job
@@ -135,6 +136,67 @@ function coverageLost(lines) {
   for (const l of lines.slice(1)) console.error(`     ${l}`);
   console.error('\nassert-publish-steps-guarded: FAILED');
   process.exit(1);
+}
+
+/** THE PUBLISH SCRIPTS THIS LANE RUNS, DERIVED FROM THE REGISTER — never
+ *  enumerated here.
+ *
+ *  🔴 THE ENUMERATION WAS A MEASURED HOLE, 2026-09-07. This constant used to be
+ *  the literal alternation `publish-(amo|cws|edge)` + `.mjs`, written by hand
+ *  beside the hosts. A fourth store's `publish-<x>.mjs` tests FALSE against it;
+ *  the `graded === 0` floor below cannot fire, because the three existing
+ *  surfaces keep `graded` at three; so the new store's submit step would be
+ *  UNGRADED, this guard would exit 0, and a `workflow_dispatch` rehearsal would
+ *  EXECUTE it. A guard whose domain is a hand-written list grows a hole every
+ *  time the tree grows, silently, and in the one direction that matters.
+ *
+ *  The register already knows the answer. Every extension channel row carries
+ *  `lane: { workflow, job }` — which is how it declares WHICH job emits its
+ *  artifact — and now `publishScript`, the script that submits it. So the domain
+ *  of this scan is exactly: the publish scripts of the rows whose lane names the
+ *  workflow and job being graded. A new store lane is graded by the act of
+ *  declaring its channel, and declaring a channel is already mandatory
+ *  (`record-deployment.mjs` refuses to record a release for a row that does not
+ *  exist).
+ *
+ *  TWO WAYS THIS CAN STILL BE WRONG, AND BOTH FAIL RATHER THAN PASS:
+ *    · a register with no `publishScript` for this lane at all → COVERAGE LOST.
+ *      Not "no publishing surfaces, therefore clean" — that is the exact shape
+ *      the `graded === 0` floor exists to refuse, one level up.
+ *    · a `publish-*.mjs` the JOB invokes that NO row declares → a finding. It is
+ *      still graded (the generic pattern below catches the spelling), and it is
+ *      reported, because a publishing script outside the register is a
+ *      submission nothing records.
+ */
+function derivePublishScripts(root, workflowRel, jobName) {
+  const abs = join(root, REGISTER_REL);
+  if (!existsSync(abs)) {
+    coverageLost([
+      `${REGISTER_REL} does not exist under ${root}.`,
+      'The set of publish scripts this lane runs is DERIVED from it. Without the file this guard would',
+      'grade an empty set of scripts and lean entirely on the host patterns, which is a narrower check',
+      'wearing the same "ok" line.',
+    ]);
+  }
+  let register;
+  try {
+    register = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch (e) {
+    coverageLost([`${REGISTER_REL} is not valid JSON — ${e.message}`, 'The publish-script domain cannot be derived from a file that does not parse.']);
+  }
+  const rows = (register.channels ?? []).filter(
+    (c) => c?.lane?.workflow === workflowRel && c?.lane?.job === jobName && typeof c?.publishScript === 'string' && c.publishScript.trim() !== '',
+  );
+  const scripts = [...new Set(rows.map((c) => c.publishScript.trim()))].sort();
+  if (scripts.length === 0) {
+    coverageLost([
+      `${REGISTER_REL} declares no channel with \`publishScript\` on lane ${workflowRel} · job "${jobName}".`,
+      'This guard derives its publishing-script domain from those rows, so an empty derivation means it',
+      'would grade only the host and `gh release` patterns while the lane still runs store submissions.',
+      'Declare the script on the channel row it publishes; do not re-enumerate it here.',
+    ]);
+  }
+  return scripts;
 }
 
 const wf = parseWorkflow(ROOT, WORKFLOW);
@@ -155,10 +217,57 @@ if (job === undefined) {
   ]);
 }
 
+// ⚠ THE DERIVATION RUNS AFTER THE JOB LOOKUP, ON PURPOSE. A `--job` that does
+// not exist would otherwise be diagnosed as "the register declares no publishScript
+// on that lane", which is true and useless: the precise cause is the missing job,
+// and a guard that names the wrong one of two simultaneous causes sends the next
+// reader to the wrong file.
+const PUBLISH_SCRIPTS = derivePublishScripts(ROOT, WORKFLOW, JOB);
+// The alternation, built from the derived basenames. Every character class is a
+// literal `[.]` rather than an escape, so this construction carries no backslash
+// at all and cannot be mis-quoted by whatever writes it next; a basename with any
+// other regex metacharacter is refused rather than escaped, because a publish
+// script named with one is a naming mistake and not a case to support.
+for (const p of PUBLISH_SCRIPTS) {
+  if (!/^[A-Za-z0-9._-]+$/.test(p.split('/').pop())) {
+    coverageLost([
+      `${REGISTER_REL} declares publishScript ${JSON.stringify(p)}, whose basename carries a character this guard will not put in a pattern.`,
+      'Rename the script to [A-Za-z0-9._-] or teach this guard the escape deliberately; silently escaping it',
+      'is how a domain grows a member nobody can read back out of the pattern.',
+    ]);
+  }
+}
+const PUBLISH_SCRIPT_RE = new RegExp(PUBLISH_SCRIPTS.map((p) => p.split('/').pop().split('.').join('[.]')).join('|'));
+
+/** Scripts under `extensions/scripts/` whose name starts `publish-` and which
+ *  publish NOTHING. Each is a preflight or a token exchange that must be able to
+ *  run on a rehearsal, so it is not a publishing surface — and each is written
+ *  here BY NAME, with the reason, rather than being caught by a looser pattern.
+ *  A `publish-*.mjs` that is neither declared on a channel row nor on this list
+ *  is a finding, not a silent pass: that is the whole repair. */
+const NON_PUBLISHING_SCRIPTS = new Map([
+  ['publish-arming.mjs', 'the register preflight — it reads names out of the environment and prints a verdict; it makes no store call'],
+  ['publish-cws-token.mjs', 'the OAuth refresh-token exchange — it obtains an access token and uploads nothing'],
+  ['publish-cws-keepalive.mjs', 'the weekly keep-alive — it exercises the refresh token so Google does not revoke it for non-use'],
+]);
+
+const PUBLISH_SURFACE = new RegExp([...PUBLISH_SURFACE_PARTS, ...PUBLISH_SCRIPTS.map((p) => p.split('/').pop().split('.').join('[.]'))].join('|'));
+
+/** Any `publish-<x>.mjs` a run line invokes, declared or not. Deliberately wider
+ *  than PUBLISH_SURFACE so the two can DISAGREE — and the disagreement is the
+ *  finding. */
+// ⚠ THE WORD BOUNDARY IS NOT ENOUGH, AND THIS GUARD'S OWN NAME PROVES IT:
+// `assert-publish-steps-guarded.mjs` contains `publish-steps-guarded.mjs`, and a
+// hyphen is a non-word character, so /\bpublish-/ matched the guard invocation
+// itself and reported it as an undeclared publisher (measured, 2026-09-07). The
+// lookbehind requires the name to START at a path separator or whitespace.
+const ANY_PUBLISH_SCRIPT = /(?<![A-Za-z0-9._-])publish-[A-Za-z0-9._-]+[.]mjs/g;
+
 // The steps of the job, split on the step bullet. The bullet is matched at the
 // step indent — six spaces, under `jobs:` → `<job>:` → `steps:` — the same kind
 // of anchor `parseWorkflow` uses for job keys at four.
 const steps = [];
+const invokedScripts = new Map(); // basename -> first line it appears on
 let current = null;
 for (const line of job.lines) {
   const text = line.text;
@@ -174,6 +283,9 @@ for (const line of job.lines) {
   if (current.cond === null && (m = bare.match(/^-?\s*if:\s*(.+)$/))) current.cond = m[1].trim();
   if (current.uses === null && (m = bare.match(/^-?\s*uses:\s*(\S+)/))) current.uses = m[1].split('@')[0];
   if (current.surface === null && PUBLISH_SURFACE.test(bare)) current.surface = bare;
+  // Every publish-*.mjs the job invokes, whatever this guard's derived domain
+  // says. Compared against the register below.
+  for (const m2 of bare.matchAll(ANY_PUBLISH_SCRIPT)) invokedScripts.set(m2[0], line.n);
 }
 
 if (steps.length < MIN_STEPS) {
@@ -212,6 +324,26 @@ for (const step of steps) {
   } else {
     problems.push(`UNGUARDED  ${why.join(' + ')}\n             ${label}`);
   }
+}
+
+// ── THE DOMAIN CHECK, IN THE DIRECTION THE ENUMERATION USED TO FAIL ─────────
+// The steps above were graded against a domain DERIVED from the register. This
+// limb asks the opposite question: does the job invoke a publish script the
+// register has never heard of? Before 2026-09-07 the answer was invisible — the
+// pattern was a hand-written alternation, a fourth store's script tested false,
+// and the `graded === 0` floor could not fire because the first three kept the
+// count non-zero. An undeclared publish script is not merely ungraded: it is a
+// submission `record-deployment.mjs` will have no channel row to record.
+const declaredBasenames = new Set(PUBLISH_SCRIPTS.map((p) => p.split('/').pop()));
+for (const [basename, atLine] of invokedScripts) {
+  if (declaredBasenames.has(basename)) continue;
+  if (NON_PUBLISHING_SCRIPTS.has(basename)) continue;
+  problems.push(
+    `UNDECLARED publish script  ${basename}\n             ${WORKFLOW}:${atLine}, job \"${JOB}\"\n` +
+      `             no channel row in ${REGISTER_REL} names it as its \`publishScript\` on this lane, and it is not on this ` +
+      'guard list of publish-named scripts that publish nothing (NON_PUBLISHING_SCRIPTS). Declare the channel it submits to, or ' +
+      'add it there with the reason — an undeclared submission is one nothing records.',
+  );
 }
 
 for (const a of ALLOWED_ACTIONS) {

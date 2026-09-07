@@ -171,7 +171,11 @@ const runGuard = (args) => {
 };
 
 /** A fixture workflow root. `steps` is a list of {name, if, uses, run}. */
-function workflowRoot(steps, { job = 'release' } = {}) {
+/** ⏱ EXTENDED 2026-09-07 — THE FIXTURE NOW CARRIES A REGISTER, because the
+ *  guard's publishing-script domain is DERIVED from it rather than enumerated in
+ *  the guard. `scripts` is the set of publishScript values declared on this
+ *  fixture's lane; pass `[]` to prove the empty-derivation COVERAGE-LOST limb. */
+function workflowRoot(steps, { job = 'release', scripts = ['extensions/scripts/publish-amo.mjs', 'extensions/scripts/publish-cws.mjs', 'extensions/scripts/publish-edge.mjs'] } = {}) {
   const root = join(TMP, `wf${seq++}`);
   const body = [
     'name: Fixture',
@@ -189,9 +193,27 @@ function workflowRoot(steps, { job = 'release' } = {}) {
     if (s.run !== undefined) body.push(`        run: ${s.run}`);
   }
   write(root, '.github/workflows/fixture.yml', `${body.join('\n')}\n`);
+  write(
+    root,
+    'tooling/channel-register.json',
+    JSON.stringify(
+      {
+        channels: scripts.map((p, i) => ({
+          id: `fixture-${i}`,
+          kind: 'store',
+          surface: 'extension',
+          served: false,
+          submittable: false,
+          publishScript: p,
+          lane: { workflow: '.github/workflows/fixture.yml', job },
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   return root;
 }
-
 /** Twelve ordinary steps plus whatever the case adds — enough to clear MIN_STEPS
  *  so that a case about GUARDING is not silently answered by the floor. */
 const filler = (n = 12) => Array.from({ length: n }, (_, i) => ({ name: `filler ${i}`, run: `echo ${i}` }));
@@ -304,6 +326,81 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
     const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
     assert.equal(code, 1, out);
     assert.match(out, /actions\/setup-node.*exemption list/s);
+  });
+
+
+  // ── THE DOMAIN IS DERIVED, NOT ENUMERATED (added 2026-09-07, review finding) ──
+  // The guard used to carry a hand-written alternation naming publish-amo,
+  // publish-cws and publish-edge. Measured then: a fourth store's script tested
+  // FALSE against it, and the `graded === 0` floor could not fire because the
+  // three existing surfaces kept the count non-zero — so the new store's submit
+  // step was ungraded, the guard exited 0, and a workflow_dispatch rehearsal
+  // would have EXECUTED it. These four cases are the two halves of the repair.
+
+  test('a FOURTH store declared in the register is graded — the hand-written alternation is gone', () => {
+    const scripts = [
+      'extensions/scripts/publish-amo.mjs',
+      'extensions/scripts/publish-cws.mjs',
+      'extensions/scripts/publish-edge.mjs',
+      'extensions/scripts/publish-operagx.mjs',
+    ];
+    const root = workflowRoot(
+      [...EXEMPT, ...filler(), { name: 'submit to Opera GX', run: 'node scripts/publish-operagx.mjs --tool fullshot' }],
+      { scripts },
+    );
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    assert.equal(code, 1, `a declared fourth store was not graded at all:\n${out}`);
+    assert.match(out, /UNGUARDED {2}publishing surface/);
+    assert.match(out, /publish-operagx\.mjs/);
+  });
+
+  test('the same fourth store, GUARDED, passes — so the case above is about the if:, not about the name', () => {
+    const scripts = [
+      'extensions/scripts/publish-amo.mjs',
+      'extensions/scripts/publish-cws.mjs',
+      'extensions/scripts/publish-edge.mjs',
+      'extensions/scripts/publish-operagx.mjs',
+    ];
+    const root = workflowRoot(
+      [...EXEMPT, ...filler(), { name: 'submit to Opera GX', if: 'inputs.dry_run != true', run: 'node scripts/publish-operagx.mjs --tool fullshot' }],
+      { scripts },
+    );
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    assert.equal(code, 0, out);
+    assert.match(out, /1 publishing-surface step\(s\)/);
+  });
+
+  test('a publish script the register does NOT declare is a finding, not a silent pass', () => {
+    const root = workflowRoot([
+      ...EXEMPT,
+      ...filler(),
+      { name: 'submit to Opera GX', if: 'inputs.dry_run != true', run: 'node scripts/publish-operagx.mjs --tool fullshot' },
+      { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' },
+    ]);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    assert.equal(code, 1, `an undeclared publish script passed unnoticed:\n${out}`);
+    assert.match(out, /UNDECLARED publish script {2}publish-operagx\.mjs/);
+  });
+
+  test('a register that declares NO publishScript for this lane is COVERAGE LOST, never "nothing to grade"', () => {
+    const root = workflowRoot([...EXEMPT, ...filler(), { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' }], { scripts: [] });
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /declares no channel with `publishScript`/);
+  });
+
+  test('the three live extension rows declare their publishScript, so the real derivation is not empty', () => {
+    const reg = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
+    const declared = reg.channels
+      .filter((c) => c?.lane?.workflow === '.github/workflows/extensions.yml' && c?.lane?.job === 'release' && typeof c.publishScript === 'string')
+      .map((c) => c.publishScript)
+      .sort();
+    assert.deepEqual(declared, [
+      'extensions/scripts/publish-amo.mjs',
+      'extensions/scripts/publish-cws.mjs',
+      'extensions/scripts/publish-edge.mjs',
+    ]);
   });
 
   test('the old COMMENT-SENTINEL region is gone from extensions.yml — the defect this guard replaced', () => {
