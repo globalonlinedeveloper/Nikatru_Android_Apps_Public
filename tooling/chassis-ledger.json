@@ -20,7 +20,7 @@
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged.",
   "totals": {
     "files": 109,
-    "lines": 16494,
+    "lines": 16571,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -69,11 +69,11 @@
     },
     {
       "path": "lib/app.dart",
-      "lines": 349,
+      "lines": 347,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 570 -> 349 brick lines, 519 package lines, callSiteDelta -221. MaterialApp.router, the clamped text scaling, the force-update gate, the consent card, the consent scrim, the offline banner and the four-state lifecycle flush all moved into `NikatruApp` and the four surfaces beside it. What stayed is the COMPOSITION ROOT and only that: the stamped `const Color(0xFF{{seed_hex}})` seed (mustache, so it cannot leave), this app's own localisation delegates, every `ref.watch`/`ref.read`, the `url_launcher` call, `recordAnalyticsConsent(`, and the three ConsumerWidget gates the shell is handed. Anchors held where they were: assert-vendor-portability:513 (`valueOrNull?.updateUrl ??`), dod.json:123/125 (AnalyticsGate) and :135/137 (darkTheme), seven screen-register rows, and 13 of the 14 stamp-properties APP_ROOT anchors. The fourteenth (`child: AnalyticsGate(`) was re-pointed to `shell: (...) => AnalyticsGate(`, the same mounting claim, with a mutation proving it.",
+      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 570 -> 347 brick lines, 519 package lines, callSiteDelta -223. MaterialApp.router, the clamped text scaling, the force-update gate, the consent card, the consent scrim, the offline banner and the four-state lifecycle flush all moved into `NikatruApp` and the four surfaces beside it. What stayed is the COMPOSITION ROOT and only that: the stamped `const Color(0xFF{{seed_hex}})` seed (mustache, so it cannot leave), this app's own localisation delegates, every `ref.watch`/`ref.read`, the `url_launcher` call, `recordAnalyticsConsent(`, and the three ConsumerWidget gates the shell is handed. Anchors held where they were: assert-vendor-portability:513 (`valueOrNull?.updateUrl ??`), dod.json:123/125 (AnalyticsGate) and :135/137 (darkTheme), seven screen-register rows, and 13 of the 14 stamp-properties APP_ROOT anchors. The fourteenth (`child: AnalyticsGate(`) was re-pointed to `shell: (...) => AnalyticsGate(`, the same mounting claim, with a mutation proving it.",
       "target": "packages/chassis_screens/lib/shell/app_shell.dart",
-      "callSiteDelta": -221
+      "callSiteDelta": -223
     },
     {
       "path": "lib/core/app_config.dart",
@@ -199,11 +199,11 @@
     },
     {
       "path": "lib/main.dart",
-      "lines": 87,
+      "lines": 88,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 160 -> 87 brick lines, 130 package lines, callSiteDelta -73. The boot ORDER and its 110 lines of reasoning moved to `bootstrapNikatru`; what stayed is the four things a package declaring no third-party dependency cannot carry - the `TelemetryConfig` const (nikatru_telemetry), `initNikatruAuth` with `FlutterSecureStore()` (nikatru_auth_supabase + nikatru_platform_storage), `createLocalNotificationService()` (nikatru_notifications) and the `ProviderScope` with its one override (flutter_riverpod). All three stamp-properties MAIN anchors and screen-register.json:56 are on those lines, so all four held.",
+      "why": "[ADR 067] decision 2 / unit app-shell - MEASURED 2026-09-07: 160 -> 88 brick lines, 130 package lines, callSiteDelta -72. The boot ORDER and its 110 lines of reasoning moved to `bootstrapNikatru`; what stayed is the four things a package declaring no third-party dependency cannot carry - the `TelemetryConfig` const (nikatru_telemetry), `initNikatruAuth` with `FlutterSecureStore()` (nikatru_auth_supabase + nikatru_platform_storage), `createLocalNotificationService()` (nikatru_notifications) and the `ProviderScope` with its one override (flutter_riverpod). All three stamp-properties MAIN anchors and screen-register.json:56 are on those lines, so all four held.",
       "target": "packages/chassis_screens/lib/shell/bootstrap.dart",
-      "callSiteDelta": -73
+      "callSiteDelta": -72
     },
     {
       "path": "lib/state/money_providers.dart",
@@ -561,7 +561,7 @@
     },
     {
       "path": "test/asset_licences_surface_test.dart",
-      "lines": 212,
+      "lines": 290,
       "verdict": "STAYS",
       "why": "MEASURED: pinned by NOTHING but this ledger. Stays on value, and it is the case that justifies keeping ALL of these: registerVendoredAssetLicences() was implemented, exported and unit-tested in packages/design_system while the brick never CALLED it, so every stamped app shipped a CC BY breach the package suite could not see. A package test cannot prove the app wired it."
     },
