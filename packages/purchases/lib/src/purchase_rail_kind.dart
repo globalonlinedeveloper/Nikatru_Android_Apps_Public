@@ -82,6 +82,14 @@ enum PurchaseRailKind {
         // Neither imposes a commerce policy on digital goods sold by the
         // publisher, so both take the hosted checkout.
         return PurchaseRailKind.paddle;
+      case PurchaseChannel.appsGovIn:
+        // `apps-gov-in` → none, and it is the FIRST row to carry that rail.
+        // The register's answer is `none` because nobody has read the Mobile
+        // Seva commerce terms from a primary source, and it forbids all three
+        // real rails: paddle as POLICY-UNREAD, play-billing and apple-iap as
+        // mechanical. The same .apk through Play is play-billing — the rail
+        // follows the CHANNEL, not the artifact ([ADR 039] D1).
+        return PurchaseRailKind.none;
     }
   }
 }

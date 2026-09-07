@@ -2365,6 +2365,176 @@
       ]
     },
     {
+      "id": "apps-gov-in",
+      "name": "apps.gov.in (Mobile Seva AppStore, Government of India)",
+      "platforms": [
+        "android"
+      ],
+      "kind": "store",
+      "surface": "app",
+      "storefrontKey": null,
+      "_storefrontKeyWhy": [
+        "⬜ NULL IS A DEFERRED ANSWER HERE, NOT A DENIAL, AND THIS IS THE ONE ROW WHERE THE TWO ARE NOT",
+        "THE SAME. The two `kind: direct` rows are null because self-distribution is dl.nikatru.com in",
+        "[ADR 055] and never a `listings` entry; the three extension rows are null because",
+        "catalog/apps.json holds apps and an extension has no row there to carry a key. apps.gov.in is",
+        "neither: it is an app storefront that WILL have a listing URL the moment somebody uploads.",
+        "",
+        "🔴 WHAT A NON-NULL KEY WOULD COST TODAY, MEASURED RATHER THAN GUESSED. The key set is the",
+        "non-null `storefrontKey` values in this file, and assert-catalog-contract.mjs requires EVERY",
+        "catalog/apps.json row to carry EVERY key — absent is a failure and only `null` is the honest",
+        "\"not listed there\". So the key would also land in catalog/apps.json, in the DERIVED",
+        "sites/_shared/_data/apps.json that tooling/sites/generate-apps-data.mjs writes from it, and in",
+        "the discovery pages tooling/sites/generate-discovery.mjs generates from THAT — public site",
+        "surface, for a store nothing has ever been uploaded to. Publishing a storefront's vocabulary",
+        "before its first upload is [10]D-1's \"advertises an unserved channel\" with the register as the",
+        "source rather than the copy.",
+        "",
+        "⏭ THE TRIGGER IS WRITTEN DOWN SO THIS DOES NOT ROT: the owner's first manual upload through the",
+        "authenticated portal (Private/runbooks/store-submission-apps-gov-in.md step 6) produces a real",
+        "listing URL. That is the increment that flips this field, adds the key to catalog/apps.json,",
+        "and regenerates the two derived files — one change, with a URL in it."
+      ],
+      "served": false,
+      "submittable": false,
+      "noSubmissionApi": "apps.gov.in publishes NO submission API at all — the developer portal is a manual web workflow and the \"APIs\" it advertises are open-data APIs for apps to CONSUME, not to publish through. Measured in research/revamp-2026-09-05/09-selfhost-build-release.md §1.9. So this is not a path nobody has built yet; it is a path that cannot be built, and it is manual forever.",
+      "_submittableWhy": [
+        "⚠️ `false` HERE IS THE ONE READING THAT IS TRUE ON BOTH SIDES, AND IT COST A GUARD CHANGE.",
+        "assert-channel-register.mjs used to require `submittable: true` of every app-surface store row —",
+        "\"a store you cannot submit to is not a store channel\" — which held while every app store in this",
+        "register published an API somebody could script. This is the first that does not.",
+        "",
+        "🔴 AND `true` WAS UNSATISFIABLE AGAINST THE REST OF THE TREE, not merely inaccurate: it puts the",
+        "row into assert-publish-records.mjs's `submittableRows`, which refuses COVERAGE LOST on any such",
+        "row with no complete `submission` block — correctly, because it cannot classify a publishing step",
+        "that does not exist. Between them the two guards made this channel UNDECLARABLE, which is exactly",
+        "the state in which manifest.json could claim an `apps-gov-in` store with no register row for two",
+        "days (audit 2026-09-07 §4 N1).",
+        "",
+        "So the flag is `false`, and the guard now charges a `false` two things a `true` never did: no",
+        "`submission` block may accompany it, and `noSubmissionApi` above must say why — printed on every",
+        "run as `NO SUBMISSION API`, in place of the `NO SUBMISSION PATH` print a `true` would have earned.",
+        "[10]D-10's duty is not switched off here; it is answered."
+      ],
+      "purchaseRail": {
+        "rail": "none",
+        "why": "NOTHING IS SOLD THROUGH THIS CHANNEL AND NO BUILD OF IT MAY OPEN A CHECKOUT, because the commerce terms of the Mobile Seva AppStore have never been read from a primary source. research/revamp-2026-09-05/09-selfhost-build-release.md §1.9 read the developer portal for its SUBMISSION path — a manual web workflow, no publishing API, and a live suspension rule of two months from profile approval — and found no payments clause in either direction. An UNVERIFIED vendor fact must never resolve to \"allowed\": being wrong that way on a government storefront is a takedown, and being wrong the other way is one channel that does not yet sell. `none` is the answer this register can defend today and the field the reading of the terms will re-decide.",
+        "forbids": [
+          "paddle",
+          "play-billing",
+          "apple-iap"
+        ],
+        "forbidsWhy": "POLICY-UNREAD for `paddle`: shipping the hosted apex checkout inside a build a government storefront distributed, under terms nobody has read, is a SHIPMENT rather than an omission — the expensive direction this field exists to catch. MECHANICAL for `play-billing`: the Play Billing Library resolves a purchase against the Play install that delivered the app, and an apps.gov.in download is not one, so the paywall could not complete a sale. MECHANICAL for `apple-iap`: there is no Apple billing surface on Android at all.",
+        "source": "[ADR 067] decision 8 names this channel as manual and documented. [ADR 039] D1 supplies the RULE that decides it — the rail follows the CHANNEL, not the artifact — which is precisely why `android-play`'s `play-billing` answer cannot be inherited by the same .apk arriving through a different storefront. The terms themselves are UNREAD; `why` says so rather than citing a text nobody opened."
+      },
+      "artifactFormats": [
+        ".apk"
+      ],
+      "signing": {
+        "_why": [
+          "🔴 A MOBILE SEVA UPLOAD IS A SELF-SIGNED .apk, SO WHICHEVER KEY SIGNS IT IS THE KEY EVERY",
+          "INSTALL FROM THIS STORE IS BOUND TO — there is no Play App Signing here to hold the real key",
+          "and re-sign for us. That is why this row's `keyKind` is `app-signing-key` and android-play's is",
+          "`upload-key`: same .apk, same app, and a DIFFERENT loss consequence, which is the distinction",
+          "`keyKinds` exists to record. Losing this key means no user of this store can ever take an",
+          "update.",
+          "",
+          "⬜ NO SUCH KEY HAS BEEN MINTED. `nikatru-upload` is the Play UPLOAD key and reusing it here",
+          "would silently promote an upload key into an app signing key — a different custody regime,",
+          "with a different drill, for a key whose loss is unrecoverable. Which key signs this channel is",
+          "an open decision that belongs with the first upload, and the runbook carries it as a step",
+          "rather than this register carrying an answer nobody made."
+        ],
+        "keyKind": "app-signing-key",
+        "identity": null,
+        "custody": "does not exist — no key has been minted for this channel, and the decision of which key signs it is part of the first manual upload (Private/runbooks/store-submission-apps-gov-in.md).",
+        "restoreDrill": {
+          "date": null,
+          "required": true,
+          "note": "Nothing to drill until a key exists. The moment one does, this channel needs a DATED drill before it can ever be served: an app-signing key is the kind whose loss is unrecoverable."
+        },
+        "seam": {
+          "_why": "Same pair every kind:\"store\" row carries: `prepare` arranges a credential and `verify` reads the result back out of the artifact. Both are null here, and the reason is neither of the two reasons already in this file.",
+          "prepare": null,
+          "verify": null,
+          "artifactGlob": "apps/*/build/app/outputs/flutter-apk/*.apk",
+          "why": "🔴 BOTH NULL BECAUSE THE KEY DOES NOT EXIST YET, WHICH IS NOT THE CHROME ROW'S NULL. There the nulls are permanent — the store signs the artifact and nothing of ours is in it. Here the .apk is SELF-SIGNED, so a verify step matters more on this channel than on any other, not less: the signature a user's device binds the install to is ours. Pointing this row at tooling/ci/android-signing.mjs and tooling/ci/assert-artifact-signed.mjs would be worse than the nulls — those arrange and read back the PLAY UPLOAD key and compare against the SHA-256 pinned on the android-play row, so naming them here would claim this channel is covered by a credential that is not its own. Both fields become real on the increment that mints this channel's key; the runbook carries that as a step."
+        }
+      },
+      "minimumToolchain": [
+        "flutter",
+        "java"
+      ],
+      "lane": null,
+      "crashSink": {
+        "layers": [
+          "dart"
+        ],
+        "native": false,
+        "note": "THE DART LAYER ONLY, and this row NAMES NO LANE, so assert-seams-wired.mjs does not grade it — the declaration records what the artifact carries, not a promise an absent lane makes. The .apk this channel would upload is the one build-platforms.yml's `linux_web_android` job already emits for android-play, and that job supplies --dart-define=GLITCHTIP_DSN. Native (NDK) frames are not captured on any Android channel here; that is the same gap the android-play row records, not a new one."
+      },
+      "deploymentEnvironment": "{app}-apps-gov-in",
+      "storeMetadataDir": "apps/{app}/store/apps-gov-in",
+      "ownerQueue": "O-APPS-GOV-IN-SUSPENSION-CLOCK",
+      "_ownerQueueWhy": [
+        "⚠️ THIS IS AN `open.json` ID, NOT AN OWNER_QUEUE.md ONE, AND THE SUBSTITUTION IS DELIBERATE.",
+        "The queue ids on the other store rows (A-2, A-3, A-4, A-6) come from OWNER_QUEUE.md, which",
+        "[ADR 054] moved into the sibling `nikatru/` brain — a repository CI never checks out, which is",
+        "why this file's own _readme calls these ids DATA rather than an assertion. No queue id has ever",
+        "been assigned to this channel, and writing a plausible `A-9` would be inventing a record in the",
+        "one field a reader would trust to be a real pointer.",
+        "",
+        "`O-APPS-GOV-IN-SUSPENSION-CLOCK` is a real row in Private/platform-state/open.json: owner-owned,",
+        "dated (due 2026-10-31), and carrying both legs of this channel — the owner's upload and this",
+        "agent-written runbook. It is the more checkable pointer of the two, and it is checkable by a",
+        "reader with the corpus rather than by CI, which is exactly the standing of the ids beside it."
+      ],
+      "identity": {
+        "_why": [
+          "THE SAME IDENTITY AS android-play, DECLARED HERE RATHER THAN CROSS-REFERENCED, for the reason",
+          "the macos-appstore row states about its Apple twin: a `why` that says \"see the other row\" is a",
+          "`why` that survives the other row being edited. One app, one Android package name, whichever",
+          "storefront hands the user the .apk.",
+          "",
+          "🔴 AND THE BINDING IS PERMANENT ON THIS SIDE TOO. A store binds its record to this string at",
+          "the first submission; two storefronts distributing the same package name is one app in two",
+          "places, while two package names would be two apps with no way to merge them."
+        ],
+        "kind": "gradle-application-id",
+        "declaredIn": "apps/{app}/android/app/build.gradle.kts"
+      },
+      "accountStatus": {
+        "status": "verified",
+        "asOf": "2026-08-31",
+        "note": "Developer profile APPROVED 2026-08-31, entity INDIVIDUAL — Private/platform-state/identity.json storeAccounts.apps-gov-in. The portal offers only PVT/Gov/PSU or Individual, and an individual PAN plus a proprietorship GSTIN make Individual the only consistent answer. ⏳ THE ACCOUNT IS THE THING ON A CLOCK, WHICH NO OTHER ROW HERE IS: research 09 §1.9 records a live suspension rule — an individual developer must upload an app within TWO MONTHS of profile approval or the profile is suspended — so this `verified` lapses about 2026-10-31 by the store's own rule rather than by going stale. It is the only expiry in [ADR 067]."
+      },
+      "submission": null,
+      "deferral": {
+        "reason": "⬜ THE FIRST PUBLISH IS MANUAL AND OWNER-GATED, and on this channel it is manual FOREVER, not until somebody writes a script: apps.gov.in publishes no submission API at all (research 09 §1.9 — the \"APIs\" the portal advertises are open-data APIs for apps to consume). C-MANUAL-FIRST-PUBLISH is satisfied by construction here.",
+        "alsoBlockedBy": "The listing assets every channel needs — O-STORE-SCREENSHOTS, which programme.json P3-4 names as the real blocker under every store — plus one unread surface: the AUTHENTICATED upload form's field list (O-APPS-GOV-IN-SBOM). Every public surface says the portal asks for no SBOM; that form is the one place nobody has looked, and the runbook leaves a section for it rather than guessing."
+      },
+      "notes": [
+        "🔴 THIS ROW EXISTS BECAUSE THE STATE FILE ALREADY CLAIMED IT DID. Private/platform-state/",
+        "manifest.json listed an `apps-gov-in` store with `publishPath: \"manual upload, documented\"`",
+        "while `grep -c apps-gov-in tooling/channel-register.json` returned 0 and no runbook existed —",
+        "measured in research/revamp-2026-09-05/revamp-full-coverage-audit-2026-09-07.md §4 N1 and §1",
+        "decision 8c. The state file was WRONG, not merely incomplete, and nothing held the two files in",
+        "bijection. tooling/ci/assert-store-bijection.mjs now does.",
+        "",
+        "⏳ IT IS ALSO THE ONLY DELIVERABLE IN [ADR 067] WITH AN EXPIRY — see `accountStatus.note`.",
+        "",
+        "⚠️ NOT A SIDELOAD, AND NOT PLAY. The same .apk reaches a user three ways with three different",
+        "answers: Play (`android-play`, play-billing, the .aab), a direct download (`android-sideload`,",
+        "still parked in purchaseRails.awaitingChannelRow, paddle), and this storefront (rail `none`,",
+        "because nobody has read its terms). [ADR 039] D1's rule — the rail follows the CHANNEL, not the",
+        "artifact — is the reason all three can be true at once.",
+        "",
+        "⬜ NO LANE. Nothing in this repository emits an artifact FOR this row; the .apk exists already",
+        "as a by-product of the android-play lane, and giving this row a lane would claim a build that",
+        "does not run. The runbook names which artifact to take and where it comes from."
+      ]
+    },
+    {
       "id": "chrome-webstore",
       "publishScript": "extensions/scripts/publish-cws.mjs",
       "publishScriptWhy": "THE SCRIPT THAT PUBLISHES THIS ROW, DECLARED HERE SO A GUARD CAN DERIVE THE SET RATHER THAN ENUMERATE IT. tooling/ci/assert-publish-steps-guarded.mjs used to carry a hand-written alternation naming publish-amo, publish-cws and publish-edge by name: measured 2026-09-07, a fourth store's publish-<x>.mjs tested FALSE against it, the `graded === 0` floor could not fire because the existing three kept the count non-zero, and the step would have been ungraded, exit 0, and EXECUTED on a workflow_dispatch rehearsal. The guard now reads this field off every row whose `lane.workflow` is the file it is grading, so a new store lane is graded by the act of declaring its channel — and a publish-*.mjs the job invokes with no row here is COVERAGE LOST rather than a silent pass.",
@@ -2770,6 +2940,10 @@
       },
       ".aab": {
         "flutterTarget": "appbundle",
+        "packagedBy": null
+      },
+      ".apk": {
+        "flutterTarget": "apk",
         "packagedBy": null
       },
       ".ipa": {

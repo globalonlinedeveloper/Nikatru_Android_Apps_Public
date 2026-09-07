@@ -16,7 +16,8 @@ enum PurchaseChannel {
   windowsStore('windows-store'),
   windowsDirect('windows-direct'),
   linuxSnap('linux-snap'),
-  linuxAppImage('linux-appimage');
+  linuxAppImage('linux-appimage'),
+  appsGovIn('apps-gov-in');
 
   const PurchaseChannel(this.registerId);
 
@@ -145,6 +146,22 @@ class PurchaseCapabilities {
           why:
               'Neither the Snap Store nor an AppImage imposes a commerce policy '
               'on digital goods sold by the publisher.',
+        );
+      case PurchaseChannel.appsGovIn:
+        return const PurchaseCapabilities(
+          technicallySupported: true,
+          channelPermitted: false,
+          // UNVERIFIED, therefore DENIED — the rule stated at the top of this
+          // method, applied to the one channel it was written for. The register
+          // row records what was actually read: research 09 §1.9 read the
+          // Mobile Seva developer portal for its SUBMISSION path and found no
+          // payments clause in either direction.
+          why:
+              'The Mobile Seva AppStore publishes no commerce policy this '
+              'repository has read from a primary source, and an UNVERIFIED '
+              'vendor fact must never resolve to allowed — being wrong that '
+              'way on a government storefront is a takedown, and being wrong '
+              'the other way is one channel that does not yet sell.',
         );
     }
   }

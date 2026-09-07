@@ -2869,3 +2869,84 @@ describe('assert-channel-register — the extension lane is COMPARED, not assume
     assert.equal(code, 0, out);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A STORE WITH NO SUBMISSION API AT ALL — the `apps-gov-in` shape, 2026-09-07
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE LIMB THESE CASES REPLACE WAS AN ABSOLUTE: `submittable === true` on
+// every app-surface store row. It held while every app store here published an
+// API somebody could script, and it made `apps-gov-in` — a manual web form with
+// no publishing API at all (research 09 §1.9) — undeclarable, because
+// `submittable: true` then forces assert-publish-records.mjs to refuse COVERAGE
+// LOST on the missing `submission` block.
+//
+// So `false` is admissible now, and it COSTS MORE THAN `true` DOES. The control
+// comes first, and every case below is that control with one thing changed.
+describe('assert-channel-register — a store channel that can never be scripted', () => {
+  const noApi = (r) => {
+    const row = r.channels[1];
+    row.submittable = false;
+    row.noSubmissionApi =
+      'apps.gov.in publishes no submission API at all; the developer portal is a manual web workflow. Measured in research 09 §1.9.';
+  };
+
+  test('CONTROL — `submittable: false` with a written reason passes', () => {
+    const { code, out } = run(tree({ mutate: noApi }));
+    assert.equal(code, 0, out);
+  });
+
+  test('CONTROL — and the gap PRINTS on every run, in place of NO SUBMISSION PATH', () => {
+    const { out } = run(tree({ mutate: noApi }));
+    assert.match(out, /NO SUBMISSION API: channel "windows-store"/);
+    assert.match(out, /manual web workflow/);
+    assert.doesNotMatch(out, /NO SUBMISSION PATH: channel "windows-store"/);
+  });
+
+  // 🔴 THE ONE THAT KEEPS THIS FROM BEING A RELAXATION. [10]D-10 quantifies over
+  // the flag, so a bare `false` would be the duty switched off with nothing for a
+  // reviewer to disagree with.
+  test('FAILS when `submittable: false` carries no `noSubmissionApi` reason', () => {
+    const { code, out } = run(tree({
+      mutate: (r) => { noApi(r); delete r.channels[1].noSubmissionApi; },
+    }));
+    assert.equal(code, 1, out);
+    assert.match(out, /carries no written `noSubmissionApi` reason/);
+  });
+
+  test('FAILS when the reason is a word rather than a reason', () => {
+    const { code, out } = run(tree({
+      mutate: (r) => { noApi(r); r.channels[1].noSubmissionApi = 'no api'; },
+    }));
+    assert.equal(code, 1, out);
+    assert.match(out, /carries no written `noSubmissionApi` reason/);
+  });
+
+  test('FAILS when the reason is whitespace — a string that satisfies typeof and says nothing', () => {
+    const { code, out } = run(tree({
+      mutate: (r) => { noApi(r); r.channels[1].noSubmissionApi = '                              '; },
+    }));
+    assert.equal(code, 1, out);
+    assert.match(out, /carries no written `noSubmissionApi` reason/);
+  });
+
+  // The tie, in the direction that matters: a row may not keep a scripted path
+  // AND declare itself unsubmittable. That is the shape in which `false` really
+  // would be the duty disappearing.
+  test('FAILS when a submission block is kept and the flag is flipped to false', () => {
+    const { code, out } = run(tree({
+      withSubmission: true,
+      mutate: (r) => { noApi(r); },
+    }));
+    assert.equal(code, 1, out);
+    assert.match(out, /declares a `submission` block and is not `submittable`/);
+  });
+
+  // And the old reading is not silently restored: a `true` with no block still
+  // PRINTS rather than failing, because BUILDING a path is owner-gated.
+  test('a submittable store row with no block still PRINTS, unchanged', () => {
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.match(out, /NO SUBMISSION PATH: channel "windows-store"/);
+    assert.doesNotMatch(out, /NO SUBMISSION API/);
+  });
+});
