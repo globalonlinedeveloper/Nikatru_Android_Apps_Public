@@ -1268,7 +1268,10 @@ const flat = (v) =>
     // Both directions, and the vocabulary is checked too: a rail name in the
     // Dart enum that the register's `rails` dictionary does not define is a rail
     // nobody decided.
-    if (premiseHolds && railOf.size > 0) {
+    // `premiseHolds` is not re-tested here: the enclosing G4 `if` above already
+    // established it, and a condition that cannot be false reads as a guard that
+    // is guarding something.
+    {
       const KIND = 'packages/purchases/lib/src/purchase_rail_kind.dart';
       const kindRaw = read(KIND);
       if (kindRaw === null) {
@@ -1436,27 +1439,30 @@ const flat = (v) =>
   const walkCtor = (d) => {
     let entries;
     try {
-      entries = listDir(d);
+      entries = listDir(d, { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
-      const f = join(d, e);
-      let st;
-      try {
-        st = statSync(f);
-      } catch {
-        continue;
-      }
-      if (st.isDirectory()) {
+      const f = join(d, e.name);
+      if (e.isDirectory()) {
         walkCtor(f);
         continue;
       }
-      if (!e.endsWith('.dart')) continue;
+      if (!e.name.endsWith('.dart')) continue;
       const rel = relOfDart(f);
       if (isTestPath(rel)) continue;
+      // Read first, ask questions after: a stat() followed by a read is a
+      // TOCTOU window for no benefit here, and an unreadable entry is a file
+      // this census could not grade, which the counter below must not claim.
+      let raw;
+      try {
+        raw = readFileSync(f, 'utf8');
+      } catch {
+        continue;
+      }
       dartScanned += 1;
-      const src = code(readFileSync(f, 'utf8'));
+      const src = code(raw);
       if (/class\s+HostedCheckoutRail\b/.test(src)) continue;
       if (CTOR.test(src)) sites.add(rel);
     }
