@@ -2322,6 +2322,94 @@ function unexplainedGaps(invoked, covered, recorded) {
   }
 }
 
+let storeLaneNo = 0;
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE FIVE STORE-SUBMISSION GATES — one red/green pair each.
+
+   🔴 THE RED IS THE FAIL-CLOSED CASE AND IT IS THE POINT. Each of these scripts
+   asks tooling/ci/channel-arming.mjs whether the register ARMS its channel:
+     · armed, and a declared credential is EMPTY  → exit 1. A release that cannot
+       authenticate must not report success.
+     · not armed                                  → exit 0, printing the exact
+       owner step. [pipeline C-6]: no agent can create a store credential, so
+       failing here would redden every release on work only the owner can do.
+
+   Both limbs are driven from a FIXTURE register through `--repo-root`, because
+   the live register answers `pending` for all three extension rows today — a
+   case against it would be green whatever the code did.
+
+   ⚠️ WRITTEN OUT, NOT LOOPED. `gatesWithACaseInThisFile()` derives the covered
+   set by reading THIS FILE for a literal `script: '<name>'` line, so a loop over
+   an array of names produces eleven passing cases and zero coverage — measured
+   2026-09-07, and it looks exactly like the gates being uncovered.
+   ───────────────────────────────────────────────────────────────────────────── */
+function armedTree(id) {
+  const root = path.join(TMP, 'storelane-' + (++storeLaneNo));
+  w(root, 'tooling/channel-register.json', JSON.stringify({
+    channels: [{ id, kind: 'store', surface: 'extension', served: false, submittable: true,
+      lane: { workflow: '.github/workflows/extensions.yml', job: 'release' } }]
+  }, null, 2));
+  return root;
+}
+function unarmedTree(id) {
+  const root = path.join(TMP, 'storelane-' + (++storeLaneNo));
+  w(root, 'tooling/channel-register.json', JSON.stringify({
+    channels: [{ id, kind: 'store', surface: 'extension', served: false, submittable: false,
+      lane: { workflow: '.github/workflows/extensions.yml', job: 'release' } }]
+  }, null, 2));
+  return root;
+}
+
+expect('publish-amo.mjs REFUSES when the register ARMS amo and its credentials are empty', {
+  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: armedTree('amo'), code: 1, contains: 'REFUSED'
+});
+expect('publish-amo.mjs prints the owner step and exits 0 while amo is unarmed', {
+  script: 'publish-amo.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('amo'), code: 0, contains: 'OWNER STEP:'
+});
+
+expect('publish-cws.mjs REFUSES when the register ARMS chrome-webstore and its credentials are empty', {
+  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: armedTree('chrome-webstore'), code: 1, contains: 'REFUSED'
+});
+expect('publish-cws.mjs prints the owner step and exits 0 while chrome-webstore is unarmed', {
+  script: 'publish-cws.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('chrome-webstore'), code: 0, contains: 'OWNER STEP:'
+});
+
+expect('publish-edge.mjs REFUSES when the register ARMS edge-addons and its credentials are empty', {
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: armedTree('edge-addons'), code: 1, contains: 'REFUSED'
+});
+expect('publish-edge.mjs prints the owner step and exits 0 while edge-addons is unarmed', {
+  script: 'publish-edge.mjs', argv: ['--tool', 'fullshot'], root: unarmedTree('edge-addons'), code: 0, contains: 'OWNER STEP:'
+});
+
+expect('publish-arming.mjs REFUSES on an armed row with empty credentials — the workflow preflight', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'amo'], root: armedTree('amo'), code: 1, contains: 'REFUSED'
+});
+expect('publish-arming.mjs prints the owner step and exits 0 on an unarmed row', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'amo'], root: unarmedTree('amo'), code: 0, contains: 'OWNER STEP:'
+});
+
+expect('publish-cws-keepalive.mjs REFUSES when chrome-webstore is armed and the token secrets are empty', {
+  script: 'publish-cws-keepalive.mjs', argv: [], root: armedTree('chrome-webstore'), code: 1, contains: 'REFUSED'
+});
+expect('publish-cws-keepalive.mjs prints the owner step and exits 0 while chrome-webstore is unarmed', {
+  script: 'publish-cws-keepalive.mjs', argv: [], root: unarmedTree('chrome-webstore'), code: 0, contains: 'NOTHING TO KEEP ALIVE'
+});
+
+/* The COVERAGE limb: a register the script cannot read is NOT an unarmed
+   channel. Without this, every red above would be consistent with a script that
+   refuses whenever it fails to find anything. */
+expect('publish-arming.mjs reports COVERAGE LOST when the row is absent, never "unarmed"', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'amo'],
+  root: (() => {
+    const r = path.join(TMP, 'storelane-' + (++storeLaneNo));
+    w(r, 'tooling/channel-register.json', JSON.stringify({ channels: [] }));
+    return r;
+  })(),
+  code: 1, contains: 'COVERAGE LOST'
+});
+
+
+
 /* ---- the real sets ---- */
 const INVOKED = gatesInvokedByWorkflows();
 const COVERED = gatesWithACaseInThisFile();

@@ -71,7 +71,7 @@ if (TOOL === null || TOOL.trim() === '') {
 } else {
   let result = null;
   try {
-    result = laneVerdict('amo');
+    result = laneVerdict('amo', opt('repo-root') === null ? {} : { root: opt('repo-root') });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) die(e.lines);
     else throw e;
@@ -91,6 +91,7 @@ if (TOOL === null || TOOL.trim() === '') {
         ]);
       } else {
         console.log(`→    ${WEB_EXT_PIN} sign --channel listed --source-dir ${SOURCE_DIR}  (tool "${TOOL}")`);
+        console.log(`     flags read from ${PRIMARY_SOURCES.webExtSign}; the pin is exact against ${PRIMARY_SOURCES.webExtVersion}`);
         const r = spawnSync(
           'npx',
           ['--yes', WEB_EXT_PIN, 'sign', '--channel', 'listed', '--source-dir', SOURCE_DIR, '--artifacts-dir', ARTIFACTS_DIR],

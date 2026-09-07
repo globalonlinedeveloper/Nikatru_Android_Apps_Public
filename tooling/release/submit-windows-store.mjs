@@ -695,6 +695,9 @@ async function submitPath() {
   console.log('      the status moves CommitStarted → PreProcessing on success and CommitFailed on error, and');
   console.log("      everything after PreProcessing is Microsoft's review queue. A committed submission is not");
   console.log('      a published app.');
+  console.log(`   ⬜ THE API UNDERNEATH THE CLI, printed so a reader can check the transport against the`);
+  console.log(`      documented calls rather than against its own output: token ${REST.tokenEndpoint} (resource`);
+  console.log(`      ${REST.resource}) · submissions under ${REST.base}/applications/{applicationId}/submissions.`);
   for (const u of UNSOURCED) console.log(`   ⬜ UNSOURCED: ${u.gap}  → ${u.limb}`);
   console.log('');
   console.log(`submit-windows-store: SUBMITTED — ${app.slug} committed to the Microsoft Store for certification.`);

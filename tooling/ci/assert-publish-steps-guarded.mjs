@@ -92,6 +92,20 @@ const GUARD = 'inputs.dry_run != true';
  *  requirement that the exemption is actually USED. */
 const ALLOWED_ACTIONS = ['actions/checkout', 'actions/setup-node'];
 
+/** A host pattern that admits only real SUBDOMAINS of the given host, and ends at
+ *  a path, port, query or fragment.
+ *
+ *  🔴 THE OBVIOUS SPELLING IS THE WRONG ONE, AND CodeQL SAID SO ON 2026-09-07.
+ *  This started as `https?://[A-Za-z0-9.-]*addons\.mozilla\.org` — carried over
+ *  verbatim from the bash step this guard replaces — and `js/regex/missing-regexp-anchor`
+ *  flagged three of them as HIGH. The character class admits a hyphen and a dot
+ *  with no boundary, so `https://evil-addons.mozilla.org.attacker.test` matches
+ *  both ends of it. Here the consequence is over-matching in a scanner rather
+ *  than a trust decision, so nothing was exploitable — but a host matcher that is
+ *  wrong in a guard is a host matcher somebody copies into a place where it is a
+ *  trust decision. Fixed at the source rather than dismissed. */
+const host = (h) => `https?://(?:[A-Za-z0-9-]+\\.)*${h}(?:[/:?#]|$)`;
+
 /** A `run:` line that hands bytes to something outside the run. Every alternative
  *  is a command or a host this repository actually reaches; a respelling that
  *  slips past it is what the "zero graded" floor below exists to catch. */
@@ -101,11 +115,11 @@ const PUBLISH_SURFACE = new RegExp(
     'web-ext (sign|submit)',
     'publish-(amo|cws|edge)\\.mjs',
     'chrome-webstore-(upload|api)',
-    'https?://[A-Za-z0-9.-]*addons\\.mozilla\\.org',
-    'https?://[A-Za-z0-9.-]*chromewebstore\\.googleapis\\.com',
-    'https?://[A-Za-z0-9.-]*googleapis\\.com/upload',
-    'https?://[A-Za-z0-9.-]*clients2\\.google\\.com/service/update2',
-    'https?://[A-Za-z0-9.-]*addons\\.microsoftedge\\.microsoft\\.com',
+    host('addons\\.mozilla\\.org'),
+    host('chromewebstore\\.googleapis\\.com'),
+    `${host('googleapis\\.com')}?upload`,
+    host('clients2\\.google\\.com'),
+    host('addons\\.microsoftedge\\.microsoft\\.com'),
   ].join('|'),
 );
 

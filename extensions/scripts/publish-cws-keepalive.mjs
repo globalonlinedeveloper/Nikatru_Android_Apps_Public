@@ -27,6 +27,10 @@
 // Usage:  node scripts/publish-cws-keepalive.mjs
 // ─────────────────────────────────────────────────────────────────────────────
 import { publishVerdict, LANES, ArmingCoverageLost, REPO_ROOT } from './publish-arming.mjs';
+
+/** --repo-root points the REGISTER READ at another tree, so the gate self-test can
+ *  drive a fixture row rather than the live register. */
+const rootArg = (() => { const i = process.argv.indexOf('--repo-root'); return i !== -1 && i + 1 < process.argv.length ? process.argv[i + 1] : REPO_ROOT; })();
 import { exchangeRefreshToken, CWS_API_DOC } from './publish-cws-token.mjs';
 
 /** The subset of the Chrome lane this job actually exercises: the three values
@@ -38,7 +42,7 @@ const KEEPALIVE_SECRETS = LANES['chrome-webstore'].secrets.filter((s) => KEEPALI
 async function main() {
   let result = null;
   try {
-    result = publishVerdict({ channelId: 'chrome-webstore', secrets: KEEPALIVE_SECRETS, ownerStep: LANES['chrome-webstore'].ownerStep, root: REPO_ROOT });
+    result = publishVerdict({ channelId: 'chrome-webstore', secrets: KEEPALIVE_SECRETS, ownerStep: LANES['chrome-webstore'].ownerStep, root: rootArg });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) {
       console.error('');

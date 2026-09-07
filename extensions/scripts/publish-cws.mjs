@@ -42,8 +42,8 @@
 // Usage:
 //   node scripts/publish-cws.mjs --tool <id> --zip <path>
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, readFileSync } from 'node:fs';
-import { laneVerdict, ArmingCoverageLost } from './publish-arming.mjs';
+
+import { laneVerdict, ArmingCoverageLost, readSubmittablePackage } from './publish-arming.mjs';
 import { exchangeRefreshToken } from './publish-cws-token.mjs';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ async function main() {
   }
   let result = null;
   try {
-    result = laneVerdict('chrome-webstore');
+    result = laneVerdict('chrome-webstore', opt('repo-root') === null ? {} : { root: opt('repo-root') });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) {
       die(e.lines);
@@ -92,15 +92,6 @@ async function main() {
     return;
   }
   if (result.verdict !== 'go') return;
-
-  if (ZIP === null || !existsSync(ZIP)) {
-    die([
-      `FAIL --zip ${ZIP ?? '(absent)'} does not exist.`,
-      '     These are the exact bytes the store would receive; a run that cannot open them has nothing',
-      '     to upload and must not report success.',
-    ]);
-    return;
-  }
 
   const tok = await exchangeRefreshToken({
     clientId: process.env.CWS_CLIENT_ID,
@@ -119,7 +110,13 @@ async function main() {
 
   const publisher = encodeURIComponent(process.env.CWS_PUBLISHER_ID);
   const item = encodeURIComponent(process.env.CWS_ITEM_ID);
-  const bytes = readFileSync(ZIP);
+  let bytes;
+  try {
+    bytes = readSubmittablePackage(ZIP);
+  } catch (e) {
+    die([`FAIL ${e.message}`]);
+    return;
+  }
 
   const up = await fetch(`${UPLOAD_ROOT}/${publisher}/items/${item}:upload`, {
     method: 'POST',

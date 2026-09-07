@@ -141,6 +141,42 @@ export function publishVerdict({ channelId, secrets, ownerStep, env = process.en
   return { verdict: 'pending', row, arming, missing, lines };
 }
 
+
+/**
+ * The ONE read of a package this factory is about to hand to a store.
+ *
+ * 🔴 IT VALIDATES BEFORE IT READS, AND CodeQL IS WHY IT EXISTS. On 2026-09-07
+ * `js/file-access-to-http` flagged both extension upload calls at MEDIUM: a
+ * local file's bytes flow into an outbound request, which is the shape of an
+ * exfiltration as well as the shape of a package upload. The scanner cannot tell
+ * those apart and neither could the code — `readFileSync(ZIP)` would upload
+ * whatever path the argument named.
+ *
+ * So the path is CONSTRAINED to what a release lane can legitimately produce: a
+ * `.zip`, inside a `dist/` directory, that exists. A run pointed at a key, a
+ * lockfile or a path outside the build output now REFUSES instead of posting it
+ * to a store. The alert is answered by narrowing the domain rather than by
+ * silencing the rule.
+ *
+ * Returns the bytes, or throws with a message the caller prints verbatim.
+ */
+export function readSubmittablePackage(zipPath) {
+  const raw = String(zipPath ?? '');
+  if (raw === '') throw new Error('no package path was given — there is nothing to upload.');
+  const resolved = resolve(raw);
+  const segments = resolved.split(/[\/]/);
+  if (!resolved.toLowerCase().endsWith('.zip')) {
+    throw new Error(`refusing to upload ${resolved}: a store package is a .zip, and this is not one. Only the release lane's own build output may be sent to a store.`);
+  }
+  if (!segments.includes('dist')) {
+    throw new Error(`refusing to upload ${resolved}: it is not inside a \`dist/\` directory, so it is not something this lane built. A path that is merely readable is not a release artifact.`);
+  }
+  if (!existsSync(resolved)) {
+    throw new Error(`${resolved} does not exist — the pack step was supposed to write it, so a run that cannot open it has nothing to upload and must not report success.`);
+  }
+  return readFileSync(resolved);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE LANE TABLE — which credentials each extension store needs, BY NAME, and
 // the exact owner step that creates them.
@@ -217,14 +253,18 @@ export function laneVerdict(laneId, { env = process.env, root = REPO_ROOT } = {}
 // preflight that publishes nothing must be able to run on a rehearsal.
 // ─────────────────────────────────────────────────────────────────────────────
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const i = process.argv.indexOf('--channel');
-  const laneId = i !== -1 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+  const arg = (n) => { const i = process.argv.indexOf('--' + n); return i !== -1 && i + 1 < process.argv.length ? process.argv[i + 1] : null; };
+  const laneId = arg('channel');
+  // --repo-root points the REGISTER READ at another tree. It is how the gate
+  // self-test can drive a fixture row rather than the live register, which today
+  // would only ever answer `pending`.
+  const rootArg = arg('repo-root');
   if (laneId === null) {
     console.error('FAIL --channel <id> is required. Known lanes: ' + Object.keys(LANES).join(', '));
     process.exitCode = 1;
   } else {
     try {
-      const result = laneVerdict(laneId);
+      const result = laneVerdict(laneId, rootArg === null ? {} : { root: rootArg });
       for (const l of result.lines) console.log(l);
       if (result.verdict === 'refuse') process.exitCode = 1;
     } catch (e) {

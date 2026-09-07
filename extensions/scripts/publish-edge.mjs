@@ -29,8 +29,8 @@
 // Usage:
 //   node scripts/publish-edge.mjs --tool <id> --zip <path> [--notes <text>]
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, readFileSync } from 'node:fs';
-import { laneVerdict, ArmingCoverageLost } from './publish-arming.mjs';
+
+import { laneVerdict, ArmingCoverageLost, readSubmittablePackage } from './publish-arming.mjs';
 
 const PRIMARY_SOURCES = Object.freeze({
   api: 'https://learn.microsoft.com/en-us/microsoft-edge/extensions/update/api/using-addons-api',
@@ -75,7 +75,7 @@ async function main() {
   }
   let result = null;
   try {
-    result = laneVerdict('edge-addons');
+    result = laneVerdict('edge-addons', opt('repo-root') === null ? {} : { root: opt('repo-root') });
   } catch (e) {
     if (e instanceof ArmingCoverageLost) {
       die(e.lines);
@@ -90,11 +90,13 @@ async function main() {
   }
   if (result.verdict !== 'go') return;
 
-  if (ZIP === null || !existsSync(ZIP)) {
-    die([`FAIL --zip ${ZIP ?? '(absent)'} does not exist — there is nothing to upload.`]);
+  let packageBytes;
+  try {
+    packageBytes = readSubmittablePackage(ZIP);
+  } catch (err) {
+    die([`FAIL ${err.message}`]);
     return;
   }
-
   const product = encodeURIComponent(process.env.EDGE_PRODUCT_ID);
   const draftPackage = `${API_ROOT}/v1/products/${product}/submissions/draft/package`;
   const submissions = `${API_ROOT}/v1/products/${product}/submissions`;
@@ -103,7 +105,7 @@ async function main() {
   const up = await fetch(draftPackage, {
     method: 'POST',
     headers: { ...authHeaders(), 'content-type': 'application/zip' },
-    body: readFileSync(ZIP),
+    body: packageBytes,
   });
   if (up.status !== 202) {
     die([
