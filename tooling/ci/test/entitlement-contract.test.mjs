@@ -1265,3 +1265,82 @@ describe('assert-entitlement-contract limb 7 — the one runtime that already re
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-entitlement-contract limb 7b — the SWEEP, so a THIRD copy is not invisible', () => {
+  // Limb 7 above watches ONE hard-coded path. The finding it answers is "a
+  // second, ungoverned copy of this vocabulary exists" — so answering it by
+  // naming that one copy governs exactly one file and a second app's Worker gets
+  // nothing for free. These cases are the reviewer's own mutation, promoted to
+  // the suite: a third transcription anywhere under services/ must redden, and
+  // the ONLY thing that clears one is importing the contract.
+
+  test('FAILS on a THIRD Worker restating ACTIVE_TYPES / INACTIVE_TYPES / GRACE_TYPES', () => {
+    const r = run({
+      extraFile: {
+        dir: 'services/probe-api/src/routes',
+        name: 'webhooks.ts',
+        body:
+          "const ACTIVE_TYPES = new Set(['INITIAL_PURCHASE', 'RENEWAL', 'TRANSFER']);\n" +
+          "const INACTIVE_TYPES = new Set(['EXPIRATION']);\n" +
+          "const GRACE_TYPES = new Set(['CANCELLATION']);\n" +
+          'export const sets = [ACTIVE_TYPES, INACTIVE_TYPES, GRACE_TYPES];\n',
+      },
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /services\/probe-api\/src\/routes\/webhooks\.ts restates the RevenueCat vocabulary/);
+    assert.match(r.out, /it declares ACTIVE_TYPES \/ INACTIVE_TYPES \/ GRACE_TYPES/);
+    assert.match(r.out, /third author of the same money decision/);
+  });
+
+  test('FAILS on the EVENT-NAME shape alone — no set names, three event literals', () => {
+    // The set names are one spelling of the duplication, not the duplication.
+    // A file that switches on the raw event strings is the same second author.
+    const r = run({
+      extraFile: {
+        dir: 'services/probe2-api/src',
+        name: 'rc.ts',
+        body:
+          'export function classify(event: string): string {\n' +
+          "  if (event === 'INITIAL_PURCHASE' || event === 'RENEWAL') return 'grant';\n" +
+          "  if (event === 'EXPIRATION') return 'revoke';\n" +
+          "  if (event === 'CANCELLATION') return 'grace';\n" +
+          "  return 'ignore';\n" +
+          '}\n',
+      },
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /services\/probe2-api\/src\/rc\.ts restates the RevenueCat vocabulary/);
+    assert.match(r.out, /it names 4 RevenueCat event\(s\)/);
+  });
+
+  test('PASSES when that third runtime IMPORTS the contract — the intended fix clears it', () => {
+    const r = run({
+      extraFile: {
+        dir: 'services/probe-api/src/routes',
+        name: 'webhooks.ts',
+        body:
+          "import { revocationReasonForRevenueCatEvent } from '../../../../contracts/entitlement/contract.js';\n" +
+          "export const classify = (e) => revocationReasonForRevenueCatEvent(e);\n" +
+          "export const seen = ['INITIAL_PURCHASE', 'RENEWAL', 'EXPIRATION', 'CANCELLATION'];\n",
+      },
+    });
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /found 2 transcription\(s\) of that vocabulary/);
+  });
+
+  test('the POSITIVE CONTROL reports the sweep it actually did', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /limb 7's sweep read \d+ \.ts source\(s\) under services\/ and found 1 transcription\(s\)/);
+  });
+
+  test('COVERAGE LOST when the sweep no longer recognises the required member', () => {
+    // The half limb 5 puts on its own sweep. A sweep that matched nothing reads
+    // exactly like a tree with no duplication left in it.
+    const r = run({ webhooks: 'export const nothing = 1;\n' });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /did not recognise services\/subly-api\/src\/routes\/webhooks\.ts as a\s+RevenueCat transcription/);
+  });
+});
+
+
