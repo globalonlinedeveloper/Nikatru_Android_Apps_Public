@@ -128,12 +128,17 @@ function tree({
   return root;
 }
 
+/** An ISO 8601 instant N days from now. Relative rather than fixed, because a
+ *  fixed date in a fixture is a test that starts failing on a calendar. */
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString();
+
 function run(root, args, env = {}) {
   const r = spawnSync(process.execPath, [SCRIPT, ...args, '--repo-root', root], {
     encoding: 'utf8',
     env: {
       ...process.env,
       SNAPCRAFT_STORE_CREDENTIALS: '',
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: '',
       // 🔴 THE AMBIENT CI VARIABLES ARE NEUTRALISED, AND THIS COST A RED CI RUN.
       // PG-4 refuses when GITHUB_ACTIONS is not "true". The helper inherited
       // process.env, so the case passed on a laptop (unset) and FAILED inside CI
@@ -429,15 +434,84 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
   test('PRINTS the absent credential and never its value', () => {
     const { code, out } = dry(tree({ withArtifact: true }));
     assert.equal(code, 0, out);
-    assert.match(out, /CREDENTIALS NOT CONFIGURED — SNAPCRAFT_STORE_CREDENTIALS absent/);
+    assert.match(out, /credential: absent — CREDENTIALS NOT CONFIGURED/);
   });
 
-  test('reports the credential as present without printing it', () => {
+  test('reports the credential as present without printing it, once its expiry is declared', () => {
     const secret = 'THIS-MUST-NEVER-BE-PRINTED';
-    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], { SNAPCRAFT_STORE_CREDENTIALS: secret });
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], {
+      SNAPCRAFT_STORE_CREDENTIALS: secret,
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: inDays(120),
+    });
     assert.equal(code, 0, out);
     assert.match(out, /credentials — SNAPCRAFT_STORE_CREDENTIALS present/);
     assert.doesNotMatch(out, new RegExp(secret));
+  });
+
+  // ── the credential EXPIRES, and nothing used to say so ────────────────────
+  // 🔴 THE FAILURE THIS CLOSES IS SILENT AND ARRIVES ON RELEASE DAY. An exported
+  // login carries a lifetime (`snapcraft export-login --expires`, ISO 8601); when
+  // it lapses, `snapcraft upload` fails at the one moment a release is in flight.
+  // Four cases, because "unknown" must never read as "fine": ABSENT credential
+  // (owner-gated → print), PRESENT with no declared expiry (→ fail), MALFORMED
+  // expiry (→ fail), and a date inside the 30-day floor (→ fail). The 31-day
+  // case is the GREEN CONTROL, without which every red below would be consistent
+  // with a limb that refuses everything.
+  test('GREEN CONTROL: an expiry 31 days out passes and prints the date and the margin', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], {
+      SNAPCRAFT_STORE_CREDENTIALS: 'x',
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: inDays(31),
+    });
+    assert.equal(code, 0, out);
+    assert.match(out, /credential expiry — .*day\(s\) away \(floor 30\)/);
+  });
+
+  test('an expiry 29 days out FAILS, and prints the exact export-login owner step', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], {
+      SNAPCRAFT_STORE_CREDENTIALS: 'x',
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: inDays(29),
+    });
+    assert.equal(code, 1, out);
+    assert.match(out, /credential expires in \d+ day\(s\).*and the floor is 30/s);
+    assert.match(out, /snapcraft export-login --snaps <snap-name> --acls package_push,package_release --expires/);
+  });
+
+  test('an expiry already in the past FAILS', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], {
+      SNAPCRAFT_STORE_CREDENTIALS: 'x',
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: inDays(-1),
+    });
+    assert.equal(code, 1, out);
+    assert.match(out, /and the floor is 30/);
+  });
+
+  test('a credential present with NO declared expiry FAILS — unknown is not fine', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], { SNAPCRAFT_STORE_CREDENTIALS: 'x' });
+    assert.equal(code, 1, out);
+    assert.match(out, /SNAPCRAFT_STORE_CREDENTIALS_EXPIRES is ABSENT/);
+    assert.match(out, /snapcraft export-login/);
+  });
+
+  test('a MALFORMED expiry FAILS — an unreadable expiry is not a long one', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run'], {
+      SNAPCRAFT_STORE_CREDENTIALS: 'x',
+      SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: 'next tuesday',
+    });
+    assert.equal(code, 1, out);
+    assert.match(out, /not a date this run can read/);
+    assert.match(out, /ISO 8601/);
+  });
+
+  test('an ABSENT credential still only PRINTS on a dry run, with the owner step — it is owner-gated work', () => {
+    const { code, out } = dry(tree({ withArtifact: true }));
+    assert.equal(code, 0, out);
+    assert.match(out, /credential: absent/);
+    assert.match(out, /owner step: snapcraft export-login/);
+  });
+
+  test('the expiry limb does not fire at all when the credential is absent — one gap, not two', () => {
+    const { out } = dry(tree({ withArtifact: true }));
+    assert.doesNotMatch(out, /SNAPCRAFT_STORE_CREDENTIALS_EXPIRES is ABSENT/);
   });
 
   // ── the register is the single declaration ────────────────────────────────

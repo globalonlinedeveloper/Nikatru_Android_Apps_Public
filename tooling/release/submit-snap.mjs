@@ -186,6 +186,12 @@ const PUBLISH_ENVIRONMENT = 'store-publish';
  *  required reviewer. A second environment would be a second thing to configure
  *  and a second thing to be silently missing. */
 const CREDENTIAL_ENV = 'SNAPCRAFT_STORE_CREDENTIALS';
+/** The owner step, written ONCE and printed by every limb that needs it, so the
+ *  person reading a refusal is told the exact command rather than pointed at a
+ *  document that carries a different spelling of it. `--acls` and `--expires` are
+ *  both documented flags of `snapcraft export-login`. */
+const EXPORT_LOGIN_STEP =
+  'snapcraft export-login --snaps <snap-name> --acls package_push,package_release --expires <YYYY-MM-DDTHH:MM:SSZ> credentials.txt  → put the file contents in the SNAPCRAFT_STORE_CREDENTIALS repository secret and the same date in SNAPCRAFT_STORE_CREDENTIALS_EXPIRES (Private/runbooks/store-submission-snap.md)';
 const RECIPE_GUARD = 'assert-snapcraft-generable.mjs';
 const PACK_VERB = 'snapcraft pack';
 
@@ -836,9 +842,60 @@ const credentialPresent = (process.env[CREDENTIAL_ENV] ?? '').trim() !== '';
 if (credentialPresent) {
   ok(`credentials — ${CREDENTIAL_ENV} present (value never read or printed)`);
 } else {
-  const line = `CREDENTIALS NOT CONFIGURED — ${CREDENTIAL_ENV} absent. It is the exported store credential \`snapcraft\` reads for a non-interactive upload, and it cannot exist before OWNER_QUEUE A-6.`;
+  const line = `credential: absent — CREDENTIALS NOT CONFIGURED. ${CREDENTIAL_ENV} is the exported store credential \`snapcraft\` reads for a non-interactive upload, and it cannot exist before OWNER_QUEUE A-6. owner step: ${EXPORT_LOGIN_STEP}`;
   if (SUBMIT) problems.push(`${line} --submit cannot authenticate without it.`);
   else prints.push(line);
+}
+
+// ── 5b. THE CREDENTIAL EXPIRES, AND NOTHING IN THIS REPOSITORY USED TO SAY SO ─
+// 🔴 THE FAILURE THIS CLOSES IS SILENT AND ARRIVES ON RELEASE DAY. An exported
+// login is issued with a lifetime — `${PRIMARY_SOURCES.exportLogin}`, verbatim:
+// `--expires  Date/time (in ISO 8601) when this exported login expires.` When it
+// lapses, `snapcraft upload` fails at the one moment a release is in flight, and
+// nothing before that moment would have said a word.
+//
+// ⚠️ THE EXPIRY IS READ FROM A DECLARATION, NOT PARSED OUT OF THE BLOB, AND THAT
+// IS THE SAME RULE THIS FILE ALREADY APPLIES ONE COMMAND OVER. `snapcraft
+// whoami` is refused as a parse target above because its OUTPUT FORMAT is
+// documented on no page fetched; the exported credential's INTERNAL format is
+// documented on no page fetched either, so parsing it for an `expires` field
+// would break that rule to save one environment variable. What IS sourced is the
+// flag that sets the date — so the date is recorded beside the credential, by the
+// same hand, in the same act. The runbook makes them one step.
+//
+// A DECLARATION THAT IS MISSING OR UNREADABLE IS A FAILURE, NOT A GAP. An absent
+// CREDENTIAL is owner-gated work and prints ([pipeline C-6]); a credential that
+// EXISTS with no readable expiry is a credential nobody can reason about, and
+// "unknown" must never read as "fine".
+const EXPIRY_ENV = 'SNAPCRAFT_STORE_CREDENTIALS_EXPIRES';
+const EXPIRY_FLOOR_DAYS = 30;
+if (credentialPresent) {
+  const raw = (process.env[EXPIRY_ENV] ?? '').trim();
+  const parsed = raw === '' ? null : new Date(raw);
+  if (raw === '') {
+    problems.push(
+      `${CREDENTIAL_ENV} is present and ${EXPIRY_ENV} is ABSENT, so nothing in this run knows when the credential dies. ` +
+        `${PRIMARY_SOURCES.exportLogin} issues an exported login with an expiry and this repository does not parse the blob (the format is documented nowhere fetched, the same reason \`snapcraft whoami\` is not parsed either). ` +
+        `Record the date you passed to --expires. owner step: ${EXPORT_LOGIN_STEP}`,
+    );
+  } else if (parsed === null || Number.isNaN(parsed.getTime())) {
+    problems.push(
+      `${EXPIRY_ENV} is ${JSON.stringify(raw)}, which is not a date this run can read. ` +
+        `${PRIMARY_SOURCES.exportLogin} calls for ISO 8601, e.g. 2027-03-01T00:00:00Z. An unreadable expiry is not a long one. owner step: ${EXPORT_LOGIN_STEP}`,
+    );
+  } else {
+    const days = Math.floor((parsed.getTime() - Date.now()) / 86400000);
+    if (days < EXPIRY_FLOOR_DAYS) {
+      problems.push(
+        `the Snap Store credential expires in ${days} day(s) (${parsed.toISOString()}) and the floor is ${EXPIRY_FLOOR_DAYS}. ` +
+          'A credential that lapses mid-release fails at the one moment a release is in flight, and a lane that ' +
+          'discovered it late would have nothing to say about why. Re-issue it now, while nothing is in flight. ' +
+          `owner step: ${EXPORT_LOGIN_STEP}`,
+      );
+    } else {
+      ok(`credential expiry — ${parsed.toISOString()}, ${days} day(s) away (floor ${EXPIRY_FLOOR_DAYS}); ${EXPIRY_ENV} declared`);
+    }
+  }
 }
 
 // ── 6. the channel this run would use ────────────────────────────────────────
