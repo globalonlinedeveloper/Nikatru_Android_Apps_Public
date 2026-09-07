@@ -1327,6 +1327,96 @@ let rcDuplicationClosed = false;
   }
 }
 
+// ── LIMB 7b · THE SWEEP — a THIRD transcription anywhere under services/ ────
+//
+// 🔴 LIMB 7 ABOVE ANSWERS "A SECOND UNGOVERNED COPY EXISTS" BY NAMING THAT ONE
+// COPY. `WEBHOOK_REL` is a hard-coded path, so a third Worker restating the same
+// RevenueCat vocabulary — the exact failure the limb was built for — is
+// invisible to it and the guard prints ok beside it. Measured by the reviewer:
+// with `services/probe-api/src/routes/webhooks.ts` carrying ACTIVE_TYPES /
+// INACTIVE_TYPES / GRACE_TYPES and an event named in neither the contract nor
+// the declaration, this file exited 0.
+//
+// ✅ THE REUSABLE SHAPE IS ALREADY IN THIS FILE, 900 LINES ABOVE: limb 5's
+// `WRITER_SCAN` + `REQUIRED_UPSERT_WRITERS` —
+// DERIVED-SET-PLUS-REQUIRED-MEMBERS. The sweep finds transcriptions wherever
+// they are; `WEBHOOK_REL` stays the required member so the sweep cannot find
+// NONE and print ok. `WRITER_SCAN.label` is the sentence that condemns the
+// hard-coded version: "the rail that does NOT own it is the one that got
+// missed."
+//
+// A file counts as a TRANSCRIPTION when, with comments stripped, it either
+// declares one of the three set names or names RC_SHAPE_FLOOR or more distinct
+// RevenueCat event names in string literals. Importing
+// `contracts/entitlement/contract.js` clears it — that is the intended fix
+// (limb 7's "satisfied by DELETION, not by editing it"), and it is the only
+// thing that clears it. There is deliberately NO exemption list: a list here
+// would be the very defect this sweep replaces.
+const RC_SHAPE_FLOOR = 3;
+const RC_VOCABULARY = new Set([
+  ...rcAuthored.keys(),
+  ...DECLARED_WORKER_ONLY,
+  ...DECLARED_CONTRACT_ONLY,
+]);
+const declaresRcSet = (src, name) =>
+  new RegExp(String.raw`\b(?:const|let|var)\s+` + name + String.raw`\b`).test(src);
+const relOfAbs = (abs) =>
+  abs.slice(ROOT.length).split(String.fromCharCode(92)).join(String.fromCharCode(47)).replace(/^[/]+/, '');
+const rcTranscribers = [];
+let rcSwept = 0;
+{
+  if (!existsSync(scanRoot)) {
+    fail(
+      `COVERAGE LOST — ${WRITER_SCAN.dir}/ does not exist (${WRITER_SCAN.label}), so limb 7's sweep read ` +
+        'no Worker at all and a third transcription of the RevenueCat vocabulary could not be found ' +
+        'anywhere. A parity check over zero runtimes is unanimous.',
+    );
+  } else if (RC_VOCABULARY.size === 0) {
+    fail(
+      "COVERAGE LOST — limb 7's sweep had an EMPTY RevenueCat vocabulary to match against, so every " +
+        'file under services/ looked innocent. An empty needle finds nothing in any haystack.',
+    );
+  } else {
+    const rcSources = tsSourcesUnder(scanRoot);
+    rcSwept = rcSources.length;
+    for (const abs of rcSources) {
+      const rel = relOfAbs(abs);
+      const src = stripSourceComments(readFileSync(abs, 'utf8'), '.ts');
+      const declared = WORKER_SET_NAMES.filter((n) => declaresRcSet(src, n));
+      const named = new Set();
+      for (const m of src.matchAll(/['"`]([A-Z][A-Z0-9_]{3,})['"`]/g)) {
+        if (RC_VOCABULARY.has(m[1])) named.add(m[1]);
+      }
+      if (declared.length === 0 && named.size < RC_SHAPE_FLOOR) continue;
+      const importsContract = /contracts\/entitlement\/contract\.js/.test(src);
+      rcTranscribers.push({ rel, declared, events: named.size, importsContract });
+      if (importsContract || rel === WEBHOOK_REL) continue;
+      fail(
+        `${rel} restates the RevenueCat vocabulary — ` +
+          (declared.length > 0
+            ? `it declares ${declared.join(' / ')}`
+            : `it names ${named.size} RevenueCat event(s) (${[...named].sort().join(', ')})`) +
+          ` — and it does NOT import ${CONTRACT_JS_REL}. Limb 7 holds the divergence between the authored ` +
+          `table and ${WEBHOOK_REL} to a declared list; a SECOND runtime with its own copy is a third ` +
+          'author of the same money decision, and the three drift apart one commit at a time with nothing ' +
+          `comparing them. Import ${CONTRACT_JS_REL} and delete the literal sets — that is the fix limb 7 ` +
+          'is shaped to be satisfied by. Adding this file to a list here would only reproduce the defect ' +
+          'the sweep exists to end.',
+      );
+    }
+    // REQUIRED MEMBER — the same guard limb 5 puts on its own sweep. Without it,
+    // a sweep that matched nothing (a renamed route, a changed literal style) is
+    // indistinguishable from a tree with no duplication left in it.
+    if (!rcDuplicationClosed && !rcTranscribers.some((t) => t.rel === WEBHOOK_REL)) {
+      fail(
+        `COVERAGE LOST — limb 7's sweep over ${WRITER_SCAN.dir}/ did not recognise ${WEBHOOK_REL} as a ` +
+          'RevenueCat transcription, and that file does not import the contract either. Either the sweep ' +
+          'stopped reaching it or its shape changed; both read identically to a clean tree, and this limb ' +
+          'would be printing ok over an unread runtime.',
+      );
+    }
+  }
+}
 // ── report ───────────────────────────────────────────────────────────────────
 if (problems.length) {
   console.error(`✗ entitlement contract — ${problems.length} problem(s):`);
@@ -1359,5 +1449,8 @@ console.log(
         'is retired'
       : `${WEBHOOK_REL} restates ${rcWorkerEvents} event name(s) and its divergence from the authored ` +
         `table is exactly the declared ${DECLARED_WORKER_ONLY.length} worker-only + ` +
-        `${DECLARED_CONTRACT_ONLY.length} contract-only name(s)`),
+        `${DECLARED_CONTRACT_ONLY.length} contract-only name(s)`) +
+    `; limb 7's sweep read ${rcSwept} .ts source(s) under ${WRITER_SCAN.dir}/ and found ${rcTranscribers.length} ` +
+    'transcription(s) of that vocabulary, each of which either IS the declared runtime above or imports ' +
+    'the contract instead of restating it',
 );
