@@ -66,12 +66,16 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ CORRECTED 2026-09-07 (unit `symbols-everywhere`) — this comment used to
+      # end "Retained rather than sent to the crash sink because
+      # tooling/versions.json pins ONE glitchtip-cli binary and it is
+      # linux-x86_64; this job runs on macOS." The macOS binary of the same
+      # release is now pinned by digest as `glitchtip_cli_macos_arm64_sha256`,
+      # and the sink upload is two steps below.
       # why: both builds above are obfuscated, so their crash reports are
       # unreadable without these directories, and a rebuild produces DIFFERENT
-      # ones. Retained rather than sent to the crash sink because
-      # tooling/versions.json pins ONE glitchtip-cli binary and it is
-      # linux-x86_64; this job runs on macOS. docs/ci/build-platforms.md
-      # §obfuscation carries that residue.
+      # ones. The artifact stays, and stays FIRST: it is what survives the sink
+      # losing them.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symbols-subly-appstore
@@ -80,6 +84,43 @@ jobs:
             apps/subly/build/symbols/macos
           retention-days: 90
           if-no-files-found: error
+      # why: `shasum -a 256`, not `sha256sum` — macOS does not ship coreutils'
+      # `sha256sum`. Byte-identical otherwise to build-platforms.yml's apple
+      # lane, and reading both halves of the pin from tooling/versions.json at
+      # run time so a bump cannot advance one without the other.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').glitchtip_cli")"
+          sum="$(node -p "require('./tooling/versions.json').glitchtip_cli_macos_arm64_sha256")"
+          url="https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v${ver}/raw/artifacts/glitchtip-cli-macos-arm64?job=build-macos-arm64"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --output "${RUNNER_TEMP}/glitchtip-cli" "$url"
+          printf '%s  %s\n' "$sum" "${RUNNER_TEMP}/glitchtip-cli" | shasum -a 256 --check --strict -
+          chmod +x "${RUNNER_TEMP}/glitchtip-cli"
+          got="$("${RUNNER_TEMP}/glitchtip-cli" --version)"
+          if [ "$got" != "glitchtip-cli ${ver}" ]; then
+            echo "::error title=glitchtip-cli::the pinned binary reports \"${got}\", not \"glitchtip-cli ${ver}\""
+            exit 1
+          fi
+          echo "$got"
+      # why: TWO directories, one per build — iOS and macOS are two AOT
+      # compilations and nothing guarantees they share a mapping. FAILS CLOSED on
+      # a missing GLITCHTIP_TOKEN, never skips. Placed AFTER the retention step
+      # above and BEFORE the two App Store dry runs below, so neither a GlitchTip
+      # outage nor an App Store Connect failure can take the mapping with it.
+      - name: Upload the native debug symbols to GlitchTip
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: |
+          set -euo pipefail
+          for lane in ios macos; do
+            node tooling/ops/upload-native-symbols.mjs \
+              --cli "${RUNNER_TEMP}/glitchtip-cli" \
+              --dir "apps/subly/build/symbols/${lane}" \
+              --org nikatru --project subly
+          done
       - name: Dry-run the App Store submission (iOS)
         env:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

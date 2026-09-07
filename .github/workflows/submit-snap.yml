@@ -76,6 +76,63 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED 2026-09-07 (unit `symbols-everywhere`) — THIS STEP USED TO BE THE
+      # LAST ONE IN THE JOB, behind `snapcraft pack` and the Snap Store dry run.
+      # That is the ordering post-audit-obfuscation-and-symbols.md §9.3
+      # reproduced on a real runner: in dispatch 34093704881 a build succeeded
+      # WITH the flags, a later step failed, and the symbols artifact was
+      # `skipped` — the mapping was written and destroyed with the runner. A snap
+      # pack is a long step with a lot of ways to fail, so this job had the most
+      # to lose from that order. It now sits immediately after the build.
+      # why: the snap below is built from an OBFUSCATED bundle, so its crash
+      # reports are unreadable without this directory and a rebuild produces a
+      # DIFFERENT one. 7 days matches the dry-run snap beside it — this lane
+      # ships nothing, and the sink upload below is now the copy that lasts.
+      # tooling/ci/assert-obfuscation-coupled.mjs refuses the build without it.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-linux-snap-dry-run
+          path: apps/subly/build/symbols/linux
+          retention-days: 7
+          if-no-files-found: error
+      # why: pinned by version AND by digest, byte-identical to the step
+      # build-platforms.yml's linux lane runs. Both halves live in
+      # tooling/versions.json. The release asset is a GitLab JOB ARTIFACT, which
+      # is a re-runnable address rather than an immutable object — so the version
+      # alone is a label, and the digest is what makes it an address. This job
+      # runs on ubuntu-24.04, which is the runner the pinned linux-x86_64 binary
+      # was always for: NOTHING new had to be pinned to wire this lane, and the
+      # "one glitchtip-cli and it is linux-x86_64" sentence never excused it.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').glitchtip_cli")"
+          sum="$(node -p "require('./tooling/versions.json').glitchtip_cli_sha256")"
+          url="https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v${ver}/raw/artifacts/glitchtip-cli-linux-x86_64?job=build-linux-x86_64"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --output "${RUNNER_TEMP}/glitchtip-cli" "$url"
+          printf '%s  %s\n' "$sum" "${RUNNER_TEMP}/glitchtip-cli" | sha256sum --check --strict -
+          chmod +x "${RUNNER_TEMP}/glitchtip-cli"
+          got="$("${RUNNER_TEMP}/glitchtip-cli" --version)"
+          if [ "$got" != "glitchtip-cli ${ver}" ]; then
+            echo "::error title=glitchtip-cli::the pinned binary reports \"${got}\", not \"glitchtip-cli ${ver}\""
+            exit 1
+          fi
+          echo "$got"
+      # why: FAILS CLOSED on a missing GLITCHTIP_TOKEN, never skips — the wrapper
+      # exits 1 naming the secret, because a symbol upload that quietly skips
+      # itself is how a release ships unreadable. Placed AFTER the retention step
+      # above and BEFORE `snapcraft pack` and the store dry run below, so neither
+      # a GlitchTip outage nor a pack failure can take the mapping with it.
+      - name: Upload the native debug symbols to GlitchTip
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: >
+          node tooling/ops/upload-native-symbols.mjs
+          --cli "${RUNNER_TEMP}/glitchtip-cli"
+          --dir apps/subly/build/symbols/linux
+          --org nikatru --project subly
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
@@ -125,17 +182,6 @@ jobs:
         with:
           name: subly-linux-snap
           path: apps/subly/build/linux/snap/subly.snap
-          retention-days: 7
-          if-no-files-found: error
-      # why: the snap above is built from an OBFUSCATED bundle, so its crash
-      # reports are unreadable without this directory and a rebuild produces a
-      # DIFFERENT one. 7 days matches the dry-run snap beside it — this lane
-      # ships nothing. tooling/ci/assert-obfuscation-coupled.mjs refuses the
-      # build without it.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: symbols-subly-linux-snap-dry-run
-          path: apps/subly/build/symbols/linux
           retention-days: 7
           if-no-files-found: error
 
@@ -210,6 +256,62 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
+      # ⏱ MOVED 2026-09-07 (unit `symbols-everywhere`) — this step used to sit
+      # after `snapcraft pack`, which was already "BEFORE the upload, not after"
+      # and is now earlier still: a pack failure is a step failure like any
+      # other, and GitHub skips the rest of a failed job, so a mapping kept only
+      # after the pack is a mapping the pack can take with it. It now sits
+      # immediately after the build, ahead of every assertion and every network
+      # call in this job. Same lesson, same source:
+      # post-audit-obfuscation-and-symbols.md §9.3.
+      # why: this is the only copy of the mapping for a snap that is about to
+      # reach real users, and a rebuild produces a DIFFERENT one. 90 days, not
+      # 7: this snap ships.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: symbols-subly-linux-snap
+          path: apps/subly/build/symbols/linux
+          retention-days: 90
+          if-no-files-found: error
+      # why: pinned by version AND by digest, byte-identical to the step
+      # build-platforms.yml's linux lane runs. Both halves live in
+      # tooling/versions.json. The release asset is a GitLab JOB ARTIFACT, which
+      # is a re-runnable address rather than an immutable object — so the version
+      # alone is a label, and the digest is what makes it an address. This job
+      # runs on ubuntu-24.04, so the already-pinned linux-x86_64 binary is the
+      # right one and nothing new had to be pinned to wire this lane.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').glitchtip_cli")"
+          sum="$(node -p "require('./tooling/versions.json').glitchtip_cli_sha256")"
+          url="https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v${ver}/raw/artifacts/glitchtip-cli-linux-x86_64?job=build-linux-x86_64"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --output "${RUNNER_TEMP}/glitchtip-cli" "$url"
+          printf '%s  %s\n' "$sum" "${RUNNER_TEMP}/glitchtip-cli" | sha256sum --check --strict -
+          chmod +x "${RUNNER_TEMP}/glitchtip-cli"
+          got="$("${RUNNER_TEMP}/glitchtip-cli" --version)"
+          if [ "$got" != "glitchtip-cli ${ver}" ]; then
+            echo "::error title=glitchtip-cli::the pinned binary reports \"${got}\", not \"glitchtip-cli ${ver}\""
+            exit 1
+          fi
+          echo "$got"
+      # why: BEFORE the store upload, for the same reason the artifact above is.
+      # This snap reaches real users, so its mapping is the one that will
+      # actually be needed. The 90-day artifact above is already written when
+      # this runs, so a GlitchTip outage costs the sink copy and nothing else —
+      # and it FAILS THE JOB rather than skipping, deliberately: a release that
+      # goes to the Snap Store with no readable symbols is the state this unit
+      # exists to stop. The wrapper names GLITCHTIP_TOKEN when it is absent.
+      - name: Upload the native debug symbols to GlitchTip
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: >
+          node tooling/ops/upload-native-symbols.mjs
+          --cli "${RUNNER_TEMP}/glitchtip-cli"
+          --dir apps/subly/build/symbols/linux
+          --org nikatru --project subly
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
@@ -246,17 +348,6 @@ jobs:
           sudo mv "$built" "$collected"
           sudo chown "$(id -u):$(id -g)" "$collected"
           ls -l "$collected"
-      # why: BEFORE the upload, not after. This is the only copy of the mapping
-      # for a snap that is about to reach real users, and a step placed after a
-      # store upload does not run when that upload fails — which is exactly when
-      # the build still exists and the symbols still can be kept. 90 days, not
-      # 7: this snap ships.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: symbols-subly-linux-snap
-          path: apps/subly/build/symbols/linux
-          retention-days: 90
-          if-no-files-found: error
       - name: Upload to the Snap Store
         id: upload
         env:
