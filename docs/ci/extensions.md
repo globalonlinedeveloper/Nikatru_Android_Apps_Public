@@ -1841,7 +1841,8 @@ restating it, and answers one of three ways:
 
 ### `cws-token-keepalive`
 
-A new job on the existing Monday `schedule` (`17 4 * * 1`), `timeout-minutes: 10`.
+A new job on the existing `schedule` (`53 20 * * *`, DAILY since #519 — it was the Monday-only
+`17 4 * * 1` when this job was written), `timeout-minutes: 10`.
 It runs the same refresh-token exchange the publish runs — imported from
 `publish-cws-token.mjs`, never restated, because a keep-alive that refreshes
 something adjacent keeps the wrong thing alive. Armed row and a failed exchange

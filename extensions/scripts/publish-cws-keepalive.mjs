@@ -9,7 +9,7 @@
 // factory needs on release day is exactly the token nothing touches between
 // releases. Nothing in the tree would say so until the first tag push, at which
 // point the store call fails with `invalid_grant` on the one path that ships
-// bytes. A weekly exchange turns a release-day surprise into a Monday alarm.
+// bytes. A scheduled exchange turns a release-day surprise into a next-morning alarm.
 //
 // ── WHAT IT DOES AND DOES NOT FAIL ON ────────────────────────────────────────
 // It runs the SAME exchange the publish runs (`publish-cws-token.mjs`, imported,
@@ -57,7 +57,7 @@ async function main() {
 
   if (result.verdict === 'refuse') {
     // Armed with a missing credential: the release lane cannot publish, and the
-    // whole point of a keep-alive is to say so on a Monday rather than on a tag.
+    // whole point of a keep-alive is to say so on a scheduled run rather than on a tag.
     process.exitCode = 1;
     return;
   }

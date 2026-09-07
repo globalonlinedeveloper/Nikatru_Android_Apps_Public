@@ -187,7 +187,7 @@ it is a lane that cannot run until the credential is created.
 | `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` | `submit-snap.yml` | the Snap lane refuses a credential whose expiry it cannot read — the date passed to `snapcraft export-login --expires`, recorded because the exported blob's format is documented nowhere |
 | `AMO_JWT_ISSUER` | `extensions.yml` | the Firefox (AMO) submission — the ONE store whose API can make a first submission |
 | `AMO_JWT_SECRET` | `extensions.yml` | as above |
-| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the Monday `cws-token-keepalive` job |
+| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the daily `cws-token-keepalive` job |
 | `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
 | `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
 | `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |

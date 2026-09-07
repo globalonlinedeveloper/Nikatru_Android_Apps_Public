@@ -2181,7 +2181,7 @@ jobs:
 
   # why: a Google OAuth refresh token that goes unused is revoked, and nothing in this
   # repository would say so until the first tag push -- on the one path that ships bytes.
-  # A weekly exchange turns a release-day surprise into a Monday alarm. It rides the
+  # A scheduled exchange turns a release-day surprise into a next-morning alarm. It rides the
   # schedule that already exists rather than adding a second cron slot to the file.
   cws-token-keepalive:
     name: The Chrome Web Store refresh token is still alive
@@ -2307,14 +2307,16 @@ jobs:
           }
 
           # The keep-alive is NOT a lane and is deliberately graded separately: it is a weekly
-          # credential exercise that rides the Monday schedule the e2e lane already uses, so it
+          # credential exercise that rides the DAILY schedule the e2e lane already uses (it was a
+          # Monday-only cron until #519 widened it — ci-19: give the EVIDENCE the margin, not the
+          # duty; GitHub drops most scheduled slots and a weekly one gives a 252h window one chance), so it
           # is selected by the EVENT and not by `want`. Folding it into `expect` would have made
           # it look like a fourth lane and forced a fourth arm into the derivation above, which
           # is how a lane guard ends up too wide.
           case "$EVENT:$KEEPALIVE" in
             schedule:success) ;;
             schedule:*)
-              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on the Monday schedule. That job is the only thing in this repository that touches the Chrome Web Store refresh token between releases; a skipped or failed run means the credential is unexercised and its death stays invisible until a tag push."
+              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on the daily schedule. That job is the only thing in this repository that touches the Chrome Web Store refresh token between releases; a skipped or failed run means the credential is unexercised and its death stays invisible until a tag push."
               fail=1 ;;
             *:skipped) ;;
             *)
