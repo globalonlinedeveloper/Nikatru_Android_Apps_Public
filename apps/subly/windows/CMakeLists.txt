@@ -32,6 +32,35 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# --- The MSVC STL turned a deprecation into a hard error, and one plugin is caught ---
+#
+# MSVC 14.51 (Visual Studio 18, on the windows-2025-vs2026 runner image this repo
+# already builds on) makes <experimental/coroutine> a compile ERROR rather than a
+# warning:
+#
+#   .../MSVC/14.51.36231/include/experimental/coroutine(37,1): error C2338:
+#   static assertion failed: 'error STL1011: The /await compiler option,
+#   <experimental/coroutine>, ... are deprecated ... You can define
+#   _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS to suppress this error for now.'
+#
+# The header is included by flutter_inappwebview_windows 0.6.0, which arrives
+# transitively under `cloudflare_turnstile` (apps/subly/pubspec.yaml). That package was
+# declared and sworn by the Turnstile cutover, so it does not get removed to make a
+# build green -- and there is no newer stable to move to: 0.6.0 is the newest release on
+# pub.dev (measured 2026-09-07; the only thing after it is 0.7.0-beta.3).
+#
+# This is the escape hatch the STL's own error message names. It is set at DIRECTORY
+# scope, before `flutter/generated_plugins.cmake` adds the plugin subdirectories below,
+# because the offending translation units belong to a target this repository does not
+# write. `APPLY_STANDARD_SETTINGS` cannot carry it: plugins are free not to call it, and
+# flutter_inappwebview_windows does not.
+#
+# IT IS A DATED WAIVER, NOT A PREFERENCE: delete it the day flutter_inappwebview_windows
+# ships a release built on <coroutine> instead of <experimental/coroutine>. When MSVC
+# finally REMOVES the header the define stops helping and this build fails loudly, which
+# is the outcome we want.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
