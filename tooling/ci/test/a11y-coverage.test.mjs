@@ -352,8 +352,15 @@ describe('the guard says YES on the tree as it is', () => {
     // 50 → 57 on 2026-09-06: [ADR 071] added the seven chassis auth views as a
     // fourth root. The brick's twelve are unchanged — an adapter is still a
     // routed surface — so the seven are additions, not a re-count.
-    assert.match(out, /62 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
-    assert.match(out, /43 unswept and PRINTED/);
+    // 62 → 67 on 2026-09-07 ([ADR 067] phase 2, unit app-shell): NikatruApp,
+    // ConsentScrim, ConsentPromptCard, OfflineBannerHost and AppLifecycleFlush
+    // joined `packages/chassis_screens` when the app shell left the brick. The
+    // brick's twelve are unchanged for the same reason as above, so these are
+    // five additions and not a re-count — and the SWEPT half is deliberately
+    // still 19, because none of the five carries a sweep. Read off the guard's
+    // own closing line.
+    assert.match(out, /67 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
+    assert.match(out, /48 unswept and PRINTED/);
     // The per-family tally for subly, pinned. It read `tap-target ×0` from the
     // day this guard was written until 2026-08-13, and a family that has never
     // been non-zero is a limb nothing has exercised — so the number that proves
@@ -442,7 +449,13 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     assert.equal(code, 0, out);
     assert.match(out, /4 root\(s\) DERIVED/);
     assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
-    assert.match(out, /packages\/chassis_screens: 0 of 12 reachable surface\(s\) carry an a11y sweep/);
+    // 17 since 2026-09-07 ([ADR 067] phase 2, unit app-shell): NikatruApp,
+    // ConsentScrim, ConsentPromptCard, OfflineBannerHost and AppLifecycleFlush
+    // joined this root when the app shell left the brick. The ZERO is the half
+    // that matters and it is unchanged - none of the seventeen carries an a11y
+    // sweep yet, and this root is in report mode for that. Read off the guard's
+    // own per-root line, never incremented blind.
+    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\) carry an a11y sweep/);
     // Each root gets its own accounting line. A root that is derived but whose
     // surfaces never reach the report is a root this guard cannot see.
     assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
