@@ -46,6 +46,17 @@
 // keys. What must never happen is the gap becoming INVISIBLE, so the count is
 // on stdout every single run, gap or no gap.
 //
+// ⏱ 2026-09-07 — THE SENTENCE ABOVE IS APPENDED TO, NOT REWRITTEN, AND HALF OF
+// IT IS WRONG. "work only the owner can do" is the claim
+// tooling/monitor-register.json's own `🔴 whyItStayedOpen` records as WRONG:
+// creating a monitor takes the vault GLITCHTIP_TOKEN and one POST, an agent has
+// now done it four times (ids 11, 12, 31, 32), and believing otherwise parked
+// the tree's highest-consequence unwatched host for three days. What survives is
+// the OTHER half, which is the real reason this prints: a guard that reddens
+// every branch over the state of a third-party instance gets disabled, and a
+// disabled guard checks nothing. The printed line below was corrected on the
+// same day for the same reason — see the note at the print itself.
+//
 // ⚠️ NO THRESHOLD IS CHECKED AND NONE IS INVENTED. "How many consecutive
 // failures should page, and how fast" has no derivable answer in this tree, so
 // this guard asserts nothing about it. The register records each monitor's
@@ -78,7 +89,29 @@ const CATALOGUE = 'catalog/apps.json';
  *  of a smaller world and still prints ok, which is this repository's single
  *  most repeated failure. `declared` is not here — it is the escape hatch for
  *  the one hostname no deploy config can name, and it is bounded by the
- *  observability check below rather than by a count. */
+ *  observability check below rather than by a count.
+ *
+ *  ⏱ 2026-09-07 — THE TWO SENTENCES ABOVE ARE APPENDED TO, NOT REWRITTEN,
+ *  AND BOTH ARE NOW WRONG ABOUT THE HATCH. It is not "the one hostname no
+ *  deploy config can name": measured today, tooling/monitor-register.json
+ *  carries FIVE rows with `derivedFrom: "declared"` — glitchtip, ntfy, vault,
+ *  beszel and logs; the observability host plus the four Box B services,
+ *  none of which any wrangler config, catalogue row or canonical link can
+ *  name. And the hatch was never "bounded by the observability check below":
+ *  limb 3 caps rows carrying `role: "observability"` at ONE, which is a
+ *  DIFFERENT set — four of the five declared rows carry no role at all and
+ *  limb 3 never sees them.
+ *
+ *  THE REAL BOUND, and it is per row rather than a count. (a) Limb 2 is only
+ *  REACHED for a hostname the derivation does not already yield — the first
+ *  line of its body is `if (derived.has(h)) continue;` — so `declared` cannot
+ *  excuse a DEPLOYED host by construction, no matter how many rows carry it.
+ *  (b) For every row it does reach, the hatch demands BOTH
+ *  `derivedFrom: "declared"` AND a `why` that is a non-empty string; delete
+ *  or blank either field on any one of the five and this guard exits 1.
+ *  A count would be weaker than that: five honest rows are fine and one
+ *  unexplained row is not, which is exactly what (b) grades and what no
+ *  number could. */
 const DERIVED_SOURCES = ['workerCustomDomains', 'appCatalogue', 'siteCanonicals'];
 
 let failed = false;
@@ -308,7 +341,17 @@ for (const [h, row] of [...byHost.entries()].sort()) {
 
 // ── the printed gap, on every run, pass or fail ─────────────────────────────
 if (gaps.length) {
-  console.log(`--   ${gaps.length} deployed hostname(s) with NO monitor — OWNER-GATED, printed not hidden:`);
+  // ⏱ 2026-09-07 — THIS LINE SAID "deployed hostname(s) … — OWNER-GATED" AND BOTH
+  // WORDS WERE FALSE. `declared` is the true set: limb 2 above admits a row for a
+  // hostname this repo does not deploy when it carries `derivedFrom: "declared"`
+  // and a `why`, and four such rows landed on 2026-09-07 for the Box B services
+  // (ntfy, vault — both with monitors — and beszel, logs — both behind Cloudflare
+  // Access, so each carries a stated gap instead). A gap printed here is
+  // therefore not necessarily a deployed host. "OWNER-GATED" went for the reason
+  // in the header note above. THE LIMB IS UNCHANGED: this is the wording of a
+  // print, not a check, and both halves the suite pins — that the gap is named on
+  // stdout and that the guard still exits 0 — are asserted exactly as before.
+  console.log(`--   ${gaps.length} declared hostname(s) with NO monitor — printed not hidden:`);
   for (const g of gaps) console.log(`       ${g}`);
   console.log('     Creating a monitor is an action on the GlitchTip instance, not a change to this repo, so');
   console.log('     this prints rather than failing the build. It stops being printed when it stops being true.');

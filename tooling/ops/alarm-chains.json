@@ -103,7 +103,24 @@
     "`expectedMonitors` row, and have no duty row in tooling/ops/register.json either — so eighteen of",
     "twenty are declared. They were not created by this change and adding an id whose duty nobody has",
     "written would put this file ahead of the register it is supposed to agree with. It belongs to",
-    "whoever created them, and it is named so the next reader of 'complete as of' does not read a tick."
+    "whoever created them, and it is named so the next reader of 'complete as of' does not read a tick.",
+    "",
+    "⏱ 2026-09-07, LATER THE SAME DAY — THE TWO COUNTS ABOVE MOVED. They are corrected HERE and the",
+    "sentences that carry them are left standing, because this file's own rule is that a frozen record",
+    "is superseded and never rewritten. `verify-alarm-chains` reads TWENTY live monitors and eighteen",
+    "of twenty are declared were both true when written this morning. RE-MEASURED THIS AFTERNOON:",
+    "`expectedMonitors` holds 20 rows (jq '.expectedMonitors | length' tooling/ops/alarm-chains.json)",
+    "and the live instance answers 22 monitors (GlitchTip list_monitors, org `nikatru`). IT IS TWENTY",
+    "OF TWENTY-TWO.",
+    "",
+    "THE SHORTFALL DID NOT GROW, which is the only part a reader should act on. Both numbers moved by",
+    "exactly the same two ids — 31 `ntfy.nikatru.com` and 32 `vault.nikatru.com` — created by the",
+    "pager-monitors unit (ADR 067) and declared in the SAME change, so they were never undeclared. The",
+    "two live ids still in no `expectedMonitors` row and no duty row are still 29 `Laptop routine: ops",
+    "check` and 30 `Laptop routine: CI watchdog`, exactly the two the paragraph above names, and they",
+    "still belong to whoever created them. This correction exists because the paragraph above asks for",
+    "it in its own closing words: the list is named so the next reader of 'complete as of' does not",
+    "read a tick, and a count that has gone stale reads as a tick."
   ],
   "expectedMonitors": [
     {
@@ -177,11 +194,47 @@
     {
       "id": 27,
       "name": "Supabase disk alert"
+    },
+    {
+      "id": 31,
+      "name": "ntfy.nikatru.com"
+    },
+    {
+      "id": 32,
+      "name": "vault.nikatru.com"
     }
   ],
   "chainsObserved": {
     "ops": {
-      "date": "2026-08-05",
+      "date": "2026-09-07",
+      "⏱ theDateMovedOn2026-09-07AndNOTHINGBELOWWASREWRITTEN": [
+        "`date` is what verify-alarm-chains.mjs prints as 'delivery observed', so it points at the MOST",
+        "RECENT observation. Every field below — `monitor`, `how`, `evidence`, and both 🔴 blocks — is the",
+        "2026-08-05 record kept VERBATIM, because a frozen record is superseded, never rewritten ([ADR 053]",
+        "rule 2). The newer observation is `⏱ reObserved2026-09-07` immediately below, and it is stronger",
+        "in the two ways that matter: it ran against a REAL monitor rather than a throwaway, and it",
+        "exercised the ntfy hop on a real Down transition rather than the mail hop alone."
+      ],
+      "⏱ reObserved2026-09-07": {
+        "monitor": "vault.nikatru.com — monitor id 32, a REAL monitor in project `ops`, not a throwaway",
+        "how": "A full-replace PUT moved the monitor's `url` to https://vault.nikatru.com/alive-forced-down-drill-2026-09-07 (404) at 06:36:33Z and the whole object was diffed before and after — `url` was the only field that moved, so `project`, `confirmationThreshold` and `expectedBody` all survived the replace (TRAPS ci-10). First failing check 06:36:34Z with `isUp` STILL TRUE, second 06:37:06Z → `isUp` false. The PUT was reversed at 06:38:13Z, again diffed: the only fields differing from the pre-drill object were `isUp` and `lastChange`, which are runtime state. Vaultwarden itself was never touched and nothing on Box B was stopped.",
+        "evidence": "Read out of the `nikatru-page` ntfy topic cache with the `nikatru` account, not inferred from a 200: message EBnLsn48JilI at 06:37:09Z — title 'GlitchTip Uptime Alert', body 'vault.nikatru.com: The monitored site has gone down.' — THREE SECONDS after the transition; and message aC69SJL3P7TC at 06:38:17Z, '…is back up.', three seconds after recovery. Monitor 31 (ntfy.nikatru.com) produced its own 'back up' page at 06:34:53Z on creation, from the same rule.",
+        "🔴 whatItDoesNOTProve": "Nothing here narrows [pipeline E-9b]. The monitor, the alert evaluation, the webhook hop and ntfy itself are all on Box B. This drill proves the chain works while the box is alive, which is the failure that actually happens to a container — not the failure `_notObservable` names.",
+        "📌 twoStaleClaimsInTHISFILE, correctedByMeasurementRatherThanEdited": [
+          "The 2026-08-05 block below says '⚠️ THE MESSAGE BODY IS RAW WEBHOOK JSON … it is not a defect, it",
+          "is the only shape that recipient type emits.' THAT IS NO LONGER WHAT LANDS. The webhook URL now",
+          "carries ntfy's own templating (`?tpl=yes` with `title` and `message` Go templates), so the two",
+          "messages quoted above arrive with a real title line and a one-sentence body. The old paragraph is",
+          "left standing because it was true when written and because its warning — that somebody will want",
+          "to 'fix' the shape — is what led to the fix.",
+          "",
+          "And the RECIPIENT IDS MOVED. The block below records webhook recipient id 3 on rule 2 and id 4 on",
+          "rule 1; measured 2026-09-07 they are id 6 and id 5. The webhook recipients were REPLACED when the",
+          "templated URL landed — which is expected for a URL change — while the EMAIL recipients kept their",
+          "original primary keys, id 2 on rule 2 and id 1 on rule 1, exactly as the block below predicts a",
+          "non-destructive PUT should. The email leg is the one that has to survive, and it did."
+        ]
+      },
       "monitor": "Laptop daily backup",
       "how": "Shrank the heartbeat window to 60s so the production fetch() saw no heartbeat inside it, then enqueued the production perform_checks task — the same task dispatch_checks enqueues. Real Down transition 08:56:20Z, real recovery 08:57:01Z after a real POST to the heartbeat endpoint. Interval restored to 43200s; endpoint_id never changed, so the laptop's heartbeat URL still works.",
       "evidence": "Two Resend delivery records to support@nikatru.com, both status=delivered: 4133761a-4c83-48eb-88e0-7af79aa2e8cc ('GlitchTip: Laptop daily backup is down', 08:56:23Z) and d87ac960-78df-4dce-b56a-f9c44efd6df8 ('… is back up', 08:57:03Z)",
