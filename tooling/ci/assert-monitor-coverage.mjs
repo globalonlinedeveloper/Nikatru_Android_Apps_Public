@@ -89,7 +89,29 @@ const CATALOGUE = 'catalog/apps.json';
  *  of a smaller world and still prints ok, which is this repository's single
  *  most repeated failure. `declared` is not here — it is the escape hatch for
  *  the one hostname no deploy config can name, and it is bounded by the
- *  observability check below rather than by a count. */
+ *  observability check below rather than by a count.
+ *
+ *  ⏱ 2026-09-07 — THE TWO SENTENCES ABOVE ARE APPENDED TO, NOT REWRITTEN,
+ *  AND BOTH ARE NOW WRONG ABOUT THE HATCH. It is not "the one hostname no
+ *  deploy config can name": measured today, tooling/monitor-register.json
+ *  carries FIVE rows with `derivedFrom: "declared"` — glitchtip, ntfy, vault,
+ *  beszel and logs; the observability host plus the four Box B services,
+ *  none of which any wrangler config, catalogue row or canonical link can
+ *  name. And the hatch was never "bounded by the observability check below":
+ *  limb 3 caps rows carrying `role: "observability"` at ONE, which is a
+ *  DIFFERENT set — four of the five declared rows carry no role at all and
+ *  limb 3 never sees them.
+ *
+ *  THE REAL BOUND, and it is per row rather than a count. (a) Limb 2 is only
+ *  REACHED for a hostname the derivation does not already yield — the first
+ *  line of its body is `if (derived.has(h)) continue;` — so `declared` cannot
+ *  excuse a DEPLOYED host by construction, no matter how many rows carry it.
+ *  (b) For every row it does reach, the hatch demands BOTH
+ *  `derivedFrom: "declared"` AND a `why` that is a non-empty string; delete
+ *  or blank either field on any one of the five and this guard exits 1.
+ *  A count would be weaker than that: five honest rows are fine and one
+ *  unexplained row is not, which is exactly what (b) grades and what no
+ *  number could. */
 const DERIVED_SOURCES = ['workerCustomDomains', 'appCatalogue', 'siteCanonicals'];
 
 let failed = false;

@@ -103,7 +103,24 @@
     "`expectedMonitors` row, and have no duty row in tooling/ops/register.json either — so eighteen of",
     "twenty are declared. They were not created by this change and adding an id whose duty nobody has",
     "written would put this file ahead of the register it is supposed to agree with. It belongs to",
-    "whoever created them, and it is named so the next reader of 'complete as of' does not read a tick."
+    "whoever created them, and it is named so the next reader of 'complete as of' does not read a tick.",
+    "",
+    "⏱ 2026-09-07, LATER THE SAME DAY — THE TWO COUNTS ABOVE MOVED. They are corrected HERE and the",
+    "sentences that carry them are left standing, because this file's own rule is that a frozen record",
+    "is superseded and never rewritten. `verify-alarm-chains` reads TWENTY live monitors and eighteen",
+    "of twenty are declared were both true when written this morning. RE-MEASURED THIS AFTERNOON:",
+    "`expectedMonitors` holds 20 rows (jq '.expectedMonitors | length' tooling/ops/alarm-chains.json)",
+    "and the live instance answers 22 monitors (GlitchTip list_monitors, org `nikatru`). IT IS TWENTY",
+    "OF TWENTY-TWO.",
+    "",
+    "THE SHORTFALL DID NOT GROW, which is the only part a reader should act on. Both numbers moved by",
+    "exactly the same two ids — 31 `ntfy.nikatru.com` and 32 `vault.nikatru.com` — created by the",
+    "pager-monitors unit (ADR 067) and declared in the SAME change, so they were never undeclared. The",
+    "two live ids still in no `expectedMonitors` row and no duty row are still 29 `Laptop routine: ops",
+    "check` and 30 `Laptop routine: CI watchdog`, exactly the two the paragraph above names, and they",
+    "still belong to whoever created them. This correction exists because the paragraph above asks for",
+    "it in its own closing words: the list is named so the next reader of 'complete as of' does not",
+    "read a tick, and a count that has gone stale reads as a tick."
   ],
   "expectedMonitors": [
     {
