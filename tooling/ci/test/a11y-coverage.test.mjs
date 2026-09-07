@@ -330,7 +330,7 @@ function sweepTheNewSheet(root) {
 // POSITIVE CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the guard says YES on the tree as it is', () => {
-  test('the REAL repository — 4 derived roots, 62 surfaces, 19 swept, exit 0', () => {
+  test('the REAL repository — 4 derived roots, 67 surfaces, 36 swept, exit 0', () => {
     const { code, out } = run(REPO);
     assert.equal(code, 0, out);
     // 🔴 THE ROOT LINE IS PINNED BECAUSE THE ROOT LINE IS THE FIX. Until
@@ -359,8 +359,16 @@ describe('the guard says YES on the tree as it is', () => {
     // five additions and not a re-count — and the SWEPT half is deliberately
     // still 19, because none of the five carries a sweep. Read off the guard's
     // own closing line.
-    assert.match(out, /67 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
-    assert.match(out, /48 unswept and PRINTED/);
+    // 🔴 THE SWEPT HALF MOVED 19 → 36 ON 2026-09-07 ([ADR 067] post-audit, unit
+    // chassis-screens-a11y) AND THE REACHABLE HALF DID NOT. All seventeen
+    // `packages/chassis_screens` surfaces now carry a sweep, from three
+    // `a11y_*_test.dart` files across 51 cases (110 + 51 = 161), so `unswept`
+    // falls 48 → 21 and `swept where they delegate to` rises 0 → 10: the ten
+    // brick adapters are judged in the chassis and the guard now says so. Read
+    // off the guard's own closing line, never arithmetic on this comment.
+    assert.match(out, /67 reachable surface\(s\); 36 swept by 4 a11y test file\(s\) across 161 case\(s\)/);
+    assert.match(out, /10 swept where they delegate to/);
+    assert.match(out, /21 unswept and PRINTED/);
     // The per-family tally for subly, pinned. It read `tap-target ×0` from the
     // day this guard was written until 2026-08-13, and a family that has never
     // been non-zero is a limb nothing has exercised — so the number that proves
@@ -455,7 +463,19 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     // that matters and it is unchanged - none of the seventeen carries an a11y
     // sweep yet, and this root is in report mode for that. Read off the guard's
     // own per-root line, never incremented blind.
-    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\) carry an a11y sweep/);
+    // 🔴 `0 of 17` → `17 of 17` ON 2026-09-07 ([ADR 067] post-audit, unit
+    // chassis-screens-a11y). The ZERO the paragraph above calls "the half that
+    // matters" is DISCHARGED: `packages/chassis_screens/test/a11y_*_test.dart`
+    // sweeps all seventeen, and this root left report mode — its `a11yFiles`
+    // and `cases` floors are 3 and 51 rather than 0, so the floors can now fall.
+    assert.match(
+      out,
+      /packages\/chassis_screens: 17 of 17 reachable surface\(s\) carry an a11y sweep, from 3 a11y test file\(s\) across 51 case\(s\)/,
+    );
+    // And the ten brick adapters that delegate here are judged HERE, which is
+    // the delegation resolver's whole reason and reads `SWEPT there` only once
+    // the chassis really sweeps them.
+    assert.match(out, /SignInScreen .* → packages\/chassis_screens\/lib\/auth\/sign_in_screen\.dart — SWEPT there/);
     // Each root gets its own accounting line. A root that is derived but whose
     // surfaces never reach the report is a root this guard cannot see.
     assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
@@ -557,7 +577,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
   // never had. It removes ONE surface, not the file — `lib/shell/app_shell.dart`
   // declares five, so deleting it would drop 17→12 and prove nothing about
   // where the boundary actually sits.
-  test("M11g · one chassis shell widget goes private — that root's surfaces floor fires, and ALONE", () => {
+  test("M11g · one chassis shell widget goes private — that root's surfaces floor fires, and strands its floor entry", () => {
     const root = treeWithNewRoots();
     const rel = `${CHASSIS}/lib/shell/app_shell.dart`;
     const src = readIn(root, rel);
@@ -581,14 +601,31 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
       out,
       /COVERAGE LOST — `packages\/chassis_screens` has only 16 reachable surface\(s\).*floor is 17/s,
     );
-    // AND ALONE — the property M11e records and M7 cannot have. This root's
+    // ~~AND ALONE — the property M11e records and M7 cannot have. This root's
     // SWEPT_FLOOR is empty (it carries no a11y sweep at all yet), so nothing
     // else can be stranded by the removal and the floor is demonstrable on its
-    // own rather than riding on another finding.
+    // own rather than riding on another finding.~~
+    //
+    // 🔴 THE `ALONE` HALF IS RETIRED 2026-09-07 ([ADR 067] post-audit, unit
+    // chassis-screens-a11y), AND IT IS THE M7 STORY REPEATING EXACTLY. The
+    // clause above was true only while this root's SWEPT_FLOOR was EMPTY. It is
+    // now the full seventeen, so removing a surface ALSO strands its floor
+    // entry — `FLOOR OVER NOTHING` — and two findings co-fire, the same way
+    // M7 stopped being demonstrable in isolation for subly the day its floor
+    // covered its whole domain. The `surfaces` floor is NOT redundant for that:
+    // a surface added AFTER the floor was measured sits in neither set and only
+    // this floor would see it go. Independence is still demonstrable on the
+    // brick (M11e) and design_system (M11f), whose floors are still empty.
+    // Both findings are asserted rather than the count, because a count is what
+    // went stale here.
+    assert.match(
+      out,
+      /FLOOR OVER NOTHING — `packages\/chassis_screens\/lib\/shell\/app_shell\.dart#ConsentPromptCard`/,
+    );
     assert.equal(
       out.split('\n').filter((l) => l.startsWith('FAIL ')).length,
-      1,
-      `the chassis surfaces floor did not fire alone:\n${out}`,
+      2,
+      `the chassis surfaces floor and its stranded SWEPT_FLOOR entry did not both fire:\n${out}`,
     );
   });
 
@@ -598,7 +635,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     // reads as a floor that fires.
     const { code, out } = run(treeWithNewRoots());
     assert.equal(code, 0, out);
-    assert.match(out, /packages\/chassis_screens: 0 of 17 reachable surface\(s\)/);
+    assert.match(out, /packages\/chassis_screens: 17 of 17 reachable surface\(s\)/);
   });
 
   test("M12 · a NEW surface in EACH new root reaches that root's printed list", () => {
@@ -625,8 +662,142 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     assert.equal(code, 0, out);
     assert.ok(printedUnswept(out, BRICK).includes('showG3ProbeSheet'), out);
     assert.ok(printedUnswept(out, DS).includes('G3ProbeWidget'), out);
-    assert.match(out, /13 of 13 reachable surface\(s\) in tooling\/bricks/);
+    // 🔴 `13 of 13` → `3 of 13` ON 2026-09-07 ([ADR 067] post-audit, unit
+    // chassis-screens-a11y), AND THE THIRTEEN IS THE HALF THAT MATTERS HERE.
+    // The brick's domain is unchanged — twelve routed screens plus the new
+    // sheet — but TEN of them delegate into `packages/chassis_screens`, which
+    // now sweeps all seventeen of its surfaces, so those ten are reported as
+    // `SWEPT there` and leave the ⬜ list. What this case measures is that a
+    // NEW surface reaches that list, and `showG3ProbeSheet` is asserted by name
+    // above, which is the assertion this number was only ever the frame for.
+    assert.match(out, /3 of 13 reachable surface\(s\) in tooling\/bricks/);
     assert.match(out, /20 of 20 reachable surface\(s\) in packages\/design_system/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M13 · THE CHASSIS FLOORS THAT COULD NOT FIRE AT ALL UNTIL 2026-09-07
+//
+// 🔴 A FLOOR OF ZERO CANNOT FALL, SO IT SAYS NOTHING — the guard's own note
+// beside this root, written when it had no sweeps. `a11yFiles: 0` and
+// `cases: 0` were honest and they were also inert: every limb that reads them
+// was unexercised, and an unexercised limb is one nobody has read. [ADR 067]
+// post-audit, unit chassis-screens-a11y, landed the first sweeps and raised
+// both floors from this guard's own per-root line (3 files, 51 cases), so all
+// three limbs below have a subject for the first time.
+//
+// ⚠️ THE FOURTH MUTATION IS NOT HERE AND THE REASON IS STRUCTURAL. M13d raises
+// the FLOOR above what the tree measures (`cases` 51 → 52) and must report
+// COVERAGE LOST — that is what makes this a MEASUREMENT rather than a hoped
+// number. It mutates the GUARD, not a fixture tree, and `run()` above spawns
+// the REAL guard against a copied tree; a copy of the guard placed under
+// `tooling/ci/` to mutate would redden the platform lane for every concurrent
+// agent (`assert-enforcement-index` holds every enforcer to an index row), and
+// a copy placed elsewhere dies on its relative imports, which reads exactly
+// like the mutation being caught. It was run by hand instead, on 2026-09-07,
+// with the green control either side: `cases: 51` → exit 0, `cases: 52` → exit
+// 1 with `only 51 a11y case(s) were found … the checked-in floor is 52`,
+// restored → exit 0. Recorded in the guard's own M13 block and in
+// `research/revamp-2026-09-05/post-audit-chassis-screens-a11y.md`.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the chassis floors, which were zero until its first sweeps landed', () => {
+  const CHASSIS_AUTH = `${CHASSIS}/test/a11y_auth_test.dart`;
+  const CHASSIS_SHELL = `${CHASSIS}/test/a11y_shell_test.dart`;
+
+  test('M13-control · GREEN CONTROL — 17 of 17, 3 files, 51 cases, exit 0', () => {
+    // Without this half every failure below is equally consistent with a
+    // fixture that was broken before it was mutated.
+    const { code, out } = run(treeWithNewRoots());
+    assert.equal(code, 0, out);
+    assert.match(
+      out,
+      /packages\/chassis_screens: 17 of 17 reachable surface\(s\) carry an a11y sweep, from 3 a11y test file\(s\) across 51 case\(s\)/,
+    );
+  });
+
+  test('M13a · the check-inbox surface loses BOTH its families — REGRESSION by name', () => {
+    const root = treeWithNewRoots();
+    const src = readIn(root, CHASSIS_AUTH);
+    const start = src.indexOf("group('a11y: check-inbox'");
+    const end = src.indexOf("group('a11y: legal-consent-fields'");
+    assert.ok(start !== -1 && end > start, 'the check-inbox group anchors moved in the chassis suite');
+    const seg = src.slice(start, end);
+    // ⚠️ LAND-CHECK BEFORE THE MUTATION IS TRUSTED (trap agents-05 / flutter-10):
+    // three cases × three guideline calls. A mutation that silently applied
+    // nothing would leave the surface swept and this case would pass for the
+    // wrong reason.
+    assert.equal(
+      (seg.match(/meetsGuideline/g) ?? []).length,
+      9,
+      'the check-inbox group no longer carries exactly nine guideline calls',
+    );
+    // 🔴 EVERY family, not one — this root's sweeps are DOUBLE-FAMILY by
+    // construction (tap-target + contrast), which is the M5 lesson at surface
+    // scale: deleting one call leaves the surface swept and the guard is RIGHT
+    // to keep reporting it.
+    writeIn(
+      root,
+      CHASSIS_AUTH,
+      src.slice(0, start) +
+        seg
+          .split('\n')
+          .filter((l) => !l.includes('meetsGuideline'))
+          .join('\n') +
+        src.slice(end),
+    );
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL REGRESSION — `CheckInboxView`/);
+    // ALONE: no case was deleted and no file left, so neither count floor moves.
+    assert.equal(
+      out.split('\n').filter((l) => l.startsWith('FAIL ')).length,
+      1,
+      `the REGRESSION did not fire alone:\n${out}`,
+    );
+  });
+
+  test('M13b · one a11y file leaves the root — the a11yFiles floor fires', () => {
+    const root = treeWithNewRoots();
+    rmSync(join(root, CHASSIS_SHELL));
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` yielded 2 file\(s\) matching `a11y_\*_test\.dart`.*floor is 3/s,
+    );
+    // 🔴 AND THE SWEPT_FLOOR LIMB IS SILENT, WHICH IS THE DESIGN. A COVERAGE
+    // LOST finding makes `parsedCleanly` false, so the guard does not go on to
+    // report five REGRESSIONs derived from a parse it has just said it does not
+    // trust. One parse failure must not be reported as five findings.
+    assert.doesNotMatch(out, /REGRESSION/);
+  });
+
+  test('M13c · four cases deleted while every surface stays swept — the cases floor fires ALONE', () => {
+    const root = treeWithNewRoots();
+    let src = readIn(root, CHASSIS_AUTH);
+    for (let i = 0; i < 4; i++) {
+      const at = src.indexOf("\n    testWidgets('dark, kPhone");
+      assert.ok(at !== -1, `only ${i} \`dark, kPhone\` case(s) were found; the case names moved`);
+      const close = src.indexOf('\n    });\n', at) + '\n    });\n'.length;
+      src = src.slice(0, at) + src.slice(close);
+    }
+    writeIn(root, CHASSIS_AUTH, src);
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(
+      out,
+      /COVERAGE LOST — only 47 a11y case\(s\) were found across 3 file\(s\) under `packages\/chassis_screens`, and the checked-in floor is 51/,
+    );
+    // ALONE — every surface keeps a light and a kDesktop case, so both sets are
+    // byte-identical and only the count moved. That is the whole reason a count
+    // floor exists beside a named set, and it is demonstrable here.
+    assert.equal(
+      out.split('\n').filter((l) => l.startsWith('FAIL ')).length,
+      1,
+      `the cases floor did not fire alone:\n${out}`,
+    );
   });
 });
 
