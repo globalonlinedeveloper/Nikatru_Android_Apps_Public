@@ -555,7 +555,7 @@ const UI_ANCHORS = [
 // somebody inserts above it and NOTHING recomputes it — the same class as the
 // `ci.yml:NNNN` drift CLAUDE.md records, where one +35-line insert broke 203
 // citations. This repository's rule is to prefer a build-failing guard over a
-// note, so the four pointers are checked mechanically:
+// note, so the pointers are checked mechanically:
 //
 //   · the NUMBER is read out of the sworn document, never carried here — the
 //     document's own claim is the thing under test;
@@ -564,37 +564,169 @@ const UI_ANCHORS = [
 //   · the anchor must exist SOMEWHERE in the file too, so a renamed symbol is
 //     reported as a broken anchor rather than as drift (a different repair).
 //
+// 🔴 2026-09-07 — THE LIMB WAS HERE, IT RAN, AND IT WAS EXIT 0 OVER EIGHT
+// DRIFTED CITATIONS. THIS IS THE DEFECT THAT MEASUREMENT PAID FOR, and it is a
+// blindness in the limb, not a missing limb. Until today a row was keyed on the
+// cited file's BASENAME and matched with `cites.some(...)`: it collected EVERY
+// `basename:N` occurrence in the whole flattened document and passed if ANY ONE
+// of them contained the anchor. Three consequences, all measured on origin/main
+// (`node tooling/ci/assert-sworn-store-files.mjs` → EXIT 0, with the stale
+// numbers in the tree):
+//
+//   1. ONE CORRECT CITATION MASKED EVERY STALE SIBLING. `analytics_providers
+//      .dart` is cited TWICE in data-safety.json — `:534` for the NoOpAnalytics
+//      branch and `:56` for the sentence "Never a device ad-ID". The row's
+//      anchor was `core.NoOpAnalytics()`, `:534` hit, the row reported itself
+//      CHECKED, and `:56` — a different sentence, about a different line, wrong
+//      since the file passed 56 lines — was never looked at. It is at :79.
+//   2. content-rating.json HAD NO ROW AT ALL, so its own copy of the same stale
+//      `analytics_providers.dart:56` was outside the limb's subject set. Both
+//      sworn Play filings cited the wrong line and the guard could not see it.
+//   3. THE FLATTENED DOCUMENT INCLUDES THE FROZEN RECORDS. `buildPosture._why`
+//      is an append-only drift LOG: it narrates `app.dart` 396 → 455 → 470 and
+//      those historical numbers are not renumbered (they are a dated record of
+//      the tree as it stood). A basename ANY-match ranges over them too, so a
+//      live pointer could drift while a number quoted from 2026-08-10 kept the
+//      row green.
+//
+// ── THE SHAPE THAT FIXES ALL THREE: A ROW ADDRESSES ONE SENTENCE ────────────
+// Each row now carries `sentence` — the literal prose from the declaration with
+// the number written as `{line}` — instead of a basename. The limb builds a
+// regex from it (every character literal, `{app}` substituted, runs of
+// whitespace relaxed so a re-wrap of the prose is not a false alarm), and
+// requires EXACTLY ONE match across the document:
+//
+//   · zero matches ⇒ the sentence was reworded or deleted and the anchor is
+//     aimed at nothing, which "would pass forever" — a failure, not a skip;
+//   · two or more ⇒ the row is ambiguous and cannot say WHICH citation it
+//     checked, which is precisely the blindness above — also a failure;
+//   · exactly one ⇒ the number is read out of THAT sentence and the range must
+//     contain the anchor.
+//
+// A citation quoted inside a frozen record is therefore only ever reachable by
+// a row that quotes that record's own wording, and no row does: dated evidence
+// is not renumbered, so it is not anchored either.
+//
 // Adding a row here should feel like adding a UI_ANCHOR: it is a claim that a
 // specific sentence in a sworn record depends on a specific line of code.
+//
+// ⚠️ WHAT IS STILL NOT ANCHORED, STATED RATHER THAN HIDDEN. Rows exist for every
+// citation that was measurably drifted on 2026-09-07 plus the four that already
+// had one. The declarations also carry citations into VENDORED third-party
+// source that is not in this repository at all — sentry-flutter, sentry-android,
+// sentry-cocoa, each quoted at a pinned version in `crashSdkSurface` — and those
+// cannot be re-measured from the tree by anything. They are a dated reading of a
+// pinned artefact and they move only when the pin moves. Limb 5 still asserts
+// that every repository PATH named anywhere resolves; this limb asserts the
+// LINE for the sentences listed below.
 // ─────────────────────────────────────────────────────────────────────────────
 const LINE_ANCHORS = [
   {
     doc: 'android-play/data-safety.json',
-    cite: 'providers.dart',
     file: 'apps/{app}/lib/state/providers/auth.dart',
     anchor: 'InMemoryAuthRepository()',
+    sentence: 'providers/auth.dart:{line} isBackendLive ? SupabaseAuthRepository : InMemoryAuthRepository',
     why: 'the auth-repo branch the Account row is answered from',
   },
   {
     doc: 'android-play/data-safety.json',
-    cite: 'providers.dart',
     file: 'apps/{app}/lib/state/providers/subscriptions.dart',
     anchor: 'SeedApiClient()',
+    sentence: 'providers/subscriptions.dart:{line} !isApiConfigured -> SeedApiClient',
     why: 'the in-memory API client that makes "never leaves the device" true',
   },
   {
     doc: 'android-play/data-safety.json',
-    cite: 'analytics_providers.dart',
     file: 'apps/{app}/lib/state/analytics_providers.dart',
     anchor: 'core.NoOpAnalytics()',
+    sentence: 'analytics_providers.dart:{line} !isBackendLive (via analyticsEnabledProvider) -> NoOpAnalytics',
     why: 'the analytics off-switch the Analytics rows are answered from',
   },
   {
     doc: 'android-play/data-safety.json',
-    cite: 'app.dart',
     file: 'apps/{app}/lib/app.dart',
     anchor: 'const _ConsentPrompt()',
+    sentence: 'app.dart:{line} the consent prompt shows only when analyticsEnabledProvider is true',
     why: 'the consent prompt that gates every analytics answer on this form',
+  },
+  // ── the eight that were drifted on origin/main, 2026-09-07 ────────────────
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'apps/{app}/lib/state/analytics_providers.dart',
+    anchor: 'Never a device ad-ID',
+    sentence: "analytics_providers.dart:{line} says 'Never a device ad-ID'",
+    why: 'the sentence the Device-or-other-IDs row quotes to say anon_id is not an advertising ID (was :56, the file passed that line long ago)',
+  },
+  {
+    doc: 'android-play/content-rating.json',
+    file: 'apps/{app}/lib/state/analytics_providers.dart',
+    anchor: 'Never a device ad-ID',
+    sentence: "analytics_providers.dart:{line}, 'Never a device ad-ID'",
+    why: 'the SAME sentence, sworn to a SECOND authority on the contains-ads answer — the copy no row reached until today',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'apps/{app}/lib/core/app_config.dart',
+    anchor: 'isBackendLive => isSupabaseConfigured && isApiConfigured',
+    sentence: 'constants over those defines (apps/{app}/lib/core/app_config.dart:{line})',
+    why: 'the compile-time gate the WHOLE two-posture form rests on, as the _readme states it (was :278-301, which stopped short of isBackendLive)',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'apps/{app}/lib/core/app_config.dart',
+    anchor: 'isBackendLive => isSupabaseConfigured && isApiConfigured',
+    sentence: 'apps/{app}/lib/core/app_config.dart:{line} gates the whole app on compile-time constants',
+    why: 'the second citation of the same gate, in buildPosture._why — two sentences, two rows, because one row can only ever check one',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'packages/core/lib/src/analytics/consent.dart',
+    anchor: '[unknown] is the launch state and is',
+    sentence: 'not consent (packages/core/lib/src/analytics/consent.dart:{line})',
+    why: 'the launch-state declaration that makes every analytics answer OPTIONAL under Play’s own test (was :20-22, a paragraph about refusal)',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'apps/{app}/lib/features/add/add_subscription_sheet.dart',
+    anchor: '_input(_name,',
+    sentence: 'The subscription NAME is free text the user types (add_subscription_sheet.dart:{line})',
+    why: 'the free-text field the App-activity row declares (was :29, a comment about ink slots)',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'packages/telemetry/lib/src/telemetry_config.dart',
+    anchor: 'this.tracesSampleRate = 0.01,',
+    sentence: 'whose default is 0.01 (telemetry_config.dart:{line})',
+    why: 'the sample rate that makes the performance-data answer true rather than a claim about frequency',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'packages/telemetry/lib/src/telemetry_bootstrap.dart',
+    anchor: 'options.sendDefaultPii = false;',
+    sentence: '(telemetry_bootstrap.dart:{line}) does not suppress it',
+    why: 'the one option the crash-rail chain names as NOT sufficient — the sentence turns on that line being what it says',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'packages/telemetry/lib/src/telemetry_bootstrap.dart',
+    anchor: 'exception.value = _scrubber.scrubText(value);',
+    sentence:
+      'packages/telemetry/lib/src/telemetry_bootstrap.dart:{line} — scrubEvent reaches message, tags, extra, breadcrumbs and exception values',
+    why: 'the END of the enumerated range — the cited range stopped at :139 and the exception leg it names is below that',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'apps/{app}/lib/main.dart',
+    anchor: 'if (AppConfig.isBackendLive) {',
+    sentence: '(main.dart:{line} gates on isBackendLive)',
+    why: 'the Supabase-init gate the secure-storage row rests on. 🔴 THE PROSE WAS WRONG TOO: it said isSupabaseConfigured, and main.dart records that the two disagreed and were unified on isBackendLive — so this row is a rename repair as well as a number one',
+  },
+  {
+    doc: 'android-play/data-safety.json',
+    file: 'services/platform/src/routes/events.ts',
+    anchor: 'INSERT INTO consent_artifacts (',
+    sentence: 'the consent-artifact INSERT at events.ts:{line} takes no geo columns',
+    why: 'the second write route, cited to prove the geo answer is analytics-only',
   },
 ];
 
@@ -781,6 +913,18 @@ function strings(obj, path = '', out = []) {
  *  would have dropped out of the checked set silently. Widen this BEFORE any
  *  prose cites a new top-level directory, never after. */
 const PATH_RE = /(?:apps|catalog|packages|services|tooling|sites)\/[A-Za-z0-9_.\/{}-]*\.(?:dart|json|jsonc|yaml|yml|ts|tsx|mjs|html|txt|xml|sql|arb|md)/g;
+
+/** limb 8's addressing: a row's `sentence` is the declaration's own prose with
+ *  the cited number written as `{line}`. Everything else is LITERAL — the point
+ *  is that the row can only ever be answered by the one sentence it quotes —
+ *  except runs of whitespace, which are relaxed so re-wrapping a `_readme` array
+ *  element or re-indenting a table is not a false alarm. `{app}` resolves to the
+ *  app whose declaration is being read, so a row is written once for the brick's
+ *  shape and holds for every stamped app. */
+function sentenceRe(sentence, appId) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(sentence.replaceAll('{app}', appId).split('{line}').map(esc).join('(\\d+)(?:-(\\d+))?'), 'g');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE RUN
@@ -1077,6 +1221,10 @@ for (const app of apps) {
     }
 
     // ── limb 8 · line citations still point at what they describe ───────────
+    // The document is flattened to text ONCE, and every row addresses ONE
+    // sentence in it. See the table's header for why a basename is not enough:
+    // a basename ANY-match let `analytics_providers.dart:534` vouch for a stale
+    // `:56` in the same file, in both sworn Play filings, at exit 0.
     const docText = strings(j)
       .map(([, v]) => v)
       .join('\n');
@@ -1084,7 +1232,7 @@ for (const app of apps) {
       if (la.doc !== key) continue;
       const laFile = la.file.replace('{app}', appId);
       if (!existsSync(abs(laFile))) {
-        fail(`🔴 STALE LINE ANCHOR — ${laFile} does not exist, so the ${la.cite} citation in ${rel} checks nothing.`);
+        fail(`🔴 STALE LINE ANCHOR — ${laFile} does not exist, so the ${la.sentence} citation in ${rel} checks nothing.`);
         continue;
       }
       const src = readFileSync(abs(laFile), 'utf8').split('\n');
@@ -1096,32 +1244,39 @@ for (const app of apps) {
         continue;
       }
       // The number is read out of the sworn document — its own claim is what is
-      // under test. `basename:N` or `basename:N-M`, whichever the prose uses.
-      const base = laFile.split('/').pop();
-      const cites = [
-        ...docText.matchAll(new RegExp(`${base.replace(/[.]/g, '\\.')}:(\\d+)(?:-(\\d+))?`, 'g')),
-      ];
-      if (!cites.length) {
+      // under test — and it is read out of THE SENTENCE this row is about, so
+      // one row can never be answered by another sentence's citation.
+      const hits = [...docText.matchAll(sentenceRe(la.sentence, appId))];
+      if (hits.length === 0) {
         fail(
-          `🔴 STALE LINE ANCHOR — ${rel} no longer cites ${base}:<line> at all, so the anchor for ` +
-            `${JSON.stringify(la.anchor)} is aimed at a sentence that is gone and would pass forever.`,
+          `🔴 STALE LINE ANCHOR — ${rel} no longer carries the sentence ${JSON.stringify(la.sentence)}. Either the ` +
+            'citation was deleted, in which case the anchor is aimed at a sentence that is gone and would pass ' +
+            'forever, or the prose was reworded — in which case re-word this row WITH it. ' +
+            `${la.why}.`,
+        );
+        continue;
+      }
+      if (hits.length > 1) {
+        fail(
+          `🔴 AMBIGUOUS LINE ANCHOR — ${rel} carries ${hits.length} sentences matching ${JSON.stringify(la.sentence)} ` +
+            `(cited lines: ${hits.map((h) => h[1] + (h[2] ? `-${h[2]}` : '')).join(', ')}). A row that cannot say ` +
+            'WHICH citation it checked is the exact blindness this limb was re-shaped to end on 2026-09-07: one ' +
+            'correct number vouching for a stale sibling. Split it into one row per sentence.',
         );
         continue;
       }
       lineCitesChecked++;
-      const hit = cites.some(([, from, to]) => {
-        const a = Number(from);
-        const b = Number(to ?? from);
-        return src.slice(a - 1, b).some((l) => l.includes(la.anchor));
-      });
-      if (!hit) {
+      const [, from, to] = hits[0];
+      const a = Number(from);
+      const b = Number(to ?? from);
+      if (!src.slice(a - 1, b).some((l) => l.includes(la.anchor))) {
         const where = src.findIndex((l) => l.includes(la.anchor)) + 1;
         fail(
-          `🔴 DRIFTED CITATION — ${rel} cites ${cites
-            .map((c) => `${base}:${c[1]}${c[2] ? `-${c[2]}` : ''}`)
-            .join(', ')}, and NONE of those lines contains ${JSON.stringify(la.anchor)}. It is at ${base}:${where} ` +
-            `today. ${la.why}. A line number is a pointer into a file other people edit: it is correct until ` +
-            'somebody inserts above it, and nothing recomputes it. Fix the number in the sworn document.',
+          `🔴 DRIFTED CITATION — ${rel} cites ${laFile.split('/').pop()}:${from}${to ? `-${to}` : ''} for ` +
+            `${JSON.stringify(la.sentence)}, and that line range does NOT contain ${JSON.stringify(la.anchor)}. ` +
+            `It is at line ${where} today. ${la.why}. A line number is a pointer into a file other people edit: ` +
+            'it is correct until somebody inserts above it, and nothing recomputes it. RE-MEASURE the number ' +
+            '(grep for the anchor) and write what comes back — never offset the old one.',
         );
       }
     }
@@ -1253,6 +1408,7 @@ if (problems.length) {
   console.log(
     `\nok   ${copiesChecked} sworn declaration(s) still answered across ${apps.length} app(s); ` +
       `${pathsChecked} cited path(s) resolve; ${anchorsChecked} UI anchor(s) hold; ` +
+      `${lineCitesChecked} of ${LINE_ANCHORS.length} sworn line citation(s) re-measured; ` +
       `${readmePathsChecked} path(s) in ${readmesChecked} channel README(s) resolve; ` +
       `${templates.size} brick template(s) still blank`,
   );

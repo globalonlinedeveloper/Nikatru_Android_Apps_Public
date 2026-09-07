@@ -841,12 +841,79 @@ describe('limb 8 — a `file.dart:NNN` citation still points at what it describe
         }),
       (r) => {
         assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stderr, /no longer cites app\.dart:<line> at all/);
+        assert.match(r.stderr, /no longer carries the sentence/);
+        assert.match(r.stderr, /would pass forever/);
       },
     );
   });
 
-  test('the real tree evaluates all four, so the limb is not vacuous', () => {
+  // ── 2026-09-07 · the three cases the ANY-MATCH shape could not see ────────
+  // Until today a row was keyed on the cited file's BASENAME and passed if ANY
+  // `basename:N` anywhere in the flattened document contained the anchor.
+  // Measured on origin/main with the stale numbers in the tree, the whole guard
+  // was EXIT 0 over ten drifted citations. These three cases fail on the old
+  // shape's blind spots and are the reason a row now quotes ONE sentence.
+
+  test('🔴 A SECOND SWORN FILE IS NOT COVERED BY THE FIRST ONE’S ROW', () => {
+    // The orphan this repair came from: BOTH android-play declarations cite
+    // `analytics_providers.dart` for the sentence "Never a device ad-ID", and
+    // only data-safety.json had a row. content-rating.json's copy was outside
+    // the limb's subject set entirely — a sworn filing citing a wrong line with
+    // nothing able to notice.
+    withTree(
+      (root) =>
+        editText(root, CR, (t) =>
+          t.replace(/(analytics_providers\.dart:)\d+(, 'Never a device ad-ID')/, '$19999$2'),
+        ),
+      (r) => {
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stderr, /DRIFTED CITATION/);
+        assert.match(r.stderr, /content-rating\.json/);
+        assert.match(r.stderr, /Never a device ad-ID/);
+      },
+    );
+  });
+
+  test('🔴 A CORRECT CITATION MAY NOT VOUCH FOR A STALE SIBLING IN THE SAME FILE', () => {
+    // `analytics_providers.dart` is cited TWICE in data-safety.json — `:534`
+    // for the NoOpAnalytics branch and another for the ad-ID sentence. Break
+    // ONLY the second. Under the ANY-match shape `:534` still hit, the row
+    // reported itself checked, and this was exit 0. It is the exact defect.
+    withTree(
+      (root) =>
+        editText(root, DS, (t) =>
+          t.replace(/(analytics_providers\.dart:)\d+( says 'Never a device ad-ID')/, '$11$2'),
+        ),
+      (r) => {
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stderr, /DRIFTED CITATION/);
+        assert.match(r.stderr, /analytics_providers\.dart:1 for/);
+        assert.match(r.stderr, /Never a device ad-ID/);
+        // Exactly ONE row fired: the sibling `:534` row is still green, which is
+        // the half that used to answer for both.
+        assert.equal(r.stderr.match(/DRIFTED CITATION/g).length, 1);
+      },
+    );
+  });
+
+  test('🔴 TWO SENTENCES MATCHING ONE ROW IS A FAILURE, NOT A COIN FLIP', () => {
+    // A row that matches twice cannot say which citation it checked, which is
+    // the blindness above wearing a different hat. It refuses rather than
+    // picking the first hit.
+    withTree(
+      (root) =>
+        editDoc(root, DS, (j) => {
+          j._readme = [...j._readme, "…and again: analytics_providers.dart:1 says 'Never a device ad-ID'."];
+        }),
+      (r) => {
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stderr, /AMBIGUOUS LINE ANCHOR/);
+        assert.match(r.stderr, /Split it into one row per sentence/);
+      },
+    );
+  });
+
+  test('the real tree evaluates every row, so the limb is not vacuous', () => {
     // The floor exists because a scan over zero citations prints exactly like a
     // scan over four correct ones.
     withTree(
