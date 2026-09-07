@@ -138,6 +138,23 @@ const REFUSES = [
   '',
 ].join('\n');
 
+/** The window fixture. Its ONE citation sits ~85 lines down, far past the
+ *  60-line cap this reader carried until 2026-09-07, and an equally deep STRING
+ *  LITERAL names a second id that must still never be compiled. Before the
+ *  widening the row for this file claimed nothing at all: 30 real guards in
+ *  tooling/ci were in exactly that state, including four whose headers had been
+ *  rearranged by hand to keep a citation inside the window. */
+const DEEP = [
+  '#!/usr/bin/env node',
+  '// assert-deep.mjs — fixture stand-in with a LONG header.',
+  ...Array.from({ length: 80 }, (_, i) => `// paragraph ${i + 1} of a header that grew, as real guard headers do`),
+  '// [pipeline Z-6] — the claim, ~83 lines down.',  // (never existed) — invented fixture id
+  "console.error('COVERAGE LOST — fixture stand-in with no subject');",
+  "console.error('  the rule it obeys is [pipeline Z-8]');",  // (never existed) — invented fixture id
+  'process.exit(1);',
+  '',
+].join('\n');
+
 const WORKFLOW = [
   'name: fixture',
   'on:',
@@ -149,6 +166,7 @@ const WORKFLOW = [
   '    runs-on: ubuntu-latest',
   '    steps:',
   '      - run: node tooling/ci/assert-alpha.mjs',
+  '      - run: node tooling/ci/assert-deep.mjs',
   '      - name: the folded form, with the enforcer off the run: line',
   '        run: |',
   '          out="$(node tooling/ci/assert-beta.mjs 2>&1)"',
@@ -178,6 +196,7 @@ const DOD = JSON.stringify(
 const DEFAULTS = {
   'tooling/ci/assert-alpha.mjs': ALPHA,
   'tooling/ci/assert-beta.mjs': BETA,
+  'tooling/ci/assert-deep.mjs': DEEP,
   'tooling/ci/assert-orphan.mjs': ORPHAN,
   'tooling/ci/assert-refuses.mjs': REFUSES,
   'tooling/ci/assert-guard-coverage.mjs': COVERAGE,
@@ -246,7 +265,7 @@ describe('assert-enforcement-index — the index is regenerated and compared, ne
     assert.match(out, /byte-for-byte the index regenerated/);
     assert.match(out, /1 human/);
     assert.match(out, /1 lane/);
-    assert.match(out, /all 6 enforcer\(s\) in tooling\/ci carry a row/);
+    assert.match(out, /all 7 enforcer\(s\) in tooling\/ci carry a row/);
   });
 
   test('the passing case did NOT lift a requirement id out of a string literal', () => {
@@ -445,6 +464,64 @@ describe('assert-enforcement-index — the index is regenerated and compared, ne
     const { code, out } = run(root);
     assert.notEqual(code, 0);
     assert.match(out, /COVERAGE LOST/);
+  });
+
+  // ── THE CITATION WINDOW ───────────────────────────────────────────────────
+  // Until 2026-09-07 the generator read the first 60 lines of a guard and
+  // stopped. Measured on the tree at ec404f0d: 156 enforcers in tooling/ci, 65
+  // citing an ADR on a comment line, and 30 of them citing one ONLY below line
+  // 60 — so the index recorded no claim for any of those 30, and two guards
+  // carried a hand-written paragraph saying their citation had been MOVED to
+  // survive the cap. These three cases hold both halves of the widening: a deep
+  // COMMENT citation is compiled, a deep STRING LITERAL is not, and the guard
+  // still fails when the committed index disagrees about either.
+  test('GREEN CONTROL — a citation ~83 lines down is a claim, and the literal beside it is not', () => {
+    const root = fixture();
+    const rows = JSON.parse(readFileSync(join(root, INDEX_REL), 'utf8'));
+    assert.deepEqual(rowFor(rows, 'tooling/ci/assert-deep.mjs').claims, ['Z-6']);
+    assert.equal(rowFor(rows, 'tooling/ci/assert-deep.mjs').state, 'WIRED');
+  });
+
+  test('FAILS when the committed index drops the deep claim the tree still states', () => {
+    const root = fixture({
+      index: (rows) => rows.map((r) => (r.ref === 'tooling/ci/assert-deep.mjs' ? { ...r, claims: [] } : r)),
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /≠ "tooling\/ci\/assert-deep\.mjs"\.claims/);
+  });
+
+  // 🔴 THE NEGATIVE TEST FOR THE WINDOW ITSELF. The two cases above would pass
+  // just as happily against a generator that had quietly stopped reading at
+  // line 60 AND a committed index regenerated from it — that is M9's shape, an
+  // under-collection agreeing with itself. So this one mutates the GENERATOR,
+  // puts the cap back, and requires the canary inside it to refuse rather than
+  // to produce a smaller index. The green control is the line above it: the
+  // unmutated generator over the same fixture exits 0.
+  test('🔴 putting the 60-line cap back is COVERAGE LOST, not a quieter index', () => {
+    const root = fixture();
+    const clean = spawnSync(process.execPath, [GENERATOR, root], { encoding: 'utf8' });
+    assert.equal(clean.status, 0, `${clean.stdout}${clean.stderr}`);
+
+    const genRoot = join(TMP, `gen${seq++}`, 'tooling', 'ci');
+    mkdirSync(genRoot, { recursive: true });
+    for (const dep of ['tree-walk.mjs', 'workflow-scan.mjs']) {
+      writeFileSync(join(genRoot, dep), readFileSync(join(CI_DIR, dep), 'utf8'));
+    }
+    const src = readFileSync(GENERATOR, 'utf8');
+    // String.raw, because the needle is a REGEX LITERAL: written as an ordinary
+    // quoted string its escapes would become a carriage return and a newline and
+    // the mutation would silently match nothing.
+    const WINDOW = String.raw`const lines = source.split(/\r?\n/);`;
+    const capped = src.replace(WINDOW, `${WINDOW.slice(0, -1)}.slice(0, 60);`);
+    assert.notEqual(capped, src, 'the window line was not found — this mutation would have tested nothing');
+    const mutant = join(genRoot, 'build-enforcement-index.mjs');
+    writeFileSync(mutant, capped);
+
+    const r = spawnSync(process.execPath, [mutant, root], { encoding: 'utf8' });
+    assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+    assert.match(`${r.stdout}${r.stderr}`, /COVERAGE LOST/);
+    assert.match(`${r.stdout}${r.stderr}`, /a line cap is back/);
   });
 
   // 🔴 THE ONE THAT MATTERS. Regeneration proves the file was not hand-edited;
