@@ -71,15 +71,60 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
-const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
 const LEDGER_REL = 'tooling/chassis-ledger.json';
 
-/** Measured 2026-09-05 at 96 files. A floor, not the count: the template may
- *  legitimately grow or shrink, but falling under this means the enumeration
- *  broke rather than the template emptying — step 4 removes LINES, and the
- *  files it deletes are a handful, not seventy. Raise it only with a
- *  measurement. */
-const MIN_FILES = 60;
+/** The whole brick template. Every tracked file under it must fall inside one of
+ *  the ROOTS below — that is limb 0, and it is what stops a THIRD root growing
+ *  unnoticed the way the Worker template did. */
+const TEMPLATE = 'tooling/bricks/app/__brick__';
+
+// ── THE ROOTS, AND WHY THERE ARE NOW TWO ────────────────────────────────
+//
+// 🔴 THE LEDGER COVERED 96 OF THE TEMPLATE'S 109 TRACKED FILES AND SAID SO
+// NOWHERE. `root` was one string — the Dart app under `apps/{{app_id}}` — so the
+// 13 files of the opt-in Worker template under
+// `{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api` were outside the
+// bijection entirely: 917 lines every stamped backend app inherits, with no row,
+// no verdict and no line count, and `git ls-files -- <the one root>` could not
+// see them to complain. That is precisely the hole this guard's own header
+// describes — "an undeclared file added to the brick reddened ZERO of the 127
+// guards" — reopened one directory to the left.
+//
+// ⚠️ THE ROOT LIST LIVES HERE, NOT IN THE LEDGER, AND THAT IS THE WHOLE POINT.
+// A ledger that named its own subject set could shrink the scan by deleting a
+// root, and the run would print a smaller, cheerful `ok`. So the guard is the
+// authority, the ledger's `roots` is cross-checked against it below, and limb 0
+// fails on any tracked template file that falls outside every root. Each root
+// carries its OWN floor, measured, for the same reason the single floor existed:
+// a root that empties is an enumeration that broke.
+//
+// WHY NOT RE-KEY THE 96 EXISTING ROWS to template-relative paths. It was the
+// alternative and it was measured against this one: re-keying is a 96-row diff
+// that touches every `path` in the file, invalidates every citation anyone has
+// written against it, and buys exactly one thing — not having a `root` field on
+// 13 rows. A row's `root` is optional and defaults to `ROOTS[0]`, so the 96 rows
+// are byte-identical and the 13 new ones say where they live.
+const ROOTS = [
+  {
+    path: 'tooling/bricks/app/__brick__/apps/{{app_id}}',
+    /** Measured 2026-09-05 at 96 files. A floor, not the count: the template may
+     *  legitimately grow or shrink, but falling under this means the enumeration
+     *  broke rather than the template emptying — step 4 removes LINES, and the
+     *  files it deletes are a handful, not seventy. Raise it only with a
+     *  measurement. */
+    minFiles: 60,
+    what: 'the Dart app every stamp produces',
+  },
+  {
+    path: 'tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api',
+    /** Measured 2026-09-07 at 13 files, 917 lines. */
+    minFiles: 10,
+    what: 'the opt-in Cloudflare Worker a backend stamp produces',
+  },
+];
+
+/** The first root is where a row with no `root` of its own lives. */
+const DEFAULT_ROOT = ROOTS[0].path;
 
 /** A sentinel OUTSIDE every subject tree, so it survives any mutation OF the
  *  subject — which a sentinel inside the brick would not. */
@@ -97,33 +142,64 @@ const coverageLost = (lines) => {
 };
 
 // ── the tree ────────────────────────────────────────────────────────────────
-let tracked;
-try {
-  tracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--', BRICK], {
-    encoding: 'utf8', maxBuffer: 1 << 28,
-  }).split('\n').filter(Boolean);
-} catch {
-  coverageLost([
-    `\`git ls-files -- ${BRICK}\` failed, so the template's contents are unreadable.`,
-    'Every limb below compares the ledger against that list. Without it this guard would compare a',
-    'ledger against nothing and print ok — which is the exact shape it exists to prevent.',
-  ]);
-}
+const lsFiles = (pathspec, what) => {
+  try {
+    return execFileSync('git', ['-C', ROOT, 'ls-files', '--', pathspec], {
+      encoding: 'utf8', maxBuffer: 1 << 28,
+    }).split('\n').filter(Boolean);
+  } catch {
+    return coverageLost([
+      `\`git ls-files -- ${pathspec}\` failed, so ${what} is unreadable.`,
+      'Every limb below compares the ledger against that list. Without it this guard would compare a',
+      'ledger against nothing and print ok — which is the exact shape it exists to prevent.',
+    ]);
+  }
+};
 
-if (tracked.length === 0) {
+// ── limb 0 · EVERY TRACKED TEMPLATE FILE FALLS INSIDE A DECLARED ROOT ───────
+// This is the limb the single-root version could not have: it reads the WHOLE
+// template and refuses anything the roots do not cover. The 13 Worker-template
+// files sat outside the old root for as long as this ledger existed and nothing
+// could say so, because the scan's own pathspec was the thing that hid them.
+const templateFiles = lsFiles(TEMPLATE, "the template's contents");
+if (templateFiles.length === 0) {
   coverageLost([
-    `no tracked file was found under ${BRICK}.`,
+    `no tracked file was found under ${TEMPLATE}.`,
     'Either the template moved or this scan lost its grip on the tree. Both read as "nothing to check".',
   ]);
 }
-if (IS_FULL_CHECKOUT && tracked.length < MIN_FILES) {
-  coverageLost([
-    `only ${tracked.length} tracked file(s) under the template, below the floor of ${MIN_FILES}.`,
-    'Chassis step 4 removes LINES; the files it deletes are a handful, not seventy. A drop this large is',
-    'an enumeration that broke, not a template that emptied. If it is real, re-measure and lower the floor',
-    'in the same commit as the deletion.',
-  ]);
+const rootOf = (rel) => ROOTS.find((r) => rel === r.path || rel.startsWith(`${r.path}/`)) ?? null;
+for (const f of templateFiles.filter((p) => rootOf(p) === null).sort()) {
+  problems.push(
+    `${f} is tracked under ${TEMPLATE} and falls under NO declared root, so no ledger row can reach it. ` +
+      'A stamped app inherits it and nothing in this repository counts it — which is exactly how 13 Worker ' +
+      'template files and 917 lines stayed outside this ledger until 2026-09-07. Add the root to ROOTS in ' +
+      'this file, with its own measured floor, and give every file in it a row, in the same commit.',
+  );
 }
+
+// ── per root: the tracked set, and its own floor ────────────────────────────
+const trackedByRoot = new Map();
+for (const r of ROOTS) {
+  const files = lsFiles(r.path, `${r.what} (${r.path})`);
+  if (files.length === 0) {
+    coverageLost([
+      `no tracked file was found under the root ${r.path} (${r.what}).`,
+      'Either that half of the template moved or this scan lost its grip on it. Both read as "nothing to',
+      'check", and a root that silently contributes zero files is a root whose rows all read as orphans.',
+    ]);
+  }
+  if (IS_FULL_CHECKOUT && files.length < r.minFiles) {
+    coverageLost([
+      `only ${files.length} tracked file(s) under ${r.path}, below its floor of ${r.minFiles}.`,
+      'Chassis step 4 removes LINES; the files it deletes are a handful, not seventy. A drop this large is',
+      'an enumeration that broke, not a template that emptied. If it is real, re-measure and lower the floor',
+      'in the same commit as the deletion.',
+    ]);
+  }
+  trackedByRoot.set(r.path, files);
+}
+const tracked = ROOTS.flatMap((r) => trackedByRoot.get(r.path));
 
 // ── the ledger ──────────────────────────────────────────────────────────────
 const ledgerPath = join(ROOT, LEDGER_REL);
@@ -168,27 +244,70 @@ const linesOf = (relPath) => {
   return s.split('\n').length - (s.endsWith('\n') ? 1 : 0);
 };
 
-const treeSet = new Set(tracked.map((p) => p.slice(BRICK.length + 1)));
-const rowByPath = new Map();
+// ── THE ROW KEY IS (root, path), AND THE ROOT DEFAULTS ──────────────────────
+// A row's `path` stays relative to ITS OWN root, so the 96 rows written against
+// the single root are byte-identical and every citation against them still
+// resolves. `root` is optional and defaults to ROOTS[0]; a row naming a root
+// this guard does not scan is a row nothing reads, and it fails below.
+const KEYSEP = '\u0000';
+const keyOf = (root, path) => `${root}${KEYSEP}${path}`;
+const showKey = (k) => k.replace(KEYSEP, '/');
+
+const treeSet = new Set();
+for (const r of ROOTS) {
+  for (const p of trackedByRoot.get(r.path)) treeSet.add(keyOf(r.path, p.slice(r.path.length + 1)));
+}
+
+const declaredRoots = ledger.roots;
+if (!Array.isArray(declaredRoots) || declaredRoots.length === 0) {
+  coverageLost([
+    `${LEDGER_REL} declares no \`roots\` array, so nothing in it says which template trees its rows cover.`,
+    'The guard is the authority on that list — see the ROOTS header — but a ledger that is silent about it',
+    'cannot be cross-checked at all, and a row could name a root nobody scans.',
+  ]);
+}
+const guardRoots = ROOTS.map((r) => r.path);
+const rootsDisagree =
+  declaredRoots.length !== guardRoots.length || declaredRoots.some((p, i) => p !== guardRoots[i]);
+if (rootsDisagree) {
+  coverageLost([
+    `${LEDGER_REL} \`roots\` disagrees with this guard's ROOTS.`,
+    `  ledger: ${declaredRoots.join(', ')}`,
+    `  guard:  ${guardRoots.join(', ')}`,
+    'The guard scans its own list, so a ledger naming a different one is declaring rows against a tree that',
+    'is never read — which prints as a clean bijection over the half that is.',
+  ]);
+}
+
+const rowByKey = new Map();
 for (const row of ledger.files) {
-  if (rowByPath.has(row.path)) problems.push(`${LEDGER_REL} declares \`${row.path}\` twice.`);
-  rowByPath.set(row.path, row);
+  const root = row.root ?? DEFAULT_ROOT;
+  if (!guardRoots.includes(root)) {
+    problems.push(
+      `${LEDGER_REL} has a row for \`${row.path}\` under root \`${root}\`, which this guard does not scan. ` +
+        'Nothing reads it, so it can neither be verified nor go stale loudly.',
+    );
+    continue;
+  }
+  const k = keyOf(root, row.path);
+  if (rowByKey.has(k)) problems.push(`${LEDGER_REL} declares \`${showKey(k)}\` twice.`);
+  rowByKey.set(k, row);
 }
 
 // ── 1 · bijection, both directions ──────────────────────────────────────────
-const undeclared = [...treeSet].filter((p) => !rowByPath.has(p)).sort();
-const orphaned = [...rowByPath.keys()].filter((p) => !treeSet.has(p)).sort();
+const undeclared = [...treeSet].filter((k) => !rowByKey.has(k)).sort();
+const orphaned = [...rowByKey.keys()].filter((k) => !treeSet.has(k)).sort();
 
-for (const p of undeclared) {
+for (const k of undeclared) {
   problems.push(
-    `${p} is tracked under the template and has NO ledger row. Every file a stamped app inherits must ` +
-      'be accounted for — nothing else in this repository notices a new file appearing here.',
+    `${showKey(k)} is tracked under the template and has NO ledger row. Every file a stamped app inherits ` +
+      'must be accounted for — nothing else in this repository notices a new file appearing here.',
   );
 }
-for (const p of orphaned) {
+for (const k of orphaned) {
   problems.push(
-    `${LEDGER_REL} has a row for \`${p}\`, which is not tracked under the template. A row nobody can ` +
-      'reach is the stale second copy this ledger exists to prevent — delete it, or restore the file.',
+    `${LEDGER_REL} has a row for \`${showKey(k)}\`, which is not tracked under the template. A row nobody ` +
+      'can reach is the stale second copy this ledger exists to prevent — delete it, or restore the file.',
   );
 }
 
@@ -197,10 +316,11 @@ const VERDICTS = new Set(['STAYS', 'MOVES', 'GOES', 'UNCLASSIFIED']);
 let sumLines = 0;
 let unclassified = 0;
 
-for (const [p, row] of rowByPath) {
-  if (!treeSet.has(p)) continue; // already reported as orphaned
+for (const [k, row] of rowByKey) {
+  if (!treeSet.has(k)) continue; // already reported as orphaned
+  const p = showKey(k);
 
-  const actual = linesOf(`${BRICK}/${p}`);
+  const actual = linesOf(p);
   if (actual === null) {
     problems.push(`${p} is tracked but absent from the working tree, so its size cannot be verified.`);
     continue;
@@ -298,13 +418,25 @@ if (problems.length) {
 }
 
 const byVerdict = { STAYS: 0, MOVES: 0, GOES: 0, UNCLASSIFIED: 0 };
-for (const [p, row] of rowByPath) if (treeSet.has(p)) byVerdict[row.verdict] = (byVerdict[row.verdict] ?? 0) + 1;
+for (const [k, row] of rowByKey) if (treeSet.has(k)) byVerdict[row.verdict] = (byVerdict[row.verdict] ?? 0) + 1;
+
+// ── THE PER-ROOT BREAKDOWN PRINTS, AND IT IS NOT DECORATION ────────────────
+// The union total ROSE on 2026-09-07 — from 15,871 over 96 files to a figure
+// over 109 — while the Dart app root FELL, because 917 previously-uncounted
+// Worker-template lines entered the count for the first time. One number cannot
+// say both, and a run that printed only the union would read as the template
+// growing. So each root prints its own files and lines beside the total.
+for (const r of ROOTS) {
+  const files = [...treeSet].filter((k) => k.startsWith(`${r.path}${KEYSEP}`));
+  const lines = files.reduce((n, k) => n + (linesOf(showKey(k)) ?? 0), 0);
+  console.log(`ok  ${r.path} — ${files.length} file(s), ${lines} line(s) · ${r.what}`);
+}
 
 console.log(
-  `ok  chassis ledger — ${treeSet.size} tracked file(s), ${sumLines} line(s), every one accounted for ` +
-    `[STAYS=${byVerdict.STAYS}, MOVES=${byVerdict.MOVES}, GOES=${byVerdict.GOES}, ` +
+  `ok  chassis ledger — ${treeSet.size} tracked file(s) across ${ROOTS.length} root(s), ${sumLines} line(s), ` +
+    `every one accounted for [STAYS=${byVerdict.STAYS}, MOVES=${byVerdict.MOVES}, GOES=${byVerdict.GOES}, ` +
     `UNCLASSIFIED=${byVerdict.UNCLASSIFIED}/ceiling ${UNCLASSIFIED_CEILING}]` +
     (IS_FULL_CHECKOUT
-      ? `; full checkout, so the ${MIN_FILES}-file floor was applied`
-      : `; NOTE: this root is not a checkout of this repository, so the ${MIN_FILES}-file floor was NOT applied`),
+      ? `; full checkout, so each root's own file floor was applied (${ROOTS.map((r) => r.minFiles).join(', ')})`
+      : '; NOTE: this root is not a checkout of this repository, so the per-root file floors were NOT applied'),
 );

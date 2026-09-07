@@ -1271,8 +1271,39 @@ const REQUIRED_COVERAGE = [
     // check passed with the gate deleted from app.dart. Same declaration-vs-caller
     // trap that shipped in assert-seams-wired.mjs earlier today; caught here by
     // mutating the real tree rather than a fixture.
+    //
+    // 🔴 TWO MOUNTING SHAPES SINCE [ADR 067] decision 2 (unit app-shell), AND
+    // BOTH ARE STILL "MOUNTED". `MaterialApp.router` moved into
+    // `package:nikatru_chassis_screens/shell/app_shell.dart` as `NikatruApp`,
+    // which takes the app's gate chain as a REQUIRED `shell:` parameter and
+    // calls it inside its own `builder` — so the brick now writes
+    // `shell: (Widget routed) => AnalyticsGate(` where it used to write
+    // `child: AnalyticsGate(`. The claim is unchanged and so is its strength:
+    // `shell:` names the one parameter NikatruApp is contracted to invoke, and
+    // `packages/chassis_screens/test/app_shell_view_test.dart` is what proves
+    // it does: that suite's `buildApp()` hands `NikatruApp` a `shell:` chain of
+    // `AppLifecycleFlush` → `ConsentScrim` → `OfflineBannerHost` → the routed
+    // body, and its cases then locate `ConsentPromptCard`, `OfflineBannerHost`
+    // and that routed body in the pumped tree — none of which is findable
+    // unless `shell` is actually invoked.
+    // ⚠️ THE PROOF PATH ABOVE IS RE-MEASURED, NEVER REMEMBERED. This comment
+    // shipped for one review cycle naming
+    // `packages/chassis_screens/test/shell/nikatru_app_test.dart`, a file that
+    // has never existed — the claim was true and the evidence for it was a
+    // phantom, which is the one shape a later reader trusts and cannot check.
+    // A guard header is also an input to `tooling/enforcement-index.json`
+    // (trap ci-27), so a citation here is compiled, not decoration.
+    // A bare `=>` is deliberately NOT accepted — that would match a
+    // helper nothing calls, which is the declaration-vs-caller trap above
+    // wearing a lambda.
     group: /group\(\s*'property: analytics-on-switch-mounted'/,
-    sources: [{ file: APP_ROOT, re: /child:\s*AnalyticsGate\(/, what: 'app.dart must mount AnalyticsGate — the analytics on-switch' }],
+    sources: [
+      {
+        file: APP_ROOT,
+        re: /child:\s*AnalyticsGate\(|shell:\s*\([^)]*\)\s*=>\s*AnalyticsGate\(/,
+        what: 'app.dart must mount AnalyticsGate — the analytics on-switch — as a child, or as the shell NikatruApp is contracted to call',
+      },
+    ],
     why: 'the rail is fail-closed: with nothing calling record() it goes silent and no test goes red',
   },
   {

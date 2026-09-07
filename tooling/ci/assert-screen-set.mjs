@@ -531,10 +531,45 @@ for (const s of screens) {
         problems.push(`\`${s.id}\`: reachability file \`${s.reachable.file}\` does not exist.`);
         continue;
       }
-      const rcode = readFileSync(rp, 'utf8').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      // 🔴 THE REACHABILITY READ FOLLOWS THE DELEGATION — [ADR 067] decision 2,
+      // unit app-shell. `NikatruApp` took `MaterialApp.router`, its `builder`,
+      // the text-scaling clamp and the force-update gate into
+      // `package:nikatru_chassis_screens/shell/app_shell.dart`, and
+      // `bootstrapNikatru` took the boot order out of `main.dart`. Read at the
+      // adapter alone this limb reported that FOUR screens the tree plainly
+      // mounts — `system.error-boundary`, `system.offline`,
+      // `system.force-update`, `system.consent-banner` — reach nothing. That is
+      // this guard's own [2]C-6 shape pointed at itself: "the pattern is not in
+      // this file" and "nothing calls it" are the same output from a text
+      // matcher and completely different facts.
+      //
+      // The union only ever ADDS text, so a pattern that was found is still
+      // found; a delegation that cannot be FOLLOWED is COVERAGE LOST, never a
+      // quiet fall-back to the adapter alone.
+      const rd = delegationOf(s.reachable.file);
+      if (rd && rd.lost) {
+        problems.push(
+          `COVERAGE LOST — \`${s.id}\`: \`${s.reachable.file}\` ${rd.lost} So this limb cannot tell ` +
+            'whether the screen is reached from the chassis package or not reached at all, and those two ' +
+            'read identically here.',
+        );
+        continue;
+      }
+      const reachSources = [s.reachable.file, ...((rd && rd.files) || [])];
+      const rcode = reachSources
+        .map((f) => readFileSync(join(ROOT, f), 'utf8'))
+        .join('\n')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '');
+      if (reachSources.length > 1) {
+        notes.push(
+          `⬜ \`${s.id}\` reachability read ${reachSources.length} file(s) — ${reachSources.join(', ')}`,
+        );
+      }
       if (!rcode.includes(s.reachable.pattern)) {
         problems.push(
-          `\`${s.id}\` EXISTS but nothing reaches it — \`${s.reachable.pattern}\` is gone from \`${s.reachable.file}\`. ${s.reachable.why ?? ''}`,
+          `\`${s.id}\` EXISTS but nothing reaches it — \`${s.reachable.pattern}\` is gone from ` +
+            `\`${reachSources.join('`, `')}\`. ${s.reachable.why ?? ''}`,
         );
         continue;
       }

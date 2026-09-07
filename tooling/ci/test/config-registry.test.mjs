@@ -628,6 +628,52 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
     assert.match(r.out, /optional AppConfig field "theme" is READ by[\s\S]*emits it from NOWHERE/);
   });
 
+  // ── `this.<field>` IS A DECLARATION, NOT A READ (2026-09-07) ───────────
+  // Added with the LOOSE-set narrowing in [ADR 067] phase 2, unit app-shell.
+  // 9f is the MUTATION the narrowing must survive and 9g is its GREEN CONTROL:
+  // without 9g the narrowing is equally consistent with "refuse every read",
+  // which would turn 9d's real finding green.
+  test('9f · a constructor writing `required this.theme` is NOT a reader', () => {
+    // MEASURED: `NikatruApp` in packages/chassis_screens mirrors MaterialApp's
+    // own parameter names, so its constructor writes `required this.theme,` and
+    // limb 9's BROAD branch failed the build over a file that reads no config at
+    // all. `this` is never an AppConfig in any file this loop looks at, and the
+    // class that DOES declare the field is skipped above.
+    const r = run(
+      tree({
+        dart: {
+          ...DART,
+          'packages/chassis_screens/lib/shell/app_shell.dart':
+            'class NikatruApp extends StatelessWidget {\n' +
+            '  const NikatruApp({required this.theme, required this.darkTheme});\n' +
+            '  final ThemeData theme;\n}\n',
+        },
+      }),
+    );
+    assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /is READ by[\s\S]*app_shell\.dart/);
+  });
+
+  test('9g · GREEN CONTROL — a NAMED receiver in the same file still reads', () => {
+    // The half that stops 9f's narrowing from becoming "refuse everything": the
+    // same file, the same field, spelled on a real receiver, must still fire
+    // 9d's finding.
+    const r = run(
+      tree({
+        dart: {
+          ...DART,
+          'packages/chassis_screens/lib/shell/app_shell.dart':
+            'class NikatruApp extends StatelessWidget {\n' +
+            '  const NikatruApp({required this.theme});\n' +
+            '  final ThemeData theme;\n' +
+            '  Object? seed(core.AppConfig? cfg) => cfg?.theme;\n}\n',
+        },
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /optional AppConfig field "theme" is READ by[\s\S]*emits it from NOWHERE/);
+  });
+
   test('9e · emitted AND read is the healthy state, and NAMES the file rather than counting it', () => {
     // ⚠️ THE ASSERTION USED TO BE ON A COUNT — `read by 1 non-test Dart
     // file(s)` — while the guard's header claimed "every matched file is named

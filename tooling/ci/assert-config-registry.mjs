@@ -811,7 +811,33 @@ for (const rel of dartFiles) {
       }
 
       const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const access = new RegExp(`\\.${camel}\\b`);
+      // 🔴 `this.<camel>` IS A DECLARATION, NOT A READ — and the distinction is
+      // the same one this repository draws everywhere else between a
+      // constructor and a caller. A field-initialising formal
+      // (`required this.theme,`) declares the ENCLOSING class's own field; it
+      // can never be a read of `AppConfig.theme`, because `this` is not an
+      // AppConfig in any file this loop looks at (`APP_CONFIG_DART` is skipped
+      // above, and it is the only class that declares these fields).
+      //
+      // MEASURED 2026-09-07, [ADR 067] phase 2 unit app-shell: `NikatruApp` in
+      // `packages/chassis_screens/lib/shell/app_shell.dart` mirrors
+      // `MaterialApp`'s own parameter names, so its constructor writes
+      // `required this.theme,` — and limb 9's BROAD branch failed the build with
+      // `optional AppConfig field "theme" is READ by …app_shell.dart and
+      // app-config-data.json emits it from NOWHERE`. Nothing in that file reads
+      // any config; the receiver is `this`.
+      //
+      // ⚠️ THIS NARROWS ONE SET AND ONLY IN THE DIRECTION THAT CANNOT HIDE A
+      // SEAM. The branch this feeds ("read but never emitted") fails on a
+      // non-empty LOOSE set, so a narrower LOOSE set can only turn a FAIL into a
+      // note — never a note into a pass — and the emitted-but-unread FAIL reads
+      // the BOUND set, which required an AppConfig-typed receiver already and is
+      // untouched. A genuine read is always spelled on a NAMED receiver
+      // (`cfg.theme`, `AppConfig.theme`), which still matches.
+      // `config-registry.test.mjs` case `limb9-this-is-not-a-read` is the green
+      // control and `limb9-named-receiver-still-reads` the mutation that stops
+      // this widening into "refuse every read".
+      const access = new RegExp(`(?<!\\bthis)\\.${camel}\\b`);
       const looseReaders = [];
       const boundReaders = [];
       for (const [rel, src] of dartSrc) {

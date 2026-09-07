@@ -110,8 +110,8 @@
       },
       "reachable": {
         "file": "tooling/bricks/app/__brick__/apps/{{app_id}}/lib/app.dart",
-        "pattern": "child: AnalyticsGate(",
-        "why": "[2]C-6: the recorder had ZERO call sites and every event was silently discarded, and no test went red because refusing is the correct behaviour when consent is absent"
+        "pattern": "=> AnalyticsGate(",
+        "why": "[2]C-6: the recorder had ZERO call sites and every event was silently discarded, and no test went red because refusing is the correct behaviour when consent is absent. RE-POINTED 2026-09-07 ([ADR 067] phase 2, unit app-shell) from `child: AnalyticsGate(` to `=> AnalyticsGate(`, and it is the SAME claim: MaterialApp.router moved into `package:nikatru_chassis_screens/shell/app_shell.dart` as `NikatruApp`, which takes the app's gate chain as a REQUIRED `shell:` parameter and calls it inside its own builder, so the brick now writes `shell: (Widget routed) => AnalyticsGate(`. The two other occurrences of the token in that file are the constructor DECLARATION (`const AnalyticsGate({`) and `ConsumerState<AnalyticsGate> createState() => _AnalyticsGateState();` — neither matches `=> AnalyticsGate(`, so this still proves a MOUNT and not a declaration, which is the distinction this pattern was written for"
       }
     },
     {

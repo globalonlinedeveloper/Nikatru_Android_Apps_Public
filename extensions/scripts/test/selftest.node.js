@@ -1674,13 +1674,17 @@ const PROOF_HISTORY = 'proof-history.json';
 const proofAgo = d => new Date(Date.parse(PROOF_NOW) - d * 86400000).toISOString();
 const proofEnv = root => ({ PROOF_ALARM_FIXTURE: path.join(root, PROOF_HISTORY), PROOF_ALARM_NOW: PROOF_NOW });
 
-/* A weekly cron and a matrix job named at the 4-space job indent: the two facts
-   the gate re-derives its ceiling and its GREEN matcher from. */
-const E2E_WEEKLY = [
+/* A DAILY cron and a matrix job named at the 4-space job indent: the two facts
+   the gate re-derives its ceiling and its GREEN matcher from. Daily since
+   2026-09-07 -- extensions.yml moved from a Monday-only slot to `53 20 * * *`
+   (TRAPS ci-19, the margin goes to the EVIDENCE), the gate's self-check moved
+   with it, and a fixture still carrying a weekly cron would make every case
+   below red on the self-check rather than on the limb it is about. */
+const E2E_DAILY = [
   'name: e2e',
   'on:',
   '  schedule:',
-  "    - cron: '17 4 * * 1'",
+  "    - cron: '53 20 * * *'",
   'jobs:',
   '  e2e:',
   '    name: e2e (${{ matrix.dir }})',
@@ -1690,14 +1694,15 @@ const E2E_WEEKLY = [
   ''
 ].join('\n');
 
-/* THE REAL LEG SHAPE. extensions.yml:917 names the matrix job `e2e · <Category>/<Tool>`,
+/* THE REAL LEG SHAPE. extensions.yml:1000 names the matrix job `e2e · <Category>/<Tool>`,
    and the gate now parses that payload and compares it as a SET — so a fixture
    carrying a made-up name would prove nothing about the real one. The separator
    is the real U+00B7, written as itself so the character makes the whole trip:
    this source, a utf8 fixture write, a JSON parse, the gate. The case below
    drives what happens when that trip mangles it. */
 const proofLeg = (c, dirs = [TOOL]) => dirs.map(d => ({ name: 'e2e · ' + d, conclusion: c }));
-/* Three weekly scheduled runs, all green, the newest 2 days old.
+/* Three scheduled runs, all green, the newest 2 days old -- 2, 9 and 16 days,
+   which straddle the derived ceiling of 10 in both directions on purpose.
 
    `wf.suites` is the DISK side of the subject and it is separate from `h` on
    purpose: the gate derives how many legs a green run must carry by walking
@@ -1722,7 +1727,7 @@ function withProof(mutate = () => {}) {
       ],
       jobs: { 3: proofLeg('success'), 2: proofLeg('success'), 1: proofLeg('success') }
     };
-    const wf = { yaml: E2E_WEEKLY, suites: [TOOL], wiredDoc: undefined };
+    const wf = { yaml: E2E_DAILY, suites: [TOOL], wiredDoc: undefined };
     mutate(h, wf, root);
     if (wf.yaml !== null) w(root, '.github/workflows/e2e.yml', wf.yaml);
     for (const dir of wf.suites) w(root, dir + '/test/e2e/package.json', '{ "name": "e2e-fixture", "private": true }\n');
@@ -2046,16 +2051,25 @@ expect('a workflow reachable only as .github/workflows/E2E.yml CANNOT RUN either
   contains: 'a case a Linux runner does not open',
   root: withProof((h, wf, root) => {
     wf.yaml = null;
-    w(root, '.github/workflows/E2E.yml', E2E_WEEKLY);
+    w(root, '.github/workflows/E2E.yml', E2E_DAILY);
   }),
   env: proofEnv
 });
 
 /* The two self-checks: the ceiling and the matcher are derived, so the facts
    they are derived FROM are load-bearing. */
-expect('a cron that stopped being weekly reddens the derived ceiling', {
-  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1, contains: 'are not weekly',
-  root: withProof((h, wf) => { wf.yaml = wf.yaml.replace('17 4 * * 1', '17 4 1 * *'); }),
+/* A WEEKLY cron is the mutation now, and that is the point: the ceiling is
+   derived from a DAILY slot, so a cron that fires once a week gives it ONE
+   chance and stops describing anything. The monthly form is driven too, because
+   the refusal must be about "does not fire every day" and not about Mondays. */
+expect('a cron that stopped being daily reddens the derived ceiling', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1, contains: 'do not fire every day',
+  root: withProof((h, wf) => { wf.yaml = wf.yaml.replace('53 20 * * *', '17 4 * * 1'); }),
+  env: proofEnv
+});
+expect('a monthly cron reddens the derived ceiling too', {
+  script: 'assert-e2e-proof-fresh.mjs', argv: [], code: 1, contains: 'do not fire every day',
+  root: withProof((h, wf) => { wf.yaml = wf.yaml.replace('53 20 * * *', '17 4 1 * *'); }),
   env: proofEnv
 });
 expect('a renamed e2e job reddens the matcher the GREEN limb keys on', {

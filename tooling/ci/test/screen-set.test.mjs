@@ -646,6 +646,73 @@ describe('an anchor whose screen moved into the chassis is judged there', () => 
 // directions here: S-L1 is the green control, S-L2 the defect, S-L3 the
 // emptiness that would otherwise report it cheerfully.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// THE REACHABILITY HALF FOLLOWS THE DELEGATION TOO — 2026-09-07, [ADR 067]
+// phase 2, unit app-shell.
+//
+// 🔴 THE MEASURED DEFECT. `reachable` read exactly ONE file. When
+// `MaterialApp.router`, its `builder`, the force-update gate and the boot order
+// left the brick for `package:nikatru_chassis_screens`, this limb reported that
+// FOUR screens the tree plainly mounts reach nothing —
+// `system.error-boundary`, `system.offline`, `system.force-update` and
+// `system.consent-banner`. "The pattern is not in this file" and "nothing calls
+// it" are the same output from a text matcher and completely different facts,
+// which is the distinction this guard's own header is about.
+//
+// S-R1 is the GREEN CONTROL and it is not optional: without it S-R2's red is
+// equally consistent with a union that reads nothing, and S-R2 is the case that
+// has to keep working.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a reachability pattern that moved into the chassis is found there', () => {
+  const CHASSIS_BODY = 'packages/chassis_screens/lib/system_screens.dart';
+
+  /** The ROUTER emptied of the `OfflineNotice(` mount, which now lives in the
+   *  chassis file it delegates to. `errorBuilder:` deliberately STAYS in the
+   *  router: one pattern resolving locally and one through the delegation is
+   *  what proves the union did not simply stop reading the anchor file. */
+  function delegatingRouter({ mountInPackage = true, packageOnDisk = true } = {}) {
+    const root = tree({
+      router:
+        "import 'package:nikatru_chassis_screens/system_screens.dart';\n" +
+        'final router = GoRouter(\n  errorBuilder: (c, s) => const NotFoundScreen(),\n  routes: [],\n);\n' +
+        'final x = SegmentedButton<ThemeMode>(segments: []);\n' +
+        'final t = MaterialApp(themeMode: ref.watch(themeModeProvider));\n' +
+        'final o = ChassisShell(message: m);\n',
+    });
+    if (packageOnDisk) {
+      mkdirSync(join(root, 'packages/chassis_screens/lib'), { recursive: true });
+      writeFileSync(
+        join(root, CHASSIS_BODY),
+        'class ChassisShell extends StatelessWidget {\n  const ChassisShell({super.key});\n' +
+          (mountInPackage
+            ? '  Widget build(BuildContext c) => const OfflineNotice();\n}\n'
+            : '  Widget build(BuildContext c) => const SizedBox();\n}\n'),
+      );
+    }
+    return root;
+  }
+
+  test('S-R1 · GREEN CONTROL — the mount is found in the chassis file, and the read is named', () => {
+    const { code, out } = run(delegatingRouter());
+    assert.equal(code, 0, out);
+    assert.match(out, /`system\.offline` reachability read 2 file\(s\)/);
+  });
+
+  test('S-R2 · FAILS when the mount is in NEITHER file — the C-6 shape is still caught', () => {
+    const { code, out } = run(delegatingRouter({ mountInPackage: false }));
+    assert.equal(code, 1, out);
+    assert.match(out, /`system\.offline` EXISTS but nothing reaches it/);
+    // The finding must name BOTH files it really read, not just the router.
+    assert.match(out, /packages\/chassis_screens\/lib\/system_screens\.dart/);
+  });
+
+  test('S-R3 · a delegation that cannot be followed is COVERAGE LOST, never a pass', () => {
+    const { code, out } = run(delegatingRouter({ packageOnDisk: false }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST — `system\.offline`/);
+  });
+});
+
 describe('a callback handed across a delegation must reach a control', () => {
   // GREEN CONTROL. Without it every red below is consistent with a limb that
   // refuses every tree it is handed.
