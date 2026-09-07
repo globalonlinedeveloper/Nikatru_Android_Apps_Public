@@ -57,6 +57,44 @@
 //  10. a tree whose only release build is web ⇒ COVERAGE LOST. The floor with
 //      no subject is the vacuous pass this whole change removes.
 //
+// ── ➕ APPENDED 2026-09-07 · THE SINK LIMB, AND WHY ONE CASE HERE INVERTED ───
+//    unit `symbols-everywhere` · [ADR 067] decision 6 · programme.json P1-11.
+//
+// The guard gained a THIRD limb: every obfuscating RELEASE build must upload its
+// symbols to the crash sink from a LATER step of its OWN job. An
+// `actions/upload-artifact` no longer settles it for a release build. So the
+// fixtures here changed in one way and one case changed answer:
+//
+//   · `COMPLIANT` and `FLOOR_ANCHOR` now carry a real
+//     `tooling/ops/upload-native-symbols.mjs` step. They are meant to be the
+//     uninteresting, passing state of the tree, and without the upload they are
+//     no longer that.
+//   · the old case "an upload-artifact naming the SAME directory satisfies it"
+//     asserted exit 0 for a RELEASE build retaining only an artifact. That is
+//     now exit 1 by design — it is the state the audit of 2026-09-07 found on 11
+//     of 14 lanes while this guard printed ok. The case is NARROWED to a
+//     `--profile` build, where the coupling limb is the only verdict and its
+//     answer is unchanged. The old wording is left standing above.
+//
+// And FOUR fixture cases are new, GREEN CONTROL FIRST:
+//
+//  11. GREEN CONTROL — obfuscating release build + retention + a sink upload
+//      AFTER the build ⇒ exit 0, and the output states the sink limb and its
+//      exemption count.
+//  12. MUTATION of exactly that fixture — the sink step DELETED, the artifact
+//      left in place ⇒ exit 1. The coupling limb is still satisfied, which is
+//      what makes this the mutation that matters.
+//  13. MUTATION of exactly that fixture — the sink step MOVED BEFORE the build
+//      ⇒ exit 1 while its text is still in the job. A step that uploads before
+//      its build uploads whatever the last run left behind, at exit 0.
+//  14. an explicit `--profile` build needs no upload — the limb ranges over
+//      release builds, and says how many it ranged over.
+//
+// `SINK_UPLOAD_EXEMPT` is a const no fixture can reach; both of its failure arms
+// were proven by mutating the REAL TREE, and case 15 asserts the real tree's own
+// run prints the count so an exemption cannot be added silently. See the comment
+// above that case for the two mutations and their exact messages.
+//
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe, before, after } from 'node:test';
@@ -100,6 +138,8 @@ const wf = ({
   comment = '',
   target = 'linux',
   release = ' --release',
+  sinkStep = '',
+  beforeBuild = '',
 } = {}) => `name: Build
 on:
   workflow_dispatch:
@@ -109,12 +149,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-${comment}      - name: Build ${target}
+${beforeBuild}${comment}      - name: Build ${target}
         working-directory: apps/subly
         run: >
           flutter build ${target}${release}${buildFlags}
           --dart-define=GLITCHTIP_DSN=x
-${extraSteps}      - uses: actions/upload-artifact@v4
+${sinkStep}${extraSteps}      - uses: actions/upload-artifact@v4
         with:
           name: subly-${target}
           path: |
@@ -122,8 +162,19 @@ ${extraSteps}      - uses: actions/upload-artifact@v4
           retention-days: 7
 `;
 
+/** ⏱ ADDED 2026-09-07 (unit `symbols-everywhere`) — the step the SINK limb
+ *  requires. It is this repository's real wrapper call, not a stand-in: a
+ *  fixture that invented its own upload command would prove the guard matches
+ *  the fixture and nothing about the tree. */
+const SINK_STEP =
+  '      - name: Upload the native debug symbols to GlitchTip\n' +
+  '        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/linux --org nikatru --project subly\n';
+
 /** A second job that clears the floor on its own, so a fixture can be about the
- *  COUPLING limb without the floor's own COVERAGE LOST getting there first. */
+ *  COUPLING limb without the floor's own COVERAGE LOST getting there first.
+ *  ⏱ 2026-09-07: it now also carries a sink upload, because an obfuscating
+ *  RELEASE build that uploads nothing is a SINK failure and this job's whole
+ *  purpose is to be uninteresting. */
 const FLOOR_ANCHOR = `
   anchor:
     runs-on: ubuntu-24.04
@@ -139,12 +190,17 @@ const FLOOR_ANCHOR = `
           path: |
             apps/subly/build/symbols/macos
           retention-days: 90
+      - name: Upload the native debug symbols to GlitchTip
+        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/macos --org nikatru --project subly
 `;
 
-/** The state the tree is IN after 2026-09-07: obfuscating and retaining. */
+/** The state the tree is IN after 2026-09-07: obfuscating, retaining AND
+ *  uploading. ⏱ The upload is the half added by unit `symbols-everywhere`; until
+ *  then this constant retained only, which the SINK limb now refuses. */
 const COMPLIANT = wf({
   buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
   uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+  sinkStep: SINK_STEP,
 });
 
 describe('assert-obfuscation-coupled', () => {
@@ -215,6 +271,7 @@ describe('assert-obfuscation-coupled', () => {
       release: '',
       buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
       uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+      sinkStep: SINK_STEP,
     });
     const { code, out } = run(fixture({ 'build.yml': `${compliantNoFlag}${FLOOR_ANCHOR}` }));
     assert.equal(code, 0, out);
@@ -362,15 +419,25 @@ jobs:
     assert.match(out, /nothing in job "linux" retains it/);
   });
 
-  test('an upload-artifact naming the SAME directory satisfies it', () => {
+  // ⏱ NARROWED 2026-09-07 (unit `symbols-everywhere`). This case used to run on
+  // a RELEASE build and assert exit 0 — "an artifact is enough". The SINK limb
+  // now refuses exactly that for a release build, which is the whole point of
+  // the change, so the case moves to a `--profile` build: outside the floor and
+  // outside the sink limb's domain, where the COUPLING limb is the only verdict
+  // and its answer is unchanged. What it proves is what it always proved — the
+  // coupling limb accepts shape (b) — and it no longer doubles as a claim that
+  // shape (b) is enough for a shipping build, which it never was.
+  test('an upload-artifact naming the SAME directory satisfies the COUPLING limb', () => {
     const root = fixture({
-      'build.yml': wf({
+      'build.yml': `${wf({
+        release: ' --profile',
         buildFlags: ' --obfuscate --split-debug-info=build/symbols',
         uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            build/symbols',
-      }),
+      })}${FLOOR_ANCHOR}`,
     });
     const { code, out } = run(root);
     assert.equal(code, 0, out);
+    assert.match(out, /builds "linux" in --profile mode/);
   });
 
   test('an upload-artifact naming a DIFFERENT directory does NOT satisfy it', () => {
@@ -419,6 +486,71 @@ jobs:
     const { code, out } = run(root);
     assert.equal(code, 0, out);
     assert.match(out, /doing less than it looks like/);
+  });
+
+  // ── THE SINK LIMB, added 2026-09-07 by unit `symbols-everywhere` ──────────
+  // GREEN CONTROL FIRST, then the mutations of that exact control.
+  test('GREEN CONTROL — an obfuscating release build that uploads to the sink after the build passes, and the output states the sink limb', () => {
+    const { code, out } = run(fixture({ 'build.yml': COMPLIANT }));
+    assert.equal(code, 0, out);
+    assert.match(out, /SINK: all 1 of them upload those symbols to the crash sink from a later step of the same job/);
+    assert.match(out, /with no declared exemption/);
+  });
+
+  test('MUTATION of that control — the sink upload step DELETED ⇒ exit 1, even though the artifact still retains the mapping', () => {
+    // Byte-identical to COMPLIANT except that SINK_STEP is gone. The
+    // upload-artifact naming build/symbols/linux is still there, so the COUPLING
+    // limb is satisfied and the OLD guard would have printed ok — which is
+    // precisely the state the audit of 2026-09-07 found on 11 of 14 lanes.
+    const { code, out } = run(fixture({ 'build.yml': COMPLIANT.replace(SINK_STEP, '') }));
+    assert.equal(code, 1, out);
+    assert.match(out, /NOTHING LATER IN job "linux" uploads those symbols to the crash sink/);
+    assert.match(out, /a retained workflow artifact is not an upload/);
+    assert.match(out, /\[ADR 067\] decision 6/);
+  });
+
+  test('MUTATION of that control — the sink upload step MOVED BEFORE the build ⇒ exit 1, though its text is still in the job', () => {
+    // This is the mutation a text-only match cannot catch: `grep` for
+    // upload-native-symbols.mjs finds it, and it uploads whatever was on the
+    // runner before this build ran, at exit 0.
+    const moved = wf({
+      buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
+      uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+      beforeBuild: SINK_STEP,
+    });
+    assert.match(moved, /upload-native-symbols\.mjs/, 'the mutation must keep the step, only move it');
+    const { code, out } = run(fixture({ 'build.yml': moved }));
+    assert.equal(code, 1, out);
+    assert.match(out, /NOTHING LATER IN job "linux"/);
+  });
+
+  test('the sink limb ranges over RELEASE builds only — an explicit --profile build needs no upload', () => {
+    const root = fixture({
+      'build.yml': `${wf({
+        release: ' --profile',
+        buildFlags: ' --obfuscate --split-debug-info=build/symbols',
+        uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            build/symbols',
+      })}${FLOOR_ANCHOR}`,
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+    assert.match(out, /SINK: all 1 of them upload/);
+  });
+
+  // ⚠️ SINK_UPLOAD_EXEMPT IS A CONST IN THE GUARD AND NO FIXTURE CAN REACH IT,
+  // so its two failure arms were proven by MUTATING THE REAL TREE on 2026-09-07,
+  // green control first, each restored and re-run green afterwards:
+  //   · an entry naming `.github/workflows/submit-appstore.yml#dry-run`, a job
+  //     that DOES upload ⇒ exit 1, "that job DOES upload its symbols to the
+  //     crash sink … delete it", quoting the stated reason.
+  //   · an entry naming `.github/workflows/nope.yml#ghost` ⇒ exit 1, "no
+  //     obfuscating release build was found in that job at all".
+  // The table is EMPTY on main, and this case is what says so out loud: a
+  // fixture cannot see the const, but the real tree's own run prints the count.
+  test('the real tree declares no sink exemption, and the guard prints that rather than staying silent about it', () => {
+    const r = spawnSync(process.execPath, [GUARD], { encoding: 'utf8', cwd: resolve(CI_DIR, '..', '..') });
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    assert.match(`${r.stdout}${r.stderr}`, /SINK: all \d+ of them upload those symbols to the crash sink from a later step of the same job, with no declared exemption/);
   });
 
   // ── the coverage self-check ───────────────────────────────────────────────

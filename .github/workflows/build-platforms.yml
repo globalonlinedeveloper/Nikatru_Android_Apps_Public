@@ -295,13 +295,19 @@ jobs:
       # was written and then destroyed with the runner. It now sits immediately
       # after the last `flutter build` of the job, ahead of every assertion and
       # every network call, so nothing downstream can take the symbols with it.
-      # why: retained as an artifact and NOT uploaded to the crash sink, because
+      # ⏱ CORRECTED 2026-09-07 (unit `symbols-everywhere`) — the note that stood
+      # here said this lane retains but does NOT upload, "because
       # tooling/versions.json pins ONE glitchtip-cli binary and it is
       # linux-x86_64. Arming this runner would mean a second pinned binary and a
-      # second digest; until then the 90-day artifact is the mapping's only copy
-      # and this step is what stops it being lost. Recorded in
-      # docs/ci/build-platforms.md §obfuscation as an open residue, not a gap
-      # nobody noticed.
+      # second digest". That was true and the second pin now exists:
+      # `glitchtip_cli_windows_x86_64_sha256`, the digest of the WINDOWS artifact
+      # of the same release, measured by downloading it with the linux one as a
+      # control. The sink upload is two steps below.
+      # why: the crash sink is where the symbols are READ, and this artifact is
+      # what survives the sink losing them — so it stays, and it stays FIRST.
+      # Named `symbols-*` on purpose: the `release` job downloads `<app>-*` and
+      # publishes it, and an obfuscation mapping attached to a public GitHub
+      # Release un-obfuscates the build for everyone.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symbols-${{ matrix.app }}-windows
@@ -309,6 +315,48 @@ jobs:
             apps/${{ matrix.app }}/build/symbols/windows
           retention-days: 90
           if-no-files-found: error
+      # why: pwsh rather than the linux lane's bash, and that is not a style
+      # choice — `$RUNNER_TEMP` on a Windows runner is a backslash path, and
+      # handing one to MSYS coreutils inside `shell: bash` is the class of bug
+      # this repository has already paid for. `Invoke-WebRequest` + `Get-FileHash`
+      # is the idiom submit-windows-store.yml's msstore-cli install already uses.
+      # The pin is read from tooling/versions.json at run time, both halves, the
+      # same way the linux lane reads its two.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = node -p "require('./tooling/versions.json').glitchtip_cli"
+          $sum = node -p "require('./tooling/versions.json').glitchtip_cli_windows_x86_64_sha256"
+          $url = "https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v$ver/raw/artifacts/glitchtip-cli-windows-x86_64.exe?job=build-windows-x86_64"
+          $out = Join-Path $env:RUNNER_TEMP 'glitchtip-cli.exe'
+          Invoke-WebRequest -Uri $url -OutFile $out -MaximumRetryCount 3 -RetryIntervalSec 5
+          $got = (Get-FileHash -Algorithm SHA256 -Path $out).Hash.ToLower()
+          if ($got -ne $sum) {
+            Write-Error "glitchtip-cli digest mismatch: the download hashes to $got and tooling/versions.json declares $sum. A version names a release; the sha256 names the BYTES, and the asset is a GitLab JOB ARTIFACT URL, which is re-runnable. This refusal is the mechanism, not a gap in it."
+          }
+          $reported = & $out --version
+          if ($reported -ne "glitchtip-cli $ver") {
+            Write-Error "the pinned binary reports '$reported', not 'glitchtip-cli $ver'"
+          }
+          Write-Host $reported
+      # why: FAILS CLOSED on a missing GLITCHTIP_TOKEN, never skips. Placed AFTER
+      # the retention step above and BEFORE the MSIX packaging and every
+      # assertion below, so a GlitchTip outage cannot take the mapping with it.
+      # The wrapper exists because `debug-files upload` exits 0 over an empty
+      # directory, over failed chunks and over an assembly that never completed —
+      # its header names all three and the source lines they were read from.
+      - name: Upload the native debug symbols to GlitchTip
+        shell: pwsh
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+          APP: ${{ matrix.app }}
+        run: >
+          node tooling/ops/upload-native-symbols.mjs
+          --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
+          --dir "apps/${env:APP}/build/symbols/windows"
+          --org nikatru --project "${env:APP}"
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/${{ matrix.app }}
         run: dart run msix:create
@@ -415,9 +463,18 @@ jobs:
       # was written and then destroyed with the runner. It now sits immediately
       # after the last `flutter build` of the job, ahead of every assertion and
       # every network call, so nothing downstream can take the symbols with it.
-      # why: same reason as the windows lane — one pinned glitchtip-cli binary,
-      # and it is linux-x86_64. The .symbols directories are the only copy of
-      # each mapping, so they are retained for the same 90 days as the bundles.
+      # ⏱ CORRECTED 2026-09-07 (unit `symbols-everywhere`) — the note that stood
+      # here said "same reason as the windows lane — one pinned glitchtip-cli
+      # binary, and it is linux-x86_64", so these two mappings reached no sink.
+      # The pin now exists: `glitchtip_cli_macos_arm64_sha256`, the digest of the
+      # macOS artifact of the same release. It is an aarch64-apple-darwin build
+      # and this runner is Apple Silicon; it carries an LC_CODE_SIGNATURE
+      # (measured on the bytes, load command 0x1d), so it is not a Gatekeeper
+      # problem waiting to happen — and if it ever were, the `--version` check in
+      # the install step is what would say so, loudly.
+      # why: the .symbols directories are still retained for the same 90 days as
+      # the bundles, FIRST and before the sink upload, because the artifact is
+      # what survives the sink losing them.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symbols-${{ matrix.app }}-apple
@@ -426,6 +483,43 @@ jobs:
             apps/${{ matrix.app }}/build/symbols/ios
           retention-days: 90
           if-no-files-found: error
+      # why: `shasum -a 256`, not `sha256sum` — macOS ships the Perl `shasum` and
+      # does NOT ship coreutils' `sha256sum`, so the linux lane's line would fail
+      # here for a reason that has nothing to do with the digest. `--check
+      # --strict` is the same refusal either way.
+      - name: Install glitchtip-cli (pinned by version AND by digest)
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('./tooling/versions.json').glitchtip_cli")"
+          sum="$(node -p "require('./tooling/versions.json').glitchtip_cli_macos_arm64_sha256")"
+          url="https://gitlab.com/glitchtip/glitchtip-cli/-/jobs/artifacts/v${ver}/raw/artifacts/glitchtip-cli-macos-arm64?job=build-macos-arm64"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --output "${RUNNER_TEMP}/glitchtip-cli" "$url"
+          printf '%s  %s\n' "$sum" "${RUNNER_TEMP}/glitchtip-cli" | shasum -a 256 --check --strict -
+          chmod +x "${RUNNER_TEMP}/glitchtip-cli"
+          got="$("${RUNNER_TEMP}/glitchtip-cli" --version)"
+          if [ "$got" != "glitchtip-cli ${ver}" ]; then
+            echo "::error title=glitchtip-cli::the pinned binary reports \"${got}\", not \"glitchtip-cli ${ver}\""
+            exit 1
+          fi
+          echo "$got"
+      # why: TWO directories, one per build, uploaded separately — macOS and iOS
+      # are two AOT compilations and nothing guarantees they share a mapping.
+      # FAILS CLOSED on a missing GLITCHTIP_TOKEN, never skips. Placed AFTER the
+      # retention step above and BEFORE every assertion and network call below.
+      - name: Upload the native debug symbols to GlitchTip
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+          APP: ${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          for lane in macos ios; do
+            node tooling/ops/upload-native-symbols.mjs \
+              --cli "${RUNNER_TEMP}/glitchtip-cli" \
+              --dir "apps/${APP}/build/symbols/${lane}" \
+              --org nikatru --project "$APP"
+          done
       - name: The iOS bundle is signed by the identity this lane intended
         run: >
           node tooling/ci/assert-artifact-signed-apple.mjs

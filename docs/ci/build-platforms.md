@@ -1360,3 +1360,81 @@ a failed job. That is the same property the installable `upload-artifact` step b
 had, and closing it means `if: always()` on both — which turns "the build failed, so there are no
 symbols" into a second, louder failure under `if-no-files-found: error`. Left as it is, deliberately,
 and recorded here.
+
+### ⏱ APPENDED 2026-09-07 (unit `symbols-everywhere`) — THE UPLOAD HALF IS NOW DONE, AND THE "OPEN RESIDUES" LIST ABOVE IS SUPERSEDED
+
+*[ADR 067] decision 6 · `programme.json` P1-11 · `open.json` O-NATIVE-SYMBOL-UPLOAD-LINUX-ONLY ·
+end-to-end audit of 2026-09-07 §4 gap N9.* The wording above is left standing; read this as the
+correction.
+
+**The two "open residues" bullets were true and one of them was over-broad.** The sentence
+*"`tooling/versions.json` pins ONE `glitchtip-cli` binary and it is `linux-x86_64`"* appeared here,
+in `open.json`'s own row, in `post-audit-99-closeout.md:230` and in a `# why:` comment on four
+workflow steps. It excused **seven** lanes — windows ×3, macOS ×2, iOS ×2. It never excused the
+other **four**: `submit-play.yml`'s `dry-run` and `submit` jobs and `submit-snap.yml`'s `dry-run` and
+`submit` jobs all run on `ubuntu-24.04`, the runner the pinned Linux binary was always for. Those
+four uploaded nothing for no reason anybody had written down, and the over-broad sentence is what
+made the gap look larger and harder than it was.
+
+**What changed.** All fourteen release builds now upload:
+
+| workflow · job | runner | binary | pin read |
+|---|---|---|---|
+| `build-platforms.yml` · `linux_web_android` | `ubuntu-24.04` | `glitchtip-cli-linux-x86_64` | `glitchtip_cli` + `glitchtip_cli_sha256` |
+| `build-platforms.yml` · `windows` | `windows-2025` | `glitchtip-cli-windows-x86_64.exe` | `glitchtip_cli` + `glitchtip_cli_windows_x86_64_sha256` |
+| `build-platforms.yml` · `apple` | `macos-26` | `glitchtip-cli-macos-arm64` | `glitchtip_cli` + `glitchtip_cli_macos_arm64_sha256` |
+| `submit-play.yml` · `dry-run`, `submit` | `ubuntu-24.04` | linux | nothing new pinned |
+| `submit-snap.yml` · `dry-run`, `submit` | `ubuntu-24.04` | linux | nothing new pinned |
+| `submit-appstore.yml` · `dry-run` | `macos-26` | macOS | `glitchtip_cli_macos_arm64_sha256` |
+| `submit-windows-store.yml` · `dry-run`, `submit` | `windows-2025` | Windows | `glitchtip_cli_windows_x86_64_sha256` |
+
+**There is still ONE version and three sets of bytes.** `glitchtip_cli` stays the only version key
+and the only one Renovate advances; the two new keys are digests of the *other two artifacts of that
+same release*, in the shape `glitchtip_cli_sha256` already had, each with its own written
+`$updateExemptions` entry. A second *version* key would be exactly the drift `tooling/versions.json`
+exists to refuse. The asset names come from the project's own `.gitlab-ci.yml` at tag `v1.0.0`
+(`build-windows-x86_64` → `glitchtip-cli-windows-x86_64.exe`, `build-macos-arm64` →
+`glitchtip-cli-macos-arm64`), and all three digests were measured by downloading all three in one
+pass **with the Linux one as the control** — it re-derived the committed `de1c035a…82dfef` byte for
+byte, which is what makes the two new digests evidence rather than assertion.
+
+**Two platform differences, both deliberate, neither cosmetic.** The Windows install step is `pwsh`
+with `Invoke-WebRequest` + `Get-FileHash`, because `$RUNNER_TEMP` on a Windows runner is a backslash
+path and handing one to MSYS coreutils inside `shell: bash` is a bug class this repository has
+already paid for; it is the same shape `submit-windows-store.yml`'s msstore-cli install uses. The
+macOS step is `bash` like the Linux one but checks with `shasum -a 256`, because macOS does not ship
+coreutils' `sha256sum`. The macOS binary is `aarch64-apple-darwin` and carries an
+`LC_CODE_SIGNATURE` (read off the Mach-O load commands, `0x1d`), so Gatekeeper is not an ambush
+waiting on the first dispatch — and if it ever were, the `--version` check in the install step is
+what says so, loudly, rather than an upload that skips itself.
+
+**Ordering, everywhere, in one rule.** In all ten jobs the order is now: **build → retain the
+`symbols-*` artifact → install the CLI → upload to the sink → everything else**. Two of those moves
+close the §9.3 defect in lanes it had not yet been applied to: `submit-play.yml`'s and
+`submit-snap.yml`'s `dry-run` jobs kept their symbols as the **last step of the job**, behind
+`snapcraft pack` and a store dry run, and `submit-windows-store.yml`'s `dry-run` job kept them
+behind `dart run msix:create`. The `submit` jobs' retention steps moved earlier too, ahead of the
+packaging rather than merely ahead of the store call.
+
+**A tradeoff worth naming rather than discovering.** On the two real `submit:` jobs the sink upload
+now sits **before** the store push, so a GlitchTip outage **fails the submission**. That is
+deliberate: the 90-day artefact is already written when the upload runs, so nothing is lost either
+way, and the alternative — uploading after the push — ships a release whose symbols reach no sink at
+exactly the moment they matter most. It is the same fail-closed posture
+`tooling/ops/upload-native-symbols.mjs` takes on a missing `GLITCHTIP_TOKEN`.
+
+**And the guard gained a third limb, because retaining is not sending.** `assert-obfuscation-coupled.mjs`
+now grades **SINK** as well as FLOOR and COUPLING: every obfuscating release build must upload its
+symbols to the crash sink from a **later step of its own job**. An `actions/upload-artifact` no
+longer settles it for a release build — that acceptance is what let the guard print *"every
+obfuscating build retains its symbol mapping in its own job"* over 11 lanes that sent their mappings
+nowhere a symbolicator can read. A job that genuinely cannot upload must be named in the guard's
+`SINK_UPLOAD_EXEMPT` table with a written reason, and that table is graded in **both** directions:
+an entry for a job that does upload, or for a job that has no obfuscating release build, fails the
+build as a stale excuse. **It is empty today.** Mutation record, green control first: deleting one
+upload step ⇒ exit 1; moving one upload step *before* its build while leaving its text in the job ⇒
+exit 1; a stale exemption ⇒ exit 1; an exemption for a job that does not exist ⇒ exit 1.
+
+**What is still open.** The third residue bullet above stands unchanged: this guard reads workflow
+text and cannot see whether the crash sink actually symbolicated anything. That is
+`O-GLITCHTIP-FLUTTER-SYMBOLICATION-UNPROVEN`, and it is a different question from this one.

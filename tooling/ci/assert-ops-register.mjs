@@ -291,6 +291,30 @@ const coverageLost = (lines) => {
   process.exit(1);
 };
 
+/** 🔴 THE SAME REFUSAL, AT EXIT **2** — and the difference from `coverageLost`
+ *  above is stated here rather than left to be discovered by whoever next reads
+ *  an exit code out of this file.
+ *
+ *  The platform rule (`AGENTS.md`, and `C-COVERAGE-LOST-IS-NOT-PASS` in
+ *  `platform-state/constraints.json`) is that a guard exits **2** when it did not
+ *  check enough to be evidence, so that "compared nothing, found nothing wrong"
+ *  cannot share an exit code with "every floor holds" — and, just as usefully,
+ *  cannot share one with "a floor broke". Nine guards in `tooling/ci` already do.
+ *
+ *  This file's own `coverageLost` predates that convention and exits 1 at every
+ *  one of its call sites. Re-pointing all of them is a change with a far wider
+ *  blast radius than one new limb should carry — ops-watch.yml's digest reads
+ *  this guard's code, and the suite asserts 1 on several of those paths — so it
+ *  is RECORDED as a finding (Private/research/revamp-2026-09-05/coverage-alarm-on-red.md)
+ *  rather than smuggled in beside an unrelated change. NEW limbs use the
+ *  convention; the old call sites move with the unit that owns that move. Both
+ *  codes fail CI, so nothing is weakened while they disagree. */
+const coverageLostHard = (lines) => {
+  console.error(`✗ COVERAGE LOST — ${lines[0]}`);
+  for (const l of lines.slice(1)) console.error(`  ${l}`);
+  process.exit(2);
+};
+
 // ── jsonc, because every wrangler config in this repo is heavily commented ────
 // Comments are stripped OUTSIDE string literals only. A naive `//` strip would
 // eat the `//` in every "https://…" value and turn a valid config into a parse
@@ -2226,6 +2250,308 @@ async function probeGithubRun(q, repo) {
   return classifyRunHistoryAnswer(q, body?.workflow_runs?.[0], repo);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 [14]O-3b · RED SINCE — THE LIMB THAT GRADES A FAILED RUN, NOT MERELY A
+// MISSING SUCCESSFUL ONE. Added 2026-09-07, coverage unit `alarm-on-red`,
+// [ADR 067] decision 4.
+//
+// ── THE DEFECT, READ OUT OF THIS FILE'S OWN SOURCE ──────────────────────────
+// `probeGithubRun` above asks GitHub for `status=success`. A failed run is not
+// ignored by the verdict logic — IT NEVER ARRIVES. So the only thing that could
+// ever notice `main` going red was the STALENESS window quietly expiring:
+// `duty.workflow.build-platforms.yml` is a `7d` duty against a
+// `7d x 1.5 = 252h` window, so a run that FAILS is invisible for up to ten and a
+// half days, and even then it surfaces as "the newest SUCCESSFUL run is old",
+// which reads like a quiet week rather than like a broken build. It bit this
+// repository for three days in the week of 2026-09-01. TRAPS `ci-38` states the
+// general form: NOTHING IN THIS PORTFOLIO GRADES A FAILED RUN — ONLY THE AGE OF
+// THE NEWEST GREEN — SO A RED `main` IS SILENCE, NOT AN ALARM.
+//
+// ── WHY THIS IS A SECOND QUERY AND NOT A WIDER FILTER ───────────────────────
+// Dropping `status=success` from the cadence query would destroy the cadence
+// claim: `lastSuccessMs` would begin reporting the newest run of ANY conclusion,
+// so a workflow failing every single night would look the freshest of all. The
+// two claims are therefore read from two answers — the same split Worker cron
+// Phase 2 made between the TIMER and the OUTCOME:
+//   · FRESHNESS — newest SUCCESS for the declared event (`probeGithubRun`).
+//   · REDNESS   — newest SUCCESS **and** newest FAILURE on the declared branch,
+//                 EVENT FILTER DROPPED, and the two timestamps ordered.
+//
+// 🔴 AND THE EVENT FILTER MUST BE DROPPED HERE. That is not an oversight, it is
+// the case that would produce a false alarm. `duty.workflow.codeql.yml` reads
+// `event: schedule` for its cadence, and codeql also runs on `push` to `main`.
+// If the redness comparison reused that filtered success, a `push` run that
+// FAILED at T2 would be compared against the newest SCHEDULED success at
+// T1 < T2 and reported RED — while a later `push` success at T3 > T2 had already
+// made `main` green again. A false alarm on the merge queue is how a guard gets
+// switched off. So both halves are read at the SAME width (branch only) and the
+// answer means exactly what it says: on this branch, for this workflow, is the
+// newest failure newer than the newest success.
+//
+// ── WHAT IT DOES WHEN IT FIRES: THE DUTY IS FAILING ─────────────────────────
+// Not a new severity, not a new channel, and deliberately not a print. The
+// register already defines a duty whose record says the mechanism failed as
+// FAILING — every row in this domain carries `failingValue: "conclusion =
+// failure …"` in its own words — and `evaluateRunRecords` already blocks on
+// that. So this limb speaks the register's existing vocabulary and routes into
+// `errors`. Which means, concretely: `ci-gate` red on every branch until the
+// branch is green again, and, within at most one ops-watch slot (twelve a day),
+// the `alert` job in `.github/workflows/ops-watch.yml`
+// (`if: failure() && github.event_name == 'schedule'`) files it against the
+// durable issue "Scheduled duty is not reporting healthy". That is the page, and
+// it is the chain that already exists.
+//
+// `tooling/ops/alarm-chains.json` is deliberately NOT touched. It ledgers
+// GlitchTip monitor → recipient chains — "if that MONITOR goes red, does a human
+// find out" — and this finding does not travel a monitor. It travels the
+// workflow-failure chain, which is exercised on every red ops-watch run.
+//
+// ⚠️ THE FREEZE IS BOUNDED AND ITS REMEDY IS REACHABLE, which is the property
+// that decides whether a blocking alarm is honest rather than merely loud. Every
+// workflow in this domain accepts `workflow_dispatch`, and the comparison
+// accepts a success of ANY event — so one dispatched green run on the branch
+// clears the red immediately, with no merge required.
+//
+// 🔴 THAT IS ALSO WHY THE DOMAIN IS THE SCHEDULED PROOFS AND NOT EVERY
+// `duty.workflow.*` ROW. `ci.yml`, `deploy-web.yml`, `deploy-workers.yml` and
+// `site-drift-repair.yml` are `cadence: trigger` rows: `ci.yml`'s newest run on
+// `main` can be made green only BY MERGING, so blocking merges on it would be a
+// deadlock with no exit at all — the `ci-18` bootstrap shape, one level up, and
+// this repository has already paid ~46h of frozen queue for a milder version of
+// it. A red `ci.yml` on `main` is looked at by the checks on the pull request
+// that produced it; a red nightly proof is looked at by nobody, and that is the
+// gap this limb closes. The exclusion is named here rather than discovered.
+//
+// ── AND WHY `assert-platform-proof-fresh.mjs` GETS NO COPY OF THIS ──────────
+// It reads `build-platforms.yml`'s run history independently and also asks for
+// `status=success`. A second copy of this rule is exactly what `grep-10`
+// forbids, and it would buy nothing: `build-platforms.yml` IS
+// `duty.workflow.build-platforms.yml`, this limb grades it, and both guards run
+// in the SAME `ci.yml` job (`Guards - platform, data and ops`) with the same
+// token — so a red `build-platforms` already fails that job here. Its
+// `status=success` read stays what it is: a FRESHNESS and PROVENANCE read, not a
+// redness read.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The rows this limb grades: a `duty.workflow.*` row, ON A CLOCK, whose record
+ *  is the GitHub run history of a NAMED workflow on a NAMED branch. DERIVED from
+ *  the register, never listed — a hand-kept list of watched workflows is the
+ *  drift this whole file exists to refuse, and a list would also have to be
+ *  edited (i.e. could be shortened) to close the alarm. */
+export function redSinceDomain(reg) {
+  return (reg?.rows ?? []).filter((r) => {
+    if (r?.kind !== 'duty' || !String(r?.id ?? '').startsWith('duty.workflow.')) return false;
+    if (!TIME_CADENCE.test(String(r?.cadence ?? ''))) return false;
+    const q = r?.mechanism?.recordQuery;
+    return q?.reader === 'github-run-history' && nonEmpty(q?.workflow) && nonEmpty(q?.headBranch);
+  });
+}
+
+/** PURE. Turns ONE redness answer into a verdict, so every branch is reachable
+ *  from a test with no network — the same shell/pure split
+ *  `classifyRunHistoryAnswer` and `classifyGlitchtipChecks` already use, and for
+ *  the same reason: a limb whose only evidence is "it was green against
+ *  production today" has no recorded failing case.
+ *
+ *  Four verdicts, and exactly one of them is "fine":
+ *    · `green`      — the newest success is newer than the newest failure, or
+ *                     there has never been a failure at all.
+ *    · `red`        — RED SINCE. Routed to `errors`; the duty is FAILING.
+ *    · `unreadable` — no token, a throw, or an unorderable answer. PRINTS.
+ *                     "I could not tell" is never "it is fine".
+ *    · `blind`      — failures exist and no success does, so the comparison has
+ *                     one term. COVERAGE LOST; see `evaluateRedSince`. */
+export function classifyRedSince(row, probe) {
+  const id = row.id;
+  const q = row?.mechanism?.recordQuery ?? {};
+  const where = `${q.workflow} on ${q.headBranch}`;
+  if (!probe) return { verdict: 'unreadable', line: `${id} — the RED-SINCE read of ${where} produced no result at all on this run.` };
+  if (probe.unreadable) return { verdict: 'unreadable', line: `${id} — the RED-SINCE read of ${where} could not run here: ${probe.why}` };
+
+  const fail = probe.failure ?? null;
+  const ok = probe.success ?? null;
+
+  if (!fail) {
+    return {
+      verdict: 'green',
+      line: `${id} — ${where}: no FAILED run in its history at all${ok ? `, and the newest success is run ${ok.id} at ${ok.at}` : ''}.`,
+    };
+  }
+  if (!ok) {
+    return {
+      verdict: 'blind',
+      line:
+        `${id} — ${where} has FAILED runs (newest is run ${fail.id} at ${fail.at}) and NO successful run at all, so ` +
+        '"is the newest failure newer than the newest success" HAS NO SECOND TERM and this limb cannot order them.',
+    };
+  }
+  const failMs = Date.parse(fail.at);
+  const okMs = Date.parse(ok.at);
+  if (!Number.isFinite(failMs) || !Number.isFinite(okMs)) {
+    return {
+      verdict: 'unreadable',
+      line:
+        `${id} — ${where}: a run came back whose timestamp does not parse (failure ${JSON.stringify(fail.at)}, ` +
+        `success ${JSON.stringify(ok.at)}), so the two cannot be ordered. Refusing to read is not reading a pass.`,
+    };
+  }
+  if (failMs > okMs) {
+    return {
+      verdict: 'red',
+      line:
+        `${id} — RED SINCE ${fail.at}: ${where} run ${fail.id} FAILED, and the newest SUCCESSFUL run on that branch is ` +
+        `run ${ok.id} at ${ok.at}, ${((failMs - okMs) / 3_600_000).toFixed(1)}h EARLIER. This row's own ` +
+        '`failingValue` is a failing conclusion; this is that value, live, and the duty is FAILING. A success of ' +
+        'ANY event on that branch clears it — dispatch the workflow once the cause is fixed.',
+    };
+  }
+  return {
+    verdict: 'green',
+    line:
+      `${id} — ${where}: newest success run ${ok.id} (${ok.at}) is newer than the newest failure run ${fail.id} ` +
+      `(${fail.at}), by ${((okMs - failMs) / 3_600_000).toFixed(1)}h.`,
+  };
+}
+
+/** PURE. `probes` is `Map<rowId, redSinceProbe>`; every impure thing has already
+ *  happened. `coverageLost` is returned SEPARATELY from `errors` because the two
+ *  mean different things: an error is a branch that is red right now, coverage
+ *  lost is this limb no longer being able to tell. */
+export function evaluateRedSince(reg, probes) {
+  const errors = [];
+  const prints = [];
+  const domain = redSinceDomain(reg);
+
+  // 🔴 THE EMPTY DOMAIN, WHICH IS THE ONE WAY THIS LIMB COULD BE DISABLED
+  // WITHOUT DELETING IT. Moving every workflow duty onto `unreachable`, onto
+  // `trigger`/`on-demand`, or off `github-run-history` would leave this function
+  // ranging over nothing and printing a serene `0 RED`. That is the exact defect
+  // [14]O-3 was built to end one level down, and it gets the same answer here.
+  if (domain.length === 0) {
+    return {
+      coverageLost: [
+        'not one `duty.workflow.*` row is on a clock AND reads a named workflow on a named branch out of the GitHub run history,',
+        'so the RED-SINCE limb ranges over the EMPTY SET and a red branch is silence again rather than an alarm.',
+        'Moving the workflow duties onto `unreachable`, onto `trigger`/`on-demand`, or off `github-run-history` must',
+        'not be the way to satisfy the one limb that grades a FAILED run. TRAPS ci-38 is the incident this refuses.',
+      ],
+    };
+  }
+
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0 };
+  const blindLines = [];
+  const darkLines = [];
+  for (const r of domain) {
+    const c = classifyRedSince(r, probes.get(r.id));
+    tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
+    if (c.verdict === 'red') errors.push(c.line);
+    else if (c.verdict === 'blind') blindLines.push(c.line);
+    else if (c.verdict === 'unreadable') darkLines.push(c.line);
+    else prints.push(`[14]O-3b — ${c.line}`);
+  }
+
+  // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE, for the same reason [14]O-3's
+  // is: `0 RED over 7 workflows` and `0 RED over 0 workflows` read identically
+  // unless the domain size is stated beside the verdict.
+  prints.push(
+    `[14]O-3b — RED SINCE: ${domain.length} scheduled workflow duty(ies) graded · ${tally.green} whose newest run on their own ` +
+      `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
+      `${tally.blind} with no success to compare against`,
+  );
+  for (const l of darkLines) prints.push(`[14]O-3b — ${l}`);
+  if (tally.green === 0 && tally.red === 0 && tally.blind === 0) {
+    prints.push(
+      '[14]O-3b — 🔴 THE RED-SINCE LIMB ORDERED ZERO PAIRS ON THIS RUN. Every watched workflow was unreadable here ' +
+        '(no token, or the API could not be reached), so nothing above could have failed. This line exists so that ' +
+        'state can never be mistaken for a green branch.',
+    );
+  }
+
+  if (blindLines.length) {
+    return {
+      errors,
+      prints,
+      coverageLost: [
+        `${blindLines.length} watched workflow(s) have FAILED runs and NO successful run at all on their own branch.`,
+        ...blindLines,
+        ...errors,
+        'This is COVERAGE LOST rather than a pass AND rather than a RED: "since when" needs two terms and has one,',
+        'and a first-ever run that failed is not distinguishable here from a history that does not reach back far',
+        'enough. The duty is NOT unwatched — the sibling [14]O-3 limb still grades "no successful run at all" as',
+        'FAILING — so what is lost is precisely this limb\'s ability to say SINCE WHEN, and it says so.',
+      ],
+    };
+  }
+  return { errors, prints, stats: { domain: domain.length, ...tally } };
+}
+
+/** Both halves of the redness comparison, at the SAME width: branch only, event
+ *  filter dropped, per the header above. The impure shell only; it holds no
+ *  verdict logic.
+ *
+ *  TWO REQUESTS RATHER THAN ONE PAGE OF `status=completed`, and the reason is
+ *  `cancelled`. A cancelled run is neither a success that clears a red nor a
+ *  failure that starts one, and on a busy branch a page of them would push both
+ *  real answers off it — so the newest-completed shape would let a cancellation
+ *  change the verdict simply by being newest. Asking each conclusion for its own
+ *  newest run cannot be moved by a third one. */
+async function probeGithubRedSince(q, repo) {
+  const wf = encodeURIComponent(q.workflow);
+  const br = `branch=${encodeURIComponent(q.headBranch)}&`;
+  const newest = async (status) => {
+    const body = await ghJson(`/repos/${repo}/actions/workflows/${wf}/runs?${br}status=${status}&per_page=1`);
+    const run = body?.workflow_runs?.[0];
+    if (!run) return null;
+    // 🔴 THE FILTER IS THE REQUEST; THIS IS THE ANSWER, CHECKED — the same rule
+    // `classifyRunHistoryAnswer` states and for a sharper reason here. A
+    // `branch=` silently ignored by a future API version would compare two runs
+    // from two different branches and freeze the queue over a feature branch's
+    // failure; a `status=` silently ignored would compare a run against itself.
+    // A throw here becomes `unreadable`, which prints and never passes.
+    if (run.head_branch !== q.headBranch) {
+      throw new Error(
+        `the branch filter did not hold for ${q.workflow}: asked for ${JSON.stringify(q.headBranch)} and run ${run.id} ` +
+          `came back on ${JSON.stringify(run.head_branch ?? null)}`,
+      );
+    }
+    if (run.conclusion !== status) {
+      throw new Error(
+        `the status filter did not hold for ${q.workflow}: asked for ${status} and run ${run.id} came back ` +
+          `${JSON.stringify(run.conclusion ?? null)}`,
+      );
+    }
+    return { id: run.id, at: run.updated_at };
+  };
+  return { success: await newest('success'), failure: await newest('failure') };
+}
+
+/** The impure orchestrator. One row per workflow by construction (the register
+ *  holds `watched workflows === .github/workflows/*.yml` in both directions), so
+ *  there is nothing to de-duplicate. */
+async function probeRedSince(reg) {
+  const probes = new Map();
+  const repo = process.env.GITHUB_REPOSITORY || DEFAULT_REPO;
+  for (const r of redSinceDomain(reg)) {
+    if (!ghToken()) {
+      probes.set(r.id, {
+        unreadable: true,
+        why: 'neither GITHUB_TOKEN nor GH_TOKEN is in the environment, so the run history cannot be read',
+      });
+      continue;
+    }
+    try {
+      probes.set(r.id, await probeGithubRedSince(r.mechanism.recordQuery, repo));
+    } catch (e) {
+      // 🔴 An error is UNREADABLE, never a pass and never a red. "I could not
+      // tell" must not read as "the branch is green", and it must not redden CI
+      // on a transient 502 either — the print carries the reason, so a
+      // persistent one is visible on every run.
+      probes.set(r.id, { unreadable: true, why: `the query threw: ${e.message}` });
+    }
+  }
+  return probes;
+}
+
 /** duty.renovate's record is the Dependency Dashboard issue: Renovate rewrites
  *  it every time it runs, so its `updated_at` IS the run record. The absence of
  *  the issue is the interesting case and it is a hard failure, not a pass — a
@@ -3009,6 +3335,20 @@ async function main() {
   if (rec.coverageLost) coverageLost(rec.coverageLost);
   errors.push(...(rec.errors ?? []));
   prints.push(...(rec.prints ?? []));
+
+  // [14]O-3b, after [14]O-3 and for the same reason it is last: it leaves this
+  // machine. It asks a DIFFERENT question of the same record — not "is the
+  // newest success recent" but "is the newest FAILURE newer than it" — and it
+  // is the only limb in this file that can notice a red branch before a
+  // staleness window expires. See its header block.
+  const redProbes = await probeRedSince(reg);
+  const red = evaluateRedSince(reg, redProbes);
+  prints.push(...(red.prints ?? []));
+  if (red.coverageLost) {
+    for (const p of prints) console.log(`⬜  ${p}`);
+    coverageLostHard(red.coverageLost);
+  }
+  errors.push(...(red.errors ?? []));
 
   // ── report ────────────────────────────────────────────────────────────────
   for (const p of prints) console.log(`⬜  ${p}`);
