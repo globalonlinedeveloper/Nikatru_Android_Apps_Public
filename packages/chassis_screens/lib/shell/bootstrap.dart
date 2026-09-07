@@ -84,7 +84,10 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 ///    `tooling/ci/assert-stamp-properties.mjs` walks this boot path and fails
 ///    the build if an ask ever appears on it.
 ///
-/// 5. **Initialise identity, then run** — 🔴 [pipeline C-15 / G-43] IDENTITY,
+/// 5. **Initialise identity, then run** — 🔴 [pipeline C-15 / G-43] (absent from
+///    origins.lock.json by construction — G-43 is a MASTER_PLAN §3 chassis-gap
+///    id, a different register from the pipeline ids; see Private/MASTER_PLAN.md)
+///    IDENTITY,
 ///    BEFORE THE FIRST FRAME. Nothing in the brick used to initialise the SDK at
 ///    all, while the auth provider returns the real repository the moment
 ///    `SUPABASE_URL`/`SUPABASE_ANON_KEY` are supplied — the exact configuration
