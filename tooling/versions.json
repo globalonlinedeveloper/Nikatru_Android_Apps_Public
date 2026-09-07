@@ -253,7 +253,7 @@
     "to read first, and the fix is to move this pin forward to a wrangler whose miniflare",
     "is published — never to reintroduce the caret."
   ],
-  "wrangler": "4.120.0",
+  "wrangler": "4.129.0",
 
   "$glitchtip_cli_comment": [
     "ADDED 2026-09-03. THE TOOL THAT MAKES A WEB CRASH READABLE, and until this key existed there was",
