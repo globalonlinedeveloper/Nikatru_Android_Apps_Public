@@ -1102,6 +1102,57 @@ counted in every future run. Measured 2026-08-27 on injected history against
 a one-suite checkout: legs=2/1, not-green, exit 1. It fails LOUD rather than
 silent, but `Weekly proof freshness` is what keeps it from failing at all.
 
+🔴 APPENDED 2026-09-07 — THIS JOB NOW RUNS INSIDE THE RUN IT GRADES, AND THAT
+IS WHY THE PARAGRAPH ABOVE READS THE WAY IT DOES. Everything above this line
+was written for the *pre-merge extensions repository*, where this job lived in
+`ci.yml` and fired on push and pull_request — OUTSIDE the weekly run. That is
+what made "asks the two questions the run cannot ask about itself" a true
+sentence. The 2026-09-05 merge (commit 7a057553) carried a copy of the job into
+`extensions.yml`, whose `if:` puts it on the `schedule` event, and the sentence
+stopped being true in the same commit. It is left exactly as written: a frozen
+record is superseded, never rewritten.
+
+⛔ MEASURED, RUN 34168610730 — THE FIRST SCHEDULED RUN OF `extensions.yml` ON
+main WAS RED AND THIS WAS THE ONLY FAILED JOB. The cron `53 20 * * *` delivered
+at 23:01 UTC. The run started 23:01:12; this job read the run history at
+23:01:17, five seconds later, and the newest scheduled run it found was the run
+it was executing inside. Its own e2e leg had not started — `e2e ·
+Extension/Full_Screen_Shot` began 23:01:22 and PASSED at 23:19:35, eighteen
+minutes after the verdict was already written. It graded itself `legs=1/1
+not-green … NEVER EXERCISED` and exited 1 on "NO GREEN SCHEDULED RUN in the
+newest 1 scheduled extensions.yml run(s)".
+
+⛔ THAT RED WAS ARITHMETIC, NOT EVIDENCE. On a first-ever scheduled run the
+list holds one row, that row is this run, and this run cannot have finished the
+legs it is being graded on. No dead timer and no red proof existed for it to
+find. Worse than the red, and invisible to any exit code: limb 1 would have
+gone on reporting a ~0-day timer age off a run that had proved nothing, for as
+long as the cron kept firing. This is the self-reference class the Private
+corpus already carries — the measurement is inside the thing measured.
+
+THE FIX IS IN `scripts/assert-e2e-proof-fresh.mjs`, NOT HERE, and it is one
+filter rather than a check at each use: when `GITHUB_RUN_ID` names a row in the
+scheduled-run list, that row is dropped from `sched` immediately after the
+event re-check and before either limb, and a `::notice::` names the excluded
+run id and says a run cannot be its own proof. Both limbs, the walk and the
+summary line then read one list and can never disagree about what the history
+is. With self excluded and no other scheduled run, limb 1 falls to the
+empty-history path — a notice before `BOOTSTRAP_UNTIL`, an error after it, with
+no code change. Every other scheduled run is graded exactly as before, so a red
+proof and a dead cron both still bite. `scripts/test/selftest.node.js` drives
+all four corners in PAIRS, mutating the ENVIRONMENT rather than the source: the
+same fixture with `GITHUB_RUN_ID` naming the newest row and with it cleared,
+which is run 34168610730 on both sides of the filter.
+
+⚠️ WHAT THIS DOES NOT SETTLE. `ci.yml`'s call site is unaffected — it runs on
+push and pull_request, outside every workflow it reads, and so are
+`tooling/ci/assert-e2e-proof-fresh.mjs` and
+`tooling/ci/assert-platform-proof-fresh.mjs`, and so is the ci-lane copy of this
+job in this file (`e2e-proof-fresh`, `if: github.event_name != 'schedule'`).
+The schedule-event job was the only one reading its own in-flight run. And no
+green here proves the scheduled lane is fixed: that is measured by the next
+scheduled run, not by this change.
+
 ### above `if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (gith…`
 
 Same gate as `discover`: on a PR this is silent unless somebody asks for
