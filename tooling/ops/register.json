@@ -994,9 +994,9 @@
     {
       "id": "duty.workflow.extensions.yml",
       "kind": "duty",
-      "what": "The whole extension pipeline in one workflow: the CI lane on every pull request, the weekly end-to-end lane on Mondays 04:17 UTC, and the release lane on a `<tool>-v<x.y.z>` tag push. Arrived 2026-09-05 with the extensions subtree, replacing three workflows in a repository that is now archived.",
-      "detector": "A red check on the pull request that caused it, attended by definition, for the CI lane. For the weekly lane, extensions/scripts/assert-e2e-proof-fresh.mjs on every push: the newest SCHEDULED green run must be inside the window it DERIVES from this workflow's own cron, and a workflow_dispatch deliberately does not satisfy it.",
-      "response": "Fix before merge for the CI lane. A stale weekly proof means the extension end-to-end evidence is unproven, not that the extensions are broken \u2014 read the run history before treating it as an outage, and remember the run history for the WEEKLY lane starts on 2026-09-05 because the previous repository holds everything before it.",
+      "what": "The whole extension pipeline in one workflow: the CI lane on every pull request, the end-to-end lane on the DAILY 20:53 UTC schedule, and the release lane on a `<tool>-v<x.y.z>` tag push. Arrived 2026-09-05 with the extensions subtree, replacing three workflows in a repository that is now archived. THE DUTY IS WEEKLY AND THE CRON IS DAILY, DELIBERATELY: the schedule moved from `17 4 * * 1` to `53 20 * * *` on 2026-09-07 because a Monday-only slot gave this row's 7d x 1.5 = 252h window one or two chances at a scheduler measured delivering 10.1% of scheduled slots on time, and the row still held ZERO scheduled runs. The margin is given to the EVIDENCE, not to the duty (TRAPS ci-19), which is the shape codeql.yml, trufflehog.yml and renovate.yml already take. `cadence` stays `7d` because the duty did not change; only the number of chances the evidence gets did.",
+      "detector": "A red check on the pull request that caused it, attended by definition, for the CI lane. For the scheduled end-to-end lane, extensions/scripts/assert-e2e-proof-fresh.mjs on every push: the newest SCHEDULED green run must be inside the window it DERIVES from this workflow's own cron, and a workflow_dispatch deliberately does not satisfy it.",
+      "response": "Fix before merge for the CI lane. A stale scheduled proof means the extension end-to-end evidence is unproven, not that the extensions are broken \u2014 read the run history before treating it as an outage, and remember the run history for the SCHEDULED lane starts on 2026-09-05 because the previous repository holds everything before it.",
       "cadence": "7d",
       "mechanism": {
         "substrate": "github-actions",
@@ -1012,8 +1012,11 @@
           "firstDue": "2026-09-12T00:00:00Z",
           "_why": [
             "\u26a0\ufe0f `firstDue` IS THE BOOTSTRAP AND IT EXPIRES BY ARITHMETIC. This workflow landed on",
-            "2026-09-05 and its cron fires on Mondays, so there CANNOT be a scheduled run in this",
-            "repository's history until 2026-09-08 at the earliest; the run history of the three",
+            "2026-09-05 with a Monday-only cron, so there could be no scheduled run in this",
+            "repository's history before 2026-09-08 -- ONE chance, on a scheduler measured at 10.1%",
+            "on-time delivery, and the record was still EMPTY on 2026-09-07. The cron fires DAILY from",
+            "2026-09-07 (`53 20 * * *`), so this bootstrap has about five chances to be spent before it",
+            "expires rather than one. The run history of the three",
             "workflows this one replaces is in globalonlinedeveloper/Nikatru_Extensions_Public, which is",
             "archived and which no query here reaches. Dated one cadence window out, as the schema",
             "requires, so this cannot quietly stay empty.",
@@ -1029,9 +1032,11 @@
             "",
             "\u2b1c WHAT WOULD IMPROVE IT: add extensions.yml to GITHUB_DISPATCH_TARGETS in",
             "services/platform/src/scheduled.ts and split this row the way e2e.yml's was split. GitHub",
-            "delivers this repository's crons 10.1% on time, so a weekly cadence read through the",
-            "scheduler alone is the shakiest evidence in this register. It is deliberately NOT done in",
-            "the same change as a 542-file repository merge."
+            "delivers this repository's crons 10.1% on time, so a cadence read through the scheduler",
+            "alone is the shakiest evidence in this register. It is deliberately NOT done in the same",
+            "change as a 542-file repository merge. THE CHEAP HALF OF IT IS DONE, 2026-09-07: the cron",
+            "fires DAILY, so the 252h window has roughly ten chances at a run instead of one. That is",
+            "margin, not a second record, and the dispatcher split above is still the real close."
           ]
         }
       },
@@ -1299,8 +1304,7 @@
           "workflow": "codeql.yml",
           "event": "schedule",
           "headBranch": "main",
-          "firstDueWhy": "⚠️ THE BOOTSTRAP, AND IT EXPIRES BY ARITHMETIC RATHER THAN BY SOMEBODY REMEMBERING. TRAPS ci-18: this guard holds `watched workflows === .github/workflows/*.yml` in BOTH directions, so codeql.yml cannot land without this row — and a workflow's run history does not exist until the file is on the DEFAULT BRANCH, so on the day it merges the recordQuery below has nothing to find. `firstDue` is the only sanctioned bridge across that deadlock and the guard refuses one more than a single cadence window ahead, which is what stops it becoming a permanent waiver. Dated 2026-09-12, six days after the file was written and comfortably inside this row's own [7d x 1.5 = 252h] window. ⬜ ITS EXIT CONDITION, STATED SO NOBODY HAS TO DERIVE IT: DELETE BOTH THIS FIELD AND `firstDue` once one scheduled run has succeeded on main. Leaving them is not neutral — a spent bootstrap is a waiver wearing a wait's clothes, which is why duty.workflow.renovate.yml's was removed on 2026-09-05 with the removal written down.",
-          "why": "🔴 `event: schedule` STAYS, EVEN THOUGH THIS WORKFLOW ALSO RUNS ON EVERY PULL REQUEST, and the two claims must not be confused. A PR run proves somebody opened a pull request; it is not a cadence claim, and accepting it here would make freshness green on the repository being busy. It would also be the widest possible filter, because a pull_request run can come from ANY branch — which is what `headBranch: main` is stated against. Nothing dispatches this workflow from the Cloudflare cron (services/platform/src/scheduled.ts names e2e.yml and ops-watch.yml, not this one), so there is no `timer` limb to split the claim onto and the schedule filter carries the whole of it. ⬜ WHAT WOULD IMPROVE IT: add codeql.yml to GITHUB_DISPATCH_TARGETS and split this row the way e2e.yml's is split. GitHub delivers this repository's crons 10.1% on time, which is why the cron fires DAILY against a weekly window rather than weekly against a weekly one (TRAPS ci-19) — the margin is given to the EVIDENCE, not to the duty."
+          "why": "🔴 `event: schedule` STAYS, EVEN THOUGH THIS WORKFLOW ALSO RUNS ON EVERY PULL REQUEST, and the two claims must not be confused. A PR run proves somebody opened a pull request; it is not a cadence claim, and accepting it here would make freshness green on the repository being busy. It would also be the widest possible filter, because a pull_request run can come from ANY branch — which is what `headBranch: main` is stated against. Nothing dispatches this workflow from the Cloudflare cron (services/platform/src/scheduled.ts names e2e.yml and ops-watch.yml, not this one), so there is no `timer` limb to split the claim onto and the schedule filter carries the whole of it. ⬜ WHAT WOULD IMPROVE IT: add codeql.yml to GITHUB_DISPATCH_TARGETS and split this row the way e2e.yml's is split. GitHub delivers this repository's crons 10.1% on time, which is why the cron fires DAILY against a weekly window rather than weekly against a weekly one (TRAPS ci-19) — the margin is given to the EVIDENCE, not to the duty. AND THE BOOTSTRAP PROSE IS RETIRED, 2026-09-07. `firstDue` and this row's `firstDueWhy` were a matched pair: the date was deleted on 2026-09-06 (PR #516) on the evidence of run 34024923914, `event: schedule` on `main`, success 2026-09-06T09:32:06Z, and the prose block stayed behind still reading as live instruction -- its own words were DELETE BOTH THIS FIELD AND `firstDue` once one scheduled run has succeeded on main. Nothing read it: `grep -rn firstDueWhy tooling/ci` returns nothing. It is deleted here and the deletion is written down, because a bootstrap that vanishes without a trace is one the next editor re-derives from scratch -- duty.workflow.renovate.yml's precedent, 2026-09-05."
         }
       },
       "absenceWatcher": {
@@ -1334,8 +1338,7 @@
           "workflow": "trufflehog.yml",
           "event": "schedule",
           "headBranch": "main",
-          "firstDueWhy": "⚠️ THE BOOTSTRAP, ON THE SAME TERMS AND FOR THE SAME REASON AS duty.workflow.codeql.yml's — restated here rather than cross-referenced, because a shared note is one that gets edited for one row and read for two. TRAPS ci-18: the both-directions coverage limb refuses a workflow with no duty row, and a run history does not exist until the file is on the default branch, so the row and the record cannot both be true on the day of the merge. Dated 2026-09-12, inside this row's own [7d x 1.5 = 252h] window, which is the bound the guard enforces and the only thing that stops the field becoming permanent. ⬜ DELETE THIS FIELD AND `firstDue` once one scheduled run has succeeded on main.",
-          "why": "🔴 `event: schedule` — this workflow has no pull_request trigger at all, so the filter is not narrowing a busy history; it is refusing `workflow_dispatch`, which is indistinguishable from a person pressing the button and is therefore the opposite of a cadence claim. `headBranch: main` is stated anyway rather than left implied by GitHub firing schedules only on the default branch: that guarantee belongs to GitHub's behaviour, not to this register, and it must not vanish silently if the event filter is ever widened."
+          "why": "🔴 `event: schedule` — this workflow has no pull_request trigger at all, so the filter is not narrowing a busy history; it is refusing `workflow_dispatch`, which is indistinguishable from a person pressing the button and is therefore the opposite of a cadence claim. `headBranch: main` is stated anyway rather than left implied by GitHub firing schedules only on the default branch: that guarantee belongs to GitHub's behaviour, not to this register, and it must not vanish silently if the event filter is ever widened. AND THE BOOTSTRAP PROSE IS RETIRED, 2026-09-07, on the same terms as duty.workflow.codeql.yml's. `firstDue` was deleted on 2026-09-06 (PR #516) on the evidence of run 34045365669, `event: schedule` on `main`, success 2026-09-06T16:25:01Z; the `firstDueWhy` block beside it stayed behind still instructing a reader to delete a field that was already gone. No guard reads it -- `grep -rn firstDueWhy tooling/ci` returns nothing -- so it is deleted here with the deletion recorded rather than silent."
         }
       },
       "absenceWatcher": {
