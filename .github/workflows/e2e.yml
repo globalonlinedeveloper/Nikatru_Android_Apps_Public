@@ -68,18 +68,24 @@ jobs:
         with:
           persist-credentials: false
 
-      # why: THE TARGET IS RESOLVED HERE AND NOWHERE ELSE, AND IT FAILS CLOSED.
-      # A GitHub `A && B || C` ternary cannot carry this: an EMPTY BOXA_* secret
-      # is falsey, so the ternary would silently hand back the hosted value and
-      # the run would report "boxa" in its name while grading production. That
-      # is the exact false green this lane exists to refuse. So the choice is
-      # made in shell, each of the three names is checked for emptiness by
-      # itself, and a missing one ENDS the job naming the secret — never a skip,
-      # never a fallback.
+      # why: THE TARGET IS NAMED HERE, AND EVERY INPUT THE RUN NEEDS IS CHECKED
+      # HERE, AND IT FAILS CLOSED. Each of the three secrets for the chosen set
+      # is checked for emptiness BY NAME, and a missing one ENDS the job naming
+      # the secret — never a skip, never a fallback. This step does NOT hand the
+      # values on: the ONLY thing it writes to $GITHUB_ENV is E2E_AUTH_TARGET,
+      # which is not a secret. See the block above "Provision throwaway confirmed
+      # user" for how the resolved values reach the steps that consume them.
       - name: Preflight — the chosen auth target's secrets must be present
         id: pre
         env:
           TARGET: ${{ inputs.auth_target || 'hosted' }}
+          # why: the SITE key, not a secret — a repository VARIABLE, public by
+          # design. It is checked here for the same reason the three secrets are:
+          # every gated screen on Box A needs a Turnstile token, so a run that
+          # drives with an empty sitekey proves the suite passes WITHOUT the gate
+          # and says nothing about the cutover it exists to rehearse. Run
+          # 34068306612 was exactly that: green, with the define empty.
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           HOSTED_URL: ${{ secrets.SUPABASE_URL }}
           HOSTED_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
           HOSTED_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -97,13 +103,11 @@ jobs:
           # is how e2e.yml green-skipped its own body once already.
           if [ "$TARGET" = 'hosted' ]; then
             prefix=SUPABASE
-            url="$HOSTED_URL"; anon="$HOSTED_ANON"; key="$HOSTED_KEY"
             if [ -z "$HOSTED_URL" ];  then missing="${missing} SUPABASE_URL"; fi
             if [ -z "$HOSTED_ANON" ]; then missing="${missing} SUPABASE_ANON_KEY"; fi
             if [ -z "$HOSTED_KEY" ];  then missing="${missing} SUPABASE_SERVICE_ROLE_KEY"; fi
           elif [ "$TARGET" = 'boxa' ]; then
             prefix=BOXA_SUPABASE
-            url="$BOXA_URL"; anon="$BOXA_ANON"; key="$BOXA_KEY"
             if [ -z "$BOXA_URL" ];  then missing="${missing} BOXA_SUPABASE_URL"; fi
             if [ -z "$BOXA_ANON" ]; then missing="${missing} BOXA_SUPABASE_ANON_KEY"; fi
             if [ -z "$BOXA_KEY" ];  then missing="${missing} BOXA_SUPABASE_SERVICE_ROLE_KEY"; fi
@@ -115,13 +119,22 @@ jobs:
             echo "::error title=E2E cannot run::auth_target=${TARGET} needs${missing}, and it is not set. The end-to-end proof did NOT run — this is a failed run, not a skipped one. Add or re-add the secret in Settings → Secrets and variables → Actions."
             exit 1
           fi
-          {
-            echo "E2E_AUTH_TARGET=${TARGET}"
-            echo "SUPABASE_URL=${url}"
-            echo "SUPABASE_ANON_KEY=${anon}"
-            echo "SUPABASE_SERVICE_ROLE_KEY=${key}"
-          } >> "$GITHUB_ENV"
-          echo "auth_target=${TARGET}: ${prefix}_URL, ${prefix}_ANON_KEY and ${prefix}_SERVICE_ROLE_KEY are all present — running the live suite."
+          # why: THE SITEKEY LIMB, AND IT IS FAIL-CLOSED ON PURPOSE. An empty
+          # `vars.TURNSTILE_SITE_KEY` makes TurnstileGate render
+          # SizedBox.shrink(), so the suite signs in with no captcha token and
+          # goes green — and that green says nothing about the cutover, because
+          # Box A ENFORCES Turnstile on signup, token?grant_type=password,
+          # recover, otp, magiclink and resend. There is no honest third ending
+          # here: either the sitekey is present and the run means something, or
+          # the run is refused. The variable does not exist yet, so this limb is
+          # RED until the owner step below is taken — that is the designed
+          # behaviour and it is recorded as such, not a defect.
+          if [ -z "$TURNSTILE_SITE_KEY" ]; then
+            echo "::error title=E2E cannot run::the repository VARIABLE TURNSTILE_SITE_KEY is unset, so --dart-define=TURNSTILE_SITE_KEY would arrive empty, TurnstileGate would render nothing, and this run would prove the suite passes WITHOUT the captcha gate. OWNER STEP: Settings → Secrets and variables → Actions → Variables → New repository variable, name TURNSTILE_SITE_KEY, value = the PUBLIC Turnstile sitekey from runbooks/auth-cutover.md section 4 row 5 (a sitekey is public: it ships inside the web bundle; the secret half never leaves Box A). It is a variable, not a secret, and it can be unset again in seconds."
+            exit 1
+          fi
+          echo "E2E_AUTH_TARGET=${TARGET}" >> "$GITHUB_ENV"
+          echo "auth_target=${TARGET}: ${prefix}_URL, ${prefix}_ANON_KEY and ${prefix}_SERVICE_ROLE_KEY are all present, and TURNSTILE_SITE_KEY is set — running the live suite."
           echo "Auth target: **${TARGET}** (${prefix}_*)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stamp this run's build identity (APP_VERSION)
@@ -141,17 +154,40 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: flutter pub get --enforce-lockfile
 
-      # why: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are NOT
-      # read from `secrets.` in the steps below any more. The preflight resolved
-      # them for the chosen target and wrote them to $GITHUB_ENV under those same
-      # three names, so a step that re-declared them from `secrets.` would
-      # silently override the resolution and run `boxa` against hosted.
+      # why: THE RESOLVED VALUES ARE BOUND PER STEP, AND CROSS-CONTAMINATION IS
+      # IMPOSSIBLE BY CONSTRUCTION. Two things had to be true at once here.
+      #
+      # (a) NOTHING JOB-WIDE. A `SUPABASE_SERVICE_ROLE_KEY` written to
+      #     $GITHUB_ENV is inherited by EVERY later step in the job, including
+      #     the third-party actions this job runs (setup-chromedriver,
+      #     upload-artifact). That key is the one that BYPASSES THE TURNSTILE
+      #     GATE — tooling/channel-register.json says so in its own row — and it
+      #     is why the harness, never the browser, is the only thing that holds
+      #     it. On origin/main it was bound per step at five places; it is bound
+      #     per step again here, at the eight steps that actually consume it.
+      #
+      # (b) NO SILENT FALLBACK. A plain `A && B || C` ternary cannot carry the
+      #     target axis: an EMPTY BOXA_* secret is falsey, so the ternary hands
+      #     back the HOSTED value and the run grades production while its own
+      #     name says "boxa". The three-armed form below cannot do that — the
+      #     second arm tests `== 'hosted'` rather than being a bare else, so a
+      #     boxa run with an empty BOXA_* secret resolves to the EMPTY STRING and
+      #     the step dies on its own `need()`, never on the wrong stack. The
+      #     preflight above still fails first, and with the secret's NAME in the
+      #     error; this shape is what makes that message the only way through
+      #     rather than the only thing standing in the way.
       - name: Provision throwaway confirmed user
         id: user
+        env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: node tooling/e2e/provision_user.mjs
 
       - name: Provision the throwaway user the delete leg destroys
         id: delete_user
+        env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: node tooling/e2e/provision_user.mjs
 
       # why: THE ANSWER TO runbook §4.6's "expected, NOT YET MEASURED", taken on
@@ -161,18 +197,24 @@ jobs:
       # Both are positive expectations, and the script asserts the one that
       # belongs to this run's target, so neither half can rot unobserved.
       - name: Measure the target's captcha posture (ignores it, or enforces it)
+        env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
         run: node tooling/e2e/captcha_posture.mjs
 
       - name: Run integration tests (headless Chrome)
         id: drive
         working-directory: apps/${{ matrix.app }}
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           # why: a repository VARIABLE, not a secret. The Turnstile SITE key is
           # public by design — it ships inside the web bundle and is meaningless
-          # without the secret half, which lives only on Box A. Unset today, so
-          # the define arrives empty, TurnstileGate renders SizedBox.shrink()
-          # and the suite behaves exactly as it did before this line existed.
+          # without the secret half, which lives only on Box A. It can never
+          # arrive here empty: the preflight refuses the run when it is unset,
+          # because a suite that signs in with no captcha token proves nothing
+          # about the stack this lane exists to rehearse.
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           E2E_EMAIL: ${{ steps.user.outputs.email }}
           E2E_PASSWORD: ${{ steps.user.outputs.password }}
@@ -295,12 +337,17 @@ jobs:
       # for a reason nobody can read off the screenshot.
       - name: The Workers trust exactly one issuer (positive, both targets)
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_ANON_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_ANON_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_ANON_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_EMAIL: ${{ steps.user.outputs.email }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: node tooling/e2e/assert_one_issuer.mjs
 
       - name: Verify the in-app deletion really purged (leg 6)
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_DELETE_USER_ID: ${{ steps.delete_user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -330,6 +377,8 @@ jobs:
       - name: Purge test data (always — keep prod pristine)
         if: always() && steps.user.outcome != 'skipped'
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_USER_ID: ${{ steps.user.outputs.user_id }}
           E2E_APP_ID: ${{ matrix.app }}
           E2E_RESPONSE_DATA: apps/${{ matrix.app }}/build/integration_response_data.json
@@ -343,6 +392,8 @@ jobs:
       - name: Purge the delete-leg user too (already gone on a green run)
         if: always() && steps.delete_user.outcome != 'skipped'
         env:
+          SUPABASE_URL: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_URL || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.auth_target || 'hosted') == 'boxa' && secrets.BOXA_SUPABASE_SERVICE_ROLE_KEY || (inputs.auth_target || 'hosted') == 'hosted' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
           E2E_USER_ID: ${{ steps.delete_user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
