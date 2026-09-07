@@ -160,7 +160,7 @@ declarations.
 
 ## 6. Secrets the owner still has to add
 
-17 secrets exist. **15 are referenced by a workflow and do not exist**, at
+17 secrets exist. **26 are referenced by a workflow and do not exist**, at
 repository or environment level. Every path that needs one fails closed with a
 named secret rather than skipping — see §4 — so nothing here is a silent pass;
 it is a lane that cannot run until the credential is created.
@@ -184,6 +184,17 @@ it is a lane that cannot run until the credential is created.
 | `WINDOWS_CODESIGN_PASSWORD` | `build-platforms.yml` | as above |
 | `SNAPCRAFT_STORE_CREDENTIALS` | `submit-snap.yml` | the Snap live upload path |
 | `APPIMAGE_SIGNING_KEY_B64` | `build-platforms.yml` | AppImage unsigned |
+| `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` | `submit-snap.yml` | the Snap lane refuses a credential whose expiry it cannot read — the date passed to `snapcraft export-login --expires`, recorded because the exported blob's format is documented nowhere |
+| `AMO_JWT_ISSUER` | `extensions.yml` | the Firefox (AMO) submission — the ONE store whose API can make a first submission |
+| `AMO_JWT_SECRET` | `extensions.yml` | as above |
+| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the Monday `cws-token-keepalive` job |
+| `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
+| `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
+| `CWS_ITEM_ID` | `extensions.yml` | as above; issued by the store at the first MANUAL publish |
+| `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |
+| `EDGE_CLIENT_ID` | `extensions.yml` | the Edge Add-ons v1.1 four-call submission |
+| `EDGE_API_KEY` | `extensions.yml` | as above |
+| `EDGE_PRODUCT_ID` | `extensions.yml` | as above; issued at the first MANUAL publish |
 
 The Apple items are gated on hardware, not on money: there is no web enrolment
 in India, so the developer account cannot be created from this machine.

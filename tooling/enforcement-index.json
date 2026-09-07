@@ -1264,6 +1264,19 @@
   },
   {
     "claims": [
+      "D-9",
+      "R-4"
+    ],
+    "invokedBy": [
+      ".github/workflows/extensions.yml#release"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-publish-steps-guarded.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "B-2",
       "M-10",
       "M-15",
@@ -1880,7 +1893,8 @@
       ".github/workflows/deploy-workers.yml#subly-api",
       ".github/workflows/extensions.yml#release",
       ".github/workflows/submit-play.yml#submit",
-      ".github/workflows/submit-snap.yml#submit"
+      ".github/workflows/submit-snap.yml#submit",
+      ".github/workflows/submit-windows-store.yml#submit"
     ],
     "kind": "guard",
     "ref": "tooling/ci/record-deployment.mjs",
@@ -2272,7 +2286,8 @@
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-store",
-      ".github/workflows/submit-windows-store.yml#dry-run"
+      ".github/workflows/submit-windows-store.yml#dry-run",
+      ".github/workflows/submit-windows-store.yml#submit"
     ],
     "kind": "script",
     "ref": "tooling/release/submit-windows-store.mjs",

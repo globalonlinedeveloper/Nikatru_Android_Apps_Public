@@ -220,9 +220,29 @@ describe('§B — a job cannot green-skip its own body when a secret is absent',
     // The guard must not fire on every secret-using step, or it gets switched
     // off. `Provision throwaway confirmed user` reads two secrets and tests
     // neither for emptiness.
+    //
+    // ⏱ APPENDED 2026-09-07 — the paragraph above is left exactly as written.
+    // This case ASSERTED THE LITERAL `1 secret-presence check(s)`, which is a
+    // hand-kept count of the real tree wearing the costume of a property test:
+    // it went red the moment a fourth store lane grew a preflight (6 today), and
+    // the cheap repair — bump the 1 — would have re-armed the same trap for the
+    // next writer. The PROPERTY this case is about is SELECTIVITY, so that is
+    // what is asserted now, derived from the tree on every run: at least one
+    // presence check is found, and far fewer than the number of steps that merely
+    // NAME a secret. Neither number is written down anywhere.
     const r = run(mutant([]));
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /1 secret-presence check\(s\) fail closed/);
+    const m = r.out.match(/(\d+) secret-presence check\(s\) fail closed/);
+    assert.ok(m !== null, r.out);
+    const reported = Number(m[1]);
+    assert.ok(reported >= 1, `the detector found no presence check at all: ${r.out}`);
+    const namesASecret = readdirSync(join(REPO, '.github', 'workflows'))
+      .filter((f) => /\.ya?ml$/.test(f))
+      .reduce((n, f) => n + (readFileSync(join(REPO, '.github', 'workflows', f), 'utf8').match(/\$\{\{\s*secrets\./g) ?? []).length, 0);
+    assert.ok(
+      reported * 3 < namesASecret,
+      `the guard reported ${reported} presence check(s) against ${namesASecret} secret references — it is firing on nearly every secret-using step, which is how a guard gets switched off.`,
+    );
   });
 });
 

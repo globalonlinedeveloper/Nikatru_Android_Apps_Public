@@ -102,53 +102,96 @@ if (DRY_RUN === SUBMIT) {
   ]);
 }
 
-// ── --submit refuses, FIRST, before anything else runs ───────────────────────
-// 🔴 THIS IS A DELIBERATE STOP, NOT AN UNFINISHED FUNCTION, AND IT IS AT THE TOP
-// ON PURPOSE: a refusal that arrives after half the work has run reads like a
-// late failure rather than a design decision, and there must be no path on which
-// --submit gets partway.
+// ─────────────────────────────────────────────────────────────────────────────
+// PRIMARY SOURCES — every remote fact `--submit` acts on, and where it came
+// from. ALL FETCHED 2026-09-07. This block is not decoration: the seven-line
+// `UNVERIFIED` refusal it replaces demanded exactly this, in exactly this form
+// ("Source them (URL + date, the way the D-5 limits table does), then write the
+// calls"), and a fact whose URL is not written down here is a fact this script
+// may not act on. An invented endpoint does not fail on a laptop; it fails
+// against a live store account, mid-submission, leaving a half-created draft.
 //
-// Everything this script validates is verifiable from this repository.
-// Everything a submission needs beyond that is a claim about a remote API, and
-// this increment fetched no primary source for any of it. This repo's standing
-// rule — "NEVER invent a limit; an invented limit fires on correct input" —
-// applies at least as hard to an endpoint: a guessed URL or payload shape does
-// not fail here, on a laptop, in a dry run. It fails against a LIVE store
-// account, mid-submission, leaving a half-created draft a human has to unpick in
-// a console. The honest failure is louder and cheaper than the plausible one.
-//
-// Two further facts make stopping the correct engineering answer rather than a
-// cop-out: there is no publisher account to authenticate against (OWNER_QUEUE
-// A-2), and the package identity is a sentinel — so even a perfectly correct
-// implementation could not be RUN, let alone tested, and CLAUDE.md forbids
-// shipping a seam whose open path has never been proven.
-const UNVERIFIED = [
-  'the Microsoft Store submission API base URL and API version',
-  'the endpoint path and HTTP method that creates a submission for a product',
-  'the endpoint that requests the package upload URL, and the upload protocol it expects',
-  'the request body shape for listing metadata (field names, localisation envelope)',
-  'the endpoint and payload that COMMITS a submission, and how its status is polled',
-  'the OAuth token endpoint, grant type and resource/scope value for Entra -> Partner Center',
-  'whether the `msstore` CLI (Microsoft Store Developer CLI) or the REST API is the supported path today, and which API version each speaks',
-];
-if (SUBMIT) {
-  console.error('');
-  console.error('FAIL --submit is NOT IMPLEMENTED, and refusing is the implementation.');
-  console.error('');
-  for (const u of UNVERIFIED) console.error(`     UNVERIFIED: ${u}`);
-  console.error('');
-  console.error('     Each line above is a fact about a remote API that was NOT fetched from a primary');
-  console.error('     source. Guessing one does not fail here — it fails against a live store account,');
-  console.error('     mid-submission. Source them (URL + date, the way the D-5 limits table does), then');
-  console.error('     write the calls. Until then the console path in the runbook is the submission path:');
-  console.error('       Private/runbooks/store-submission-windows.md');
-  console.error('');
-  console.error('     Nothing was validated: this refusal is BEFORE the checks on purpose, so there is no');
-  console.error('     path on which a submission gets halfway.');
-  console.error('\nsubmit-windows-store: FAILED');
-  process.exit(1);
-}
+// 🔴 EVERY ONE OF THESE IS CHECKED AT RUN TIME BY `sourceOk`, NOT MERELY
+// DOCUMENTED. Blank one and `--submit` REFUSES naming it, before any call is
+// made. That is what stops this block decaying into a comment: a citation
+// nothing reads is a citation nobody has to keep true.
+// ─────────────────────────────────────────────────────────────────────────────
+const PRIMARY_SOURCES = Object.freeze({
+  // "Create and manage submissions using Microsoft Store services" — the end-to-end
+  // process, the Azure AD (Entra) token exchange, and the prerequisite that an app
+  // must already have ONE completed submission made in Partner Center.
+  submissionApi: 'https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services',
+  // "Manage app submissions" — the six methods and their URLs, including commit
+  // and status, and the CommitStarted → PreProcessing / CommitFailed transition.
+  manageAppSubmissions: 'https://learn.microsoft.com/en-us/windows/uwp/monetize/manage-app-submissions',
+  // "Create an app submission" — the response body, including `fileUploadUrl`
+  // (the Azure Blob SAS URI) and the `applicationPackages` / `listings` shapes.
+  createAppSubmission: 'https://learn.microsoft.com/en-us/windows/uwp/monetize/create-an-app-submission',
+  // The Microsoft Store Developer CLI: commands, options and the CI/CD guidance.
+  msstoreCli: 'https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/commands',
+  // Its releases, read from the GitHub REST API: v0.4.2, published 2026-09-02,
+  // repository not archived (pushed 2026-09-04).
+  msstoreReleases: 'https://api.github.com/repos/microsoft/msstore-cli/releases',
+  // GitHub environments — the protection-rules read PG-6 below performs.
+  githubEnvironmentsApi: 'https://docs.github.com/en/rest/deployments/environments',
+});
 
+/** The REST facts, written down beside the transport that speaks them. The CLI
+ *  is what this script RUNS; these are what it runs ON, and they are recorded so
+ *  a reader can check the transport's behaviour against the documented API
+ *  rather than against the CLI's own output.
+ *  - token:   POST https://login.microsoftonline.com/<tenant_id>/oauth2/token
+ *             grant_type=client_credentials, resource=https://manage.devcenter.microsoft.com
+ *             (60-minute lifetime)          — PRIMARY_SOURCES.submissionApi
+ *  - base:    https://manage.devcenter.microsoft.com/v1.0/my
+ *  - create:  POST   .../applications/{applicationId}/submissions
+ *  - update:  PUT    .../applications/{applicationId}/submissions/{submissionId}
+ *  - upload:  PUT the ZIP to the `fileUploadUrl` SAS URI returned by create
+ *  - commit:  POST   .../applications/{applicationId}/submissions/{submissionId}/commit
+ *  - status:  GET    .../applications/{applicationId}/submissions/{submissionId}/status
+ *                                            — PRIMARY_SOURCES.manageAppSubmissions */
+const REST = Object.freeze({
+  tokenEndpoint: 'https://login.microsoftonline.com/{tenant}/oauth2/token',
+  resource: 'https://manage.devcenter.microsoft.com',
+  base: 'https://manage.devcenter.microsoft.com/v1.0/my',
+});
+
+/** 🔴 WHAT IS STILL NOT SOURCED, AND EXACTLY WHICH LIMB REFUSES BECAUSE OF IT.
+ *  Two of the original seven survive the 2026-09-07 fetch. Each is written as
+ *  {gap, limb} rather than as prose, because a gap with no named consequence is
+ *  a note and a gap with one is a decision somebody can overturn with a URL. */
+const UNSOURCED = Object.freeze([
+  {
+    gap: 'whether `msstore reconfigure` REQUIRES `--sellerId` for a non-interactive CI configuration. The options table lists it beside --tenantId/--clientId/--clientSecret and marks none of them required, and no page fetched states the rule.',
+    limb: 'this script passes tenant, client and secret and NOT a seller id. If the CLI turns out to need one, `reconfigure` fails and this lane fails CLOSED with the CLI\'s own message — it does not invent a fifth MS_STORE_* name to fill a hole nobody has measured.',
+  },
+  {
+    gap: 'the RAW-HTTP transport: the exact Azure Blob request the ZIP upload to `fileUploadUrl` must make (the documentation demonstrates it only through the .NET CloudBlockBlob class), and the submission-body shape a full listing PUT would need field by field.',
+    limb: 'the RAW-REST path is NOT implemented — no request in this file goes to manage.devcenter.microsoft.com. Everything that touches the Store goes through the Microsoft Store Developer CLI, which already holds both. The same gap keeps LISTING SYNC refused: the listing is a console act, per the runbook.',
+  },
+]);
+
+/** The submission verbs, in the order the CLI documents them. `publish` uploads
+ *  the package and leaves the submission in DRAFT (`--noCommit`); `submission
+ *  publish` commits it; `submission poll` waits on the commit. Split exactly as
+ *  the documented example splits it, because the page also warns that `publish`
+ *  RECREATES the draft — "Run publish before updating metadata, not after" — so
+ *  the order is a documented constraint and not a preference. */
+const CLI = 'msstore';
+const CONFIRM_TOKEN = 'SUBMIT-TO-MICROSOFT-STORE';
+/** ONE gate for the factory, not one per channel — the same environment
+ *  submit-play.yml and submit-snap.yml name. A second environment would be a
+ *  second thing to configure and a second thing to be silently missing. */
+const PUBLISH_ENVIRONMENT = 'store-publish';
+
+/** Is the citation for a sourced fact still there? Called before any remote call
+ *  that depends on it; the mutation test blanks one URL and asserts exit 1.
+ *  A PREDICATE rather than a refusal, because the refusal has to happen inside
+ *  the async submit path — see the shell-12 note there. */
+function sourceOk(key) {
+  const url = PRIMARY_SOURCES[key];
+  return typeof url === 'string' && url.startsWith('https://') && url.length > 'https://'.length && !/\s/.test(url);
+}
 // ── the register is the single declaration everything below reads ────────────
 const registerRaw = read(REGISTER);
 if (registerRaw === null) {
@@ -447,6 +490,18 @@ if (missingCreds.length === 0) {
   prints.push(
     `CREDENTIALS NOT CONFIGURED — ${missingCreds.length} of ${CREDENTIAL_ENV.length} absent: ${missingCreds.map(([k]) => k).join(', ')}. They cannot exist before OWNER_QUEUE A-2 creates the account, so this is a printed gap and not a failure. (${missingCreds.map(([k, why]) => `${k} = ${why}`).join(' · ')})`,
   );
+  // 🔴 …AND ON `--submit` IT IS A FAILURE, RAISED HERE SO THE EMPTY SECRET IS
+  // NAMED BEFORE any later check can fail first. The artifact check below runs
+  // in the same pass, so a submit attempt with neither a package nor a
+  // credential reports BOTH — and the credential line, which is the one a
+  // reader has to act on, is not hidden behind whichever check happens to be
+  // written first. [pipeline C-6] keeps it a PRINT on the dry run, where the
+  // owner-gated gap is not a defect; on a real submission it is fail-closed.
+  if (SUBMIT) {
+    problems.push(
+      `${missingCreds.length} of ${CREDENTIAL_ENV.length} Microsoft Store credential(s) are EMPTY: ${missingCreds.map(([k]) => k).join(', ')}. --submit cannot authenticate without them, and a submission job that discovers that and reports success is a green tick over a store that received nothing.`,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -470,4 +525,181 @@ if (DRY_RUN) {
   process.exit(0);
 }
 
-// The --submit path refused at the top of this file, before any check ran.
+// ─────────────────────────────────────────────────────────────────────────────
+// ── --submit — THE REAL SUBMISSION PATH ──────────────────────────────────────
+//
+// It runs AFTER every check above, and each preflight below is a separate
+// refusal with its own message, because "the submission failed" without a reason
+// is what sends somebody to a console to find out.
+//
+//   PG-1  the confirm phrase, typed, not a checkbox
+//   PG-2  every primary source still cited (`requireSource`, above)
+//   PG-3  every MS_STORE_* secret NON-EMPTY — fail CLOSED, naming the empty one
+//   PG-6  the publish environment EXISTS and carries a REQUIRED REVIEWER
+//
+// 🔴 PG-6 IS THE LIMB WITHOUT WHICH `environment:` IS DECORATION. GitHub
+// documents that running a workflow which references an environment that does
+// not exist CREATES one with that name — and no protection rules — so the job
+// proceeds immediately, unapproved, while the run history shows an environment
+// as if a gate had been honoured. `environment:` on its own FAILS OPEN. This
+// reads the rules back at run time from
+// GET /repos/{owner}/{repo}/environments/{environment_name} and refuses a
+// `protection_rules` array carrying no `required_reviewers` entry.
+//
+// ⚠️ EVERY REFUSAL BELOW SETS `process.exitCode` AND RETURNS; none calls
+// `process.exit()`. On Windows, `process.exit()` while undici still holds a
+// socket dies inside libuv and leaves with 3221226505 rather than the code the
+// script chose (TRAPS shell-12) — and this path makes an HTTPS call.
+// ─────────────────────────────────────────────────────────────────────────────
+async function submitPath() {
+  const fail = (lines) => {
+    console.error('');
+    for (const l of lines) console.error(l);
+    console.error('\nsubmit-windows-store: FAILED');
+    process.exitCode = 1;
+  };
+
+  const confirm = opt('confirm');
+  if (confirm !== CONFIRM_TOKEN) {
+    return fail([
+      `FAIL --submit requires --confirm ${CONFIRM_TOKEN}; got ${JSON.stringify(confirm ?? '')}.`,
+      '     A store submission is [ADR 031] class A. The phrase is TYPED rather than checked so that',
+      '     nothing on this path can be reached by a default.',
+    ]);
+  }
+
+  for (const key of ['submissionApi', 'manageAppSubmissions', 'createAppSubmission', 'msstoreCli', 'msstoreReleases', 'githubEnvironmentsApi']) {
+    if (!sourceOk(key)) {
+      return fail([
+        `FAIL the primary source for "${key}" is ${JSON.stringify(PRIMARY_SOURCES[key] ?? null)}, not an absolute https URL.`,
+        '     This script may act only on a remote fact whose source is written down. An unsourced',
+        '     endpoint does not fail here, on a laptop — it fails against a live store account,',
+        '     mid-submission, leaving a half-created draft a human has to unpick in a console.',
+        '     Restore the citation (URL + the date it was fetched) or delete the call that needs it.',
+      ]);
+    }
+  }
+  ok(`primary sources — ${Object.keys(PRIMARY_SOURCES).length} citation(s) present; this path acts on nothing that is not sourced`);
+
+  const emptyCreds = CREDENTIAL_ENV.filter(([k]) => !process.env[k] || process.env[k].trim() === '');
+  if (emptyCreds.length > 0) {
+    return fail([
+      `FAIL ${emptyCreds.length} of ${CREDENTIAL_ENV.length} Microsoft Store credential(s) are EMPTY: ${emptyCreds.map(([k]) => k).join(', ')}.`,
+      ...emptyCreds.map(([k, why]) => `     ${k} — ${why}`),
+      '     THIS LANE FAILS CLOSED. A submission job that discovers it cannot authenticate and then',
+      '     reports success is a green tick over a store that received nothing. The four values come',
+      '     from an Entra application associated with the Partner Center account:',
+      `     ${PRIMARY_SOURCES.submissionApi} — "You must associate an Azure AD application with your`,
+      '     Partner Center account and obtain your tenant ID, client ID and key."',
+      '     OWNER STEP: Private/runbooks/store-submission-windows.md, section "the four secrets".',
+    ]);
+  }
+  ok(`credentials — all ${CREDENTIAL_ENV.length} environment variable(s) present (values never read or printed)`);
+
+  // ── PG-6 · the environment EXISTS and carries a REQUIRED REVIEWER ───────────
+  const repo = process.env.GITHUB_REPOSITORY ?? '';
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '';
+  if (repo === '' || token === '') {
+    return fail([
+      "FAIL --submit needs GITHUB_REPOSITORY and GITHUB_TOKEN to read the publish environment's protection rules.",
+      '     Without them PG-6 cannot tell a gated environment from one GitHub auto-created when this',
+      '     workflow first referenced it — and an auto-created environment has no rules at all.',
+      `     ${PRIMARY_SOURCES.githubEnvironmentsApi}`,
+    ]);
+  }
+  const envUrl = `https://api.github.com/repos/${repo}/environments/${PUBLISH_ENVIRONMENT}`;
+  let protection = null;
+  try {
+    const r = await fetch(envUrl, {
+      headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'user-agent': 'submit-windows-store' },
+    });
+    if (r.status === 404) {
+      return fail([
+        `FAIL the "${PUBLISH_ENVIRONMENT}" environment does not exist in ${repo}.`,
+        '     GitHub creates a referenced environment on first use, with NO protection rules, and runs',
+        '     the job — so the `environment:` line in the workflow would pause nothing at all.',
+        '     Create it with a required reviewer before any submission runs.',
+      ]);
+    }
+    if (!r.ok) {
+      return fail([`FAIL reading ${envUrl} returned HTTP ${r.status}. PG-6 fails closed rather than assuming the gate is there.`]);
+    }
+    const body = await r.json();
+    protection = Array.isArray(body.protection_rules) ? body.protection_rules : [];
+  } catch (e) {
+    return fail([`FAIL could not read the publish environment's protection rules — ${e.message}. PG-6 fails closed.`]);
+  }
+  const reviewers = protection.filter((p) => p !== null && typeof p === 'object' && p.type === 'required_reviewers');
+  if (reviewers.length === 0) {
+    return fail([
+      `FAIL the "${PUBLISH_ENVIRONMENT}" environment in ${repo} carries ${protection.length} protection rule(s) and NONE is \`required_reviewers\`.`,
+      '     Measured on this very repository once: three auto-created environments each returned',
+      '     `"protection_rules": []`. An environment with no reviewer pauses for nobody, and the run',
+      '     history still shows an environment name as though a human had approved something.',
+    ]);
+  }
+  ok(`PG-6 — "${PUBLISH_ENVIRONMENT}" carries ${reviewers.length} required-reviewer rule(s); this submission paused for a human`);
+
+  // ── the transport ──────────────────────────────────────────────────────────
+  // 🔴 THE CLI, NOT RAW REST, AND FOR THE SAME REASON SNAP SPEAKS `snapcraft`.
+  // The Microsoft Store Developer CLI is Microsoft's own, cross-platform,
+  // documented and actively released (v0.4.2, published 2026-09-02), and it
+  // already holds the two links UNSOURCED above records this repository does not
+  // have: the Azure Blob upload of the ZIP, and the full submission-body shape.
+  // Writing raw REST would mean guessing both.
+  const cliCheck = spawnSync(CLI, ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' });
+  if (cliCheck.error !== undefined && cliCheck.error !== null) {
+    return fail([
+      `FAIL the Microsoft Store Developer CLI (\`${CLI}\`) is not on PATH — ${cliCheck.error.message}.`,
+      `     Install it as the lane does. ${PRIMARY_SOURCES.msstoreCli}`,
+      '     This is a refusal and not a fallback: the second transport would be the raw REST path',
+      '     whose two missing links are recorded in UNSOURCED above.',
+    ]);
+  }
+  ok(`transport — \`${CLI}\` present: ${String(cliCheck.stdout ?? '').trim().split('\n')[0]}`);
+
+  const productId = process.env.MS_STORE_PRODUCT_ID;
+  let broke = false;
+  const runCli = (args, label) => {
+    if (broke) return;
+    console.log(`→    ${CLI} ${args[0]}${args[1] !== undefined && !args[1].startsWith('--') ? ` ${args[1]}` : ''} …`);
+    const r = spawnSync(CLI, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    if (r.status !== 0) {
+      broke = true;
+      fail([
+        `FAIL ${label} exited ${r.status === null ? `on signal ${r.signal}` : r.status}.`,
+        `     ${PRIMARY_SOURCES.msstoreCli}`,
+        '     Read the CLI output above. A partial submission stays in Partner Center as a DRAFT and',
+        '     has to be finished or deleted there; this script does not guess which.',
+      ]);
+    }
+  };
+
+  // 1. configure the CLI non-interactively from the four secrets.
+  runCli(
+    ['reconfigure', '--tenantId', process.env.MS_STORE_TENANT_ID, '--clientId', process.env.MS_STORE_CLIENT_ID, '--clientSecret', process.env.MS_STORE_CLIENT_SECRET],
+    'msstore reconfigure',
+  );
+  // 2. upload the package into a DRAFT submission. `--noCommit` is deliberate:
+  //    the documented example runs publish FIRST and commits separately, because
+  //    `publish` RECREATES the draft and would discard staged metadata.
+  runCli(['publish', join(ROOT, `apps/${app.slug}`), '--inputFile', abs(msixRel), '--appId', productId, '--noCommit'], 'msstore publish');
+  // 3. commit it, then 4. wait for the commit to be accepted.
+  runCli(['submission', 'publish', productId], 'msstore submission publish');
+  runCli(['submission', 'poll', productId], 'msstore submission poll');
+  if (broke) return undefined;
+
+  console.log('');
+  console.log('   ── what a green run here still does NOT prove ──');
+  console.log(`   ⬜ CERTIFICATION IS THE STORE'S AND IS NOT THIS SCRIPT'S VERDICT. ${PRIMARY_SOURCES.manageAppSubmissions}:`);
+  console.log('      the status moves CommitStarted → PreProcessing on success and CommitFailed on error, and');
+  console.log("      everything after PreProcessing is Microsoft's review queue. A committed submission is not");
+  console.log('      a published app.');
+  for (const u of UNSOURCED) console.log(`   ⬜ UNSOURCED: ${u.gap}  → ${u.limb}`);
+  console.log('');
+  console.log(`submit-windows-store: SUBMITTED — ${app.slug} committed to the Microsoft Store for certification.`);
+  return undefined;
+}
+
+await submitPath();
+

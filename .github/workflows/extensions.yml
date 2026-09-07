@@ -1700,90 +1700,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node tooling/ci/assert-gate-passed.mjs "$GITHUB_SHA"
 
+      # why: the region is the JOB, parsed by tooling/ci/workflow-scan.mjs, and no longer a
+      # pair of comment sentinels. PR 500 stripped prose comments out of the workflows and
+      # deleted both sentinels with them, which emptied this check to zero step boundaries.
       - name: Every publishing step carries the dry-run guard
-        shell: bash
-        run: |
-          set -euo pipefail
-          allow='actions/checkout actions/setup-node'
-          pub='gh release (create|upload|edit|delete)'
-          pub="$pub"'|web-ext (sign|submit)'
-          pub="$pub"'|chrome-webstore-(upload|api)'
-          pub="$pub"'|https?://[A-Za-z0-9.-]*addons\.mozilla\.org'
-          pub="$pub"'|https?://[A-Za-z0-9.-]*chromewebstore\.googleapis\.com'
-          pub="$pub"'|https?://[A-Za-z0-9.-]*googleapis\.com/upload'
-          pub="$pub"'|https?://[A-Za-z0-9.-]*clients2\.google\.com/service/update2'
-          pub="$pub"'|https?://[A-Za-z0-9.-]*addons\.microsoftedge\.microsoft\.com'
-          guard='inputs.dry_run != true'
-          name='' ; sif='' ; suses='' ; shit=''
-          steps=0 ; found=0 ; bad=0 ; usedallow=''
-          grade() {
-            [ -n "$name" ] || return 0
-            steps=$((steps + 1))
-            why=''
-            if [ -n "$suses" ]; then
-              case " $allow " in
-                *" $suses "*) usedallow="$usedallow $suses" ;;
-                *)            why="third-party action  $suses" ;;
-              esac
-            fi
-            if [ -n "$shit" ]; then why="${why:+$why + }publishing surface  $shit"; fi
-            [ -n "$why" ] || return 0
-            found=$((found + 1))
-            # THE if: TEST IS SUBSTRING CONTAINMENT, NOT EVALUATION: it proves the text in $guard
-            # appears somewhere in the step's if:, and can prove nothing about what the expression
-            # EVALUATES to. So the one shape that defeats containment is refused outright — a `||`
-            # anywhere in the if: is a disjunction that can satisfy it without the guard, which is
-            # how `inputs.dry_run != true || true` — measured 2026-08-27 in a scratch tree — was
-            # reported GUARDED and exited 0. No step in this file legitimately needs one.
-            case "$sif" in
-              *'||'*)     printf 'UNGUARDED  %s\n             step: %s\n             its if: carries a ||, a disjunction that can satisfy it without: %s\n' "$why" "$name" "$guard"
-                          bad=$((bad + 1)) ;;
-              *"$guard"*) printf 'GUARDED    %s\n             step: %s\n' "$why" "$name" ;;
-              *)          printf 'UNGUARDED  %s\n             step: %s\n' "$why" "$name"
-                          bad=$((bad + 1)) ;;
-            esac
-          }
-          while IFS= read -r line; do
-            case "$line" in '      - '*) grade ; name=$line ; sif='' ; suses='' ; shit='' ;; esac
-            bare=${line#"${line%%[![:space:]]*}"}
-            case "$bare" in ''|'#'*) continue ;; esac
-            case "$bare" in
-              'if:'*)     sif=$bare ;;
-              '- uses:'*) suses=${bare#'- uses:'} ;;
-              'uses:'*)   suses=${bare#'uses:'} ;;
-            esac
-            suses=${suses#"${suses%%[![:space:]]*}"}
-            suses=${suses%%@*}
-            if [ -z "$shit" ] && [[ $bare =~ $pub ]]; then shit=$bare; fi
-          # 🔴 THE SUBJECT IS THE RELEASE REGION, NOT THE FILE. Ported 2026-09-05:
-          # ci.yml, e2e.yml and release.yml became one file, and reading all of it
-          # would grade every CI step too — `actions/upload-artifact` is not on the
-          # exemption list, so this check would fail on a step that publishes
-          # nothing, and the rational response to that is to widen the list until
-          # it stops meaning anything. The sentinels bound exactly what used to be
-          # release.yml. Moving or re-indenting one empties this check, which is
-          # why the "$steps" floor below is not decoration.
-          done < <(sed -n '/^# >>> RELEASE LANE >>>/,/^# <<< RELEASE LANE <<</p' "$GITHUB_WORKSPACE/.github/workflows/extensions.yml")
-          grade
-          if [ "$steps" -lt 10 ]; then
-            echo "::error::this step matched only $steps step boundaries in the RELEASE LANE region of extensions.yml, which cannot be right — it graded almost nothing. Its step boundary is the literal six-space '      - ', so a re-indent of this file, or a move of either RELEASE LANE sentinel, empties it. Fix the boundary; do not delete this step."
-            exit 1
-          fi
-          if [ "$found" -lt 1 ]; then
-            echo "::error::this step read $steps step boundaries in the RELEASE LANE region of extensions.yml and graded NO publishing surface at all. ZERO IS NOT A PASS: a scan that finds nothing to grade has proved nothing about what this workflow publishes, and the likely cause is a publishing command respelled past the pattern above. Fix the pattern; do not delete this step while the lane still publishes."
-            exit 1
-          fi
-          for a in $allow; do
-            case " $usedallow " in *" $a "*) continue ;; esac
-            echo "::error::'$a' is on this step's exemption list but no step in the RELEASE LANE region of extensions.yml uses it. An exemption outlives the step it was written for and then pre-authorises whatever takes that name next. Delete the line."
-            exit 1
-          done
-          if [ "$bad" -gt 0 ]; then
-            echo "::error::$bad of $found publishing-surface step(s) above have no if: containing '$guard'. A workflow_dispatch rehearsal would EXECUTE them."
-            exit 1
-          fi
-          echo "$steps step boundaries read; $found publishing-surface step(s), all $found behind an if:."
-
+        working-directory: .
+        run: node tooling/ci/assert-publish-steps-guarded.mjs --workflow .github/workflows/extensions.yml --job release
       - name: Preflight — every gate this release runs must exist
         shell: bash
         run: |
@@ -2128,6 +2050,84 @@ jobs:
           node tooling/ops/post-deploy-smoke.mjs --release-repo "$REPO"
           --release-tag "$GITHUB_REF_NAME" --release-manifest extensions/dist/SHA256SUMS
 
+      # why: the preflight carries NO dry-run guard on purpose. It publishes nothing, and a
+      # rehearsal is exactly when a person wants to read which credential is still owed. The
+      # verdict is the REGISTER's, taken through tooling/ci/channel-arming.mjs: armed row +
+      # empty secret = exit 1; unarmed row = the owner step, printed.
+      - name: Firefox (AMO) — credentials present, or the owner step
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "one or more AMO_* repository secrets are empty; the register decides what that means."
+          fi
+          if ! node scripts/publish-arming.mjs --channel amo; then
+            echo "::error::the register ARMS the amo channel and its credentials are missing, so this release cannot submit to addons.mozilla.org. This is a failed release, not a skipped store."
+            exit 1
+          fi
+
+      - name: Submit to Firefox Add-ons (AMO)
+        if: github.event_name == 'push' && inputs.dry_run != true
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: node scripts/publish-amo.mjs --tool ${{ steps.tag.outputs.id }} --source-dir dist/unpacked-firefox
+
+      - name: Chrome Web Store — credentials present, or the owner step
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ] || [ -z "$CWS_ITEM_ID" ] || [ -z "$CWS_PUBLISHER_ID" ]; then
+            echo "one or more CWS_* repository secrets are empty; the register decides what that means."
+          fi
+          if ! node scripts/publish-arming.mjs --channel chrome-webstore; then
+            echo "::error::the register ARMS the chrome-webstore channel and its credentials are missing, so this release cannot submit to the Chrome Web Store. This is a failed release, not a skipped store."
+            exit 1
+          fi
+
+      - name: Submit to the Chrome Web Store
+        if: github.event_name == 'push' && inputs.dry_run != true
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+        run: node scripts/publish-cws.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
+
+      - name: Edge Add-ons — credentials present, or the owner step
+        env:
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$EDGE_CLIENT_ID" ] || [ -z "$EDGE_API_KEY" ] || [ -z "$EDGE_PRODUCT_ID" ]; then
+            echo "one or more EDGE_* repository secrets are empty; the register decides what that means."
+          fi
+          if ! node scripts/publish-arming.mjs --channel edge-addons; then
+            echo "::error::the register ARMS the edge-addons channel and its credentials are missing, so this release cannot submit to Microsoft Edge Add-ons. This is a failed release, not a skipped store."
+            exit 1
+          fi
+
+      # why: the SAME chromium zip Chrome takes, byte-identical -- tool.json declares both
+      # stores' target as `chromium`, which is what makes one artifact and two listings a
+      # declaration rather than an accident.
+      - name: Submit to Microsoft Edge Add-ons
+        if: github.event_name == 'push' && inputs.dry_run != true
+        env:
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+        run: node scripts/publish-edge.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
+
       - name: Record what shipped, per channel this release is the origin for
         if: github.event_name == 'push' && inputs.dry_run != true
         working-directory: .
@@ -2146,6 +2146,39 @@ jobs:
           echo "::notice::dry run finished. Every gate above ran on a real --release build of ${{ steps.tag.outputs.id }} v${{ steps.tag.outputs.version }}; the publish step was skipped by its if:, so no GitHub Release exists and nothing was sent to a store. Push the tag to release."
 
 
+  # why: a Google OAuth refresh token that goes unused is revoked, and nothing in this
+  # repository would say so until the first tag push -- on the one path that ships bytes.
+  # A weekly exchange turns a release-day surprise into a Monday alarm. It rides the
+  # schedule that already exists rather than adding a second cron slot to the file.
+  cws-token-keepalive:
+    name: The Chrome Web Store refresh token is still alive
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with: { node-version: '24' }
+      # why: the emptiness test is what a reader (and assert-green-means-ran) can see in the
+      # workflow itself; the VERDICT is the register's, read through channel-arming.mjs, so
+      # an unarmed channel prints the owner step instead of reddening a scheduled lane on
+      # work only the owner can do ([pipeline C-6]).
+      - name: Exchange the refresh token, or print the owner step
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; then
+            echo "one or more CWS_* repository secrets are empty; the register decides what that means."
+          fi
+          if ! node scripts/publish-cws-keepalive.mjs; then
+            echo "::error::the Chrome Web Store credential the release lane depends on could not be exercised. Re-mint CWS_REFRESH_TOKEN; a dead refresh token is invisible until a tag push tries to use it."
+            exit 1
+          fi
+
   extensions-lane-accounting:
     name: The lane that should have run, ran
     needs:
@@ -2154,6 +2187,7 @@ jobs:
       - ci-required
       - e2e-suite
       - release
+      - cws-token-keepalive
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2169,6 +2203,7 @@ jobs:
           CI: ${{ needs.ci-required.result }}
           E2E: ${{ needs.e2e-suite.result }}
           RELEASE: ${{ needs.release.result }}
+          KEEPALIVE: ${{ needs.cws-token-keepalive.result }}
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           ACTION: ${{ github.event.action }}
@@ -2188,7 +2223,7 @@ jobs:
           # So the guards are not trusted: the lane is derived here, separately,
           # from the event, and the results are required to match it.
           echo "event=$EVENT ref=$REF action=${ACTION:-none} label=${LABEL:-none} lane_input=${LANE:-none}"
-          echo "build-free=$BUILD_FREE contracts=$CONTRACTS ci=$CI e2e=$E2E release=$RELEASE"
+          echo "build-free=$BUILD_FREE contracts=$CONTRACTS ci=$CI e2e=$E2E release=$RELEASE keepalive=$KEEPALIVE"
 
           case "$REF" in
             refs/tags/*) want=release ;;
@@ -2237,6 +2272,22 @@ jobs:
             expect e2e-suite   "$E2E"     "$([ "$want" = e2e ] && echo yes || echo no)"
             expect release     "$RELEASE" "$([ "$want" = release ] && echo yes || echo no)"
           }
+
+          # The keep-alive is NOT a lane and is deliberately graded separately: it is a weekly
+          # credential exercise that rides the Monday schedule the e2e lane already uses, so it
+          # is selected by the EVENT and not by `want`. Folding it into `expect` would have made
+          # it look like a fourth lane and forced a fourth arm into the derivation above, which
+          # is how a lane guard ends up too wide.
+          case "$EVENT:$KEEPALIVE" in
+            schedule:success) ;;
+            schedule:*)
+              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on the Monday schedule. That job is the only thing in this repository that touches the Chrome Web Store refresh token between releases; a skipped or failed run means the credential is unexercised and its death stays invisible until a tag push."
+              fail=1 ;;
+            *:skipped) ;;
+            *)
+              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on event '$EVENT'. It carries \`if: github.event_name == 'schedule'\`, so on any other event it must be SKIPPED — a credential exercise running on a pull request is a guard that is too wide."
+              fail=1 ;;
+          esac
 
           if [ "$want" = unknown ]; then
             echo "::error::this job could not derive a lane from event '$EVENT' on ref '$REF'. A new trigger was added to this workflow and this accounting was not taught about it, so nothing here graded the run. Add the case."
