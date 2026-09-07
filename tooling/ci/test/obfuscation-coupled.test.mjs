@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // obfuscation-coupled.test.mjs — assert-obfuscation-coupled.mjs must be able to
-// FAIL.
+// FAIL, on BOTH of its limbs.
 //
 // 🔴 THE REAL-TREE RUN CAME FIRST AND THESE FIXTURES ENCODE WHAT IT SHOWED.
 // Six mutations were run against a full COPY of this repository on 2026-08-03,
@@ -23,10 +23,39 @@
 //      --split-debug-info=build/symbols here" ⇒ exit 0. This is the case the
 //      repo has lost twice before ([1]F-10, assert-stamp-platforms.mjs:37-42).
 //
-// The fixtures below re-state those in a form that runs on every push, plus the
-// two false-alarm surfaces that live in this tree and would fire a naive
-// matcher: `apps/subly/.gitignore`'s `app.*.symbols` line and the word
-// "obfuscated" in a doc comment.
+// ── ➕ APPENDED 2026-09-07 · THE FLOOR ARRIVED AND FOUR CASES ABOVE CHANGED ──
+//    ANSWER. THE OLD WORDING IS LEFT STANDING; THIS IS WHAT SUPERSEDES IT.
+//
+// The guard gained a FLOOR: every release build on a target Flutter can
+// obfuscate must pass `--obfuscate`. So the tree state cases 1–6 were written
+// against — "zero builds obfuscate, and that is fine" — is now a FAILURE, and
+// three cases here flip with it:
+//
+//   · the old case 6 (a comment naming the flags) asserted exit 0 over a
+//     release build that does not obfuscate. That is now exit 1 ON THE FLOOR,
+//     and it proves MORE than it used to: the comment did not make the build
+//     look obfuscated, and the failure says `0 obfuscating` while naming the
+//     flags in the comment right above it.
+//   · `--split-debug-info` without `--obfuscate` is still a NOTE and not a
+//     coupling failure, but on a RELEASE build the floor now fails it — so that
+//     case moved to a non-release build, where the note is the only verdict.
+//   · the two false-alarm-surface cases (`app.*.symbols` in a .gitignore, the
+//     word "obfuscated" in Dart prose) were asserting exit 0 on a fixture whose
+//     build no longer clears the floor, so they now use the COMPLIANT fixture.
+//     What they test is unchanged: neither surface is a build command.
+//
+// And FOUR cases are new, in the order the repo requires — GREEN CONTROL FIRST,
+// then the mutation that must fail:
+//
+//   7. GREEN CONTROL — a release build that obfuscates and retains ⇒ exit 0,
+//      and the output states the floor it applied.
+//   8. MUTATION of exactly that fixture — `--obfuscate` removed from ONE of two
+//      release builds ⇒ exit 1 naming that build, that job and that target,
+//      with the other still counted.
+//   9. a `flutter build web --release` is OUTSIDE the floor and said so, from
+//      Flutter's own documented target list rather than from taste.
+//  10. a tree whose only release build is web ⇒ COVERAGE LOST. The floor with
+//      no subject is the vacuous pass this whole change removes.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,8 +91,16 @@ function run(root) {
 }
 
 /** A build job in the shape build-platforms.yml really has: a folded `run: >`
- *  command, then an upload-artifact step. */
-const wf = ({ buildFlags = '', extraSteps = '', uploadPaths = 'apps/subly/build/linux/x64/release/bundle', comment = '' } = {}) => `name: Build
+ *  command, then an upload-artifact step. `target` and `release` are parameters
+ *  so a fixture can sit inside or outside the floor's domain deliberately. */
+const wf = ({
+  buildFlags = '',
+  extraSteps = '',
+  uploadPaths = 'apps/subly/build/linux/x64/release/bundle',
+  comment = '',
+  target = 'linux',
+  release = ' --release',
+} = {}) => `name: Build
 on:
   workflow_dispatch:
 
@@ -72,27 +109,134 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-${comment}      - name: Build linux
+${comment}      - name: Build ${target}
         working-directory: apps/subly
         run: >
-          flutter build linux --release${buildFlags}
+          flutter build ${target}${release}${buildFlags}
           --dart-define=GLITCHTIP_DSN=x
 ${extraSteps}      - uses: actions/upload-artifact@v4
         with:
-          name: subly-linux
+          name: subly-${target}
           path: |
             ${uploadPaths}
           retention-days: 7
 `;
 
+/** A second job that clears the floor on its own, so a fixture can be about the
+ *  COUPLING limb without the floor's own COVERAGE LOST getting there first. */
+const FLOOR_ANCHOR = `
+  anchor:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build macos
+        working-directory: apps/subly
+        run: >
+          flutter build macos --release
+          --obfuscate --split-debug-info=build/symbols/macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-subly-macos
+          path: |
+            apps/subly/build/symbols/macos
+          retention-days: 90
+`;
+
+/** The state the tree is IN after 2026-09-07: obfuscating and retaining. */
+const COMPLIANT = wf({
+  buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
+  uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+});
+
 describe('assert-obfuscation-coupled', () => {
-  test('passes on a tree whose builds obfuscate nothing — the state today', () => {
-    const { code, out } = run(fixture({ 'build.yml': wf() }));
+  // ── THE FLOOR ─────────────────────────────────────────────────────────────
+  test('GREEN CONTROL — a release build that obfuscates and retains passes, and says which floor it applied', () => {
+    const { code, out } = run(fixture({ 'build.yml': COMPLIANT }));
     assert.equal(code, 0, out);
-    assert.match(out, /0 obfuscating/);
+    assert.match(out, /1 release build\(s\) on an obfuscatable target, 1 obfuscating/);
+    assert.match(out, /FLOOR: all 1 of them pass --obfuscate/);
   });
 
-  // ── the failing case the guard exists for ─────────────────────────────────
+  test('MUTATION of that control — --obfuscate removed from one of two release builds ⇒ exit 1 naming it', () => {
+    // Byte-identical to the control above except for the anchor job, whose
+    // build carries NO --obfuscate. One release build still obfuscates, so this
+    // is the floor failing on a per-command basis and not on a bare count.
+    const mutated = FLOOR_ANCHOR.replace('          --obfuscate --split-debug-info=build/symbols/macos\n', '');
+    const { code, out } = run(fixture({ 'build.yml': `${COMPLIANT}${mutated}` }));
+    assert.equal(code, 1, out);
+    assert.match(out, /is a RELEASE build of "macos" and does not pass --obfuscate/);
+    assert.match(out, /job "anchor"/);
+    assert.match(out, /over 2 release build\(s\), 1 obfuscating/);
+    assert.match(out, /\[ADR 067\] decision 6/);
+  });
+
+  test('FAILS on a tree whose release builds obfuscate nothing — the state ADR 067 decision 6 forbids', () => {
+    const { code, out } = run(fixture({ 'build.yml': wf() }));
+    assert.equal(code, 1, out);
+    assert.match(out, /over 1 release build\(s\), 0 obfuscating/);
+    assert.match(out, /does not pass --obfuscate/);
+  });
+
+  test('a `flutter build web --release` is outside the floor, and the guard says so rather than passing over it', () => {
+    const root = fixture({ 'build.yml': `${COMPLIANT}
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build web
+        working-directory: apps/subly
+        run: >
+          flutter build web --release
+          --dart-define=GLITCHTIP_DSN=x
+` });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+    assert.match(out, /1 release build\(s\) on an obfuscatable target/);
+    assert.match(out, /1 web release build\(s\) are outside the floor/);
+  });
+
+  test('a build that is not a --release build is outside the floor', () => {
+    const root = fixture({ 'build.yml': `${wf({ release: '' })}${FLOOR_ANCHOR}` });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+    assert.match(out, /1 release build\(s\) on an obfuscatable target, 1 obfuscating/);
+  });
+
+  test('COVERAGE LOST when the only release build is one Flutter cannot obfuscate', () => {
+    const root = fixture({
+      'build.yml': `name: Build
+on:
+  workflow_dispatch:
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build web
+        run: flutter build web --release
+`,
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /ZERO of them a release build/);
+  });
+
+  test('COVERAGE LOST on a build target neither declared set has a verdict for', () => {
+    const root = fixture({
+      'build.yml': `${COMPLIANT}
+  novel:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build something new
+        run: flutter build fuchsia --release
+`,
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /builds target "fuchsia"/);
+  });
+
+  // ── the coupling limb the guard shipped with ──────────────────────────────
   test('FAILS when a build obfuscates and nothing in its job retains the symbols', () => {
     const { code, out } = run(fixture({ 'build.yml': wf({ buildFlags: ' --obfuscate --split-debug-info=build/symbols' }) }));
     assert.equal(code, 1);
@@ -118,6 +262,41 @@ describe('assert-obfuscation-coupled', () => {
     const { code, out } = run(root);
     assert.equal(code, 0, out);
     assert.match(out, /1 obfuscating/);
+  });
+
+  test('glitchtip-cli debug-files upload satisfies it — the sink this factory actually runs', () => {
+    const root = fixture({
+      'build.yml': wf({
+        buildFlags: ' --obfuscate --split-debug-info=build/symbols',
+        extraSteps: '      - name: Upload symbols\n        run: "$RUNNER_TEMP/glitchtip-cli" debug-files upload --wait build/symbols\n',
+      }),
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+    assert.match(out, /1 obfuscating/);
+  });
+
+  test("this repo's wrapper for that CLI satisfies it too", () => {
+    const root = fixture({
+      'build.yml': wf({
+        buildFlags: ' --obfuscate --split-debug-info=build/symbols',
+        extraSteps: '      - name: Upload symbols\n        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols --org nikatru --project subly\n',
+      }),
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 0, out);
+  });
+
+  test('a dart-symbol-map upload does NOT satisfy it — GlitchTip stores nothing from one', () => {
+    const root = fixture({
+      'build.yml': wf({
+        buildFlags: ' --obfuscate --split-debug-info=build/symbols',
+        extraSteps: '      - name: Upload the obfuscation map\n        run: glitchtip-cli dart-symbol-map upload build/app/obfuscation.map.json build/app.linux-x64\n',
+      }),
+    });
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /nothing in job "linux" retains it/);
   });
 
   test('an upload-artifact naming the SAME directory satisfies it', () => {
@@ -157,17 +336,21 @@ describe('assert-obfuscation-coupled', () => {
     assert.match(out, /job "linux"/);
   });
 
-  test('a COMMENT naming the flags cannot make a build look obfuscated', () => {
+  test('a COMMENT naming the flags cannot make a build look obfuscated — it fails on the floor with 0 obfuscating', () => {
     const root = fixture({
       'build.yml': wf({ comment: '      # never pass --obfuscate --split-debug-info=build/symbols on this lane\n' }),
     });
     const { code, out } = run(root);
-    assert.equal(code, 0, out);
+    assert.equal(code, 1, out);
     assert.match(out, /0 obfuscating/);
+    assert.match(out, /does not pass --obfuscate/);
   });
 
   test('--split-debug-info WITHOUT --obfuscate is a printed note, not a failure', () => {
-    const { code, out } = run(fixture({ 'build.yml': wf({ buildFlags: ' --split-debug-info=build/symbols' }) }));
+    const root = fixture({
+      'build.yml': `${wf({ buildFlags: ' --split-debug-info=build/symbols', release: '' })}${FLOOR_ANCHOR}`,
+    });
+    const { code, out } = run(root);
     assert.equal(code, 0, out);
     assert.match(out, /doing less than it looks like/);
   });
@@ -219,7 +402,7 @@ jobs:
 
   // ── the two false-alarm surfaces that really live in this tree ────────────
   test('`app.*.symbols` in a .gitignore is not a build command', () => {
-    const root = fixture({ 'build.yml': wf() });
+    const root = fixture({ 'build.yml': COMPLIANT });
     mkdirSync(join(root, 'apps', 'subly'), { recursive: true });
     writeFileSync(join(root, 'apps', 'subly', '.gitignore'), 'app.*.symbols\napp.*.map.json\n');
     const { code, out } = run(root);
@@ -227,7 +410,7 @@ jobs:
   });
 
   test('the word "obfuscated" in Dart prose is not a build command', () => {
-    const root = fixture({ 'build.yml': wf() });
+    const root = fixture({ 'build.yml': COMPLIANT });
     mkdirSync(join(root, 'packages', 'platform_storage', 'lib'), { recursive: true });
     writeFileSync(
       join(root, 'packages', 'platform_storage', 'lib', 'storage_capabilities.dart'),
