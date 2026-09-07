@@ -657,3 +657,97 @@ describe('a screen that DELEGATES into the chassis is measured where it now live
     assert.match(out, /never arrived anywhere this guard looks/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R14 · THE `packages/chassis_screens` FLOORS, PINNED BY NUMBER
+//
+// 🔴 THE DEFECT THIS CLOSES, AND IT IS THIS SUITE'S OWN. [ADR 067] phase 2, unit
+// app-shell, raised this root's floors at `assert-responsive-coverage.mjs:568-570`
+// — `surfaces` 7 → 17, `widthTestFiles` 8 → 13, `coveredSurfaces` 12 → 17 — and
+// added NOT ONE case here. The diff to this file was a single pinned report line
+// and nothing else, and `coverage-manifest.json` recorded this suite unchanged.
+//
+// A report pin catches a surface leaving ONLY while the suite runs against the
+// REAL checkout; the FLOOR is what fires on a fixture too. That sentence is the
+// a11y twin's M11g comment verbatim, and the same repair pass that wrote it
+// there stopped one guard short of writing it here. For one review cycle any of
+// this root's seventeen surfaces, or any of its thirteen width test files, could
+// have left with nothing but a hand-maintained report line to notice.
+//
+// So these three cases pin the NUMBERS, not the prose. They are the twin of
+// `a11y-coverage.test.mjs`'s M11g / M11g-control, and of R10/R10b/R11a/R11b for
+// the two report-mode roots — the half this ENFORCED root has never had.
+//
+// ⚠️ MEASURED, NOT PREDICTED: both mutations exit **1**, not 2. This guard has a
+// single `process.exit(1)` (`assert-responsive-coverage.mjs:1529`) and expresses
+// COVERAGE LOST as a message prefix rather than a distinct code, exactly as
+// R10/R10b/R11a/R11b already record. That is a property of the guard, not of
+// this floor raise, and it is written down here rather than asserted away.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the chassis_screens floors are floors, not report lines', () => {
+  // GREEN CONTROL, FIRST. Without this half, R14a and R14b are equally
+  // consistent with a fixture that fails for some unrelated reason — which is
+  // exactly how a floor that never held reads as a floor that fires.
+  test('R14-control · GREEN CONTROL — the same fixture, unmutated, is 17/17 and passes', () => {
+    const { code, out } = run(treeWithNewRoots());
+    assert.equal(code, 0, out);
+    assert.match(out, /packages\/chassis_screens: 17 surface\(s\) reachable, 17 measured/);
+  });
+
+  // ── R14a · A SURFACE LEAVES ────────────────────────────────────────────────
+  // It removes ONE surface, not the file — `lib/shell/app_shell.dart` declares
+  // five, so deleting it would drop 17→12 and prove nothing about where the
+  // boundary actually sits. A leading underscore is how a surface really leaves
+  // a package: the class still compiles, it has simply stopped being public.
+  test("R14a · one chassis shell widget goes private — that root's surfaces floor fires", () => {
+    const root = treeWithNewRoots();
+    const rel = `${CHASSIS}/lib/shell/app_shell.dart`;
+    const src = readIn(root, rel);
+    // ⚠️ LAND-CHECK BEFORE THE MUTATION IS TRUSTED (trap flutter-10): a
+    // `String.replace(<string>, …)` takes only the FIRST occurrence, so a
+    // second declaration of this name would leave the surface in place and this
+    // case would pass for the wrong reason.
+    assert.equal(
+      (src.match(/class ConsentPromptCard\b/g) ?? []).length,
+      1,
+      'ConsentPromptCard is no longer declared exactly once in the chassis shell',
+    );
+    writeIn(root, rel, src.replace('class ConsentPromptCard', 'class _ConsentPromptCard'));
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    // The DOMAIN floor — the one set equality cannot see, because the surface
+    // and its measurement left together and the two sets stayed equal.
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` has only 16 responsive surface\(s\).*floor is 17/s,
+    );
+    // AND the ratchet on what was measured, which fires in the same run. Both
+    // numbers moved 7 → 17 in the landing and both are load-bearing.
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` has 16 measured surface\(s\) and its measured floor is 17/s,
+    );
+  });
+
+  // ── R14b · A WIDTH TEST FILE LEAVES ────────────────────────────────────────
+  // `widthTestFiles` is the third floor the landing raised (8 → 13) and the one
+  // neither of the other two can stand in for: it is the CORPUS check, and it
+  // fires when the scan stops reaching the files rather than when a surface goes.
+  test("R14b · one chassis width test file is deleted — that root's corpus floor fires", () => {
+    const root = treeWithNewRoots();
+    const rel = `${CHASSIS}/test/check_inbox_view_test.dart`;
+    assert.ok(existsSync(join(root, rel)), `the chassis corpus no longer has ${rel}`);
+    rmSync(join(root, rel));
+
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(
+      out,
+      /COVERAGE LOST — `packages\/chassis_screens` yielded only 12 width test file\(s\).*checked-in floor is 13/s,
+    );
+    // This root ENFORCES, so the surface the deleted file measured is a FAIL and
+    // not a print — the half R12 pins for apps/subly, here for the new root.
+    assert.match(out, /FAIL UNCOVERED SURFACE — `CheckInboxView`/);
+  });
+});
