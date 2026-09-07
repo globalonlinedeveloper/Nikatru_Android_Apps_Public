@@ -504,12 +504,21 @@ if (releaseBuilds === 0) {
 // Its subject is every obfuscating release build. With none, it would report
 // "every release build reaches the crash sink" over an empty set — the shape
 // [C-COVERAGE-LOST-IS-NOT-PASS] names, and the shape the floor was added for.
-if (sinkSubjects.length === 0) {
+//
+// ⚠️ `problems.length === 0` IS PART OF THE CONDITION, NOT AN ESCAPE HATCH. When
+// the floor has already found a build that does not obfuscate, "nothing
+// obfuscates, so this limb had no subject" is a CONSEQUENCE of that finding, and
+// printing it INSTEAD would replace the message naming the file, line, job and
+// target with a vaguer one. The exit code is 1 either way; only the sharper
+// sentence survives. A tree with NO floor finding and NO subject is the vacuous
+// pass, and that is what this refuses.
+if (sinkSubjects.length === 0 && problems.length === 0) {
   coverageLost([
     `counted ${releaseBuilds} release build(s) on an obfuscatable target and ZERO of them obfuscating,`,
     'so the sink limb has no subject and would report "every release build sends its symbols to the',
     'crash sink" over an empty set. The floor above should already have refused this; reaching here',
-    'means the two limbs disagree about the same set, which is worse than either failing.',
+    'with no floor finding means the two limbs disagree about the same set, which is worse than',
+    'either of them failing.',
   ]);
 }
 
