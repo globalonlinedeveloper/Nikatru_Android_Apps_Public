@@ -27,7 +27,7 @@ dependencies:
   # zonedSchedule call below matches that major.
   flutter_local_notifications: ^17.2.0
   # Timezone-correct scheduling for zonedSchedule (pure Dart, all platforms).
-  timezone: ^0.9.4
+  timezone: ^0.11.0
 
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.
