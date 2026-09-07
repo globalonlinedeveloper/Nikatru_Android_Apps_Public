@@ -3,6 +3,14 @@
 // assert-entitlement-contract.mjs — the money rail's schema is COMPLETE, and it
 // is complete BEFORE the first payment lands.
 //
+// [ADR 067] decision 7 and [ADR 039] D5 are cited HERE rather than only beside
+// limbs 6 and 7 (line 1000-odd), because the enforcement index reads a file's
+// first 60 lines and would otherwise record neither. Those limbs hold the
+// RevenueCat event map equal across every runtime copy, and hold the ONE
+// runtime that already reads a RevenueCat event to a DECLARED divergence from
+// the authored table — with a sweep of every deployed Worker, so a third
+// transcription cannot appear unwatched.
+//
 // [pipeline 5]M-3 · M-2 · M-7. `Private/requirements/` makes migrations
 // ADDITIVE-ONLY — the prose `schema-evolution.md` this line used to name was
 // folded into that JSON spec on 2026-08-16 in commit e88fdcf, and the rule is
@@ -23,7 +31,7 @@
 // citing an assertion that cannot fail for this property. The two are
 // complementary and neither substitutes for the other.
 //
-// FIVE LIMBS, each with a constructible failing input:
+// SEVEN LIMBS, each with a constructible failing input:
 //   1 REQUIRED COLUMNS on `entitlements`, computed from the CREATE plus every
 //     ALTER … ADD COLUMN across the whole migration set.
 //   2 REQUIRED TABLES + their columns + their UNIQUENESS constraints. A
@@ -71,6 +79,14 @@
 //     this set that a stranger's money is actually filed against.
 //   5 THE TWO WRITERS ORDER BY THE SAME CLOCK, WITH THE SAME CLAUSE — [5]M-2's
 //     ordering defence, which limbs 1–4 do not touch. See below.
+//   6 THE REVENUECAT EVENT MAP IS THE SAME MAP IN EVERY RUNTIME THAT SPEAKS IT,
+//     every mapped reason is one the migration seeded, the table is not vacuous,
+//     and the dateDerived flag — the one that says an event NAME does not decide
+//     access — survives every copy.
+//   7 THE ONE RUNTIME THAT ALREADY READS A REVENUECAT EVENT does not drift from
+//     the authored table unwatched. services/subly-api/src/routes/webhooks.ts
+//     carries its own event sets; the DIFFERENCE between the two vocabularies is
+//     declared here, in both directions, and three shape agreements are held.
 //
 // ⚠️ EVERYTHING IS PARSED, NOTHING IS GREPPED. Comments AND string literals are
 // blanked before the structural scan, because this repo has already shipped a
@@ -990,6 +1006,425 @@ for (const { file, fn, why } of INSTANT_PATHS) {
   }
 }
 
+
+// ── LIMB 6 · the RevenueCat event map, in every runtime that speaks it ───────
+//
+// [ADR 067] decision 7 / [ADR 039] D5 put RevenueCat behind the chassis billing
+// facade for the two store rails. The translation from ITS event vocabulary to
+// OUR revocation reasons is the one place the two vocabularies touch, and it is
+// authored as data in contracts/entitlement/contract.js for exactly the reason
+// the reason set is: three runtimes read it (the platform Worker's future
+// verifier, the Dart client, any extension), and a table restated in one and
+// remembered in another is the fourth transcription contracts/ exists to stop.
+//
+// 🔴 THIS TABLE'S ERROR MODE IS WORSE THAN THE REASON SET'S. A wrong reason
+// mislabels a row somebody reads later; a wrong MAPPING revokes a paying
+// customer, or fails to revoke a refunded one. So three things are held here and
+// none of them is "the file exists":
+//
+//   (a) every non-null reason is a member of the SEEDED set — a mapping to a
+//       reason the database has never heard of is a write that fails after the
+//       money has moved, and limb 4's per-copy loop cannot see it because such a
+//       reason never appears in the reason ARRAY it walks;
+//   (b) every runtime copy carries the SAME map, event for event and reason for
+//       reason, compared against the AUTHORED copy rather than in a chain;
+//   (c) the map is not vacuous — at least one event maps to a real reason. A
+//       table whose every row is null is valid data that silently means "no
+//       store event ever revokes anything", and it renders, compiles and reads
+//       exactly like a working table.
+const REVENUECAT_MAP_COPIES = [
+  {
+    file: CONTRACT_JS_REL,
+    why: 'THE AUTHORED COPY',
+    parse: (src) => {
+      const arr = /REVENUECAT_EVENT_REASONS\s*=\s*\[([\s\S]*?)\n\]/.exec(src);
+      const out = new Map();
+      if (!arr) return out;
+      const row = /event:\s*'([^']+)'\s*,\s*reason:\s*(?:'([^']+)'|null)\s*,\s*dateDerived:\s*(true|false)/g;
+      for (const m of arr[1].matchAll(row)) {
+        out.set(m[1], { reason: m[2] ?? null, dateDerived: m[3] === 'true' });
+      }
+      return out;
+    },
+  },
+  {
+    file: 'contracts/entitlement/contract.json',
+    why: 'the generated machine-readable form the Dart generator reads',
+    parse: (src) => {
+      const out = new Map();
+      let doc;
+      try {
+        doc = JSON.parse(src);
+      } catch {
+        return out;
+      }
+      for (const row of doc?.revenuecatEventReasons ?? []) {
+        if (typeof row?.event === 'string' && typeof row?.dateDerived === 'boolean') {
+          out.set(row.event, {
+            reason: typeof row.reason === 'string' ? row.reason : null,
+            dateDerived: row.dateDerived,
+          });
+        }
+      }
+      return out;
+    },
+  },
+  {
+    file: 'extensions/core/v1/entitlement-contract.js',
+    why: 'the copy the build-free extension runtime carries (byte-compared by limb 4 as well)',
+    parse: (src) => {
+      const arr = /REVENUECAT_EVENT_REASONS\s*=\s*\[([\s\S]*?)\n\]/.exec(src);
+      const out = new Map();
+      if (!arr) return out;
+      const row = /event:\s*'([^']+)'\s*,\s*reason:\s*(?:'([^']+)'|null)\s*,\s*dateDerived:\s*(true|false)/g;
+      for (const m of arr[1].matchAll(row)) {
+        out.set(m[1], { reason: m[2] ?? null, dateDerived: m[3] === 'true' });
+      }
+      return out;
+    },
+  },
+  {
+    file: 'packages/purchases/lib/src/generated/entitlement_contract.g.dart',
+    why: 'the generated Dart table the mobile IAP rail reads',
+    parse: (src) => {
+      const out = new Map();
+      const row =
+        /RevenueCatEventReason\(\s*'([^']+)'\s*,\s*(?:'([^']+)'|null)\s*,\s*dateDerived:\s*(true|false)\s*\)/g;
+      for (const m of src.matchAll(row)) {
+        out.set(m[1], { reason: m[2] ?? null, dateDerived: m[3] === 'true' });
+      }
+      return out;
+    },
+  },
+];
+
+let rcCopiesCompared = 0;
+/** The authored RevenueCat map, parsed once in limb 6 and re-read by limb 7. */
+const rcAuthored = existsSync(join(ROOT, CONTRACT_JS_REL))
+  ? REVENUECAT_MAP_COPIES[0].parse(readFileSync(join(ROOT, CONTRACT_JS_REL), 'utf8'))
+  : new Map();
+{
+  const authored = rcAuthored;
+
+  if (authored.size === 0) {
+    fail(
+      `COVERAGE LOST — no RevenueCat event mapping could be parsed out of ${CONTRACT_JS_REL}, so limb 6 ` +
+        'compared every other copy against an empty table. An empty left-hand side agrees with all of them.',
+    );
+  } else if (![...authored.values()].some((r) => r.reason !== null)) {
+    fail(
+      `${CONTRACT_JS_REL} maps ${authored.size} RevenueCat event(s) and NONE of them to a revocation reason. ` +
+        'That is a translation table that translates nothing: it renders, compiles and reads exactly like a ' +
+        'working one while meaning "no store event ever revokes anything".',
+    );
+  } else {
+    // (a) every mapped reason is seeded
+    for (const [event, { reason }] of authored) {
+      if (reason !== null && !seeded.has(reason)) {
+        fail(
+          `RevenueCat event '${event}' maps to revocation reason '${reason}', which the migration does NOT seed. ` +
+            'The rail would write a value the database has never heard of, on the one path where the write ' +
+            'happens after the money has moved.',
+        );
+      }
+    }
+    // (b) every copy equals the authored one
+    for (const copy of REVENUECAT_MAP_COPIES) {
+      const abs = join(ROOT, copy.file);
+      if (!existsSync(abs)) {
+        fail(
+          `COVERAGE LOST — ${copy.file} does not exist, so the RevenueCat map is compared against one copy ` +
+            `fewer than this guard claims. It is ${copy.why}.`,
+        );
+        continue;
+      }
+      const inCopy = copy.parse(readFileSync(abs, 'utf8'));
+      if (inCopy.size === 0) {
+        fail(
+          `COVERAGE LOST — parsed zero RevenueCat event mappings out of ${copy.file}. An empty right-hand ` +
+            `side agrees with any left-hand side. That file is ${copy.why}. Run: ` +
+            'node contracts/entitlement/generate.mjs && node contracts/entitlement/generate-dart.mjs && ' +
+            'node extensions/scripts/sync-contracts.mjs',
+        );
+        continue;
+      }
+      rcCopiesCompared++;
+      for (const [event, { reason, dateDerived }] of authored) {
+        if (!inCopy.has(event)) {
+          fail(
+            `RevenueCat event '${event}' is mapped in ${CONTRACT_JS_REL} but ABSENT from ${copy.file}. ` +
+              'A runtime that has never heard of an event cannot act on it, and the two runtimes would ' +
+              'disagree about whether the same webhook takes access away.',
+          );
+        } else if (inCopy.get(event).reason !== reason) {
+          const left = reason === null ? 'no revocation' : `'${reason}'`;
+          const other = inCopy.get(event).reason;
+          const right = other === null ? 'no revocation' : `'${other}'`;
+          fail(
+            `RevenueCat event '${event}' disagrees — ${CONTRACT_JS_REL} maps it to ${left} and ${copy.file} ` +
+              `maps it to ${right}. One of the two revokes a subscription the other keeps.`,
+          );
+        } else if (inCopy.get(event).dateDerived !== dateDerived) {
+          // (d) — the field that says the event NAME is not the whole answer.
+          fail(
+            `RevenueCat event '${event}' disagrees about dateDerived — ${CONTRACT_JS_REL} says ` +
+              `${dateDerived} and ${copy.file} says ${inCopy.get(event).dateDerived}. That flag is the ` +
+              'only thing telling a consumer that CANCELLATION covers BOTH cancel-at-period-end and a ' +
+              'refund, told apart by the paid-through date alone; a copy that loses it revokes a paying ' +
+              'customer or keeps a refunded one.',
+          );
+        }
+      }
+      for (const event of inCopy.keys()) {
+        if (!authored.has(event)) {
+          fail(
+            `${copy.file} maps RevenueCat event '${event}', which ${CONTRACT_JS_REL} does not. A copy that ` +
+              'knows more than the authored table is a second author.',
+          );
+        }
+      }
+    }
+    if (rcCopiesCompared === 0) {
+      fail(
+        'COVERAGE LOST — limb 6 compared the authored RevenueCat map against ZERO of its ' +
+          `${REVENUECAT_MAP_COPIES.length} copies. The translation is unguarded in every runtime that speaks it.`,
+      );
+    }
+  }
+}
+
+// ── LIMB 7 · the ONE runtime that already reads a RevenueCat event ──────────
+//
+// Limb 6 holds four copies of the map equal. Every one of those four is read by
+// something that does not exist yet: the Dart rail has no bridge, the extension
+// runtime has no store purchase, and services/platform has no revenuecatVerifier.
+// The runtime that DOES take a RevenueCat event today — POST /revenuecat, at
+// services/subly-api/src/routes/webhooks.ts — imports nothing from contracts/
+// and carries its own hard-coded ACTIVE_TYPES / INACTIVE_TYPES / GRACE_TYPES.
+//
+// 🔴 SO THE GUARDED COPIES ARE THE FOUR NOTHING CONSUMES, AND THE UNGUARDED
+// FIFTH TAKES THE MONEY DECISIONS. That is the shape this limb closes. It does
+// NOT demand equality — the two vocabularies legitimately differ today and this
+// unit does not own services/** — it demands that the difference be DECLARED,
+// in both directions, so it cannot widen while nobody is looking. A new event
+// on either side is a finding on the next CI run rather than a discovery after
+// a payment.
+//
+// It also holds the three SHAPE agreements the two vocabularies must not break
+// while they coexist, each of which is a real money outcome:
+//   (i)   an event that Worker calls GRACE-class is dateDerived here. This is
+//         the CANCELLATION correction: one event name, two opposite access
+//         outcomes, distinguishable only by expiration_at_ms;
+//   (ii)  an event the Worker revokes on outright maps to a real reason here;
+//   (iii) an event the Worker grants on outright maps to no reason here.
+//
+// ✅ THE INTENDED FIX SATISFIES THIS LIMB BY DELETION, NOT BY EDITING IT. When
+// the revenuecatVerifier unit makes that Worker IMPORT this contract and drops
+// the three literal sets, the limb sees the import, records that the duplication
+// is closed, and stops holding a divergence that no longer exists.
+const WEBHOOK_REL = 'services/subly-api/src/routes/webhooks.ts';
+const WORKER_SET_NAMES = ['ACTIVE_TYPES', 'INACTIVE_TYPES', 'GRACE_TYPES'];
+// The divergence as MEASURED on 2026-09-07, declared so it cannot widen unseen.
+const DECLARED_WORKER_ONLY = ['NON_RENEWING_PURCHASE', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED'];
+const DECLARED_CONTRACT_ONLY = ['SUBSCRIPTION_PAUSED'];
+
+let rcWorkerEvents = 0;
+let rcDuplicationClosed = false;
+{
+  const abs = join(ROOT, WEBHOOK_REL);
+  const authoredEvents = new Set(rcAuthored.keys());
+  if (!existsSync(abs)) {
+    fail(
+      `COVERAGE LOST — ${WEBHOOK_REL} does not exist, so limb 7 compared the authored RevenueCat ` +
+        'vocabulary against nothing. That file is the only runtime in this repository that reads a ' +
+        'RevenueCat event today; if it moved, re-point this limb at where it moved to, because a ' +
+        'second copy of this vocabulary going unwatched is exactly what the limb exists to stop.',
+    );
+  } else if (authoredEvents.size === 0) {
+    fail(
+      `COVERAGE LOST — limb 7 had no authored RevenueCat events to compare ${WEBHOOK_REL} against.`,
+    );
+  } else {
+    const src = readFileSync(abs, 'utf8');
+    const sets = new Map();
+    for (const name of WORKER_SET_NAMES) {
+      const decl = new RegExp(`const ${name}\\s*=\\s*new Set\\(([\\s\\S]*?)\\);`).exec(src);
+      const events = new Set();
+      if (decl) for (const m of decl[1].matchAll(/'([A-Z][A-Z0-9_]*)'/g)) events.add(m[1]);
+      sets.set(name, events);
+    }
+    const empty = WORKER_SET_NAMES.filter((n) => sets.get(n).size === 0);
+    const importsContract = /contracts\/entitlement\/contract\.js/.test(src);
+
+    if (empty.length === WORKER_SET_NAMES.length && importsContract) {
+      // The duplication is gone and this Worker now speaks the authored table.
+      rcDuplicationClosed = true;
+    } else if (empty.length > 0) {
+      fail(
+        `COVERAGE LOST — limb 7 parsed ZERO event names out of ${empty.join(', ')} in ${WEBHOOK_REL}, ` +
+          'and that file does not import contracts/entitlement/contract.js either. An empty right-hand ' +
+          'side agrees with any left-hand side, so the divergence between the authored table and the one ' +
+          'runtime that reads a RevenueCat event today would be unmeasured.',
+      );
+    } else {
+      const worker = new Set([...sets.values()].flatMap((v) => [...v]));
+      rcWorkerEvents = worker.size;
+
+      const workerOnly = [...worker].filter((e) => !authoredEvents.has(e)).sort();
+      const contractOnly = [...authoredEvents].filter((e) => !worker.has(e)).sort();
+      const declaredWorkerOnly = [...DECLARED_WORKER_ONLY].sort();
+      const declaredContractOnly = [...DECLARED_CONTRACT_ONLY].sort();
+
+      if (workerOnly.join('|') !== declaredWorkerOnly.join('|')) {
+        fail(
+          `The RevenueCat vocabulary in ${WEBHOOK_REL} diverges from ${CONTRACT_JS_REL} by ` +
+            `[${workerOnly.join(', ') || 'nothing'}], but this limb declares [${declaredWorkerOnly.join(', ')}]. ` +
+            'A Worker that acts on an event the authored table has never heard of is the second author ' +
+            "contracts/ exists to prevent; a divergence that SHRANK means the declaration is stale. " +
+            'Either add the event to contracts/entitlement/contract.js with its own why, or update ' +
+            'DECLARED_WORKER_ONLY here in the same commit that changes the Worker.',
+        );
+      }
+      if (contractOnly.join('|') !== declaredContractOnly.join('|')) {
+        fail(
+          `${CONTRACT_JS_REL} maps RevenueCat event(s) [${contractOnly.join(', ') || 'nothing'}] that ` +
+            `${WEBHOOK_REL} does not handle, but this limb declares [${declaredContractOnly.join(', ')}]. ` +
+            'An event the authored table revokes on and the live Worker silently ignores is money the ' +
+            'rail never records. Update DECLARED_CONTRACT_ONLY in the same commit, or teach the Worker.',
+        );
+      }
+
+      for (const event of sets.get('GRACE_TYPES')) {
+        const row = rcAuthored.get(event);
+        if (row && row.dateDerived !== true) {
+          fail(
+            `${WEBHOOK_REL} treats RevenueCat event '${event}' as GRACE-class — access is decided by the ` +
+              `paid-through date on the event — but ${CONTRACT_JS_REL} marks it dateDerived: false. One ` +
+              'event name, two opposite access outcomes: CANCELLATION is both cancel-at-period-end and a ' +
+              'REFUND, and only expiration_at_ms tells them apart (webhooks.ts:51-55). A consumer reading ' +
+              'the reason without that flag revokes a paying customer or keeps a refunded one.',
+          );
+        }
+      }
+      for (const event of sets.get('INACTIVE_TYPES')) {
+        const row = rcAuthored.get(event);
+        if (row && row.reason === null) {
+          fail(
+            `${WEBHOOK_REL} revokes access outright on RevenueCat event '${event}', but ${CONTRACT_JS_REL} ` +
+              'maps it to NO revocation reason. The row would be taken away with nothing recorded about why.',
+          );
+        }
+      }
+      for (const event of sets.get('ACTIVE_TYPES')) {
+        const row = rcAuthored.get(event);
+        if (row && row.reason !== null) {
+          fail(
+            `${WEBHOOK_REL} GRANTS access outright on RevenueCat event '${event}', but ${CONTRACT_JS_REL} ` +
+              `maps it to revocation reason '${row.reason}'. The two runtimes would move the same customer ` +
+              'in opposite directions on one webhook.',
+          );
+        }
+      }
+
+      if (rcWorkerEvents === 0) {
+        fail(
+          `COVERAGE LOST — limb 7 read ${WEBHOOK_REL} and found no RevenueCat event names at all.`,
+        );
+      }
+    }
+  }
+}
+
+// ── LIMB 7b · THE SWEEP — a THIRD transcription anywhere under services/ ────
+//
+// 🔴 LIMB 7 ABOVE ANSWERS "A SECOND UNGOVERNED COPY EXISTS" BY NAMING THAT ONE
+// COPY. `WEBHOOK_REL` is a hard-coded path, so a third Worker restating the same
+// RevenueCat vocabulary — the exact failure the limb was built for — is
+// invisible to it and the guard prints ok beside it. Measured by the reviewer:
+// with `services/probe-api/src/routes/webhooks.ts` carrying ACTIVE_TYPES /
+// INACTIVE_TYPES / GRACE_TYPES and an event named in neither the contract nor
+// the declaration, this file exited 0.
+//
+// ✅ THE REUSABLE SHAPE IS ALREADY IN THIS FILE, 900 LINES ABOVE: limb 5's
+// `WRITER_SCAN` + `REQUIRED_UPSERT_WRITERS` —
+// DERIVED-SET-PLUS-REQUIRED-MEMBERS. The sweep finds transcriptions wherever
+// they are; `WEBHOOK_REL` stays the required member so the sweep cannot find
+// NONE and print ok. `WRITER_SCAN.label` is the sentence that condemns the
+// hard-coded version: "the rail that does NOT own it is the one that got
+// missed."
+//
+// A file counts as a TRANSCRIPTION when, with comments stripped, it either
+// declares one of the three set names or names RC_SHAPE_FLOOR or more distinct
+// RevenueCat event names in string literals. Importing
+// `contracts/entitlement/contract.js` clears it — that is the intended fix
+// (limb 7's "satisfied by DELETION, not by editing it"), and it is the only
+// thing that clears it. There is deliberately NO exemption list: a list here
+// would be the very defect this sweep replaces.
+const RC_SHAPE_FLOOR = 3;
+const RC_VOCABULARY = new Set([
+  ...rcAuthored.keys(),
+  ...DECLARED_WORKER_ONLY,
+  ...DECLARED_CONTRACT_ONLY,
+]);
+const declaresRcSet = (src, name) =>
+  new RegExp(String.raw`\b(?:const|let|var)\s+` + name + String.raw`\b`).test(src);
+const relOfAbs = (abs) =>
+  abs.slice(ROOT.length).split(String.fromCharCode(92)).join(String.fromCharCode(47)).replace(/^[/]+/, '');
+const rcTranscribers = [];
+let rcSwept = 0;
+{
+  if (!existsSync(scanRoot)) {
+    fail(
+      `COVERAGE LOST — ${WRITER_SCAN.dir}/ does not exist (${WRITER_SCAN.label}), so limb 7's sweep read ` +
+        'no Worker at all and a third transcription of the RevenueCat vocabulary could not be found ' +
+        'anywhere. A parity check over zero runtimes is unanimous.',
+    );
+  } else if (RC_VOCABULARY.size === 0) {
+    fail(
+      "COVERAGE LOST — limb 7's sweep had an EMPTY RevenueCat vocabulary to match against, so every " +
+        'file under services/ looked innocent. An empty needle finds nothing in any haystack.',
+    );
+  } else {
+    const rcSources = tsSourcesUnder(scanRoot);
+    rcSwept = rcSources.length;
+    for (const abs of rcSources) {
+      const rel = relOfAbs(abs);
+      const src = stripSourceComments(readFileSync(abs, 'utf8'), '.ts');
+      const declared = WORKER_SET_NAMES.filter((n) => declaresRcSet(src, n));
+      const named = new Set();
+      for (const m of src.matchAll(/['"`]([A-Z][A-Z0-9_]{3,})['"`]/g)) {
+        if (RC_VOCABULARY.has(m[1])) named.add(m[1]);
+      }
+      if (declared.length === 0 && named.size < RC_SHAPE_FLOOR) continue;
+      const importsContract = /contracts\/entitlement\/contract\.js/.test(src);
+      rcTranscribers.push({ rel, declared, events: named.size, importsContract });
+      if (importsContract || rel === WEBHOOK_REL) continue;
+      fail(
+        `${rel} restates the RevenueCat vocabulary — ` +
+          (declared.length > 0
+            ? `it declares ${declared.join(' / ')}`
+            : `it names ${named.size} RevenueCat event(s) (${[...named].sort().join(', ')})`) +
+          ` — and it does NOT import ${CONTRACT_JS_REL}. Limb 7 holds the divergence between the authored ` +
+          `table and ${WEBHOOK_REL} to a declared list; a SECOND runtime with its own copy is a third ` +
+          'author of the same money decision, and the three drift apart one commit at a time with nothing ' +
+          `comparing them. Import ${CONTRACT_JS_REL} and delete the literal sets — that is the fix limb 7 ` +
+          'is shaped to be satisfied by. Adding this file to a list here would only reproduce the defect ' +
+          'the sweep exists to end.',
+      );
+    }
+    // REQUIRED MEMBER — the same guard limb 5 puts on its own sweep. Without it,
+    // a sweep that matched nothing (a renamed route, a changed literal style) is
+    // indistinguishable from a tree with no duplication left in it.
+    if (!rcDuplicationClosed && !rcTranscribers.some((t) => t.rel === WEBHOOK_REL)) {
+      fail(
+        `COVERAGE LOST — limb 7's sweep over ${WRITER_SCAN.dir}/ did not recognise ${WEBHOOK_REL} as a ` +
+          'RevenueCat transcription, and that file does not import the contract either. Either the sweep ' +
+          'stopped reaching it or its shape changed; both read identically to a clean tree, and this limb ' +
+          'would be printing ok over an unread runtime.',
+      );
+    }
+  }
+}
 // ── report ───────────────────────────────────────────────────────────────────
 if (problems.length) {
   console.error(`✗ entitlement contract — ${problems.length} problem(s):`);
@@ -1014,5 +1449,16 @@ console.log(
     `with ${CONTRACT_TS} importing ${CONTRACT_JS_REL} rather than restating it; ` +
     `${upsertsScanned} conditional UPSERT(s) into entitlements across ${entitlementWrites.size} file(s) under ` +
     `${WRITER_SCAN.dir}/ carry the one ordering clause, fed by ${INSTANT_PATHS.length} canonicaliser(s) that emit ` +
-    'nothing but new Date(…).toISOString()',
+    'nothing but new Date(…).toISOString(); ' +
+    `the RevenueCat event map is equal across all ${rcCopiesCompared} runtime copy/copies, every mapped ` +
+    'reason is seeded, and at least one store event really revokes; ' +
+    (rcDuplicationClosed
+      ? `${WEBHOOK_REL} now IMPORTS the contract instead of restating it, so limb 7's declared divergence ` +
+        'is retired'
+      : `${WEBHOOK_REL} restates ${rcWorkerEvents} event name(s) and its divergence from the authored ` +
+        `table is exactly the declared ${DECLARED_WORKER_ONLY.length} worker-only + ` +
+        `${DECLARED_CONTRACT_ONLY.length} contract-only name(s)`) +
+    `; limb 7's sweep read ${rcSwept} .ts source(s) under ${WRITER_SCAN.dir}/ and found ${rcTranscribers.length} ` +
+    'transcription(s) of that vocabulary, each of which either IS the declared runtime above or imports ' +
+    'the contract instead of restating it',
 );

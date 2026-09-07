@@ -4,6 +4,14 @@
 // [pipeline 5]M-6 (checkout) · M-8 (the revocation bound) · M-9 (ROSCA) ·
 // M-10 (restore) · M-15 (platform declaration).
 //
+// [ADR 038], [ADR 039] and [ADR 067] decision 7 are cited HERE, in the header,
+// because the enforcement index is built from a file's first 60 lines and every
+// one of these was claimed only beside its limb, several hundred lines down.
+// [ADR 038] and [ADR 039] lock ONE merchant of record and the per-channel rail
+// assignment, which §G limbs (d) and (e) grade against the register. [ADR 067]
+// decision 7 put `ChassisBilling.railFor` between an app and its rail, and §H
+// is the census of who still constructs the hosted rail by hand instead.
+//
 // 🔴 EVERY LIMB HERE REPLACES AN ACCEPTANCE CRITERION THAT COULD NOT FAIL. That
 // is not a stylistic note — it is what the file is for, and each replacement is
 // named beside the limb that carries it:
@@ -879,9 +887,32 @@ const flat = (v) =>
 
 {
   // ── G0 · THE PREMISE THIS SECTION REASONS FROM ──────────────────────────
-  // One production `PurchaseRail`, and it is the Paddle hosted checkout. If that
-  // stops being true, `canStartCheckout == true` stops meaning "this build opens
-  // PADDLE here" and every comparison below silently changes subject.
+  // ⏱ WIDENED 2026-09-07, [ADR 067] decision 7, AND THE WIDENING IS THE
+  // OPPOSITE OF A RELAXATION. Until today this read "one production
+  // `PurchaseRail`, and it is the Paddle hosted checkout", because while that
+  // held, `technicallySupported && channelPermitted` MEANT "this build opens
+  // Paddle here" and limb (d) could compare that pair against the register's
+  // rail. `IapRail` landed as a second implementation, so the premise had to be
+  // re-stated rather than deleted — the guard REFUSED (COVERAGE LOST) on the
+  // commit that added it, which is the tripwire working.
+  //
+  // 🔴 THE RE-STATED PREMISE IS A DECLARED SET, NOT A COUNT. Each shipped
+  // implementation is named here with the rail VOCABULARY it belongs to, so a
+  // THIRD implementation still refuses this section instead of being absorbed:
+  //
+  //   HostedCheckoutRail → `paddle`       — reads the capability matrix, so
+  //                                          limb (d)'s two booleans still mean
+  //                                          exactly what they meant;
+  //   IapRail            → the STORE rails — reads `PurchaseRailKind`, NOT the
+  //                                          capability matrix, which is why
+  //                                          limb (d) is unchanged and limb (e)
+  //                                          exists to grade the rail by NAME.
+  //
+  // The second half of that sentence is asserted below rather than promised: if
+  // `IapRail` ever consulted `channelPermitted`, the two vocabularies would have
+  // merged and limb (d) would silently be answering for both rails again.
+  const RAIL_IMPLS = { HostedCheckoutRail: 'paddle', IapRail: 'store' };
+  const IAP_RAIL_FILE = 'packages/purchases/lib/src/iap_rail.dart';
   let premiseHolds = true;
   {
     const impls = [];
@@ -900,13 +931,32 @@ const flat = (v) =>
     } catch {
       /* reported below */
     }
-    if (impls.length !== 1 || impls[0] !== 'HostedCheckoutRail') {
+    const declared = Object.keys(RAIL_IMPLS).sort();
+    const found = [...new Set(impls)].sort();
+    if (declared.join(',') !== found.join(',')) {
       premiseHolds = false;
       problems.push(
-        `COVERAGE LOST — §G reasons from "the only PurchaseRail this repo ships is HostedCheckoutRail, the PADDLE hosted checkout", and ${PURCHASES_LIB} now implements [${impls.join(', ') || 'none'}]. ` +
-          `While that held, \`channelPermitted: true\` MEANT "this build opens Paddle here" and could be compared against the register's rail. It no longer does. ` +
-          `Extend this section with the new rail's own code marker before re-greening it — a comparison whose left-hand side changed meaning is not a weaker check, it is a check of something else.`,
+        `COVERAGE LOST — §G reasons from a DECLARED set of PurchaseRail implementations [${declared.join(', ')}], and ${PURCHASES_LIB} implements [${found.join(', ') || 'none'}]. ` +
+          `Limb (d) compares the capability matrix's two booleans against the register on the premise that they answer for the HOSTED rail alone, and limb (e) compares the rail NAME for the store rails. ` +
+          `A rail this section has never heard of belongs to neither comparison. Add it to RAIL_IMPLS with the rail vocabulary it serves, and say which limb grades it, before re-greening — a comparison whose left-hand side changed meaning is not a weaker check, it is a check of something else.`,
       );
+    }
+    // The store rail must not read the HOSTED rail's permission field. If it
+    // did, limb (d)'s booleans would be answering for both rails at once and
+    // the split this section now depends on would be fiction.
+    {
+      const iapRaw = read(IAP_RAIL_FILE);
+      if (iapRaw === null) {
+        premiseHolds = false;
+        problems.push(
+          `COVERAGE LOST — ${IAP_RAIL_FILE} is missing, and RAIL_IMPLS names IapRail as the store-rail implementation. §G's split between the capability matrix (limb d) and the rail name (limb e) rests on that file existing and being readable.`,
+        );
+      } else if (/\bchannelPermitted\b/.test(code(iapRaw))) {
+        premiseHolds = false;
+        problems.push(
+          `COVERAGE LOST — ${IAP_RAIL_FILE} reads \`channelPermitted\`, the HOSTED rail's store-policy field. §G assumes the two rails consult DIFFERENT vocabularies — the matrix for Paddle, PurchaseRailKind for the store rails — and limb (d) would now be answering for both at once. Decide which vocabulary the store rail speaks, then re-state this premise.`,
+        );
+      }
     }
     for (const f of [RAIL_CLIENT_IMPL, RAIL_SERVER_IMPL]) {
       if (!existsSync(join(ROOT, f))) {
@@ -1124,7 +1174,7 @@ const flat = (v) =>
       if (opens && (rail !== 'paddle' || forbids.includes('paddle'))) {
         problems.push(
           `THE SHIPPED CODE OFFERS A RAIL THE REGISTER FORBIDS — channel \`${id}\` declares rail \`${rail}\`${forbids.length ? ` and forbids [${forbids.join(', ')}]` : ''} in ${CHANNELS}, but ${CAPS} answers \`PurchaseChannel.${row.member}\` with technicallySupported: true, channelPermitted: true. ` +
-            `The only PurchaseRail this repo implements is HostedCheckoutRail — the PADDLE hosted checkout — so that pair of booleans IS an instruction to open Paddle on \`${id}\`. On a store channel that is the documented rejection/removal cause, not a style disagreement.`,
+            `Those two booleans are the HOSTED checkout question: a \`true, true\` pair is what instructs a build to open HostedCheckoutRail on \`${id}\`, and since [ADR 067] decision 7 the store rail is a SEPARATE implementation chosen by rail NAME (limb (e) below). On a store channel that pair is the documented rejection/removal cause, not a style disagreement.`,
         );
       } else if (!opens && rail === 'paddle' && !forbids.includes('paddle')) {
         problems.push(
@@ -1198,10 +1248,255 @@ const flat = (v) =>
           'This is the exact assignment the owner restated backwards on 2026-08-13. Promoting the parked `android-sideload` entry to a `channels` row, with its enum member, arms every limb in §G for it automatically.',
       );
     }
+
+    // ── G4 (e) · THE DART RAIL-KIND MAP IS THE REGISTER'S, NOT A SECOND COPY ─
+    //
+    // [ADR 067] decision 7 added `ChassisBilling.railFor`, which picks a rail
+    // per channel — so the client now needs the register's `purchaseRail.rail`
+    // answer AT RUNTIME, and Dart cannot read a JSON register at runtime. The
+    // answer is mirrored in `PurchaseRailKind.forChannel`.
+    //
+    // 🔴 A MIRROR WITH NOTHING COMPARING IT IS JUST A SECOND DECISION. Limb (d)
+    // above cannot see this one: it compares the register against the two
+    // BOOLEANS in the capability matrix, which answer "may this build open a
+    // HOSTED checkout" and are correctly `false` on `android-play` whether that
+    // channel takes `play-billing` or sells nothing at all. The rail NAME is a
+    // different fact, and getting it wrong is not a refusal — it is the build
+    // running the WRONG rail: a store sheet on a Paddle channel, or an external
+    // checkout inside a Play build, which is the anti-steering violation.
+    //
+    // Both directions, and the vocabulary is checked too: a rail name in the
+    // Dart enum that the register's `rails` dictionary does not define is a rail
+    // nobody decided.
+    // `premiseHolds` is not re-tested here: the enclosing G4 `if` above already
+    // established it, and a condition that cannot be false reads as a guard that
+    // is guarding something.
+    {
+      const KIND = 'packages/purchases/lib/src/purchase_rail_kind.dart';
+      const kindRaw = read(KIND);
+      if (kindRaw === null) {
+        problems.push(
+          `COVERAGE LOST — ${KIND} does not exist, so the rail the client picks per channel was compared ` +
+            'against nothing. `ChassisBilling.railFor` reads that map; the register is the decision it is ' +
+            'supposed to mirror.',
+        );
+      } else {
+        const kindCode = code(kindRaw);
+        // The enum's own register ids, parsed structurally — the same shape §A
+        // parses PurchaseChannel with.
+        const kindIds = new Set(
+          [...kindCode.matchAll(/^\s*([a-zA-Z]\w*)\('([^']+)'\)[,;]/gm)].map((m) => m[2]),
+        );
+        let dictNames = new Set();
+        try {
+          const d = JSON.parse(read(CHANNELS) ?? "{}").purchaseRails?.rails;
+          if (d && typeof d === "object") dictNames = new Set(Object.keys(d));
+        } catch {
+          // The vocabulary limb above already failed loudly on an unparseable
+          // register; an empty set here simply skips the name check rather
+          // than reporting the same defect a second time.
+        }
+        for (const id of kindIds) {
+          if (dictNames.size && !dictNames.has(id)) {
+            problems.push(
+              `${KIND} declares rail \`${id}\`, which ${CHANNELS}'s \`purchaseRails.rails\` dictionary does ` +
+                'not define. A rail the register has never named is a rail nobody decided, shipped in the ' +
+                'one file that decides which one a build opens.',
+            );
+          }
+        }
+
+        // member -> registerId, from the PurchaseChannel enum §A already parsed.
+        const memberOfId = new Map([...capById].map(([id, r]) => [id, r.member]));
+        // The `case PurchaseChannel.X:` → `return PurchaseRailKind.y;` map,
+        // including the fall-through spelling `case A: case B: return …;`.
+        const shipped = new Map(); // PurchaseChannel member -> rail member
+        for (const m of kindCode.matchAll(
+          /case\s+PurchaseChannel\.(\w+):(?:\s*case\s+PurchaseChannel\.(\w+):)*\s*return\s+PurchaseRailKind\.(\w+)\s*;/g,
+        )) {
+          // The regex's repeated group only keeps the LAST alternative, so the
+          // whole matched text is re-scanned for every member it names. A map
+          // that silently lost the first channel of a fall-through pair would
+          // read as "that channel has no case", which is a different and more
+          // confusing failure than the real one.
+          for (const c of m[0].matchAll(/case\s+PurchaseChannel\.(\w+):/g)) {
+            shipped.set(c[1], m[3]);
+          }
+        }
+        // rail member name (playBilling) -> its register id (play-billing),
+        // read out of the enum declaration rather than lower-cased here.
+        const railIdOfMember = new Map(
+          [...kindCode.matchAll(/^\s*([a-zA-Z]\w*)\('([^']+)'\)[,;]/gm)].map((m) => [m[1], m[2]]),
+        );
+
+        let railsCompared = 0;
+        const problemsBeforeE = problems.length;
+        for (const [id, { rail }] of railOf) {
+          const member = memberOfId.get(id);
+          if (!member) continue; // no enum row — §A already failed on it
+          const shippedMember = shipped.get(member);
+          if (!shippedMember) {
+            problems.push(
+              `${KIND} has no \`case PurchaseChannel.${member}:\` — channel \`${id}\` is registered and the ` +
+                'client has no rail to pick for it. `ChassisBilling.railFor` would answer whatever the ' +
+                'switch falls through to, which on a store channel is the difference between a legal ' +
+                'purchase and a removal.',
+            );
+            continue;
+          }
+          railsCompared += 1;
+          const shippedId = railIdOfMember.get(shippedMember) ?? shippedMember;
+          if (shippedId !== rail) {
+            problems.push(
+              `THE CLIENT WOULD OPEN THE WRONG RAIL — ${CHANNELS} gives channel \`${id}\` rail \`${rail}\`, ` +
+                `and ${KIND} answers \`PurchaseRailKind.${shippedMember}\` (\`${shippedId}\`). ` +
+                'That map is what `ChassisBilling.railFor` consults, so this is not a documentation ' +
+                'disagreement: it is the build choosing a payment mechanism the channel forbids.',
+            );
+          }
+        }
+        if (railsCompared === 0) {
+          problems.push(
+            `COVERAGE LOST — not one channel's rail could be compared between ${CHANNELS} and ${KIND}. ` +
+              'The mirror is unchecked, which is the state that makes it a second decision rather than a copy.',
+          );
+        } else if (problems.length === problemsBeforeE) {
+          ok(`${railsCompared} channel(s): the register's rail NAME and ${KIND} agree`);
+        }
+      }
+    }
   } else if (premiseHolds && registerChannels.length > 0 && capById.size === 0) {
     problems.push(
       `COVERAGE LOST — no capability row could be parsed out of ${CAPS}, so limb (d) compared the register against nothing. A register-versus-register check is a decoration; it cannot fail for the reason it exists.`,
     );
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// H · WHO STILL BUILDS THE HOSTED RAIL BY HAND — the construction census
+// ═══════════════════════════════════════════════════════════════════════════
+// [ADR 067] decision 7 put `ChassisBilling.railFor(channel, config)` between an
+// app and its rail, so the CHANNEL decides which rail a build opens. Landing the
+// facade moved NOT ONE CALLER: `purchaseRailProvider` — the single place every
+// stamped app gets its rail — still calls `HostedCheckoutRail(...)` directly, in
+// `apps/subly` and in the brick template both, with `capabilities` left to the
+// platform-restrictive `forPlatform` default.
+//
+// 🔴 SO THE FACADE HAS ZERO CONSUMERS AND NOTHING GRADED THAT. §G limb (e)
+// checks which rail the map ANSWERS with; it never checks who ASKS. A third app
+// copying `money_providers.dart` adds a third hand-wired rail and every limb
+// above stays green while it happens. That is the same failure limb 7 of
+// assert-entitlement-contract.mjs was refuted for: the finding was "a copy that
+// nothing governs", and a check that names the copies it already knows about
+// governs only those.
+//
+// THE SHAPE IS A DECLARED SET HELD IN BOTH DIRECTIONS, because a plain refusal
+// is not available today — the two hand-wired call sites are real, they are
+// owned by other units (`apps/subly/lib/**` and the brick are outside this
+// unit's ownedPaths), and deleting the check until they move is how a defect
+// becomes permanent:
+//   · a construction site this list does not name → FAIL. The widening cannot
+//     happen quietly, and it cannot be argued away as "the pattern already
+//     existed".
+//   · a named site that is GONE → FAIL. When the brick and subly move to
+//     `ChassisBilling.railFor`, this declaration is stale IN THE SAME COMMIT and
+//     says so, instead of preserving a fiction about who calls what.
+//   · zero sites anywhere → COVERAGE LOST. The facade constructs one itself, so
+//     finding none means the sweep stopped reaching Dart, not that the repo
+//     stopped constructing rails.
+//
+// The file that DECLARES `class HostedCheckoutRail` is skipped: its own
+// constructor declaration is spelled the same as a call and is not one.
+//
+// Carried in the record as R10 and as `O-BILLING-REVENUECAT-LANDING` (next-wave
+// unit 9): `purchaseRailProvider` calls `ChassisBilling.railFor` with the app's
+// CHANNEL as a DECLARED value — the facade deliberately refuses to guess it.
+{
+  const FACADE = 'packages/purchases/lib/src/chassis_billing.dart';
+  const CTOR_SCAN_DIRS = ['apps', 'packages', 'tooling/bricks'];
+  const DECLARED_CTOR_SITES = [
+    {
+      file: FACADE,
+      why: 'the facade itself — the ONE site that is SUPPOSED to construct the hosted rail, because railFor is what decides that a Paddle channel gets it',
+    },
+    {
+      file: 'apps/subly/lib/state/money_providers.dart',
+      why: "R10 — `purchaseRailProvider` predates the facade and still hand-builds the rail. Repair belongs to the unit that owns apps/subly/lib/**, and needs the app's CHANNEL declared because ChassisBilling.railFor refuses to guess it",
+    },
+    {
+      file: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/money_providers.dart',
+      why: 'R10 — the same line in the BRICK, which is the one that matters: every app stamped from it gets the pre-facade construction. The stamp traps (flutter-01/02/04/05/07) and the app-shell-owned assert-stamp-text-fidelity make that edit a unit of its own',
+    },
+  ];
+  const isTestPath = (rel) =>
+    rel.includes('/test/') || rel.includes('/integration_test/') || rel.endsWith('_test.dart');
+  const relOfDart = (abs) =>
+    abs.slice(ROOT.length).split(String.fromCharCode(92)).join(String.fromCharCode(47)).replace(/^[/]+/, '');
+  const CTOR = /(?<![\w.$])HostedCheckoutRail\s*\(/;
+  const sites = new Set();
+  let dartScanned = 0;
+  const walkCtor = (d) => {
+    let entries;
+    try {
+      entries = listDir(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const f = join(d, e.name);
+      if (e.isDirectory()) {
+        walkCtor(f);
+        continue;
+      }
+      if (!e.name.endsWith('.dart')) continue;
+      const rel = relOfDart(f);
+      if (isTestPath(rel)) continue;
+      // Read first, ask questions after: a stat() followed by a read is a
+      // TOCTOU window for no benefit here, and an unreadable entry is a file
+      // this census could not grade, which the counter below must not claim.
+      let raw;
+      try {
+        raw = readFileSync(f, 'utf8');
+      } catch {
+        continue;
+      }
+      dartScanned += 1;
+      const src = code(raw);
+      if (/class\s+HostedCheckoutRail\b/.test(src)) continue;
+      if (CTOR.test(src)) sites.add(rel);
+    }
+  };
+  for (const d of CTOR_SCAN_DIRS) walkCtor(join(ROOT, d));
+
+  if (dartScanned === 0) {
+    problems.push(
+      `COVERAGE LOST — §H swept [${CTOR_SCAN_DIRS.join(', ')}] for Dart and read ZERO files, so nobody was found constructing \`HostedCheckoutRail\` by hand and nobody was found NOT doing it either. A census over an empty tree is unanimous.`,
+    );
+  } else if (sites.size === 0) {
+    problems.push(
+      `COVERAGE LOST — §H read ${dartScanned} Dart file(s) and found no direct \`HostedCheckoutRail(\` construction at all, not even in ${FACADE}, which builds one itself. The facade's own site is the proof the scan can see a construction; finding none means the scan stopped matching, and a scan that matches nothing agrees with every tree.`,
+    );
+  } else {
+    const declaredFiles = DECLARED_CTOR_SITES.map((s) => s.file);
+    const undeclared = [...sites].filter((f) => !declaredFiles.includes(f)).sort();
+    const stale = DECLARED_CTOR_SITES.filter((s) => !sites.has(s.file));
+    for (const f of undeclared) {
+      problems.push(
+        `${f} CONSTRUCTS \`HostedCheckoutRail\` DIRECTLY, and §H does not declare it. [ADR 067] decision 7 made \`ChassisBilling.railFor(channel, config)\` the one place a build picks its rail — a hand-built hosted rail bypasses that decision entirely and hard-codes Paddle onto whatever channel the app ships on, which on a store channel is the anti-steering violation §G limb (e) exists to prevent. Call \`ChassisBilling.railFor\` with the app's declared channel. If this really is a fourth site that must stay hand-built, say so HERE with its reason — the declaration is the thing that makes the next one visible.`,
+      );
+    }
+    for (const s of stale) {
+      problems.push(
+        `§H declares ${s.file} as a direct \`HostedCheckoutRail\` construction site (${s.why}) and it no longer constructs one. If the caller moved to \`ChassisBilling.railFor\`, that is the repair R10 asks for and this declaration is stale in the same commit — delete the row. A declaration nobody prunes is how a guard ends up describing a tree that stopped existing.`,
+      );
+    }
+    if (undeclared.length === 0 && stale.length === 0) {
+      const bypass = [...sites].filter((f) => f !== FACADE).sort();
+      ok(
+        `${dartScanned} Dart file(s) swept: ${sites.size} direct HostedCheckoutRail construction site(s), all declared — ${bypass.length} of them still bypass ChassisBilling.railFor (${bypass.join(', ') || 'none'}), which is R10 / O-BILLING-REVENUECAT-LANDING and is now graded rather than remembered`,
+      );
+    }
   }
 }
 
