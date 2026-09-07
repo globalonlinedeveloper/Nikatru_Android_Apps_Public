@@ -65,6 +65,7 @@
 //   Private/research/revamp-2026-09-05/fix-index-guards-gitdir-2026-09-07.md
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawnSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /** Every environment variable by which a CALLER can redirect `git` at a different
@@ -130,10 +131,21 @@ export class RepoGitError extends Error {
 /* Windows answers `--show-toplevel` with forward slashes and whichever drive-letter
    case git found, which is not byte-identical to what `path.resolve` produces for the
    same directory. Compare the SHAPE, not the bytes: separators normalised, a trailing
-   separator dropped, and case folded only where the platform is case-insensitive. */
+   separator dropped, and case folded only where the platform is case-insensitive.
+   🔴 AND CANONICALISED FIRST, which is not belt-and-braces on Windows: `os.tmpdir()`
+   on this machine answers in the 8.3 SHORT form (`C:\Users\LOCALU~1\AppData\…`) while
+   git answers with the long one, so two spellings of ONE directory compared unequal
+   and every temp-rooted caller — every fixture in the suite — refused a root that was
+   perfectly correct. `realpathSync.native` is the only thing that reconciles them; it
+   also collapses a directory symlink, which is how the corpus is reached in an agent
+   worktree. It throws on a path that does not exist, and that case falls back to the
+   textual form rather than being swallowed: a nonexistent root is a real refusal and
+   must reach one, not disappear into an exception here. */
 const sameDir = (a, b) => {
   const norm = (p) => {
-    const s = resolve(String(p)).replace(/\\/g, '/').replace(/\/+$/, '');
+    let s = resolve(String(p));
+    try { s = realpathSync.native(s); } catch { /* not on disk — compare textually */ }
+    s = s.replace(/\\/g, '/').replace(/\/+$/, '');
     return process.platform === 'win32' ? s.toLowerCase() : s;
   };
   return norm(a) === norm(b);
