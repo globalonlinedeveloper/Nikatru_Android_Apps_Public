@@ -54,7 +54,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -66,10 +66,11 @@ import { deflateSync } from 'node:zlib';
 // afterwards, which is where the meaning is. And because a fixture written by
 // whoever wrote the guard can encode the same misunderstanding as the guard,
 // limb 7's real evidence is the REAL-TREE mutation log recorded above each test.
-import { deriveLinuxPackaging } from '../../store/render-linux-icons.mjs';
+import { deriveDesktopEntry, deriveLinuxPackaging } from '../../store/render-linux-icons.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-launcher-icons.mjs');
+const REPO = resolve(CI_DIR, '..', '..');
 
 let TMP;
 before(() => {
@@ -671,5 +672,74 @@ describe('flutter-stock-assets', () => {
     const got = readStockAssets({ appDir: app, relDir: 'web', keep: (r) => r.endsWith('.png') });
     assert.deepEqual([...got.keys()].sort(), ['favicon.png', 'icons/Icon-512.png']);
     assert.equal(got.get('icons/Icon-512.png').toString(), 'FIVE-TWELVE');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE .desktop `Name` IS AN ICON LABEL, NOT A STORE TITLE.
+//
+// A GNOME or KDE launcher prints `Name` under the icon and truncates it there,
+// so this field belongs with CFBundleDisplayName and android:label rather than
+// with `store/linux-snap/title.txt`. Until 2026-09-09 it was the store title,
+// which was indistinguishable only for as long as the portfolio had one short
+// brand: "Nikatru Subscription Tracker" under a 64-pixel square is an ellipsis.
+//
+// It reads the app declaration's `shortName` — the SAME field
+// tooling/app-yaml/render.mjs renders into the other five OS-level labels. Two
+// generators, one source: this file owns the whole nine-line .desktop entry and
+// render.mjs owns the five files it alone owns, so neither patches the other's.
+//
+// The FALLBACK case is the one that keeps the move honest. An app that has not
+// adopted `shortName` must re-derive byte-identically, or this change would have
+// silently rewritten the launcher label of every app that did nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the desktop entry Name is the icon label', () => {
+  const label = (extra) => {
+    const root = mkdtempSync(join(tmpdir(), 'desktop-name-'));
+    const listing = join(root, 'store', 'linux-snap');
+    mkdirSync(listing, { recursive: true });
+    writeFileSync(join(listing, 'title.txt'), 'Demo Store Title\n');
+    writeFileSync(join(listing, 'short-description.txt'), 'A demonstration\n');
+    writeFileSync(join(listing, 'category.txt'), 'Productivity\n');
+    mkdirSync(join(root, 'linux'), { recursive: true });
+    writeFileSync(
+      join(root, 'linux', 'CMakeLists.txt'),
+      'set(BINARY_NAME "demo")\nset(APPLICATION_ID "com.example.demo")\n',
+    );
+    if (extra) writeFileSync(join(root, 'app.yaml'), extra);
+    try {
+      return deriveDesktopEntry(root).match(/^Name=(.*)$/m)[1];
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  test('a declared shortName is what the launcher prints', () => {
+    assert.equal(label('id: demo\nname: Demo Store Title\nshortName: Demo\n'), 'Demo');
+  });
+
+  test('FALLBACK: no app.yaml at all still derives the store title, byte for byte', () => {
+    assert.equal(label(null), 'Demo Store Title');
+  });
+
+  test('FALLBACK: an app.yaml with no shortName still derives the store title', () => {
+    assert.equal(label('id: demo\nname: Demo Store Title\n'), 'Demo Store Title');
+  });
+
+  test('a shortName that is not a non-empty string is REFUSED, never silently fallen back from', () => {
+    assert.throws(
+      () => label('id: demo\nname: Demo Store Title\nshortName: ""\n'),
+      /shortName/,
+      'an empty declared label must not quietly become the store title — that is a launcher label nobody chose',
+    );
+  });
+
+  test('the real tree: apps/subly ships its declared shortName, not its store title', () => {
+    const appDir = join(REPO, 'apps', 'subly');
+    const name = deriveDesktopEntry(appDir).match(/^Name=(.*)$/m)[1];
+    const declared = readFileSync(join(appDir, 'app.yaml'), 'utf8').match(/^shortName: (.*)$/m)[1].trim();
+    const title = readFileSync(join(appDir, 'store', 'linux-snap', 'title.txt'), 'utf8').trim();
+    assert.equal(name, declared);
+    assert.notEqual(name, title, 'the two are the same string here, so this case cannot tell which one was read');
   });
 });

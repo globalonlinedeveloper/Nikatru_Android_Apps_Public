@@ -1,6 +1,6 @@
 {
   "@@locale": "ta",
-  "appTitle": "Subly — Subscription Tracker",
+  "appTitle": "Nikatru Subscription Tracker",
   "settingsTitle": "அமைப்புகள்",
   "contactSupport": "ஆதரவைத் தொடர்பு கொள்ளவும்",
   "deleteAccount": "கணக்கை நீக்கு",
@@ -266,7 +266,7 @@
   "sublyOnboarding2Title": "புதுப்பித்தல் ஒருபோதும் திடீரென அதிர்ச்சி தராது",
   "sublyOnboarding2Body": "ஒவ்வொரு புதுப்பித்தலுக்கும் முன் நினைவூட்டல் வரும், ஒவ்வொரு நிலுவைத் தேதியும் ஒரே நாட்காட்டியில் இருக்கும்.",
   "sublyOnboarding3Title": "பயன்படுத்தாததைக் குறையுங்கள்",
-  "sublyOnboarding3Body": "ஒரு திட்டத்தைப் பயன்படுத்தாததாகக் குறியுங்கள், ரத்து செய்வதால் எவ்வளவு சேமிக்கலாம் என்பதை Subly கணக்கிடும்.",
+  "sublyOnboarding3Body": "ஒரு திட்டத்தைப் பயன்படுத்தாததாகக் குறியுங்கள், ரத்து செய்வதால் எவ்வளவு சேமிக்கலாம் என்பதை Subscriptions கணக்கிடும்.",
   "renewalChannelName": "புதுப்பித்தல் நினைவூட்டல்கள்",
   "renewalReminderTitle": "புதுப்பித்தல் நெருங்குகிறது",
   "renewalReminderBody": "{name} {date} அன்று புதுப்பிக்கப்படும்.",

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Version=1.5
 Type=Application
-Name=Subly
+Name=Subscriptions
 Comment=Track every subscription in one place
 Exec=subly
 Icon=com.nikatru.subly

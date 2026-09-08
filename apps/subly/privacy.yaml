@@ -118,7 +118,8 @@ collects:
     required: true
     shared: false
     basis: >-
-      The subscriptions a person tracks in Subly are financial facts about them,
+      The subscriptions a person tracks in this app are financial facts about
+      them,
       and they are the product itself. They sit in the app's own rows and are
       reached by the same erasure route as everything else keyed on the user id.
     source: apps/subly/store/android-play/data-safety.json

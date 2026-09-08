@@ -55,12 +55,31 @@
 // bytes already in the tree.
 //
 // ── WHAT THE .desktop FILE IS DERIVED FROM ──────────────────────────────────
-// Its text is NOT typed here. `Name`, `Comment` and `Categories` come from the
-// app's own `store/linux-snap/*.txt` — the same files the Snap listing is built
-// from — and `Exec`/`Icon` come from `linux/CMakeLists.txt`'s `BINARY_NAME` and
+// Its text is NOT typed here. `Comment` and `Categories` come from the app's own
+// `store/linux-snap/*.txt` — the same files the Snap listing is built from — and
+// `Exec`/`Icon` come from `linux/CMakeLists.txt`'s `BINARY_NAME` and
 // `APPLICATION_ID`. [pipeline D-5]'s rule, applied to the one listing-adjacent
 // file that also ships inside the package: a second hand-typed copy of the app's
 // name is the copy that goes stale.
+//
+// ⏱ 2026-09-09 — `Name` MOVED, from `store/linux-snap/title.txt` to the app
+// declaration's `shortName`. A GNOME or KDE launcher prints `Name` under the
+// icon and truncates it there, so this field is an ICON LABEL and never was a
+// store title; the two were the same string only for as long as the portfolio
+// had one short brand. `shortName` is the field that says what an operating
+// system has room for, and `tooling/app-yaml/render.mjs` renders it into the
+// other five OS-level label fields.
+//
+// 🔴 ONE FIELD, ONE SOURCE, TWO GENERATORS — deliberately not one generator. This
+// file owns the WHOLE .desktop entry (nine lines, every one derived) and
+// assert-launcher-icons.mjs limb 7 re-derives it. A second writer patching one
+// line inside it would be two owners of one file, which is the failure this
+// header's own last sentence names. So render.mjs stops at the five files it
+// alone owns and this one reads the same declaration.
+//
+// An app whose declaration carries no `shortName` falls back to `title.txt` —
+// unchanged behaviour, so this move re-derives byte-identically for any app that
+// has not adopted the field.
 //
 // Usage:
 //   node tooling/store/render-linux-icons.mjs --app subly            # write
@@ -73,6 +92,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // PNG is is precisely how assert-stamp-brand-assets.mjs spent weeks comparing
 // against empty buffers while printing a healthy count. See that module's header.
 import { decodeRgba, encodeRgba, PngUnreadable } from './png-codec.mjs';
+// THE ONE YAML READER, for the same reason as the PNG decoder above: a second
+// idea of what this repository's YAML subset is would disagree with the schema
+// validator on the day it matters.
+import { parseYaml } from '../app-yaml/yaml.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(join(HERE, '..', '..'));
@@ -215,6 +238,26 @@ export function readLinuxIdentity(appDir) {
  * Returned rather than written so that the guard can derive the same string and
  * compare, which is what makes a hand-edited desktop file detectable.
  */
+function declaredShortName(appDir) {
+  const p = join(appDir, 'app.yaml');
+  if (!existsSync(p)) return null;
+  let doc;
+  try {
+    doc = parseYaml(readFileSync(p, 'utf8'));
+  } catch (e) {
+    throw new LinuxBrandUnavailable([
+      `${p} does not parse (${e.message}), so the icon label this entry's \`Name\` is derived from cannot be read.`,
+      'Refused rather than fallen back: silently using the store title would ship a launcher label nobody chose.',
+    ]);
+  }
+  const v = doc && doc.shortName;
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'string' || v.trim() === '') {
+    throw new LinuxBrandUnavailable([`${p} declares a \`shortName\` that is not a non-empty string.`]);
+  }
+  return v.trim();
+}
+
 export function deriveDesktopEntry(appDir) {
   const { binaryName, applicationId } = readLinuxIdentity(appDir);
   const listing = join(appDir, 'store', 'linux-snap');
@@ -230,7 +273,7 @@ export function deriveDesktopEntry(appDir) {
     if (v === '') throw new LinuxBrandUnavailable([`${p} is empty; the desktop entry has no ${file} to carry.`]);
     return v;
   };
-  const name = field('title.txt');
+  const name = declaredShortName(appDir) ?? field('title.txt');
   const comment = field('short-description.txt');
   const storeCategory = field('category.txt');
   const categories = CATEGORY_MAP.get(storeCategory);

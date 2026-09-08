@@ -1,4 +1,4 @@
-# Subly — Flutter app (portfolio template)
+# Nikatru Subscription Tracker — Flutter app (portfolio template)
 
 One Flutter codebase → six platforms. Demo-runnable with zero backend; flips to Supabase Auth
 + a Cloudflare Worker when you supply `--dart-define` values.

@@ -10,11 +10,18 @@
 //                                        ├▶ …/privacy-policy-url.txt
 //                                        └▶ …/support-url.txt
 //
-// and, when the declaration carries a `shortName`, the SIX OS-level icon-label
-// fields — CFBundleDisplayName (iOS + macOS), android:label, the .desktop
-// `Name=`, msix_config.display_name and the PWA manifest `short_name`. Those are
-// SURGICAL renderings into files this script does not otherwise own; see
+// and, when the declaration carries a `shortName`, the FIVE OS-level icon-label
+// fields this script owns — CFBundleDisplayName (iOS + macOS), android:label,
+// msix_config.display_name and the PWA manifest `short_name`. Those are SURGICAL
+// renderings into files this script does not otherwise own; see
 // ICON_LABEL_TARGETS below for the anchor rule that makes that safe.
+//
+// ⛔ THE SIXTH OS-LEVEL LABEL — the .desktop `Name=` — IS NOT WRITTEN HERE, and
+// that is not an omission. `tooling/store/render-linux-icons.mjs` derives that
+// whole file, all nine lines of it, and assert-launcher-icons.mjs limb 7
+// re-derives and compares it. It reads the same `shortName`. Patching one line
+// of a file another generator owns entirely would be two owners of one fact —
+// which is the thing every generator in this repository exists to prevent.
 //
 // ── WHAT THIS FIXES, IN THE GUARD'S OWN WORDS ────────────────────────────────
 // `assert-store-metadata.mjs` opens with "[pipeline D-5] Store listing metadata
@@ -98,8 +105,8 @@ export const RENDERED_LISTING_FILES = ['title.txt', 'short-description.txt', 'ca
 // is an ellipsis on a phone, and shipping the SAME string to both is how a
 // launcher ends up showing four apps all reading "Nikatru Subs…".
 //
-// 🔴 IT IS RENDERED, NOT AUTHORED, AND THAT IS THE ENTIRE POINT. These six
-// fields sit in six different file formats across six platform directories.
+// 🔴 IT IS RENDERED, NOT AUTHORED, AND THAT IS THE ENTIRE POINT. These fields
+// sit in five different file formats across five platform directories.
 // Hand-maintained, they are six chances for one of them to keep the old brand
 // through a rename — which is precisely the class of defect a rename produces,
 // because five of the six are files nobody opens between `flutter create` and a
@@ -115,17 +122,14 @@ export const RENDERED_LISTING_FILES = ['title.txt', 'short-description.txt', 'ca
 // skip there is exactly how the old brand would survive.
 //
 // Each value is escaped for ITS OWN language. The same lesson
-// `tooling/bricks/app/hooks/pre_gen.dart` records for mason: one string, six
-// destinations, six escape rules, and a raw `&` is valid in a .desktop file and
-// a malformed document in an Info.plist.
+// `tooling/bricks/app/hooks/pre_gen.dart` records for mason: one string, five
+// destinations, and a raw `&` that is ordinary text in JSON is a malformed
+// document in an Info.plist and a scalar-quoting decision in YAML.
 
 /** JSON string BODY (no surrounding quotes) — the anchor supplies them. */
 const jsonBody = (s) => JSON.stringify(s).slice(1, -1);
 /** XML text and double-quoted attribute values. `'` needs no escape in either. */
 const xmlText = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-/** freedesktop.org Desktop Entry: the value runs to end of line; only `\` is
- *  an escape introducer, so it is the only character that must be doubled. */
-const desktopValue = (s) => s.replace(/\\/g, '\\\\');
 /** A YAML scalar. Plain when the value cannot be mistaken for anything else,
  *  double-quoted otherwise — JSON's escapes are a strict subset of YAML's. */
 const yamlScalar = (s) => (/^[A-Za-z0-9][A-Za-z0-9 ._-]*[A-Za-z0-9.]$/.test(s) ? s : JSON.stringify(s));
@@ -163,13 +167,6 @@ export const ICON_LABEL_TARGETS = [
     in: 'macos/Runner/Info.plist',
     re: /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
     encode: xmlText,
-  },
-  {
-    field: 'Desktop Entry Name=',
-    dir: 'linux/packaging',
-    ext: '.desktop',
-    re: /(^Name=)[^\r\n]*(\r?)$/m,
-    encode: desktopValue,
   },
   {
     // `msix` writes this into the generated AppxManifest as

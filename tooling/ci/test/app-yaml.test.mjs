@@ -79,7 +79,6 @@ function tree() {
     'apps/subly/android/app/src/main/AndroidManifest.xml',
     'apps/subly/ios/Runner/Info.plist',
     'apps/subly/macos/Runner/Info.plist',
-    'apps/subly/linux/packaging/com.nikatru.subly.desktop',
     'apps/subly/pubspec.yaml',
   ]) {
     mkdirSync(join(root, dirname(rel)), { recursive: true });
@@ -805,6 +804,11 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
 //   · a platform the app was never stamped
 //     for                                     → skipped, and skipping is right
 //
+// ⛔ THE .desktop `Name=` IS NOT IN THIS LIST. It is the sixth OS-level label and
+// it reads the same `shortName`, but `tooling/store/render-linux-icons.mjs`
+// derives that whole file and assert-launcher-icons.mjs limb 7 re-derives it —
+// so its cases live in launcher-icons.test.mjs, where its owner's do.
+//
 // The label used below shares a token with the declaration's `name` on purpose:
 // that rule belongs to assert-app-naming.mjs, and a fixture that violated it
 // would be testing two guards at once.
@@ -815,7 +819,6 @@ const LABEL_TARGETS = [
   ['apps/subly/android/app/src/main/AndroidManifest.xml', (t) => t.match(/android:label="([^"]*)"/)?.[1]],
   ['apps/subly/ios/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
   ['apps/subly/macos/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
-  ['apps/subly/linux/packaging/com.nikatru.subly.desktop', (t) => t.match(/^Name=(.*)$/m)?.[1]],
   ['apps/subly/pubspec.yaml', (t) => t.match(/^msix_config:[\s\S]*?^ {2}display_name: (.*)$/m)?.[1]],
 ];
 
@@ -836,8 +839,8 @@ const stripMsix = (root) => {
   put(root, 'apps/subly/pubspec.yaml', `${text.slice(0, at)}\n`);
 };
 
-describe('the icon label reaches all six OS-level name fields', () => {
-  test('declaring shortName makes --check RED naming every one of the six files', () => {
+describe('the icon label reaches the five OS-level name fields this renderer owns', () => {
+  test('declaring shortName makes --check RED naming every one of the five files', () => {
     const root = tree();
     try {
       declareShortName(root, LABEL);
@@ -847,7 +850,7 @@ describe('the icon label reaches all six OS-level name fields', () => {
     } finally { kill(root); }
   });
 
-  test('a write run puts the label in all six, ESCAPED for each format, and --check then passes', () => {
+  test('a write run puts the label in all five, ESCAPED for each format, and --check then passes', () => {
     const root = tree();
     try {
       declareShortName(root, 'Subly & Co');
@@ -929,13 +932,13 @@ describe('the icon label reaches all six OS-level name fields', () => {
     const root = tree();
     try {
       declareShortName(root, LABEL);
-      for (const dir of ['web', 'android', 'ios', 'macos', 'linux']) {
+      for (const dir of ['web', 'android', 'ios', 'macos']) {
         rmSync(join(root, 'apps/subly', dir), { recursive: true, force: true });
       }
       stripMsix(root);
       const { code, out } = spawn(RENDER, [root, '--check']);
       assert.equal(code, 2, `a label that reaches no operating system is not a rendered label:\n${out}`);
-      assert.ok(out.includes('NOT ONE of the 6 icon-label'), out);
+      assert.ok(out.includes('NOT ONE of the 5 icon-label'), out);
     } finally { kill(root); }
   });
 
