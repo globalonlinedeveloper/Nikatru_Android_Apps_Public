@@ -70,7 +70,8 @@ function withoutRow(src, name) {
 
 test('the runner still declares a parseable GUARDS table', () => {
   const rows = rowsOf(guardsTable(SOURCE));
-  assert.ok(rows.length >= 9, `expected at least 9 guard rows, parsed ${rows.length} — the row shape changed and every case below is reading nothing`);
+  // RE-BASED 9 -> 7 on 2026-09-08: three rows retired with their subjects (assert-session-index, assert-research-archive, assert-plans-archive), so the runner declares 7 and a floor of 9 would refuse on a complete read.
+  assert.ok(rows.length >= 7, `expected at least 7 guard rows, parsed ${rows.length} — the row shape changed and every case below is reading nothing`);
 });
 
 test('assert-platform-state is wired into the runner, and the check can fail', () => {

@@ -349,7 +349,7 @@ it passed no APP_VERSION, so app_config.dart fell back to its compile-time
 default `'dev'` and every row this lane wrote was indistinguishable from a
 developer laptop's. Six such rows sat in platform_db from 2026-08-27 until
 ops-watch run 33139423096 found them; record:
-Private/notes/EVIDENCE-consent-artifacts-dev-rows-2026-08-28.md.
+Private/pre-minimal-2026-09-08:notes/EVIDENCE-consent-artifacts-dev-rows-2026-08-28.md.
 
 ⛔ AND THE FIX IS NOT `PLATFORM_BASE_URL`. There is no staging Worker and
 creating one is rejected: this workflow exists to prove the golden path

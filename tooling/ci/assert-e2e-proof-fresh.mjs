@@ -15,7 +15,7 @@
 // This is the SIBLING of assert-platform-proof-fresh.mjs, deliberately built to
 // the same shape and the same vocabulary rather than as a second dialect. That
 // guard solves this exact problem for `build-platforms.yml`; the plan
-// (Private/plans/06-app-build-plan.md, increment 7) offered either generalising
+// (Private/pre-minimal-2026-09-08:plans/06-app-build-plan.md, increment 7) offered either generalising
 // it to a table of workflows or a sibling, and the sibling is what landed:
 // `assert-platform-proof-fresh.mjs` belongs to stage 1 ([1]F-4) and its
 // MAX_AGE_DAYS is under a standing owner lock, so widening it here would mean
@@ -212,7 +212,7 @@
 // `ok` is still `ageDays <= maxAgeDays`. Nothing here makes the guard pass in
 // any case where it previously failed.
 //
-// §7.10 item 5 of Private/archive/2026-09-05/HANDOFF-ARCHIVE/HANDOFF-2026-08-26.md is where this change was
+// §7.10 item 5 of Private/pre-minimal-2026-09-08:archive/2026-09-05/HANDOFF-ARCHIVE/HANDOFF-2026-08-26.md is where this change was
 // ORDERED (the handoff was archived UNEDITED on 2026-08-31; only its path moved),
 // and is the ONLY place `per_page` occurs in that handoff: it records
 // this guard reading `per_page=20` "where its sibling reads 100" and names the
@@ -227,7 +227,7 @@
 // sibling's own 20→100 is real but happened 2026-08-11 in 4384ab6, as a side
 // effect of dropping `branch=main` — not this week, and not a saturation cliff
 // anybody hit. An earlier draft of this header cited §7.1 here and was wrong on
-// all three counts. Private/notes/DEAD-CITATIONS-2026-08-26.md exists because of
+// all three counts. Private/pre-minimal-2026-09-08:notes/DEAD-CITATIONS-2026-08-26.md exists because of
 // this class of defect, and a guard header nobody re-reads for years is the
 // worst place to leave one.
 //

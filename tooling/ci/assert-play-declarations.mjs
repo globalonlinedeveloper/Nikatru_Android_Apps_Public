@@ -12,7 +12,7 @@
 // is what makes the second half of that sentence the DEFAULT rather than the
 // exception.
 //
-// [pipeline K-8 / G-32] (absent from origins.lock.json by construction — G-32 is a MASTER_PLAN §3 chassis-gap id, a different register from the pipeline ids; see Private/MASTER_PLAN.md) Two Play Console artefacts had NO representation in this
+// [pipeline K-8 / G-32] (absent from origins.lock.json by construction — G-32 is a MASTER_PLAN §3 chassis-gap id, a different register from the pipeline ids; see Private/pre-minimal-2026-09-08:MASTER_PLAN.md) Two Play Console artefacts had NO representation in this
 // repository at all until 2026-08-04, and the store README said so in prose:
 // "⬜ Data safety form — a Play Console questionnaire. Blocking, and it has no
 // repo representation." The Play organisation account verified the same day,

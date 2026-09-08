@@ -243,7 +243,7 @@ const NOT_A_SCANNER = new Map([
   ],
 ]);
 
-/** [pipeline S-12r] (absent from origins.lock.json by construction — S-12r is a residual of S-12, raised by Private/plans/03-stamper-plan.md after the pipeline harvest was frozen) EXECUTABLES OUTSIDE tooling/ci THAT A WORKFLOW RUNS, and
+/** [pipeline S-12r] (absent from origins.lock.json by construction — S-12r is a residual of S-12, raised by Private/pre-minimal-2026-09-08:plans/03-stamper-plan.md after the pipeline harvest was frozen) EXECUTABLES OUTSIDE tooling/ci THAT A WORKFLOW RUNS, and
  *  which are NOT required to carry a negative test — with the reason.
  *
  *  🔴 This used to be the opposite list: `COVERED_SCRIPTS`, a hand-written map

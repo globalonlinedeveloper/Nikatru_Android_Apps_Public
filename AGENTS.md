@@ -113,7 +113,7 @@
 - **Write as you go:** land each decision the moment it is made. Disk is memory; context can compact
   at any time, and a clean handoff beats a compressed session.
 
-## Verification discipline — the eleven rules (worked examples: `Private/notes/verification-discipline.md`)
+## Verification discipline — the eleven rules (worked examples: `Private/pre-minimal-2026-09-08:notes/verification-discipline.md`)
 
 **The recurring failure here is not a broken check. It's a check that silently stopped checking.** It
 still prints "clean", CI still goes green, and nothing surfaces until the guarded thing is broken.

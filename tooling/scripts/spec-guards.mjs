@@ -433,8 +433,8 @@ function locate(...relCandidates) {
    against an `origin` field there; the recovery command lives HERE rather than in
    each of them, so that sixty-odd citations do not carry sixty copies of it.
 
-   Where each property went (full reasoning: Private/notes/RETIREMENT-PLAN.md, and
-   the four are readable in Private/requirements/tooling/retired/ — `company/tooling/` until the flatten):
+   Where each property went (full reasoning: Private/pre-minimal-2026-09-08:notes/RETIREMENT-PLAN.md, and
+   the four are readable in Private/pre-minimal-2026-09-08:requirements/tooling/retired/ — `company/tooling/` until the flatten):
      assert-status-honest   → assert-spec limbs 4 + 6. The markdown format kept a
                               status in three places that could disagree; the JSON
                               format has no status on an invariant at all, and limb
@@ -450,14 +450,23 @@ function locate(...relCandidates) {
                               slow guard.
 
    `check-dod-sync` never read the pipeline (its subjects are tooling/dod-register.json,
-   MASTER_PLAN.md and requirements/definition-of-done.md) and is deliberately
+   requirements/dod-master-items.md — MASTER_PLAN.md §4, moved verbatim on 2026-09-08 — and
+   requirements/definition-of-done.md) and is deliberately
    untouched — it is the control that proves the deletion broke nothing it did not
    model. If it ever goes red for this reason, the deletion touched something the
    plan did not model. */
+/* 🔴 2026-09-08 — THREE ROWS REMOVED, AND EACH ONE WENT WITH ITS OWN SUBJECT.
+   `assert-session-index`, `assert-research-archive` and `assert-plans-archive` are retiring in
+   the private corpus’s minimal-corpus pass: `notes/session-notes-index.json`, `research/` and
+   `plans/` are all being deleted, and a guard whose only subject is gone passes VACUOUSLY, which
+   is the one result this runner exists to refuse. The private guards stay green in the corpus’s
+   own sweep until the commit that deletes their subject retires them in the same commit.
+   The plan and its measurements: `Private/pre-minimal-2026-09-08:research/full-read-2026-09-08/P2-minimal-corpus-2026-09-08.md`.
+   The runner’s fast set drops from 10 to 7. No surviving guard lost a limb and no floor moved. */
 const GUARDS = [
   { name: 'check-dod-sync', speed: 'fast', needsPrivate: true,
     rel: ['tooling/scripts/check-dod-sync.mjs'],
-    what: 'the DoD page, the register and MASTER_PLAN §4 agree' },
+    what: 'the DoD page, the register and requirements/dod-master-items.md §4 agree' },
   { name: 'assert-spec', speed: 'fast', needsPrivate: true,
     rel: ['requirements/tooling/assert-spec.mjs', 'Private/requirements/tooling/assert-spec.mjs', 'Private/spec/tooling/assert-spec.mjs', 'tooling/assert-spec.mjs'],  // fallback chain — `locate` takes the FIRST that exists, so only one candidate need resolve. 🔴 2026-08-18: the LEADING entry is now corpus-RELATIVE, which is what survives the move — `locate` joins it onto PRIVATE_ROOT, so it resolves to `Private/requirements/…` before the move and `..._Private/requirements/…` after it, with no second edit on the day. The `Private/…` spelling is demoted to a fallback rather than deleted because it is still how the path resolves from the OTHER candidate roots. The `spec/` entry names the pre-flatten layout (retired 2026-08-16, when spec/ dissolved into requirements/) and is kept on purpose. Same shape as the four entries below it.
     what: 'the JSON spec is schema-valid, id-unique, origin-locked, and every enforcer it names exists' },
@@ -477,9 +486,6 @@ const GUARDS = [
      files, and carried a link to `../../company/MASTER_PLAN.md` for a day after
      that path stopped existing. So the directory gets its own register and its
      own guard, at its own depth. Same doctrine, one level down. */
-  { name: 'assert-research-archive', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-research-archive.mjs', 'Private/requirements/tooling/assert-research-archive.mjs', 'Private/spec/tooling/assert-research-archive.mjs', 'tooling/assert-research-archive.mjs'],  // same fallback chain, corpus-relative leading entry added 2026-08-18 (retired 2026-08-16 layout in the third slot) — see the assert-spec entry above
-    what: 'research/index.json, the files on disk and research/README.md are in bijection, and no successor pointer dangles' },
   /* ADDED 2026-08-31 with the plans/ streamline. The SECOND directory to get its
      own register at its own depth, and the reasoning is `assert-research-archive`'s
      verbatim: `assert-index-complete` guards the `### dir/ — N files` heading for
@@ -498,9 +504,6 @@ const GUARDS = [
      flat, so its readdir is RECURSIVE and a floor (`nested`, 25) fails the run if
      the walk ever stops descending. A non-recursive walk here would check 16 of 46
      files and print ok. */
-  { name: 'assert-plans-archive', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-plans-archive.mjs'],  // ONE candidate, corpus-relative: this guard never existed under the pre-2026-08-18 layouts, so it has no legacy spellings to fall back to and adding dead ones would be citing paths that do not resolve — same reasoning as the assert-requirements-index entry below.
-    what: 'plans/index.json, the files on disk (recursively) and plans/README.md are in bijection, and no successor or execution pointer dangles' },
   /* ADDED 2026-08-16 with the decisions/ streamline. The ADR set had ONE property
      nothing could check and nothing structurally could: whether a cited number is
      a decision at all. Three — 012, 014, 018 — were pre-allocated as headings in
@@ -547,9 +550,6 @@ const GUARDS = [
   { name: 'assert-public-citations', speed: 'fast', needsPrivate: true,
     rel: ['tooling/scripts/assert-public-citations.mjs'],
     what: 'every `Private/` path and every `[pipeline]` requirement id cited in the PUBLIC tree resolves' },
-  { name: 'assert-session-index', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-session-index.mjs', 'Private/requirements/tooling/assert-session-index.mjs', 'Private/spec/tooling/assert-session-index.mjs', 'tooling/assert-session-index.mjs'],  // same fallback chain, corpus-relative leading entry added 2026-08-18 (retired 2026-08-16 layout in the third slot) — see the assert-spec entry above
-    what: 'every `## ` entry in session-notes.md has an index row, every row resolves, and the titles are byte-identical' },
   /* ADDED 2026-08-27. `Private/requirements/index.json` is a hand-kept second copy
      of the tree here. Measured with `fs` instrumented
      rather than grepped: assert-spec, assert-research-archive and assert-session-index touch
