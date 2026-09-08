@@ -165,8 +165,15 @@
   "_excludedPathsWhy": "DATED RECORDS and fixtures, each excluded for a stated reason, not for convenience. catalog/store-matrix.json carries removedSlot20260906_Chrome_Web_Store and deletionRecord20260819 — dated records OF the deaths this file lists, and the one place the old names must survive verbatim. tooling/ops/register.json carries dated operational history. tooling/ci/test/ holds FIXTURES that deliberately name dead repos to prove guards catch them, this guard's own mutation test included. tooling/bricks/ is template source, not a live register. tooling/dead-repos.json is this file, which names every dead repo by definition and would otherwise be its own first finding.",
 
   "floors": {
-    "files": 8,
+    "files": 240,
     "repos": 11
+  },
+  "_floorsMeasured": {
+    "on": "2026-09-08",
+    "filesScanned": 291,
+    "reposDeclared": 11,
+    "verify": "node tooling/ci/assert-no-dead-repo-names.mjs   — the first line prints `<n> machine-read file(s) scanned against <m> dead repository name(s)`",
+    "why": "`files` was 8 against a measured 61 before `tooling/**/*.mjs` joined the scan set, and 8 against 291 after it — a floor two orders of magnitude under its subject cannot detect a scan that stopped scanning, which is the only thing a floor is for. Re-based to 240, which is ~18% under today's 291: enough headroom for the tooling tree to shrink through ordinary churn, not enough for a glob to silently stop matching. Raised in a commit of its own, AFTER the change that moved the measurement and while the tree it describes is green, because a floor that moves in the same commit as its subject cannot be read as evidence of either. `repos` is deliberately untouched at 11 against 11: `_theRule` says a name is never removed, so that floor has zero margin BY DESIGN and any drop is exit 2."
   },
   "_floorsWhy": "A scan that silently matched nothing must not read as a pass. If the walk finds fewer than `files` files, or the list holds fewer than `repos` names, the guard exits 2 CANNOT RUN rather than 0. Raise these when the tree grows; never lower them to make a run go green."
 }
