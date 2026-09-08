@@ -1,0 +1,332 @@
+// check-agent-docs.mjs - the instruction-doc guard for `Nikatru_Platform_Public`.
+//
+// S1 section 5.1 specifies ten limbs. THIS FILE CARRIES TWO OF THEM, deliberately:
+// limb A parts BOM / PATH CHARACTERS / SYMLINK / SIZE CAPS, and limb B, the Codex
+// 24 KiB budget. That is exactly S1 section 5.7 row 1, which is the only row
+// scheduled for phase 1. Limbs C to J are phases 7 and 9 and are NOT here; a limb
+// that exists but checks nothing is worse than a limb that is honestly absent.
+//
+// EXIT CODES, the corpus convention: 0 green, 1 a finding, 2 COVERAGE LOST.
+// COVERAGE LOST is deliberately NOT a pass: it means the guard did not check
+// enough to be evidence. The first error line always names the limb that refused.
+//
+// EVERY LIMB IN THIS FILE IS STILL A WARNING. A new finding prints and the process
+// exits 0. S1 section 5.7 lands a new limb as a warning and promotes it to exit 1
+// only under a measured false-positive rate below 1 in 20. The promotion review
+// date is in CONFIG.promoteOn, and promotion is done by moving a limb id OUT of
+// CONFIG.warnLimbs, which is a one-line diff a reviewer can see.
+//
+// THE BASELINE. `.agentdocs.baseline.json` at the repo root freezes the findings
+// that existed the day this guard landed, so it could land without a flag day.
+// Baselined findings print on every run under BASELINE and never fail. The file is
+// GENERATED (`node tooling/scripts/check-agent-docs.mjs --write-baseline`) and never typed, because a
+// hand-kept list of measurements is the artefact this corpus has watched go stale
+// three times.
+//
+// THE EXEMPTIONS are S1 section 0 and they ship in this first commit rather than as
+// a follow-up. Each one prints its hit count on every run, so an exemption list
+// cannot quietly grow.
+//
+// Usage:
+//   node tooling/scripts/check-agent-docs.mjs
+//   code=$?
+//   echo "EXIT"
+//   echo "$code"
+
+const CONFIG = {
+  "repo": "Nikatru_Platform_Public",
+  "selfPath": "tooling/scripts/check-agent-docs.mjs",
+  "rootUp": [
+    "..",
+    ".."
+  ],
+  "sentinels": [
+    "AGENTS.md",
+    "tooling",
+    "apps"
+  ],
+  "today": "2026-09-08",
+  "promoteOn": "2026-09-22",
+  "warnLimbs": [
+    "A-BOM",
+    "A-PATH",
+    "A-LINK",
+    "A-SIZE",
+    "B-CODEX"
+  ],
+  "floors": {
+    "trackedFiles": 1000,
+    "docsScanned": 1,
+    "bomScanned": 800,
+    "budgetChecked": 200
+  }
+};
+
+/* The exemption list is code rather than data because each row carries a reason
+   that has to be read next to the test it justifies. S1 section 0. */
+CONFIG.exemptions = [
+  {
+    id: "apple-asset-catalogue",
+    why: "Apple's asset catalogue requires the @2x / @3x form in the filename. Renaming one breaks the iOS build.",
+    test: (p) => /^apps\/[^/]+\/ios\/.*@[0-9]+x\.png$/.test(p),
+  },
+  {
+    id: "mason-brick-templates",
+    why: "Mason template syntax IS the filename under tooling/bricks/. The braces and the hash are how the generator substitutes, not decoration.",
+    test: (p) => p.startsWith('tooling/bricks/') && /[{}#]/.test(p),
+  },
+];
+/* ------------------------------------------------------------------ BODY */
+
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/* The root is found by walking up a fixed number of levels and then PROVING it
+   with sentinel files, the same arithmetic and the same proof the assert-*
+   guards beside this one use. A moved script lands on a different tree, and a
+   different tree is not a wronger-looking one. */
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ...CONFIG.rootUp);
+for (const sentinel of CONFIG.sentinels) {
+  if (!existsSync(join(ROOT, sentinel))) {
+    console.error('x COVERAGE LOST - ' + ROOT + ' does not look like ' + CONFIG.repo + ' (missing ' + sentinel + ').');
+    process.exit(2);
+  }
+}
+
+const WRITE_BASELINE = process.argv.includes('--write-baseline');
+const BASELINE_PATH = join(ROOT, '.agentdocs.baseline.json');
+
+/* ---------------------------------------------------------------- git I/O */
+
+/* core.quotepath=false is not optional. Without it git wraps any path holding a
+   byte outside the plain set in double quotes and C-escapes it, so the exact
+   limb that hunts for those bytes would be reading git's quoting rather than
+   the filename. Measured 2026-09-08: 28 of Private's paths came back quoted,
+   and one of them grouped under a leading double quote as if it were a
+   directory. */
+function git(args) {
+  const r = spawnSync('git', ['-c', 'core.quotepath=false', '-C', ROOT, ...args],
+    { encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 });
+  if (r.status !== 0) {
+    console.error('x COVERAGE LOST - git ' + args.join(' ') + ' failed: ' + String(r.stderr || '').trim());
+    process.exit(2);
+  }
+  return r.stdout;
+}
+
+/* The INDEX, never the working directory. A concurrent writer's untracked file
+   must not redden another writer's commit; Private proved that class on
+   2026-09-07, when three agents skipped the hook in one afternoon over it. */
+const indexRows = String(git(['ls-files', '--cached', '-s']))
+  .split('\n').filter(Boolean).map((line) => {
+    const tab = line.indexOf('\t');
+    const meta = line.slice(0, tab).split(/\s+/);
+    return { mode: meta[0], sha: meta[1], path: line.slice(tab + 1) };
+  });
+
+const trackedFiles = indexRows.length;
+const byPath = new Map(indexRows.map((r) => [r.path, r]));
+
+/* One cat-file --batch for the whole doc set beats one spawn per file by an
+   order of magnitude, and it reads the blob the INDEX holds rather than
+   whatever is on disk right now. */
+function readBlobs(rows) {
+  if (rows.length === 0) return new Map();
+  const out = new Map();
+  const r = spawnSync('git', ['-C', ROOT, 'cat-file', '--batch'],
+    { input: Buffer.from(rows.map((x) => x.sha).join('\n') + '\n', 'utf8'), encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 });
+  if (r.status !== 0) {
+    console.error('x COVERAGE LOST - git cat-file --batch failed.');
+    process.exit(2);
+  }
+  const buf = r.stdout;
+  let at = 0;
+  for (const row of rows) {
+    const nl = buf.indexOf(0x0a, at);
+    if (nl < 0) { console.error('x COVERAGE LOST - the cat-file stream ended early.'); process.exit(2); }
+    const header = buf.slice(at, nl).toString('utf8').split(' ');
+    const size = Number(header[2]);
+    if (!Number.isFinite(size)) { console.error('x COVERAGE LOST - unparsable cat-file header: ' + header.join(' ')); process.exit(2); }
+    out.set(row.path, buf.slice(nl + 1, nl + 1 + size));
+    at = nl + 1 + size + 1;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- exemptions */
+
+const exemptionHits = new Map(CONFIG.exemptions.map((e) => [e.id, 0]));
+function exemptionFor(path) {
+  for (const e of CONFIG.exemptions) {
+    if (e.test(path)) { exemptionHits.set(e.id, exemptionHits.get(e.id) + 1); return e; }
+  }
+  return null;
+}
+
+/* --------------------------------------------------------------- findings */
+
+const findings = [];
+const record = (limb, path, message) => findings.push({ limb, path, message });
+
+/* --- limb A, part BOM --------------------------------------------------- */
+const TEXTY = /\.(md|json|jsonl|mjs|js|ts|yml|yaml)$/;
+const textyRows = indexRows.filter((r) => TEXTY.test(r.path) && r.mode !== '120000');
+const textyBlobs = readBlobs(textyRows);
+let bomScanned = 0;
+for (const row of textyRows) {
+  const b = textyBlobs.get(row.path);
+  if (!b) continue;
+  bomScanned += 1;
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) {
+    record('A-BOM', row.path, 'starts with a UTF-8 BOM (EF BB BF). JSON.parse throws on it and PowerShell Out-File -Encoding utf8 writes it. Write the file from node.');
+  }
+}
+
+/* --- limb A, part PATH CHARACTERS --------------------------------------- */
+const PLAIN = /^[A-Za-z0-9._/-]+$/;
+let pathsExempt = 0;
+for (const row of indexRows) {
+  if (PLAIN.test(row.path)) continue;
+  if (exemptionFor(row.path)) { pathsExempt += 1; continue; }
+  record('A-PATH', row.path, 'holds a character outside [A-Za-z0-9._/-].');
+}
+
+/* --- limb A, part SYMLINK ----------------------------------------------- */
+for (const row of indexRows) {
+  if (row.mode === '120000') {
+    record('A-LINK', row.path, 'is a symlink in the git index. Windows needs Admin or Developer Mode to check one out, so it is a file that exists on one machine and not on another.');
+  }
+}
+
+/* --- limb A, part SIZE CAPS --------------------------------------------- */
+/* Caps are S1 section 1. A per-directory CLAUDE.md is capped at one line ONLY
+   once its sibling AGENTS.md exists; until then it IS the directory card and is
+   read as one. */
+function capFor(path) {
+  const leaf = path.slice(path.lastIndexOf('/') + 1);
+  const isRoot = !path.includes('/');
+  if (leaf === 'AGENTS.md') return isRoot ? { lines: 200, bytes: 12 * 1024 } : { lines: 100 };
+  if (leaf === 'CLAUDE.md') {
+    if (isRoot) return { lines: 3 };
+    return byPath.has(path.replace(/CLAUDE\.md$/, 'AGENTS.md')) ? { lines: 1 } : { lines: 100 };
+  }
+  if (leaf === 'SKILL.md') return { lines: 300 };
+  if (path === 'docs/PICTURE.md') return { lines: 350, warnLines: 240 };
+  if (/^\.claude\/rules\/[^/]+\.md$/.test(path)) return { lines: 300 };
+  return null;
+}
+const docRows = indexRows.filter((r) => capFor(r.path));
+const docBlobs = readBlobs(docRows);
+const docsScanned = docRows.length;
+for (const row of docRows) {
+  const cap = capFor(row.path);
+  const text = String(docBlobs.get(row.path) || '');
+  const lines = text.split('\n').length;
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (lines > cap.lines) record('A-SIZE', row.path, 'is ' + lines + ' lines, cap ' + cap.lines + '.');
+  else if (cap.warnLines && lines > cap.warnLines) record('A-SIZE', row.path, 'is ' + lines + ' lines, warn at ' + cap.warnLines + ', cap ' + cap.lines + '.');
+  if (cap.bytes && bytes > cap.bytes) record('A-SIZE', row.path, 'is ' + bytes + ' bytes, cap ' + cap.bytes + '.');
+}
+
+/* --- limb B, CODEX BUDGET ----------------------------------------------- */
+/* openai/codex #13386, open since 2026-03-03: Codex truncates the concatenated
+   AGENTS.md chain at 32 KiB and says nothing. 24 KiB is the headroom S1 sets. */
+const CODEX_BUDGET = 24 * 1024;
+const agentsRows = indexRows.filter((r) => r.path.endsWith('AGENTS.md'));
+const agentsBlobs = readBlobs(agentsRows);
+const agentsBytes = new Map(agentsRows.map((r) => [r.path, Buffer.byteLength(String(agentsBlobs.get(r.path) || ''), 'utf8')]));
+const leafDirs = new Set(indexRows.map((r) => (r.path.includes('/') ? r.path.slice(0, r.path.lastIndexOf('/')) : '')));
+let worstPath = '';
+let worstBytes = 0;
+let budgetChecked = 0;
+for (const dir of leafDirs) {
+  const parts = dir === '' ? [] : dir.split('/');
+  let sum = agentsBytes.get('AGENTS.md') || 0;
+  for (let i = 1; i <= parts.length; i += 1) {
+    sum += agentsBytes.get(parts.slice(0, i).join('/') + '/AGENTS.md') || 0;
+  }
+  budgetChecked += 1;
+  if (sum > worstBytes) { worstBytes = sum; worstPath = dir === '' ? '<repo root>' : dir + '/'; }
+  if (sum > CODEX_BUDGET) {
+    record('B-CODEX', dir === '' ? '<repo root>' : dir + '/', 'the AGENTS.md chain sums to ' + sum + ' bytes, budget ' + CODEX_BUDGET + '.');
+  }
+}
+
+/* --------------------------------------------------------------- baseline */
+
+const key = (f) => f.limb + ' ' + f.path;
+let baseline = { entries: [] };
+if (existsSync(BASELINE_PATH)) {
+  try { baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')); }
+  catch (err) {
+    console.error('x COVERAGE LOST - .agentdocs.baseline.json does not parse: ' + err.message);
+    process.exit(2);
+  }
+}
+if (WRITE_BASELINE) {
+  const out = {
+    _what: 'Findings frozen on the day check-agent-docs.mjs landed. Each is printed on every run and none of them fails the guard. A finding that is NOT in here does fail, once its limb is promoted.',
+    _generatedFrom: 'node ' + CONFIG.selfPath + ' --write-baseline. Never typed by hand.',
+    _rule: 'This file may not GROW except in a commit whose message says why it grew. Shrinking it needs no ceremony: a cleared finding is the point of the exercise.',
+    generatedAt: CONFIG.today,
+    repo: CONFIG.repo,
+    count: findings.length,
+    entries: findings
+      .map((f) => ({ limb: f.limb, path: f.path, message: f.message }))
+      .sort((a, b) => (a.limb + a.path).localeCompare(b.limb + b.path)),
+  };
+  writeFileSync(BASELINE_PATH, JSON.stringify(out, null, 2) + '\n', 'utf8');
+  console.log('wrote ' + BASELINE_PATH + ' with ' + out.entries.length + ' frozen finding(s)');
+  process.exit(0);
+}
+const frozen = new Set((baseline.entries || []).map(key));
+const fresh = findings.filter((f) => !frozen.has(key(f)));
+const stillFrozen = findings.filter((f) => frozen.has(key(f)));
+const cleared = (baseline.entries || []).filter((b) => !findings.some((f) => key(f) === key(b)));
+
+/* -------------------------------------------------------- coverage floors */
+/* A guard that reports PASS over an absent subject is the defect this corpus
+   exists around. Each floor forces exit 2, which is deliberately NOT a pass. */
+const floorFailures = [];
+for (const [name, min] of Object.entries(CONFIG.floors)) {
+  const got = { trackedFiles, docsScanned, bomScanned, budgetChecked }[name];
+  if (got === undefined) { floorFailures.push('floor ' + name + ' names nothing this guard measures'); continue; }
+  if (got < min) floorFailures.push(name + ' ' + got + ' < ' + min);
+}
+
+/* ----------------------------------------------------------------- report */
+
+console.log('check-agent-docs - ' + CONFIG.repo);
+console.log('  scanned: ' + trackedFiles + ' tracked file(s), ' + docsScanned + ' instruction doc(s), ' + bomScanned + ' text blob(s), ' + budgetChecked + ' directory chain(s)');
+console.log('  codex budget: worst chain ' + worstBytes + ' bytes at ' + worstPath + ', budget ' + CODEX_BUDGET);
+for (const e of CONFIG.exemptions) {
+  console.log('  exemption ' + e.id + ': ' + exemptionHits.get(e.id) + ' path(s) - ' + e.why);
+}
+console.log('  path exemptions applied: ' + pathsExempt);
+
+if (floorFailures.length > 0) {
+  console.error('x COVERAGE LOST - ' + floorFailures[0]);
+  for (const f of floorFailures.slice(1)) console.error('  also: ' + f);
+  console.error('  A floor is a declared minimum. Under it this run is not evidence, and it must not read as a pass.');
+  process.exit(2);
+}
+
+for (const f of stillFrozen) console.log('  BASELINE ' + f.limb + ' ' + f.path + ' - ' + f.message);
+for (const b of cleared) console.log('  CLEARED  ' + b.limb + ' ' + b.path + ' - fixed since the baseline was written. Re-run with --write-baseline to shrink the baseline.');
+
+if (fresh.length === 0) {
+  console.log('ok  no new finding. ' + stillFrozen.length + ' baselined, ' + cleared.length + ' cleared.');
+  process.exit(0);
+}
+const warnOnly = fresh.every((f) => CONFIG.warnLimbs.includes(f.limb));
+console.log('');
+for (const f of fresh) console.log('  ' + (warnOnly ? 'WARN' : 'FAIL') + ' ' + f.limb + ' ' + f.path + ' - ' + f.message);
+console.log('');
+if (warnOnly) {
+  console.log('!  ' + fresh.length + ' new finding(s), every one of them on a limb that is still a WARNING, so this run exits 0 by design. S1 section 5.7 lands a new limb as a warning and promotes it only under a measured false-positive rate below 1 in 20. Promotion review date: ' + CONFIG.promoteOn + '.');
+  process.exit(0);
+}
+console.error('x ' + fresh.length + ' new finding(s) on a promoted limb.');
+process.exit(1);
