@@ -144,7 +144,13 @@ const PLATFORM_CFG = `{
   // matched the comment explaining why there was no r2_buckets.
   "name": "platform",
   "main": "src/index.ts",
-  "d1_databases": [{ "binding": "PLATFORM_DB", "database_name": "platform_db" }],
+  // The three SHAPES limb 5 addresses — a var, a d1 field and a kv field — are
+  // all in the PASSING fixture, because a fixture that carries only the shapes a
+  // test breaks cannot notice the guard ceasing to reach the others.
+  "vars": { "SUPABASE_URL": "https://fixture.supabase.co", "API_VERSION": "v1" },
+  "d1_databases": [
+    { "binding": "PLATFORM_DB", "database_name": "platform_db", "database_id": "11111111-1111-1111-1111-111111111111" },
+  ],
   "kv_namespaces": [{ "binding": "CONFIG_KV", "id": "k1" }],
   "ratelimits": [
     { "name": "EVENTS_CEILING_LIMITER", "namespace_id": "1002" },
@@ -165,6 +171,19 @@ const baseRegister = () => ({
     config: 'services/platform/wrangler.jsonc',
   },
   bindingSources: { configs: ['services/platform/wrangler.jsonc'] },
+  sharedValues: {
+    values: [
+      { at: 'vars.SUPABASE_URL', value: 'https://fixture.supabase.co', why: 'One identity project.', absentFrom: [] },
+      { at: 'vars.API_VERSION', value: 'v1', why: 'One API-contract version.', absentFrom: [] },
+      {
+        at: 'd1_databases[PLATFORM_DB].database_id',
+        value: '11111111-1111-1111-1111-111111111111',
+        why: 'One entitlements database.',
+        absentFrom: [],
+      },
+      { at: 'kv_namespaces[CONFIG_KV].id', value: 'k1', why: 'One config namespace.', absentFrom: [] },
+    ],
+  },
   routes: [
     {
       id: 'health',
@@ -638,6 +657,105 @@ describe('assert-platform-register', () => {
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST — no platform register/);
   });
+
+  // ── LIMB 5 · the values copied into every config have ONE source ────────────
+  //
+  // ⚠️ REAL-TREE MUTATIONS FIRST, 2026-09-08, TWELVE OF THEM: each of the four
+  // declared values, diverged on its own in each of the three real wrangler
+  // configs, all twelve caught with the value named and both sides printed; every
+  // restore verified byte-exact by sha256 and the guard re-run green. These
+  // fixtures encode the same rules, plus the three that are awkward to reach on
+  // the real tree (a stale exemption, an unaddressable `at`, an emptied list).
+  test('FAILS when a config disagrees with the register about a shared VAR', () => {
+    const { code, out } = run(
+      tree({
+        files: {
+          'services/platform/wrangler.jsonc': PLATFORM_CFG.replace(
+            '"SUPABASE_URL": "https://fixture.supabase.co"',
+            '"SUPABASE_URL": "https://someone-elses-project.supabase.co"',
+          ),
+        },
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /`vars\.SUPABASE_URL` is "https:\/\/someone-elses-project\.supabase\.co"/);
+    assert.match(out, /tooling\/platform-register\.json declares "https:\/\/fixture\.supabase\.co"/);
+  });
+
+  test('FAILS when a config disagrees about a BINDING field, not just a var', () => {
+    const { code, out } = run(
+      tree({
+        files: {
+          'services/platform/wrangler.jsonc': PLATFORM_CFG.replace(
+            '"database_id": "11111111-1111-1111-1111-111111111111"',
+            '"database_id": "22222222-2222-2222-2222-222222222222"',
+          ),
+        },
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /`d1_databases\[PLATFORM_DB\]\.database_id` is "22222222-2222-2222-2222-222222222222"/);
+  });
+
+  // ⚠️ THE ABSENCE CASES ARE IN THE TWO-WORKER BLOCK AT THE FOOT OF THIS FILE,
+  // not here. In a ONE-config tree an absence and "resolves in zero configs" are
+  // the same observation, so a one-config fixture would report COVERAGE LOST and
+  // prove nothing about the absence branch. Second Worker, second config, real
+  // distinction.
+
+  test('FAILS on an `absentFrom` row with no reason', () => {
+    const reg = baseRegister();
+    reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').absentFrom = [
+      { config: 'services/platform/wrangler.jsonc' },
+    ];
+    const { code, out } = run(tree({ register: reg }));
+    assert.equal(code, 1, out);
+    assert.match(out, /`absentFrom` row with no `config` or no `why`/);
+  });
+
+  test('FAILS on a shared value with no `why`', () => {
+    const reg = baseRegister();
+    delete reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').why;
+    const { code, out } = run(tree({ register: reg }));
+    assert.equal(code, 1, out);
+    assert.match(out, /carries no `why`/);
+  });
+
+  test('🔴 COVERAGE LOST on an `at` the grammar cannot address', () => {
+    // "I could not tell" must never read as "it is fine": an unparseable address
+    // would otherwise be skipped and counted as agreement.
+    const reg = baseRegister();
+    reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').at = 'vars->API_VERSION';
+    const { code, out } = run(tree({ register: reg }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST — `sharedValues` entry `vars->API_VERSION` is not addressable/);
+  });
+
+  test('🔴 COVERAGE LOST when an `at` resolves in ZERO configs', () => {
+    const reg = baseRegister();
+    reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').at = 'vars.RENAMED_AWAY';
+    const { code, out } = run(tree({ register: reg }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST — `vars\.RENAMED_AWAY` resolved in ZERO/);
+  });
+
+  test('🔴 COVERAGE LOST when the sharedValues list is emptied', () => {
+    // The whole limb deleted by removing four lines of data would otherwise print
+    // ok forever — the failure this repo calls an assertion that cannot fail.
+    const reg = baseRegister();
+    reg.sharedValues.values = [];
+    const { code, out } = run(tree({ register: reg }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST — the register declares no `sharedValues\.values`/);
+  });
+
+  test('the passing run PRINTS how many comparisons it actually made', () => {
+    // A tally that can go to zero is what makes the coverage floor legible; a
+    // limb that says only "ok" hides its own subject shrinking.
+    const { code, out } = run(tree());
+    assert.equal(code, 0, out);
+    assert.match(out, /4 shared value\(s\) compared 4 time\(s\)/);
+  });
 });
 
 
@@ -690,7 +808,17 @@ export default subscriptions;
 const SUBLY_CFG = `{
   "name": "subly-api",
   "main": "src/index.ts",
-  "d1_databases": [{ "binding": "SUBLY_DB", "database_name": "subly_db" }],
+  // The shared VALUES a per-app Worker carries, mirroring the real
+  // services/subly-api: the one identity project, the one API-contract version
+  // and the one entitlements database, bound here WITHOUT a migrations_dir.
+  // Present in the PASSING fixture because limb 5's whole subject is more than
+  // one config — a second Worker that carried none of them would let the limb
+  // pass while only ever comparing the first.
+  "vars": { "SUPABASE_URL": "https://fixture.supabase.co", "API_VERSION": "v1" },
+  "d1_databases": [
+    { "binding": "SUBLY_DB", "database_name": "subly_db" },
+    { "binding": "PLATFORM_DB", "database_name": "platform_db", "database_id": "11111111-1111-1111-1111-111111111111" },
+  ],
   "routes": [{ "pattern": "api.nikatru.com", "custom_domain": true }],
 }`;
 
@@ -785,6 +913,15 @@ function appRegister(edit = () => {}) {
     purpose: 'The app backend database.',
     readers: ['services/subly-api/src/routes/subscriptions.ts'],
   });
+  // CONFIG_KV is the SHARED host's namespace and a per-app Worker binds none —
+  // so this is a real absence with a real reason, and it makes the PASSING case
+  // exercise the `absentFrom` branch rather than leaving it fixture-only.
+  reg.sharedValues.values.find((v) => v.at === 'kv_namespaces[CONFIG_KV].id').absentFrom = [
+    {
+      config: 'services/subly-api/wrangler.jsonc',
+      why: 'CONFIG_KV holds per-app config overrides and is read only by the shared host; a per-app Worker binds no config namespace at all.',
+    },
+  ];
   edit(reg);
   return reg;
 }
@@ -1319,5 +1456,100 @@ describe('the guard runs when it is the entrypoint, and ONLY then', () => {
     const out = `${r.stdout}${r.stderr}`;
     assert.equal(r.status, 0, out);
     assert.match(out, /ok {2}platform register/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIMB 5 · THE ABSENCE BRANCH, WHICH NEEDS TWO CONFIGS TO MEAN ANYTHING.
+//
+// In a one-config tree "this config does not carry the value" and "the value
+// resolves in zero configs" are the SAME observation, and the second is COVERAGE
+// LOST. Only a tree with a second Worker can tell them apart — which is also the
+// real shape: services/platform, services/subly-api and the brick template all
+// carry the same four values by hand, and it was the hand that this limb exists
+// to take out of the loop.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-platform-register — limb 5 across two Workers', () => {
+  test('the two-Worker passing control PRINTS the exempt CONFIG_KV gap and still exits 0', () => {
+    // The positive control for this block: without it every RED below would be
+    // equally consistent with a limb that rejects any two-config tree.
+    const { code, out } = run(appTree());
+    assert.equal(code, 0, out);
+    assert.match(out, /kv_namespaces\[CONFIG_KV\]\.id — ABSENT FROM services\/subly-api\/wrangler\.jsonc/);
+    // FOUR declared values over TWO configs is eight cells; CONFIG_KV is exempt
+    // in one of them, so SEVEN comparisons were really made. The tally is printed
+    // rather than implied precisely so that gap is visible as a number.
+    assert.match(out, /4 shared value\(s\) compared 7 time\(s\)/);
+  });
+
+  test('FAILS when the SECOND Worker disagrees about the shared entitlements database id', () => {
+    const { code, out } = run(
+      appTree({
+        files: {
+          'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace(
+            '"database_id": "11111111-1111-1111-1111-111111111111"',
+            '"database_id": "33333333-3333-3333-3333-333333333333"',
+          ),
+        },
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /services\/subly-api\/wrangler\.jsonc — `d1_databases\[PLATFORM_DB\]\.database_id` is/);
+  });
+
+  test('FAILS when the second Worker simply DROPS a shared value and nothing exempts it', () => {
+    const { code, out } = run(
+      appTree({ files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') } }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /services\/subly-api\/wrangler\.jsonc — declares no `vars\.API_VERSION`/);
+  });
+
+  test('an `absentFrom` row with a reason turns that same absence into a PRINTED gap', () => {
+    const { code, out } = run(
+      appTree({
+        register: appRegister((reg) => {
+          reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').absentFrom = [
+            { config: 'services/subly-api/wrangler.jsonc', why: 'this fixture backend serves no versioned API.' },
+          ];
+        }),
+        files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') },
+      }),
+    );
+    assert.equal(code, 0, out);
+    assert.match(out, /vars\.API_VERSION — ABSENT FROM services\/subly-api\/wrangler\.jsonc/);
+  });
+
+  test('🔴 FAILS on an `absentFrom` row for a config that DOES carry the value', () => {
+    // An exemption that outlived the state it described is a written excuse
+    // standing in front of a real value, and it silently removes that config from
+    // the comparison — the same shape as every other stale waiver in this repo.
+    const { code, out } = run(
+      appTree({
+        register: appRegister((reg) => {
+          reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').absentFrom = [
+            { config: 'services/subly-api/wrangler.jsonc', why: 'stale — it was restored and nobody removed this row.' },
+          ];
+        }),
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /is declared here, but the register's `absentFrom` says it is not/);
+  });
+
+  test('a config with NO `main` is outside limb 5, the same way it is outside the host limb', () => {
+    // A wrangler config that answers no requests needs no identity project. The
+    // predicate is `main`, exactly as the [B-15] host limb above uses it, so the
+    // two limbs cannot come to disagree about what a Worker is.
+    const { code, out } = run(
+      appTree({
+        register: appRegister((reg) => {
+          reg.bindingSources.configs.push('services/nomain/wrangler.jsonc');
+        }),
+        files: { 'services/nomain/wrangler.jsonc': '{ "name": "nomain" }' },
+      }),
+    );
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /nomain.*declares no `vars\./);
   });
 });

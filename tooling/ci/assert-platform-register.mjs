@@ -41,6 +41,16 @@
 // today, and failing the build on a gap that a different stage closes would
 // block all CI on work this increment may not do. An UNDECLARED gap still fails.
 //
+// ⏱ LIMB 5 ADDED 2026-09-08 — THE VALUES COPIED INTO EVERY CONFIG NOW HAVE ONE
+// SOURCE. Limbs 1-4 asked which routes and which BINDING NAMES each config
+// declares, and never once compared a VALUE. Four of them — the Supabase
+// project, the API-contract version, the shared entitlements database id and the
+// JWKS namespace id — were typed identically into all three wrangler configs by
+// hand, and mutation-measured that day, three of the four could be changed in
+// the brick template with the full 134-guard sweep reporting the same RED set as
+// the clean tree. The values now live once in the register's `sharedValues`
+// block, with a reason each, and this limb compares every config against it.
+//
 // Usage:  node tooling/ci/assert-platform-register.mjs [repoRoot]
 // Exit 0 = the register and the tree agree, 1 = they do not.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -892,6 +902,176 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ── LIMB 5 · the values COPIED INTO EVERY CONFIG HAVE ONE SOURCE ─────────────
+  //
+  // 🔴 FOUR VALUES WERE TYPED INTO ALL THREE WRANGLER CONFIGS AND COMPARED BY
+  // NOTHING. `vars.SUPABASE_URL`, `vars.API_VERSION`,
+  // `d1_databases[PLATFORM_DB].database_id` and `kv_namespaces[JWKS_CACHE].id`
+  // are portfolio-wide agreements — one identity project, one API-contract
+  // version, one entitlements database, one JWKS cache — held in three files by
+  // hand. MEASURED 2026-09-08 by mutating each one on its own in the brick
+  // template and running the FULL sweep (tooling/scripts/guard-sweep.mjs, 134
+  // guards executed) against clean and against mutated: three of the four moved
+  // NOTHING, and the fourth was caught only by assert-data-inventory.mjs, which
+  // pins the KV namespace id for a legal reason and not for this one. The same
+  // two var mutations in the LIVE services/subly-api config also passed.
+  //
+  // ⚠️ WHY HERE AND NOT IN A NEW GUARD. This file already owns exactly the right
+  // subject: `bindingSources.configs` IS the three-config set, and limb 3 above
+  // has already asserted — in both directions — that the declared set equals the
+  // globbed one. A new guard would need that same coverage assertion a second
+  // time, and two copies of a coverage assertion drift in the one way that
+  // reports clean. `grep-for-the-existing-helper` applies to subjects too.
+  //
+  // ⚠️ WHY THE REGISTER DECLARES THE VALUE RATHER THAN THIS FILE. A literal here
+  // is the same hand-copy one directory further from the config, which is the
+  // mistake assert-cors-allowlist.mjs made and had mutation-proven against it on
+  // 2026-08-07 ("it hardcoded the origins"). The register is data with a written
+  // reason per value; this file only compares.
+  //
+  // ABSENCE IS A FAILURE, and an exemption has to stay TRUE: a config that does
+  // not carry an entry fails unless the entry's `absentFrom` names it with a
+  // reason, and an `absentFrom` row naming a config that DOES carry the value is
+  // itself a failure — so an exemption cannot outlive the state it describes.
+  // ─────────────────────────────────────────────────────────────────────────────
+  const sharedBlock = register.sharedValues ?? null;
+  const sharedValues = Array.isArray(sharedBlock?.values) ? sharedBlock.values : null;
+  if (!sharedValues || sharedValues.length === 0) {
+    fail([
+      '✗ COVERAGE LOST — the register declares no `sharedValues.values`.',
+      '  Limb 5 is the only thing comparing the values hand-copied into every wrangler config;',
+      '  with an empty list it ranges over nothing and reports agreement it never checked.',
+    ]);
+  }
+
+  /** `vars.<NAME>` or `<section>[<BINDING>].<field>`. Returns `null` for an `at`
+   *  this grammar cannot read — which the caller treats as COVERAGE LOST rather
+   *  than as an absent value, because "I could not tell" must never read as
+   *  "it is fine". */
+  const AT_VAR = /^vars\.([A-Za-z_][A-Za-z0-9_]*)$/;
+  const AT_BINDING = /^([a-z0-9_]+)\[([A-Za-z_][A-Za-z0-9_]*)\]\.([a-z0-9_]+)$/;
+  function resolveAt(cfg, at) {
+    let m = AT_VAR.exec(at);
+    if (m) {
+      const vars = cfg?.vars;
+      const has = !!vars && Object.prototype.hasOwnProperty.call(vars, m[1]);
+      return { has, value: has ? vars[m[1]] : undefined };
+    }
+    m = AT_BINDING.exec(at);
+    if (m) {
+      const [, section, binding, field] = m;
+      const items = Array.isArray(cfg?.[section]) ? cfg[section] : [];
+      const hit = items.find((i) => i?.binding === binding);
+      if (!hit) return { has: false, value: undefined };
+      const has = Object.prototype.hasOwnProperty.call(hit, field);
+      return { has, value: has ? hit[field] : undefined };
+    }
+    return null;
+  }
+
+  /** The configs are parsed once more here rather than threaded down from limb 3
+   *  because limb 3 parses inside its own loops; re-reading the same paths costs
+   *  three file reads and keeps this limb readable on its own.
+   *
+   *  ⚠️ SCOPED TO CONFIGS THAT DECLARE `main`, the SAME predicate the [B-15] host
+   *  limb above uses and for the same stated reason: a wrangler config with no
+   *  `main` is not a Worker that answers requests, so asking it for the identity
+   *  project or the API-contract version would be noise — and noise is how a real
+   *  signal gets muted. All three configs in this repository declare `main`
+   *  today, and `hostBearing` above already fails if none does. */
+  const parsedConfigs = onDiskConfigs
+    .map((cfgRel) => ({ cfgRel, cfg: parseJsonc(readFileSync(join(ROOT, cfgRel), 'utf8'), cfgRel) }))
+    .filter(({ cfg }) => typeof cfg?.main === 'string' && cfg.main !== '');
+
+  let sharedComparisons = 0;
+  for (const entry of sharedValues) {
+    const at = entry?.at;
+    const want = entry?.value;
+    if (typeof at !== 'string' || at === '') {
+      problems.push('a `sharedValues.values` entry has no `at`, so it addresses nothing and can never fail.');
+      continue;
+    }
+    if (typeof want !== 'string' || want === '') {
+      problems.push(`\`${at}\` declares no non-empty \`value\`. An entry with nothing to compare against is dead policy.`);
+      continue;
+    }
+    if (typeof entry?.why !== 'string' || entry.why.trim() === '') {
+      problems.push(
+        `\`${at}\` carries no \`why\`. Every entry here is a portfolio-wide agreement, and an agreement ` +
+          'nobody wrote a reason for is one the next reader will "tidy up".',
+      );
+    }
+    const absentFrom = Array.isArray(entry?.absentFrom) ? entry.absentFrom : [];
+    const exempt = new Map();
+    for (const row of absentFrom) {
+      if (typeof row?.config !== 'string' || typeof row?.why !== 'string' || row.why.trim() === '') {
+        problems.push(
+          `\`${at}\` has an \`absentFrom\` row with no \`config\` or no \`why\`. An exemption without a reason ` +
+            'is a waiver, and this register does not take waivers.',
+        );
+        continue;
+      }
+      exempt.set(rel(row.config), row.why);
+    }
+
+    let resolvedIn = 0;
+    for (const { cfgRel, cfg } of parsedConfigs) {
+      const got = resolveAt(cfg, at);
+      if (got === null) {
+        fail([
+          `✗ COVERAGE LOST — \`sharedValues\` entry \`${at}\` is not addressable by this limb's grammar.`,
+          '  Expected `vars.<NAME>` or `<section>[<BINDING>].<field>`.',
+          '  An address the guard cannot read is a value the guard is not checking, and it would otherwise',
+          '  have been counted as agreement.',
+        ]);
+      }
+      if (!got.has) {
+        if (exempt.has(cfgRel)) {
+          printed.push(`⚠  ${at} — ABSENT FROM ${cfgRel}. ${exempt.get(cfgRel)}`);
+        } else {
+          problems.push(
+            `${cfgRel} — declares no \`${at}\`, which tooling/platform-register.json holds as a value every ` +
+              'Worker config carries. Either restore it, or add an `absentFrom` row for this config with the ' +
+              'reason it does not apply here — which will then be printed on every run.',
+          );
+        }
+        continue;
+      }
+      if (exempt.has(cfgRel)) {
+        problems.push(
+          `${cfgRel} — \`${at}\` is declared here, but the register's \`absentFrom\` says it is not. An ` +
+            'exemption that outlived the state it described is a written excuse standing in front of a real ' +
+            'value, and it silently removes this config from the comparison below.',
+        );
+        continue;
+      }
+      resolvedIn++;
+      sharedComparisons++;
+      if (got.value !== want) {
+        problems.push(
+          `${cfgRel} — \`${at}\` is ${JSON.stringify(got.value)}; tooling/platform-register.json declares ` +
+            `${JSON.stringify(want)}. ${entry.why ?? ''}`.trim() +
+            '\n      This is a portfolio-wide agreement held in three files by hand. A config that disagrees ' +
+            'deploys, runs, and is wrong SILENTLY — no error, no failing request log, nothing.',
+        );
+      }
+    }
+    if (resolvedIn === 0) {
+      fail([
+        `✗ COVERAGE LOST — \`${at}\` resolved in ZERO of the ${parsedConfigs.length} wrangler config(s).`,
+        '  Either the key was renamed everywhere or the address is stale. Both leave this entry comparing',
+        '  nothing while the run still prints ok.',
+      ]);
+    }
+  }
+  if (sharedComparisons === 0) {
+    fail([
+      '✗ COVERAGE LOST — limb 5 made ZERO comparisons.',
+      '  Every shared value is exempt, unaddressable or absent, so the limb cannot fail.',
+    ]);
+  }
+
   if (problems.length) {
     console.error(`✗ platform register — ${problems.length} problem(s):`);
     for (const p of problems) console.error(`    ${p}`);
@@ -914,6 +1094,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
         ? `, plus ${appMountCount} across ${declaredWorkers.length - 1} app Worker(s) reconciled with ${appEntryCount}`
         : '') +
       `; ${declaredBindings.size} binding(s) across ${onDiskConfigs.length} wrangler config(s), ` +
-      `each with a resolved reader; ${printed.length} declared gap(s) printed above`,
+      `each with a resolved reader; ${sharedValues.length} shared value(s) compared ${sharedComparisons} ` +
+      `time(s) across those configs, all agreeing; ${printed.length} declared gap(s) printed above`,
   );
 }

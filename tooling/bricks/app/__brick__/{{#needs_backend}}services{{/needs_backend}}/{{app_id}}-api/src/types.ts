@@ -21,6 +21,21 @@ export interface Env {
   // NEVER a `var` — set with `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`.
   // It bypasses RLS, so nothing outside routes/account.ts may read it.
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  /**
+   * [pipeline 11]E-8 — the crash sink for UNHANDLED WORKER ERRORS. A `var`, not
+   * a secret: a GlitchTip DSN is a write-only ingest key this factory already
+   * ships inside every web build. Absent ⇒ no report, silently; `lib/
+   * error-sink.ts` fails open by design, so a missing DSN degrades reporting and
+   * never the request.
+   */
+  GLITCHTIP_DSN?: string;
+  /**
+   * The commit this Worker was deployed from — `--var RELEASE:<sha>`, supplied by
+   * `deploy-workers.yml`. NOT `API_VERSION`, which is the literal "v1" and would
+   * group every error this app ever reports into one bucket;
+   * `tooling/ci/assert-worker-error-sink.mjs` fails a sink that reads it.
+   */
+  RELEASE?: string;
 }
 
 /**
