@@ -9,7 +9,7 @@ Moved on 2026-09-06 with the `worker-shared-chassis` unit ([ADR 067] decision 2)
 `ci.yml` and the other twelve workflows already follow. **242 comment lines became 56**, and the
 parsed YAML changed only where that unit deliberately changed it — the two `services/_shared/**`
 globs — which is shown as a canonical-JSON diff in
-`Private/research/revamp-2026-09-05/phase2-spine-worker-shared-chassis.md`.
+`Private/pre-prune-2026-09-08:research/revamp-2026-09-05/phase2-spine-worker-shared-chassis.md`.
 
 ## File header
 

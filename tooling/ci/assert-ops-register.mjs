@@ -305,7 +305,7 @@ const coverageLost = (lines) => {
  *  one of its call sites. Re-pointing all of them is a change with a far wider
  *  blast radius than one new limb should carry — ops-watch.yml's digest reads
  *  this guard's code, and the suite asserts 1 on several of those paths — so it
- *  is RECORDED as a finding (Private/research/revamp-2026-09-05/coverage-alarm-on-red.md)
+ *  is RECORDED as a finding (Private/pre-prune-2026-09-08:research/revamp-2026-09-05/coverage-alarm-on-red.md)
  *  rather than smuggled in beside an unrelated change. NEW limbs use the
  *  convention; the old call sites move with the unit that owns that move. Both
  *  codes fail CI, so nothing is weakened while they disagree. */
@@ -2323,7 +2323,7 @@ async function probeGithubRun(q, repo) {
 // and `ci-gate` red on every pull request with it, because `ci.yml` runs this
 // same guard in `guards-platform`. No dispatch, no merge and no wait could clear
 // it: the sentence above was the one thing this row could not be given. Measured
-// 2026-09-08 in `Private/research/full-read-2026-09-08/F1-deploy-fix-2026-09-08.md`
+// 2026-09-08 in `Private/pre-prune-2026-09-08:research/full-read-2026-09-08/F1-deploy-fix-2026-09-08.md`
 // §0 — four consecutive ops-watch failures on `main`, all newer than the newest
 // success. TRAPS `ci-42`/`ci-43` state the general form: A RUN'S OWN CONCLUSION
 // MAY NOT BE AN INPUT TO THE GRADE THAT PRODUCES IT, and a cadence job placed on
