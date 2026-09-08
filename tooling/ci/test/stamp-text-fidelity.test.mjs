@@ -578,7 +578,11 @@ describe('assert-stamp-text-fidelity — the icon label', () => {
         mutate: ({ write, app }) =>
           write(
             `apps/${app}/web/manifest.json`,
-            `{\n  "name": "${NAME.replace(/"/g, '\\"')}",\n  "short_name": "${NAME.replace(/"/g, '\\"')}",\n  "description": "${DESC.replace(/"/g, '\\"')}"\n}\n`,
+            // JSON.stringify, never a hand-rolled `.replace(/"/g, …)` — that
+            // escapes the quote and NOT the backslash, so a value ending in one
+            // closes the string it was meant to stay inside. CodeQL
+            // js/incomplete-sanitization flagged exactly that here.
+            `{\n  "name": ${JSON.stringify(NAME)},\n  "short_name": ${JSON.stringify(NAME)},\n  "description": ${JSON.stringify(DESC)}\n}\n`,
           ),
       }),
     );
@@ -592,7 +596,7 @@ describe('assert-stamp-text-fidelity — the icon label', () => {
         mutate: ({ write, app }) =>
           write(
             `apps/${app}/web/manifest.json`,
-            `{\n  "name": "${NAME.replace(/"/g, '\\"')}",\n  "short_name": "E-Book &amp; Co",\n  "description": "${DESC.replace(/"/g, '\\"')}"\n}\n`,
+            `{\n  "name": ${JSON.stringify(NAME)},\n  "short_name": "E-Book &amp; Co",\n  "description": ${JSON.stringify(DESC)}\n}\n`,
           ),
       }),
     );
