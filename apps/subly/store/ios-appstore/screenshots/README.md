@@ -8,7 +8,9 @@ spec var, so the tree carries the SLOT and the rules, and a human fills it.
 non-empty — that is the "the slot is still declared" half. It deliberately does
 **not** require image files: there are none yet, the channel is `served: false`,
 and failing CI on artwork only the owner can produce would block every build on
-`OWNER_QUEUE A-4`. The gap is PRINTED on every guard run instead.
+artwork nobody has produced. (It used to say `OWNER_QUEUE A-4`; that row closed
+2026-08-31 and screenshots were never gated on it.) The gap is PRINTED on every
+guard run instead.
 
 ## ⚠️ Required dimensions: COULD-NOT-ESTABLISH — do not fill a number in from memory
 

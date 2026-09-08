@@ -158,7 +158,7 @@
 // consumer, held pending an owner/legal decision. Whether a consent surface
 // links its notice is not a builder's call, so this guard REPORTS it on every
 // run rather than failing the build on work only the owner can close — the same
-// rule apple-signing.mjs follows for OWNER_QUEUE A-4. Derived from the tree (the
+// rule apple-signing.mjs follows for the unissued Apple certificate. Derived from the tree (the
 // key is declared by the generated accessors and referenced nowhere else), so it
 // stops printing by itself on the day someone wires it up or deletes it.
 //
@@ -868,7 +868,7 @@ if (promoRailBearing >= 2 && promoCallsFound === 0 && problems.length === 0) {
 //
 // It fails nothing because publishing legal copy is ADR 031 class B — owner
 // work — and a guard that reddens CI on work only the owner can do is a guard
-// people switch off (the rule apple-signing.mjs follows for OWNER_QUEUE A-4).
+// people switch off (the rule apple-signing.mjs follows for the unissued Apple certificate).
 //
 // 🔬 IT IS DERIVED FROM THREE TREES, SO IT CLEARS ITSELF. The purposes come
 // from core's `ConsentBasis.legitimateInterest`, the version from the app's own

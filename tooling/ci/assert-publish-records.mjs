@@ -117,7 +117,7 @@
 //   "⚠️ THE PUBLISH BRANCH HAS NO INSTANCES TODAY AND THE GUARD SAYS SO ON EVERY
 //    RUN rather than passing quietly. All six submission invocations are
 //    rehearsals; no publisher account exists ([10]D-4 / OWNER_QUEUE A-2, A-3,
-//    A-4, A-6), so a real submission is owner-gated and cannot be produced by any
+//    A-4 CLOSED 2026-08-31, A-6), so a real submission is owner-gated and cannot be produced by any
 //    amount of agent work. Printing the census is what keeps rule 2 from being an
 //    assertion that cannot fail: the moment a `--dry-run` is removed, the count
 //    moves and the rule bites."
@@ -819,7 +819,7 @@ if (publishing === 0) {
   );
 }
 console.log(
-  '⬜ No publisher account exists ([10]D-4 / OWNER_QUEUE A-2, A-3, A-4, A-6), so a real submission is OWNER-GATED and ' +
+  '⬜ No publisher account exists ([10]D-4 / OWNER_QUEUE A-2, A-6; A-3 and A-4 are CLOSED, and the Apple gap is now an unissued certificate), so a real submission is BLOCKED and ' +
     'cannot be produced by agent work. That gates the ACT, not this check: the publish branch is graded statically ' +
     'from the YAML, on every run, whether or not anybody can log in.',
 );

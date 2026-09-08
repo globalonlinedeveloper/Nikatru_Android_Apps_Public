@@ -7,7 +7,9 @@ spec var, so the tree carries the SLOT and the rules, and a human fills it.
 `tooling/ci/assert-store-metadata.mjs` requires this README to exist and be
 non-empty. It deliberately does **not** require image files: there are none yet,
 the channel is `served: false`, and failing CI on artwork only the owner can
-produce would block every build on `OWNER_QUEUE A-4`. The gap is PRINTED on every
+produce would block every build on artwork nobody has made. (This line used to name
+`OWNER_QUEUE A-4`; that row closed 2026-08-31 and screenshots never depended on it.)
+The gap is PRINTED on every
 guard run instead.
 
 ⚠️ **macOS screenshots are their own set.** They are not the iOS images at a

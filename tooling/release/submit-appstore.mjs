@@ -19,7 +19,7 @@
 // The two rows are separate submissions with separate App Store Connect records,
 // separate metadata trees and independent review outcomes — which is why the
 // register carries two rows and this repo carries two metadata trees. But they
-// authenticate with the SAME Apple Developer account (OWNER_QUEUE A-4) and the
+// authenticate with the SAME Apple Developer account (ACTIVE since 2026-08-31) and the
 // SAME App Store Connect API key. Two scripts would be two copies of one
 // authentication path, and the second one would be the first to drift
 // ([pipeline F-2]). So: one script, `--channel`, and every path it touches comes
@@ -51,8 +51,11 @@
 // macos-appstore tree README, and the runbook.
 //
 // 🔴 NOTHING HERE IS LIVE AND NOTHING HERE CAN BE. Both rows are `served: false`.
-// There is no Apple Developer account, no distribution certificate, no
-// provisioning profile and no App Store Connect API key — OWNER_QUEUE A-4 — and
+// CORRECTED 2026-09-08: this paragraph used to open "There is no Apple Developer
+// account", frozen at a reading from 2026-08-03, twenty-eight days before the
+// enrolment. There IS one, it is ACTIVE, and its App Store Connect API key exists
+// and works — it is what answered HTTP 200. What does not exist is a distribution
+// certificate or a provisioning profile (both empty sets on 2026-09-08), and
 // this script wires NONE of them. A dry run over an artifact that cannot yet be
 // signed is still worth having: it is what makes enrolment day minutes rather
 // than archaeology, which is the whole of D-10.
@@ -143,7 +146,7 @@ if (!CHANNELS.includes(CHANNEL_ID)) {
 //
 // Two further facts make stopping the correct engineering answer rather than a
 // cop-out: there is no Apple Developer account to authenticate against
-// (OWNER_QUEUE A-4), and no distribution certificate exists — so even a
+// (the account is ACTIVE; OWNER_QUEUE A-4 closed 2026-08-31), and no distribution certificate has been issued into it — so even a
 // perfectly correct implementation could not be RUN, let alone tested, and
 // CLAUDE.md forbids shipping a seam whose open path has never been proven.
 const UNVERIFIED = [
@@ -383,7 +386,7 @@ if (declaredBundle === '' || declaredInTemplate === '') {
 // ── 3. the artifact ──────────────────────────────────────────────────────────
 // ⚠️ THESE PATHS ARE OURS, NOT AN APPLE CONTRACT. `flutter build ipa` writes to
 // build/ios/ipa/; a Mac App Store .pkg is produced by `productbuild` from a
-// signed .app, which needs the distribution certificate OWNER_QUEUE A-4 gates,
+// signed .app, which needs a distribution certificate nothing has issued,
 // so its location is a convention this repo chooses. Nothing here is claimed as
 // sourced, and the register's artifactFormats is what decides whether the file
 // is even the right KIND.
@@ -409,11 +412,11 @@ if (existsSync(abs(artifactRel))) {
 } else if (ALLOW_MISSING_ARTIFACT) {
   prints.push(
     `NO SIGNED ARTIFACT — ${artifactRel} is not on disk and --allow-missing-artifact was passed, so the listing and the bundle identifier were validated and the package was not. ` +
-      `Producing one needs the distribution certificate and provisioning profile OWNER_QUEUE A-4 gates, and Apple hardware: neither exists, and no signing is wired anywhere in this repo.`,
+      `Producing one needs a distribution certificate and a provisioning profile: GET /v1/certificates returned an EMPTY set on 2026-09-08, and no signing is wired anywhere in this repo. The ACCOUNT is active (OWNER_QUEUE A-4 closed 2026-08-31), so both are issuable through the ASC API.`,
   );
 } else {
   problems.push(
-    `${artifactRel} does not exist. It cannot be produced without the OWNER_QUEUE A-4 distribution certificate, so pass --allow-missing-artifact to validate the listing and identity alone (and say so in the output, which is what that flag does).`,
+    `${artifactRel} does not exist. It cannot be produced without a distribution certificate, and none has been issued into the (active) account, so pass --allow-missing-artifact to validate the listing and identity alone (and say so in the output, which is what that flag does).`,
   );
 }
 
@@ -437,7 +440,7 @@ if (missingCreds.length === 0) {
   ok(`credentials — all ${CREDENTIAL_ENV.length} environment variable(s) present (values never read or printed)`);
 } else {
   prints.push(
-    `CREDENTIALS NOT CONFIGURED — ${missingCreds.length} of ${CREDENTIAL_ENV.length} absent: ${missingCreds.map(([k]) => k).join(', ')}. They cannot exist before OWNER_QUEUE A-4 creates the Apple Developer account, so this is a printed gap and not a failure. (${missingCreds.map(([k, why]) => `${k} = ${why}`).join(' · ')})`,
+    `CREDENTIALS NOT CONFIGURED — ${missingCreds.length} of ${CREDENTIAL_ENV.length} absent: ${missingCreds.map(([k]) => k).join(', ')}. The ASC API key among them DOES exist as a repository secret; the certificate ones have never been issued, so this is a printed gap and not a failure. (${missingCreds.map(([k, why]) => `${k} = ${why}`).join(' · ')})`,
   );
 }
 
@@ -481,7 +484,7 @@ if (!xcodePinned) {
 // ─────────────────────────────────────────────────────────────────────────────
 if (prints.length) {
   console.log('');
-  console.log('   ── printed, not failed (owner-gated behind OWNER_QUEUE A-4) ──');
+  console.log('   ── printed, not failed (no signing credentials are configured; A-4 closed 2026-08-31) ──');
   for (const p of prints) console.log(`   ⬜ ${p}`);
 }
 

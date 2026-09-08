@@ -27,7 +27,8 @@
 //
 // 🔴 NO APPLE BUILD IS EXERCISED HERE OR ANYWHERE LOCALLY. There is no Apple
 // hardware on the development machine and no distribution certificate exists
-// (OWNER_QUEUE A-4), so unlike the Microsoft path — which validated a real
+// (no distribution certificate has been issued into the ACTIVE account, verified
+// 2026-09-08), so unlike the Microsoft path — which validated a real
 // 14.8 MiB .msix — there is NO recorded end-to-end proof over a real .ipa or
 // .pkg, and there cannot be one until A-4 completes. Everything below is a
 // fixture, and the artifact cases use a stand-in file of the right NAME, which
@@ -393,7 +394,11 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
     const { code, out } = ios(tree(), ['--allow-missing-artifact']);
     assert.equal(code, 0, out);
     assert.match(out, /NO SIGNED ARTIFACT/);
-    assert.match(out, /distribution certificate and provisioning profile OWNER_QUEUE A-4 gates/);
+    // RE-PINNED 2026-09-08: the certificate is still missing, but A-4 does not
+    // gate it - the account is active and GET /v1/certificates returned empty.
+    assert.match(out, /needs a distribution certificate and a provisioning profile/);
+    assert.match(out, /GET \/v1\/certificates returned an EMPTY set on 2026-09-08/);
+    assert.doesNotMatch(out, /OWNER_QUEUE A-4 gates/, 'A-4 closed 2026-08-31');
   });
 
   test('FAILS on a zero-byte artifact', () => {

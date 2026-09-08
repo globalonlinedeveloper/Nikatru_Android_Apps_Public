@@ -523,7 +523,7 @@ naming the job it belonged to and the line it sat above.
 | [`renovate.md`](renovate.md) | `.github/workflows/renovate.yml` | dependency updates, and why the cron is daily against a weekly duty |
 | [`site-drift-repair.md`](site-drift-repair.md) | `.github/workflows/site-drift-repair.yml` | the post-merge sitemap repair no pre-merge lane can do |
 | [`store-screenshots.md`](store-screenshots.md) | `.github/workflows/store-screenshots.yml` | the live Play capture, proposed for review rather than pushed |
-| [`submit-appstore.md`](submit-appstore.md) | `.github/workflows/submit-appstore.yml` | the Apple dry run, unsigned until the account exists |
+| [`submit-appstore.md`](submit-appstore.md) | `.github/workflows/submit-appstore.yml` | the Apple dry run, unsigned until a distribution certificate is issued (the account is active) |
 | [`submit-play.md`](submit-play.md) | `.github/workflows/submit-play.yml` | the only lane in the tree that uploads to a public store |
 | [`submit-snap.md`](submit-snap.md) | `.github/workflows/submit-snap.yml` | the Snap upload, and the read-after-upload it cannot have |
 | [`submit-windows-store.md`](submit-windows-store.md) | `.github/workflows/submit-windows-store.yml` | the Microsoft Store path, dispatch-only while `served: false` |

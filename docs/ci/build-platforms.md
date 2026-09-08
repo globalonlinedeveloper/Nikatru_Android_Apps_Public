@@ -838,7 +838,8 @@ anywhere to notice the secrets were never wired.
 All four supplied → a per-run keychain, the decoded provisioning
 profiles and an ExportOptions.plist, posture `release-signed`. None
 supplied → posture `unsigned-build-proof` with the gap PRINTED in
-capitals and named (Apple Developer account, OWNER_QUEUE A-4). SOME
+capitals and named (the Apple distribution certificate; the ACCOUNT is
+active, OWNER_QUEUE A-4 closed 2026-08-31, and holds no certificate). SOME
 supplied → FAIL, on every lane: three of four is an artifact nobody can
 explain, and Apple's version of "correctly signed but wrong identity" is
 rejected at upload, after the account is spent.
@@ -960,7 +961,8 @@ leg, not a naming inconvenience.
 ios-appstore row accepts `.ipa` and its artifactGlob names
 build/ios/ipa/*.ipa, which this does not produce and does not claim to.
 What is retained here is a BUILD PROOF. It becomes a release candidate
-when an Apple account exists and something signs and packages it — not
+when a distribution certificate is issued and something signs and packages it -
+the Apple account already exists and is active — not
 when somebody widens this path.
 
 ## job `all_platforms`

@@ -7,7 +7,7 @@
 // THAT IS LABELLED HERE RATHER THAN LEFT TO BE DISCOVERED. This repository is
 // developed on Windows and its guard lane runs on ubuntu; `codesign` ships with
 // Xcode and exists on neither. There is also no Apple Developer account
-// (OWNER_QUEUE A-4), so even on a Mac there would be no distribution
+// (none issued into the ACTIVE account, verified 2026-09-08), so even on a Mac there would be no distribution
 // certificate to sign a fixture with. What the fixtures reproduce is the OUTPUT
 // FORMAT — `Key=Value` per line, the `Authority=` chain printed leaf-first, the
 // `Signature=adhoc` field, `TeamIdentifier=not set`, and the "code object is

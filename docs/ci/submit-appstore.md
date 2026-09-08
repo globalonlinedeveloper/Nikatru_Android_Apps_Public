@@ -16,15 +16,21 @@ this file and this job in their `submission` block, so deleting either is a
 register that points at nothing rather than an unnoticed loss.
 
 🔴 DISPATCH-ONLY, AND THAT IS THE CORRECT SHAPE WHILE `served: false`.
-Both rows are owner-deferred behind OWNER_QUEUE A-4 (Apple Developer Program,
-$99/yr, plus an Apple device). There is no account to submit TO.
+CORRECTED 2026-09-08: both rows were owner-deferred behind OWNER_QUEUE A-4 (Apple
+Developer Program,
+$99/yr, plus an Apple device). That row CLOSED on 2026-08-31 and the
+membership is ACTIVE - App Store Connect answered HTTP 200 on 2026-09-08. There IS an
+account to submit to. The dispatch-only shape is still correct, for two different
+reasons: nothing here emits a signed `.ipa` or `.pkg`, and `--submit` refuses by
+design (`tooling/release/submit-appstore.mjs:158-160`).
 
 ⚠️ IT BUILDS WHAT CAN BE BUILT WITHOUT A CERTIFICATE, AND SAYS SO.
 This is the one place this workflow deliberately differs from
 submit-windows-store.yml. Microsoft re-signs the MSIX, so that job packages a
 real, submittable artifact. Apple does not: a `.ipa` and a Mac App Store `.pkg`
-require a distribution certificate and a provisioning profile that OWNER_QUEUE
-A-4 gates. So the job builds UNSIGNED — `flutter build ios --no-codesign` and
+require a distribution certificate and a provisioning profile that have never been
+issued - GET /v1/certificates returned an EMPTY set on 2026-09-08, though OWNER_QUEUE
+A-4 no longer gates them. So the job builds UNSIGNED — `flutter build ios --no-codesign` and
 `flutter build macos` — which proves the Apple toolchain path still compiles
 this app, and then runs the dry run with `--allow-missing-artifact`, which
 makes the script SAY it validated the listing and the bundle identifier and
@@ -89,8 +95,11 @@ from `isBackendLive` and the lanes from each store row's own declaration.
 
 ### before step **Dry-run the App Store submission (iOS)**
 
-The credentials do not exist yet — OWNER_QUEUE A-4 creates the Apple
-Developer account that issues the App Store Connect API key — and the
+The App Store Connect API key EXISTS and is a repository secret; the SIGNING
+credentials do not exist yet. OWNER_QUEUE A-4, which was to create the Apple
+Developer account, CLOSED on 2026-08-31; that account already issued the API key, and
+GET /v1/certificates returned an EMPTY set on 2026-09-08 — so what is absent is a
+distribution certificate an agent can now issue, not an account. The
 script reports their ABSENCE as a printed gap rather than a failure.
 `secrets` are empty strings when unset, which is what the script's
 presence check reads. The .p8 key is never read by the script, only

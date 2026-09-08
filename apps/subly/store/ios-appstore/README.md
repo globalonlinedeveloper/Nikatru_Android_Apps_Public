@@ -210,10 +210,14 @@ lines rather than guessing at App Store Connect API endpoints.
 
 ## ⬜ What is still owner-gated
 
-Everything that needs the account: **OWNER_QUEUE A-4**. Enrolment in the Apple
+Everything that needed the account: **OWNER_QUEUE A-4, CLOSED**. Enrolment in the Apple
 Developer Program **completed on 2026-08-31** — which is what fired G-49 above.
-Nothing downstream of it moved: no distribution certificate, no provisioning
-profile and no App Store Connect API key exists, and none is wired here —
+The membership is ACTIVE - App Store Connect answered HTTP 200 on 2026-09-05 and
+again on 2026-09-08, with an ACCOUNT_HOLDER record. The **App Store Connect API key
+EXISTS and works**; it is what returned those 200s, and it is set as a repository
+secret. What has NOT moved is the rest: no distribution certificate, no provisioning
+profile (GET /v1/certificates and /v1/profiles both returned EMPTY sets on
+2026-09-08), and none is wired here —
 `served: false` and it stays false until a real submission happens. The **App
 Privacy** questionnaire (audit `unresolved` U-2) joins that list: it is a console
 form with no file to generate, it is a hard gate on a first submission, and it
