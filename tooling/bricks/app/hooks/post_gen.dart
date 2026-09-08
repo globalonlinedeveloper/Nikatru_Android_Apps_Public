@@ -239,11 +239,16 @@ void run(HookContext context) {
       // has nothing to deploy. So it is a printed step, like step 4 — the same
       // class of genuinely manual work, named rather than left to be discovered
       // by a red build.
+      // ⚠️ NAME NO OTHER APP HERE. This string is executable shared code, and
+      // [C-10] (tooling/ci/assert-no-clone-tells.mjs) fails the build on shared
+      // code that knows which app it is in — it caught the first draft of this
+      // line, which said "copy the `subly-api` job". Every stamped app would
+      // have inherited an instruction naming a product it is not.
       ..info(
         '  6. REQUIRED before this Worker deploys: add a `$id-api` job to '
         '.github/workflows/deploy-workers.yml passing --var GLITCHTIP_DSN: and '
-        '--var RELEASE:. Copy the `subly-api` job. Without it the crash sink '
-        'has no DSN and every unhandled error is invisible, and '
+        '--var RELEASE:. Copy any existing Worker job in that file. Without it '
+        'the crash sink has no DSN and every unhandled error is invisible, and '
         'tooling/ci/assert-worker-error-sink.mjs limb 5 fails the build.',
       )
       ..warn(
