@@ -152,8 +152,12 @@ import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 /* 🔴 git EXPORTS `GIT_DIR` into every hook process and it BEATS `-C`, so the one
    `git` read this runner makes goes through the helper that deletes the six
-   redirecting variables from the child environment. See repo-git.mjs. */
-import { repoGit, RepoGitError } from './repo-git.mjs';
+   redirecting variables from the child environment. See repo-git.mjs.
+
+   ⏱ APPENDED 2026-09-09 — "the one `git` read this runner makes" was true of the
+   runner and FALSE of everything it spawns, and the gap had teeth. See CHILD_ENV
+   below. */
+import { cleanGitEnv, repoGit, RepoGitError, strippedNote } from './repo-git.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');          // tooling/scripts -> repo root
@@ -709,7 +713,36 @@ if (inapplicable.length) {
    about what they are checking. An override the caller set by hand is never overwritten.
    It is not a loosening: `assert-spec` still refuses if the corpus it is handed is not
    the corpus it lives in, which is the round-trip its own header describes. */
-const CHILD_ENV = { ...process.env };
+/* 🔴 THE CHILD ENVIRONMENT IS SCRUBBED, and until 2026-09-09 it was a bare
+   `{ ...process.env }`. Git exports `GIT_DIR` into every hook process and it BEATS
+   both `-C` and the child's cwd, so the two `--index` guards — whose subject is the
+   PRIVATE corpus's staged index — read the index of whichever repository the commit
+   was being made in. From the main checkout that is the same repository twice and
+   nothing looks wrong. From a WORKTREE it is not, and the failure was silent in the
+   worst available way: the guard printed the private repo's NAME above the public
+   worktree's NUMBERS.
+
+   MEASURED, both halves, on 2026-09-09:
+     cd <private> && node requirements/tooling/check-agent-docs.mjs --index
+       → EXIT 0 · 263 tracked file(s), 22 instruction doc(s)
+     cd <private> && GIT_DIR=<public worktree>/.git node …/check-agent-docs.mjs --index
+       → EXIT 2 · 2065 tracked file(s), 2 instruction doc(s) · `docsScanned 2 < 3`
+   The second is byte-identical to what this runner printed from a worktree, which is
+   what identifies the exported variable as the cause rather than a candidate for it.
+
+   ⚠️ IT PRESENTED AS A COVERAGE FLOOR, WHICH IS THE POINT. `docsScanned 2 < 3` is the
+   floor working: two instruction docs is what the PUBLIC tree has, so the run really
+   had stopped being evidence about the corpus. A floor is the only thing between that
+   and a green — and the tempting reading, that a floor tripping from a worktree is a
+   floor set too high, is how this would have been "fixed" by lowering it to 2.
+
+   `cleanGitEnv` is repo-git.mjs's own list of the six redirecting variables, reused
+   rather than re-spelled: a second copy of that list is the first one to drift, and
+   the one place it must not drift is the one that decides which repository a guard
+   is looking at. Nothing here needs the exported variables — every guard anchors its
+   own root from `import.meta.url` and a worktree's `.git` FILE resolves on its own. */
+const CHILD_ENV = cleanGitEnv().env;
+console.log(`    ${strippedNote()}`);
 if (WORKTREE && !process.env.NIKATRU_PRIVATE_ROOT) {
   CHILD_ENV.NIKATRU_PRIVATE_ROOT = PRIVATE_ROOT;
   console.log(`    NIKATRU_PRIVATE_ROOT=${PRIVATE_ROOT} passed to every guard below.`);
