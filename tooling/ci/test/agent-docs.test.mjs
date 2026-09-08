@@ -103,15 +103,36 @@ function writePromotedMutant(limb) {
   writeFileSync(join(ROOT, 'tooling', 'scripts', `mutant-promoted-${limb}.mjs`), mutant, 'utf8');
 }
 
+/** The root AGENTS.md byte cap, READ from the guard rather than typed here — it
+ *  was cut 12288 -> 8192 on 2026-09-08 and a number typed in two places is a
+ *  number that drifts. The regex is anchored on the isRoot branch of `capFor`. */
+function rootAgentsCaps() {
+  const src = readFileSync(GUARD_SRC, 'utf8');
+  const m = src.match(/isRoot \? \{ lines: (\d+), bytes: (\d+) \* 1024 \}/);
+  assert.ok(m, 'check-agent-docs.mjs no longer declares the root AGENTS.md cap in the shape this file reads');
+  return { lines: Number(m[1]), bytes: Number(m[2]) * 1024 };
+}
+const ROOT_AGENTS_CAP = rootAgentsCaps();
+
+/** The START-HERE.md caps, read the same way and for the same reason. */
+function startHereCaps() {
+  const src = readFileSync(GUARD_SRC, 'utf8');
+  const m = src.match(/path === 'START-HERE\.md'\) return \{ lines: (\d+), bytes: (\d+) \* 1024 \}/);
+  assert.ok(m, 'check-agent-docs.mjs no longer declares a START-HERE.md cap');
+  return { lines: Number(m[1]), bytes: Number(m[2]) * 1024 };
+}
+const START_HERE_CAP = startHereCaps();
+
 /** A root AGENTS.md over the BYTE cap and UNDER the line cap, so a case using it
  *  produces exactly ONE finding. Written few-long-lines rather than
  *  many-short-lines on purpose: `capFor` grades AGENTS.md on lines AND bytes, and
  *  a doc that breaks both records TWO findings for one limb+path — which would
  *  make the counts in the baseline case read as a bug rather than as two real
- *  findings. Measured: 150 lines of 162 bytes is 24300 bytes, over the 12288 cap
- *  and well under the 200-line one. */
-function overByteCap(lines = 150) {
-  return `# ${'x'.repeat(160)}\n`.repeat(lines);
+ *  findings. `lines` therefore stays under the LINE cap while the width carries
+ *  it over the BYTE cap, both read off the guard. */
+function overByteCap(lines = ROOT_AGENTS_CAP.lines - 10) {
+  const width = Math.ceil(ROOT_AGENTS_CAP.bytes / lines) + 20;
+  return `# ${'x'.repeat(width)}\n`.repeat(lines);
 }
 
 /** Stage a tracked file for one case and take it out again. TRACKED, because the
@@ -191,7 +212,7 @@ test('limb A-SIZE bites: an over-cap root AGENTS.md is reported', () => {
   try {
     const r = run();
     assert.match(r.out, /WARN A-SIZE AGENTS\.md/, `the over-cap doc must be named: ${r.out}`);
-    assert.match(r.out, /cap 12288/, `the finding must state the cap it broke: ${r.out}`);
+    assert.match(r.out, new RegExp(`cap ${ROOT_AGENTS_CAP.bytes}`), `the finding must state the cap it broke: ${r.out}`);
     assert.equal((r.out.match(/A-SIZE AGENTS\.md/g) ?? []).length, 1, `one over-cap dimension must produce exactly one finding, or the baseline counts below are measuring the wrong thing: ${r.out}`);
   } finally {
     writeFileSync(abs, keep);
@@ -228,6 +249,55 @@ test('THE PROMOTION, performed under test: warn exits 0, the same tree on a prom
     git(ROOT, 'add', '--', 'AGENTS.md');
   }
   assert.equal(run().code, 0, 'the fixture must be green again after the case');
+});
+
+test('the START-HERE.md cap bites, and it is a SEPARATE cap from AGENTS.md', () => {
+  /* Added 2026-09-08 with the card itself. `gen-start-here.mjs --check` already
+     refuses a HAND edit; it cannot refuse a card that grew legitimately through
+     the generator, and a 30 KiB generated card is exactly as expensive to read as
+     a 30 KiB typed one. So the size question is asked here, of the index, by the
+     same limb that asks it of AGENTS.md.
+
+     GREEN CONTROL FIRST, and it matters more than usual: the fixture has no
+     START-HERE.md at all, so a `capFor` that did not match the path would produce
+     the same silence as a cap that was never broken. */
+  const before = run();
+  assert.equal(before.code, 0, `green control first, or the case below proves nothing: ${before.out}`);
+  assert.doesNotMatch(before.out, /START-HERE/);
+
+  const lines = START_HERE_CAP.lines - 10;
+  const width = Math.ceil(START_HERE_CAP.bytes / lines) + 20;
+  withTracked('START-HERE.md', `# ${'x'.repeat(width)}\n`.repeat(lines), () => {
+    const r = run();
+    assert.match(r.out, /WARN A-SIZE START-HERE\.md/, `the over-cap card must be named: ${r.out}`);
+    assert.match(r.out, new RegExp(`cap ${START_HERE_CAP.bytes}`), `the finding must state the cap it broke: ${r.out}`);
+    assert.equal((r.out.match(/A-SIZE START-HERE\.md/g) ?? []).length, 1, `one over-cap dimension must produce exactly one finding: ${r.out}`);
+    /* And the same tree on a promoted limb EXITS 1, so this cap is proved to be
+       able to fail a build and not only to print. */
+    const failed = run('mutant-promoted-A-SIZE.mjs');
+    assert.equal(failed.code, 1, `the START-HERE.md cap must be able to FAIL, not only warn: ${failed.out}`);
+    assert.match(failed.out, /FAIL A-SIZE START-HERE\.md/);
+  });
+  assert.equal(run().code, 0, 'the fixture must be green again after the case');
+});
+
+test('a START-HERE.md UNDER the cap is not a finding — the cap is a ceiling, not a shape check', () => {
+  withTracked('START-HERE.md', `# START HERE\n\n${'small on purpose. '.repeat(20)}\n`, () => {
+    const r = run();
+    assert.equal(r.code, 0, `an under-cap card must be clean: ${r.out}`);
+    assert.doesNotMatch(r.out, /A-SIZE START-HERE/, `an under-cap card must produce no finding: ${r.out}`);
+  });
+});
+
+test('the generator is WIRED too — a workflow runs gen-start-here.mjs --check', () => {
+  /* Same defect, same repair as the case at the foot of this file. A generated
+     card whose `--check` runs nowhere is a card that can be hand-edited and stay
+     hand-edited, which is the failure mode the generator exists to prevent. */
+  const ci = readFileSync(join(REPO, '.github', 'workflows', 'ci.yml'), 'utf8');
+  assert.ok(
+    ci.includes('tooling/scripts/gen-start-here.mjs') && ci.includes('--check'),
+    'no workflow runs `gen-start-here.mjs --check`, so START-HERE.md can drift from the tree it claims to measure',
+  );
 });
 
 test('limb A-BOM bites: a UTF-8 BOM on a tracked text blob is reported', () => {
