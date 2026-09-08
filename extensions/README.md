@@ -90,7 +90,9 @@ sh .githooks/pre-commit --self-test     # and watch it prove its own patterns
   sight, the gates to run before you push, and what that hook does and does not cover.
 - [`PRINCIPLES.md`](PRINCIPLES.md) — eight rules, each with an honest note on whether a machine enforces
   it today or a human does.
-- [`SECURITY.md`](SECURITY.md) — how to report a vulnerability. Not in a public issue.
+- [`SECURITY.md`](../SECURITY.md) — how to report a vulnerability. Not in a public issue.
+  ⏱ 2026-09-08: repointed to the repository root. `extensions/SECURITY.md` stated the opposite
+  reporting policy and GitHub never surfaced it; it is at `ref/pre-prune-2026-09-08:extensions/SECURITY.md`.
 - [`docs/`](docs/) — architecture, core policy, releasing, the store playbook.
 
 ## Privacy

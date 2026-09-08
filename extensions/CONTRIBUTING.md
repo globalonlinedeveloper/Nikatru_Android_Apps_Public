@@ -449,4 +449,9 @@ spanning three of them cannot be reverted for one of them.
 
 ## Reporting a security issue
 
-Not here, and not in a public issue. See [`SECURITY.md`](SECURITY.md).
+Not here, and not in a public issue. See the repository-root [`SECURITY.md`](../SECURITY.md).
+
+⏱ 2026-09-08: this link named `extensions/SECURITY.md`, which stated the OPPOSITE policy to the
+root file and which GitHub never surfaced — only the root SECURITY.md is reachable. That file was
+removed and every commitment it made was merged into the root one; it is recoverable at
+`ref/pre-prune-2026-09-08:extensions/SECURITY.md`.
