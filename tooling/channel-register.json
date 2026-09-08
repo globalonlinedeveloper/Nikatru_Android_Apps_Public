@@ -2549,7 +2549,7 @@
       "submittable": false,
       "purchaseRail": {
         "rail": "paddle",
-        "why": "THE STORE CANNOT TAKE THE MONEY — this is a capability fact, not a preference. Chrome Web Store Payments was deprecated 2020-09-21, free trials were disabled 2020-12-01, and from 2021-02-01 'Your existing items and in-app purchases can no longer charge money with Chrome Web Store payments'; the licensing API stopped reporting licence status on the same date (Simeon Vincent, chromium-extensions, 2020-09-22 — quoted verbatim in Private/extensions/DISTRIBUTION.md section 3.4, which the merge brought into this corpus). Google's revenue share on a Paddle sale is therefore 0%, and selling from our own site is expressly contemplated by 'Accepting Payment From Users' (last updated 2022-11-01) with NO anti-steering clause anywhere in the consolidated program policies. What is bought is an account-checked entitlement against the shared Nikatru identity, not a file — extensions ADR 013 (LOCKED 2026-09-01) replaced the offline signed key with an entitlement keyed on user_id — so the checkout is the same hosted apex checkout the web channel uses and the extension only READS the answer.",
+        "why": "THE STORE CANNOT TAKE THE MONEY — this is a capability fact, not a preference. Chrome Web Store Payments was deprecated 2020-09-21, free trials were disabled 2020-12-01, and from 2021-02-01 'Your existing items and in-app purchases can no longer charge money with Chrome Web Store payments'; the licensing API stopped reporting licence status on the same date (Simeon Vincent, chromium-extensions, 2020-09-22 — quoted verbatim in Private/pre-minimal-2026-09-08:extensions/DISTRIBUTION.md section 3.4, which the merge brought into this corpus). Google's revenue share on a Paddle sale is therefore 0%, and selling from our own site is expressly contemplated by 'Accepting Payment From Users' (last updated 2022-11-01) with NO anti-steering clause anywhere in the consolidated program policies. What is bought is an account-checked entitlement against the shared Nikatru identity, not a file — extensions ADR 013 (LOCKED 2026-09-01) replaced the offline signed key with an entitlement keyed on user_id — so the checkout is the same hosted apex checkout the web channel uses and the extension only READS the answer.",
         "forbids": [
           "play-billing",
           "apple-iap"
@@ -2641,7 +2641,7 @@
       "submittable": false,
       "purchaseRail": {
         "rail": "paddle",
-        "why": "PERMISSION AND ABSENCE, and both point the same way. Edge Add-ons has no billing of its own — Microsoft's own developer policies describe listing metadata and purchase DISCLOSURE, never a store payment rail — and policy 1.8.1 is a positive requirement in our favour: 'You must use a secure third-party purchase API', which the Paddle hosted checkout is (verified verbatim 2026-08-12, Private/extensions/DISTRIBUTION.md section 3.7). Registration is free, so the only cut on this channel is Paddle's. As on Chrome, what is sold is the account-checked Pro entitlement of extensions ADR 013, not a file.",
+        "why": "PERMISSION AND ABSENCE, and both point the same way. Edge Add-ons has no billing of its own — Microsoft's own developer policies describe listing metadata and purchase DISCLOSURE, never a store payment rail — and policy 1.8.1 is a positive requirement in our favour: 'You must use a secure third-party purchase API', which the Paddle hosted checkout is (verified verbatim 2026-08-12, Private/pre-minimal-2026-09-08:extensions/DISTRIBUTION.md section 3.7). Registration is free, so the only cut on this channel is Paddle's. As on Chrome, what is sold is the account-checked Pro entitlement of extensions ADR 013, not a file.",
         "forbids": [
           "play-billing",
           "apple-iap"
@@ -2724,7 +2724,7 @@
       "submittable": false,
       "purchaseRail": {
         "rail": "paddle",
-        "why": "AMO IS A STOREFRONT AND A SIGNING SERVICE, NEVER A CHECKOUT. Mozilla operates no payment rail for add-ons: the channel matrix in Private/extensions/DISTRIBUTION.md section 2 scores AMO 'Delivery yes' in the 'can it carry a sale' column, exactly as it scores Chrome and Edge, and Mozilla's own publishing documentation describes listing, signing and blocking — not selling. So the sale happens on our own site whichever way the file is delivered, and the rail is the same hosted apex checkout the web channel uses. What is bought is the account-checked Pro entitlement of extensions ADR 013.",
+        "why": "AMO IS A STOREFRONT AND A SIGNING SERVICE, NEVER A CHECKOUT. Mozilla operates no payment rail for add-ons: the channel matrix in Private/pre-minimal-2026-09-08:extensions/DISTRIBUTION.md section 2 scores AMO 'Delivery yes' in the 'can it carry a sale' column, exactly as it scores Chrome and Edge, and Mozilla's own publishing documentation describes listing, signing and blocking — not selling. So the sale happens on our own site whichever way the file is delivered, and the rail is the same hosted apex checkout the web channel uses. What is bought is the account-checked Pro entitlement of extensions ADR 013.",
         "forbids": [
           "play-billing",
           "apple-iap"

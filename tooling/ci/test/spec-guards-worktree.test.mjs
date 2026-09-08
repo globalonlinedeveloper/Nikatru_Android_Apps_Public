@@ -83,7 +83,8 @@ function firstRels(src) {
   const re = /\{\s*name:\s*'([^']+)',[\s\S]*?rel:\s*\[\s*'([^']+)'/g;
   let m;
   while ((m = re.exec(table)) !== null) out.push({ name: m[1], rel: m[2] });
-  assert.ok(out.length >= 9, `parsed ${out.length} guard rows, expected at least 9 — the row shape changed and this fixture would stub nothing`);
+  // RE-BASED 9 -> 7 on 2026-09-08: three rows retired with their subjects (assert-session-index, assert-research-archive, assert-plans-archive), so the runner declares 7 and a floor of 9 would refuse on a complete read.
+  assert.ok(out.length >= 7, `parsed ${out.length} guard rows, expected at least 7 — the row shape changed and this fixture would stub nothing`);
   return out;
 }
 const GUARD_ROWS = firstRels(SOURCE);

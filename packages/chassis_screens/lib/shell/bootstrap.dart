@@ -86,7 +86,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 ///
 /// 5. **Initialise identity, then run** — 🔴 [pipeline C-15 / G-43] (absent from
 ///    origins.lock.json by construction — G-43 is a MASTER_PLAN §3 chassis-gap
-///    id, a different register from the pipeline ids; see Private/MASTER_PLAN.md)
+///    id, a different register from the pipeline ids; see Private/pre-minimal-2026-09-08:MASTER_PLAN.md)
 ///    IDENTITY,
 ///    BEFORE THE FIRST FRAME. Nothing in the brick used to initialise the SDK at
 ///    all, while the auth provider returns the real repository the moment

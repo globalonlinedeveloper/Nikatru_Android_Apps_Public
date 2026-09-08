@@ -5,7 +5,9 @@
 // 🔴 WHY THIS IS NOT A CI GUARD, AND MUST NOT BECOME ONE.
 //
 // The stage doc's replacement acceptance for N-1 asks CI to parse
-// `Private/MASTER_PLAN.md` §4 *and* `Private/requirements/definition-of-done.md`
+// `Private/pre-minimal-2026-09-08:MASTER_PLAN.md` §4 *and* `Private/requirements/definition-of-done.md`
+// (the acceptance is quoted as written, unedited. §4 moved verbatim to
+// `Private/requirements/dod-master-items.md` on 2026-09-08, and that is the file R1 reads now.)
 // and assert a relationship between them. **`Private/` is gitignored.** It is a
 // separate private repository nested inside a PUBLIC one, and it is never pushed.
 // So a check living in `tooling/ci/` could never once execute against its own
@@ -27,7 +29,7 @@
 //
 // Three relationships, none of them a count somebody has to keep raising:
 //
-//   R1  register item ids  ==  MASTER_PLAN §4's lettered items, minus any letter
+//   R1  register item ids  ==  dod-master-items §4's lettered items, minus any letter
 //       a dated cut removes wholesale (none today — the five cuts are sub-items).
 //       Adding a letter to §4 without a register row FAILS here. That is the
 //       only shape that stops the two drifting the way §4 and the tree already
@@ -119,11 +121,11 @@ const ROOT = resolve(positional[0] ?? join(dirname(fileURLToPath(import.meta.url
 // Repointed 2026-08-18: the private tree is moving OUT of the checkout to the SIBLING
 // `Project_Cross_Platform_Apps_Private/`. The default is therefore LOCATION-TOLERANT
 // rather than a hard switch — it tries the sibling first, then the nested path this repo
-// has used since the flatten, and takes the first that actually CONTAINS `MASTER_PLAN.md`.
+// has used since the flatten, and takes the first that actually CONTAINS the corpus (non-emptiness — see the discriminator below).
 //
 // 🔴 THE MARKER IS LOAD-BEARING, NOT DECORATION. The sibling directory ALREADY EXISTS AND
 // IS EMPTY — it was pre-created before the move. A bare `existsSync` on the directory would
-// select it today, find no MASTER_PLAN.md, and refuse while the real corpus sat one
+// select it today, find no corpus, and refuse while the real corpus sat one
 // directory over. Selecting on a file the corpus must contain is what tells an empty shell
 // apart from the tree.
 //
@@ -168,7 +170,7 @@ const COMPANY_CANDIDATES = [
 // 🔴 THE DISCRIMINATOR IS NON-EMPTINESS, NOT A NAMED MARKER FILE. The sibling was
 // pre-created as an EMPTY directory before the 2026-08-18 move, so `existsSync` on the
 // directory alone would have selected that shell and refused while the corpus sat one
-// directory over. A named marker (MASTER_PLAN.md, PROJECT_STATE.md) rejects the shell but
+// directory over. A named marker (dod-master-items.md, PROJECT_STATE.md) rejects the shell but
 // ALSO rejects this guard's own fixtures, which build a minimal `Private/` holding only the
 // files the case under test needs — measured: 13 cases went red that way. Non-emptiness
 // rejects the shell and accepts both the real corpus and a fixture, which is the property
@@ -181,7 +183,15 @@ const COMPANY = resolve(
 );
 
 const REGISTER = join(ROOT, 'tooling', 'dod-register.json');
-const PLAN = join(COMPANY, 'MASTER_PLAN.md');
+// 🔴 2026-09-08 — REPOINTED FROM `MASTER_PLAN.md` TO `requirements/dod-master-items.md`.
+// The corpus retired `MASTER_PLAN.md`, and its section 4 moved out of it VERBATIM into the page
+// named below: same `## 4.` heading, same eight lettered items, same bytes. R1 therefore compares
+// the same two sets it always compared, against a THIRD independent document exactly as before.
+// This is a REPOINT, not a relaxation: nothing in R1 was widened, no letter was dropped, and the
+// parser (locate `^## 4.`, bound at the next `^## ` or the end of the file) is untouched — the
+// extract IS section 4 and nothing else, so the bound resolves to the end of the file there.
+// The old file is at `Private/pre-minimal-2026-09-08:MASTER_PLAN.md`, which resolves.
+const PLAN = join(COMPANY, 'requirements', 'dod-master-items.md');
 const PAGE = join(COMPANY, 'requirements', 'definition-of-done.md');
 
 const problems = [];
@@ -255,7 +265,7 @@ const pageText = readFileSync(PAGE, 'utf8');
 const secStart = planText.search(/^##\s*4\./m);
 if (secStart === -1) {
   coverageLost([
-    'Private/MASTER_PLAN.md has no `## 4.` heading, so §4 could not be located.',
+    'Private/requirements/dod-master-items.md has no `## 4.` heading, so §4 could not be located.',
     'R1 compares the register against that section; without it the comparison ranges over nothing.',
   ]);
 }
@@ -265,7 +275,7 @@ const section = secEnd === -1 ? rest : rest.slice(0, secEnd);
 const planLetters = [...section.matchAll(/^\*\*([A-Z])\.\s/gm)].map((m) => m[1]);
 if (planLetters.length === 0) {
   coverageLost([
-    'Private/MASTER_PLAN.md §4 was located but declares ZERO lettered items.',
+    'Private/requirements/dod-master-items.md §4 was located but declares ZERO lettered items.',
     'Either the section format changed, or this parser has stopped seeing it. A scanner that quietly',
     'matches less is the failure this repo keeps re-learning.',
   ]);
@@ -281,7 +291,7 @@ const actual = [...registerIds].sort();
 for (const l of expected) {
   if (!registerIds.has(l)) {
     fail(
-      `MASTER_PLAN §4 declares item ${l} and tooling/dod-register.json has no row for it. ` +
+      `dod-master-items §4 declares item ${l} and tooling/dod-register.json has no row for it. ` +
         'A DoD item with no register row is enforced by nothing and checked by nobody.',
     );
   }
@@ -289,7 +299,7 @@ for (const l of expected) {
 for (const l of actual) {
   if (!planSet.has(l)) {
     fail(
-      `tooling/dod-register.json declares item ${l}, which is not a lettered item in MASTER_PLAN §4. ` +
+      `tooling/dod-register.json declares item ${l}, which is not a lettered item in dod-master-items §4. ` +
         'Either the plan lost it or the register invented it; both are drift.',
     );
   }
@@ -583,7 +593,7 @@ if (recorded.length < cuts.length) {
 // ── what CI cannot see, printed rather than implied ──────────────────────────
 notes.push(
   `Private/ is gitignored: CI enforces the register (${items.length} item(s)) and every app's ` +
-    'done-record; the one-pager and MASTER_PLAN §4 are checked HERE and nowhere else.',
+    'done-record; the one-pager and dod-master-items §4 are checked HERE and nowhere else.',
 );
 
 if (problems.length) {
@@ -598,7 +608,7 @@ if (problems.length) {
 console.log('⬜ notes:');
 for (const n of notes) console.log(`    ${n}`);
 console.log(
-  `ok  DoD sync — ${items.length} register item(s), set-equal to MASTER_PLAN §4's ${planLetters.length} ` +
+  `ok  DoD sync — ${items.length} register item(s), set-equal to dod-master-items §4's ${planLetters.length} ` +
     `lettered item(s) and to the one-pager's ${pageEnforcedBy.size} row(s); enforced-by agrees on all of ` +
     `them; ${phrasesChecked} cut phrase(s) absent from the items table.`,
 );

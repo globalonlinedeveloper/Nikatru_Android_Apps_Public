@@ -164,7 +164,7 @@ if (consent.id) {
   // — while `consent_artifacts` held three rows apiece until ops-watch run
   // 33139423096 went red on 2026-08-28 and a different workflow's owner had to
   // work out what had written them. Full record:
-  // Private/notes/EVIDENCE-consent-artifacts-dev-rows-2026-08-28.md.
+  // Private/pre-minimal-2026-09-08:notes/EVIDENCE-consent-artifacts-dev-rows-2026-08-28.md.
   //
   // [pipeline B-17] asks that every artifact a live verification creates be
   // PROVABLY removed. "I could not identify the row" is precisely the state in

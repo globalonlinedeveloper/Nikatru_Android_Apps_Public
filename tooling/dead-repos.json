@@ -20,7 +20,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-09-05",
       "how": "deleted",
-      "wentTo": "Nikatru_Platform_Private/extensions/ — the imported docs set, [ADR 067] decision 1",
+      "wentTo": "Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/ — the imported docs set, [ADR 067] decision 1",
       "measured": "2026-09-06: `gh api repos/globalonlinedeveloper/Nikatru_Extensions_Private` exits non-zero; the name is absent from `gh api user/repos`. No rename redirect.",
       "localPathWas": "Projects/Nikatru_Extensions_Private",
       "snapshot": "Projects/_archived-2026-09-05/Nikatru_Extensions_Private"
@@ -39,7 +39,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-08-19",
       "how": "renamed",
-      "wentTo": "Nikatru_Extensions_Private, which itself died 2026-09-05. Follow it to Nikatru_Platform_Private/extensions/.",
+      "wentTo": "Nikatru_Extensions_Private, which itself died 2026-09-05. Follow it to Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/.",
       "measured": "2026-09-06: absent from `gh api user/repos`.",
       "localPathWas": "Projects/Chrome_Web_Store/Chrome/Extensions/Nikatru_Chrome_Extensions_Private"
     },
@@ -56,7 +56,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-08-19",
       "how": "renamed",
-      "wentTo": "Nikatru_Chrome_Extensions_Private, then Nikatru_Extensions_Private, then deleted. Follow it to Nikatru_Platform_Private/extensions/.",
+      "wentTo": "Nikatru_Chrome_Extensions_Private, then Nikatru_Extensions_Private, then deleted. Follow it to Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/.",
       "measured": "2026-09-06: absent from `gh api user/repos`."
     },
     {
