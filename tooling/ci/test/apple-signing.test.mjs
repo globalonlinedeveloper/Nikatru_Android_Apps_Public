@@ -10,7 +10,7 @@
 // real archives with `jarsigner`, and says so proudly, because a JDK is on every
 // runner. The Apple equivalent would need `security`, `codesign` and a real
 // Apple distribution certificate — the first two exist ONLY on macOS, and the
-// third does not exist at all (OWNER_QUEUE A-4: there is no Apple Developer
+// third does not exist at all (no Apple distribution certificate; the Developer
 // account). So the split is explicit rather than apologetic:
 //
 //   · every DECISION in apple-signing.mjs is a pure exported function and is
@@ -533,12 +533,19 @@ describe('apple-signing — posture resolution', () => {
     assert.equal(d.fatal, null);
   });
 
-  test('none + RELEASE lane → fatal, naming the owner item rather than a secret', () => {
+  // RE-PINNED 2026-09-08. This used to assert /OWNER_QUEUE A-4/, a pin on a claim
+  // that stopped being true: the enrolment completed 2026-08-31, A-4 closed with
+  // it, and an authenticated App Store Connect call answered HTTP 200 on
+  // 2026-09-08. The named item is now the CERTIFICATE and the pin says so - a
+  // regex matching either wording could not tell this change from a revert.
+  test('none + RELEASE lane → fatal, naming the missing certificate rather than a secret', () => {
     const d = resolvePosture({ law: none, required: true, platform: 'darwin' });
     assert.equal(d.posture, null);
     const text = d.fatal.lines.join('\n');
     assert.match(text, /RELEASE lane/);
-    assert.match(text, /OWNER_QUEUE A-4/);
+    assert.match(text, /IT IS A CERTIFICATE: Apple distribution certificate/);
+    assert.match(text, /the account is ACTIVE, verified 2026-09-08/);
+    assert.doesNotMatch(text, /IT IS AN ACCOUNT/, 'the account exists; that sentence was the defect');
     for (const n of WANTED) assert.match(text, new RegExp(n));
   });
 
@@ -558,7 +565,7 @@ describe('apple-signing — posture resolution', () => {
     assert.match(text, /channel "ios-appstore" IS ARMED/);
     assert.match(text, /`served: true`/);
     // …and the original message survives underneath it.
-    assert.match(text, /OWNER_QUEUE A-4/);
+    assert.match(text, /IT IS A CERTIFICATE: Apple distribution certificate/);
   });
 
   test('partial → fatal on EVERY lane, release or not', () => {
@@ -1094,16 +1101,19 @@ describe('apple-signing — the signed-export intents', () => {
   // Until 2026-08-20 the register named no installer certificate, so the gap was
   // "not declared" — an ENGINEERING omission, closable in a commit. The
   // macos-appstore row now declares APPLE_INSTALLER_CERT_P12_BASE64 with its
-  // reason, so what remains is that the certificate DOES NOT EXIST, which needs
-  // an Apple Developer account and is the owner's. Asserting the old sentence
-  // would keep a closed gap open in the log; asserting only /OWNER_QUEUE A-4/
-  // would pass on either, which is a pin that cannot tell the change apart.
+  // reason, so what remains is that the certificate DOES NOT EXIST. CORRECTED
+  // 2026-09-08: that is no longer the owner's - the account is ACTIVE and the ASC
+  // API issues certificates, so an agent holding the key can close it. Asserting
+  // the old sentence would keep a closed gap open in the log; asserting only
+  // /OWNER_QUEUE A-4/ would pass on either, which is a pin that cannot tell the
+  // change apart - so the pin below names the certificate and the closure date.
   test('the macOS .pkg intent is productbuild, and the gap it prints is now the CERTIFICATE, not the declaration', () => {
     const pkg = plan().find((s) => s.argv[0] === 'productbuild');
     assert.ok(pkg, 'the .pkg intent is missing');
     assert.match(pkg.gap, /DECLARED AND DOES NOT EXIST/);
     assert.match(pkg.gap, /APPLE_INSTALLER_CERT_P12_BASE64/);
-    assert.match(pkg.gap, /OWNER_QUEUE A-4/);
+    assert.match(pkg.gap, /nothing here has issued one: Apple distribution certificate/);
+    assert.match(pkg.gap, /OWNER_QUEUE A-4 closed 2026-08-31/);
     assert.doesNotMatch(pkg.gap, /IS NOT IN THE REGISTER/, 'the register declares it now — that sentence is false');
   });
 
@@ -1133,7 +1143,8 @@ describe('apple-signing — the endings, run as a process', () => {
 
   test('the unsigned ending prints the gap IN CAPITALS and names the owner item', () => {
     const { r } = runPrepare(makeRoot(), {});
-    assert.match(out(r), /THE MISSING ITEM IS THE APPLE DEVELOPER ACCOUNT \(OWNER_QUEUE A-4\)/);
+    assert.match(out(r), /THE MISSING ITEM IS THE APPLE DISTRIBUTION CERTIFICATE \(THE ACCOUNT IS ACTIVE, VERIFIED 2026-09-08; NONE ISSUED\)/);
+    assert.doesNotMatch(out(r), /THE MISSING ITEM IS THE APPLE DEVELOPER ACCOUNT/, 'the account exists - that print was the defect');
     assert.match(out(r), /CANNOT BE UPLOADED TO APP STORE CONNECT/);
   });
 
@@ -1156,7 +1167,14 @@ describe('apple-signing — the endings, run as a process', () => {
     assert.match(out(r), /channel "macos-appstore" is NOT ARMED/);
     assert.match(out(r), /`submittable: true` but `lane: null`/);
     assert.match(out(r), /TRIPWIRE, NOT A WAIVER/);
-    assert.match(out(r), /THE BLOCKER IS OWNER-GATED: Apple Developer account \(OWNER_QUEUE A-4\)/);
+    // The LABEL is asserted, not only the item: `unarmedGapLines` prints
+    // OWNER-GATED by default and CODE-GATED only when a caller says so. Apple is
+    // the one caller passing `ownerGated: false`, because the account is active
+    // and the ASC API issues the missing certificate. A pin on the item alone
+    // would go green again the day somebody reverted the label.
+    assert.match(out(r), /THE BLOCKER IS CODE-GATED: Apple distribution certificate/);
+    assert.doesNotMatch(out(r), /THE BLOCKER IS OWNER-GATED/, 'an agent can close this one');
+    assert.match(out(r), /An agent CAN close this one/);
     for (const n of WANTED) assert.match(out(r), new RegExp(n));
     assert.match(exported, /APPLE_SIGNING_POSTURE=unsigned-build-proof/);
   });

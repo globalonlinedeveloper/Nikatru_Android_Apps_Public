@@ -278,7 +278,7 @@
         "privacy.html",
         "refund.html"
       ],
-      "privateRecord": "OWNER_QUEUE A-4 — the Apple Developer account. Deferred by the owner; no account exists.",
+      "privateRecord": "OWNER_QUEUE A-4 — the Apple Developer account. CLOSED 2026-08-31: the account EXISTS and the membership is ACTIVE, verified by an authenticated App Store Connect call on 2026-09-05 and again on 2026-09-08 (HTTP 200, ACCOUNT_HOLDER record). It holds zero certificates.",
       "notes": [
         "Named by its full store name in privacy.html §3 and refund.html §1. ⚠️ NOT in terms.html: §4 says",
         "'that store's terms (Apple, Google, Microsoft)' — a parenthetical reference to the companies, not a",

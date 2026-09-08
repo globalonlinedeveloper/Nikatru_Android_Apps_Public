@@ -838,7 +838,7 @@ describe('what this guard does NOT assert, said out loud', () => {
 
   test('👤 the missing policy link PRINTS and does not fail', () => {
     // Owner-gated work is reported, never reddened — the rule apple-signing.mjs
-    // follows for OWNER_QUEUE A-4. And the note is DERIVED, so it stops by
+    // follows for the unissued Apple certificate. And the note is DERIVED, so it stops by
     // itself the day the key is wired up: proven by wiring it up.
     withTree(
       () => {},

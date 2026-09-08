@@ -12,7 +12,8 @@ copy of it, not the other way round.
 The register carries `ios-appstore` and `macos-appstore` as **separate rows**, and
 this is a separate directory for the same reason: **one App Store Connect record
 per platform, one metadata tree, one review outcome.** They share an Apple
-Developer account (`OWNER_QUEUE A-4`) and one App Store Connect API key — which
+Developer account (ACTIVE since 2026-08-31; `OWNER_QUEUE A-4` closed with it) and
+one App Store Connect API key that exists and works — which
 is why one script, `tooling/release/submit-appstore.mjs`, serves both with
 `--channel` — but they are two submissions that can succeed and fail
 independently. A shared tree would make one review outcome look like two.
@@ -154,7 +155,8 @@ Exits 0 **without contacting Apple**. `--submit` refuses with `UNVERIFIED:` line
 
 ## ⬜ What is still owner-gated
 
-**OWNER_QUEUE A-4** — the same Apple Developer Program enrolment as
+**OWNER_QUEUE A-4 - CLOSED 2026-08-31, and the membership is ACTIVE (verified
+2026-09-08). What remains is an unissued distribution certificate.** — the same Apple Developer Program enrolment as
 `ios-appstore`. Enrolment itself **completed on 2026-08-31**; everything downstream
 of it has not. No distribution certificate, no provisioning profile, no App Store
 Connect API key, and none wired here. `served: false` until a real submission

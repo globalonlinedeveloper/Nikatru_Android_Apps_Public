@@ -32,7 +32,8 @@
 //   (b) PRINTS EVERY RUN, NEVER FAILS — everything else, with a dated
 //       who / what / why record. iOS and macOS have no headless path at all
 //       without an Apple device and Apple is DEFERRED BY OWNER DECISION
-//       (OWNER_QUEUE A-4); a build-failing rule on owner-gated work blocks every
+//       (OWNER_QUEUE A-4 closed 2026-08-31; the account is ACTIVE and the remaining gap is
+//       an unissued distribution certificate); a build-failing rule on an open gap blocks every
 //       CI run on something only the owner can unblock. That is the posture
 //       assert-seams-wired.mjs established for [pipeline C-6] and CLAUDE.md
 //       states as a rule.
@@ -138,7 +139,8 @@ const LAUNCH_MECHANISM = new Map([
       script: null,
       why:
         'NO headless path exists without an Apple device, and Apple is DEFERRED BY OWNER DECISION ' +
-        '(OWNER_QUEUE A-4). This is the half that must never be build-failing: it would block every CI run on ' +
+        '(OWNER_QUEUE A-4 closed 2026-08-31; what is unbuilt is the signing and packaging step). This is the ' +
+        'half that must never be build-failing: it would block every CI run on ' +
         'work only the owner can unblock.',
       since: '2026-08-03',
     },
@@ -149,7 +151,7 @@ const LAUNCH_MECHANISM = new Map([
       script: null,
       why:
         'a macOS runner could in principle open the .app, but the channel is `served: false` behind the same ' +
-        'owner-deferred Apple enrolment (OWNER_QUEUE A-4) and no ready signal exists for a Flutter macOS ' +
+        'unsigned Apple lane (the enrolment itself closed OWNER_QUEUE A-4 on 2026-08-31) and no ready signal exists for a Flutter macOS ' +
         'binary either. Owner-gated work prints, never fails.',
       since: '2026-08-03',
     },

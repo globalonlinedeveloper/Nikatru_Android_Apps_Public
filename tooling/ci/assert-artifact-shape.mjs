@@ -47,9 +47,9 @@
 //
 // ── WHAT IT DELIBERATELY DOES NOT ASSERT ─────────────────────────────────────
 // THE iOS .ipa — and ONLY the .ipa. `flutter build ios --release --no-codesign`
-// cannot emit one: an .ipa is a signed archive and needs an Apple Developer
-// account (OWNER_QUEUE A-4). The `ios-appstore` row accepts ".ipa" and declares
-// no lane. That gap is owner-gated, so it is PRINTED on every run of the apple
+// cannot emit one: an .ipa is a signed archive and needs an Apple distribution
+// certificate. The `ios-appstore` row accepts ".ipa" and declares
+// no lane. That gap is CODE-gated (corrected 2026-09-08), so it is PRINTED on the apple
 // lane rather than failed — a guard that reds the build over work only a person
 // with a chequebook can do is a guard somebody switches off.
 //
@@ -176,7 +176,7 @@ const LANE_OUTPUTS = new Map([
         },
       ],
       gaps: [
-        'iOS — THE .ipa, which nothing in this repository produces. The unsigned build/ios/iphoneos/*.app IS now built, retained and asserted above; what is still missing is the SUBMITTABLE format. `ios-appstore` accepts ".ipa", declares no lane, and `flutter build ios --release --no-codesign` cannot emit one — an .ipa needs a signing identity, which needs an Apple Developer account (OWNER_QUEUE A-4). So this gap is owner-gated, not code-gated, and it is printed rather than failed for that reason. It closes when an account exists and something packages a signed archive — not when somebody edits the line away.',
+        'iOS — THE .ipa, which nothing in this repository produces. The unsigned build/ios/iphoneos/*.app IS now built, retained and asserted above; what is still missing is the SUBMITTABLE format. `ios-appstore` accepts ".ipa", declares no lane, and `flutter build ios --release --no-codesign` cannot emit one — an .ipa needs a signing identity, which needs an Apple DISTRIBUTION CERTIFICATE. CORRECTED 2026-09-08: this gap is CODE-gated, not owner-gated. The account exists and is ACTIVE (App Store Connect answered HTTP 200 on 2026-09-08, with an ACCOUNT_HOLDER record); OWNER_QUEUE A-4 closed 2026-08-31. What GET /v1/certificates returned that same day was an EMPTY set - so the certificate is issuable through the ASC API with the key this repository already holds, by an agent, with no owner action. It is still printed rather than failed, for the second reason only: it is not closed today and reddening every merge over it helps nobody. It closes when a certificate is issued and something packages a signed archive — not when somebody edits the line away.',
       ],
     },
   ],

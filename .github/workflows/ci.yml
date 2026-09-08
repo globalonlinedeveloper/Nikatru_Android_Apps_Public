@@ -200,6 +200,13 @@ jobs:
       # checkout uses fetch-depth: 0.
       - name: The instruction docs stay inside their caps (warn until 2026-09-22)
         run: node tooling/scripts/check-agent-docs.mjs
+      # START-HERE.md is GENERATED and has TWO guards, because they catch
+      # different things. This one fails on a HAND EDIT: the card is the first
+      # thing a cold session reads, and a card somebody typed into can say
+      # anything. check-agent-docs limb A-SIZE is the other, and it fails on a
+      # card that grew legitimately, through the generator, past 4 KiB.
+      - name: START-HERE.md is what the tree generates
+        run: node tooling/scripts/gen-start-here.mjs --check
 
   guards-legal:
     name: Guards — privacy, legal and money

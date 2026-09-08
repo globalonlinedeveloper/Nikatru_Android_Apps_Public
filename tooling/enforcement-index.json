@@ -2622,6 +2622,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "script",
+    "ref": "tooling/scripts/gen-start-here.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "F-2",
       "S-12",
