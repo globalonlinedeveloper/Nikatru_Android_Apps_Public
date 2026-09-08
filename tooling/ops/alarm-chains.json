@@ -120,7 +120,36 @@
     "check` and 30 `Laptop routine: CI watchdog`, exactly the two the paragraph above names, and they",
     "still belong to whoever created them. This correction exists because the paragraph above asks for",
     "it in its own closing words: the list is named so the next reader of 'complete as of' does not",
-    "read a tick, and a count that has gone stale reads as a tick."
+    "read a tick, and a count that has gone stale reads as a tick.",
+    "",
+    "✅ 2026-09-09 — THE SHORTFALL THIS FILE HAS NAMED TWICE IS CLOSED, AND ONE NEW MONITOR IS DECLARED",
+    "IN THE SAME CHANGE THAT CREATED IT. The two paragraphs above say, twice, that 29 `Laptop routine:",
+    "ops check` and 30 `Laptop routine: CI watchdog` are live, undeclared here, carry no duty row, and",
+    "\"belong to whoever created them\". Nobody claimed them, and a monitor nothing declares is a monitor",
+    "whose DELETION nothing notices — which is not hypothetical here: three laptop routines vanished",
+    "unnoticed on 2026-09-08 and were rebuilt from scratch. That is the same event, one layer down.",
+    "",
+    "Declared now: 29, 30, and 33 `Laptop routine: pipeline driver`, created 2026-09-09 for the third",
+    "routine, which had no absence alarm at all. Its shape is the one recorded as a recommendation and",
+    "not invented here: Heartbeat, project `ops`, interval 86400 s, confirmationThreshold 2. The",
+    "threshold is load-bearing rather than decorative — GlitchTip refuses any interval above 86400 s",
+    "(HTTP 422, `Input should be less than or equal to 86400`, the same wall duty.restic-snapshot",
+    "records hitting on 2026-09-05), and 86400 is EXACTLY the routine’s daily cadence, so a threshold",
+    "of 1 would take it Down on a few minutes of ordinary drift. A monitor that cries wolf daily gets",
+    "muted, which is the same outcome as no monitor, reached more slowly. Threshold 2 alarms after",
+    "roughly two missed days instead.",
+    "",
+    "⚠️ THE ASYMMETRY NAMED ABOVE IS UNCHANGED AND IS WHY THIS PARAGRAPH EXISTS. Limb D fails on a",
+    "LISTED id that is absent from the live instance and stays silent about a LIVE id that is unlisted,",
+    "so completeness here is still MAINTAINED by whoever creates a monitor and is not ENFORCED. Measured",
+    "2026-09-09: the live instance answered 22 monitors before this change and this list named 20 of",
+    "them; creating 33 made it 23, and this list now names 23 of 23. That number is a measurement on a",
+    "date, not a tick — the two corrections above exist because a stale count reads as a tick.",
+    "",
+    "🔴 AND THE DETECTION WAS PROVEN BY MUTATION, not by a green run. `verify-alarm-chains.mjs` was run",
+    "green first (exit 0, 23 of 23), then one of the three new ids was pointed at a monitor that does",
+    "not exist and the same script exited 1 naming it COVERAGE LOST; the file was restored with its",
+    "sha256 re-checked. A canary that has never been shown to fire is a claim, not a canary."
   ],
   "expectedMonitors": [
     {
@@ -202,6 +231,18 @@
     {
       "id": 32,
       "name": "vault.nikatru.com"
+    },
+    {
+      "id": 29,
+      "name": "Laptop routine: ops check"
+    },
+    {
+      "id": 30,
+      "name": "Laptop routine: CI watchdog"
+    },
+    {
+      "id": 33,
+      "name": "Laptop routine: pipeline driver"
     }
   ],
   "chainsObserved": {
