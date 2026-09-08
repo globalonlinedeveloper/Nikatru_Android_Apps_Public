@@ -314,23 +314,161 @@ if (files.length < FILE_FLOOR) {
   process.exit(2);
 }
 
+/* 🔴 THE SPEC DIRECTORY IS NOT FLAT, AND A ONE-LEVEL `readdirSync` READ IT AS IF IT
+   WERE (2026-09-08). The scan below was a single `readdirSync(SPEC)` taking `*.json`,
+   which is exactly right for the layout that existed when it was written and silently
+   wrong for the one the corpus is moving to. Private S1 phase 4 splits five registers
+   — `lost-deliberately`, `invariants`, `not-built`, `ledger`, `gates` — into 37 shard
+   files under `requirements/<register>/NN-<topic>.json`, declared in a `shards` block
+   in `requirements/index.json`. MEASURED on that tree, with the sharding applied and
+   green on all eleven private guards: this guard saw 6 files instead of 11, parsed
+   233 origin refs against `ORIGIN_FLOOR` below, and refused at exit 2.
+
+   THAT REFUSAL WAS THE FLOOR WORKING AND THE SCAN FAILING, which are different
+   things, and only one of them is a defect. The floor exists so a thin resolution
+   table cannot silently accept a dead citation; a one-level scan of a sharded
+   directory produces exactly that thin table. So the floor STAYS at 300 and the scan
+   is what changes: this guard now READS THE SHARDS rather than skipping them. A guard
+   that refuses on the other repository's file layout is a guard people learn to
+   bypass, and `--no-verify` is prohibited here — the cost of that refusal was a whole
+   private phase built, verified and reverted (Private
+   research/full-read-2026-09-08/S3-structure-apply-run2-2026-09-08.md, sections 2.2
+   to 2.5).
+
+   TWO SOURCES, AND THE DECLARATION IS THE AUTHORITATIVE ONE. The `shards` block is
+   read first and every file it declares MUST exist: a declared shard that is not on
+   disk is exit 2, never a smaller scan, because the register it belongs to would
+   otherwise be resolved against a table missing a chunk of itself and nothing in the
+   output would say so. That is the rule the two private guards apply to the same
+   block. Then the directory is walked ONE LEVEL DEEPER anyway, declared or not, so a
+   corpus with no `shards` block at all — or a shard on disk the block does not name —
+   is still READ rather than skipped. Reading more than the declaration is safe here;
+   reading less is the defect this note is about. */
+const SPEC_INDEX = 'index.json';
+
+/** The `<register>/<file>` list the `shards` block declares, or null when there is no
+ *  block to read. `_`-prefixed keys (`_what`, `_rule`, `_guard`, `_generated`) are the
+ *  block's own prose about itself and are not registers. A key whose value is not a
+ *  non-empty array of strings is `malformed` rather than ignored: a declaration this
+ *  guard cannot read is one it cannot honour, and honouring it is the whole point. */
+function declaredShardFiles(specDir) {
+  let idx;
+  try { idx = JSON.parse(readFileSync(join(specDir, SPEC_INDEX), 'utf8')); } catch { return null; }
+  if (!idx || typeof idx !== 'object' || Array.isArray(idx)) return null;
+  const block = idx.shards;
+  if (!block || typeof block !== 'object' || Array.isArray(block)) return null;
+  const declared = [];
+  const malformed = [];
+  for (const [register, files] of Object.entries(block)) {
+    if (register.startsWith('_')) continue;
+    if (!Array.isArray(files) || !files.length || files.some((f) => typeof f !== 'string' || !f)) {
+      malformed.push(register);
+      continue;
+    }
+    for (const f of files) declared.push(`${register}/${f}`);
+  }
+  return { declared, malformed };
+}
+
+/* Every spec file to parse, relative to SPEC, deduplicated: the declaration and the
+   walk below overlap by construction, and a file parsed twice inflates the count this
+   guard prints for a reader to check. */
+const specRels = [];
+const seenSpecRel = new Set();
+const addSpecRel = (rel) => { if (!seenSpecRel.has(rel)) { seenSpecRel.add(rel); specRels.push(rel); } };
+
+/* The flat top level — the scan this guard has always done, unchanged. */
+for (const f of readdirSync(SPEC)) {
+  if (f.endsWith('.json')) addSpecRel(f);
+}
+
+/* Declared BEFORE the descent so that deleting the descent leaves this file valid and
+   leaves it behaving exactly as it did before 2026-09-08. That is not a convenience:
+   it is how the test mutates this guard back into the defect it closes. */
+let shardDecl = null;
+
+/* ── SHARD DESCENT BEGIN ─────────────────────────────────────────────────────── */
+shardDecl = declaredShardFiles(SPEC);
+if (shardDecl && shardDecl.malformed.length) {
+  console.error(`✗  public citations — REFUSING: the \`shards\` block in ${join(SPEC, SPEC_INDEX)} is unreadable.`);
+  for (const r of shardDecl.malformed) console.error(`      ${r}  ->  not a non-empty array of shard file names`);
+  console.error('   A declaration this guard cannot read is one it cannot honour, and the registers it names');
+  console.error('   would then be resolved against a table missing part of itself. Exit 2, never a pass.');
+  process.exit(2);
+}
+if (shardDecl) {
+  const missingShards = [];
+  for (const rel of shardDecl.declared) {
+    if (existsSync(join(SPEC, rel))) addSpecRel(rel);
+    else missingShards.push(rel);
+  }
+  if (missingShards.length) {
+    console.error(`✗  public citations — REFUSING: ${missingShards.length} of ${shardDecl.declared.length} declared shard(s) are not on disk.`);
+    for (const rel of missingShards) console.error(`      ${join(SPEC, rel)}`);
+    console.error(`   Declared by the \`shards\` block in ${join(SPEC, SPEC_INDEX)}. A register whose shards are only`);
+    console.error('   partly present resolves citations against part of itself and prints nothing about it.');
+    console.error('   Exit 2 COVERAGE LOST, which is deliberately not a pass.');
+    process.exit(2);
+  }
+}
+/* One level deeper, declared or not, so an undeclared shard is READ rather than
+   skipped and a corpus carrying no `shards` block at all still resolves. Deeper than
+   one level is not walked: the declared layout is `<register>/<shard>.json`, and a
+   guard that recursed would start indexing `requirements/tooling/retired/`. */
+for (const e of readdirSync(SPEC, { withFileTypes: true })) {
+  if (!e.isDirectory()) continue;
+  let inner;
+  try { inner = readdirSync(join(SPEC, e.name)); } catch { continue; }
+  for (const f of inner) {
+    if (f.endsWith('.json')) addSpecRel(`${e.name}/${f}`);
+  }
+}
+/* ── SHARD DESCENT END ───────────────────────────────────────────────────────── */
+
+const declaredShardSet = new Set(shardDecl ? shardDecl.declared : []);
+
 /* Every `origin` the spec knows, plus the frozen harvest in origins.lock.json —
    which is DATA, not a cache: the prose it came from no longer exists, so it can
    never be regenerated. Both are read because an id can be declared in one and
    cited from the other. */
 const origins = new Set();
 let specFiles = 0;
-for (const f of readdirSync(SPEC)) {
-  if (!f.endsWith('.json')) continue;
+let shardsRead = 0;
+for (const rel of specRels) {
   let j;
-  try { j = JSON.parse(readFileSync(join(SPEC, f), 'utf8')); } catch { continue; }
+  try { j = JSON.parse(readFileSync(join(SPEC, rel), 'utf8')); } catch (e) {
+    /* An UNDECLARED file that will not parse is skipped exactly as it always was —
+       the top level carries schemas and notes this guard has never needed. A DECLARED
+       shard that will not parse is a refusal: the declaration says its entries are in
+       the table, so dropping it thins the table by a chunk the floor may not be low
+       enough to notice. */
+    if (declaredShardSet.has(rel)) {
+      console.error(`✗  public citations — REFUSING: declared shard ${join(SPEC, rel)} could not be parsed.`);
+      console.error(`   ${e.message}`);
+      console.error('   A declared shard that is on disk and unreadable is not a smaller table, it is an');
+      console.error('   unknown one. Exit 2 COVERAGE LOST.');
+      process.exit(2);
+    }
+    continue;
+  }
   specFiles++;
+  if (declaredShardSet.has(rel)) shardsRead++;
   const walk = (v) => {
     if (typeof v === 'string') { if (/^\[\d+\][A-Za-z]/.test(v)) origins.add(v); return; }
     if (Array.isArray(v)) { v.forEach(walk); return; }
     if (v && typeof v === 'object') { Object.values(v).forEach(walk); }
   };
   walk(j);
+}
+/* THE SHARD FLOOR IS THE DECLARATION'S OWN COUNT, never a typed number: a scan that
+   reads fewer shards than the block declares is exit 2 in both private guards and it
+   is exit 2 here. The two limbs above make it unreachable on any tree they have both
+   run on, and it is carried anyway — it is the assertion that the two halves of this
+   scan agree about how big the resolution table is. */
+if (shardDecl && shardsRead !== shardDecl.declared.length) {
+  console.error(`✗  public citations — REFUSING: read ${shardsRead} of the ${shardDecl.declared.length} declared shard(s).`);
+  console.error('   The declaration and the scan disagree about the size of the resolution table.');
+  process.exit(2);
 }
 /* 352 distinct origin refs on 2026-08-17: the union of every `origin` field in
    the spec arrays and the 221 `knownIds` + 204 `requirementHeadings` frozen in
@@ -342,7 +480,11 @@ for (const f of readdirSync(SPEC)) {
 const ORIGIN_FLOOR = 300;
 if (origins.size < ORIGIN_FLOOR) {
   console.error(`✗  only ${origins.size} origin ref(s) parsed from ${specFiles} spec file(s) — below ${ORIGIN_FLOOR}.`);
-  console.error('   Refusing: a thin resolution table would silently accept a dead citation.');
+  console.error(`   Read from ${SPEC}: ${specRels.length} path(s), of which ${shardsRead} declared shard(s)` +
+    (shardDecl ? ` out of ${shardDecl.declared.length} declared.` : ', no `shards` block declared.'));
+  console.error('   Refusing: a thin resolution table would silently accept a dead citation. If the corpus is');
+  console.error('   sharded and the shard count above is 0, the scan did not descend and THAT is the defect,');
+  console.error('   not the floor — see the SHARD DESCENT block above.');
   process.exit(2);
 }
 /* Public tags usually omit the leading stage number (`[pipeline C-6]` for
@@ -431,7 +573,8 @@ for (const rel of files) {
 const label = `${filesScanned} tracked file(s) · ${pathsChecked} Private/ path ref(s) ` +
   `resolved against ${PRIVATE} · ` +
   `${tagsChecked} [pipeline] tag(s) yielding ${idsChecked} id(s), resolved against ` +
-  `${origins.size} origin(s) from ${specFiles} spec file(s)`;
+  `${origins.size} origin(s) from ${specFiles} spec file(s)` +
+  (shardDecl ? `, ${shardsRead} of them declared shard(s) under ${Object.keys(shardDecl.declared.reduce((a, r) => { a[r.split('/')[0]] = 1; return a; }, {})).length} sharded register(s)` : ' (no `shards` block declared)');
 
 if (!failures.length) {
   console.log(`ok  public citations — every citation resolves. ${label}` +

@@ -145,10 +145,26 @@ const PRIVATE_SIBLING_NAME = basename(ROOT).endsWith('_Public')
   ? `${basename(ROOT).slice(0, -'_Public'.length)}_Private`
   : `${basename(ROOT)}_Private`;
 
+// 🔴 2026-09-08 — `$NIKATRU_PRIVATE_ROOT` JOINS THE LIST, AS THE FIRST CANDIDATE AND NOT
+// AS A FOURTH CONVENTION. `assert-spec.mjs`, `assert-public-citations.mjs` and the
+// private corpus's own resolver all read this variable first and all apply the same
+// non-emptiness probe to it; this guard was the one member of the set that did not, so
+// `spec-guards.mjs` could elect a corpus, hand it to every child, and watch this one
+// child resolve somewhere else. Measured 2026-09-08 in a real worktree of this repo:
+// nine of ten guards ran green against the elected corpus and check-dod-sync alone
+// refused, looking for `Projects/wtproof_Private` — the sibling of the WORKTREE, which
+// has never existed. The header above already says `--company` exists because "an agent
+// working in a worktree has a repo root and a company root in two different places";
+// this is that same sentence made automatic for the runner, and `--company` still
+// overrides it because an explicit argument beats an inherited environment.
+// It is a CANDIDATE, not a switch: a stale variable pointing at an empty or absent
+// directory fails `holdsCorpus` below and falls through to the sibling exactly as
+// before, which is the same tolerance the two entries under it already have.
 const COMPANY_CANDIDATES = [
+  process.env.NIKATRU_PRIVATE_ROOT ? resolve(process.env.NIKATRU_PRIVATE_ROOT) : null,
   join(ROOT, '..', PRIVATE_SIBLING_NAME),
   join(ROOT, 'Private'),
-];
+].filter(Boolean);
 // 🔴 THE DISCRIMINATOR IS NON-EMPTINESS, NOT A NAMED MARKER FILE. The sibling was
 // pre-created as an EMPTY directory before the 2026-08-18 move, so `existsSync` on the
 // directory alone would have selected that shell and refused while the corpus sat one

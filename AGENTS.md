@@ -94,10 +94,10 @@
   **exclusive file ownership**, never by task — tasks overlap on files, files do not.
 - **Commit a `wip` safety point early and often** (`git commit -am wip --no-verify`). It is the one
   thing that has survived a worktree being swept while an agent was still running.
-- ⚠️ **The pre-commit spec-guard runner refuses to run from a git worktree.** It searches upward for
-  the workspace anchor, which a temporary worktree does not have, so it exits 2 before reading a
-  guard. Edit in the worktree if you like, then apply and commit in the real checkout, where every
-  guard runs. Never `--no-verify` past it — that is how a change once landed unguarded.
+- ⚠️ **The pre-commit spec-guard runner RUNS from a git worktree** (2026-09-08). A worktree has no
+  gitignored `.claude/` vault and no `CLAUDE.md`, so the runner resolves both from the MAIN
+  checkout via `git rev-parse --git-common-dir` and copies nothing; it still refuses if the main
+  checkout lacks them. Never `--no-verify` past it — that is how a change once landed unguarded.
 
 ## Workflow loop
 
