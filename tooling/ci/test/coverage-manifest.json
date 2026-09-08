@@ -147,6 +147,7 @@
   "stamp-properties.test.mjs": 14,
   "stamp-text-fidelity.test.mjs": 32,
   "stamp-wiring.test.mjs": 17,
+  "start-here.test.mjs": 6,
   "store-bijection.test.mjs": 26,
   "store-build-config.test.mjs": 22,
   "store-identity.test.mjs": 24,
