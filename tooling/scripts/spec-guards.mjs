@@ -150,6 +150,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* 🔴 git EXPORTS `GIT_DIR` into every hook process and it BEATS `-C`, so the one
+   `git` read this runner makes goes through the helper that deletes the six
+   redirecting variables from the child environment. See repo-git.mjs. */
+import { repoGit, RepoGitError } from './repo-git.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');          // tooling/scripts -> repo root
@@ -208,6 +212,104 @@ if (!WORKSPACE_ROOT) {
 const BRAIN = join(WORKSPACE_ROOT, 'nikatru');       // the shared business brain
 const PRODUCTS_ROOT = join(WORKSPACE_ROOT, 'Projects'); // the products root
 
+/* 🔴 A LINKED WORKTREE HAS NO CREDENTIAL VAULT, AND THAT MADE EVERY WORKTREE COMMIT AN
+   `--no-verify` COMMIT (2026-09-08). This runner does not read `CLAUDE.md` or
+   `.claude/scripts/backup-offsite.ps1` itself, and that is exactly why the failure was
+   hard to see: `assert-spec` derives the public repo from the corpus it lives in, walks
+   it, and requires FOUR top-level anchors — `pubspec.yaml`, `CLAUDE.md`, `mason.yaml`,
+   `pnpm-workspace.yaml` — before it will resolve the eight `invariants.json` and
+   `gates.json` ENFORCEMENT rows that name `.claude/scripts/…`. `.claude/` is gitignored
+   IN FULL and is the local credential vault, and `CLAUDE.md` is gitignored too, so
+   NEITHER exists in a worktree: only tracked files are checked out there.
+
+   MEASURED 2026-09-07 and recorded in Private research/full-read-2026-09-08/
+   S2-structure-apply-2026-09-08.md sections 9 and 12: three agents committed with
+   `--no-verify` on that date, and a fourth abandoned a finished, staged, guard-green
+   branch in a worktree and re-applied it as a patch in the main checkout. A guard that
+   cannot run inside a worktree teaches people to bypass it, and `--no-verify` is a
+   root-`AGENTS.md` prohibition. So the fix is to RESOLVE, never to skip.
+
+   HOW, AND WHAT IS DELIBERATELY NOT DONE. `git rev-parse --git-common-dir` answers
+   `.git` in a main checkout and `<main checkout>/.git` in a linked worktree, so the
+   PARENT of the common dir IS the main worktree — asked of git rather than derived from
+   the directory name, because a worktree may be called anything and may live anywhere.
+   When this tree lacks an anchor and git names a DIFFERENT main checkout, the main
+   checkout becomes the root everything outside this repo is addressed from: the private
+   sibling is named from IT, so `assert-spec` resolves the pair `<main>_Private` ↔
+   `<main>_Public` and walks the main checkout, where the vault and `CLAUDE.md` really
+   are. Nothing is copied. Copying a credential vault into a second directory to satisfy
+   a guard is not a trade this repo makes, and a guard reading a COPIED vault would be
+   asserting about the copy.
+
+   AND IT WEAKENS NOTHING. No floor moves, no enforcement row is dropped, no exit code
+   becomes friendlier, and no limb learns to skip: if the MAIN checkout is also missing
+   the file, the anchors are still absent, `assert-spec` still refuses, and this runner
+   still exits 2. The only change is which directory the question is asked about — from
+   one that structurally cannot answer it to the one that can. In a main checkout
+   `--git-common-dir` resolves to this very repo and every line below behaves exactly as
+   it did before. */
+const HOST_ANCHORS = ['CLAUDE.md', '.claude/scripts/backup-offsite.ps1'];
+const absentHostAnchors = (root) => HOST_ANCHORS.filter((rel) => !existsSync(join(root, ...rel.split('/'))));
+
+/* Two spellings of one directory must compare equal: git answers with forward slashes
+   and whichever drive-letter case it found, `path.resolve` does not. Same normalisation
+   the git helper applies for the same reason. */
+const sameRoot = (a, b) => {
+  const norm = (p) => {
+    const s = resolve(String(p)).replace(/\\/g, '/').replace(/\/+$/, '');
+    return process.platform === 'win32' ? s.toLowerCase() : s;
+  };
+  return norm(a) === norm(b);
+};
+
+/** The MAIN worktree of the repository checked out at `root`, or `{ main: null, why }`
+ *  when there is no answer to be had. Read through `repo-git.mjs`, never with a bare
+ *  `spawnSync('git', …)`: this file runs INSIDE a pre-commit hook, git exports `GIT_DIR`
+ *  into every hook process, and `GIT_DIR` beats `-C`. Asking the wrong repository which
+ *  checkout is its main one is precisely the class of answer this runner must not
+ *  produce confidently. A refusal here is not fatal — it leaves `HOST_ROOT` as this
+ *  tree, which is what every run before 2026-09-08 used. */
+function mainWorktreeOf(root) {
+  let out;
+  try {
+    out = repoGit(root, 'rev-parse', '--git-common-dir').trim();
+  } catch (e) {
+    if (e instanceof RepoGitError) return { main: null, why: `${e.message}` };
+    throw e;
+  }
+  if (!out) return { main: null, why: '`git rev-parse --git-common-dir` printed nothing' };
+  const common = resolve(root, out);
+  if (basename(common) !== '.git') {
+    return { main: null, why: `the common dir is ${common}, whose basename is not \`.git\`, so its parent is not a work tree` };
+  }
+  return { main: dirname(common), why: null };
+}
+
+const ABSENT_HERE = absentHostAnchors(REPO);
+let HOST_ROOT = REPO;
+let WORKTREE = null;
+let WORKTREE_REFUSED = null;
+if (ABSENT_HERE.length) {
+  const { main, why } = mainWorktreeOf(REPO);
+  if (main && !sameRoot(main, REPO)) {
+    HOST_ROOT = main;
+    WORKTREE = { main, absentHere: ABSENT_HERE, absentThere: absentHostAnchors(main) };
+  } else if (!main) {
+    WORKTREE_REFUSED = why;
+  }
+}
+if (WORKTREE) {
+  console.log(`  worktree mode — this tree is missing ${WORKTREE.absentHere.join(' , ')}, which the ENFORCEMENT rows need.`);
+  console.log(`    this tree     : ${REPO}`);
+  console.log(`    main checkout : ${WORKTREE.main}   (parent of \`git rev-parse --git-common-dir\`)`);
+  console.log(WORKTREE.absentThere.length
+    ? `    ⚠️ the main checkout is missing them too: ${WORKTREE.absentThere.join(' , ')}. Nothing is skipped for that — the guards below still refuse.`
+    : '    Resolved there, and nothing is copied: the gitignored vault stays in the one checkout that has it.');
+} else if (WORKTREE_REFUSED && ABSENT_HERE.length) {
+  console.log(`  note — ${ABSENT_HERE.join(' , ')} absent here and the main checkout could not be asked for: ${WORKTREE_REFUSED}`);
+  console.log('    Continuing against this tree, which is what every run before 2026-09-08 did.');
+}
+
 /* The guards live in two trees and this script may be invoked from EITHER — the
    public repo's hook, or Private/'s own hook, whose repo root is a
    different directory entirely. So each guard is resolved by trying both
@@ -224,9 +326,10 @@ const PRODUCTS_ROOT = join(WORKSPACE_ROOT, 'Projects'); // the products root
    candidate list is not a museum. What replaces them is anchor-derived and cannot drift. */
 const CANDIDATE_ROOTS = [
   REPO,                                  // invoked from the public repo
+  HOST_ROOT,                             // 🔴 2026-09-08: the MAIN checkout when this tree is a worktree; === REPO otherwise, and deduplicated below
   PRODUCTS_ROOT,                         // anchor-derived: the products root
   WORKSPACE_ROOT,                        // anchor-derived: products root + brain, side by side
-];
+].filter((root, i, all) => all.findIndex((other) => sameRoot(other, root)) === i);
 
 /* WHERE THE PRIVATE CORPUS ITSELF LIVES — its own list, ordered newest-first, because
    after 2026-08-18 the corpus is no longer a `Private/` child of anything. It is a
@@ -250,15 +353,25 @@ const CANDIDATE_ROOTS = [
    in CANDIDATE_ROOTS above. What is KEPT is repo-RELATIVE and therefore depth-immune:
    `REPO/Private` (the pre-move nested corpus) and REPO itself (the corpus's own hook,
    where the corpus IS the repo root). Neither one counts a level outside this repo. */
-const REPO_NAME = basename(REPO);
+/* 🔴 2026-09-08 — NAMED FROM `HOST_ROOT`, NOT FROM `REPO`. In a main checkout the two
+   are one directory and nothing changes. In a linked worktree they differ, and the
+   worktree's own name is the wrong input: `Projects/structure_Public` composes
+   `Projects/structure_Private`, a corpus that has never existed, and the run then
+   refused with CANNOT RUN on a machine where the real corpus was sitting one
+   directory over. Measured 2026-09-07; S2 section 9 records the whole afternoon it
+   cost, including the throwaway private worktree that was created to satisfy this
+   very line and then broke a relative link two levels down. The main checkout's name
+   is the stable half of the pair, so it is the half the sibling is derived from. */
+const REPO_NAME = basename(HOST_ROOT);
 const PRIVATE_SIBLING_NAME = REPO_NAME.endsWith('_Public')
   ? `${REPO_NAME.slice(0, -'_Public'.length)}_Private`
   : `${REPO_NAME}_Private`;
 const PRIVATE_ROOT_CANDIDATES = [
-  join(dirname(REPO), PRIVATE_SIBLING_NAME),  // 🔴 the sibling, addressed by name at whatever depth the repo sits
-  join(REPO, 'Private'),                  // pre-move: the corpus nested inside this repo
+  join(dirname(HOST_ROOT), PRIVATE_SIBLING_NAME),  // 🔴 the sibling, addressed by name at whatever depth the repo sits
+  join(HOST_ROOT, 'Private'),             // pre-move: the corpus nested inside this repo
+  join(REPO, 'Private'),                  // the same, from a worktree of it
   REPO,                                   // invoked from the corpus's OWN hook, where it IS the repo root
-];
+].filter((root, i, all) => all.findIndex((other) => sameRoot(other, root)) === i);
 
 /* 🔴 THE MARKER IS LOAD-BEARING, NOT A BELT-AND-BRACES EXISTENCE CHECK, AND THIS WAS
    MEASURED ON 2026-08-18 RATHER THAN REASONED ABOUT. On that date the sibling
@@ -498,6 +611,7 @@ if (!PRIVATE_ROOT) {
   // it "not found" is one message covering two unrelated causes.
   console.error(`  Workspace anchor: ${WORKSPACE_ROOT}   (brain: ${BRAIN} , products: ${PRODUCTS_ROOT})`);
   console.error(`  This repo: ${REPO_NAME}   ->   expected private sibling: ${PRIVATE_SIBLING_NAME}`);
+  if (WORKTREE) console.error(`  This tree is a linked worktree of ${WORKTREE.main}, and the sibling above is named from THAT checkout.`);
   console.error('  These guard(s) were therefore not run:');
   for (const g of selected) console.error(`    --   ${g.name.padEnd(24)} ${g.what}`);
   console.error('  A runner that cannot find its subject has checked nothing, and nothing is not a pass.');
@@ -540,6 +654,22 @@ if (inapplicable.length) {
   for (const g of inapplicable) console.log(`    --   ${g.name}`);
 }
 
+/* 🔴 THE CHILDREN ARE TOLD WHICH CORPUS WAS ELECTED (2026-09-08), and only when this
+   tree is a worktree. `assert-public-citations.mjs` and `assert-spec.mjs` each resolve
+   the logical `Private/` prefix for themselves, by the same convention this file uses —
+   which lands on the same directory from a main checkout and on nothing at all from a
+   worktree, because the sibling of `<worktree>` is not the corpus. `NIKATRU_PRIVATE_ROOT`
+   is their documented override and it is set to the root THIS runner already elected by
+   the non-empty + `requirements/` probes, so the runner and its guards cannot disagree
+   about what they are checking. An override the caller set by hand is never overwritten.
+   It is not a loosening: `assert-spec` still refuses if the corpus it is handed is not
+   the corpus it lives in, which is the round-trip its own header describes. */
+const CHILD_ENV = { ...process.env };
+if (WORKTREE && !process.env.NIKATRU_PRIVATE_ROOT) {
+  CHILD_ENV.NIKATRU_PRIVATE_ROOT = PRIVATE_ROOT;
+  console.log(`    NIKATRU_PRIVATE_ROOT=${PRIVATE_ROOT} passed to every guard below.`);
+}
+
 const t0 = Date.now();
 const results = [];
 for (const g of resolved) {
@@ -547,7 +677,7 @@ for (const g of resolved) {
   // spawnSync, never a shell pipeline: `$?` after a pipe is the LAST stage's
   // status, which is how a failing guard reads as 0. This corpus has been bitten
   // by that twice, once while testing a guard against exactly that trap.
-  const r = spawnSync(process.execPath, [g.path], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [g.path], { encoding: 'utf8', env: CHILD_ENV });
   const code = r.status === null ? 2 : r.status;
   results.push({ ...g, code, ms: Date.now() - started, out: (r.stdout ?? '') + (r.stderr ?? '') });
 }
