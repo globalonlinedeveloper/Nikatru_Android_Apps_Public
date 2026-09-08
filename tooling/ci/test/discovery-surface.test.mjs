@@ -1414,8 +1414,18 @@ describe('the real repository', () => {
     // hand-written homepage, this array included.
     const home = readFileSync(join(REPO, 'sites', 'nikatru', 'index.html'), 'utf8');
     assert.match(home, /const APPS = \[\n/);
-    assert.match(home, /name: "Subly"/);
-    assert.match(home, /https:\/\/subly\.nikatru\.com/);
+    // ⚠️ READ FROM THE CATALOGUE, NEVER TYPED. This assertion used to carry the
+    // brand as a literal, and the 2026-09-09 rename turned it into a test of a
+    // string nothing produces any more. The point of the case is that the
+    // hand-maintained homepage array AGREES with the catalogue — so the
+    // catalogue is where the expected value comes from, and the next rename
+    // moves this case for free.
+    const live = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8')).filter((r) => r.status === 'live');
+    assert.ok(live.length > 0, 'the catalogue lists no live app, so this case would assert nothing');
+    for (const row of live) {
+      assert.ok(home.includes(`name: ${JSON.stringify(row.name)}`), `the homepage APPS array does not name ${row.name}`);
+      assert.ok(home.includes(row.url), `the homepage APPS array does not carry ${row.url}`);
+    }
 
     // The registry and the homepage now agree, so the print is gone. Its absence
     // is the assertion: a print that never clears is a print nobody reads.

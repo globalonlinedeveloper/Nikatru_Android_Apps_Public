@@ -256,7 +256,12 @@ describe('assert-render-payload — the published projection', () => {
   });
 
   test('STALE after the STORE LISTING moves — refuses naming the lede', () => {
-    const root = tree({ lede: edit(real(REL.lede), 'Subly keeps every', 'Subly now keeps every') });
+    // ⚠️ THE ANCHOR IS THE LISTING'S OWN FIRST WORDS, read here rather than
+    // typed. It was the brand as a literal until the 2026-09-09 rename, at which
+    // point `edit()` threw "fixture anchor not found" — which is the helper
+    // working, and is why it throws instead of returning the text unchanged.
+    const opening = real(REL.lede).split(/\s+/).slice(0, 3).join(' ');
+    const root = tree({ lede: edit(real(REL.lede), opening, `${opening} now`) });
     try {
       refuses(guard(root), 'lede[0]', 'a store listing change nobody republished');
     } finally { rmSync(root, { recursive: true, force: true }); }
