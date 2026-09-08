@@ -113,7 +113,23 @@
 // catch. It was written into tooling/ci/ first and moved the same day, after
 // `assert-guard-coverage` correctly reported it as an orphan.
 //
-// Usage:  node tooling/scripts/assert-public-citations.mjs
+// 🔴 A CITATION MAY BE PINNED TO A TAG IN THE PRIVATE CORPUS (2026-09-08). The
+// private prune of 2026-09-08 removed files that public records and guard comments
+// name by path. Those bytes are dated records and comments, which ADR 053 rule 2
+// says are appended beside and never rewritten to keep a pointer alive — and the
+// files themselves are EVIDENCE, which the owner's "only required files" order says
+// must not force a tree to stay. Both halves are satisfied by naming WHERE the
+// evidence is rather than pretending it is still on disk: the logical prefix, then a
+// git tag, a colon, and the path the file had at that tag.
+//
+// ⚠️ THIS IS NOT A DISCLOSURE AND IT IS NOT A LOOSENING. A disclosed absence is a
+// promise a reader cannot check; a pinned citation is RESOLVED, by asking the private
+// repository whether that blob exists at that tag (`git cat-file -e <tag>:<path>`).
+// A pin whose path was never at the tag FAILS, a pin naming a tag the corpus does not
+// carry is COVERAGE LOST, and a plain path that no longer exists still fails exactly
+// as it always did. The set of resolvable citations grows by the set of things git
+// can still prove, and by nothing else.
+//// Usage:  node tooling/scripts/assert-public-citations.mjs
 // ─────────────────────────────────────────────────────────────────────────────
 /* 🔴 2026-09-07 — `git` IS NOT SPAWNED DIRECTLY FROM HERE ANY MORE, and the reason
    is the one defect that had been refusing every private commit on this machine.
@@ -125,7 +141,7 @@
    this guard refused in 170 ms on a subject that was never its own. See
    `repo-git.mjs`, which deletes the six redirecting variables from the child
    environment and proves the root is its own repository before reading it. */
-import { repoGit, RepoGitError, strippedNote } from './repo-git.mjs';
+import { repoGit, repoGitRaw, RepoGitError, strippedNote } from './repo-git.mjs';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -494,7 +510,15 @@ const bareOrigins = new Set([...origins].map((o) => o.replace(/^\[\d+\]/, '')));
 /* The logical prefix every private citation is written with. RE_PRIVATE_PATH
    cannot match without it, so slicing it off a match is total, not a lucky case. */
 const LOGICAL_PREFIX = 'Private/';
-const RE_PRIVATE_PATH = /Private\/[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
+/* 🔴 THE FIRST SEGMENT MAY BE A GIT TAG AND A COLON — see the TAG PIN block below.
+   The tag alternative lives INSIDE this one expression rather than in a second regex
+   because a citation is one token: matched separately, the pinned form would ALSO
+   match as a plain path (the tag alone, the colon and everything after it cut off at
+   the character class) and be reported as a missing directory that nobody wrote. A
+   tag is `[A-Za-z0-9][A-Za-z0-9_.-]*` and carries no slash, so which colon ends the
+   tag is never ambiguous, and a citation with no colon in its first segment matches
+   byte-for-byte the shape this guard has always matched. */
+const RE_PRIVATE_PATH = /Private\/(?:[A-Za-z0-9][A-Za-z0-9_.-]*:)?[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
 const RE_PIPELINE_TAG = /\[pipeline ([^\]]{1,120})\]/g;
 /* An id is a letter-block, a dash and a number, optionally sub-lettered: C-6,
    F-5a, N-4, S-12r. Extracted from ANYWHERE in the tag body, so `C-2/C-7`,
@@ -517,10 +541,81 @@ function resolvesOntoShardDir(relFromPrivate) {
   return existsSync(join(SPEC, register));
 }
 
+/* ── TAG PIN BEGIN ───────────────────────────────────────────────────────────
+   The resolver for a pinned citation. Everything here is ASKED OF GIT; nothing is
+   assumed from the shape of the string. Three states, three different answers:
+
+     · the blob is at that tag            -> resolved, exactly like a path on disk
+     · the tag is there, the blob is not  -> a FAILURE (exit 1), same as any dead path
+     · the corpus does not carry the tag  -> COVERAGE LOST (exit 2), never a pass:
+       the citation was not evaluated, and "I could not check" is not "it checks out"
+
+   🔴 GIT IS SPAWNED LAZILY, and that is load-bearing rather than an optimisation: a
+   tree carrying no pinned citation must behave exactly as it did before this block
+   existed, including on a corpus that is a plain directory and not a checkout.
+
+   Both caches are keyed on what was asked, not on what was found, so a repeated
+   citation of one file costs one spawn no matter how many public files carry it. */
+const RE_TAG_PIN = /^([A-Za-z0-9][A-Za-z0-9_.-]*):(.+)$/;
+const pinCache = new Map();
+const tagCache = new Map();
+
+function pinRefuse(lines) {
+  console.error('✗  public citations — REFUSING: a tag-pinned citation could not be evaluated.');
+  for (const l of lines) console.error(`      ${l}`);
+  console.error(`   The corpus asked was ${PRIVATE}.`);
+  console.error('   Exit 2 COVERAGE LOST: an unevaluated citation is not a resolved one, and the two');
+  console.error('   must not share an exit code.');
+  console.error('   ' + strippedNote());
+  process.exit(2);
+}
+
+/** Does the corpus carry this tag? A missing tag is a refusal at the call site, not
+ *  here, so this stays a question and the caller keeps the sentence it prints. */
+function tagExists(tag) {
+  if (tagCache.has(tag)) return tagCache.get(tag);
+  let r;
+  try {
+    r = repoGitRaw(PRIVATE, ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]);
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    pinRefuse([`git could not be asked about tag \`${tag}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+  }
+  const ok = r.status === 0 && r.stdout.trim().length > 0;
+  tagCache.set(tag, ok);
+  return ok;
+}
+
+/** Was `path` a real blob (or tree) at `tag`? `git cat-file -e` answers exactly that
+ *  and nothing else — status 0 yes, non-zero no — which is why it is the probe rather
+ *  than `git show`, whose output a reader of this guard would then have to trust. */
+function resolvesAtTag(tag, path) {
+  const key = `${tag}:${path}`;
+  if (pinCache.has(key)) return pinCache.get(key);
+  if (!tagExists(tag)) {
+    pinRefuse([
+      `the citation pins tag \`${tag}\`, which this corpus does not carry.`,
+      'A pin is only as good as the tag behind it. If the tag was never pushed, or the',
+      'checkout is shallow or tagless, this guard has verified NOTHING about that line.',
+    ]);
+  }
+  let r;
+  try {
+    r = repoGitRaw(PRIVATE, ['cat-file', '-e', key]);
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    pinRefuse([`git could not read \`${key}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+  }
+  const ok = r.status === 0;
+  pinCache.set(key, ok);
+  return ok;
+}
+/* ── TAG PIN END ─────────────────────────────────────────────────────────── */
+
 const DISCLOSED = /\(\s*(?:does not exist|never existed|no longer exists|deleted|retired|gone|removed|absent)/i;
 
 const failures = [];
-let pathsChecked = 0, tagsChecked = 0, idsChecked = 0, filesScanned = 0;
+let pathsChecked = 0, pinsChecked = 0, tagsChecked = 0, idsChecked = 0, filesScanned = 0;
 let skippedStruck = 0, skippedDisclosed = 0;
 
 for (const rel of files) {
@@ -554,6 +649,21 @@ for (const rel of files) {
       const p = m[0].replace(/[.,;:)]+$/, '');
       if (p === 'Private' || p === 'Private/') continue;
       pathsChecked++;
+      /* ── TAG PIN USE BEGIN ─────────────────────────────────────────────────────
+         A pinned citation is answered HERE and never falls through to the on-disk
+         resolution below: the whole point of a pin is that the file is NOT on disk.
+         Deleting this region is exactly this guard as it stood before 2026-09-08 —
+         written to be deletable so the test can put the defect back and watch it
+         bite. */
+      const pinned = RE_TAG_PIN.exec(p.slice(LOGICAL_PREFIX.length));
+      if (pinned) {
+        pinsChecked++;
+        if (resolvesAtTag(pinned[1], pinned[2])) continue;
+        if (disclosed) { skippedDisclosed++; continue; }
+        failures.push({ rel, line: i + 1, kind: 'pin', what: p, text: line.trim().slice(0, 130) });
+        continue;
+      }
+      /* ── TAG PIN USE END ─────────────────────────────────────────────────────── */
       /* Swap the logical prefix for the resolved root, keeping the remainder. Was
          `join(REPO, p)` until 2026-08-18, which only worked while `Private/` was a
          real subdirectory of the repo; it is a logical prefix now — see
@@ -605,7 +715,7 @@ for (const rel of files) {
    how many citations resolved without saying what they resolved AGAINST is not a
    report a reader can check. */
 const label = `${filesScanned} tracked file(s) · ${pathsChecked} Private/ path ref(s) ` +
-  `resolved against ${PRIVATE} · ` +
+  `resolved against ${PRIVATE} (${pinsChecked} of them tag-pinned, resolved with \`git cat-file -e\`) · ` +
   `${tagsChecked} [pipeline] tag(s) yielding ${idsChecked} id(s), resolved against ` +
   `${origins.size} origin(s) from ${specFiles} spec file(s)` +
   (shardDecl ? `, ${shardsRead} of them declared shard(s) under ${Object.keys(shardDecl.declared.reduce((a, r) => { a[r.split('/')[0]] = 1; return a; }, {})).length} sharded register(s)` : ' (no `shards` block declared)');
@@ -628,7 +738,10 @@ console.error(`✗  public citations — ${failures.length} unresolved citation(
 for (const [rel, hits] of [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)) {
   console.error(`  ${rel}  (${hits.length})`);
   for (const h of hits.slice(0, 6)) {
-    console.error(`    :${h.line}  ${h.kind === 'path' ? 'no such path' : 'unknown requirement id'}  ${h.what}`);
+    const why = h.kind === 'path' ? 'no such path'
+      : h.kind === 'pin' ? 'not at that tag'
+      : 'unknown requirement id';
+    console.error(`    :${h.line}  ${why}  ${h.what}`);
   }
   if (hits.length > 6) console.error(`    … and ${hits.length - 6} more in this file`);
 }

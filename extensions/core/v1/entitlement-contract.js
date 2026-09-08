@@ -120,7 +120,7 @@ export function restoresAccess(reason) {
  * 🔴 THE MAP IS DATA, IN THIS FILE, FOR THE SAME REASON THE REASON SET IS. Three
  * runtimes have to agree about it: the platform Worker's `revenuecatVerifier`
  * (when it is written — see the residue in
- * `Private/research/revamp-2026-09-05/phase3-chassis-billing.md`), the Dart
+ * `Private/pre-prune-2026-09-08:research/revamp-2026-09-05/phase3-chassis-billing.md`), the Dart
  * client, and any extension that reads an entitlement. A translation table
  * restated in a Worker and remembered in a client is the fourth transcription
  * this directory exists to prevent — and this one is worse than the reason set,

@@ -115,6 +115,7 @@
   "provision-backend.test.mjs": 9,
   "pseudonymity-firewall.test.mjs": 17,
   "public-citations-shards.test.mjs": 10,
+  "public-citations-tagpin.test.mjs": 6,
   "publish-records.test.mjs": 43,
   "purchase-path.test.mjs": 81,
   "release-durable.test.mjs": 130,

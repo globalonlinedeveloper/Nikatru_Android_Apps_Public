@@ -1008,7 +1008,7 @@
             "guarded by `github.event_name == 'schedule'`). So a WORKER-DISPATCHED nightly that fails files NO durable",
             "issue — and the Worker-dispatched run is precisely the unattended one now. The reader is fixed; the alerter",
             "is not. This unit does not own .github/workflows/e2e.yml and did not touch it; the finding is recorded in",
-            "Private/research/revamp-2026-09-05/phase2-spine-e2e-proof-fresh-d1.md for a unit that does."
+            "Private/pre-prune-2026-09-08:research/revamp-2026-09-05/phase2-spine-e2e-proof-fresh-d1.md for a unit that does."
           ]
         }
       },

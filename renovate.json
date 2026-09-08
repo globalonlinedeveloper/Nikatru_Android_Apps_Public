@@ -435,7 +435,7 @@
         "notes before merging one.",
         "⚠️ THIS MANAGER DOES NOT REACH extensions.yml’s LINT PINS (`web-ext@8` at :612, `8.10.0` at :1976).",
         "Those are the CI lint lane, outside this unit's owned region, and are carried as a NAMED RESIDUE",
-        "rather than edited — Private/research/revamp-2026-09-05/phase3-store-lanes.md. A v8 lint is not",
+        "rather than edited — Private/pre-prune-2026-09-08:research/revamp-2026-09-05/phase3-store-lanes.md. A v8 lint is not",
         "evidence about a v10 sign."
       ],
       "matchStrings": [
