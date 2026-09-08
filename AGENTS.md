@@ -165,12 +165,20 @@ moving house. After a move, run the OLD guard against a mutation, with a green c
 
 ## Read order for context (each session)
 
-1. **`Private/platform-state/`** — the cold-start knowledge set: what the platform IS, what may not
-   change and who may change it, the traps, the programme, and what is open. Its
-   `Private/platform-state/README.md` gives the order inside it. Every number there carries the
-   command that re-derives it, so a claim without a command is not a claim.
-2. **`Private/NOW.md` — the STATE block only**, not the whole file.
-3. The ADR you are about to touch, from `Private/decisions/`.
+1. **`Private/START-HERE.md`** and **`Private/platform-state/brief.md`** — the corpus entry card and
+   the one-line-per-row programme and open brief. Both are GENERATED, so neither can go stale.
+   🗄️ `Private/NOW.md` was retired on 2026-09-08 and is now a redirect stub kept only so citations
+   resolve; these two files replaced it.
+2. The ADR you are about to touch, from `Private/decisions/`.
+
+🔴 **Never read a `Private/platform-state/` register whole.** The eight files are ~300 KiB and answer
+about forty lines' worth of question. Query them by id instead — one row, with its `verify`:
+
+```
+node ../Nikatru_Platform_Private/requirements/tooling/state.mjs O-STORE-SCREENSHOTS
+node ../Nikatru_Platform_Private/requirements/tooling/state.mjs --next
+node ../Nikatru_Platform_Private/requirements/tooling/state.mjs --grep apple
+```
 
 Everything else is on demand: `Private/requirements/` (the JSON spec) · `Private/runbooks/` ·
 `Private/README.md` (the corpus index). Do not read the corpus to orient yourself, and do not
