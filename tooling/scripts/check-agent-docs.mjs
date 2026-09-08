@@ -96,6 +96,9 @@ for (const sentinel of CONFIG.sentinels) {
 }
 
 const WRITE_BASELINE = process.argv.includes('--write-baseline');
+/* --index says "judge the STAGED content on purpose", which is what a pre-commit
+   hook means. Every other caller is asking about the tree in front of them. */
+const INDEX_MODE = process.argv.includes('--index');
 const BASELINE_PATH = join(ROOT, '.agentdocs.baseline.json');
 
 /* ---------------------------------------------------------------- git I/O */
@@ -272,9 +275,85 @@ for (const dir of leafDirs) {
   }
 }
 
+/* ----------------------------------------------------------- honesty gate */
+/* THE SUBJECT OF THIS GUARD IS THE INDEX, AND THAT IS RIGHT FOR A HOOK AND WRONG
+   FOR A SWEEP. Measured 2026-09-08 in the private corpus, whose copy of this file is
+   the same file: an edit pushing AGENTS.md 13 bytes past its cap exited 0 while
+   UNSTAGED and 1 the moment it was staged. A green printed before `git add` was not a
+   statement about the tree the operator was looking at, and nothing in the output said
+   so. In CI the checkout is clean by construction, so this gate is silent there; it
+   earns its place on the ad-hoc runs, which is where this guard is mostly used.
+
+   THE SUBJECT IS NOT CHANGED. What changes is that a run whose answer cannot be about
+   the working tree now REFUSES instead of printing ok. Nothing below can turn a red
+   into a green: every branch here only ever exits 2.
+
+   🔴 `git status --porcelain`, NOT `git diff-files`. Measured 2026-09-08: a bare
+   `touch` of AGENTS.md, changing not one byte, makes `git diff-files --name-status`
+   print `M` out of git's stale stat cache, while `git status --porcelain` prints
+   nothing -- `status` refreshes that cache and `diff-files` does not. A gate built on
+   `diff-files` would cry COVERAGE LOST over a timestamp, and a guard that false-alarms
+   is a guard that gets ignored: this same failure, reached by a longer road.
+
+   TRACKED PATHS ONLY (--untracked-files=no). An untracked file stays invisible, so a
+   concurrent writer's new file still cannot redden anyone else -- the 2026-09-07
+   property this guard was built around is preserved exactly, not weakened.
+
+   It sits ABOVE --write-baseline on purpose. A baseline frozen off an unstaged tree is
+   a stale measurement that then gets COMMITTED and outlives the session that took it,
+   which is worse than a stale run. */
+if (!INDEX_MODE) {
+  const contentSubjects = new Set([
+    ...textyRows.map((r) => r.path),
+    ...docRows.map((r) => r.path),
+    ...agentsRows.map((r) => r.path),
+  ]);
+  const REC_SEP = String.fromCharCode(0);
+  const parts = String(git(['status', '--porcelain', '--untracked-files=no', '-z'])).split(REC_SEP);
+  const diverged = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const rec = parts[i];
+    if (!rec || rec.length < 4) continue;
+    const X = rec[0];
+    const Y = rec[1];
+    const path = rec.slice(3);
+    /* a rename or a copy carries its ORIGINAL path as its own NUL record */
+    if (X === 'R' || X === 'C') i += 1;
+    if (Y === ' ') continue;
+    /* A path whose BYTES this run read: the answer about it is stale outright.
+       D / T / U: a delete, a typechange or an unmerged path moves the tracked-path
+       and mode picture that limbs A-PATH, A-LINK and capFor judge, so it counts even
+       when its bytes were never read. */
+    if (Y === 'D' || Y === 'T' || Y === 'U' || contentSubjects.has(path)) diverged.push(Y + '  ' + path);
+  }
+  if (diverged.length > 0) {
+    console.error('x COVERAGE LOST - the working tree differs from the index for ' + diverged.length + ' file(s) this guard judges.');
+    for (const d of diverged) console.error('    ' + d);
+    console.error('  This guard reads the INDEX (git ls-files --cached -s + git cat-file --batch), so its verdict');
+    console.error('  is about what a commit would contain, not about what is on disk. Stage these files and');
+    console.error('  re-run, or pass --index if you meant to judge the staged content (a pre-commit hook does).');
+    console.error('  2 is deliberately NOT a pass: an answer about the wrong snapshot is not evidence.');
+    process.exit(2);
+  }
+}
+
 /* --------------------------------------------------------------- baseline */
 
-const key = (f) => f.limb + ' ' + f.path;
+/* 🔴 THIS SEPARATOR WAS A LITERAL NUL BYTE IN THIS FILE UNTIL 2026-09-09, AND IT MADE
+   THIS GUARD'S OWN SOURCE INVISIBLE TO A SWEEP FOR GUARDS. One NUL at byte 12611 was
+   enough for `file` to call the whole thing `data` and for `grep -I` -- which skips
+   binary files, and is what a sweep uses so it does not drown in build output -- to
+   pass over it in silence. Measured here on the day, control first:
+     grep -a  -c 'process.exit' <this file>          -> 11
+     grep -I  -c 'process.exit' <this file>          ->  0   (exit 1)
+     grep -Irl 'process.exit' tooling/scripts/*.mjs  -> does NOT list this file
+   A guard nothing can find is one nobody audits, which is the same shape as the
+   defect this whole file exists to catch: a check that quietly stops being checked.
+   `String.fromCharCode(0)` is the same value with none of the invisibility. The
+   sibling copy in the private corpus carried the identical byte and was cleaned the
+   same way; the business-brain copy too. */
+const KEY_SEP = String.fromCharCode(0);
+const key = (f) => f.limb + KEY_SEP + f.path;
 let baseline = { entries: [] };
 if (existsSync(BASELINE_PATH)) {
   try { baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')); }
