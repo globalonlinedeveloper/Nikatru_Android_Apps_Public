@@ -65,6 +65,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
+import { parseWorkflow } from './workflow-scan.mjs';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 
@@ -110,56 +111,45 @@ function coverageLost(lines) {
 }
 
 // ── parsing ──────────────────────────────────────────────────────────────────
-// Hand-rolled and indentation-based, matching assert-channel-register.mjs and
-// assert-release-provenance.mjs. Comments are stripped BOTH full-line and
-// trailing, because the two parsers already in the tree diverged on exactly that
-// once and an inline-commented job escaped a check that way (review 2026-07-31).
-function parseWorkflow(rel) {
-  const raw = read(rel);
-  if (raw === null) return null;
-  const stripped = raw.replace(/^\s*#.*$/gm, '').replace(/\s#.*$/gm, '');
-  const lines = stripped.split('\n');
-  const jobsAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));
-  const jobs = new Map();
-  if (jobsAt !== -1) {
-    let current = null;
-    for (let i = jobsAt + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (/^\S/.test(line)) break; // back to top level — jobs: is over
-      const m = line.match(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):\s*$/);
-      if (m) {
-        current = m[1];
-        jobs.set(current, []);
-      } else if (current !== null) {
-        jobs.get(current).push(line);
-      }
-    }
-  }
-  const rawTopLevel = (raw.match(/^[a-z]+:/gm) ?? []).length;
-  return { rel, jobs, rawTopLevel };
-}
-
-/** `needs:` in either flow (`[a, b]`) or block (`- a`) form. */
-function jobNeeds(body) {
-  const flow = body.match(/^ {4}needs:\s*\[([^\]]*)\]/m);
-  if (flow) return flow[1].split(',').map((s) => s.trim()).filter(Boolean);
-  const lines = body.split('\n');
-  const at = lines.findIndex((l) => /^ {4}needs:\s*$/.test(l));
-  if (at === -1) return [];
-  const out = [];
-  for (const line of lines.slice(at + 1)) {
-    const m = line.match(/^\s*-\s*([A-Za-z_][A-Za-z0-9_-]*)\s*$/);
-    if (!m) break;
-    out.push(m[1]);
-  }
-  return out;
-}
-
-/** The JOB-level `if:` (indent 4), never a step-level one (indent 8). */
-function jobIf(body) {
-  const m = body.match(/^ {4}if:\s*(.+)$/m);
-  return m ? m[1].trim() : null;
-}
+// ⏱ 2026-09-08 — THE HAND-ROLLED PARSER IS GONE; THIS READS `workflow-scan.mjs`.
+//
+// What stood here was a private `parseWorkflow`, `jobNeeds` and `jobIf`, beside a
+// comment recording that "the two parsers already in the tree diverged on exactly
+// that once and an inline-commented job escaped a check that way (review
+// 2026-07-31)". The module it now imports was extracted for precisely that reason
+// and says so in its own header: "the alternative is four copies that drift, and
+// the FIRST thing that drifts in a workflow parser is which lines it can see at
+// all — a failure that reports 'clean'." This file and assert-app-dod.mjs were the
+// last two holdouts; 21 guards and 3 release scripts already read the module.
+//
+// 🔴 THE SWAP IS NOT NEUTRAL, IT IS A BUG FIX, and that is worth saying plainly
+// rather than burying under "consolidation". The local `jobNeeds` knew two of the
+// three `needs:` forms and stripped no quotes. The shared one knows all three and
+// strips quotes, because both gaps were found the hard way:
+//   · `needs: detect` — the SCALAR form, which `deploy-workers.yml` uses — made a
+//     correctly-gated production workflow read as ungated;
+//   · `needs: ["gate"]` read the dependency as `"gate"`, quotes included, so the
+//     graph walk silently dropped the edge.
+// Every aggregator this file grades happens to use the flow form today, so the
+// answers are unchanged on this tree — which is exactly the kind of luck a shared
+// parser exists to stop depending on.
+//
+// ⚠️ WHAT IS DELIBERATELY *NOT* TAKEN FROM THE MODULE: `job.logical`.
+// `joinBlockScalars` collapses a `run: |` block onto one line joined with ` ; `,
+// and §C below reads `step.run` with `[^\n]*` and `run.split('\n')`. Feeding it a
+// joined line would let the DRIFT pattern run across what were separate commands
+// and would turn "some LINE has `rm` and names the artifact" into "the block has
+// `rm` somewhere and the artifact somewhere" — a real weakening dressed as reuse.
+// `jobSteps` below therefore keeps its own newline-delimited step model, built
+// over `job.lines` exactly as `assert-publish-steps-guarded.mjs` builds its own
+// (see its note at :266 about anchoring the step bullet at six spaces).
+//
+// ⚠️ AND THE COVERAGE CANARY MOVED FROM `rawTopLevel` TO `rawStepCount`. The old
+// one counted top-level keys in the raw text; the module counts step bullets. Both
+// answer the same question — "the file has content and the parse found no jobs" —
+// and the module's is the stricter of the two, since a workflow with steps but no
+// parsed jobs is a parser that has stopped reaching the file whether or not `on:`
+// and `env:` survived.
 
 /** Steps of one job, each as { id, if, run, env: Map }. */
 function jobSteps(bodyLines) {
@@ -208,9 +198,15 @@ function jobSteps(bodyLines) {
 
 const cache = new Map();
 function workflow(rel) {
-  if (!cache.has(rel)) cache.set(rel, parseWorkflow(rel));
+  if (!cache.has(rel)) cache.set(rel, parseWorkflow(ROOT, rel));
   return cache.get(rel);
 }
+
+/** The lines of one job as plain strings, which is what `jobSteps` above and the
+ *  `needs`/`if` reads below were written against. `workflow-scan` carries a line
+ *  NUMBER with every line — a strict improvement this file does not yet spend —
+ *  so the shape is narrowed here, in one place, rather than at nine call sites. */
+const bodyOf = (job) => job.lines.map((l) => l.text);
 
 // ═════ A. every aggregating job's verdict set is complete ════════════════════
 let aggregatorsChecked = 0;
@@ -224,9 +220,9 @@ for (const target of AGGREGATORS) {
       'sweep of a workflow it never opened. Re-point AGGREGATORS in the same change that moved it.',
     ]);
   }
-  if (wf.rawTopLevel > 0 && wf.jobs.size === 0) {
+  if (wf.rawStepCount > 0 && wf.jobs.size === 0) {
     coverageLost([
-      `${target.workflow} has ${wf.rawTopLevel} top-level key(s) and ZERO parsed jobs.`,
+      `${target.workflow} has ${wf.rawStepCount} raw step bullet(s) and ZERO parsed jobs.`,
       'The parser has stopped reaching the file, so "does this job exist" would be asked of an',
       'empty map and every aggregate check below would pass by having nothing to check.',
     ]);
@@ -241,17 +237,19 @@ for (const target of AGGREGATORS) {
   }
   aggregatorsChecked++;
 
-  const bodyLines = wf.jobs.get(target.job);
-  const body = bodyLines.join('\n');
+  const job = wf.jobs.get(target.job);
+  /* The job's text, joined the way this file has always joined it: raw lines with
+     newlines kept. NOT `job.logical` — see the ⚠️ in the parsing note above. */
+  const body = bodyOf(job).join('\n');
   const where = `${target.workflow}: job "${target.job}"`;
   const others = [...wf.jobs.keys()].filter((j) => j !== target.job);
-  const needs = jobNeeds(body);
+  const needs = job.needs;
 
   // A1. `if: always()` — LOAD-BEARING. Without it the aggregate inherits the
   // default success(), reports SKIPPED whenever a lane fails, and GitHub counts
   // a skipped required check as satisfied: branch protection goes green over a
   // red tree and the verdict logic below never executes at all.
-  const cond = jobIf(body);
+  const cond = job.jobIf === null ? null : job.jobIf.cond;
   if (cond === null || !/\balways\s*\(\s*\)/.test(cond)) {
     problems.push(
       `${where} has no job-level \`if: always()\` (found ${cond === null ? 'no `if:` at all' : `\`${cond}\``}). ` +
@@ -317,7 +315,8 @@ for (const target of AGGREGATORS) {
   // red CI run — and the alternative (letting the lane opt out) is precisely the
   // hole this file closes.
   for (const j of others) {
-    const c = jobIf(wf.jobs.get(j).join('\n'));
+    const laneIf = wf.jobs.get(j).jobIf;
+    const c = laneIf === null ? null : laneIf.cond;
     if (c === null) continue;
     problems.push(
       `${target.workflow}: lane "${j}" carries a job-level \`if: ${c}\`, and "${target.job}" aggregates it. ` +
@@ -363,8 +362,8 @@ for (const f of wfFiles) {
   const rel = `.github/workflows/${f}`;
   const wf = workflow(rel);
   if (wf === null) continue;
-  for (const [jobName, bodyLines] of wf.jobs) {
-    const steps = jobSteps(bodyLines);
+  for (const [jobName, job] of wf.jobs) {
+    const steps = jobSteps(bodyOf(job));
     const gateIds = new Set();
     for (const step of steps) {
       if (step.run === '') continue;
@@ -429,8 +428,8 @@ for (const f of wfFiles) {
   const rel = `.github/workflows/${f}`;
   const wf = workflow(rel);
   if (wf === null) continue;
-  for (const [jobName, bodyLines] of wf.jobs) {
-    const steps = jobSteps(bodyLines);
+  for (const [jobName, job] of wf.jobs) {
+    const steps = jobSteps(bodyOf(job));
     for (let i = 0; i < steps.length; i++) {
       for (const m of steps[i].run.matchAll(DRIFT)) {
         const artifact = m[1];

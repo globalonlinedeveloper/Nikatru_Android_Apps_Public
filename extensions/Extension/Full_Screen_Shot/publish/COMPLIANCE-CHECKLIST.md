@@ -720,10 +720,16 @@ separate writer's or the owner's action:
 - **`scripts/policy-check.mjs:589-607`** — reads `connect-src` and nothing else, which is why six of the
   seven declared directives are ungated (mutations **M3**/**M4** in §B.1.1). Gating `img-src` at minimum
   would close the 1.9.12 class of bug for real rather than by declaration. Not owned by this change.
-- **`.github/pull_request_template.md`, the "No network" checkbox (~line 62)** — describes the claim as
+- **The "No network" checkbox of the PULL REQUEST TEMPLATE** — describes the claim as
   resting on `tool.json` → `policy.networkAllowlist` and a packaged-bytes gate. For extension pages and
   the service worker it now also rests on the manifest CSP; for the three content scripts it does not
   (CAVEAT 2), and the checkbox is the natural place to say which half is which.
+  ⏱ 2026-09-08 — REPOINTED. This named `extensions/.github/pull_request_template.md`, which GitHub
+  never read: a pull-request template resolves at the repository ROOT only, so the checkbox this item
+  asks to edit was one nobody was ever shown. The clause was folded into the reachable
+  `.github/PULL_REQUEST_TEMPLATE.md` (§ *If this touches `extensions/`*) and the inert file removed;
+  it is at `ref/pre-prune-2026-09-08:extensions/.github/pull_request_template.md`. The line number in
+  the old text is deliberately not carried across — it was an offset into a file that is gone.
 
 ---
 

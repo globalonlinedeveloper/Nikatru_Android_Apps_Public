@@ -1,5 +1,5 @@
 name: "✨ Feature request"
-description: A capability you want in an extension that already exists
+description: A capability you want in something this repository already ships
 title: "[feature] "
 labels: ["enhancement", "needs-triage"]
 body:
@@ -15,8 +15,8 @@ body:
   - type: input
     id: tool
     attributes:
-      label: Which extension is this for?
-      description: Name it, or write "new tool" if nothing here fits (then use the "Propose a new tool" form instead).
+      label: Which extension, app or site is this for?
+      description: Name it. If it does not exist yet and it is an extension, use the "Propose a new extension" form instead.
       placeholder: FullShot
     validations: { required: true }
 
@@ -32,11 +32,10 @@ body:
     attributes:
       label: The AI hand-off — what does this let an assistant do that it can't now?
       description: >-
-        These tools exist to get context out of the browser and into an assistant
-        in a form it can actually use. If the feature has nothing to do with that,
-        say so plainly — it's not disqualifying, it just needs to earn its place
-        another way.
-    validations: { required: true }
+        The extensions exist to get context out of the browser and into an assistant
+        in a form it can actually use, so for an extension request this field carries
+        a lot of weight. For an app or a site it often will not apply — say so
+        plainly. It's not disqualifying; it just needs to earn its place another way.
 
   - type: textarea
     id: proposal
@@ -48,10 +47,12 @@ body:
     id: constraints
     attributes:
       label: Constraints this has to live inside
-      description: These are not negotiable, so it's worth checking the idea against them now.
+      description: >-
+        These bind every EXTENSION in this repository and are not negotiable there. An
+        app or a site request is judged on its own terms — tick what applies and say
+        which of these your idea cannot meet, and why.
       options:
         - label: It works with no account, no server and no network call.
-          required: true
         - label: It needs no new permission — or if it does, I've said which and why below.
         - label: It does not need a build step or a third-party runtime dependency.
 
@@ -61,5 +62,6 @@ body:
       label: If it needs a new permission, which one and why?
       description: >-
         Every permission is shown to every user at install and has to be justified
-        to three store reviewers. A feature that needs a broad host permission is
-        much harder to land than the same feature behind an optional one.
+        to store reviewers — three of them for an extension, and the app stores for
+        an app. A feature that needs a broad host or device permission is much
+        harder to land than the same feature behind an optional one.

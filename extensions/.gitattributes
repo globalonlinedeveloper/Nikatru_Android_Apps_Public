@@ -38,7 +38,7 @@
 # no attribute overrides it. `-text` restores a readable diff only for a file with
 # no NUL byte in it at all.
 #
-# This mattered because .githooks/pre-commit's content gate reads the rendered
+# This mattered because the extensions pre-commit hook's content gate read the rendered
 # diff, so both markings used to blind it — the `binary` block below did so even
 # for pure ASCII. That is fixed in the scanner, not here: the hook now passes
 # `--text`, which overrides both the attribute and the NUL sniffing, and its

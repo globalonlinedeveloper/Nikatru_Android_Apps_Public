@@ -56,6 +56,15 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
+// ⏱ 2026-09-08 — stripSourceComments is THE tree's comment reduction, and it is
+// imported rather than re-implemented for the reason its own module records at
+// length: a second copy of a text reduction drifts from the first in the way
+// that reports 'clean'. It is offset- and line-preserving, so every line and
+// column this guard prints still points at the real byte. NOT_A_SCANNER in
+// assert-guard-coverage.mjs is the corpus's index of shared modules;
+// text-reductions is in it, and reading that index before writing a rival is
+// the standing rule here.
+import { stripSourceComments } from './text-reductions.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? join(HERE, '..', '..'));
@@ -178,12 +187,69 @@ const stripYamlComments = (line) => {
 };
 const isYaml = (rel) => rel.endsWith('.yml') || rel.endsWith('.yaml');
 
+// 🔴 THE SAME ARGUMENT, ONE LANGUAGE FURTHER (2026-09-08). The scan set gained
+// the .mjs files under tooling/ today, and they are the STRONGEST member of it
+// rather than the weakest: every other glob names a file a machine READS, while
+// a .mjs under tooling/ is one a machine EXECUTES. A dead repository name on a
+// live line there is acted on, not merely read aloud. The hole had a name —
+// tooling/scripts/install-hooks.mjs:162 holds one inside an executable array and
+// this guard could not see it.
+//
+// But a .mjs carries the same prose a .yml does, and more of it. MEASURED before
+// this stripper existed, with the glob added and nothing else changed: 291 files
+// scanned, 34 findings — and about 28 of them were line or block comments
+// recording the very renames this guard enforces, INCLUDING THIS FILE'S OWN
+// HEADER, which explains the _GITHUB_PAT false positive by spelling a dead name
+// out twice. A guard that forbids the record of its own defect is a guard people
+// delete: the sentence the YAML block above already earned, now paid for twice.
+//
+// ⚠️ WHICH EXTENSIONS ARE STRIPPED IS DECLARED, NEVER INFERRED. `scan.commentStripped`
+// in the declaration lists them, so widening the globs to a language whose
+// comments this guard cannot read is a change somebody makes ON PURPOSE, in the
+// declaration, rather than one that happens silently the day a glob grows.
+//
+// String literals are still scanned, exactly as in YAML: a name is no less live
+// for being quoted.
+const COMMENT_STRIPPED = new Set(decl.scan?.commentStripped ?? []);
+const extOf = (rel) => { const dot = rel.lastIndexOf('.'); return dot === -1 ? '' : rel.slice(dot); };
+const stripsComments = (rel) => COMMENT_STRIPPED.has(extOf(rel));
+
+// 🔴 THE RESIDUE IS DECLARED WITH A COUNT, NOT WAIVED BY PATH. Four hits survive
+// comment-stripping: one live-code evidence constant and three sentences inside
+// printed messages. `excludedPaths` would have swallowed them — and swallowing
+// tooling/scripts/install-hooks.mjs is exactly how the hole the new glob just
+// closed would re-open under a politer name, because that file is where the hole
+// WAS. So each is declared with the number of occurrences it excuses:
+//
+//     MORE than `count`  → a FINDING. A new mention appeared that nobody argued for.
+//     FEWER than `count` → COVERAGE LOST. The reason expired; the row retires too.
+//
+// A row cannot quietly outlive its reason — the discipline the dead-file guard's
+// EXEMPTIONS table states, and which this one now shares.
+const codeMentions = new Map((decl.codeMentions ?? []).map((m) => [m.path, m]));
+for (const m of decl.codeMentions ?? []) {
+  if (typeof m.path !== 'string' || !Number.isInteger(m.count) || m.count < 1
+      || typeof m.kind !== 'string' || typeof m.why !== 'string' || m.why.length < 40) {
+    die(2, [
+      '✗ COVERAGE LOST — a codeMentions row is not usable:',
+      `    ${JSON.stringify(m)}`,
+      '  Every row needs a path, a kind, an integer count of at least 1, and a reason long enough to',
+      '  be read aloud. A row missing one of those is an exemption nobody can check.',
+    ]);
+  }
+}
+const mentionSeen = new Map((decl.codeMentions ?? []).map((m) => [m.path, 0]));
+
 const findings = [];
 for (const rel of files) {
   let text;
   try { text = readFileSync(join(ROOT, rel), 'utf8'); } catch { continue; }
   const raw = text.split('\n');
-  const lines = isYaml(rel) ? raw.map(stripYamlComments) : raw;
+  const lines = isYaml(rel)
+    ? raw.map(stripYamlComments)
+    : stripsComments(rel)
+      ? stripSourceComments(text, extOf(rel)).split('\n')
+      : raw;
   for (const [i, line] of lines.entries()) {
     for (const r of byName) {
       let from = 0;
@@ -208,6 +274,37 @@ for (const rel of files) {
   }
 }
 
+// ── 3b. the declared code mentions, accounted ────────────────────────────────
+// Findings are PARTITIONED rather than filtered, so both directions stay visible:
+// a declared file with MORE hits than it declares keeps the surplus as findings,
+// and one with FEWER is the refusal below.
+const excused = [];
+{
+  const kept = [];
+  const perFile = new Map();
+  for (const f of findings) {
+    const row = codeMentions.get(f.file);
+    if (row === undefined) { kept.push(f); continue; }
+    const n = (perFile.get(f.file) ?? 0) + 1;
+    perFile.set(f.file, n);
+    if (n <= row.count) { excused.push(f); mentionSeen.set(f.file, n); } else kept.push(f);
+  }
+  findings.length = 0;
+  findings.push(...kept);
+}
+const staleMentions = [...mentionSeen.entries()]
+  .filter(([path, seen]) => seen < codeMentions.get(path).count)
+  .map(([path, seen]) => `${path}: declares ${codeMentions.get(path).count}, found ${seen}`);
+if (staleMentions.length) {
+  die(2, [
+    '✗ COVERAGE LOST — a codeMentions row excuses more than the tree contains:',
+    ...staleMentions.map((m) => `    ${m}`),
+    '  Fewer occurrences than declared means the reason has expired. Retire the row in the same',
+    '  commit as the line it named — a row that outlives its subject excuses a mention nobody made,',
+    '  and the next real one lands inside its allowance in silence.',
+  ]);
+}
+
 // ── 4. floors ────────────────────────────────────────────────────────────────
 const floorFailures = [];
 if (files.length < FLOOR_FILES) floorFailures.push(`${files.length} file(s) scanned, floor ${FLOOR_FILES}`);
@@ -226,6 +323,10 @@ console.log(`  scan set: ${globs.join('  ')}`);
 console.log(`  excluded (dated records and fixtures, declared not hidden): ${excluded.join('  ') || 'none'}`);
 
 if (findings.length === 0) {
+  if (excused.length) {
+    console.log(`  code mention(s) declared and accounted, printed not hidden: ${excused.length}`);
+    for (const f of excused) console.log(`      ${f.file}:${f.line}:${f.col} — ${f.name} — ${codeMentions.get(f.file).kind}`);
+  }
   console.log('✓ no live surface names a dead repository.');
   process.exit(0);
 }
@@ -241,6 +342,9 @@ console.error('');
 console.error('  This file is READ BY A MACHINE, so the name is acted on, not merely mentioned.');
 console.error(`  If the reference is a DATED RECORD rather than live config, add its path to`);
 console.error(`  \`excludedPaths\` in ${DECL_REL} WITH A STATED REASON — do not widen the matcher.`);
+console.error('  If it is a line of CODE or a sentence inside a printed message, add a `codeMentions`');
+console.error('  row instead: a path, a kind, the COUNT it excuses and why. A count is retirable and a');
+console.error('  path exclusion is not — the whole-file form blinds every future line in that file too.');
 process.exit(1);
 
 // ─────────────────────────────────────────────────────────────────────────────

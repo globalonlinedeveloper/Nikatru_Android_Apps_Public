@@ -18,7 +18,7 @@
    until somebody inserts a job above it — which nothing recomputes, and which
    this repository has already paid for. A job name survives the insert.
 
-   .githooks/pre-commit is the same check one step earlier, on the staged diff,
+   ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit was the same check one step earlier, on the staged diff,
    and its patterns are the ones below. Both exist because they fail differently:
    the hook is bypassed by `--no-verify` and skipped entirely when the mode bit
    is wrong, and this one cannot be bypassed by anybody pushing a branch. Neither
@@ -191,9 +191,24 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'out', 'web-
 const MAX_BYTES = 16 * 1024 * 1024;
 
 /* ---------------- the rules ---------------- */
-/* Kept at parity with CONTENT_RE and PATHS_RE in .githooks/pre-commit. `sample`
-   is what the rule must match on every run; if it stops, the rule is dead and
-   this gate says so before it reads a single file of the tree.
+/* ⏱ 2026-09-08 — THE PARITY PARTNER IS GONE, AND THIS ARRAY IS NOW THE
+   DECLARATION RATHER THAN A COPY OF ONE. This block read "Kept at parity with
+   CONTENT_RE and PATHS_RE in `.githooks/pre-commit`". That partner was
+   `extensions/.githooks/pre-commit`, and it had been INERT since the 2026-09-05
+   subtree merge: git honours exactly one `core.hooksPath` per repository and
+   `tooling/scripts/install-hooks.mjs` points it at the ROOT `.githooks/`, which
+   carries neither pattern. So the parity claim was true of a file that never ran.
+
+   ⚠️ NOTHING IS UNGUARDED BY ITS REMOVAL, and that was measured before deleting
+   it rather than assumed. The nine CONTENT_RE alternatives are, one for one, the
+   nine CONTENT_RULES below, and both of the live scanners that DO run cover them:
+     · this file, `node scripts/secret-scan.mjs .`, at extensions.yml:390 and :1925
+     · `tooling/ci/scan-secrets.mjs . --gitleaks …`, at ci.yml:423, repo-wide
+   The retired hook is readable at
+   `ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`.
+
+   `sample` is what the rule must match on every run; if it stops, the rule is
+   dead and this gate says so before it reads a single file of the tree.
 
    Every `sample` is assembled from fragments, and every pattern places a
    character class where the literal would otherwise be complete, so that none of
@@ -224,11 +239,15 @@ const CONTENT_RULES = [
 ];
 
 /* Indian identity numbers — a DIFFERENT CLASS, kept in its own array on purpose.
-   CONTENT_RULES above is the parity claim against CONTENT_RE in
-   .githooks/pre-commit, and that hook has no identity patterns. Folding these in
-   there would make a true parity statement quietly false; leaving the arrays
-   apart keeps it checkable. THE HOOK IS THEREFORE ONE CLASS BEHIND THIS FILE —
-   stated rather than implied, because the hook is not this change's file to edit.
+   ⏱ 2026-09-08: the paragraph this replaces said CONTENT_RULES above was "the
+   parity claim against CONTENT_RE in .githooks/pre-commit", that the hook carried
+   no identity patterns, and that the hook was therefore ONE CLASS BEHIND this
+   file. All three were true and the hook has now been removed as inert (see the
+   note above CONTENT_RULES), so there is no longer a partner to be behind. The
+   arrays stay separate anyway, for the reason that outlives the partner: a
+   credential and an identity number have different false-positive economics and
+   different sample-safety arguments, and merging them would put one rule's
+   reasoning behind another rule's name.
 
    Every `sample` here is fragmented and every one is outside the issuable value
    space; the per-rule comments carry the argument, which is the point of them. */

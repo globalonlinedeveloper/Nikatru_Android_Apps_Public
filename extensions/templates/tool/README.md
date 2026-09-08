@@ -8,7 +8,7 @@ vanilla-JS extension cannot share modules at run time and each tool has to be fr
 > The 132 tracked files that used to sit at `_skeleton/` in the repository root — `manifest.json`,
 > `background.js`, `lib/`, `pages/`, `popup/`, `icons/`, 55 `_locales/` catalogues, `publish/`, `test/`,
 > `tools/`, `TEMPLATE.md` and `skeleton.json` — **are here now**, moved as a git rename, path for path.
-> `MIGRATION.md` is the record of that move, with the pre-move baseline so a red check can still be
+> `ref/pre-prune-2026-09-08:extensions/MIGRATION.md` is the record of that move, with the pre-move baseline so a red check can still be
 > attributed correctly. Every path below resolves against **this directory**.
 >
 > `README-tour.md` beside this file is the template's original README: the long tour of what a tool gets
@@ -17,7 +17,7 @@ vanilla-JS extension cannot share modules at run time and each tool has to be fr
 >
 > ⚠️ **`tools/audit-fleet.mjs` now finds zero tools and still exits 0** — it locates the fleet by walking
 > out of its own folder, which from `templates/tool/tools/` reaches only `templates/`. That is a drift
-> audit reporting "nothing has drifted" because it looked at nothing. `MIGRATION.md §6` has the
+> audit reporting "nothing has drifted" because it looked at nothing. `ref/pre-prune-2026-09-08:extensions/MIGRATION.md §6` has the
 > measurement and the one-line fix; until it is applied, pass the tool paths explicitly.
 
 `TEMPLATE.md` is the full procedure, top to bottom. **This file covers one step of it: the stamp.**
@@ -124,8 +124,8 @@ Worth knowing precisely, because a stamp nobody reads is decoration:
   the sentence from the *template's* copy and the check goes green for every tool at once, forever.
 - `tools/audit-fleet.mjs` reads `skeleton.json` in every tool and reports which are behind this template
   and which have diverged from its inherited files. **It finds tools by walking out of its own folder**,
-  which makes it sensitive to exactly the move `MIGRATION.md` describes: run from `templates/tool/tools/`
-  it currently finds **zero** tools and exits **0**, which reads like good news. `MIGRATION.md §6` has the
+  which makes it sensitive to exactly the move `ref/pre-prune-2026-09-08:extensions/MIGRATION.md` describes: run from `templates/tool/tools/`
+  it currently finds **zero** tools and exits **0**, which reads like good news. `ref/pre-prune-2026-09-08:extensions/MIGRATION.md §6` has the
   measurement and the one-line fix; until then, pass the tool paths explicitly.
 - **`tool.json` is read — but not this copy of it.** Eight scripts load it (`discover`, `policy-check`,
   `check-version`, `check-core-sync`, `lint`, `gen-catalog`, `sync-core`, `new-tool`), and for a real tool

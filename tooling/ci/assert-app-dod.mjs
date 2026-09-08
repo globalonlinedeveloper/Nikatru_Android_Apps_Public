@@ -105,6 +105,7 @@ import { spawnSync } from 'node:child_process';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
+import { parseWorkflow, workflowEvents } from './workflow-scan.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -270,55 +271,42 @@ function blankDartStrings(src) {
   return out.join('');
 }
 
-// ── workflow parsing. Comments stripped FULL-LINE AND TRAILING, because the two
-//    parsers already in this tree diverged on exactly that once and an
-//    inline-commented job escaped a check that way.
-function parseWorkflow(rel) {
-  const raw = read(rel);
-  const stripped = raw.replace(/^\s*#.*$/gm, '').replace(/\s#.*$/gm, '');
-  const lines = stripped.split('\n');
-  const jobsAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));
-  const jobs = new Map();
-  if (jobsAt !== -1) {
-    let current = null;
-    for (let i = jobsAt + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (/^\S/.test(line)) break;
-      const m = line.match(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):\s*$/);
-      if (m) { current = m[1]; jobs.set(current, []); }
-      else if (current !== null) jobs.get(current).push(line);
-    }
-  }
-  // `on:` — flow form (`on: [push]`) or block form with indented event keys.
-  const events = new Set();
-  const onFlow = stripped.match(/^on:\s*\[([^\]]*)\]/m);
-  if (onFlow) for (const e of onFlow[1].split(',')) events.add(e.trim());
-  const onAt = lines.findIndex((l) => /^on:\s*$/.test(l));
-  if (onAt !== -1) {
-    for (let i = onAt + 1; i < lines.length; i++) {
-      if (/^\S/.test(lines[i])) break;
-      const m = lines[i].match(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):/);
-      if (m) events.add(m[1]);
-    }
-  }
-  return { rel, jobs, events, stripped, rawTopLevel: (raw.match(/^[a-z]+:/gm) ?? []).length };
-}
-
-/** `needs:` in either flow (`[a, b]`) or block (`- a`) form. */
-function jobNeeds(body) {
-  const flow = body.match(/^ {4}needs:\s*\[([^\]]*)\]/m);
-  if (flow) return flow[1].split(',').map((s) => s.trim()).filter(Boolean);
-  const lines = body.split('\n');
-  const at = lines.findIndex((l) => /^ {4}needs:\s*$/.test(l));
-  if (at === -1) return [];
-  const out = [];
-  for (const line of lines.slice(at + 1)) {
-    const m = line.match(/^\s*-\s*([A-Za-z_][A-Za-z0-9_-]*)\s*$/);
-    if (!m) break;
-    out.push(m[1]);
-  }
-  return out;
-}
+// ── workflow parsing ─────────────────────────────────────────────────────────
+// ⏱ 2026-09-08 — THE HAND-ROLLED PARSER IS GONE; THIS READS `workflow-scan.mjs`.
+//
+// What stood here was a private `parseWorkflow` and `jobNeeds`, under a comment
+// recording that "the two parsers already in this tree diverged on exactly that
+// once and an inline-commented job escaped a check that way". The module it now
+// imports exists to end that class: "the alternative is four copies that drift,
+// and the FIRST thing that drifts in a workflow parser is which lines it can see
+// at all — a failure that reports 'clean'." This file and
+// assert-green-means-ran.mjs were the last two holdouts; 21 guards and 3 release
+// scripts already read the module.
+//
+// 🔴 IT IS A BUG FIX, NOT ONLY A TIDY-UP. The local `jobNeeds` knew the flow and
+// block forms of `needs:` and stripped no quotes. `ci-gate` writes the BLOCK form,
+// so this file's answers are unchanged on this tree — but `needs: detect` (scalar)
+// and `needs: ["gate"]` (quoted) were both invisible to it, and each of those has
+// already made a correctly-gated workflow read as ungated once in this repository.
+// Every register row here is graded against `ci-gate`'s needs set, so a dropped
+// edge would have said "this lane cannot fail the merge" about a lane that can.
+//
+// ⚠️ `jobRunText` BELOW STAYS, and it is not an oversight. `job.lines` and
+// `job.logical` carry EVERY line of a job — `name:`, `uses:`, `with:` values — and
+// this file's whole question is whether a `run:` step INVOKES a guard. Grading the
+// full job body would count a guard named in a step's `name:` as an invocation,
+// which is precisely what the docstring below refuses and what
+// tooling/ci/test/app-dod.test.mjs mutates to prove. It is fed
+// `job.lines.map(l => l.text)`, the same string[] it has always taken.
+//
+// ⚠️ AND THE COVERAGE CANARY MOVED FROM `rawTopLevel` TO `rawStepCount`: the old
+// one counted top-level keys in the raw text, the module counts raw step bullets.
+// Both answer "the file has content and the parse found no jobs", and the module's
+// is the stricter reading of the two.
+//
+// The `on:` parse that used to live here moved INTO the module as
+// `workflowEvents` rather than becoming a caller-side re-read of the region above
+// `jobs:` — see its note there. It is one view over one parse.
 
 /** The `run:` text of every step of one job, concatenated. Only `run:` bodies —
  *  a name, a `with:` value or (once comments are gone) any other key is not an
@@ -451,10 +439,19 @@ if (humanRows.length === 0) {
   ]);
 }
 
-const ci = parseWorkflow('.github/workflows/ci.yml');
-if (ci.rawTopLevel > 0 && ci.jobs.size === 0) {
+const ci = parseWorkflow(ROOT, '.github/workflows/ci.yml');
+if (ci === null) {
   coverageLost([
-    'ci.yml has top-level keys and ZERO parsed jobs — the workflow parser has stopped reaching it.',
+    '.github/workflows/ci.yml does not exist under the repo root.',
+    'Every "does this check really run" question below is asked of that file. Absent, they would all be',
+    'asked of nothing. (The retired parser THREW here; the shared one returns null, so the refusal is a',
+    'sentence a reader can act on rather than a stack trace.)',
+  ]);
+}
+const ciEvents = workflowEvents(ci);
+if (ci.rawStepCount > 0 && ci.jobs.size === 0) {
+  coverageLost([
+    'ci.yml has raw step bullets and ZERO parsed jobs — the workflow parser has stopped reaching it.',
     'Every "does this check really run" question below would be asked of an empty map and pass.',
   ]);
 }
@@ -464,7 +461,7 @@ if (!ci.jobs.has(AGGREGATOR)) {
     'That job is the required check on protected main; "runs per push" means "is needed by it".',
   ]);
 }
-const gateNeeds = new Set(jobNeeds(ci.jobs.get(AGGREGATOR).join('\n')));
+const gateNeeds = new Set(ci.jobs.get(AGGREGATOR).needs);
 if (gateNeeds.size === 0) {
   coverageLost([
     `ci.yml's "${AGGREGATOR}" job has an empty or unparseable \`needs:\` list.`,
@@ -481,7 +478,11 @@ if (!existsSync(wfDir)) {
 }
 const workflows = listDir(wfDir)
   .filter((f) => /\.ya?ml$/.test(f))
-  .map((f) => parseWorkflow(`.github/workflows/${f}`));
+  .map((f) => parseWorkflow(ROOT, `.github/workflows/${f}`))
+  .filter((wf) => wf !== null)
+  /* The events are resolved ONCE per workflow, beside the parse, so the `on: push`
+     filter below stays a lookup rather than a second read inside a nested loop. */
+  .map((wf) => ({ wf, events: workflowEvents(wf) }));
 
 const guardDir = join(ROOT, 'tooling', 'ci');
 const guardFiles = new Set(existsSync(guardDir) ? listDir(guardDir).filter((f) => f.endsWith('.mjs')) : []);
@@ -521,9 +522,9 @@ for (const item of items) {
     }
     const needle = `tooling/ci/${item.check}`;
     const hits = [];
-    for (const wf of workflows) {
-      for (const [job, body] of wf.jobs) {
-        if (jobRunText(body).includes(needle)) hits.push({ wf, job });
+    for (const entry of workflows) {
+      for (const [job, parsed] of entry.wf.jobs) {
+        if (jobRunText(parsed.lines.map((l) => l.text)).includes(needle)) hits.push({ wf: entry.wf, events: entry.events, job });
       }
     }
     if (hits.length === 0) {
@@ -534,7 +535,7 @@ for (const item of items) {
       );
       continue;
     }
-    const gated = hits.filter((h) => h.wf.events.has('push') && (h.wf.rel !== '.github/workflows/ci.yml' || gateNeeds.has(h.job)));
+    const gated = hits.filter((h) => h.events.has('push') && (h.wf.rel !== '.github/workflows/ci.yml' || gateNeeds.has(h.job)));
     if (gated.length === 0) {
       fail(
         `${where}: guard "${item.check}" is invoked (${hits.map((h) => `${h.wf.rel}:${h.job}`).join(', ')}) ` +
@@ -549,7 +550,7 @@ for (const item of items) {
       fail(`${where}: names lane "${item.check}", which is not a job in ci.yml. ci.yml declares [${[...ci.jobs.keys()].join(', ')}].`);
       continue;
     }
-    if (!ci.events.has('push')) {
+    if (!ciEvents.has('push')) {
       fail(`${where}: lane "${item.check}" lives in a workflow whose \`on:\` does not include push.`);
     } else if (!gateNeeds.has(item.check)) {
       fail(`${where}: lane "${item.check}" is not in ${AGGREGATOR}'s \`needs:\` [${[...gateNeeds].join(', ')}], so it can go red while the merge goes through.`);
