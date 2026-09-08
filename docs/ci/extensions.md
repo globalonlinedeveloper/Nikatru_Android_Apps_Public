@@ -1102,6 +1102,50 @@ counted in every future run. Measured 2026-08-27 on injected history against
 a one-suite checkout: legs=2/1, not-green, exit 1. It fails LOUD rather than
 silent, but `Weekly proof freshness` is what keeps it from failing at all.
 
+🔴 APPENDED 2026-09-07 — AND THE PARAGRAPH ABOVE PREDICTED THIS EXACTLY, ABOUT
+THE WRONG JOB. It says a job "called `e2e proof freshness` would be counted as a
+matrix leg — and counted in every future run … Measured 2026-08-27 on injected
+history against a one-suite checkout: legs=2/1, not-green, exit 1". The warning
+was written about THIS job, which is correctly named `Weekly proof freshness`.
+Its CI-LANE SIBLING — `e2e-proof-fresh` in the same file, `Weekly proof
+freshness`'s complementary silence — was named `e2e proof freshness (is the
+weekly cron alive?)`, which is the forbidden string with a suffix.
+
+⛔ IT WAS INVISIBLE UNTIL A SCHEDULED RUN EXISTED. With an empty history the
+gate takes the bootstrap path and never walks a run, so nothing parsed a job
+name. The moment run `34168610730` landed, both call sites began walking it and
+measured, against a one-suite checkout, EXACTLY the predicted numbers:
+
+    legs=2/1  not-green  [e2e proof freshness (is the weekly cron alive?)=skipped,
+                          e2e · Extension/Full_Screen_Shot=success]
+    NOT IN THIS CHECKOUT: proof freshness (is the weekly cron alive?)
+
+The real suite leg PASSED. The run was graded not-green because a skipped
+non-leg job was counted as a leg. Verified against `origin/main`'s own copy of
+the script, unmodified, so it is not a consequence of the self-exclusion fix
+above: the same exit 1, the same two legs.
+
+THE FIX IS THE NAME, which is what the paragraph above already prescribes, and
+the `# why:` line now sits on the job so the rule is read where it is broken
+rather than only here. ⚠️ AND IT DOES NOT HEAL THE PAST. A finished run's job
+names are historical, so run `34168610730` stays `legs=2/1` for as long as the
+walk reaches it. The first scheduled run that can be graded GREEN is therefore
+the one AFTER the next one — the next run excludes itself and walks back onto
+34168610730 — and that is a true statement about the evidence, not a gap in the
+gate: there is no completed green scheduled run yet, and the gate is right to
+say so.
+
+⚠️ WHAT THIS DOES NOT SETTLE, AND IT IS OWNER WORK. `tooling/ops/register.json`'s
+`duty.workflow.extensions.yml` went RED at 2026-09-07T23:40:16Z on the
+`alarm-on-red` limb, and that limb is branch-independent — it reads main's run
+history, so it reddens `guards-platform`, and therefore `ci-gate`, on EVERY open
+pull request. Its own remedy line is "a success of ANY event on that branch
+clears it — dispatch the workflow once the cause is fixed", and the cause cannot
+be fixed on main without a merge that `ci-gate` is currently refusing. That is a
+frozen merge queue of the class TRAPS already records twice, and breaking it —
+an admin merge, or a dispatch to clear an alarm — is an owner decision, not this
+gate's and not an agent's.
+
 🔴 APPENDED 2026-09-07 — THIS JOB NOW RUNS INSIDE THE RUN IT GRADES, AND THAT
 IS WHY THE PARAGRAPH ABOVE READS THE WAY IT DOES. Everything above this line
 was written for the *pre-merge extensions repository*, where this job lived in

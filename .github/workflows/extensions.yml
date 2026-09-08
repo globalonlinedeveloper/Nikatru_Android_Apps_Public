@@ -940,7 +940,10 @@ jobs:
 
   e2e-proof-fresh:
     if: github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && github.event.action != 'labeled' && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')
-    name: e2e proof freshness (is the weekly cron alive?)
+    # why: the name must NOT start `e2e` + a non-alphanumeric - the GREEN limb of
+    # assert-e2e-proof-fresh.mjs matches PAST runs' job names on /^e2e[^A-Za-z0-9]/ and
+    # counted this job as a matrix leg. See docs/ci/extensions.md, 2026-09-07.
+    name: Proof freshness (is the weekly cron alive?)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
