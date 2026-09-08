@@ -59,7 +59,7 @@
 //   node tooling/store/name-clearance.mjs <Name> [--app <slug>] [--json]
 //   node tooling/store/name-clearance.mjs <Name> --app <slug> --execute
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -116,8 +116,6 @@ export function makeHttp({ timeoutMs = 25_000, fetchImpl = globalThis.fetch } = 
   };
 }
 
-const readJson = (abs) => JSON.parse(readFileSync(abs, 'utf8'));
-
 /**
  * The whole clearance, as data. Separated from the CLI so the suite can drive it
  * with a stub transport — a probe table whose controls can only be exercised
@@ -136,18 +134,20 @@ export class CoverageLost extends Error {
 }
 
 export async function clear({ root, name, app, http, now = new Date() }) {
+  // ⚠️ EVERY READ BELOW IS A SINGLE ATTEMPT, NEVER `existsSync` FOLLOWED BY A
+  // READ. CodeQL's js/file-system-race flagged that shape HIGH in this file on
+  // 2026-09-09, and it is right in principle for every one of them: absent and
+  // unreadable are the SAME answer to this function — COVERAGE LOST — so the
+  // check bought nothing and opened a window in which the answer could change.
   const registerAbs = join(root, REGISTER_REL);
-  if (!existsSync(registerAbs)) {
-    throw new CoverageLost([
-      `cannot read ${REGISTER_REL} at ${registerAbs}.`,
-      'The channel set is the register, so with it unreadable NOTHING was checked — and nothing is not a pass.',
-    ]);
-  }
   let register;
   try {
-    register = readJson(registerAbs);
+    register = JSON.parse(readFileSync(registerAbs, 'utf8'));
   } catch (e) {
-    throw new CoverageLost([`${REGISTER_REL} did not parse (${e.message}).`, 'The channel set is unknown, so nothing below could have ranged over it.']);
+    throw new CoverageLost([
+      `cannot read ${REGISTER_REL} at ${registerAbs} (${e.message}).`,
+      'The channel set IS the register, so with it unreadable NOTHING was checked — and nothing is not a pass.',
+    ]);
   }
   const channels = register.channels;
   if (!Array.isArray(channels) || channels.length === 0) {
@@ -156,12 +156,10 @@ export async function clear({ root, name, app, http, now = new Date() }) {
 
   const catalogAbs = join(root, CATALOG_REL);
   let catalog = null;
-  if (existsSync(catalogAbs)) {
-    try {
-      catalog = readJson(catalogAbs);
-    } catch {
-      catalog = null;
-    }
+  try {
+    catalog = JSON.parse(readFileSync(catalogAbs, 'utf8'));
+  } catch {
+    catalog = null;
   }
   if (!Array.isArray(catalog)) {
     throw new CoverageLost([
@@ -178,7 +176,12 @@ export async function clear({ root, name, app, http, now = new Date() }) {
   // here rather than in the probe table, which stays free of the filesystem.
   const snapRel = `apps/${app}/store/linux-snap/snap-name.txt`;
   const snapAbs = join(root, snapRel);
-  const snapDeclared = existsSync(snapAbs) ? { value: readFileSync(snapAbs, 'utf8').trim(), rel: snapRel } : null;
+  let snapDeclared = null;
+  try {
+    snapDeclared = { value: readFileSync(snapAbs, 'utf8').trim(), rel: snapRel };
+  } catch {
+    snapDeclared = null;
+  }
   const asOf = today(now);
   const out = { app, slug, name, asOf, channels: {}, identifiers: [], controls: { green: 0, failed: [] } };
 
@@ -299,7 +302,22 @@ export function rollUp(record) {
 export function writeRecord(root, record, { force = false } = {}) {
   const rel = RECORD_REL(record.app);
   const abs = join(root, rel);
-  const existed = existsSync(abs);
+  // ⚠️ ONE READ, NOT A CHECK-THEN-WRITE. This was `existsSync(abs)` followed by a
+  // `writeFileSync(abs, …)` further down, and CodeQL's js/file-system-race
+  // flagged it HIGH on the first push: between the check and the write the file
+  // can change, so the refusal below could be decided against a state that no
+  // longer holds. Reading the bytes once answers BOTH questions this function
+  // asks — does a record exist, and what does it carry forward — with no window
+  // in between. An unreadable existing file still counts as EXISTING, because
+  // the refusal is about not destroying somebody's evidence and a file we cannot
+  // parse is not a file we may assume is worthless.
+  let priorText = null;
+  try {
+    priorText = readFileSync(abs, 'utf8');
+  } catch {
+    priorText = null;
+  }
+  const existed = priorText !== null;
   if (record.controls.failed.length && existed && !force) {
     return {
       written: false,
@@ -314,7 +332,7 @@ export function writeRecord(root, record, { force = false } = {}) {
   let carriedWhy = null;
   if (existed) {
     try {
-      const prior = readJson(abs);
+      const prior = JSON.parse(priorText);
       carried = prior.trademark ?? null;
       // The seeded prose survives the weekly sweep. A routine that silently
       // deleted the paragraph explaining why a record is BLOCKED and the build
