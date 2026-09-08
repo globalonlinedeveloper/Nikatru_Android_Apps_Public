@@ -560,10 +560,10 @@ const RE_TAG_PIN = /^([A-Za-z0-9][A-Za-z0-9_.-]*):(.+)$/;
 const pinCache = new Map();
 const tagCache = new Map();
 
-function pinRefuse(lines) {
+function pinRefuse(root, lines) {
   console.error('✗  public citations — REFUSING: a tag-pinned citation could not be evaluated.');
   for (const l of lines) console.error(`      ${l}`);
-  console.error(`   The corpus asked was ${PRIVATE}.`);
+  console.error(`   The repository asked was ${root}.`);
   console.error('   Exit 2 COVERAGE LOST: an unevaluated citation is not a resolved one, and the two');
   console.error('   must not share an exit code.');
   console.error('   ' + strippedNote());
@@ -572,50 +572,91 @@ function pinRefuse(lines) {
 
 /** Does the corpus carry this tag? A missing tag is a refusal at the call site, not
  *  here, so this stays a question and the caller keeps the sentence it prints. */
-function tagExists(tag) {
-  if (tagCache.has(tag)) return tagCache.get(tag);
+function tagExists(root, tag) {
+  const ck = `${root}\u0000${tag}`;
+  if (tagCache.has(ck)) return tagCache.get(ck);
   let r;
   try {
-    r = repoGitRaw(PRIVATE, ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]);
+    r = repoGitRaw(root, ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]);
   } catch (e) {
     if (!(e instanceof RepoGitError)) throw e;
-    pinRefuse([`git could not be asked about tag \`${tag}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+    pinRefuse(root, [`git could not be asked about tag \`${tag}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
   }
   const ok = r.status === 0 && r.stdout.trim().length > 0;
-  tagCache.set(tag, ok);
+  tagCache.set(ck, ok);
   return ok;
 }
 
 /** Was `path` a real blob (or tree) at `tag`? `git cat-file -e` answers exactly that
  *  and nothing else — status 0 yes, non-zero no — which is why it is the probe rather
  *  than `git show`, whose output a reader of this guard would then have to trust. */
-function resolvesAtTag(tag, path) {
+function resolvesAtTag(root, tag, path) {
   const key = `${tag}:${path}`;
-  if (pinCache.has(key)) return pinCache.get(key);
-  if (!tagExists(tag)) {
-    pinRefuse([
-      `the citation pins tag \`${tag}\`, which this corpus does not carry.`,
+  const ck = `${root}\u0000${key}`;
+  if (pinCache.has(ck)) return pinCache.get(ck);
+  if (!tagExists(root, tag)) {
+    pinRefuse(root, [
+      `the citation pins tag \`${tag}\`, which this repository does not carry.`,
       'A pin is only as good as the tag behind it. If the tag was never pushed, or the',
       'checkout is shallow or tagless, this guard has verified NOTHING about that line.',
     ]);
   }
   let r;
   try {
-    r = repoGitRaw(PRIVATE, ['cat-file', '-e', key]);
+    r = repoGitRaw(root, ['cat-file', '-e', key]);
   } catch (e) {
     if (!(e instanceof RepoGitError)) throw e;
-    pinRefuse([`git could not read \`${key}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+    pinRefuse(root, [`git could not read \`${key}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
   }
   const ok = r.status === 0;
-  pinCache.set(key, ok);
+  pinCache.set(ck, ok);
   return ok;
 }
+/* ── SELF PIN BEGIN ──────────────────────────────────────────
+   🔴 A CITATION MAY ALSO BE PINNED TO A TAG IN *THIS* REPOSITORY (2026-09-08).
+
+   The limb above resolves a pin only when the citation carries the `Private/` logical
+   prefix, and it resolves it only against the private corpus. That left a hole with a
+   name: a public file naming a path INSIDE THIS REPO that this repo has since deleted
+   was checked by no guard at all — not by this one, whose path limb never matched it,
+   and not by `assert-no-dead-files.mjs`, whose subject is tracked files that nothing
+   reaches, never prose that reaches nothing. So the first rule of the 2026-09-08 prune
+   method — *a citation to a removed file is PINNED, not deleted* — was not executable
+   here, and the prune plan (docs/prune-plan-2026-09-08.md § 5.1) says so in as many words.
+
+   This closes it with the SAME machinery and no second implementation: one root-taking
+   `resolvesAtTag`, asked about THIS repo instead of the sibling. The three states are
+   therefore identical, and deliberately so — blob at the tag resolves, tag present and
+   blob absent is exit 1, tag not carried is exit 2 COVERAGE LOST.
+
+   ⚠️ THE PIN IS RECOGNISED BY THIS REPO'S OWN TAG NAMESPACE, and that is what makes it
+   safe to match in free prose. Every tag this repository has ever carried is named
+   `ref/<something>` — the convention predates this limb (`ref/app-shell-2026-09-07`,
+   `ref/cutover-blockers-wip-2026-09-07`) — so a self-pin is `ref/<tag>:<path>` and
+   nothing else in 2063 tracked files has that shape. Measured before this landed: the
+   pattern below matched ZERO lines in the whole tree. A bare `<tag>:<path>` was
+   rejected for exactly the reason the private limb gives about which colon ends a tag:
+   in prose, `note: docs/x.md` and `tooling/x.mjs:12` are not citations, and a matcher
+   that cannot tell them apart reports defects nobody wrote.
+
+   🔴 IT IS NOT A GENERAL PUBLIC PATH LIMB, AND THE DIFFERENCE IS STATED RATHER THAN
+   IMPLIED. This checks that a pin RESOLVES. It does not yet demand that every repo-local
+   path in tracked prose exists — that is a larger claim over ~2000 files with its own
+   disclosure conventions to earn, and shipping it half-measured here would be the
+   confident wrong answer this guard's header refuses elsewhere. What it buys today is
+   precisely what the prune needed: a deletion in this repo can be cited, and the
+   citation is CHECKED rather than believed. */
+const RE_SELF_PIN = /(?<![A-Za-z0-9_.\/-])ref\/[A-Za-z0-9][A-Za-z0-9_.-]*:[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
+const RE_SELF_SPLIT = /^(ref\/[A-Za-z0-9][A-Za-z0-9_.-]*):(.+)$/;
+/* ── SELF PIN END ─────────────────────────────────────────── */
+
 /* ── TAG PIN END ─────────────────────────────────────────────────────────── */
 
 const DISCLOSED = /\(\s*(?:does not exist|never existed|no longer exists|deleted|retired|gone|removed|absent)/i;
 
 const failures = [];
 let pathsChecked = 0, pinsChecked = 0, tagsChecked = 0, idsChecked = 0, filesScanned = 0;
+let selfPinsChecked = 0;
 let skippedStruck = 0, skippedDisclosed = 0;
 
 for (const rel of files) {
@@ -658,7 +699,7 @@ for (const rel of files) {
       const pinned = RE_TAG_PIN.exec(p.slice(LOGICAL_PREFIX.length));
       if (pinned) {
         pinsChecked++;
-        if (resolvesAtTag(pinned[1], pinned[2])) continue;
+        if (resolvesAtTag(PRIVATE, pinned[1], pinned[2])) continue;
         if (disclosed) { skippedDisclosed++; continue; }
         failures.push({ rel, line: i + 1, kind: 'pin', what: p, text: line.trim().slice(0, 130) });
         continue;
@@ -695,6 +736,21 @@ for (const rel of files) {
       failures.push({ rel, line: i + 1, kind: 'path', what: p, text: line.trim().slice(0, 130) });
     }
 
+    /* ── SELF PIN USE BEGIN ────────────────────────────────────────
+       A citation pinned to one of THIS repository's own tags. Deleting this region is
+       exactly this guard as it stood before the public limb existed, which is what the
+       negative test mutates so the fix can be watched to bite. */
+    for (const m of scan.matchAll(RE_SELF_PIN)) {
+      const p = m[0].replace(/[.,;:)]+$/, '');
+      const split = RE_SELF_SPLIT.exec(p);
+      if (!split) continue;
+      selfPinsChecked++;
+      if (resolvesAtTag(REPO, split[1], split[2])) continue;
+      if (disclosed) { skippedDisclosed++; continue; }
+      failures.push({ rel, line: i + 1, kind: 'selfpin', what: p, text: line.trim().slice(0, 130) });
+    }
+    /* ── SELF PIN USE END ───────────────────────────────────── */
+
     for (const m of scan.matchAll(RE_PIPELINE_TAG)) {
       tagsChecked++;
       const body = m[1];
@@ -716,6 +772,7 @@ for (const rel of files) {
    report a reader can check. */
 const label = `${filesScanned} tracked file(s) · ${pathsChecked} Private/ path ref(s) ` +
   `resolved against ${PRIVATE} (${pinsChecked} of them tag-pinned, resolved with \`git cat-file -e\`) · ` +
+  `${selfPinsChecked} self-pin(s) to this repository's own tag(s), resolved with \`git cat-file -e\` against ${REPO} · ` +
   `${tagsChecked} [pipeline] tag(s) yielding ${idsChecked} id(s), resolved against ` +
   `${origins.size} origin(s) from ${specFiles} spec file(s)` +
   (shardDecl ? `, ${shardsRead} of them declared shard(s) under ${Object.keys(shardDecl.declared.reduce((a, r) => { a[r.split('/')[0]] = 1; return a; }, {})).length} sharded register(s)` : ' (no `shards` block declared)');
@@ -740,6 +797,7 @@ for (const [rel, hits] of [...byFile.entries()].sort((a, b) => b[1].length - a[1
   for (const h of hits.slice(0, 6)) {
     const why = h.kind === 'path' ? 'no such path'
       : h.kind === 'pin' ? 'not at that tag'
+      : h.kind === 'selfpin' ? 'not at that tag in this repository'
       : 'unknown requirement id';
     console.error(`    :${h.line}  ${why}  ${h.what}`);
   }

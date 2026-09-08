@@ -40,6 +40,24 @@
 // different program. Here the private corpus is a REAL git repository with a REAL tag,
 // because the whole claim under test is what git can still prove.
 //
+// ⏱ APPENDED 2026-09-08 — THE SAME CLAIM, FOR THIS REPOSITORY'S OWN TAGS. Everything
+// above is about a citation carrying the `Private/` prefix, resolved against the sibling
+// corpus, and that limb could not reach a path INSIDE THIS REPO. The public prune of
+// 2026-09-08 needs exactly that: eight files leave the tree and the dated prose naming
+// them must keep resolving. So the guard grew a second pin family — this repository's
+// own tag namespace, `ref/<tag>:<path>` — resolved by the SAME root-taking
+// `resolvesAtTag`, and the cases below are the private set's mirror:
+//
+//   6. a self-pin whose blob IS at the tag RESOLVES, and the ok line counts it
+//   7. a self-pin whose path was NEVER at the tag EXITS 1 — and the pre-limb mutant
+//      exits 0 on the same bytes, which is what proves the limb is what bites
+//   8. a self-pin naming a tag this repository does not carry is exit 2, never a pass
+//
+// ⚠️ The self-pin prefix is COMPOSED here for the reason PRIV_PREFIX is composed above,
+// and it matters more, not less: a literal self-pin written in this tracked file would be
+// resolved against the REAL repository on every hook run, and a fixture tag no real repo
+// carries is exit 2 COVERAGE LOST — this file would refuse the tree it is testing.
+//
 // Run:  node --test "tooling/ci/test/public-citations-tagpin.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, before, after } from 'node:test';
@@ -65,6 +83,14 @@ const PRIV_PREFIX = 'Private' + '/';
 const FIXTURE_TAG = 'fixture-pre-prune';
 const EVIDENCE = 'research/evidence/report-that-was-deleted.md';
 const NEVER_THERE = 'research/evidence/report-that-never-existed.md';
+
+/* The PUBLIC half. `ref/` is this repository's tag namespace — every tag it has ever
+   carried is `ref/<name>` — and it is what the guard's self-pin matcher keys on. Composed,
+   never written whole: see the ⚠️ in the 2026-09-08 append at the head. */
+const SELF_NS = 'ref' + '/';
+const SELF_TAG = `${SELF_NS}fixture-pre-prune-public`;
+const SELF_EVIDENCE = 'docs/record-this-repo-deleted.md';
+const SELF_NEVER_THERE = 'docs/record-this-repo-never-had.md';
 
 /* The guard's own floors, READ from the source rather than typed, so that a change to
    either cannot leave this file quietly building a fixture below one and reporting a
@@ -132,6 +158,26 @@ function runGuard(file = 'assert-public-citations.mjs') {
  *  the guard exactly as it stood before 2026-09-08. The RESOLVER block is deliberately
  *  left in place — what a case below measures is that the pin is REACHED, not merely
  *  that the source got shorter. */
+/** The PUBLIC mutant: the guard with the `SELF PIN USE BEGIN … END` region deleted,
+ *  which is the guard exactly as it stood before the public limb landed. With the region
+ *  gone a self-pin is not MATCHED at all, so the mutant exits 0 where the guard exits 1 —
+ *  the pre-fix behaviour was not a wrong answer, it was NO answer, and that is precisely
+ *  the hole § 5.1 of the prune plan named. The RESOLVER is left in place on purpose: what
+ *  the case measures is that the self-pin is REACHED, not that the source got shorter. */
+function writeNoSelfPinMutant() {
+  const src = readFileSync(GUARD_SRC, 'utf8');
+  const begin = src.indexOf('/* ── SELF PIN USE BEGIN');
+  const end = src.indexOf('SELF PIN USE END', begin);
+  assert.notEqual(begin, -1, 'the SELF PIN USE BEGIN marker is gone from the guard — this file can no longer build its public mutant, and the "the public limb matters" case below would be asserting nothing');
+  assert.notEqual(end, -1, 'the SELF PIN USE END marker is gone from the guard');
+  const endOfLine = src.indexOf('\n', end);
+  const mutant = src.slice(0, begin) + src.slice(endOfLine + 1);
+  assert.ok(!mutant.includes('resolvesAtTag(REPO,'), 'the mutation left the self-pin resolution in the scan loop');
+  assert.ok(mutant.includes('resolvesAtTag(PRIVATE,'), 'the mutation also removed the PRIVATE pin limb, so a red below would not be about the public one');
+  assert.notEqual(mutant, src, 'the mutation changed nothing');
+  writeFileSync(join(PUB, 'tooling', 'scripts', 'mutant-no-self-pin.mjs'), mutant, 'utf8');
+}
+
 function writeNoPinMutant() {
   const src = readFileSync(GUARD_SRC, 'utf8');
   const begin = src.indexOf('/* ── TAG PIN USE BEGIN');
@@ -140,7 +186,7 @@ function writeNoPinMutant() {
   assert.notEqual(end, -1, 'the TAG PIN USE END marker is gone from the guard');
   const endOfLine = src.indexOf('\n', end);
   const mutant = src.slice(0, begin) + src.slice(endOfLine + 1);
-  assert.ok(!mutant.includes('resolvesAtTag(pinned['), 'the mutation left the pin resolution in the path limb');
+  assert.ok(!mutant.includes('resolvesAtTag(PRIVATE, pinned['), 'the mutation left the pin resolution in the path limb');
   assert.notEqual(mutant, src, 'the mutation changed nothing');
   writeFileSync(join(PUB, 'tooling', 'scripts', 'mutant-no-pin.mjs'), mutant, 'utf8');
 }
@@ -193,12 +239,26 @@ before(() => {
   git(PUB, 'add', '-A');
   git(PUB, 'commit', '-q', '-m', 'fixture', '--no-gpg-sign');
 
+  /* THE PUBLIC PIN'S OWN HISTORY, built in the FIXTURE PUBLIC REPO rather than the
+     corpus: a file committed, tagged with this repository's `ref/` convention, then
+     deleted and committed. After it the path is not on disk and IS at the tag — the
+     state the prune leaves behind, one repository closer to home than the private half. */
+  mkdirSync(dirname(join(PUB, SELF_EVIDENCE)), { recursive: true });
+  writeFileSync(join(PUB, SELF_EVIDENCE), '# fixture record, deleted by the public prune\n', 'utf8');
+  git(PUB, 'add', '--', SELF_EVIDENCE);
+  git(PUB, 'commit', '-q', '-m', 'the record, before the public prune', '--no-gpg-sign');
+  git(PUB, 'tag', SELF_TAG);
+  git(PUB, 'rm', '-q', '--', SELF_EVIDENCE);
+  git(PUB, 'commit', '-q', '-m', 'the public prune', '--no-gpg-sign');
+  assert.ok(!existsSync(join(PUB, SELF_EVIDENCE)), 'the self-pinned file is still on disk, so a pass below would prove nothing');
+
   /* Copied in AFTER the commit and left UNTRACKED: the guard's subject is
      `git ls-files`, so an untracked copy is not part of its own subject. */
   mkdirSync(join(PUB, 'tooling', 'scripts'), { recursive: true });
   cpSync(GUARD_SRC, join(PUB, 'tooling', 'scripts', 'assert-public-citations.mjs'));
   cpSync(GIT_HELPER_SRC, join(PUB, 'tooling', 'scripts', 'repo-git.mjs'));
   writeNoPinMutant();
+  writeNoSelfPinMutant();
 
   assert.equal(git(PUB, 'ls-files').split('\n').filter(Boolean).length, tracked, 'the fixture repo does not track the number of files this file thinks it does');
 });
@@ -292,6 +352,80 @@ test('git is spawned LAZILY — a corpus that is not a checkout still passes a t
     const real = runGuard();
     assert.equal(real.code, 2, `a pin against a corpus git cannot read is COVERAGE LOST: ${real.out}`);
     assert.match(real.out, /could not be evaluated/);
+  });
+});
+
+test('a self-pin to THIS repository\'s own tag RESOLVES, and the ok line counts it', () => {
+  buildPinnedCorpus();
+
+  // CONTROL: green with no citing file, so every exit code below is about that file alone.
+  assert.equal(runGuard().code, 0, 'the fixture is not green before the citing file is added');
+
+  withTrackedFile(CITING_FILE, citing(`${SELF_TAG}:${SELF_EVIDENCE}`), () => {
+    const real = runGuard();
+    assert.equal(real.code, 0, `a self-pin whose blob is at the tag must resolve: ${real.out}`);
+    assert.match(real.out, /every citation resolves/);
+    assert.match(real.out, /1 self-pin\(s\)/, `the ok line must say how many self-pins were resolved, so a reader can check it. Got: ${real.out}`);
+  });
+});
+
+test('a self-pin to a path that was NEVER at the tag is exit 1 — and the pre-limb guard did not even look', () => {
+  buildPinnedCorpus();
+
+  withTrackedFile(CITING_FILE, citing(`${SELF_TAG}:${SELF_NEVER_THERE}`), () => {
+    const real = runGuard();
+    assert.equal(real.code, 1, `a self-pin naming a path that is not at the tag must FAIL: ${real.out}`);
+    assert.match(real.out, /not at that tag in this repository/, `the finding must say what was wrong with it. Got: ${real.out}`);
+    assert.ok(real.out.includes(SELF_NEVER_THERE), `the finding must name the cited path. Got: ${real.out}`);
+
+    /* THE MUTATION. The same bytes read by the guard with the SELF PIN USE region gone
+       exit 0 — not a wrong verdict, NO verdict, because before this limb a repo-local
+       citation matched nothing at all. That is the hole, put back and watched. */
+    const old = runGuard('mutant-no-self-pin.mjs');
+    assert.equal(old.code, 0, `without the self-pin region the citation must go unchecked, or this case is not exercising the fix: ${old.out}`);
+    assert.doesNotMatch(old.out, /not at that tag in this repository/);
+  });
+
+  /* CONTROL — the SAME fixture and the SAME shape of citation, differing only in which
+     path is named. It resolves. So the exit 1 above is about the path not being at the
+     tag, and not about the pin syntax, the fixture, or the tag. */
+  withTrackedFile(CITING_FILE, citing(`${SELF_TAG}:${SELF_EVIDENCE}`), () => {
+    const control = runGuard();
+    assert.equal(control.code, 0, `the control citation must resolve, or the case above proves only that this fixture is red: ${control.out}`);
+  });
+});
+
+test('a self-pin naming a tag THIS repository does not carry is exit 2, never a pass', () => {
+  buildPinnedCorpus();
+
+  withTrackedFile(CITING_FILE, citing(`${SELF_NS}no-such-tag-here:${SELF_EVIDENCE}`), () => {
+    const real = runGuard();
+    assert.equal(real.code, 2, `an unresolvable TAG is COVERAGE LOST — the citation was not evaluated, and "I could not check" must not share an exit code with "it checks out": ${real.out}`);
+    assert.match(real.out, /does not carry/);
+    assert.ok(real.out.includes('no-such-tag-here'), `the refusal must name the tag it could not find. Got: ${real.out}`);
+    assert.ok(real.out.includes(PUB), `the refusal must name the repository it asked, or a reader cannot tell which of the two corpora failed. Got: ${real.out}`);
+  });
+});
+
+test('the self-pin matcher does not fire on ordinary prose', () => {
+  buildPinnedCorpus();
+
+  /* Every line here contains a colon after a slashed token, which is what a naive
+     `<tag>:<path>` matcher would have claimed as a citation. None of them is one. */
+  const prose = [
+    '# fixture: prose that is not a citation',
+    '',
+    'See tooling/ci/assert-thing.mjs:214 for the limb that does this.',
+    'note: docs/areas/history.md records the window.',
+    'The href/link:target shape is not a pin either.',
+    'https://example.test/ref/whatever:not-a-pin',
+    '',
+  ].join('\n');
+
+  withTrackedFile(CITING_FILE, prose, () => {
+    const real = runGuard();
+    assert.equal(real.code, 0, `ordinary prose must not be read as a self-pin: ${real.out}`);
+    assert.match(real.out, /0 self-pin\(s\)/, `nothing on those lines is a citation, so the count must be zero. Got: ${real.out}`);
   });
 });
 
