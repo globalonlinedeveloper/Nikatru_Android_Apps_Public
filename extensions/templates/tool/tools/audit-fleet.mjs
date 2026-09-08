@@ -160,7 +160,7 @@ if (repoRootFlag !== null && !repoRootFlag) die('--repo-root needs a directory')
    deliberately skips. Result, measured before and after the move: `tools 0
    found`, `0 current · 0 behind · 0 diverged · 0 unstamped`, exit 0. A drift
    audit reporting that nothing has drifted because it looked at nothing.
-   MIGRATION.md §6 carries the same measurement.
+   ref/pre-prune-2026-09-08:extensions/MIGRATION.md §6 carries the same measurement.
 
    The marker is .git, which every clone has by definition. It is a file rather
    than a directory in a worktree or a submodule, so existsSync is the right
@@ -277,7 +277,7 @@ function findTools(root) {
    path.resolve() unexamined: `Extension/No_Such_Tool` printed `tools 1 found`
    and `UNSTAMPED  No_Such_Tool` at exit 0, byte-identical to the report for the
    real tool, because the real tool is unstamped too. A typo could not be told
-   from a finding — in the branch that MIGRATION.md §6 recommended as the
+   from a finding — in the branch that ref/pre-prune-2026-09-08:extensions/MIGRATION.md §6 recommended as the
    workaround for the other half of this bug. The message prints the RESOLVED
    paths, because the argument as typed is precisely the part that looked fine. */
 function resolveNamed(arg) {

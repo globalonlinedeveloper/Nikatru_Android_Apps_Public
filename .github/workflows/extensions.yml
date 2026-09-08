@@ -276,7 +276,7 @@ jobs:
           # templates/ carries a tool.json too — it is the thing a tool is stamped
           # FROM, not a tool: it does not ship, and it has no id a reporter could
           # name. (_skeleton/ was its location before the move recorded in
-          # MIGRATION.md; the exclusion is kept because new-tool.mjs deliberately
+          # ref/pre-prune-2026-09-08:extensions/MIGRATION.md; the exclusion is kept because new-tool.mjs deliberately
           # keeps that path as a fallback.) private/ is gitignored and absent on a runner;
           # it is excluded anyway so this reads the same on the owner's machine.
           # toolinfo.mjs excludes the same directories, which is what makes the
@@ -996,7 +996,7 @@ jobs:
           node -e '
             const fs = require("fs"), path = require("path");
             // templates/ is what a tool is stamped from, not a tool. (_skeleton/ was
-            // its pre-move location — see MIGRATION.md — kept as new-tool.mjs fallback.)
+            // its pre-move location — see ref/pre-prune-2026-09-08:extensions/MIGRATION.md — kept as new-tool.mjs fallback.)
             const SKIP = new Set(["templates", "_skeleton", "node_modules"]);
             const dirs = p => fs.readdirSync(p, { withFileTypes: true })
                                 .filter(d => d.isDirectory() && !d.name.startsWith(".") && !SKIP.has(d.name))

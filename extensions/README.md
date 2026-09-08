@@ -65,8 +65,8 @@ core/                 the shared runtime, copied into a tool as vendor/core/ (MP
 scripts/              the repo-level gates and the scaffolder — lint, policy-check,
                         check-version, discover, new-tool, gen-catalog, sync-core
 docs/                 architecture, core policy, releasing, the store playbook
-.github/              CI workflows, issue forms, renovate
-.githooks/            the pre-commit credential gate — git installs nothing, you do
+.github/              (emptied 2026-09-08 — see below)
+                      (the pre-commit credential gate moved out on 2026-09-08 — see below)
 ```
 
 Each extension carries its own `manifest.json`, `_locales/` (FullShot ships 55), a `test/` tree, and a
@@ -78,13 +78,33 @@ guards the copies has nothing to check today.
 
 ## Working on this
 
-Before your first commit, install the credential hook. Git runs nothing on clone and `core.hooksPath`
-lives in `.git/config`, which is never cloned, so nothing in this repository can do it for you:
+Before your first commit, install the repository's hooks. Git runs nothing on clone and
+`core.hooksPath` lives in `.git/config`, which is never cloned, so nothing in this repository can do
+it for you:
 
 ```sh
-git config core.hooksPath .githooks     # once per clone
-sh .githooks/pre-commit --self-test     # and watch it prove its own patterns
+node tooling/scripts/install-hooks.mjs           # once per clone, from the repository ROOT
+node tooling/scripts/install-hooks.mjs --check   # verify only; exit 1 if it is not installed
 ```
+
+⏱ 2026-09-08 — THIS INSTRUCTION CHANGED, and the old one had become wrong rather than merely
+old. It read `git config core.hooksPath .githooks` followed by `sh .githooks/pre-commit
+--self-test`. Run from the repository root — the only place `core.hooksPath` can be set — that
+first line selects the ROOT `.githooks/`, not this subtree's, because git honours exactly ONE
+`core.hooksPath` per repository. The subtree copy had been inert since the 2026-09-05 merge and
+was removed; it is at `ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`. The root hook takes no
+`--self-test`, so the second line would have failed. The credential patterns it carried are run
+by two live gates instead: `node scripts/secret-scan.mjs .` here (extensions.yml:390, :1925) and
+`tooling/ci/scan-secrets.mjs` repo-wide (ci.yml:423).
+
+⏱ 2026-09-08 — `extensions/.github/` AND `extensions/renovate.json` ARE GONE, and every one of
+them was inert from the day the subtree was merged. GitHub reads `.github/` at the repository ROOT
+only, and Renovate reads its configuration at the ROOT only — so the workflows here were already
+folded into the root `.github/workflows/extensions.yml` on 2026-09-05, the issue forms were
+promoted to `<root>/.github/ISSUE_TEMPLATE/` (where a reporter can finally see them), the pull
+request template's "No network" clause was folded into `<root>/.github/PULL_REQUEST_TEMPLATE.md`,
+and the root `renovate.json` already reaches this subtree — it declares no `ignorePaths` entry for
+it. Recover any of them with `git show ref/pre-prune-2026-09-08:<path>`.
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the two licences, the rules that get a pull request rejected on
   sight, the gates to run before you push, and what that hook does and does not cover.

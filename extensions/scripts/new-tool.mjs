@@ -15,7 +15,7 @@
 
      templates/tool/   if it exists   (the name spec §1.2 gives it, and where
                                        the template actually lives since the
-                                       move recorded in MIGRATION.md)
+                                       move recorded in ref/pre-prune-2026-09-08:extensions/MIGRATION.md)
      _skeleton/        otherwise      (the pre-move location, kept as a fallback)
 
    The template is a real, loadable MV3 extension with 55 locales, two test

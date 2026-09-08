@@ -168,8 +168,18 @@ below names **where the authority is**; the snapshot is only the last column. Ve
 | The vendored copy inside a tool | `<tool>/vendor/core/` | **Absent everywhere.** There is no `vendor/` directory in the tree at all, so the hash gate that makes a copy honest is not yet exercised by anything. |
 | Repo-level gates | `scripts/`, and the header comment of `.github/workflows/ci.yml` is the authoritative list of what CI requires | **Incomplete, landing.** A script that header names and CI cannot find fails the job on purpose — there are no `if [ -f … ]` guards, because a workflow that skips its own absent gates is a green build that checked nothing. `ls scripts/` answers "which exist". |
 | The per-tool contract | `Extension/Full_Screen_Shot/tool.json`, `templates/tool/tool.json` | Written; **not yet consumed end to end** (§5). |
-| Scaffolding a new tool | `scripts/new-tool.mjs`, stamping from `templates/tool/` | Real, runnable. `templates/tool/` is the full 132-file stamp since the move recorded in `MIGRATION.md`; copying by hand still works. |
-| CI | `.github/workflows/` (`ci`, `release`, `e2e`), the issue forms, `.githooks/pre-commit` | Present and **not green**: the workflows call `scripts/*.mjs` gates that are still landing, and no tag exists, so `release.yml` has never run. |
+<!-- ⏱ 2026-09-08 — WHY SOME CITATIONS BELOW LOOK LIKE `ref/<tag>:<path>`.
+     The 2026-09-08 prune removed the inert leftovers of the 2026-09-05 subtree
+     merge, including `extensions/MIGRATION.md`. A citation to a removed file is
+     PINNED here, never deleted: the tag, a colon, and the path the file had at
+     that tag. Read one with
+         git show ref/pre-prune-2026-09-08:extensions/MIGRATION.md
+     A pin is CHECKED rather than believed — `tooling/scripts/assert-public-citations.mjs`
+     resolves every one with `git cat-file -e` against this repository and fails
+     on a path that was never at the tag. -->
+
+| Scaffolding a new tool | `scripts/new-tool.mjs`, stamping from `templates/tool/` | Real, runnable. `templates/tool/` is the full 132-file stamp since the move recorded in `ref/pre-prune-2026-09-08:extensions/MIGRATION.md`; copying by hand still works. |
+| CI | `.github/workflows/` (`ci`, `release`, `e2e`), the issue forms, `.githooks/pre-commit` (removed 2026-09-08 as inert — one `core.hooksPath` per repository, and it is the root one; `ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`) | Present and **not green**: the workflows call `scripts/*.mjs` gates that are still landing, and no tag exists, so `release.yml` has never run. |
 
 **FullShot and the template do not share a packager.** FullShot predates the template and carries its own
 `publish/package.node.js` with the same design and a different implementation. Two implementations of

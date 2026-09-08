@@ -76,12 +76,19 @@ issue number — the fixture corpus has to stay readable at forty entries. A sce
 mutations do not make it fail is not a test; it is decoration.
 
 **5. Never commit:** credentials of any shape, `node_modules/`, generated output, or third-party
-screenshots. Install the hook that enforces the first one:
+screenshots. Install the hooks that enforce the first one, from the repository ROOT:
 
 ```sh
-git config core.hooksPath .githooks     # hooks are not cloned; do this once per clone
-sh .githooks/pre-commit --self-test     # and watch it prove its own patterns
+node tooling/scripts/install-hooks.mjs           # hooks are not cloned; do this once per clone
+node tooling/scripts/install-hooks.mjs --check   # verify only; exit 1 if it is not installed
 ```
+
+⏱ 2026-09-08: this said `git config core.hooksPath .githooks` and `sh .githooks/pre-commit
+--self-test`. Git honours exactly ONE `core.hooksPath` per repository, so from the root that
+selected the ROOT hook and never this subtree's copy — which had been inert since the 2026-09-05
+merge and is now removed (`ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`). The root hook takes no
+`--self-test`. Credentials are gated by `node scripts/secret-scan.mjs .` in CI here and by
+`tooling/ci/scan-secrets.mjs` repo-wide.
 
 **Nothing in this repository installs that for you, and nothing checks that you ran it.** Git executes
 no repository code on clone, so no file here can make the hook automatic; `core.hooksPath` is written
@@ -132,6 +139,31 @@ Two things the correction does **not** retire, and they are the reason this para
 The rule underneath is also unchanged and worth keeping: **a job that fails loudly on a missing
 script is honest in a way that an `if [ -f ]` guard is not.** What changed is that the job no longer
 has a missing script to be honest about.
+
+⏱ **APPENDED 2026-09-08 — THE HOOK THIS WHOLE SECTION IS ABOUT NO LONGER EXISTS AT THIS PATH, AND
+IT HAD NOT BEEN RUNNING SINCE 2026-09-05.** Everything above is left exactly as written; this
+corpus appends dated corrections rather than rewriting them. What changed is the tree beneath it.
+
+When this subtree was merged into `Nikatru_Platform_Public` on 2026-09-05, `extensions/.githooks/`
+came with it — and became inert on arrival. **Git honours exactly ONE `core.hooksPath` per
+repository**, and `tooling/scripts/install-hooks.mjs` points it at the ROOT `.githooks/`. So for
+three days the instruction at the top of this section installed a DIFFERENT hook from the one the
+paragraphs below describe, and nothing said so. The file was removed on 2026-09-08 and is readable
+at `ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`.
+
+The two things the 2026-08-25 correction said it did not retire are BOTH retired now, and by the
+mechanism rather than by decree:
+
+- **"The hook is still hand-installed and still unchecked."** It is neither, at the root:
+  `node tooling/scripts/install-hooks.mjs` installs both root hooks and
+  `node tooling/scripts/install-hooks.mjs --check` verifies the installation and exits 1 if it is
+  absent. What is still true is the underlying fact — `core.hooksPath` lives in `.git/config`,
+  which is neither cloned nor pushed — so somebody still has to type that once per clone.
+- **"A CI scan is not a pre-commit hook."** Still exactly right, and now there are two nets rather
+  than one: `node scripts/secret-scan.mjs .` here (`extensions.yml:390` and `:1925`) and
+  `tooling/ci/scan-secrets.mjs . --gitleaks …` repo-wide (`ci.yml:423`). The nine content patterns
+  the removed hook carried are, one for one, the nine `CONTENT_RULES` in `scripts/secret-scan.mjs`,
+  which is why removing it took no rule out of the tree — checked before it was deleted, not after.
 
 ⚠️ **CORRECTED AGAIN 2026-08-25, later the same day — four figures in the block above have drifted.
 This is drift, not fabrication.** Every number in that block was measured honestly against the tree
@@ -186,13 +218,17 @@ table row above, once in the fenced current output, and twice in this paragraph;
 about this file. Subtract this section before concluding anything from such a count, and re-count
 rather than trusting these three numbers if the file has been edited since.
 
-`.githooks/pre-commit` refuses a commit whose staged paths or staged diff look like a credential.
+`ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit` refused a commit whose staged paths or staged diff looked like a credential (removed 2026-09-08 as inert; `scripts/secret-scan.mjs` and `tooling/ci/scan-secrets.mjs` are the live gates).
 `--no-verify` bypasses it, which is why it is a net rather than a permit.
 
 The hook is tracked as mode `100755`. If you ever re-add it from a filesystem that drops the
 executable bit (`git config core.filemode` is `false` on Windows), restore it with
 `git add --chmod=+x .githooks/pre-commit` — on Linux and macOS a hook without that bit is skipped
 **silently**, which looks exactly like a hook that found nothing.
+
+⏱ 2026-09-08: the paragraph above described `extensions/.githooks/pre-commit`, which is gone
+(`ref/pre-prune-2026-09-08:extensions/.githooks/pre-commit`). The mode advice still applies, to the ROOT
+hooks: `git add --chmod=+x .githooks/pre-commit .githooks/pre-push` from the repository root.
 
 ## Naming — decided once, not revisited
 

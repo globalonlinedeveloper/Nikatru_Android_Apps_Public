@@ -49,7 +49,7 @@ secrets.json
 # the quiet one — `git add -A` drops the file and says nothing, which is exactly
 # how templates/tool/HANDOFF.md went missing further down this file. The three
 # forms below cover every credential-file shape (`GITHUB_PAT`, `GITHUB_PAT.txt`,
-# `MY_PAT_OLD.txt`) while releasing the `_pat…` word family; .githooks/pre-commit
+# `MY_PAT_OLD.txt`) while releasing the `_pat…` word family; the extensions pre-commit hook
 # holds the matching `_PAT($|[^A-Za-z])` and negative-tests all three names.
 **/*_PAT
 **/*_PAT.*
@@ -180,7 +180,7 @@ private/
 **/HANDOFF.md
 # …with exactly one exception, and it is a PATH, not a word. The skeleton's own
 # HANDOFF.md is an unfilled scaffold — `# HANDOFF — ⟨TOOL⟩`, empty bullets, an
-# empty session table — and a required template artefact: MIGRATION.md counts it
+# empty session table — and a required template artefact: ref/pre-prune-2026-09-08:extensions/MIGRATION.md counts it
 # among the template's tracked files, templates/tool/TEMPLATE.md's checklist
 # requires a stamped tool to fill it in, and templates/tool/README-tour.md names
 # it. It is not a session log; it is the blank a session log is written into.
@@ -190,7 +190,7 @@ private/
 # re-consult .gitignore for a path already in the index. When the history was
 # rebuilt from scratch the accident stopped working and `git add -A` silently
 # dropped it: measured, templates/tool/ holds 134 files on disk and tracked 133,
-# and HANDOFF.md was the entire difference — against the 134 MIGRATION.md's own
+# and HANDOFF.md was the entire difference — against the 134 ref/pre-prune-2026-09-08:extensions/MIGRATION.md's own
 # verification step tells a reader to expect. A rule that quietly deletes a
 # required file from the product is the same failure as a rule that quietly
 # publishes a private one.
