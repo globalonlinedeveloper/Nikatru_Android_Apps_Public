@@ -10,6 +10,12 @@
 //                                        ├▶ …/privacy-policy-url.txt
 //                                        └▶ …/support-url.txt
 //
+// and, when the declaration carries a `shortName`, the SIX OS-level icon-label
+// fields — CFBundleDisplayName (iOS + macOS), android:label, the .desktop
+// `Name=`, msix_config.display_name and the PWA manifest `short_name`. Those are
+// SURGICAL renderings into files this script does not otherwise own; see
+// ICON_LABEL_TARGETS below for the anchor rule that makes that safe.
+//
 // ── WHAT THIS FIXES, IN THE GUARD'S OWN WORDS ────────────────────────────────
 // `assert-store-metadata.mjs` opens with "[pipeline D-5] Store listing metadata
 // is GENERATED from the spec and lives in the repo", and its own header then
@@ -79,6 +85,107 @@ export const APP_SCHEMA_PATH = join(HERE, 'schema', 'app.schema.json');
 /** The listing files this script owns. Everything else under a channel tree is
  *  sworn or editorial — see the header. */
 export const RENDERED_LISTING_FILES = ['title.txt', 'short-description.txt', 'category.txt', 'privacy-policy-url.txt', 'support-url.txt'];
+
+/* ------------------------------------------------------------------ */
+/* The icon label — `shortName`                                       */
+//
+// ── WHY A SECOND NAME AT ALL ─────────────────────────────────────────────────
+// A store title and a home-screen label are two different fields with two
+// different readers. The store title is read once, in a search result, with a
+// whole row to itself; the icon label is read every day, under a 60-pixel mark,
+// and every OS truncates it — iOS around 12-13 glyphs, Android around 11-14. A
+// portfolio brand that is correct in the store ("Nikatru Subscription Tracker")
+// is an ellipsis on a phone, and shipping the SAME string to both is how a
+// launcher ends up showing four apps all reading "Nikatru Subs…".
+//
+// 🔴 IT IS RENDERED, NOT AUTHORED, AND THAT IS THE ENTIRE POINT. These six
+// fields sit in six different file formats across six platform directories.
+// Hand-maintained, they are six chances for one of them to keep the old brand
+// through a rename — which is precisely the class of defect a rename produces,
+// because five of the six are files nobody opens between `flutter create` and a
+// store submission. `--check` is what makes a hand edit to any of them fail.
+//
+// ⚠️ SURGICAL, NOT WHOLESALE. Every other rendering in this file is a file whose
+// ENTIRE content this script owns. These six are not: an Info.plist, an
+// AndroidManifest and a pubspec are mostly things this script knows nothing
+// about. So each target names an ANCHOR — a regex with the value between two
+// captured groups — and the rendering is the current file with that one span
+// replaced. A target whose anchor is not found is COVERAGE LOST, never a skip:
+// it means the renderer believes it owns a field that has moved, and a silent
+// skip there is exactly how the old brand would survive.
+//
+// Each value is escaped for ITS OWN language. The same lesson
+// `tooling/bricks/app/hooks/pre_gen.dart` records for mason: one string, six
+// destinations, six escape rules, and a raw `&` is valid in a .desktop file and
+// a malformed document in an Info.plist.
+
+/** JSON string BODY (no surrounding quotes) — the anchor supplies them. */
+const jsonBody = (s) => JSON.stringify(s).slice(1, -1);
+/** XML text and double-quoted attribute values. `'` needs no escape in either. */
+const xmlText = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** freedesktop.org Desktop Entry: the value runs to end of line; only `\` is
+ *  an escape introducer, so it is the only character that must be doubled. */
+const desktopValue = (s) => s.replace(/\\/g, '\\\\');
+/** A YAML scalar. Plain when the value cannot be mistaken for anything else,
+ *  double-quoted otherwise — JSON's escapes are a strict subset of YAML's. */
+const yamlScalar = (s) => (/^[A-Za-z0-9][A-Za-z0-9 ._-]*[A-Za-z0-9.]$/.test(s) ? s : JSON.stringify(s));
+
+/**
+ * The six OS-level label fields, in the order a person would check them.
+ *
+ * `in` names the file, relative to `apps/<id>/`; a `dir`+`ext` pair instead
+ * means every matching file in that directory (the .desktop entry is named
+ * after the application id, which this script does not own).
+ * `re` MUST capture exactly two groups — everything before the value and
+ * everything after it — so the replacement can never widen its own span.
+ */
+export const ICON_LABEL_TARGETS = [
+  {
+    field: 'PWA short_name',
+    in: 'web/manifest.json',
+    re: /("short_name"\s*:\s*")(?:[^"\\]|\\.)*(")/,
+    encode: jsonBody,
+  },
+  {
+    field: 'android:label',
+    in: 'android/app/src/main/AndroidManifest.xml',
+    re: /(android:label=")[^"]*(")/,
+    encode: xmlText,
+  },
+  {
+    field: 'CFBundleDisplayName (iOS)',
+    in: 'ios/Runner/Info.plist',
+    re: /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
+    encode: xmlText,
+  },
+  {
+    field: 'CFBundleDisplayName (macOS)',
+    in: 'macos/Runner/Info.plist',
+    re: /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
+    encode: xmlText,
+  },
+  {
+    field: 'Desktop Entry Name=',
+    dir: 'linux/packaging',
+    ext: '.desktop',
+    re: /(^Name=)[^\r\n]*(\r?)$/m,
+    encode: desktopValue,
+  },
+  {
+    // `msix` writes this into the generated AppxManifest as
+    // uap:VisualElements/@DisplayName — the Start-menu tile's label.
+    field: 'msix_config.display_name (uap:VisualElements/@DisplayName)',
+    in: 'pubspec.yaml',
+    // Every app has a pubspec; only an app packaged for the Microsoft Store has
+    // an `msix_config:` block in it. `applies` is the difference between "this
+    // platform is not configured" (skip) and "the field this renderer owns has
+    // moved" (COVERAGE LOST) — without it a freshly stamped app, whose pubspec
+    // carries no msix_config at all, would fail the renderer on its first run.
+    applies: /^msix_config:/m,
+    re: /(^msix_config:[\s\S]*?^ {2}display_name: )[^\r\n]*(\r?)$/m,
+    encode: yamlScalar,
+  },
+];
 
 /** The catalogue row's key order. Locked, because the row is the published record
  *  and the bytes are compared by two positive controls: a row whose keys arrive
@@ -268,6 +375,60 @@ export function plan(root) {
         'alone is not what [10]D-5 is about.',
     );
   }
+
+  // ── the icon label ────────────────────────────────────────────────────────
+  // Only for a declaration that HAS a `shortName`; the field is optional in the
+  // schema so an older declaration still parses. A target file that is not on
+  // disk is a platform this app was never stamped for and is skipped silently —
+  // a target file that IS on disk and no longer carries its anchor is COVERAGE
+  // LOST, because that is the renderer having lost a field it believes it owns.
+  let labelApps = 0;
+  let labelFields = 0;
+  for (const { id, doc } of declarations) {
+    if (typeof doc.shortName !== 'string' || doc.shortName === '') continue;
+    labelApps += 1;
+    let fieldsHere = 0;
+    for (const t of ICON_LABEL_TARGETS) {
+      const rels = t.in
+        ? [`${APPS_DIR}/${id}/${t.in}`]
+        : (isDir(join(root, APPS_DIR, id, t.dir))
+            ? readdirSync(join(root, APPS_DIR, id, t.dir))
+                .filter((f) => f.endsWith(t.ext))
+                .sort()
+                .map((f) => `${APPS_DIR}/${id}/${t.dir}/${f}`)
+            : []);
+      for (const rel of rels) {
+        // A file this loop has already rewritten (two targets can share a file)
+        // is read back out of the plan, never off disk.
+        const current = files.get(rel) ?? read(root, rel);
+        if (current === null) continue;
+        if (t.applies && !t.applies.test(current)) continue;
+        if (!t.re.test(current)) {
+          lost.push(
+            `${rel} exists but carries no ${t.field} anchor this renderer can find. \`shortName\` is DECLARED in ` +
+              `${APPS_DIR}/${id}/app.yaml, so this file is one of the six an operating system reads the app's name from — ` +
+              'and a rendering that quietly skipped it is how a retired brand survives a rename in the one place a user looks ' +
+              'at every day. Restore the field, or remove this target and say here why the platform no longer has one.',
+          );
+          continue;
+        }
+        files.set(rel, current.replace(t.re, (_m, pre, post) => `${pre}${t.encode(doc.shortName)}${post}`));
+        fieldsHere += 1;
+        labelFields += 1;
+      }
+    }
+    if (fieldsHere === 0) {
+      lost.push(
+        `${APPS_DIR}/${id}/app.yaml declares \`shortName: ${doc.shortName}\` and NOT ONE of the ${ICON_LABEL_TARGETS.length} icon-label ` +
+          'targets exists under it. The label reaches no operating system, so the declaration is a string this repository ' +
+          'renders nowhere — which reads exactly like a rendered one.',
+      );
+    }
+  }
+  if (labelApps > 0 && labelFields === 0) {
+    lost.push(`${labelApps} declaration(s) carry a \`shortName\` and zero icon-label fields were rendered from any of them.`);
+  }
+
   return { declarations, files, problems, lost };
 }
 

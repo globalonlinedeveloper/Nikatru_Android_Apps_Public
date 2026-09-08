@@ -70,6 +70,17 @@ function tree() {
     'extensions/Extension/Full_Screen_Shot/publish/privacy.yaml',
     'extensions/Extension/Full_Screen_Shot/publish/STORE-LISTING.md',
     'extensions/templates/tool/publish/STORE-LISTING.md',
+    // ── the six icon-label targets ────────────────────────────────────────
+    // Not decoration: a declaration carrying `shortName` and NO target file is
+    // a COVERAGE LOST refusal in the renderer, so a fixture missing these would
+    // exercise that refusal on every case below instead of the case's own
+    // mutation. They are exactly the files ICON_LABEL_TARGETS names.
+    'apps/subly/web/manifest.json',
+    'apps/subly/android/app/src/main/AndroidManifest.xml',
+    'apps/subly/ios/Runner/Info.plist',
+    'apps/subly/macos/Runner/Info.plist',
+    'apps/subly/linux/packaging/com.nikatru.subly.desktop',
+    'apps/subly/pubspec.yaml',
   ]) {
     mkdirSync(join(root, dirname(rel)), { recursive: true });
     cpSync(join(REPO, rel), join(root, rel));
@@ -771,6 +782,181 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
       const { code, out } = spawn(GUARD, [root]);
       assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
       assert.match(out, /ios/);
+    } finally { kill(root); }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ICON LABEL — `shortName`, and the six OS-level fields it renders into.
+//
+// The recorded failing cases for the SURGICAL half of the renderer. Everything
+// else it writes is a file whose entire content it owns, where staleness is a
+// whole-file comparison; these six are one span inside a file that is mostly
+// somebody else's, so the failure modes differ in kind:
+//
+//   · the span is not rewritten at all        → --check must go RED, per file
+//   · the span is hand-edited back afterwards → --check must go RED
+//   · the ANCHOR is gone from a file that is
+//     still there                             → COVERAGE LOST (2), never a skip,
+//                                               because a silent skip is exactly
+//                                               how a retired brand survives a
+//                                               rename in the one field a user
+//                                               reads every day
+//   · a platform the app was never stamped
+//     for                                     → skipped, and skipping is right
+//
+// The label used below shares a token with the declaration's `name` on purpose:
+// that rule belongs to assert-app-naming.mjs, and a fixture that violated it
+// would be testing two guards at once.
+// ─────────────────────────────────────────────────────────────────────────────
+const LABEL = 'Subly Label';
+const LABEL_TARGETS = [
+  ['apps/subly/web/manifest.json', (t) => JSON.parse(t).short_name],
+  ['apps/subly/android/app/src/main/AndroidManifest.xml', (t) => t.match(/android:label="([^"]*)"/)?.[1]],
+  ['apps/subly/ios/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
+  ['apps/subly/macos/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
+  ['apps/subly/linux/packaging/com.nikatru.subly.desktop', (t) => t.match(/^Name=(.*)$/m)?.[1]],
+  ['apps/subly/pubspec.yaml', (t) => t.match(/^msix_config:[\s\S]*?^ {2}display_name: (.*)$/m)?.[1]],
+];
+
+/** Set (or replace) `shortName:` in the fixture's declaration. */
+function declareShortName(root, value) {
+  const text = get(root, APP_YAML);
+  const next = /^shortName: .*$/m.test(text)
+    ? text.replace(/^shortName: .*$/m, `shortName: ${value}`)
+    : text.replace(/^(name: .*)$/m, `$1\nshortName: ${value}`);
+  assert.notEqual(next, text, 'the fixture declaration must carry a `name:` line to anchor on');
+  put(root, APP_YAML, next);
+}
+
+const stripMsix = (root) => {
+  const text = get(root, 'apps/subly/pubspec.yaml');
+  const at = text.indexOf('\nmsix_config:');
+  assert.notEqual(at, -1, 'the fixture pubspec must still carry an msix_config block');
+  put(root, 'apps/subly/pubspec.yaml', `${text.slice(0, at)}\n`);
+};
+
+describe('the icon label reaches all six OS-level name fields', () => {
+  test('declaring shortName makes --check RED naming every one of the six files', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 1, `a declared label that has reached no platform file is stale, not ok:\n${out}`);
+      for (const [rel] of LABEL_TARGETS) assert.ok(out.includes(rel), `${rel} was not named as stale:\n${out}`);
+    } finally { kill(root); }
+  });
+
+  test('a write run puts the label in all six, ESCAPED for each format, and --check then passes', () => {
+    const root = tree();
+    try {
+      declareShortName(root, 'Subly & Co');
+      const first = spawn(RENDER, [root]);
+      assert.equal(first.code, 0, first.out);
+      for (const [rel, extract] of LABEL_TARGETS) {
+        // One value, three encodings, and that is the point: `&` is markup in
+        // XML, ordinary text in JSON and a YAML anchor sigil that forces the
+        // scalar to be quoted. A single shared `replace` would get two of the
+        // three wrong and produce files that no longer parse.
+        const expected = rel.endsWith('.plist') || rel.endsWith('.xml')
+          ? 'Subly &amp; Co'
+          : rel.endsWith('pubspec.yaml')
+            ? '"Subly & Co"'
+            : 'Subly & Co';
+        assert.equal(extract(get(root, rel)), expected, `${rel} did not receive the label`);
+      }
+      // The manifest must still PARSE and the plist must still be well formed —
+      // an unescaped `&` in XML is a malformed document, and that is the whole
+      // reason each target carries its own encoder rather than one shared
+      // `replace`. JSON.parse above is the manifest's proof; `&amp;` is the
+      // plist's.
+      const second = spawn(RENDER, [root, '--check']);
+      assert.equal(second.code, 0, second.out);
+    } finally { kill(root); }
+  });
+
+  test('a hand edit to ONE rendered label is caught, and only that file is named', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      assert.equal(spawn(RENDER, [root]).code, 0);
+      const rel = 'apps/subly/android/app/src/main/AndroidManifest.xml';
+      put(root, rel, get(root, rel).replace(/android:label="[^"]*"/, 'android:label="Subly Legacy"'));
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 1, out);
+      assert.ok(out.includes(rel), out);
+      assert.ok(!out.includes('Info.plist'), `only the file that drifted is stale:\n${out}`);
+    } finally { kill(root); }
+  });
+
+  test('the anchor GONE from a file that is still there is COVERAGE LOST, not a skip', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      const rel = 'apps/subly/ios/Runner/Info.plist';
+      const text = get(root, rel);
+      const stripped = text.replace(/[ \t]*<key>CFBundleDisplayName<\/key>\s*<string>[^<]*<\/string>\n/, '');
+      assert.notEqual(stripped, text, 'the fixture plist must carry the key this case removes');
+      put(root, rel, stripped);
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 2, `a field the renderer owns that has vanished must not read as ok:\n${out}`);
+      assert.ok(out.includes('CFBundleDisplayName (iOS)'), out);
+    } finally { kill(root); }
+  });
+
+  test('a platform the app was never stamped for is skipped, not lost', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      rmSync(join(root, 'apps/subly/macos'), { recursive: true, force: true });
+      assert.equal(spawn(RENDER, [root]).code, 0);
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 0, `an absent platform directory is not a defect:\n${out}`);
+    } finally { kill(root); }
+  });
+
+  test('a pubspec with no msix_config block is skipped — `applies` is what makes that safe', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      stripMsix(root);
+      const { code, out } = spawn(RENDER, [root]);
+      assert.equal(code, 0, `an app not packaged for the Microsoft Store has no such field to render:\n${out}`);
+    } finally { kill(root); }
+  });
+
+  test('a shortName that reaches NO target at all is COVERAGE LOST', () => {
+    const root = tree();
+    try {
+      declareShortName(root, LABEL);
+      for (const dir of ['web', 'android', 'ios', 'macos', 'linux']) {
+        rmSync(join(root, 'apps/subly', dir), { recursive: true, force: true });
+      }
+      stripMsix(root);
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 2, `a label that reaches no operating system is not a rendered label:\n${out}`);
+      assert.ok(out.includes('NOT ONE of the 6 icon-label'), out);
+    } finally { kill(root); }
+  });
+
+  test('shortName over the 15-character cap is refused by the schema, not truncated', () => {
+    const root = tree();
+    try {
+      declareShortName(root, 'Subly Subscriptions Manager');
+      const { code, out } = spawn(RENDER, [root, '--check']);
+      assert.equal(code, 1, out);
+      assert.ok(out.includes('shortName'), out);
+    } finally { kill(root); }
+  });
+
+  test('no shortName means no label rendering at all — the field is optional in the schema', () => {
+    const root = tree();
+    try {
+      put(root, APP_YAML, get(root, APP_YAML).replace(/^shortName: .*\n/m, ''));
+      const before = LABEL_TARGETS.map(([rel]) => get(root, rel));
+      const { code, out } = spawn(RENDER, [root]);
+      assert.equal(code, 0, out);
+      LABEL_TARGETS.forEach(([rel], i) => assert.equal(get(root, rel), before[i], `${rel} must be untouched`));
     } finally { kill(root); }
   });
 });
