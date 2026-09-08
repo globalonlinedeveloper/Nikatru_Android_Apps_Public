@@ -268,6 +268,23 @@ describe('assert-name-clearance — the mutation matrix', () => {
     assert.match(r.out, /declares no app with a `slug`/);
   });
 
+  test('M15 ONE DAY AHEAD IS GEOGRAPHY, NOT A DEFECT — a record stamped in IST is read in UTC', () => {
+    // 🔴 THIS EXACT CASE FAILED CI ON THE FIRST PUSH. The probe stamps the LOCAL
+    // date on purpose (UTC would stamp yesterday for an evening run at +05:30 and
+    // give a day of the 30-day ceiling away), and the runner reads it in UTC:
+    // local 2026-09-09 02:51 IST is 2026-09-08 21:21 UTC, so a correct record
+    // read as "measured tomorrow" and the guard refused it. Tolerating one day is
+    // the whole width of the effect — M14 proves it is not tolerating more.
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const root = fixture(({ editJson }) =>
+      editJson(RECORD, (doc) => {
+        doc.asOf = tomorrow;
+      }),
+    );
+    const r = run(root);
+    assert.equal(r.code, 0, r.out);
+  });
+
   test('M14 an `asOf` in the future is a finding — a clearance cannot have been measured tomorrow', () => {
     const root = fixture(({ editJson }) =>
       editJson(RECORD, (doc) => {
@@ -276,6 +293,6 @@ describe('assert-name-clearance — the mutation matrix', () => {
     );
     const r = run(root);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /is in the future/);
+    assert.match(r.out, /More than a day is more than geography can explain/);
   });
 });

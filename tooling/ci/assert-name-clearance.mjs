@@ -107,6 +107,18 @@ const appYamlRel = (app) => `apps/${app}/app.yaml`;
  *  skipping. */
 const MAX_AGE_DAYS = 30;
 
+/** ONE DAY OF LEGITIMATE SKEW, AND IT IS GEOGRAPHY RATHER THAN SLOP. The probe
+ *  stamps the LOCAL date deliberately — `toISOString()` is UTC, this factory's
+ *  machine sits at +05:30, and an evening run there would otherwise stamp
+ *  YESTERDAY and give a day of the 30-day ceiling away before the record was
+ *  even written. CI runs in UTC. So a record written at 02:51 IST reads as
+ *  TOMORROW to a runner five and a half hours behind, and this limb refused a
+ *  correct record on its first CI run for precisely that reason — measured, not
+ *  guessed: local 2026-09-09 02:51 IST, UTC 2026-09-08 21:21. One day is the
+ *  whole width of the effect for any writer east of UTC; beyond it, `asOf` is a
+ *  clock no ceiling can be computed against and the finding stands. */
+const CLOCK_SKEW_DAYS = 1;
+
 const problems = [];
 const notes = [];
 const gated = [];
@@ -329,8 +341,11 @@ for (const app of expectedApps) {
     const line = `${rel} — the clearance is ${age} days old and the ceiling is ${MAX_AGE_DAYS}. A clearance is a measurement with a date; names get taken. Re-run: ${r.name.verify}`;
     if (EXECUTE) problems.push(line);
     else notes.push(`${line} (a WARNING here and a FINDING under --execute: every record shares a birthday, and a hook that refuses every commit on the day the window closes is a hook that gets skipped.)`);
-  } else if (age < 0) {
-    problems.push(`${rel} — \`asOf\` is ${r.asOf}, which is in the future. A clearance cannot have been measured tomorrow.`);
+  } else if (age < -CLOCK_SKEW_DAYS) {
+    problems.push(
+      `${rel} — \`asOf\` is ${r.asOf} and today is ${NOW}, ${-age} days ahead. More than a day is more than ` +
+        'geography can explain, so this is a clock no staleness ceiling can be computed against.',
+    );
   }
 }
 
