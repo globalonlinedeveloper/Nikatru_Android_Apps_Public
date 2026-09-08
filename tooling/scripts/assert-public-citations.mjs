@@ -501,6 +501,22 @@ const RE_PIPELINE_TAG = /\[pipeline ([^\]]{1,120})\]/g;
    `C-3, C-9` and `N-4 clause 7` each yield the ids they actually name. */
 const RE_ID = /\b([A-Z]{1,2}-\d{1,3}[a-z]?)\b/g;
 
+/** `requirements/<register>.json` -> `requirements/<register>/`, and only when the
+ *  `shards` block declares that register AND the directory is on disk. The register
+ *  set comes from the DECLARATION rather than from a hard-coded list, so the next
+ *  register to be sharded needs no edit here. RE_PRIVATE_PATH only ever matches
+ *  forward slashes, so there is nothing to normalise. */
+const SHARD_PREFIX = 'requirements/';
+const SHARD_SUFFIX = '.json';
+const SHARDED_REGISTERS = new Set((shardDecl ? shardDecl.declared : []).map((rel) => rel.split('/')[0]));
+function resolvesOntoShardDir(relFromPrivate) {
+  if (!relFromPrivate.startsWith(SHARD_PREFIX) || !relFromPrivate.endsWith(SHARD_SUFFIX)) return false;
+  const register = relFromPrivate.slice(SHARD_PREFIX.length, -SHARD_SUFFIX.length);
+  if (!register || register.includes('/')) return false;
+  if (!SHARDED_REGISTERS.has(register)) return false;
+  return existsSync(join(SPEC, register));
+}
+
 const DISCLOSED = /\(\s*(?:does not exist|never existed|no longer exists|deleted|retired|gone|removed|absent)/i;
 
 const failures = [];
@@ -547,6 +563,24 @@ for (const rel of files) {
          public file. Left recorded rather than quietly fixed: it is the negative
          test this edit needed, and it cost nothing to get.) */
       if (existsSync(join(PRIVATE, p.slice(LOGICAL_PREFIX.length)))) continue;
+      /* THE SHARD TOMBSTONE, AND WHY THE PATH LIMB NEEDS ITS OWN (2026-09-08).
+         The spec scan above taught the ORIGIN TABLE to read a sharded register. It
+         did nothing for THIS limb, which resolves a cited PATH, and the two fail
+         apart: with the sharding applied the origin table is complete and four public
+         files still cite `Private/requirements/ledger.json` and `.../not-built.json` -
+         a dated line in sites/_shared/README.md and three guard comments each naming a
+         specific entry. Those registers moved into `<register>/NN-<topic>.json`; the
+         bytes that cite them are dated records and comments, which ADR 053 rule 2 says
+         are appended beside and never rewritten.
+         MEASURED, and only visible once the origin fix landed: before it this guard
+         exited 2 on the floor and never reached this loop, so the run S3 section 2.2
+         recorded saw one defect where there were two.
+         So a declared shard directory RESOLVES ITS OWN PRE-SHARD FILENAME. That does
+         not weaken the limb. The register must still be there, as a directory the
+         `shards` block declares and whose every shard was proven present above (exit 2
+         otherwise). A path naming a register that was genuinely deleted still fails,
+         because a deleted register is not in the block. */
+      if (shardDecl && resolvesOntoShardDir(p.slice(LOGICAL_PREFIX.length))) continue;
       if (disclosed) { skippedDisclosed++; continue; }
       failures.push({ rel, line: i + 1, kind: 'path', what: p, text: line.trim().slice(0, 130) });
     }
