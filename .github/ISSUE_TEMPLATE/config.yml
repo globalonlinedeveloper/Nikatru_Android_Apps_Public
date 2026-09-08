@@ -1,0 +1,31 @@
+blank_issues_enabled: false
+contact_links:
+  # Points at SECURITY.md rather than at /security/advisories/new, for two
+  # reasons: SECURITY.md is where the repository states its channel, and the
+  # advisories form only exists once private vulnerability reporting is switched
+  # on: a link that 404s is how a reporter files the public issue this entry
+  # exists to prevent.
+  #
+  # ⏱ 2026-09-08 — REPOINTED TWICE IN ONE MOVE, and both halves matter.
+  #   · This file was promoted from `extensions/.github/ISSUE_TEMPLATE/`, where
+  #     GitHub never read it: issue forms resolve at the repository ROOT only, so
+  #     for three days this repository offered its users NO issue chooser at all
+  #     while a perfectly good one sat one directory down.
+  #   · The URL below named `extensions/SECURITY.md`, which stated the OPPOSITE
+  #     policy to the root file — GitHub private reporting and "no security email
+  #     address is published, deliberately" against the root's published
+  #     `support@nikatru.com`. The root file is the one the world can reach and
+  #     the one `tooling/ci/assert-repo-posture.mjs` binds to the contact page and
+  #     to AppConfig.supportEmail, so it is the single authority and this points
+  #     at it. The extensions-specific commitments that file carried were merged
+  #     into the root one in the same change, not dropped.
+  - name: 🔒 Security or privacy report
+    url: https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/blob/main/SECURITY.md
+    about: >-
+      Report privately using the channel in SECURITY.md, not as a public issue —
+      an issue is public from the second it is filed. In scope: anything that could
+      send user data anywhere, or execute code that isn't in this repository.
+      SECURITY.md has what to include, and what not to send.
+  - name: 💬 Questions and ideas
+    url: https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/issues
+    about: Usage questions, tool requests, and general discussion.

@@ -293,6 +293,17 @@ a workflow kept elsewhere. Measured 2026-08-25, `find .github -maxdepth 2
 only, so there is nothing outside the sweep today; the day there is, this
 step will keep reporting ONE REF over a tree that has two.
 
+⏱ APPENDED 2026-09-08 — the paragraph above is left exactly as written,
+because it was a true measurement of a tree that no longer exists: it was
+taken in the standalone extensions repository, before the 2026-09-05
+subtree merge. THE DAY IT WARNED ABOUT HAS ARRIVED. In THIS repository
+`find .github -maxdepth 2 -type d` returns .github, .github/actions,
+.github/ISSUE_TEMPLATE and .github/workflows — `.github/actions/` holds
+composite actions the sweep above cannot see, and `.github/ISSUE_TEMPLATE/`
+arrived at the root on 2026-09-08 when the issue forms were promoted out of
+`extensions/.github/`, where GitHub had never read them. Re-measure before
+relying on either count.
+
 ## job `discover`
 
 ### above `with: { fetch-depth: 0, persist-credentials: false }`

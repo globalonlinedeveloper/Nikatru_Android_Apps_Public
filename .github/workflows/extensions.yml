@@ -313,6 +313,19 @@ jobs:
             echo "::notice::no tool has been onboarded to tool.json yet. That is a real state, not a search failure — the per-tool jobs below have nothing to grade, and say so rather than reporting a green run over an empty set."
           fi
 
+      # ⚠️ THE TWO TEMPLATE PATHS BELOW ARE ABSOLUTE, AND THAT IS THE WHOLE POINT
+      # OF THIS STEP AS OF 2026-09-08. `defaults.run.working-directory: extensions`
+      # governs every `run:` in this workflow, so the relative
+      # `.github/ISSUE_TEMPLATE/bad-page.yml` this step used to carry resolved to
+      # `extensions/.github/ISSUE_TEMPLATE/bad-page.yml` — a path GitHub has never
+      # read, because issue forms resolve at the repository ROOT only. The step was
+      # therefore grading two files that could not appear to a single user, while
+      # this repository offered its users NO issue forms at all.
+      #
+      # The forms were promoted to the root in the same change, and this step now
+      # names them from $GITHUB_WORKSPACE so that the file it grades is the file a
+      # reporter fills in. `find .` below is deliberately still relative: its
+      # subject is the tool tree, which really does live under `extensions/`.
       - name: Issue templates list every tool id
         shell: bash
         run: |
@@ -328,7 +341,12 @@ jobs:
               continue
             fi
             checked=$((checked + 1))
-            for t in .github/ISSUE_TEMPLATE/bad-page.yml .github/ISSUE_TEMPLATE/bug.yml; do
+            for t in "$GITHUB_WORKSPACE/.github/ISSUE_TEMPLATE/bad-page.yml" "$GITHUB_WORKSPACE/.github/ISSUE_TEMPLATE/bug.yml"; do
+              if [ ! -f "$t" ]; then
+                echo "::error::$t does not exist. This step greps the issue forms a reporter actually sees, and it cannot grade a file that is not there — a missing form must not read as a form with every id in it."
+                fail=1
+                continue
+              fi
               if ! grep -qF -- "($id)" "$t"; then
                 echo "::error file=$t::tool id '$id' is missing from the extension dropdown — a reporter cannot name this tool"
                 fail=1
@@ -341,7 +359,7 @@ jobs:
           # Coverage, printed rather than assumed: with no tools this check cannot
           # fail, and an assertion that cannot fail inflates apparent coverage.
           # The cross-check above is what decides whether zero is legitimate.
-          echo "issue-template dropdowns graded against $checked tool id(s)."
+          echo "issue-template dropdowns graded against $checked tool id(s), in $GITHUB_WORKSPACE/.github/ISSUE_TEMPLATE/."
           exit $fail
 
       - id: set

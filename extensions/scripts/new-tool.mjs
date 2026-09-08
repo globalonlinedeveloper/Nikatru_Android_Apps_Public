@@ -335,8 +335,15 @@ r.note('     That failure is the design. A justification a script could write is
 r.note('     that explains nothing, and Chrome review asks for this exact text at submission.');
 r.note('');
 r.note('  2. Add the tool to the issue-form dropdowns, or CI fails on the next push:');
-r.note('       .github/ISSUE_TEMPLATE/bad-page.yml');
-r.note('       .github/ISSUE_TEMPLATE/bug.yml');
+/* ⏱ 2026-09-08 — REPOINTED TO THE REPOSITORY ROOT. These two lines told an author to
+   edit `.github/ISSUE_TEMPLATE/`, which from inside `extensions/` is the subtree copy
+   GitHub never reads: issue forms resolve at the repository ROOT only. The forms were
+   promoted to the root in the 2026-09-08 prune, so the instruction now names where they
+   are. The workflow step that grades these ids moved with them and reads
+   `$GITHUB_WORKSPACE/.github/ISSUE_TEMPLATE/`, so an author who follows the OLD
+   instruction now gets a red build instead of a silently unreachable edit. */
+r.note('       <repo root>/.github/ISSUE_TEMPLATE/bad-page.yml   (../.github/... from here)');
+r.note('       <repo root>/.github/ISSUE_TEMPLATE/bug.yml        (../.github/... from here)');
 r.note('     add this option line to each:   - ' + String(name).trim() + ' (' + id + ')');
 r.note('     (ci.yml greps for "(' + id + ')" in both — issue forms cannot be generated, so this is');
 r.note('     the one place a new tool has to be added by hand.)');

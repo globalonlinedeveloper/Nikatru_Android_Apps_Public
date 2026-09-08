@@ -248,7 +248,10 @@ generated:
   `node scripts/policy-check.mjs <id>` fails until a human writes them. That is the design: a
   justification a script could have written explains nothing, and store review asks for this exact
   text at submission.
-- **Add the tool's id to `.github/ISSUE_TEMPLATE/bad-page.yml` and `bug.yml`.** `ci.yml` greps both
+- **Add the tool's id to the REPOSITORY-ROOT `.github/ISSUE_TEMPLATE/bad-page.yml` and `bug.yml`.**
+  ⏱ 2026-09-08: these two forms moved from `extensions/.github/ISSUE_TEMPLATE/` to the repository
+  root, because GitHub resolves issue forms at the root only and the subtree copies were invisible to
+  every reporter. From inside `extensions/` the path is `../.github/ISSUE_TEMPLATE/`. `ci.yml` greps both
   for `(<id>)` and fails the push without it. Issue forms cannot be generated, so this is the one
   place a new tool is added by hand.
 

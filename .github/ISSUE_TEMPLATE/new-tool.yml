@@ -1,5 +1,12 @@
-name: "🧰 Propose a new tool"
-description: An extension that doesn't exist yet
+name: "🧰 Propose a new extension"
+description: A browser extension that doesn't exist yet
+# ⚠️ THE TITLE SAYS "EXTENSION" AND THE FILENAME STILL SAYS "new-tool", on purpose.
+# This form is about the extensions catalogue and nothing else — in a repository that
+# also ships apps and two websites, "a new tool" no longer names one thing, and the
+# 20-slot argument below is a Chrome Web Store fact that applies to extensions alone.
+# The FILENAME is left as it is because it is the public handle of an issue form
+# (`?template=new-tool.yml`) and because extensions/scripts/new-tool.mjs is named for
+# the same thing; renaming it would break links nobody can see to fix.
 title: "[new tool] "
 labels: ["new-tool", "needs-triage"]
 body:
