@@ -940,7 +940,10 @@ jobs:
 
   e2e-proof-fresh:
     if: github.event_name != 'schedule' && !startsWith(github.ref, 'refs/tags/') && github.event.action != 'labeled' && (github.event_name != 'workflow_dispatch' || inputs.lane == 'ci')
-    name: e2e proof freshness (is the weekly cron alive?)
+    # why: the name must NOT start `e2e` + a non-alphanumeric - the GREEN limb of
+    # assert-e2e-proof-fresh.mjs matches PAST runs' job names on /^e2e[^A-Za-z0-9]/ and
+    # counted this job as a matrix leg. See docs/ci/extensions.md, 2026-09-07.
+    name: Proof freshness (is the weekly cron alive?)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1685,27 +1688,6 @@ jobs:
           path: extensions/${{ matrix.suite.dir }}/test/e2e/out/**
           retention-days: 7
           if-no-files-found: ignore
-
-  e2e-proof-record:
-    name: Weekly proof freshness
-    if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e') || (github.event_name == 'workflow_dispatch' && inputs.lane == 'e2e'))) && (github.event_name != 'pull_request' || github.event.label.name == 'run-e2e')
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      actions: read
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with: { persist-credentials: false }
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: '24'
-
-      - name: The weekly proof must be RECENT, SCHEDULED and GREEN
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: node scripts/assert-e2e-proof-fresh.mjs
 
   release:
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.lane == 'release')

@@ -1102,11 +1102,143 @@ counted in every future run. Measured 2026-08-27 on injected history against
 a one-suite checkout: legs=2/1, not-green, exit 1. It fails LOUD rather than
 silent, but `Weekly proof freshness` is what keeps it from failing at all.
 
+🔴 APPENDED 2026-09-07 — AND THE PARAGRAPH ABOVE PREDICTED THIS EXACTLY, ABOUT
+THE WRONG JOB. It says a job "called `e2e proof freshness` would be counted as a
+matrix leg — and counted in every future run … Measured 2026-08-27 on injected
+history against a one-suite checkout: legs=2/1, not-green, exit 1". The warning
+was written about THIS job, which is correctly named `Weekly proof freshness`.
+Its CI-LANE SIBLING — `e2e-proof-fresh` in the same file, `Weekly proof
+freshness`'s complementary silence — was named `e2e proof freshness (is the
+weekly cron alive?)`, which is the forbidden string with a suffix.
+
+⛔ IT WAS INVISIBLE UNTIL A SCHEDULED RUN EXISTED. With an empty history the
+gate takes the bootstrap path and never walks a run, so nothing parsed a job
+name. The moment run `34168610730` landed, both call sites began walking it and
+measured, against a one-suite checkout, EXACTLY the predicted numbers:
+
+    legs=2/1  not-green  [e2e proof freshness (is the weekly cron alive?)=skipped,
+                          e2e · Extension/Full_Screen_Shot=success]
+    NOT IN THIS CHECKOUT: proof freshness (is the weekly cron alive?)
+
+The real suite leg PASSED. The run was graded not-green because a skipped
+non-leg job was counted as a leg. Verified against `origin/main`'s own copy of
+the script, unmodified, so it is not a consequence of the self-exclusion fix
+above: the same exit 1, the same two legs.
+
+THE FIX IS THE NAME, which is what the paragraph above already prescribes, and
+the `# why:` line now sits on the job so the rule is read where it is broken
+rather than only here. ⚠️ AND IT DOES NOT HEAL THE PAST. A finished run's job
+names are historical, so run `34168610730` stays `legs=2/1` for as long as the
+walk reaches it. The first scheduled run that can be graded GREEN is therefore
+the one AFTER the next one — the next run excludes itself and walks back onto
+34168610730 — and that is a true statement about the evidence, not a gap in the
+gate: there is no completed green scheduled run yet, and the gate is right to
+say so.
+
+⚠️ WHAT THIS DOES NOT SETTLE, AND IT IS OWNER WORK. `tooling/ops/register.json`'s
+`duty.workflow.extensions.yml` went RED at 2026-09-07T23:40:16Z on the
+`alarm-on-red` limb, and that limb is branch-independent — it reads main's run
+history, so it reddens `guards-platform`, and therefore `ci-gate`, on EVERY open
+pull request. Its own remedy line is "a success of ANY event on that branch
+clears it — dispatch the workflow once the cause is fixed", and the cause cannot
+be fixed on main without a merge that `ci-gate` is currently refusing. That is a
+frozen merge queue of the class TRAPS already records twice, and breaking it —
+an admin merge, or a dispatch to clear an alarm — is an owner decision, not this
+gate's and not an agent's.
+
+🔴 APPENDED 2026-09-07 — THIS JOB NOW RUNS INSIDE THE RUN IT GRADES, AND THAT
+IS WHY THE PARAGRAPH ABOVE READS THE WAY IT DOES. Everything above this line
+was written for the *pre-merge extensions repository*, where this job lived in
+`ci.yml` and fired on push and pull_request — OUTSIDE the weekly run. That is
+what made "asks the two questions the run cannot ask about itself" a true
+sentence. The 2026-09-05 merge (commit 7a057553) carried a copy of the job into
+`extensions.yml`, whose `if:` puts it on the `schedule` event, and the sentence
+stopped being true in the same commit. It is left exactly as written: a frozen
+record is superseded, never rewritten.
+
+⛔ MEASURED, RUN 34168610730 — THE FIRST SCHEDULED RUN OF `extensions.yml` ON
+main WAS RED AND THIS WAS THE ONLY FAILED JOB. The cron `53 20 * * *` delivered
+at 23:01 UTC. The run started 23:01:12; this job read the run history at
+23:01:17, five seconds later, and the newest scheduled run it found was the run
+it was executing inside. Its own e2e leg had not started — `e2e ·
+Extension/Full_Screen_Shot` began 23:01:22 and PASSED at 23:19:35, eighteen
+minutes after the verdict was already written. It graded itself `legs=1/1
+not-green … NEVER EXERCISED` and exited 1 on "NO GREEN SCHEDULED RUN in the
+newest 1 scheduled extensions.yml run(s)".
+
+⛔ THAT RED WAS ARITHMETIC, NOT EVIDENCE. On a first-ever scheduled run the
+list holds one row, that row is this run, and this run cannot have finished the
+legs it is being graded on. No dead timer and no red proof existed for it to
+find. Worse than the red, and invisible to any exit code: limb 1 would have
+gone on reporting a ~0-day timer age off a run that had proved nothing, for as
+long as the cron kept firing. This is the self-reference class the Private
+corpus already carries — the measurement is inside the thing measured.
+
+THE FIX IS IN `scripts/assert-e2e-proof-fresh.mjs`, NOT HERE, and it is one
+filter rather than a check at each use: when `GITHUB_RUN_ID` names a row in the
+scheduled-run list, that row is dropped from `sched` immediately after the
+event re-check and before either limb, and a `::notice::` names the excluded
+run id and says a run cannot be its own proof. Both limbs, the walk and the
+summary line then read one list and can never disagree about what the history
+is. With self excluded and no other scheduled run, limb 1 falls to the
+empty-history path — a notice before `BOOTSTRAP_UNTIL`, an error after it, with
+no code change. Every other scheduled run is graded exactly as before, so a red
+proof and a dead cron both still bite. `scripts/test/selftest.node.js` drives
+all four corners in PAIRS, mutating the ENVIRONMENT rather than the source: the
+same fixture with `GITHUB_RUN_ID` naming the newest row and with it cleared,
+which is run 34168610730 on both sides of the filter.
+
+⚠️ WHAT THIS DOES NOT SETTLE. `ci.yml`'s call site is unaffected — it runs on
+push and pull_request, outside every workflow it reads, and so are
+`tooling/ci/assert-e2e-proof-fresh.mjs` and
+`tooling/ci/assert-platform-proof-fresh.mjs`, and so is the ci-lane copy of this
+job in this file (`e2e-proof-fresh`, `if: github.event_name != 'schedule'`).
+The schedule-event job was the only one reading its own in-flight run. And no
+green here proves the scheduled lane is fixed: that is measured by the next
+scheduled run, not by this change.
+
 ### above `if: (!startsWith(github.ref, 'refs/tags/') && (github.event_name == 'schedule' || (gith…`
 
 Same gate as `discover`: on a PR this is silent unless somebody asks for
 e2e by label. It deliberately does NOT `needs: e2e` — it grades PAST runs,
 so waiting ~798s for this run would only delay the alarm.
+
+🔴 APPENDED 2026-09-08 — THE JOB IS GONE. `e2e-proof-record` was DELETED from
+`.github/workflows/extensions.yml` on this date. Every paragraph above it is
+left exactly as written: a frozen record is superseded, never rewritten, and
+the sections above are the measurement that justifies the deletion.
+
+⛔ WHY IT WAS DELETED AND NOT REPAIRED. Its whole claim is the sentence at the
+top of this section — it "asks the two questions the run cannot ask about
+itself" — and that sentence needs the reader to be OUTSIDE the run it reads.
+The 2026-09-05 merge (7a057553) put it on the `schedule` event, INSIDE the
+weekly run it grades, and no filter inside the script can put it back outside.
+The self-exclusion added on this branch makes it stop reading its own
+in-flight run, and that is correct and it stays — but it does not free this
+job. Measured on run 34168610730: unfiltered it read itself and failed; with
+self excluded it walks back one row onto 34168610730, whose historical job
+names still give `legs=2/1`, and fails again. So EVERY scheduled run reddens
+until a green scheduled run exists in the window, and a green scheduled run
+cannot exist while this job is the thing reddening them. That is a deadlock
+the job creates about itself, not evidence about the timer or the proof.
+
+✅ THE DUTY IS COVERED FROM OUTSIDE, TWICE OVER, WHICH IS WHY THE DELETION
+LOSES NOTHING. (1) The ci-lane sibling `e2e-proof-fresh` in this same file
+runs the SAME script, `extensions/scripts/assert-e2e-proof-fresh.mjs`, under
+`if: github.event_name != 'schedule'` — on every pull request and every push,
+outside the scheduled run — so both questions are asked more often than the
+cron fires, by a reader that is genuinely outside its subject. (2) The
+`alarm-on-red` limb of `tooling/ci/assert-ops-register.mjs` (landed 2026-09-07,
+PR 538) reddens `ci-gate` whenever the newest `extensions.yml` run on `main` is
+red, so a red weekly run is loud from outside the repository's own schedule.
+A dead cron and a red proof both still bite; what stops is a job grading the
+run it is a part of.
+
+⚠️ NOTHING ELSE REFERENCED IT. `extensions-lane-accounting` derives its
+expectations from the EVENT and `needs:` only the five lanes plus the
+keep-alive, so it never named this job; `ci-required` derives its membership
+from the `inputs.lane == 'ci'` guard, which this job never carried. The
+script keeps its ci-lane call site, so `gate-inventory` still finds it.
 
 ## job `permissions`
 

@@ -431,10 +431,75 @@ const api = async p => {
   /* The server-side event filter is re-checked here. A filter that quietly
      stopped filtering would let hand-presses back in, which is the one thing
      this whole gate exists to exclude. */
-  const sched = rows.filter(r => r && r.event === 'schedule' && r.created_at)
+  let sched = rows.filter(r => r && r.event === 'schedule' && r.created_at)
                     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   if (sched.length !== rows.length) {
     err(`the query asked for event=schedule and ${rows.length - sched.length} of ${rows.length} row(s) came back otherwise. The window is not what it says it is.`);
+  }
+
+  /* ── A RUN IS NOT ITS OWN PROOF ─────────────────────────────────────────
+     🔴 MEASURED 2026-09-07, run 34168610730, THE FIRST SCHEDULED RUN OF
+     extensions.yml ON main. This gate's own job — `e2e-proof-record`, "Weekly
+     proof freshness" — was moved ONTO the schedule event by the 2026-09-05
+     merge (commit 7a057553). It had been written for the old extensions
+     repository, where it ran in ci.yml on push and pull_request: OUTSIDE the
+     weekly run, which is the whole reason its docs can say it "asks the two
+     questions the run cannot ask about itself".
+
+     On the schedule event it reads the run history and THE NEWEST SCHEDULED RUN
+     IS THE RUN IT IS EXECUTING INSIDE. That run started 23:01:12; this gate read
+     it at 23:01:17, five seconds later, while its own e2e leg had not started —
+     the leg `e2e · Extension/Full_Screen_Shot` began 23:01:22 and passed at
+     23:19:35, eighteen minutes after the verdict was already written. It graded
+     itself `legs=1/1 not-green … NEVER EXERCISED` and exited 1 on
+     "NO GREEN SCHEDULED RUN in the newest 1 scheduled extensions.yml run(s)".
+
+     ⛔ THAT RED WAS GUARANTEED BY ARITHMETIC, NOT BY EVIDENCE. On a first-ever
+     scheduled run the list holds exactly one row, that row is this run, and this
+     run cannot have finished the legs it is being graded on. No timer fault and
+     no red proof existed for it to find. A gate whose verdict is decided by WHEN
+     it reads rather than by WHAT it reads is measuring nothing.
+
+     This is the self-reference class the Private corpus already carries as
+     "a verify string that greps the file it is stored in counts itself"
+     (TRAPS 2026-09-07): THE MEASUREMENT IS INSIDE THE THING MEASURED.
+
+     ⚠️ EXCLUDED FROM BOTH LIMBS, AND FILTERED ON `sched` ITSELF RATHER THAN AT
+     EACH USE. Limb 1 would otherwise report a timer age of ~0 days off a run
+     that has proved nothing, which is a FALSE GREEN, and limb 2 would keep
+     grading pending legs, which is the false red above. One filter here means
+     every downstream consumer — both limbs, the walk, the summary line — sees
+     the same list, so the two can never disagree about what the history is.
+
+     ⚠️ IT DOES NOT WEAKEN THE GUARD, AND THE BOOTSTRAP IS WHAT MAKES THAT TRUE.
+     With self excluded and no OTHER scheduled run, limb 1 falls to the empty-
+     history path: a notice before BOOTSTRAP_UNTIL, an error after it, with no
+     code change and nothing to remember. Every other scheduled run in the window
+     is still graded exactly as before, so a red proof and a dead cron both still
+     bite. The only run this removes is the one whose answer was never about the
+     timer. The self-test drives all four corners.
+
+     ⚠️ THE ID IS COMPARED AS A STRING. GITHUB_RUN_ID arrives as text and `r.id`
+     arrives from JSON as a NUMBER — 34168610730 exceeds 2^31 but is inside
+     Number.MAX_SAFE_INTEGER, so it survives the parse; a `===` across the two
+     types would not, and would silently exclude nothing while reading as though
+     it did.
+
+     ⚠️ UNSET IS NOT AN ERROR, AND NEITHER IS ABSENT. ci.yml's call site runs on
+     push and pull_request, outside every workflow it reads, and the fixture path
+     has no run of its own — both leave this list untouched, which is the correct
+     behaviour for a reader that is already outside its subject. The notice is
+     printed only when a row was really removed, so a log that does not carry it
+     is saying the history was read whole. */
+  const SELF_RUN_ID = String(process.env.GITHUB_RUN_ID || '').trim();
+  let selfExcluded = null;
+  if (SELF_RUN_ID) {
+    const self = sched.filter(r => String(r.id) === SELF_RUN_ID);
+    if (self.length) {
+      selfExcluded = self[0];
+      sched = sched.filter(r => String(r.id) !== SELF_RUN_ID);
+      console.log(`::notice::EXCLUDING RUN ${SELF_RUN_ID} (${self[0].created_at}) FROM BOTH LIMBS — IT IS THIS RUN. This job now lives on the schedule event of ${WORKFLOW}, so the newest scheduled run is the one executing this gate, and its own e2e legs have not finished while it is being read. A run cannot be its own proof: grading it would report a ~0-day timer off a run that has proved nothing, and would grade legs that are still pending. ${sched.length} other scheduled run(s) remain to grade. Measured 2026-09-07, run 34168610730.`);
+    }
   }
   if (rows.length >= RUNS_PAGE_SIZE) {
     console.log(`::notice::the run page came back full (${rows.length} >= per_page ${RUNS_PAGE_SIZE}, the maximum). Only the GREEN limb can be affected, and only if its walk reaches the end.`);
@@ -442,7 +507,14 @@ const api = async p => {
 
   /* ── LIMB 1: DID THE TIMER FIRE ───────────────────────────────────────── */
   if (!sched.length) {
-    const why = `no scheduled run of ${WORKFLOW} on ${BRANCH} is in the run history at all. Either the timer has never fired, or the workflow was renamed and this query is watching a name nothing uses.`;
+    /* 🔴 THE TWO CAUSES THIS SENTENCE OFFERS ARE BOTH FALSE WHEN THE ONLY ROW
+       WAS THIS RUN. The timer DID fire — it fired this very run — and it fired on
+       the name queried, so "never fired" and "renamed" are the wrong pair to hand
+       a reader who is about to go looking for a broken cron. A gate that removes a
+       row has to say what the list looked like before it did. */
+    const why = selfExcluded
+      ? `the only scheduled run of ${WORKFLOW} on ${BRANCH} in the run history is ${selfExcluded.id}, WHICH IS THIS RUN (${selfExcluded.created_at}) and was excluded above. The timer fired — it fired this run — but there is no COMPLETED scheduled run for it to be measured against yet.`
+      : `no scheduled run of ${WORKFLOW} on ${BRANCH} is in the run history at all. Either the timer has never fired, or the workflow was renamed and this query is watching a name nothing uses.`;
     if (NOW < BOOTSTRAP_UNTIL) {
       console.log(`::notice::${why} BOOTSTRAP: this repository's history for this workflow begins 2026-09-05 and the cron only began firing daily on 2026-09-07, so an empty history is expected until ${new Date(BOOTSTRAP_UNTIL).toISOString()}. This escape expires on that date by arithmetic, not by anybody remembering it.`);
     } else {

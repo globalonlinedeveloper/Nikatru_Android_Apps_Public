@@ -2312,6 +2312,37 @@ async function probeGithubRun(q, repo) {
 // accepts a success of ANY event — so one dispatched green run on the branch
 // clears the red immediately, with no merge required.
 //
+// ⛔ APPENDED 2026-09-08 — TRUE FOR EVERY ROW IN THIS DOMAIN EXCEPT ONE: THE
+// WORKFLOW THAT HOSTS THIS GUARD. `.github/workflows/ops-watch.yml` runs this
+// file, and `duty.workflow.ops-watch.yml` is a `1d` row in this domain — so the
+// limb was grading the run history of the very run it was executing inside. The
+// probe filters on CONCLUSIONS (`status=success` and `status=failure`), and an
+// IN-FLIGHT RUN HAS NO CONCLUSION, so the grading run can never supply its own
+// success. One red ops-watch run therefore became the newest failure; the next
+// run read it, exited 1, and became the newest failure in turn. Red forever —
+// and `ci-gate` red on every pull request with it, because `ci.yml` runs this
+// same guard in `guards-platform`. No dispatch, no merge and no wait could clear
+// it: the sentence above was the one thing this row could not be given. Measured
+// 2026-09-08 in `Private/research/full-read-2026-09-08/F1-deploy-fix-2026-09-08.md`
+// §0 — four consecutive ops-watch failures on `main`, all newer than the newest
+// success. TRAPS `ci-42`/`ci-43` state the general form: A RUN'S OWN CONCLUSION
+// MAY NOT BE AN INPUT TO THE GRADE THAT PRODUCES IT, and a cadence job placed on
+// the event it measures cannot be repaired in place — move the reader off the
+// event.
+//
+// ➡️ THE REPAIR, AND IT NARROWS NOTHING. When this guard runs inside a GitHub
+// Actions job, the ONE row whose watched workflow file is the HOST workflow file
+// is routed to a NAMED PRINT (`SELF …`) instead of being graded: never a pass,
+// never a `green`, still counted in the domain size, and it names the reader that
+// does grade it. Every OTHER host still grades it hard. `ci.yml` is
+// `cadence: trigger`, is outside this domain for the deadlock reason stated
+// below, and runs this guard on every push and every pull request — so a
+// genuinely red `ops-watch.yml` still turns `ci-gate` red on every branch and the
+// alarm keeps its whole bite. Only the self-fulfilling in-run copy of the verdict
+// is downgraded to a print. The empty-domain refusal below is untouched, and the
+// deferred row is still IN the domain it counts. See `hostWorkflowFile` and the
+// `self` verdict in `evaluateRedSince`.
+//
 // 🔴 THAT IS ALSO WHY THE DOMAIN IS THE SCHEDULED PROOFS AND NOT EVERY
 // `duty.workflow.*` ROW. `ci.yml`, `deploy-web.yml`, `deploy-workers.yml` and
 // `site-drift-repair.yml` are `cadence: trigger` rows: `ci.yml`'s newest run on
@@ -2345,6 +2376,32 @@ export function redSinceDomain(reg) {
     const q = r?.mechanism?.recordQuery;
     return q?.reader === 'github-run-history' && nonEmpty(q?.workflow) && nonEmpty(q?.headBranch);
   });
+}
+
+/** PURE. The workflow FILE this guard is currently executing inside, or `null`
+ *  when it is not inside a GitHub Actions job — the single input to the `self`
+ *  verdict added 2026-09-08 (see the header, TRAPS `ci-42`/`ci-43`).
+ *
+ *  `GITHUB_WORKFLOW_REF` is the authoritative one and it names the FILE:
+ *  `owner/repo/.github/workflows/ops-watch.yml@refs/heads/main`.
+ *  `GITHUB_WORKFLOW` is the workflow's `name:` — "Ops watch" here — EXCEPT when
+ *  the workflow declares no name, in which case GitHub sets it to the file path.
+ *  So the ref is read first and the name is accepted only when it is already a
+ *  `.yml`/`.yaml` path.
+ *
+ *  🔴 IT RETURNS `null` RATHER THAN GUESSING. An unresolvable host means every
+ *  row is graded exactly as before — the deadlock returns, loudly, instead of a
+ *  row being silently deferred on a run that could not prove it was the host.
+ *  Fail-closed is the only safe direction for a function whose output REMOVES a
+ *  row from an alarm. */
+export function hostWorkflowFile(env = process.env) {
+  const inJob = nonEmpty(env?.GITHUB_WORKFLOW) || nonEmpty(env?.GITHUB_RUN_ID);
+  if (!inJob) return null;
+  const fromRef = /\.github\/workflows\/([^/@]+\.ya?ml)(?:@|$)/.exec(String(env?.GITHUB_WORKFLOW_REF ?? ''));
+  if (fromRef) return fromRef[1];
+  const raw = String(env?.GITHUB_WORKFLOW ?? '').trim();
+  if (/\.ya?ml$/i.test(raw)) return raw.split('/').pop();
+  return null;
 }
 
 /** PURE. Turns ONE redness answer into a verdict, so every branch is reachable
@@ -2417,7 +2474,7 @@ export function classifyRedSince(row, probe) {
  *  happened. `coverageLost` is returned SEPARATELY from `errors` because the two
  *  mean different things: an error is a branch that is red right now, coverage
  *  lost is this limb no longer being able to tell. */
-export function evaluateRedSince(reg, probes) {
+export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile()) {
   const errors = [];
   const prints = [];
   const domain = redSinceDomain(reg);
@@ -2438,10 +2495,31 @@ export function evaluateRedSince(reg, probes) {
     };
   }
 
-  const tally = { green: 0, red: 0, unreadable: 0, blind: 0 };
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, self: 0 };
   const blindLines = [];
   const darkLines = [];
+  const selfLines = [];
   for (const r of domain) {
+    // 🔴 THE ONE ROW A RUN MAY NOT GRADE: the workflow it is executing inside.
+    // Appended 2026-09-08, TRAPS `ci-42`/`ci-43`; the header states the incident.
+    // NOT a pass, NOT a `green` and NOT a verdict — a named print, still counted
+    // in `domain.length` and in `self`, and graded HARD by every other host.
+    // `hostWorkflow` is `null` off GitHub Actions and whenever the host file
+    // cannot be resolved, so the default is still to grade every row.
+    if (hostWorkflow && String(r?.mechanism?.recordQuery?.workflow ?? '') === hostWorkflow) {
+      const q = r?.mechanism?.recordQuery ?? {};
+      tally.self += 1;
+      selfLines.push(
+        `[14]O-3b — SELF ${r.id}: NOT GRADED by its own host run — ${q.workflow} on ${q.headBranch} is the workflow ` +
+          'executing this guard, and the redness probe filters on CONCLUSIONS, which an in-flight run does not have. ' +
+          "Graded here it could only ever read its own predecessor's failure and re-fail forever (TRAPS ci-42/ci-43). " +
+          "It is still graded HARD by ci.yml's `guards-platform` job, which runs this same guard on every push and " +
+          'every pull request and is outside this domain — so a genuinely red ' +
+          `${q.workflow} still turns ci-gate red on every branch. Counted in the domain size below; counted as ` +
+          'neither pass nor fail.',
+      );
+      continue;
+    }
     const c = classifyRedSince(r, probes.get(r.id));
     tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
     if (c.verdict === 'red') errors.push(c.line);
@@ -2456,8 +2534,18 @@ export function evaluateRedSince(reg, probes) {
   prints.push(
     `[14]O-3b — RED SINCE: ${domain.length} scheduled workflow duty(ies) graded · ${tally.green} whose newest run on their own ` +
       `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
-      `${tally.blind} with no success to compare against`,
+      `${tally.blind} with no success to compare against · ${tally.self} NOT GRADED HERE because this run is its host`,
   );
+  // The host is named on EVERY run, so "nothing was deferred" and "one row was
+  // deferred" are two different printed sentences rather than the same silence.
+  // A `null` host is the ordinary off-Actions case and is also the fail-closed
+  // case: everything was graded.
+  prints.push(
+    hostWorkflow
+      ? `[14]O-3b — HOST WORKFLOW of this run: ${hostWorkflow}${tally.self ? '' : ' — no row in this domain watches it, so nothing was deferred'}`
+      : '[14]O-3b — HOST WORKFLOW of this run: none resolved (not inside a GitHub Actions job, or no workflow file was named by GITHUB_WORKFLOW_REF/GITHUB_WORKFLOW), so EVERY row in this domain was graded here.',
+  );
+  for (const l of selfLines) prints.push(l);
   for (const l of darkLines) prints.push(`[14]O-3b — ${l}`);
   if (tally.green === 0 && tally.red === 0 && tally.blind === 0) {
     prints.push(

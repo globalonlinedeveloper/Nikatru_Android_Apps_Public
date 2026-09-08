@@ -142,6 +142,7 @@ import {
   redSinceDomain,
   classifyRedSince,
   evaluateRedSince,
+  hostWorkflowFile,
 } from '../assert-ops-register.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -3450,5 +3451,126 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
       .sort();
     assert.ok(inDomain.length > 0, 'the committed register grades no workflow for redness at all');
     assert.deepEqual(inDomain, scheduledWorkflowRows, 'a scheduled workflow duty has fallen out of the RED-SINCE domain');
+  });
+
+  // -- THE SECOND SELF-REFERENCE: ops-watch.yml GRADING ITS OWN HOST RUN ------
+  //
+  // Added 2026-09-08. `.github/workflows/ops-watch.yml` runs this guard, and
+  // `duty.workflow.ops-watch.yml` is a `1d` row in the domain above -- so on an
+  // ops-watch run the limb was grading the run history of the run it was
+  // executing inside. The probe filters on CONCLUSIONS and an in-flight run has
+  // none, so that run could never supply its own success: one red ops-watch run
+  // became the newest failure, the next run read it and failed too, and the row
+  // was red forever, with `ci-gate` red on every pull request behind it. Four
+  // consecutive failures on `main`, measured 2026-09-08. TRAPS `ci-42`/`ci-43`:
+  // A RUN'S OWN CONCLUSION MAY NOT BE AN INPUT TO THE GRADE THAT PRODUCES IT.
+  //
+  // THE PAIR BELOW IS THE WHOLE PROOF THAT NOTHING WAS WEAKENED: (a) is the
+  // deferral, (b) is the SAME RED ROW still blocking off its own host. If (b)
+  // ever passes, the alarm has been narrowed rather than de-self-referenced --
+  // it is the mutation control for the exclusion, and it is asserted here
+  // rather than described.
+  const OPS = 'duty.workflow.ops-watch.yml';
+  const opsRow = () => {
+    const r = wfDuty(OPS);
+    r.mechanism.recordQuery.workflow = 'ops-watch.yml';
+    return r;
+  };
+  const RED = () => probesOf({ [OPS]: { success: OK_OLD, failure: BAD } });
+
+  test('(a) SELF - on its OWN host run a RED ops-watch row does NOT block, and it is PRINTED by name', () => {
+    const r = evaluateRedSince(regOf(opsRow()), RED(), hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml', GITHUB_RUN_ID: '34192865256' }));
+    assert.deepEqual(r.errors, [], 'the row that grades its own host run must not be able to fail that run');
+    assert.equal(r.coverageLost, undefined, 'and it is not coverage lost either - another host still grades it');
+    assert.equal(r.stats.self, 1);
+    assert.equal(r.stats.red, 0, 'a deferred row must not be counted as a failure');
+    assert.equal(r.stats.green, 0, 'and it must NOT be counted as a pass either - that would be the weakening');
+    assert.equal(r.stats.domain, 1, 'the deferred row stays IN the domain, so the empty-domain refusal still sees it');
+    const self = r.prints.filter((l) => /SELF duty\.workflow\.ops-watch\.yml/.test(l));
+    assert.equal(self.length, 1, `the deferral must be a NAMED print, not a silence:\n${JSON.stringify(r.prints, null, 1)}`);
+    assert.match(self[0], /NOT GRADED by its own host run/);
+    assert.match(self[0], /ops-watch\.yml on main/, 'it must name the workflow and branch it deferred');
+    assert.match(self[0], /guards-platform/, 'and the reader that DOES grade it, or the next reader thinks nobody does');
+    assert.match(self[0], /ci-42\/ci-43/);
+    assert.ok(r.prints.some((l) => /HOST WORKFLOW of this run: ops-watch\.yml/.test(l)), 'the host itself is named on every run');
+  });
+
+  test('(b) MUTATION CONTROL - the SAME red row, graded from any OTHER host, still BLOCKS', () => {
+    // No GITHUB_WORKFLOW at all: the local and pre-commit path.
+    const off = evaluateRedSince(regOf(opsRow()), RED(), hostWorkflowFile({}));
+    assert.equal(off.errors.length, 1, 'a red ops-watch must still block when this guard is not running inside it');
+    assert.match(off.errors[0], /RED SINCE 2026-09-06T06:00:00Z/);
+    assert.equal(off.stats.red, 1);
+    assert.equal(off.stats.self, 0);
+    assert.ok(
+      off.prints.some((l) => /HOST WORKFLOW of this run: none resolved/.test(l)),
+      'and it must SAY it graded everything, rather than leaving that inferred',
+    );
+
+    // And the real one: ci.yml's `guards-platform` job, which is the reader the
+    // SELF line names. `duty.workflow.ci.yml` is `cadence: trigger` and outside
+    // this domain, so ci.yml defers nothing and grades ops-watch hard.
+    const fromCi = evaluateRedSince(
+      regOf(opsRow()),
+      RED(),
+      hostWorkflowFile({ GITHUB_WORKFLOW: 'CI', GITHUB_RUN_ID: '1', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/heads/main' }),
+    );
+    assert.equal(fromCi.errors.length, 1, 'ci.yml MUST still grade ops-watch hard - this is the whole reason the deferral is safe');
+    assert.equal(fromCi.stats.self, 0);
+    assert.ok(fromCi.prints.some((l) => /HOST WORKFLOW of this run: ci\.yml — no row in this domain watches it/.test(l)));
+  });
+
+  test('the deferral is ONE row, never the domain - a red SIBLING still blocks on the host run', () => {
+    const sibling = wfDuty('duty.workflow.extensions.yml');
+    sibling.mechanism.recordQuery.workflow = 'extensions.yml';
+    const r = evaluateRedSince(
+      regOf(opsRow(), sibling),
+      probesOf({ [OPS]: { success: OK_OLD, failure: BAD }, 'duty.workflow.extensions.yml': { success: OK_OLD, failure: BAD } }),
+      hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml' }),
+    );
+    assert.equal(r.errors.length, 1, 'the host run still grades every workflow that is not itself');
+    assert.match(r.errors[0], /extensions\.yml on main/);
+    assert.equal(r.stats.domain, 2);
+    assert.equal(r.stats.self, 1);
+  });
+
+  test('the EMPTY-DOMAIN refusal is untouched by the deferral - a domain of one SELF row is still a domain', () => {
+    // The deferred row is skipped by the GRADER, never removed from the DOMAIN,
+    // so `redSinceDomain` - which is what the empty-set refusal measures - is
+    // unchanged. Moving every workflow duty off the reader is still COVERAGE
+    // LOST, and that is asserted here beside the deferral so the two cannot
+    // drift apart.
+    assert.deepEqual(redSinceDomain(regOf(opsRow())).map((r) => r.id), [OPS]);
+    const trig = wfDuty(OPS, { cadence: 'trigger', trigger: 'every push' });
+    delete trig.mechanism.recordQuery;
+    const gone = evaluateRedSince(regOf(trig), new Map(), hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml' }));
+    assert.ok(gone.coverageLost, 'an empty domain must still refuse, host or no host');
+    assert.match(gone.coverageLost.join(' '), /ranges over the EMPTY SET/);
+  });
+
+  test('hostWorkflowFile FAILS CLOSED - it names a FILE or it names nothing, and nothing means grade everything', () => {
+    // GITHUB_WORKFLOW is the workflow's `name:` ("Ops watch"), not its file, so
+    // the ref is the authoritative read. A name-only environment resolves to
+    // null and every row is graded - the deadlock returns loudly rather than a
+    // row being deferred on a run that could not prove it was the host.
+    assert.equal(
+      hostWorkflowFile({ GITHUB_WORKFLOW: 'Ops watch', GITHUB_RUN_ID: '1', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ops-watch.yml@refs/heads/main' }),
+      'ops-watch.yml',
+    );
+    assert.equal(hostWorkflowFile({ GITHUB_WORKFLOW: '.github/workflows/ops-watch.yml' }), 'ops-watch.yml', 'an unnamed workflow gets its PATH in GITHUB_WORKFLOW');
+    assert.equal(hostWorkflowFile({ GITHUB_WORKFLOW: 'Ops watch', GITHUB_RUN_ID: '1' }), null, 'a name that is not a file must NOT be matched against a workflow file');
+    assert.equal(hostWorkflowFile({}), null, 'off GitHub Actions there is no host and nothing is deferred');
+    assert.equal(hostWorkflowFile({ GITHUB_WORKFLOW: '' }), null);
+  });
+
+  test('the committed ops-watch workflow really does run this guard - the reason this deferral exists at all', () => {
+    // A prose rule that no guard reads is a rule that rots (TRAPS ci-43). If
+    // ops-watch.yml ever stops running this file, the deferral is dead code and
+    // this is what says so; if it keeps running it, the deferral is load-bearing.
+    const wf = readFileSync(resolve(CI_DIR, '..', '..', '.github', 'workflows', 'ops-watch.yml'), 'utf8');
+    assert.match(wf, /assert-ops-register\.mjs/, 'ops-watch.yml no longer runs this guard - re-read the SELF limb before trusting it');
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    const selfRows = redSinceDomain(real).filter((r) => r.mechanism.recordQuery.workflow === 'ops-watch.yml');
+    assert.equal(selfRows.length, 1, 'the committed register must still put ops-watch.yml in this domain, or the deferral guards nothing');
   });
 });
