@@ -114,3 +114,28 @@ Store a partial JSON override; it deep-merges over the defaults:
 wrangler kv key put --binding=CONFIG_KV "config:subly" \
   '{"paywall":{"enabled":true},"min_supported_version":"1.1.0"}'
 ```
+
+## Why `package.json` carries an `overrides` block
+
+```json
+"overrides": { "sharp": ">=0.35.4" }
+```
+
+`sharp` is not a dependency of this Worker. It arrives four levels down —
+`wrangler` → `miniflare` → `sharp` — and miniflare pins it EXACTLY
+(`"sharp": "0.35.2"`), so no bump of anything we declare can move it. Measured
+2026-09-09: the newest miniflare on npm, `5.20260908.0-alpha`, still pins
+`0.35.2`, and `wrangler@4.130.0` still pins that miniflare. There is no version
+of our own tree that resolves the fix.
+
+GHSA-rgj7-g3m4-5g8c (CVSSv4 8.9) is a libheif RCE in every `sharp` before
+0.35.4. The alternative to this line was a dated ignore entry in
+`osv-scanner.toml` — a waiver, which leaves the vulnerable bytes on disk and
+buys only silence. The override removes them, and both suites plus
+`wrangler deploy --dry-run` were re-measured on 0.35.4 (libvips 8.18.6) before
+it landed.
+
+⚠️ THE RANGE IS `>=`, NOT `^`, AND THAT IS THE WHOLE POINT. A caret would pin us
+inside 0.35.x and start HOLDING BACK the upstream the day miniflare moves to
+0.36. `>=0.35.4` says the only thing we actually mean — never below the fix —
+so the line retires itself instead of becoming the next thing to remember.
