@@ -192,7 +192,7 @@ export function armingOfTool(row, { toolId = null, identityField = 'listingId', 
     reasons.push(`tool "${tool}" declares its own \`${identityField}\` for this store, so the destination is this tool's listing and not another's`);
   } else {
     blockers.push(
-      `tool "${tool}" declares no \`${identityField}\` for this store — the listing id is issued by the store at the FIRST MANUAL publish (ADR 067 decision 8) and is not derivable, so there is no destination to address`,
+      `tool "${tool}" declares no \`${identityField}\` for this store — the listing id is issued by the STORE and never by this factory, is not derivable, and is read off that store's own dashboard into the tool manifest — so there is no destination to address`,
     );
   }
 
