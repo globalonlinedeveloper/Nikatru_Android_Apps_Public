@@ -248,7 +248,8 @@
       "the whole point of the map is that a move is this one right-hand side and nothing else."
     ],
     "supabase-box-cron": "oci",
-    "windows-task-scheduler": "laptop"
+    "windows-task-scheduler": "laptop",
+    "claude-scheduled-task": "laptop"
   },
   "_kinds": [
     "duty",
@@ -320,7 +321,7 @@
       "only by editing this file on a host that has just read a success, which the guard then demands."
     ],
     "_maxUnreachable": 5,
-    "_maxUnreadable": 9,
+    "_maxUnreadable": 12,
     "_maxUnreadableWhy": [
       "🔴 RATCHETED 7 -> 3 ON 2026-09-02, AND THE RATCHET IS THE POINT — this key exists to fall as credentials",
       "and platforms arrive, never to rise when a row goes dark. What changed is that the last reader needing a",
@@ -374,7 +375,30 @@
       "the count measured on a good day. What it does NOT mean is that eight duties are covered while the box",
       "is down: it means eight rows print `unreadable` and the merge queue keeps moving. The duties themselves",
       "are covered by their monitors going Down, which is a different mechanism on the same box — and the fact",
-      "that nothing off-host watches THAT box is [pipeline E-9b], still open."
+      "that nothing off-host watches THAT box is [pipeline E-9b], still open.",
+      "",
+      "⚫ RE-DERIVED 9 -> 12 ON 2026-09-09, AND AGAIN THE NUMBER ROSE BECAUSE THE DOMAIN GREW, NOT BECAUSE",
+      "THE STANDARD SLIPPED. The rule is untouched: one non-GitHub provider dark, plus one spare. Its INPUTS",
+      "moved by exactly three rows - duty.laptop.nikatru-ops-check, duty.laptop.nikatru-watchdog and",
+      "duty.laptop.nikatru-pipeline-driver, the three laptop routines, each reading a GlitchTip heartbeat.",
+      "GlitchTip backed 8 rows before them and backs 11 now, so one-provider-dark costs 11 and the spare puts",
+      "the ceiling at 12. MEASURED, not typed: `deriveUnreadableCeiling` reports",
+      "[glitchtip=11, cloudflare=3], worst 11, ceiling 12.",
+      "",
+      "⚠️ THIS IS THE WEAKENING DIRECTION AND IT IS NAMED AS SUCH RATHER THAN SLIPPED THROUGH. A higher",
+      "ceiling tolerates more darkness before CI refuses, and the honest reading is that a Box B outage now",
+      "costs ELEVEN printed lines instead of eight while still never costing the merge queue. That trade was",
+      "already made and is unchanged in kind: ci.yml’s standing objection to a CI limb depending on the",
+      "GlitchTip box is answered by the ceiling absorbing a whole-provider outage, and three more rows behind",
+      "the same box do not change the argument, only its arithmetic. What WOULD change it is GlitchTip growing",
+      "past being one box, or these rows moving to a second provider; neither has happened.",
+      "",
+      "🔴 AND THE ALTERNATIVE WAS NOT AVAILABLE, WHICH IS WHY THIS IS A RE-DERIVATION AND NOT A CHOICE.",
+      "Leaving the constant at 9 does not buy strictness: the guard FAILS the build when the constant and the",
+      "rows disagree in either direction, so 9 against a derivation of 12 is a red build about arithmetic, not",
+      "a tighter standard. The number is DERIVED, and a derived number that disagrees with its derivation is",
+      "simply wrong. This is the third time it has moved (7 -> 3, 3 -> 4, 9 -> 12) and every move is recorded",
+      "here with the measurement, because the one failure this key has actually had was going stale in silence."
     ],
     "_windowMultiplier": 1.5,
     "_windowMultiplierWhy": "The same 1.5x the absence watcher uses and for the same reason, written down once in tooling/ops/check-heartbeats.mjs: a window EQUAL to the cadence has zero margin and reports a duty dead on a single late run. One missed run is not an alarm; two are.",
@@ -1498,6 +1522,123 @@
       "verifiedHow": "2026-08-05 — end to end, not by reading config: the notification path was forced to fire and the resulting mail was confirmed delivered. `source: verified` on this row previously rested on the monitor existing, which is exactly what was true the whole time it was silent."
     },
     {
+      "id": "duty.laptop.nikatru-ops-check",
+      "kind": "duty",
+      "what": "The Claude Code scheduled task `nikatru-ops-check`, cron `0 8,20 * * *` in IST (02:30Z and 14:30Z) on this laptop. It reads the monitors, the backups, CI and both boxes, fixes what is small, and sends a digest to the ntfy topic `nikatru-digest`. It is a READ of the pipeline, so its own absence is the only thing about it that needs watching: nothing it does leaves an artefact whose staleness would give it away.",
+      "detector": "GlitchTip heartbeat monitor 29 `Laptop routine: ops check`, project `ops`, interval 50400 s. The interval is 12 h of cadence plus 2 h of slack, and the slack is not decorative: at exactly 43200 s the observed gap between the 2026-09-06T14:40:01Z and 2026-09-07T02:42:20Z check-ins was 12 h 02 m, i.e. already past the window, so the monitor was one slow run away from a spurious Down. Corrected to 50400 s on 2026-09-08 through the full-replace PUT, because PATCH on this endpoint returns 405.",
+      "response": "Read the routine's own record and the ntfy digest for the last run, then run it by hand. ⚠️ MEASURED 2026-09-09T19:19Z WHILE THIS ROW WAS BEING WRITTEN, AND RECORDED RATHER THAN TIDIED AWAY: monitor 29's newest check-in was 2026-09-08T02:41:54Z, about 16.6 h earlier, so the 14:30Z run of 2026-09-08 did not beat. `isUp` still read True because GlitchTip had not yet evaluated the window. That is this detector doing its job on the day it was declared, and it is the routine's own to fix, not this row's.",
+      "cadence": "12h",
+      "mechanism": {
+        "substrate": "claude-scheduled-task",
+        "anchor": "Private/runbooks/scheduled-tasks.md",
+        "record": "GlitchTip heartbeat monitor 29's check history, and the task's own `lastRunAt` in the Claude Code scheduled-task list",
+        "failingValue": "no successful heartbeat inside the 50400 s window — which is what a deleted routine, a laptop that was off, a run that aborted mid-way and a run that completed without beating all look like",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-alarm-chains.mjs, whose `expectedMonitors` list names monitor 29 since 2026-09-09",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 29,
+          "monitorName": "Laptop routine: ops check — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; see `_recordReaders.glitchtip-heartbeat.why` for the rename that broke the file which did key by name.",
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner exactly as monitors 6, 22 and 23 are — which is the whole reason the heartbeat is the record and `lastRunAt` on the laptop is not. ⚠️ WHAT THE BEAT ASSERTS IS NARROWER THAN \"OPS IS FINE\": the routine beats only on a completed run, so a fresh beat says the routine ran to the end, and says nothing about whether what it FOUND was healthy. Findings it reports — a red CI run, a service down — do not withhold the beat, on purpose; only failure of the routine itself does."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 29, project `ops`, on Box B — a DIFFERENT host from the duty, which runs on this laptop. That separation is the point: the routine's own record is written by the thing that dies, so its silence is the one state it can never report about itself. The `ops` alert rule (id 2, uptime) carries an email recipient and the ntfy webhook recipient, both recorded in tooling/ops/alarm-chains.json, and `verify-alarm-chains.mjs` confirms on every run that this monitor resolves to a recipient.",
+        "signal": "No heartbeat inside the 50400 s window -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic. A deleted routine, a laptop that was off, an aborted run and a completed run that failed to beat all produce the same silence, which is the point.",
+        "margin": "50400 s window against a 12 h cadence — 12 h plus 2 h of slack, the same cadence-plus-slack shape monitor 6 uses (8 h cadence against a 12 h window). 43200 s was tried first and is recorded as too tight rather than quietly widened: an observed real gap of 12 h 02 m was already outside it.",
+        "ownerGated": false,
+        "drillDue": "2026-10-09",
+        "drillLeadDays": 14,
+        "drillGap": "The Down direction of this chain has never been forced for monitor 29. It is armed rather than done because a real Down here costs a 14-hour wait for the window to lapse, and a drill that is faked by deleting the monitor tests the wrong thing. The three laptop-routine rows share one alert rule (`ops`, id 2), so ONE forced transition on any of them is evidence for the chain all three depend on — but each row must record its own, because a shared note is one that gets edited for one row and read for three.",
+        "gap": "🔴 THE MONITOR AND THE ALERT AND BOTH NOTIFICATION HOPS ARE ONE BOX, which is [pipeline E-9b] and is recorded in tooling/ops/alarm-chains.json `_notObservable` rather than restated as coverage here. What IS specific to this row: the LAPTOP is a second host, so a laptop that dies is watched — it is the watcher's own box dying that is unwatched. ⬜ AND NO DOWN TRANSITION HAS BEEN FORCED on monitor 29, so this row carries no `downTransitionDrill`: being declared is a claim that the monitor still EXISTS, never that its alarm has been seen to arrive."
+      },
+      "accessProviders": [
+        "laptop",
+        "hostinger"
+      ],
+      "source": "verified",
+      "verifiedHow": "2026-09-08 — the routine's heartbeat wiring was rebuilt and monitor 29 read back from the API with `interval=50400`, `projectID=\"2\"`, `projectName=\"ops\"`, still attached after the full-replace PUT. Monitor 29 is declared in tooling/ops/alarm-chains.json `expectedMonitors` as of 2026-09-09, and that declaration was proven to bite by mutation on the same day: `verify-alarm-chains.mjs` exited 0 over the real list and exited 1, COVERAGE LOST, when one of the three new ids was pointed at a monitor that does not exist. ⬜ NO DOWN TRANSITION HAS BEEN FORCED on 29, so this row carries no `downTransitionDrill`: being declared is a claim that the monitor still EXISTS, never that its alarm has been seen to arrive. The nearest evidence is monitor 6's forced Down and recovery on 2026-08-05, through this same project and this same `ops` alert rule."
+    },
+    {
+      "id": "duty.laptop.nikatru-watchdog",
+      "kind": "duty",
+      "what": "The Claude Code scheduled task `nikatru-watchdog`, cron `0 * * * *` on this laptop. Hourly, it catches runs, agents and workflows past their expected time and acts on them. It is SILENT when nothing is stuck, which is correct for its ntfy output and is exactly why it needs an absence alarm: a quiet hour and a dead routine are indistinguishable from outside.",
+      "detector": "GlitchTip heartbeat monitor 30 `Laptop routine: CI watchdog`, project `ops`, interval 7200 s — one hour of cadence plus one hour of slack. 🔴 THE ROUTINE'S SILENCE RULE GOVERNS ntfy AND THE RECORD FILE, NEVER THE HEARTBEAT. \"Nothing was stuck\" is a COMPLETED run and MUST beat; if the silence rule reached the beat, this monitor would go Down on the routine working perfectly.",
+      "response": "Read the routine's record for the last run and run it by hand. The 2026-09-08 incident is the worked example and is worth reading before assuming a defect: the monitor went Down at 15:16:09Z with the routine's own `lastRunAt` at 17:31:40Z, i.e. THE ROUTINE WAS RUNNING THE WHOLE TIME. The monitor was correct and the routine was correct; the WIRE between them had been lost when the three routines were recreated that day. Check the beat one-liner in the task prompt before suspecting either end.",
+      "cadence": "1h",
+      "mechanism": {
+        "substrate": "claude-scheduled-task",
+        "anchor": "Private/runbooks/scheduled-tasks.md",
+        "record": "GlitchTip heartbeat monitor 30's check history, and the task's own `lastRunAt` in the Claude Code scheduled-task list",
+        "failingValue": "no successful heartbeat inside the 7200 s window — a deleted routine, a laptop that was off, an aborted run, or a run that completed without beating",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-alarm-chains.mjs, whose `expectedMonitors` list names monitor 30 since 2026-09-09",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 30,
+          "monitorName": "Laptop routine: CI watchdog — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; see `_recordReaders.glitchtip-heartbeat.why` for the rename that broke the file which did key by name.",
+          "why": "A heartbeat check-history row read with GLITCHTIP_TOKEN, readable from a Linux runner. ⚠️ THE BEAT ASSERTS THAT THE WATCHDOG RAN, NOT THAT NOTHING IS STUCK — those are different claims and only the first is watchable from outside this laptop. A stuck run the watchdog correctly REPORTS still produces a beat."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 30, project `ops`, on Box B — a different host from the duty, which runs on this laptop. Same `ops` alert rule (id 2, uptime) with an email recipient and the ntfy webhook recipient, both recorded in tooling/ops/alarm-chains.json.",
+        "signal": "No heartbeat inside the 7200 s window -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "7200 s window against a 1 h cadence — one hour of cadence plus one hour of slack.",
+        "ownerGated": false,
+        "drillDue": "2026-10-09",
+        "drillLeadDays": 14,
+        "drillGap": "Same chain, same alert rule, same unforced Down direction as duty.laptop.nikatru-ops-check. This row is the one worth drilling FIRST if only one is drilled: its 2 h window is the shortest of the three, so it is the cheapest transition to force, and it is the watchdog — the routine whose silence hides other routines' silence.",
+        "gap": "🔴 THE MONITOR, THE ALERT AND BOTH NOTIFICATION HOPS ARE ONE BOX — [pipeline E-9b], recorded in tooling/ops/alarm-chains.json `_notObservable`. ⚠️ AND A SHARPER ONE SPECIFIC TO THIS ROW: this duty is the STUCK-RUN WATCHDOG, so a failure that stops it also stops the thing that would notice other routines hanging. Its absence alarm is therefore the only guard over a guard in this set, which is why the 1 h cadence and the tight 2 h window are worth their noise. ⬜ No Down transition has been FORCED, so no `downTransitionDrill` — though an unforced Down was observed and correctly diagnosed on 2026-09-08 (the wire, not the routine), which is more than nothing and less than a drill."
+      },
+      "accessProviders": [
+        "laptop",
+        "hostinger"
+      ],
+      "source": "verified",
+      "verifiedHow": "2026-09-08 — PROVEN END TO END, and this is the only one of the three routine monitors whose wire has been exercised deliberately. A test check-in was posted at 17:53:35.76Z and the monitor was then RE-READ FROM THE API, never inferred from the POST's status code: `isUp` False → True, `lastChange` 2026-09-08T15:16:09.032Z → 2026-09-08T17:53:36.920Z, newest check 17:17:03.461Z (`isUp:false`) → 17:53:36.920Z (`isUp:true`). Declared in tooling/ops/alarm-chains.json `expectedMonitors` on 2026-09-09, with that declaration proven to bite by mutation the same day. ⬜ No Down transition has been FORCED, so no `downTransitionDrill` — though an unforced one was observed and diagnosed on 2026-09-08, which is stronger than nothing and weaker than a drill."
+    },
+    {
+      "id": "duty.laptop.nikatru-pipeline-driver",
+      "kind": "duty",
+      "what": "The Claude Code scheduled task `nikatru-pipeline-driver`, cron `37 9 * * *` on this laptop. Daily, it picks up the next pipeline item from `Private/platform-state/` and moves it, or defers and reports if a workflow owns a tree. Deferring is a completed run.",
+      "detector": "GlitchTip heartbeat monitor 33 `Laptop routine: pipeline driver`, project `ops`, Heartbeat, interval 86400 s, confirmationThreshold 2. CREATED 2026-09-09; before that this routine had NO absence alarm at all and was the only one of the three whose disappearance nothing outside this laptop would have noticed. 🔴 THE THRESHOLD IS LOAD-BEARING, NOT DECORATIVE. GlitchTip refuses any interval above 86400 s (HTTP 422, `Input should be less than or equal to 86400` — the same wall duty.restic-snapshot records hitting on 2026-09-05), and 86400 s is EXACTLY this routine's cadence, so threshold 1 would take it Down on a few minutes of ordinary drift. A monitor that cries wolf daily gets muted, which is the same end state as no monitor. Threshold 2 alarms after roughly two missed days instead.",
+      "response": "Read the routine's record (`Private/docs/areas/history.md`) and the `nikatru-digest` ntfy topic for the last run, then run it by hand. ⚠️ Its beat one-liner reads the URL out of the gitignored vault at run time; if the key is lost, the routine prints a one-line gap notice on every run instead of skipping silently, and that notice reaches the record and the digest.",
+      "cadence": "1d",
+      "mechanism": {
+        "substrate": "claude-scheduled-task",
+        "anchor": "Private/runbooks/scheduled-tasks.md",
+        "record": "GlitchTip heartbeat monitor 33's check history, and the task's own `lastRunAt` in the Claude Code scheduled-task list",
+        "failingValue": "no successful heartbeat across two consecutive daily windows — a deleted routine, a laptop that was off for two days, an aborted run, or a run that completed without beating",
+        "readBy": "tooling/ci/assert-ops-register.mjs, through this row's `recordQuery`, and tooling/ops/verify-alarm-chains.mjs, whose `expectedMonitors` list names monitor 33 from the change that created it",
+        "recordQuery": {
+          "reader": "glitchtip-heartbeat",
+          "org": "nikatru",
+          "monitor": 33,
+          "monitorName": "Laptop routine: pipeline driver — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; see `_recordReaders.glitchtip-heartbeat.why` for the rename that broke the file which did key by name.",
+          "why": "A heartbeat check-history row read with GLITCHTIP_TOKEN, readable from a Linux runner. ⚠️ THE BEAT ASSERTS A COMPLETED RUN, NOT PROGRESS. The routine beats after an item was moved AND the record was appended, or after the defer rule fired AND the report was written — both are completed runs. It never beats at the start, and never after a partial run, because a half-finished item with the record unwritten is the case this monitor exists to catch."
+        }
+      },
+      "absenceWatcher": {
+        "substrate": "glitchtip-heartbeat",
+        "what": "GlitchTip heartbeat monitor 33, project `ops`, on Box B — a different host from the duty, which runs on this laptop. Created 2026-09-09, AFTER the routine already existed, and beaten once before this row was written: TRAPS ci-26 records that an occurrence-anchored monitor with zero rows reads RED with no grace at all, which is why the test beat came first. Same `ops` alert rule (id 2, uptime) as 29, 30 and 6.",
+        "signal": "No heartbeat across two consecutive 86400 s windows (confirmationThreshold 2) -> Down transition -> the `ops` uptime alert rule -> email to support@nikatru.com and a push to the nikatru-page ntfy topic.",
+        "margin": "⚠️ THERE IS NO INTERVAL MARGIN HERE AND THERE CANNOT BE, which is why the threshold carries it instead. GlitchTip refuses any interval above 86400 s (HTTP 422, `Input should be less than or equal to 86400`), and 86400 s is EXACTLY this routine's cadence, so the usual cadence-plus-slack shape monitors 6 and 29 use is unavailable. `confirmationThreshold: 2` buys the slack in a different currency: a second consecutive missed window, i.e. roughly two days. The cost is stated rather than hidden — this monitor is SLOWER to alarm than any other in the set, and a routine that dies on a Monday is reported on the Wednesday.",
+        "ownerGated": false,
+        "drillDue": "2026-10-09",
+        "drillLeadDays": 14,
+        "drillGap": "Monitor 33's Down direction is unforced and is the SLOWEST of the three to reach: confirmationThreshold 2 against an 86400 s window means a deliberate Down takes about two days of withheld beats. The UP transition IS proven (2026-09-09, read from the API). Drilling this one is therefore the most expensive of the three and the least informative, since it shares the `ops` alert rule with 29 and 30 — but it is armed on the same date rather than excused, because 'the cheap one covers it' is how a chain ends up with no drill at all.",
+        "gap": "🔴 THE MONITOR, THE ALERT AND BOTH NOTIFICATION HOPS ARE ONE BOX — [pipeline E-9b], recorded in tooling/ops/alarm-chains.json `_notObservable`. ⬜ AND NO DOWN TRANSITION HAS BEEN FORCED, so this row carries no `downTransitionDrill`. What HAS been proven is the UP transition, from the API and not from a status code: no check at all -> `isUp` True. The nearest evidence for the Down direction is monitor 6's forced Down and recovery on 2026-08-05, through this same project and this same alert rule."
+      },
+      "accessProviders": [
+        "laptop",
+        "hostinger"
+      ],
+      "source": "verified",
+      "verifiedHow": "2026-09-09 — the monitor was created and its beat PROVEN FROM THE API rather than from the POST's status code, which is the trap this file records for monitor 22 (GlitchTip answers a heartbeat GET with 405, and a 200 on a POST is not evidence that a check was recorded). Before the test beat the monitor had no `lastChange` and NO CHECK AT ALL; after it, `isUp` True, `lastChange` 2026-09-08T19:14:40.622Z, newest check 2026-09-08T19:14:40.622Z `isUp:true`. Its URL is in the gitignored laptop vault as `PIPELINE_DRIVER_HEARTBEAT_URL` and appears in no prompt, no commit and no report. The task prompt was updated with `update_scheduled_task` carrying every existing instruction through verbatim, and the cron re-read afterwards as `37 9 * * *`, unchanged. Declared in tooling/ops/alarm-chains.json `expectedMonitors` in the same change that created the monitor, and that declaration was proven to bite by mutation: `verify-alarm-chains.mjs` exited 0 over the real list and exited 1, COVERAGE LOST, when this id was pointed at a monitor that does not exist. ⬜ No Down transition forced, so no `downTransitionDrill`."
+    },
+    {
       "_whyTheseFourRowsExist": [
         "🔴 THE ORACLE BOX'S FOUR CRONTAB DUTIES HAD NO ROWS AT ALL, in a register whose own",
         "`_requiredCoverage._why` names 'the Oracle box' as one of the reasons the external list exists.",
@@ -2249,7 +2390,7 @@
       "kind": "recovery-path",
       "what": "Restore a Worker's D1 contents from the nightly off-vendor export in R2.",
       "detector": "This row's cadence against lastDrill.",
-      "response": "Run the drill in the `drillEvidence` below: pull the night's object, verify its SHA-256 against the manifest, emit SQL with Private/runbooks/d1-restore-from-export.py, import into a scratch D1, compare counts, delete the scratch DB.",
+      "response": "Run the drill in the `drillEvidence` below: pull the night's object, verify its SHA-256 against the manifest, emit SQL with Private/runbooks/config/d1-restore-from-export.py, import into a scratch D1, compare counts, delete the scratch DB.",
       "cadence": "180d",
       "lastDrill": "2026-09-05",
       "drillEvidence": [
@@ -2262,7 +2403,7 @@
         "     downloaded 15,624 bytes / sha256 bc84931c70ad379cbbf655eef67dbb35e98670381ace78f9253c23067e00d418 - IDENTICAL",
         "  4. 401 rows across 12 tables, truncated=false; cron_heartbeat is the largest at 226",
         "  5. `wrangler d1 create scratch-drill` -> c3f47d18-2f82-49a7-ab54-37b8c88b0bfd",
-        "  6. Private/runbooks/d1-restore-from-export.py emitted 226 INSERTs + the CREATE TABLE; `d1 execute --remote --file` reported rows_written=228, num_tables=1",
+        "  6. Private/runbooks/config/d1-restore-from-export.py emitted 226 INSERTs + the CREATE TABLE; `d1 execute --remote --file` reported rows_written=228, num_tables=1",
         "  7. `SELECT count(*) FROM cron_heartbeat` in the scratch DB -> 226. EXPORTED 226, RESTORED 226.",
         "  8. GROUP BY job in the restored table -> 8 jobs, including the 7 rows the export's own run wrote",
         "  9. `wrangler d1 delete scratch-drill` -> deleted; `d1 list` back to platform_db + subly_db",
