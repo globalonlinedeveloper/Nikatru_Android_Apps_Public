@@ -582,6 +582,51 @@ const GUARDS = [
   { name: 'assert-platform-state', speed: 'fast', needsPrivate: true,
     rel: ['requirements/tooling/assert-platform-state.mjs'],
     what: 'platform-state/ validates against its schemas and carries no bare number — every fact names the command that re-derives it' },
+  /* ADDED 2026-09-09. BOTH OF THESE LANDED ON 2026-09-08 AND NOTHING INVOKED THEM.
+     They ran in the manual sweep (`.claude/skills/run-guards/`) and in no hook and no
+     CI job, which is the `assert-platform-state` failure one entry above, repeated
+     within a day of being written down there. A guard nothing runs is a guard nobody
+     runs, and the defect that prompted the link guard had survived three commits.
+
+     🔴 CI IS NOT THE ALTERNATIVE HERE, and that is not a preference. Both subjects are
+     under `Private/`, which no CI job can read — the reason this whole runner exists
+     (see the header). Wiring them "into CI instead" would produce a job that answers
+     NOT APPLICABLE forever, i.e. a check that always passes. The hook is the only
+     enforcement surface these two have, so the cost below is the price of enforcing
+     them at all, not a choice between two places to put them.
+
+     ⏱ MEASURED 2026-09-09 on this machine, three samples each, warm:
+       assert-links       3641 / 3745 / 3652 ms
+       check-agent-docs    585 /  590 /  650 ms
+       the fast set before  7044 ms in-runner (7.3-8.6 s wall)
+     So the hook goes from ~7.0 s to ~11.3 s in-runner: +4.3 s, and `assert-links` is
+     four fifths of it. That is deliberately RECORDED rather than absorbed: it is the
+     second-slowest entry in the set after `assert-public-citations` (4.5 s), and if
+     the set is ever split into a hook tier and a pre-push tier, these numbers are
+     where that split should be argued from.
+
+     `args: ['--index']` is NOT a loosening. Both guards implement the honesty gate
+     from the 2026-09-08 index-blind-spot audit: their subject is the git INDEX, so a
+     run over an unstaged edit exits 2 (COVERAGE LOST) rather than printing a green
+     about content nobody staged. In a pre-commit hook, judging the staged index IS
+     the question being asked — "is what I am about to commit clean?" — so `--index`
+     is the mode that MATCHES the caller. Anywhere else the gate stays armed. Proved
+     mid-pass on the live tree: over three unstaged edits `assert-links` exited 2 and
+     named all three files.
+
+     Both entries anchor their own ROOT from `import.meta.url`, not from cwd, so they
+     check the corpus from a public-repo commit and a private-repo commit alike — one
+     `rel` candidate each, corpus-relative, for the same reason as the two entries
+     above: neither guard existed under any pre-2026-08-18 layout, so a legacy
+     spelling would be a path that does not resolve. */
+  { name: 'assert-links', speed: 'fast', needsPrivate: true,
+    rel: ['requirements/tooling/assert-links.mjs'],
+    args: ['--index'],
+    what: 'every private→private link resolves in the index, and every pin names a checkout that is here' },
+  { name: 'check-agent-docs', speed: 'fast', needsPrivate: true,
+    rel: ['requirements/tooling/check-agent-docs.mjs'],
+    args: ['--index'],
+    what: 'the corpus’s agent-facing docs stay under their byte and line caps' },
 ];
 
 const selected = GUARDS.filter((g) => FULL || g.speed === 'fast');
@@ -677,7 +722,7 @@ for (const g of resolved) {
   // spawnSync, never a shell pipeline: `$?` after a pipe is the LAST stage's
   // status, which is how a failing guard reads as 0. This corpus has been bitten
   // by that twice, once while testing a guard against exactly that trap.
-  const r = spawnSync(process.execPath, [g.path], { encoding: 'utf8', env: CHILD_ENV });
+  const r = spawnSync(process.execPath, [g.path, ...(g.args ?? [])], { encoding: 'utf8', env: CHILD_ENV });
   const code = r.status === null ? 2 : r.status;
   results.push({ ...g, code, ms: Date.now() - started, out: (r.stdout ?? '') + (r.stderr ?? '') });
 }
