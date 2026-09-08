@@ -52,6 +52,31 @@
     //   localhost:3000      — the local Subly web dev server (.claude/launch.json).
     //                         It fetches config.nikatru.com cross-origin from the
     //                         browser, so omitting it breaks local web dev.
+    //
+    // ⚠️ THIS LIST IS DELIBERATELY NOT A MIRROR OF services/subly-api's, AND THE
+    // ASYMMETRY IS ONE LINE LONG. A review on 2026-09-08 read the two lists as
+    // drift — `http://localhost:3000` here, absent there, beside the "mirrors"
+    // note above — so the reason is written HERE, next to the value, rather than
+    // only in the middleware two directories away:
+    //
+    //   · the PAIR the note above claims is mirrored (subly.nikatru.com +
+    //     subly-9cp.pages.dev) IS mirrored, exactly, in both configs.
+    //   · localhost is NOT, because it is not the same question in the two
+    //     Workers. services/subly-api/src/middleware/cors.ts:38,57 allows ANY
+    //     localhost origin BY REGEX — a recorded per-app trade, because
+    //     `flutter drive -d web-server` picks a random port that cannot be named
+    //     in advance — so listing one here would assert something that config
+    //     does not need to carry. THIS Worker's middleware has no such regex:
+    //     `grep -n localhost services/platform/src/middleware/cors.ts` returns
+    //     NOTHING (measured 2026-09-08, exit 1), which is why the one port local
+    //     web dev actually uses has to be listed explicitly.
+    //
+    // 🔴 AND THE ASYMMETRY IS ENFORCED, IN BOTH DIRECTIONS, so this paragraph is
+    // not the thing holding it up: tooling/ci/assert-cors-allowlist.mjs derives
+    // each Worker's required origins from catalog/apps.json and requires the
+    // declared set to EQUAL derived ∪ EXTRAS. Adding localhost to subly-api to
+    // "re-sync" the two files fails the build as an unjustified origin; removing
+    // it from here fails as a missing EXTRA. Do not hand-sync these two lines.
     "ALLOWED_ORIGINS": "https://subly.nikatru.com,https://subly-9cp.pages.dev,http://localhost:3000",
     // WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `<appId>=<https origin>`.
     //

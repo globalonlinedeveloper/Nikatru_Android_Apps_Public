@@ -251,8 +251,35 @@ describe('[5]M-12 — the RevenueCat door', () => {
 });
 `;
 
+/** THE BRICK'S SERVICE TEMPLATE — in the fixture because it is in the SUBJECT
+ *  (2026-09-08). Its directory name is the real mustache expression, so a walk
+ *  that stopped following mustache directories would find nothing here and the
+ *  COVERAGE LOST branch would fire — which is the point of writing it out rather
+ *  than shortening it.
+ *
+ *  ⚠️ IT CARRIES NO `MONEY_ENVIRONMENT` AND NO MONEY DOOR, exactly like the real
+ *  template, and that PAIR is what makes it correct. A review on 2026-09-08 read
+ *  the missing var as the defect and called adding it a one-line fix; the test
+ *  three below is the constructed input showing that the "fix" is what fails. */
+const BRICK_DIR =
+  'tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api';
+const BRICK_WRANGLER = '{ "name": "{{app_id}}-api", "vars": { "APP_ID": "{{app_id}}" } }';
+const BRICK_ACCOUNT_TS = `
+export default async function purge(c) {
+  return c.json({ ok: true });
+}
+`;
+
+/** A REAL money door, as CODE and not as prose: the marker has to survive comment
+ *  stripping, which is how `hasMoneyDoor` reads every file it is handed. */
+const MONEY_DOOR_TS = `
+export const refuse = (c) => c.json({ error: 'money_rail_not_configured' }, 503);
+`;
+
 function run(o = {}) {
   const root = join(TMP, `case-${(seq += 1)}`);
+  if (o.brickWrangler !== null) write(root, `${BRICK_DIR}/wrangler.jsonc`, o.brickWrangler ?? BRICK_WRANGLER);
+  write(root, `${BRICK_DIR}/src/routes/account.ts`, o.brickSrc ?? BRICK_ACCOUNT_TS);
   write(root, 'services/platform/wrangler.jsonc', o.platformWrangler ?? PLATFORM_WRANGLER);
   if (o.sublyWrangler !== null) write(root, 'services/subly-api/wrangler.jsonc', o.sublyWrangler ?? SUBLY_WRANGLER);
   write(root, 'services/platform/src/lib/mor/registry.ts', o.registry ?? REGISTRY_TS);
@@ -296,13 +323,13 @@ describe('assert-money-config — sandbox money cannot grant a production unlock
   test('FAILS when a Worker declares the money environment WITHOUT carrying a door', () => {
     const r = run({ sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "live" } }' });
     assert.equal(r.code, 1);
-    assert.match(r.out, /declares MONEY_ENVIRONMENT but no file under services\/subly-api\/src refuses/);
+    assert.match(r.out, /subly-api\/wrangler\.jsonc declares MONEY_ENVIRONMENT but no file under its own src\/ refuses/);
   });
 
   test('FAILS when a Worker carries a money door WITHOUT declaring its environment', () => {
     const r = run({ sublySrc: SUBLY_DOOR_TS, sublyTest: SUBLY_MONEY_TEST_TS });
     assert.equal(r.code, 1);
-    assert.match(r.out, /services\/subly-api carries a money door .* declares no MONEY_ENVIRONMENT/);
+    assert.match(r.out, /subly-api\/wrangler\.jsonc names a Worker that carries a money door .* declares no MONEY_ENVIRONMENT/);
   });
 
   test('PASSES on the decided two-door tree — MoR rail plus the RevenueCat fan-in', () => {
@@ -419,8 +446,68 @@ describe('assert-money-config — sandbox money cannot grant a production unlock
     assert.match(r.out, /declares no `secretEnvVar`/);
   });
 
+  // ── THE BRICK'S SERVICE TEMPLATE IS IN THE SUBJECT (2026-09-08) ────────────
+  //
+  // 🔴 REAL-TREE MUTATIONS FIRST, that day, each restored and sha256-verified with
+  // the guard re-run green afterwards:
+  //   MB1 `"MONEY_ENVIRONMENT": "live"` ADDED to the real template   -> RED
+  //       (this is the "one-line fix" a review proposed; it is a regression)
+  //   MB2 a real `money_rail_not_configured` refusal added to the    -> RED
+  //       template's src/ with no declaration
+  //   MB3 both, with the value `"sandbox"`                           -> RED
+  // The three fixtures below encode the same three, plus the coverage refusal
+  // that cannot be reached on the real tree without deleting the template.
+
+  test('🔴 FAILS on the "one-line fix": a money world declared in the template, which ships no door', () => {
+    // The generated repository would fail THIS VERY LIMB the moment its
+    // services/<app>-api was committed — a generator generating a red tree.
+    const r = run({ brickWrangler: '{ "name": "{{app_id}}-api", "vars": { "MONEY_ENVIRONMENT": "live" } }' });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /declares MONEY_ENVIRONMENT but no file under its own src\/ refuses/);
+    assert.match(r.out, /For the BRICK TEMPLATE this is not a hypothetical/);
+  });
+
+  test('🔴 FAILS when the TEMPLATE grows a money door and declares no world', () => {
+    // The failure the review feared, in the only form it can actually take: every
+    // backend ever stamped would 503 every money read in production.
+    const r = run({
+      brickSrc: MONEY_DOOR_TS,
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /every backend ever stamped from it would ship that dead rail/);
+  });
+
+  test('FAILS when the template declares the SANDBOX world', () => {
+    const r = run({
+      brickWrangler: '{ "name": "{{app_id}}-api", "vars": { "MONEY_ENVIRONMENT": "sandbox" } }',
+      brickSrc: MONEY_DOOR_TS,
+    });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /a stamp is a production deploy waiting to happen/);
+  });
+
+  test('the template having NEITHER a door NOR a declaration is the PASSING state', () => {
+    // The positive control for this block. Without it every RED above would be
+    // equally consistent with a guard that rejects any tree carrying a template.
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1 brick service template\(s\) scanned/);
+  });
+
+  test('🔴 COVERAGE LOST when the walk finds no brick service template at all', () => {
+    // A path literal for that mustache directory would rot silently by matching
+    // nothing, and matching nothing reads as "the template is clean".
+    const r = run({ brickWrangler: null });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — found ZERO wrangler configs under tooling\/bricks\/app\/__brick__/);
+  });
+
   test('COVERAGE LOST when the money Worker has no deployed config', () => {
     const root = join(TMP, `case-${(seq += 1)}`);
+    // The brick template is written too: without it the run stops on the EARLIER
+    // template-coverage refusal and this case would be passing for the wrong reason.
+    write(root, `${BRICK_DIR}/wrangler.jsonc`, BRICK_WRANGLER);
+    write(root, `${BRICK_DIR}/src/routes/account.ts`, BRICK_ACCOUNT_TS);
     write(root, 'services/subly-api/wrangler.jsonc', SUBLY_WRANGLER);
     const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
     assert.equal(r.status, 1);

@@ -25,6 +25,23 @@
   //    and the tenth stamp cannot create one at all. That is why a backend is
   //    opt-in: the ceiling gets spent on apps that genuinely store user rows.
   //
+  // ⏱ CORRECTED 2026-09-08 — THE PARAGRAPH ABOVE IS LEFT AS WRITTEN AND ITS
+  // ARITHMETIC IS DEAD. tooling/ceilings.json:61 records `"cloudflare":
+  // "workers-paid"` since 2026-09-03, where the ceiling is 50,000 databases and
+  // 10 GB each, so "at most NINE apps" describes a constraint that expired. The
+  // live tree was corrected that day and THIS TEMPLATE WAS NOT — the same
+  // fixed-the-instance-not-the-class leftover that
+  // tooling/ci/assert-clone-contract.mjs:13-40 carries the full correction for,
+  // and which services/platform/wrangler.jsonc:10-15 records for the cron cap.
+  //
+  // 🔴 THE DEFAULT IS STILL CLIENT-ONLY, FOR THESE REASONS AND NOT THE CEILING:
+  //   · BLAST RADIUS. One bad migration in a shared database is a portfolio
+  //     outage. [ADR 020] rejected the app_id-discriminator design on this.
+  //   · MIGRATION COST. `wrangler d1 migrations apply` takes ONE database. N
+  //     databases is a loop with no cross-database transactionality.
+  //   · YAGNI. An app that does not store user rows server-side should not own a
+  //     database, a migration set and an erasure route it never needed.
+  //
   // ── AFTER STAMPING — ONE COMMAND, AND NOTHING IN THIS FILE IS HAND-EDITED ──
   //   node tooling/scripts/provision-backend.mjs {{app_id}}
   // It creates the D1 with `--location apac`, WRITES the returned id into
@@ -46,10 +63,19 @@
   // retired phrasing rather than quoting it.
   //
   //   `--location apac` is load-bearing, not cosmetic: location_hint is
-  //   CREATE-TIME ONLY and can never be changed afterwards
-  //   (company/requirements/architecture.md §18), and D1 places the primary
-  //   near WHOEVER ISSUED THE CREATE CALL — so provisioning from a US runner
-  //   would silently land an India-served database in North America.
+  //   CREATE-TIME ONLY and can never be changed afterwards, and D1 places the
+  //   primary near WHOEVER ISSUED THE CREATE CALL — so provisioning from a US
+  //   runner would silently land an India-served database in North America.
+  //   tooling/scripts/provision-backend.mjs:16-29 — the script this block tells
+  //   you to run — carries the placement half with the date it was checked
+  //   against the vendor (2026-07-29) and the full hint set, including why a D1
+  //   JURISDICTION is the wrong tool here.
+  //
+  //   ⏱ THE CITATION HERE WAS `company/requirements/architecture.md §18` UNTIL
+  //   2026-09-08 AND THAT DIRECTORY IS GONE (deleted 2026-08-15). It was the
+  //   last live reference to it anywhere in this repository, on a line that
+  //   justifies a flag which cannot be corrected after the fact — so a reader
+  //   checking the claim found nothing and had to take it on trust.
   // Secrets are NOT set here (never committed): set with `wrangler secret put`.
   // ───────────────────────────────────────────────────────────────────────────
   "name": "{{app_id}}-api",

@@ -14,8 +14,16 @@ import type { AppEnv } from '../types';
 // shipped answering every browser origin until someone remembered to fill the
 // var in, and nothing in CI could see it. Put this app's web origin in
 // wrangler.jsonc `vars.ALLOWED_ORIGINS` (the post_gen checklist prints this
-// step) and add the service to tooling/ci/assert-cors-allowlist.mjs, which
-// iterates every services/*/wrangler.jsonc and fails the build on an empty list.
+// step); tooling/ci/assert-cors-allowlist.mjs iterates every
+// services/*/wrangler.jsonc and fails the build on an empty list.
+//
+// ⏱ CORRECTED 2026-09-08 — THE SENTENCE ABOVE USED TO SAY "and add the service
+// to tooling/ci/assert-cors-allowlist.mjs", in the same breath as saying that
+// guard iterates every config. Both halves cannot be true, and it is the second:
+// the guard DERIVES its subjects from `services/` on disk and derives each
+// Worker's required origins from catalog/apps.json, so a Worker stamped as
+// `<slug>-api` for a catalogue slug is covered with no edit to any guard. The
+// instruction sent the owner to hand-edit a file that had stopped needing it.
 //
 // Localhost (any port, http/https) is allowed ON TOP of the list so local dev
 // and the `flutter drive -d web-server` CI harness — which picks a random port

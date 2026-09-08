@@ -231,10 +231,37 @@ void run(HookContext context) {
         'config + analytics in the browser, with no server-side error.',
       )
       ..info('  5. cd apps/$id && flutter pub get && flutter analyze.')
+      // [pipeline 11]E-8. The stamped Worker now calls `reportWorkerError` in its
+      // `app.onError` and carries `src/lib/error-sink.ts` (added 2026-09-08), so
+      // limbs 2, 3 and 4 of assert-worker-error-sink.mjs pass on a fresh stamp.
+      // Limb 5 CANNOT be stamped: it wants a job named after this Worker in
+      // deploy-workers.yml, and a deploy job for an app that does not exist yet
+      // has nothing to deploy. So it is a printed step, like step 4 — the same
+      // class of genuinely manual work, named rather than left to be discovered
+      // by a red build.
+      ..info(
+        '  6. REQUIRED before this Worker deploys: add a `$id-api` job to '
+        '.github/workflows/deploy-workers.yml passing --var GLITCHTIP_DSN: and '
+        '--var RELEASE:. Copy the `subly-api` job. Without it the crash sink '
+        'has no DSN and every unhandled error is invisible, and '
+        'tooling/ci/assert-worker-error-sink.mjs limb 5 fails the build.',
+      )
       ..warn(
         'This app claimed one of the TEN D1 databases the free tier '
         'allows per ACCOUNT (platform_db is another). If it does not really '
         'store user rows, re-stamp with needs_backend=false.',
+      )
+      // ⏱ 2026-09-08 — the warning above is left as written and its ARITHMETIC IS
+      // DEAD: tooling/ceilings.json records `"cloudflare": "workers-paid"` since
+      // 2026-09-03, where the ceiling is 50,000 databases. The ADVICE survives on
+      // the reasons that outlived the ceiling, which is why this prints beside it
+      // rather than replacing it — a printed correction cannot be misread as the
+      // original having been right.
+      ..warn(
+        '  (The "TEN databases" figure above expired on 2026-09-03 — the '
+        'account is on Workers Paid. Client-only is still the default for blast '
+        'radius, migration cost and YAGNI, not for the ceiling. See '
+        'tooling/ci/assert-clone-contract.mjs for the full correction.)',
       );
   } else {
     context.logger
