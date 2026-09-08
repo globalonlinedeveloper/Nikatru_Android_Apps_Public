@@ -2249,7 +2249,7 @@
       "kind": "recovery-path",
       "what": "Restore a Worker's D1 contents from the nightly off-vendor export in R2.",
       "detector": "This row's cadence against lastDrill.",
-      "response": "Run the drill in the `drillEvidence` below: pull the night's object, verify its SHA-256 against the manifest, emit SQL with Private/runbooks/d1-restore-from-export.py, import into a scratch D1, compare counts, delete the scratch DB.",
+      "response": "Run the drill in the `drillEvidence` below: pull the night's object, verify its SHA-256 against the manifest, emit SQL with Private/runbooks/config/d1-restore-from-export.py, import into a scratch D1, compare counts, delete the scratch DB.",
       "cadence": "180d",
       "lastDrill": "2026-09-05",
       "drillEvidence": [
@@ -2262,7 +2262,7 @@
         "     downloaded 15,624 bytes / sha256 bc84931c70ad379cbbf655eef67dbb35e98670381ace78f9253c23067e00d418 - IDENTICAL",
         "  4. 401 rows across 12 tables, truncated=false; cron_heartbeat is the largest at 226",
         "  5. `wrangler d1 create scratch-drill` -> c3f47d18-2f82-49a7-ab54-37b8c88b0bfd",
-        "  6. Private/runbooks/d1-restore-from-export.py emitted 226 INSERTs + the CREATE TABLE; `d1 execute --remote --file` reported rows_written=228, num_tables=1",
+        "  6. Private/runbooks/config/d1-restore-from-export.py emitted 226 INSERTs + the CREATE TABLE; `d1 execute --remote --file` reported rows_written=228, num_tables=1",
         "  7. `SELECT count(*) FROM cron_heartbeat` in the scratch DB -> 226. EXPORTED 226, RESTORED 226.",
         "  8. GROUP BY job in the restored table -> 8 jobs, including the 7 rows the export's own run wrote",
         "  9. `wrangler d1 delete scratch-drill` -> deleted; `d1 list` back to platform_db + subly_db",
