@@ -185,6 +185,45 @@ export function parseWorkflow(root, rel) {
   };
 }
 
+/** The event names in a workflow's `on:`, as a Set. Both YAML forms: the flow
+ *  form `on: [push, pull_request]` and the block form with indented event keys.
+ *
+ *  ⏱ ADDED 2026-09-08, MOVED HERE RATHER THAN WRITTEN AGAIN. This was a private
+ *  limb of `assert-app-dod.mjs`'s own `parseWorkflow`, which is being retired into
+ *  this module — and it could not come along as a caller-side re-parse without
+ *  becoming the thing this file exists to prevent. The region it reads sits ABOVE
+ *  `jobs:`, which is exactly why `parseWorkflow` returns the WHOLE comment-blanked
+ *  file as `lines`: so a caller needing `on:` / `env:` / `defaults:` does not
+ *  re-read and re-strip the file with a second reduction that drifts from this one.
+ *  It takes the PARSED object for that reason, never a path — there is one read of
+ *  a workflow in this tree and this is a view over it, not a second one.
+ *
+ *  ⚠️ THE FLOW FORM IS SINGLE-LINE, and that is inherited rather than chosen: the
+ *  limb this replaces matched `/^on:\s*\[([^\]]*)\]/m`, so a flow list broken over
+ *  two lines was already invisible to it. Stated rather than silently carried —
+ *  widening it is a behaviour change that needs its own case, and no workflow in
+ *  this repository writes one today.
+ *
+ *  ⚠️ AND `on` IS A YAML 1.1 BOOLEAN. A schema-aware loader reads the key `on:` as
+ *  `true`, which is one of the reasons this whole module is line-anchored text
+ *  rather than a YAML load: the shape GitHub actually reads is the shape on disk. */
+export function workflowEvents(parsed) {
+  const events = new Set();
+  if (parsed === null) return events;
+  const lines = parsed.lines;
+  for (let i = 0; i < lines.length; i += 1) {
+    const flow = lines[i].text.match(/^on:\s*\[([^\]]*)\]/);
+    if (flow) { for (const e of flow[1].split(',')) { const t = e.trim(); if (t) events.add(t); } continue; }
+    if (!/^on:\s*$/.test(lines[i].text)) continue;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (/^\S/.test(lines[j].text)) break;
+      const m = lines[j].text.match(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):/);
+      if (m) events.add(m[1]);
+    }
+  }
+  return events;
+}
+
 /** Every workflow under `.github/workflows`, parsed, sorted by filename. */
 export function parseAllWorkflows(root) {
   const dir = join(root, WORKFLOW_DIR);
