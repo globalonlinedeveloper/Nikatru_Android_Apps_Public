@@ -819,7 +819,7 @@ if (publishing === 0) {
   );
 }
 console.log(
-  '⬜ No publisher account exists ([10]D-4 / OWNER_QUEUE A-2, A-6; A-3 and A-4 are CLOSED, and the Apple gap is now an unissued certificate), so a real submission is BLOCKED and ' +
+  '⬜ No publisher account exists ([10]D-4 / OWNER_QUEUE A-2 and A-6; A-3 CLOSED 2026-08-04 and A-4 CLOSED 2026-08-31, and the Apple gap is now an unissued certificate rather than an account), so a real submission is still OWNER-GATED and ' +
     'cannot be produced by agent work. That gates the ACT, not this check: the publish branch is graded statically ' +
     'from the YAML, on every run, whether or not anybody can log in.',
 );

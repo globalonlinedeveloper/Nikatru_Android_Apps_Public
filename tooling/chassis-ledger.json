@@ -20,7 +20,7 @@
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged.",
   "totals": {
     "files": 117,
-    "lines": 16687,
+    "lines": 16697,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -345,7 +345,7 @@
     },
     {
       "path": "store/ios-appstore/README.md",
-      "lines": 50,
+      "lines": 55,
       "verdict": "STAYS",
       "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
     },
@@ -471,7 +471,7 @@
     },
     {
       "path": "store/macos-appstore/README.md",
-      "lines": 50,
+      "lines": 55,
       "verdict": "STAYS",
       "why": "A per-app sworn store filing. assert-sworn-store-files.mjs carries an inverse limb requiring the TEMPLATE to stay blank, so these cannot be filled here and cannot leave."
     },
