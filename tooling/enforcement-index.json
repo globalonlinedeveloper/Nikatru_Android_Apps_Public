@@ -2599,6 +2599,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "script",
+    "ref": "tooling/scripts/check-agent-docs.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "C-6",
       "N-9"

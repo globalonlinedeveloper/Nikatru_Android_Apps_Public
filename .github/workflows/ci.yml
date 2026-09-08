@@ -189,6 +189,17 @@ jobs:
         run: node tooling/ci/assert-provider-graph-acyclic.mjs
       - name: Selection records resolve (N-9)
         run: node tooling/scripts/check-selection-record.mjs
+      # ⏱ WIRED 2026-09-08, the day after it landed. check-agent-docs.mjs arrived
+      # in 9b4cd308 with no workflow, no hook, no enforcement-index row and no
+      # test, and all five of its limbs are warnings until promoteOn 2026-09-22 —
+      # so without this step that date would have arrived on a guard that had
+      # never executed in CI, and the first thing it ever did in a build would be
+      # to fail one. It exits 0 on a warn-limb finding by design and 2 on
+      # COVERAGE LOST, so a step that goes red here is a real finding or a real
+      # refusal, never a warning. It reads the git INDEX, which is why this job's
+      # checkout uses fetch-depth: 0.
+      - name: The instruction docs stay inside their caps (warn until 2026-09-22)
+        run: node tooling/scripts/check-agent-docs.mjs
 
   guards-legal:
     name: Guards — privacy, legal and money
