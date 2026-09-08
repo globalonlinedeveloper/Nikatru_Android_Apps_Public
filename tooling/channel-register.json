@@ -2706,7 +2706,26 @@
         "⚠️ POLICY 1.2.4 BINDS ONLY WHAT WE SUBMIT: 'your extension must be updated only through Partner",
         "Center and the Microsoft Edge Add-ons store'. It does not reach an extension never submitted",
         "here — but it does mean listing on Edge and self-updating are mutually exclusive, which is a",
-        "decision this row records rather than one it makes."
+        "decision this row records rather than one it makes.",
+        "⏱ 2026-09-09 — THE PRODUCT ID NOW EXISTS AND `submittable` STAYS FALSE, and the two are not in",
+        "tension. Partner Center has held an Edge product for FullShot in status 'In draft' — never published, NO",
+        "package uploaded, category Empty — so the id is issued at DRAFT CREATION and not, as this repository",
+        "twice wrote, at the first manual publish. The GUID is now in extensions/Extension/Full_Screen_Shot/",
+        "tool.json `storeMetadata.stores.edge.listingId`, established read-only against the live API on that date:",
+        "the Store ID and the CRX ID answer 404 'Invalid ProductId' where the GUID answers 404 'Not Found', and",
+        "the identical URLs with a bogus ApiKey answer 403 — the red control without which the 404 split would",
+        "prove nothing. AN ID IS A DESTINATION, NOT A PERMISSION.",
+        "🔴 WHAT STILL HAS TO HAPPEN BEFORE THIS FLAG CAN FLIP, in the order the evidence gives it: (1) the FIRST",
+        "submission must be made in Partner Center — learn.microsoft.com/en-us/microsoft-edge/extensions/update/",
+        "api/using-addons-api (fetched 2026-09-09) says verbatim 'To initially publish a new extension, you use",
+        "Partner Center' and 'There aren't REST API endpoints for: Creating a new product. Updating a product's",
+        "metadata, such as the description' — and this product's category is Empty, which no API call can fill;",
+        "(2) the listing screenshots and copy are still owed (open.json O-STORE-SCREENSHOTS); (3) a `submission`",
+        "block must land ON THIS ROW, because tooling/ci/assert-channel-register.mjs requires",
+        "`submittable === (a submission block exists)` on the extension surface — flipping the flag alone FAILS",
+        "the register guard; and (4) the flip ARMS the channel in tooling/ci/channel-arming.mjs, turning",
+        "extensions/scripts/publish-edge.mjs from `pending` into `go` on the next tag — an irreversible",
+        "submission of a product with no package and no category. False is the measured answer today."
       ]
     },
     {
