@@ -353,3 +353,20 @@ and nowhere else in the tree. This Worker's `wrangler.jsonc` carries real ids, a
 real Supabase project and a real custom domain, and the brick uses an all-zeros
 UUID that a script fills — so the checklist described a state no file has been in
 for some time, sitting under a heading that read as a live pre-launch TODO.)*
+
+## Why `package.json` carries an `overrides` block
+
+```json
+"overrides": { "sharp": ">=0.35.4" }
+```
+
+The reasoning is written out once in `services/platform/README.md` and is the
+same here, because both Workers reach `sharp` by the same route and neither
+declares it: `wrangler` → `miniflare` → `sharp`, with miniflare pinning it
+EXACTLY at `0.35.2`. Measured 2026-09-09 — the newest miniflare published,
+`5.20260908.0-alpha`, still carries that pin — so nothing this Worker declares
+can resolve GHSA-rgj7-g3m4-5g8c (CVSSv4 8.9, a libheif RCE fixed in 0.35.4).
+
+The override removes the vulnerable bytes; the dated `osv-scanner.toml` entry it
+replaces would only have hidden them. `>=` rather than `^` so the line never
+holds miniflare back once upstream moves past 0.35.x.
