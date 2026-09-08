@@ -187,10 +187,19 @@ const LOAD_CRASH = ['ERR_MODULE_NOT_FOUND', 'ERR_UNSUPPORTED_DIR_IMPORT', 'Canno
  *  Each is re-verified at runtime against DECLARATIONS above, so the entry
  *  cannot outlive the behaviour it describes in either direction. */
 const VACUOUS = new Map([
-  [
-    'tooling/ci/assert-runner-budget.mjs',
-    '2026-08-17 — the owner-gated half of the runner-budget check. With no billing token in the environment it prints `runner budget UNREAD` and exits 0 by design, because failing the build on a credential only the owner can supply blocks every unrelated change. The gap is PRINTED on every run, which is the repo\'s stated shape for an owner-gated capability, and it is the reason this entry is not a defect.',
-  ],
+  // 🔴 ONE ENTRY WAS REMOVED HERE ON 2026-09-08, BY THE CALENDAR AND BY THIS GUARD.
+  // `tooling/ci/assert-runner-budget.mjs` was waived on 2026-08-17 for printing
+  // `runner budget UNREAD` and exiting 0 with no billing token. It carries
+  // BUDGET_READ_DEADLINE = 2026-09-08T00:00:00Z, and past that instant the same
+  // no-token path REFUSES (exit 2) instead — so from midnight UTC on 2026-09-08 this
+  // guard reported it as "listed as legitimately vacuous and it REFUSED … That is good
+  // news and a stale exemption: it now carries a real floor, so remove its entry", and
+  // failed on every run until the entry went. The waiver described behaviour the file
+  // no longer has, so it is DELETED rather than reworded, exactly as the 2026-08-18
+  // pair below. Only the empty-tree harness here sees the refusal: it scrubs the
+  // environment, while the real step in ops-watch.yml has the GH_BILLING_TOKEN
+  // repository secret and passes. Recoverable from this file's history.
+  //
   // 🔴 TWO ENTRIES WERE REMOVED HERE ON 2026-08-18, AND THIS GUARD IS WHY.
   // `tooling/scripts/assert-public-citations.mjs` and `tooling/scripts/spec-guards.mjs`
   // were both waived on 2026-08-17 for printing `NOT APPLICABLE` and exiting 0 when the
