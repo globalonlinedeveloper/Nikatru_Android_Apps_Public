@@ -1,0 +1,15 @@
+{
+  "_what": "Findings frozen on the day check-agent-docs.mjs landed. Each is printed on every run and none of them fails the guard. A finding that is NOT in here does fail, once its limb is promoted.",
+  "_generatedFrom": "node tooling/scripts/check-agent-docs.mjs --write-baseline. Never typed by hand.",
+  "_rule": "This file may not GROW except in a commit whose message says why it grew. Shrinking it needs no ceremony: a cleared finding is the point of the exercise.",
+  "generatedAt": "2026-09-08",
+  "repo": "Nikatru_Platform_Public",
+  "count": 1,
+  "entries": [
+    {
+      "limb": "A-SIZE",
+      "path": "AGENTS.md",
+      "message": "is 13623 bytes, cap 12288."
+    }
+  ]
+}
