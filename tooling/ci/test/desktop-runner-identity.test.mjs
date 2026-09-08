@@ -86,11 +86,27 @@ describe('the real tree', () => {
 });
 
 describe('limb 1 — no application id in a field a human reads', () => {
+  /** Overwrite one `VALUE "<field>", "<anything>"` with `replacement`.
+   *
+   *  ⚠️ THE CURRENT VALUE IS MATCHED, NEVER TYPED. Two of these rows carried the
+   *  app's brand as a literal, so the 2026-09-09 rename turned `.replace()` into
+   *  a no-op — and a mutation that mutates nothing leaves a RED CONTROL passing
+   *  the guard and failing only on the assertion, if it fails at all. It is
+   *  asserted here that the text really changed, so the next rename cannot
+   *  quietly disarm these three cases the way this one did. */
+  const setValue = (field, replacement) => (src) => {
+    const re = new RegExp(`VALUE "${field}", "[^"]*"`);
+    if (!re.test(src)) throw new Error(`fixture anchor not found: VALUE "${field}" — Runner.rc moved under this test`);
+    const out = src.replace(re, `VALUE "${field}", "${replacement}"`);
+    if (out === src) throw new Error(`the mutation for ${field} changed nothing, so this red control proves nothing`);
+    return out;
+  };
+
   const FIELDS = [
-    ['CompanyName', (s) => s.replace('VALUE "CompanyName", "Nikatru"', 'VALUE "CompanyName", "com.nikatru"')],
-    ['FileDescription', (s) => s.replace('VALUE "FileDescription", "Subly"', 'VALUE "FileDescription", "com.nikatru.subly"')],
+    ['CompanyName', setValue('CompanyName', 'com.nikatru')],
+    ['FileDescription', setValue('FileDescription', 'com.nikatru.subly')],
     ['LegalCopyright', (s) => s.replace('Copyright (C) 2026 Nikatru.', 'Copyright (C) 2026 com.nikatru.')],
-    ['ProductName', (s) => s.replace('VALUE "ProductName", "Subly"', 'VALUE "ProductName", "com.nikatru.subly"')],
+    ['ProductName', setValue('ProductName', 'com.nikatru.subly')],
   ];
 
   for (const [field, mutate] of FIELDS) {
@@ -145,7 +161,7 @@ describe('limb 1 — no application id in a field a human reads', () => {
 
   test('the com.example Flutter placeholder fails', () => {
     withTree(
-      (root) => edit(root, RC, (s) => s.replace('VALUE "ProductName", "Subly"', 'VALUE "ProductName", "com.example"')),
+      (root) => edit(root, RC, setValue('ProductName', 'com.example')),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /com\.example.*placeholder/);

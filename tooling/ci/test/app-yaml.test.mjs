@@ -311,7 +311,12 @@ describe('assert-app-yaml — the declaration and its renderings', () => {
       assert.equal(spawn(RENDER, [root]).code, 0);
       const first = get(root, CATALOGUE);
       assert.match(first, /one calm place/);
-      assert.equal(get(root, TITLE), 'Subly\n', 'a tagline change must not touch the title');
+      // ⚠️ READ FROM THE DECLARATION, not typed. This carried the brand as a
+      // literal until the 2026-09-09 rename, at which point the case failed on a
+      // string nothing produces any more rather than on the property it is
+      // about — that a tagline edit leaves the title alone.
+      const declaredName = get(root, APP_YAML).match(/^name: (.*)$/m)[1].trim();
+      assert.equal(get(root, TITLE), `${declaredName}\n`, 'a tagline change must not touch the title');
       assert.equal(spawn(RENDER, [root]).code, 0);
       // A drift check over an unstable generator fails at random and gets
       // switched off within a week, taking the real protection with it.
