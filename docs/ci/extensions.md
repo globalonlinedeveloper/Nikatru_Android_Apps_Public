@@ -1203,6 +1203,43 @@ Same gate as `discover`: on a PR this is silent unless somebody asks for
 e2e by label. It deliberately does NOT `needs: e2e` — it grades PAST runs,
 so waiting ~798s for this run would only delay the alarm.
 
+🔴 APPENDED 2026-09-08 — THE JOB IS GONE. `e2e-proof-record` was DELETED from
+`.github/workflows/extensions.yml` on this date. Every paragraph above it is
+left exactly as written: a frozen record is superseded, never rewritten, and
+the sections above are the measurement that justifies the deletion.
+
+⛔ WHY IT WAS DELETED AND NOT REPAIRED. Its whole claim is the sentence at the
+top of this section — it "asks the two questions the run cannot ask about
+itself" — and that sentence needs the reader to be OUTSIDE the run it reads.
+The 2026-09-05 merge (7a057553) put it on the `schedule` event, INSIDE the
+weekly run it grades, and no filter inside the script can put it back outside.
+The self-exclusion added on this branch makes it stop reading its own
+in-flight run, and that is correct and it stays — but it does not free this
+job. Measured on run 34168610730: unfiltered it read itself and failed; with
+self excluded it walks back one row onto 34168610730, whose historical job
+names still give `legs=2/1`, and fails again. So EVERY scheduled run reddens
+until a green scheduled run exists in the window, and a green scheduled run
+cannot exist while this job is the thing reddening them. That is a deadlock
+the job creates about itself, not evidence about the timer or the proof.
+
+✅ THE DUTY IS COVERED FROM OUTSIDE, TWICE OVER, WHICH IS WHY THE DELETION
+LOSES NOTHING. (1) The ci-lane sibling `e2e-proof-fresh` in this same file
+runs the SAME script, `extensions/scripts/assert-e2e-proof-fresh.mjs`, under
+`if: github.event_name != 'schedule'` — on every pull request and every push,
+outside the scheduled run — so both questions are asked more often than the
+cron fires, by a reader that is genuinely outside its subject. (2) The
+`alarm-on-red` limb of `tooling/ci/assert-ops-register.mjs` (landed 2026-09-07,
+PR 538) reddens `ci-gate` whenever the newest `extensions.yml` run on `main` is
+red, so a red weekly run is loud from outside the repository's own schedule.
+A dead cron and a red proof both still bite; what stops is a job grading the
+run it is a part of.
+
+⚠️ NOTHING ELSE REFERENCED IT. `extensions-lane-accounting` derives its
+expectations from the EVENT and `needs:` only the five lanes plus the
+keep-alive, so it never named this job; `ci-required` derives its membership
+from the `inputs.lane == 'ci'` guard, which this job never carried. The
+script keeps its ci-lane call site, so `gate-inventory` still finds it.
+
 ## job `permissions`
 
 ### above `permissions:`
