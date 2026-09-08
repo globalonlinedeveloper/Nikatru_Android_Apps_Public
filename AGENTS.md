@@ -74,10 +74,23 @@
     `java.nio.channels.Selector.open()` fails for **all Java** there (`SocketException: Invalid
     argument: connect`), proven with a six-line program and no Gradle. Gradle dies in 3.7 s; the
     same build ran 192 s of real work in WSL. **Do not re-diagnose this as Gradle/Flutter/SDK.**
-- 🔴 **Every other environment trap lives in ONE place: `Private/TRAPS.md`.** Read it before running
-  anything, and quote the relevant rows into any subagent brief you write — **auto-memory is not
-  loaded into subagents**, so a trap a subagent has not been handed does not exist for it. Do not
-  re-inline a trap here; add it there. Traps scoped to one tree also load via `.claude/rules/`.
+- 🔴 **Every other environment trap lives in ONE place: `Private/TRAPS.md` — and you QUERY it, you
+  do not read it.** It is 105 KiB and the generated `Private/platform-state/traps.json` is another
+  69 KiB of the same rows; a session that reads both has spent a quarter of its window learning the
+  same thing twice. Ask for the class you are about to touch:
+
+  ```
+  node ../Nikatru_Platform_Private/requirements/tooling/state.mjs --traps shell
+  ```
+
+  Classes: `shell` `grep` `git` `ci` `auth` `agents` `docker` `windows` `flutter`
+  `flutter-worktrees` `backup` `vacuous` `stores`. Six to ten rows come back instead of 190.
+  The count is a fact, not a digit typed here — `traps.json`'s own `count`, re-derived by
+  `grep -c '^- ' TRAPS.md` (190 on 2026-09-08). `TRAPS.md` is the SOURCE; `traps.json` is
+  GENERATED from it by `gen-traps.mjs` and is never hand-edited, so add a trap only to `TRAPS.md`.
+  **Quote the rows you get into any subagent brief you write** — auto-memory is not loaded into
+  subagents, so a trap a subagent has not been handed does not exist for it. Do not re-inline a
+  trap here. Traps scoped to one tree also load via `.claude/rules/`.
 
 ## How I want Claude to work here
 
