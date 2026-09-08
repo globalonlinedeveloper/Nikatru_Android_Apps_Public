@@ -44,7 +44,7 @@
 // observe a Django setting on an Oracle VM whose compose file lives at
 // /opt/glitchtip and is in no tree CI can read.
 //
-// Under this repository's gate-vs-monitor rule (Private/pre-prune-2026-09-08:archive/2026-09-07/PROJECT_STATE.md) that
+// Under this repository's gate-vs-monitor rule (Private/archive/2026-09-07/PROJECT_STATE.md) that
 // makes this file:
 //   · a GATE for THE DECLARATION — the falsifier (a register row contradicting
 //     a published page) is reachable from the repo with no credentials, it
