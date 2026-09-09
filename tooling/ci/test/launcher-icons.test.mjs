@@ -67,6 +67,10 @@ import { deflateSync } from 'node:zlib';
 // whoever wrote the guard can encode the same misunderstanding as the guard,
 // limb 7's real evidence is the REAL-TREE mutation log recorded above each test.
 import { deriveDesktopEntry, deriveLinuxPackaging } from '../../store/render-linux-icons.mjs';
+// Limb 8's fixtures, on the same terms and for the same reason: the PASSING
+// case is what the generator derives, so it models "correctly generated" rather
+// than one more hand-typed guess. The failing cases perturb it afterwards.
+import { ANDROID_DRAWABLE_NAME, IOS_BASE_PX, deriveSplash } from '../../store/render-splash.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-launcher-icons.mjs');
@@ -144,6 +148,29 @@ function ico(payload) {
   return Buffer.concat([head, dir, payload]);
 }
 
+/** The IHDR width of an encoded PNG — used to perturb a derived asset at its
+ *  own size, so a wrong-pixel fixture cannot be caught by a size check. */
+function pngSize(buf) {
+  return buf.readUInt32BE(16);
+}
+
+/**
+ * Flutter's own launch-screen placeholder, byte for byte: the 68-byte 1x1 FULLY
+ * TRANSPARENT PNG that `flutter create` writes to LaunchImage.png, @2x and @3x.
+ * md5 978c1bee49d7ad5fc1a4d81099b13e18, measured off this repository 2026-09-09.
+ *
+ * 🔴 THE REAL BYTES, NOT A STAND-IN, and the difference is the whole test. It is
+ * colour type 4 (grey + alpha), which the shared decoder refuses — so a fixture
+ * that wrote a "small transparent PNG" of its own would exercise a path the real
+ * placeholder never reaches, and the first version of limb 8 reported "could not
+ * be decoded" instead of naming the defect. A fixture written by whoever wrote
+ * the guard encodes the same misunderstanding as the guard; this one cannot.
+ */
+const STOCK_LAUNCH_IMAGE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP6zwAAAgcBApocMXEAAAAASUVORK5CYII=',
+  'base64',
+);
+
 const STOCK = '0175c2'; // Flutter's default blue, standing in for stock
 const BRAND = '17c3a2';
 
@@ -220,6 +247,13 @@ function world({
   linuxCorrupt = null,
   linuxInstall = 'both',
   linuxRunnerIcon = true,
+  splash = true,
+  splashOmit = [],
+  splashStock = [],
+  splashPixel = null,
+  storyboard = true,
+  storyboardSize = IOS_BASE_PX,
+  androidSplashWired = true,
 } = {}) {
   const root = join(TMP, `r${seq++}`);
   const sdkRoot = join(root, 'sdk');
@@ -266,6 +300,18 @@ function world({
     writeFileSync(p, rel.endsWith('.ico') ? ico(png(8, BRAND)) : png(8, BRAND, { alpha }));
   }
 
+  // The master every derived artefact comes from — the SAME file the other five
+  // platforms use, which is the property limbs 7 AND 8 both rest on.
+  //
+  // 🔴 WRITTEN UNCONDITIONALLY, outside the `linux` block it used to live in.
+  // Limb 8 derives the launch screen from it too, and a fixture that dropped
+  // the master along with the Linux lane would make `linux: false` fail with a
+  // message about the splash — i.e. every test of limb 7's own coverage
+  // assertion would fail for a reason that has nothing to do with what it
+  // asserts. Exactly the shape the lazy `stockFor` above already exists for.
+  mkdirSync(join(appDir, 'assets', 'icon'), { recursive: true });
+  writeFileSync(join(appDir, 'assets', 'icon', 'app_icon_1024.png'), png(1024, BRAND, { alpha: true }));
+
   // ── the Linux lane — limb 7's subject ─────────────────────────────────────
   // 🔴 ON BY DEFAULT, and that is the correction rather than a convenience.
   // While limb 7 was a PRINT, `linux: false` was the right default: an app
@@ -299,11 +345,6 @@ function world({
         ? 'static void activate() {\n  gtk_window_set_icon_name(window, APPLICATION_ID);\n}\n'
         : '// gtk_window_set_icon_name(window, APPLICATION_ID); <- only in a comment\nstatic void activate() {}\n',
     );
-
-    // The master every size is derived from — the SAME file the other five
-    // platforms use, which is the property limb 7 rests on.
-    mkdirSync(join(appDir, 'assets', 'icon'), { recursive: true });
-    writeFileSync(join(appDir, 'assets', 'icon', 'app_icon_1024.png'), png(1024, BRAND, { alpha: true }));
 
     // The desktop entry's text is DERIVED from these, never typed.
     const listing = join(appDir, 'store', 'linux-snap');
@@ -348,6 +389,77 @@ function world({
     mkdirSync(join(res, 'drawable-hdpi'), { recursive: true });
     writeFileSync(join(res, 'drawable-hdpi', 'ic_launcher_foreground.png'), png(8, BRAND, { alpha: true }));
     writeFileSync(join(res, 'drawable-hdpi', 'ic_launcher_background.png'), png(8, BRAND));
+  }
+
+  // ── the launch screen — limb 8's subject ──────────────────────────────────
+  // 🔴 ON BY DEFAULT, for the reason the Linux lane is: a missing splash is
+  // COVERAGE LOST or a hard failure now, so a fixture that omitted it would
+  // make every unrelated test fail for a reason it does not assert.
+  if (splash) {
+    for (const [rel, bytes] of deriveSplash(appDir)) {
+      if (splashOmit.some((o) => rel.endsWith(o))) continue;
+      const p = join(appDir, rel);
+      mkdirSync(dirname(p), { recursive: true });
+      // 'stock'  — Flutter's own 68-byte 1x1 TRANSPARENT placeholder, byte for
+      //            byte. THE DEFECT: a blank launch screen that every
+      //            "is it Flutter's default icon?" test in this file would pass.
+      // 'pixel'  — right size, wrong mark: the case only re-derivation catches.
+      if (splashStock.some((o) => rel.endsWith(o))) {
+        writeFileSync(p, STOCK_LAUNCH_IMAGE);
+      } else if (splashPixel !== null && rel.endsWith(splashPixel)) {
+        // The SAME size as the derivation, a different colour: a size check
+        // cannot see this, and neither can "is it Flutter's placeholder?".
+        writeFileSync(p, png(pngSize(bytes), STOCK, { alpha: true }));
+      } else {
+        writeFileSync(p, bytes);
+      }
+    }
+    if (storyboard) {
+      const sb = join(appDir, 'ios', 'Runner', 'Base.lproj', 'LaunchScreen.storyboard');
+      mkdirSync(dirname(sb), { recursive: true });
+      writeFileSync(
+        sb,
+        `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document>
+  <resources>
+    <image name="LaunchImage" width="${storyboardSize}" height="${storyboardSize}"/>
+  </resources>
+</document>
+`,
+      );
+    }
+    for (const d of ['drawable', 'drawable-v21']) {
+      const bg = join(appDir, APP_DIR.android, d, 'launch_background.xml');
+      mkdirSync(dirname(bg), { recursive: true });
+      // The UNWIRED variant is the STOCK file, comment and all — the exact text
+      // `flutter create` writes. It is not a contrived string: a bare text
+      // search for the drawable name matches it, which is the whole reason
+      // limb 8b strips comments before looking.
+      writeFileSync(
+        bg,
+        androidSplashWired
+          ? `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/${ANDROID_DRAWABLE_NAME}" />
+    </item>
+</layer-list>
+`
+          : `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
+
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/${ANDROID_DRAWABLE_NAME}" />
+    </item> -->
+</layer-list>
+`,
+      );
+    }
   }
 
   // The brick template — limb 6's subject.
@@ -551,6 +663,106 @@ describe('assert-launcher-icons', () => {
     assert.equal(code, 1, out);
     assert.match(out, /no app under apps\/ ships linux\//);
     assert.match(out, /COVERAGE LOST/);
+  });
+
+  // ── limb 8: THE LAUNCH SCREEN ─────────────────────────────────────────────
+  //
+  // 🔴 REAL-TREE MUTATIONS FIRST, as everywhere else in this file. Run against
+  // this repository and the real Flutter SDK on 2026-09-09, predictions written
+  // before each run and the exit code captured on its own line:
+  //
+  //   M5 THE REPOSITORY AS IT STOOD   -> the three iOS LaunchImage files were
+  //      68 bytes each, md5 978c1bee49d7ad5fc1a4d81099b13e18, a 1x1 TRANSPARENT
+  //      png; both launch_background.xml files were stock with the <bitmap>
+  //      still commented out; no launch_image drawable existed anywhere. Guard
+  //      RED. After `node tooling/store/render-splash.mjs --app
+  //      subscriptiontracker` plus the two hand edits: exit 0, 12 artefacts.
+  //
+  //   M6 THE PLACEHOLDER PUT BACK, one file (`git show HEAD:…LaunchImage.png`)
+  //      -> exit 1, "is 1x1 and the master derives 96x96 here".
+  //
+  //   M7 THE STOCK launch_background.xml PUT BACK (bitmap re-commented)
+  //      -> exit 1, "does not draw @drawable/launch_image OUTSIDE A COMMENT".
+  //      This is the mutation that a text-matching implementation passes: the
+  //      stock file CONTAINS the drawable name, inside a comment.
+  //
+  //   M8 THE STALE STORYBOARD SIZE PUT BACK (168x185) -> exit 1.
+  //
+  // 🔴 AND THE FIRST VERSION OF THE LIMB FAILED M6 FOR THE WRONG REASON. It
+  // decoded before reading the size, and Flutter's placeholder is colour type 4
+  // (grey + alpha), which the shared decoder refuses — so the single most
+  // important case printed "could not be decoded for comparison", a message
+  // about PNG internals. The size now comes from IHDR, which every colour type
+  // has. The fixture below uses the REAL placeholder bytes so that mistake
+  // cannot come back.
+  for (const rel of ['LaunchImage.png', 'LaunchImage@3x.png']) {
+    test(`FAILS when iOS ${rel} is Flutter's 1x1 transparent placeholder`, () => {
+      const { code, out } = run(world({ splashStock: [rel] }));
+      assert.equal(code, 1, out);
+      assert.match(out, /is 1x1 and the master derives/);
+      assert.match(out, /BLANK launch screen/);
+    });
+  }
+
+  test("FAILS when an Android launch drawable is Flutter's placeholder", () => {
+    const { code, out } = run(world({ splashStock: ['drawable-xxhdpi/launch_image.png'] }));
+    assert.equal(code, 1, out);
+    assert.match(out, /drawable-xxhdpi\/launch_image\.png — is 1x1/);
+  });
+
+  test('FAILS when a splash asset is missing entirely', () => {
+    const { code, out } = run(world({ splashOmit: ['LaunchImage@2x.png'] }));
+    assert.equal(code, 1, out);
+    assert.match(out, /LaunchImage@2x\.png — MISSING/);
+  });
+
+  // The limb a size check cannot reach: right size, right format, right place,
+  // and not the app's mark. Only re-derivation sees it.
+  test('FAILS when a splash asset is the right size and the wrong pixels', () => {
+    const { code, out } = run(world({ splashPixel: 'drawable-hdpi/launch_image.png' }));
+    assert.equal(code, 1, out);
+    assert.match(out, /is the right size and the WRONG PIXELS/);
+  });
+
+  test('FAILS when the imageset catalogue no longer names the files', () => {
+    const { code, out } = run(world({ splashOmit: ['Contents.json'] }));
+    assert.equal(code, 1, out);
+    assert.match(out, /Contents\.json — MISSING/);
+  });
+
+  // 🔴 THE PROSE-VS-STRUCTURE TRAP, SPRUNG DELIBERATELY. The unwired fixture is
+  // the STOCK file, comment and all — so it CONTAINS the string `launch_image`.
+  // A bare text match passes it, which is green over the defect.
+  test('FAILS when launch_background.xml only mentions the drawable in a comment', () => {
+    const { code, out } = run(world({ androidSplashWired: false }));
+    assert.equal(code, 1, out);
+    assert.match(out, /does not draw @drawable\/launch_image OUTSIDE A COMMENT/);
+    // Both files, not just the v21 one: the un-qualified fallback would
+    // otherwise stay stock forever with nothing saying so.
+    assert.equal(out.match(/OUTSIDE A COMMENT/g).length, 2, out);
+  });
+
+  test('FAILS when the storyboard declares a size the imageset does not have', () => {
+    const { code, out } = run(world({ storyboardSize: 185 }));
+    assert.equal(code, 1, out);
+    assert.match(out, /declares LaunchImage as 185x185/);
+  });
+
+  test('FAILS when the storyboard names no LaunchImage resource at all', () => {
+    const { code, out } = run(world({ storyboard: false }));
+    assert.equal(code, 1, out);
+    // The storyboard file is still written by the icon fixtures' absence of it;
+    // with `storyboard: false` there is no file, which is the harder case.
+    assert.match(out, /COVERAGE LOST|names no `LaunchImage` image resource/);
+  });
+
+  // Anti-vacuity for limb 8 itself. With no splash artefacts anywhere, every
+  // check above ranges over nothing — indistinguishable from all of them
+  // passing, over an app whose launch screen is blank.
+  test('COVERAGE LOST when nothing about the launch screen can be compared', () => {
+    const { code, out } = run(world({ splash: false }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST|MISSING/);
   });
 
   // ── anti-vacuity: refusing to run blind ───────────────────────────────────
