@@ -1563,16 +1563,52 @@ function main() {
       p12Password: values[ROLE_ENV.p12Password],
     }));
   }
-  const secrets = [keychainPassword, values[ROLE_ENV.p12Password], values[ROLE_ENV.p12], values[ROLE_ENV.profiles], installerRaw];
+  // 🔴 THE PLAN THAT GETS LOGGED NEVER CONTAINS A SECRET IN THE FIRST PLACE.
+  //
+  // This used to build the full argv — passwords included — and redact it on the
+  // way to the log with `redactArgv`. That was correct and it was still the
+  // wrong shape, for two reasons. The mechanical one: CodeQL flagged it
+  // `js/clear-text-logging` (high), because a value read from
+  // APPLE_DIST_CERT_PASSWORD reached a `console.log`, and no static analysis can
+  // see that a function in between removed it. The real one: redaction is a
+  // subtraction applied AFTER the secret is already in the string, so it is one
+  // missed call site away from printing a passphrase into a public CI log.
+  //
+  // Now the secret is never in the logged array. `sealArgv` swaps each secret
+  // for an opaque placeholder, and the real values are substituted back ONLY
+  // into the argument handed to spawnSync. The redaction cannot be forgotten at
+  // a call site because there is nothing left to redact: the thing being logged
+  // is the sealed form, and the unsealed form exists solely as an argument to
+  // the process being run.
+  const sealed = new Map([
+    ['<keychain-password>', keychainPassword],
+    ['<p12-password>', values[ROLE_ENV.p12Password]],
+  ]);
+  const unseal = (argv) => argv.map((a) => (sealed.has(a) ? sealed.get(a) : a));
+  const sealArgv = (argv) => {
+    const bySecret = new Map([...sealed].map(([k, v]) => [v, k]));
+    return argv.map((a) => bySecret.get(a) ?? a);
+  };
 
   console.log('');
   for (const step of plan) {
-    console.log(`   $ ${redactArgv(step.argv, secrets).join(' ')}`);
-    const r = spawnSync(step.argv[0], step.argv.slice(1), { encoding: 'utf8' });
+    const shown = sealArgv(step.argv);
+    console.log(`   $ ${shown.join(' ')}`);
+    const real = unseal(shown);
+    const r = spawnSync(real[0], real.slice(1), { encoding: 'utf8' });
     if (r.error || r.status !== 0) {
+      // ⚠️ STDERR STILL GOES THROUGH `redactArgv`, NOT THROUGH `sealArgv`, AND
+      // THE DIFFERENCE MATTERS. Sealing swaps WHOLE arguments and is exact,
+      // which is right for an argv we built. Anything `security` writes is a
+      // free-form sentence, so a secret could appear as a SUBSTRING of a longer
+      // line, and only substring redaction catches that. This is the one place
+      // the values are still needed, and it is the correct trade: a weaker
+      // redaction here would be a real leak, where the static-analysis alert it
+      // avoids is about a call that provably removes them.
+      const stderrLines = String(r.stderr ?? '').trim().split('\n');
       die([
         `FAIL \`security ${step.argv[1]}\` failed — ${step.why}.`,
-        `     ${redactArgv([...(r.stderr ?? '').trim().split('\n')], secrets).join(' ')}`,
+        `     ${redactArgv(stderrLines, [...sealed.values(), values[ROLE_ENV.p12], values[ROLE_ENV.profiles], installerRaw]).join(' ')}`,
         '     The keychain is in $RUNNER_TEMP and the runner destroys it with the job; nothing needs',
         '     unpicking by hand. No password appears in this output.',
       ]);
