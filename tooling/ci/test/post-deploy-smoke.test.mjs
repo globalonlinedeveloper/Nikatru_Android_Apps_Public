@@ -85,9 +85,15 @@ function run(responses, args) {
 const WEB_URL = 'https://subly.nikatru.com/version.json';
 /** A URL the web smoke reaches, resolved against the one it is pointed at. */
 const webUrl = (path) => new URL(path, WEB_URL).href;
-/** A literal string as a regex — so a derived URL can be matched against output
- *  without hand-escaping its dots and slashes. */
-const asRx = (s) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+/** 🔴 A DERIVED URL IS ASSERTED BY CONTAINMENT, NEVER AS A PATTERN. This
+ *  replaced an `asRx()` helper that escaped the URL into a RegExp. The escaping
+ *  was right, but an escaped-yet-UNANCHORED host pattern still matches a longer
+ *  name — `subly.nikatru.com.evil.example` satisfies it — which is the defect
+ *  cors-allowlist.test.mjs documents, and CodeQL flagged it here as
+ *  js/incomplete-hostname-regexp. `includes` is what both assertions always
+ *  meant: the exact sentence appears in the output, with nothing to escape and
+ *  no anchor to forget. */
+const says = (out, sentence) => assert.ok(out.includes(sentence), out);
 const WEB = ['--url', WEB_URL, '--field', 'build_number', '--expect', '482'];
 const API = ['--url', 'https://api.nikatru.com/v1/health', '--field', 'build', '--expect', 'abc123', '--require-ok'];
 
@@ -446,7 +452,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/main.dart.js'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, asRx(`EDGE CACHE POLICY FAILED for ${webUrl('/main.dart.js')}`));
+    says(r.out, `EDGE CACHE POLICY FAILED for ${webUrl('/main.dart.js')}`);
     assert.match(r.out, /max-age=14400/);
     assert.match(r.out, /kill-switch cannot see/);
   });
@@ -472,7 +478,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/version.json'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, asRx(`FAILED for ${WEB_URL}`));
+    says(r.out, `FAILED for ${WEB_URL}`);
   });
 
   test('a Worker deploy is NOT failed by a policy that does not govern it', () => {

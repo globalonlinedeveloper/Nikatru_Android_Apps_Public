@@ -398,7 +398,10 @@ describe('assert-catalog-contract.mjs — `listings` [ADR 055]', () => {
   test('a `listings` web entry that disagrees with `url` is refused', () => {
     const { code, out } = run(tree([listings({ [WEB_KEY]: 'https://subscriptiontracker-old.nikatru.com' })]));
     assert.equal(code, 1, out);
-    assert.match(out, /subscriptiontracker-old\.nikatru\.com/);
+    // Containment, not a pattern: an unanchored host regex also matches
+    // `subscriptiontracker-old.nikatru.com.evil.example`
+    // (CodeQL js/regex/missing-regexp-anchor, new on this branch).
+    assert.ok(out.includes('subscriptiontracker-old.nikatru.com'), out);
     assert.match(out, /SAME fact/);
   });
 
