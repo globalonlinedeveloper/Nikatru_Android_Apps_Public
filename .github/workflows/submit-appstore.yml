@@ -48,7 +48,16 @@ jobs:
           sw_vers
           xcodebuild -version
           uname -m
-      - name: Build iOS (unsigned — no distribution certificate exists)
+      # ⏱ RENAMED 2026-09-09. This step was called "unsigned — no distribution
+      # certificate exists", and that reason stopped being true today: a
+      # DISTRIBUTION certificate and an IOS_APP_STORE profile were issued through
+      # the ASC API, and build-platforms.yml now emits a SIGNED .ipa with them.
+      # This workflow deliberately does NOT: it ends at a refusal (see
+      # tooling/release/submit-appstore.mjs, which refuses --submit by design),
+      # so what it needs is a compile proof, not a signed artifact it must not
+      # upload. The build stays unsigned because this lane must not submit — not
+      # because nothing here could sign.
+      - name: Build iOS (unsigned on purpose — this lane must never submit)
         working-directory: apps/subly
         run: >
           flutter build ios --release --no-codesign
@@ -57,7 +66,9 @@ jobs:
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
           --dart-define=GLITCHTIP_DSN=${{ secrets.GLITCHTIP_DSN }}
-      - name: Build macOS (unsigned — no distribution certificate exists)
+      # Same correction as the iOS step above: unsigned BY CHOICE, not for want
+      # of a certificate. A Mac Installer Distribution certificate exists too.
+      - name: Build macOS (unsigned on purpose — this lane must never submit)
         working-directory: apps/subly
         run: >
           flutter build macos --release

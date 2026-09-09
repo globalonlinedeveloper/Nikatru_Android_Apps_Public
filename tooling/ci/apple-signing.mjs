@@ -279,17 +279,33 @@ export function homeRowOf(name) {
 
 /** The item behind the absent signing arrangement, named in full so the printed gap
  *  is actionable without opening another file. */
-export const OWNER_GAP = 'Apple distribution certificate (the account is ACTIVE, verified 2026-09-08; none issued)';
+export const OWNER_GAP = 'App Store screenshots and the owner-run first submission (the signing infrastructure now exists)';
 //
-// CORRECTED 2026-09-08, and this constant is the root of the correction: every
-// guard that imports it printed the old text. The enrolment completed 2026-08-31
-// and OWNER_QUEUE A-4 closed with it; an authenticated App Store Connect call on
-// 2026-09-08 answered HTTP 200 with an ACCOUNT_HOLDER record for
-// rajasekar@nikatru.com. The SAME call showed the real gap: GET /v1/certificates
-// returned an empty set. So the missing item is a distribution CERTIFICATE, and
-// unlike an account it is issuable through the ASC API with the key this
-// repository already holds. The gap moved from owner-gated to CODE-gated - a
-// change in who can act, not in whether anything ships today.
+// CORRECTED 2026-09-09, and this is the SECOND correction of this constant in as
+// many days. The 2026-09-08 text said the missing item was a distribution
+// CERTIFICATE. That was true when it was written and is not true now: on
+// 2026-09-09 the App Store Connect API issued, against this account and with the
+// key this repository already holds,
+//
+//   · DISTRIBUTION                 ND3WDZ2B5K  "Apple Distribution: ..."
+//   · MAC_INSTALLER_DISTRIBUTION   RDYD44LRCZ  "3rd Party Mac Developer Installer: ..."
+//   · bundleId  UNIVERSAL          YZGQND6Z9C  com.nikatru.subly
+//   · profile   IOS_APP_STORE      TPT7N9XTC7
+//   · profile   MAC_APP_STORE      HRJS9Z65X6
+//
+// and the five repository secrets that carry them exist. So the gap is no longer
+// an account (closed 2026-08-31), no longer a certificate (closed today), and no
+// longer a missing build step: this file's `signedExportPlan` is now RUN by
+// build-platforms.yml rather than printed, and that lane emits a signed .ipa and
+// a signed .pkg.
+//
+// 🔴 WHAT REMAINS IS NOT SOMETHING CODE CAN CLOSE, AND THAT IS WHY THIS CONSTANT
+// IS RE-POINTED RATHER THAN DELETED. A first submission needs screenshots,
+// listing copy, and an App Store Connect app record — and the app record and the
+// submission are the OWNER'S call, after he has tested the product. No agent
+// creates either. `tooling/release/submit-appstore.mjs` still refuses `--submit`
+// by design; that refusal is the mechanical half of this rule and this sentence
+// is the documentary half. They must not drift apart.
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PURE DECISION LOGIC
@@ -472,7 +488,7 @@ export function resolvePosture({ law, required, platform = process.platform, arm
             '     unsigned upload, so continuing here would spend a build, an artifact and a version string to',
             '     arrive at a bundle that cannot be submitted — with every check green.',
             '',
-            `     🔴 THE MISSING ITEM IS NOT A SECRET, IT IS A CERTIFICATE: ${OWNER_GAP}.`,
+            `     🔴 THE MISSING ITEM IS NOT A SECRET AND NO LONGER A CERTIFICATE: ${OWNER_GAP}.`,
             '     There is no distribution certificate to export - the enrolment is ACTIVE and empty - so the four',
             '     secrets below have not been created; the ASC API can now issue what they carry:',
             ...WANTED.map((n) => `       ${n}`),
@@ -553,6 +569,62 @@ export function keychainPlan({ keychain, keychainPassword, p12Path, p12Password,
   ];
 }
 
+/** The SECOND import: the Mac Installer Distribution identity, which signs the
+ *  .pkg and CANNOT sign anything else.
+ *
+ *  🔴 THIS IS A SEPARATE STEP AND NOT A SECOND ENTRY IN `keychainPlan` BECAUSE
+ *  IT IS OPTIONAL IN A WAY THE OTHER FOUR ARE NOT. `WANTED` is the all-or-none
+ *  set and every Apple row declares it; `APPLE_INSTALLER_CERT_P12_BASE64` is
+ *  declared by the macos-appstore row ALONE (`ROW_ONLY_ENV`), because the
+ *  ios-appstore row has no .pkg and must not be failed for lacking an installer
+ *  certificate. Folding it into the all-or-none law would start requiring it of
+ *  the iOS row; leaving it out of the keychain entirely leaves `productbuild`
+ *  with no identity. So it imports when supplied, and the macOS packaging step
+ *  refuses loudly when the identity it needs is not in the keychain — the gap
+ *  lands on the ONE lane that needs it, at the moment it is needed.
+ *
+ *  `-T /usr/bin/productbuild` and `-T /usr/bin/productsign` are the point of the
+ *  step: those are the only two tools that ever use this key. */
+export function installerImportPlan({ keychain, p12Path, p12Password } = {}) {
+  return [
+    {
+      why: 'import the Mac Installer Distribution identity for productbuild',
+      argv: [
+        'security', 'import', p12Path, '-k', keychain, '-P', p12Password, '-f', 'pkcs12',
+        '-T', '/usr/bin/productbuild', '-T', '/usr/bin/productsign', '-T', '/usr/bin/security',
+      ],
+    },
+  ];
+}
+
+/**
+ * Pull the real identity names out of `security find-identity -v <keychain>`.
+ *
+ * 🔴 THE NAMES ARE READ BACK OUT OF THE KEYCHAIN, NEVER CONSTRUCTED FROM THE
+ * TEAM ID. The obvious shortcut — `Apple Distribution: ${owner} (${teamId})` —
+ * requires this file to know the account holder's name, which it does not and
+ * should not, and it produces a string that LOOKS right while matching no
+ * identity, so `codesign -s` fails with "no identity found" several minutes into
+ * a build. What is in the keychain is the authority for what can be signed with.
+ *
+ * `find-identity` prints `  1) <40-hex-sha1> "<name>"` per identity. Apple names
+ * the app-signing identity `Apple Distribution: …` (the modern name) or
+ * `3rd Party Mac Developer Application: …` (its legacy spelling, still issued
+ * for MAC_APP_DISTRIBUTION); the installer identity is always
+ * `3rd Party Mac Developer Installer: …`. Order matters in the app match: the
+ * installer prefix also begins "3rd Party Mac Developer", so testing for the
+ * installer FIRST is what keeps it out of the application slot.
+ */
+export function pickIdentities(stdout) {
+  const names = [...String(stdout ?? '').matchAll(/^\s*\d+\)\s+[0-9A-F]{40}\s+"([^"]+)"/gim)].map((m) => m[1]);
+  const installer = names.find((n) => n.startsWith('3rd Party Mac Developer Installer:')) ?? null;
+  const application =
+    names.find((n) => n.startsWith('Apple Distribution:')) ??
+    names.find((n) => n.startsWith('3rd Party Mac Developer Application:')) ??
+    null;
+  return { names, application, installer };
+}
+
 /**
  * Replace every occurrence of a secret value with `***`.
  *
@@ -616,7 +688,20 @@ export function parseMobileProvision(buffer) {
   const expires = date('ExpirationDate');
   // `application-identifier` lives in the Entitlements dict and is
   // `<TEAMID>.<bundle id>`; the wildcard form ends in `.*`.
-  const appIdentifier = str('application-identifier');
+  //
+  // 🔴 macOS SPELLS THE SAME KEY DIFFERENTLY, AND READING ONLY THE iOS SPELLING
+  // SILENTLY DROPS EVERY .provisionprofile. Measured 2026-09-09 on the two
+  // profiles this account actually issued: the IOS_APP_STORE profile carries
+  // `application-identifier = Q2B2BY33B6.com.nikatru.subly`, the MAC_APP_STORE
+  // profile carries `com.apple.application-identifier` with the identical
+  // value. Before this fallback the macOS profile parsed to `bundleId: null`,
+  // which is not a loud failure anywhere — it made the profile INVISIBLE to the
+  // bundle-id cross-check below and excluded it from the ExportOptions
+  // `provisioningProfiles` map, whose builder filters on `p.bundleId && p.name`.
+  // A profile that is silently not mapped is the "green means ran" shape: the
+  // build signs with whatever Xcode picks and the disagreement surfaces at
+  // upload. Read both spellings; prefer the iOS one when a profile has both.
+  const appIdentifier = str('application-identifier') ?? str('com\\.apple\\.application-identifier');
   const bundleId =
     appIdentifier && teamIds.some((t) => appIdentifier.startsWith(`${t}.`))
       ? appIdentifier.slice(appIdentifier.indexOf('.') + 1)
@@ -701,17 +786,6 @@ export function signedExportPlan({ appSlug, exportOptionsPath, keychain, teamId,
         join(outDir ?? '$RUNNER_TEMP', `${appSlug}.pkg`),
       ],
       produces: join(outDir ?? '$RUNNER_TEMP', `${appSlug}.pkg`),
-      gap:
-        'THE INSTALLER CERTIFICATE IS DECLARED AND DOES NOT EXIST. A Mac App Store .pkg needs a Mac ' +
-        'Installer Distribution identity, which is a DIFFERENT certificate from the Apple Distribution ' +
-        `one ${ROLE_ENV.p12} carries — that one signs the .app INSIDE the package and cannot sign the ` +
-        'package itself. As of 2026-08-20 the macos-appstore row DECLARES ' +
-        '`APPLE_INSTALLER_CERT_P12_BASE64` with its reason, so the name is no longer missing from the ' +
-        'register; what is missing is the certificate itself, and nothing here has issued one: ' +
-        `${OWNER_GAP}. OWNER_QUEUE A-4 closed 2026-08-31, so this is agent-closable through the ` +
-        'App Store Connect API rather than owner-gated. This command stays PLANNED and unrunnable, and the ' +
-        'sentence says which of the two gaps it is — they close on different days and by different ' +
-        'people.',
     },
   ];
   return plan;
@@ -1122,8 +1196,19 @@ function main() {
         armings: gap.unarmed,
         secretNames: law.missing,
         laneReasons: lane.reasons,
-        ownerItem: `${OWNER_GAP} — the enrolment is active and holds no certificate to export`,
-        ownerGated: false,
+        ownerItem: `${OWNER_GAP} — the certificates, bundle id and profiles exist; THIS RUN was not given the secrets`,
+        // ⏱ FLIPPED BACK TO OWNER-GATED 2026-09-09, and the flip is the honest
+        // half of today's change rather than a regression. On 2026-09-08 this
+        // was set `false` with a correct reason: the missing item was a
+        // certificate, and an agent holding the ASC key could issue one. It did
+        // — so that item is closed, and OWNER_GAP now names what is actually
+        // left: App Store screenshots and the first submission. Neither is
+        // agent-closable, and neither should be: creating an app record or
+        // submitting to App Review is the owner's call, after he has tested the
+        // product. Leaving this `false` would print "An agent CAN close this
+        // one" over work no agent is permitted to do, which is a worse lie than
+        // the one it replaced.
+        ownerGated: true,
       })) {
         console.log(l);
       }
@@ -1143,8 +1228,10 @@ function main() {
       console.log(`   🔴 NO APPLE SIGNING SECRETS ARE SET, AND THE REASON IS NOT A MISSING SECRET.`);
     }
     console.log(`   🔴 THE MISSING ITEM IS THE ${OWNER_GAP.toUpperCase()}.`);
-    console.log('   The enrolment is ACTIVE and EMPTY: no distribution certificate, no provisioning profile,');
-    console.log('   so nothing here can sign yet - but the ASC API can issue both, so this IS closable here.');
+    console.log('   The enrolment is ACTIVE and the signing infrastructure EXISTS as of 2026-09-09: a distribution');
+    console.log('   certificate, a Mac installer certificate, a universal bundle id and two App Store profiles,');
+    console.log('   all issued through the ASC API. THIS RUN was simply not handed the secrets that carry them,');
+    console.log('   which is correct for a branch, a fork PR and the weekly proof - it says nothing about the account.');
     console.log('   🔴 AN UNSIGNED BUNDLE CANNOT BE UPLOADED TO APP STORE CONNECT. This artifact is a build');
     console.log('      proof: it proves the Apple modules compile, and nothing about a signing identity.');
     console.log('   This is the correct outcome for a branch, a fork PR and the weekly platform proof.');
@@ -1274,7 +1361,29 @@ function main() {
     p12Password: values[ROLE_ENV.p12Password],
     existingKeychains: existingUserKeychains(),
   });
-  const secrets = [keychainPassword, values[ROLE_ENV.p12Password], values[ROLE_ENV.p12], values[ROLE_ENV.profiles]];
+  // The installer identity shares APPLE_DIST_CERT_PASSWORD: it is one credential
+  // in two files, and the register declares no second password name. Validated
+  // to the same DER floor as the distribution .p12 before anything is written.
+  const installerRaw = (process.env[ROLE_ENV.installerP12] ?? '').trim();
+  const installerP12Path = join(OUT_DIR, `${app.slug}-installer.p12`);
+  if (installerRaw !== '') {
+    const ip12 = decodeB64(installerRaw, ROLE_ENV.installerP12);
+    if (ip12[0] !== 0x30) {
+      die([
+        `FAIL ${ROLE_ENV.installerP12} decodes to ${ip12.length} byte(s) that are not a PKCS#12.`,
+        `     Expected DER (first byte 0x30); found 0x${ip12[0]?.toString(16).padStart(2, '0') ?? '--'}.`,
+        '     No part of the value is printed. This is the Mac Installer Distribution identity that signs',
+        '     the .pkg; it is a DIFFERENT certificate from the one that signs the .app inside it.',
+      ]);
+    }
+    writeFileSync(installerP12Path, ip12, { mode: 0o600 });
+    plan.splice(4, 0, ...installerImportPlan({
+      keychain,
+      p12Path: installerP12Path,
+      p12Password: values[ROLE_ENV.p12Password],
+    }));
+  }
+  const secrets = [keychainPassword, values[ROLE_ENV.p12Password], values[ROLE_ENV.p12], values[ROLE_ENV.profiles], installerRaw];
 
   console.log('');
   for (const step of plan) {
@@ -1290,6 +1399,32 @@ function main() {
     }
   }
 
+  // ── read the identities back out of the keychain ──────────────────────────
+  // 🔴 THIS IS A MEASUREMENT, NOT A RESTATEMENT OF THE PLAN ABOVE. Every step
+  // exited 0, which says the commands ran, not that an identity exists — a .p12
+  // holding a certificate whose private key did not travel with it imports
+  // cleanly and yields NO identity. `find-identity` is the first thing in this
+  // script that can tell those two apart, and a build that gets past here with
+  // no application identity fails ten minutes later inside codesign.
+  const found = spawnSync('security', ['find-identity', '-v', keychain], { encoding: 'utf8' });
+  const { names, application, installer } = pickIdentities(found.stdout);
+  if (application === null) {
+    die([
+      'FAIL the keychain imported without error and contains NO application-signing identity.',
+      `     \`security find-identity -v\` listed ${names.length} identit(ies): ${names.join(', ') || '(none)'}`,
+      `     ${ROLE_ENV.p12} must be a PKCS#12 carrying BOTH the certificate and its private key. Exporting`,
+      '     only the certificate produces exactly this: a clean import and nothing to sign with.',
+    ]);
+  }
+  if (installerRaw !== '' && installer === null) {
+    die([
+      `FAIL ${ROLE_ENV.installerP12} was supplied and imported, and no installer identity came back.`,
+      `     \`security find-identity -v\` listed: ${names.join(', ') || '(none)'}`,
+      '     A Mac App Store .pkg needs "3rd Party Mac Developer Installer: …". Without it `productbuild`',
+      '     would either refuse or — worse — emit an UNSIGNED package that App Store Connect rejects.',
+    ]);
+  }
+
   exportEnv(
     {
       [POSTURE_ENV]: RELEASE_SIGNED,
@@ -1297,6 +1432,13 @@ function main() {
       APPLE_KEYCHAIN_PATH: keychain,
       APPLE_EXPORT_OPTIONS_PLIST: exportOptionsPath,
       APPLE_PROVISIONING_PROFILES_DIR: profileDir,
+      APPLE_DIST_IDENTITY: application,
+      ...(installer === null ? {} : { APPLE_INSTALLER_IDENTITY: installer }),
+      ...Object.fromEntries(
+        parsed
+          .filter((p) => p.name !== null)
+          .map((p) => [p.member.endsWith('.provisionprofile') ? 'APPLE_MACOS_PROFILE_NAME' : 'APPLE_IOS_PROFILE_NAME', p.name]),
+      ),
     },
     GITHUB_ENV,
   );
@@ -1306,6 +1448,8 @@ function main() {
   console.log(`ok   ${parsed.length} provisioning profile(s) decoded, team-checked and in date:`);
   for (const p of parsed) console.log(`        "${p.name}" → ${p.bundleId ?? '(no application-identifier)'} · expires ${p.expires ?? 'unstated'}`);
   console.log(`ok   ExportOptions.plist written (method "${METHOD}", signingStyle manual)`);
+  console.log(`ok   application identity in the keychain: "${application}"`);
+  console.log(`ok   installer identity in the keychain:   ${installer === null ? '(none supplied — no .pkg can be signed in this job)' : `"${installer}"`}`);
   console.log('');
   console.log('   ── the signed-export intents, with the paths this step produced ──');
   for (const step of signedExportPlan({ appSlug: app.slug, exportOptionsPath, keychain, teamId, outDir: OUT_DIR })) {
