@@ -30,7 +30,8 @@
 --   cancellation_requests   0 row(s)
 --   unclaimed_payments      1 row(s)   (app_id NULLABLE; value not read)
 --
--- 164 rows carry a slug, and every one of them is `subly`: the write gate above
+-- 164 rows carry a slug and every one of them is `subly`; this file moves the
+-- 144 that are not consent artifacts (see the block below for the other 20): the write gate above
 -- has admitted no other value since 2026-08-03, and `events_daily` is proved
 -- directly — its provenance resolver fails any row whose `app_id` is not a
 -- catalogue slug, and it reported ZERO unattributable on that run.
@@ -72,11 +73,25 @@
 UPDATE events           SET app_id = 'subscriptiontracker' WHERE app_id = 'subly';
 UPDATE events_daily     SET app_id = 'subscriptiontracker' WHERE app_id = 'subly';
 
--- Consent artifacts are the LEGAL record that a given user agreed to analytics
--- on a given app. An orphaned consent row is worse than an orphaned event: it is
--- the evidence produced when someone exercises a right, and it has to be
--- findable under the id the app now reports.
-UPDATE consent_artifacts SET app_id = 'subscriptiontracker' WHERE app_id = 'subly';
+-- ⛔ `consent_artifacts` IS DELIBERATELY NOT HERE, AND THAT IS NOT AN OVERSIGHT.
+-- It carried an UPDATE in the first draft of this file, on the reasoning that an
+-- orphaned consent row is worse than an orphaned event because it is the evidence
+-- produced when someone exercises a right. assert-analytics-contract.mjs refused
+-- it, and the refusal is correct:
+--
+--   the consent trail is APPEND-ONLY. DPDP §6(3) requires a withdrawal to
+--   reference what was consented to, so a withdrawal is a NEW row with
+--   granted=0. A WHERE clause does not make this acceptable.
+--
+-- A consent artifact records what a person agreed to, when, and UNDER WHICH
+-- IDENTIFIER. Rewriting that identifier edits the record of an agreement nobody
+-- re-took. `subly` is what those 20 rows were granted against and it stays.
+--
+-- ⚠️ THE CONSEQUENCE, RECORDED RATHER THAN SOLVED HERE. A consent lookup that
+-- filters on the CURRENT app_id will not see them (idx_consent_lookup, 0002:91).
+-- That is a read-path question, not a write-path one, and the honest fix is a
+-- read that knows the app's PREVIOUS identifiers - not an edit to an audit
+-- record. Filed as owed; nothing in this migration pretends to have done it.
 
 -- The money rail. Empty today (entitlements 0, provider_accounts 0,
 -- cancellation_requests 0, and unclaimed_payments' app_id is nullable), so these
