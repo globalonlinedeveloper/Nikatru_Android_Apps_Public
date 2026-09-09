@@ -79,7 +79,10 @@ describe('subly-api CORS — exact allowlist', () => {
   });
 
   it('an empty allowlist does not even reflect a LISTED-looking origin', async () => {
-    const res = await appWith('')('GET', 'https://subly.nikatru.com');
+    // Probed with the origin that IS on the list when the list is not empty --
+    // the apex since [ADR 075]. Probing a host that would be refused anyway
+    // proves nothing about emptiness.
+    const res = await appWith('')('GET', 'https://nikatru.com');
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
