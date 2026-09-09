@@ -2546,7 +2546,12 @@ expect('publish-edge.mjs prints the owner step and exits 0 while edge-addons is 
    and reported success. The credentials below are FIXTURE STRINGS, never a real
    value, so the only thing left to refuse on is the missing listing id.
    ───────────────────────────────────────────────────────────────────────────── */
-const CWS_FIXTURE_ENV = { CWS_CLIENT_ID: 'fixture', CWS_CLIENT_SECRET: 'fixture', CWS_REFRESH_TOKEN: 'fixture', CWS_PUBLISHER_ID: 'fixture' };
+/* ⏱ 2026-09-09 — the Chrome lane holds TWO values, not four. CWS_CLIENT_ID,
+   CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN were retired when the lane converted to
+   a service account (https://developer.chrome.com/docs/webstore/service-accounts).
+   These are FIXTURE STRINGS: `publish-arming.mjs` tests PRESENCE, so nothing here
+   ever reaches Google, and no test below makes a network call. */
+const CWS_FIXTURE_ENV = { CWS_SERVICE_ACCOUNT_JSON: 'fixture', CWS_PUBLISHER_ID: 'fixture' };
 const EDGE_FIXTURE_ENV = { EDGE_CLIENT_ID: 'fixture', EDGE_API_KEY: 'fixture' };
 
 expect('publish-cws.mjs REFUSES an ARMED, fully credentialled channel when the TOOL declares no listing id', {
@@ -2588,7 +2593,48 @@ expect('publish-cws-keepalive.mjs REFUSES when chrome-webstore is armed and the 
   script: 'publish-cws-keepalive.mjs', argv: [], root: armedTree('chrome-webstore'), code: 1, contains: 'REFUSED'
 });
 expect('publish-cws-keepalive.mjs prints the owner step and exits 0 while chrome-webstore is unarmed', {
-  script: 'publish-cws-keepalive.mjs', argv: [], root: unarmedTree('chrome-webstore'), code: 0, contains: 'NOTHING TO KEEP ALIVE'
+  script: 'publish-cws-keepalive.mjs', argv: [], root: unarmedTree('chrome-webstore'), code: 0, contains: 'NOTHING TO CHECK'
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE CREDENTIAL AXIS, DRIVEN ONE NAME AT A TIME.
+
+   🔴 A PREFLIGHT THAT SAYS "credentials missing" WITHOUT SAYING WHICH is a
+   preflight an operator cannot act on, and it is also the shape that survives a
+   secret being retired: the list shrinks, the message does not change, and a lane
+   goes on demanding a name no file reads. Each case below leaves exactly ONE of
+   the two Chrome values empty and asserts the refusal NAMES it — so the green
+   above (both present) is a control and not a coincidence. */
+expect('the Chrome preflight NAMES CWS_SERVICE_ACCOUNT_JSON when only the publisher id is set', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'fullshot'],
+  root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }),
+  env: { CWS_SERVICE_ACCOUNT_JSON: '', CWS_PUBLISHER_ID: 'fixture' }, code: 1, contains: 'CWS_SERVICE_ACCOUNT_JSON'
+});
+expect('the Chrome preflight NAMES CWS_PUBLISHER_ID when only the service account is set', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'fullshot'],
+  root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }),
+  env: { CWS_SERVICE_ACCOUNT_JSON: 'fixture', CWS_PUBLISHER_ID: '' }, code: 1, contains: 'CWS_PUBLISHER_ID'
+});
+expect('the Chrome preflight is GREEN on an armed row with BOTH values present — the control the two reds are read against', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'fullshot'],
+  root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }),
+  env: CWS_FIXTURE_ENV, code: 0, contains: 'chrome-webstore'
+});
+/* 🔴 THE RETIRED NAMES MUST NOT COME BACK AS A REQUIREMENT. Both Chrome values
+   are present and the three OAuth names are absent; a lane that still asked for
+   them would refuse here. This is the FALSE BLOCKER test: it fails the moment
+   somebody re-adds a secret nothing reads. */
+expect('a fully credentialled Chrome lane does NOT refuse over the retired OAuth names', {
+  script: 'publish-arming.mjs', argv: ['--channel', 'chrome-webstore', '--tool', 'fullshot'],
+  root: armedTree('chrome-webstore', { listingId: LISTED['chrome-webstore'] }),
+  env: { ...CWS_FIXTURE_ENV, CWS_CLIENT_ID: '', CWS_CLIENT_SECRET: '', CWS_REFRESH_TOKEN: '' }, code: 0, contains: 'chrome-webstore'
+});
+/* The keepalive asks for the MINT value only: CWS_PUBLISHER_ID is a route
+   segment and that job addresses no publisher. Empty publisher id, armed row,
+   and it still goes — a job red on a value it never reads is a false blocker. */
+expect('publish-cws-keepalive.mjs does NOT demand CWS_PUBLISHER_ID, which it never reads', {
+  script: 'publish-cws-keepalive.mjs', argv: [], root: armedTree('chrome-webstore'),
+  env: { CWS_SERVICE_ACCOUNT_JSON: '', CWS_PUBLISHER_ID: 'fixture' }, code: 1, contains: 'CWS_SERVICE_ACCOUNT_JSON'
 });
 
 /* The COVERAGE limb: a register the script cannot read is NOT an unarmed
