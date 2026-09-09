@@ -89,7 +89,7 @@ ${vars.map((x) => `  final ${x}_x = v('${x}');\n  if (${x}_x == 'no') { problems
 }
 `;
 
-// [pipeline S-1r] (absent from origins.lock.json by construction — S-1r is a residual of S-1, raised by Private/plans/03-stamper-plan.md after the pipeline harvest was frozen) The fixture now PRINTS A CHECKLIST, both branches, because the
+// [pipeline S-1r] (absent from origins.lock.json by construction — S-1r is a residual of S-1, raised by Private/pre-minimal-2026-09-08:plans/03-stamper-plan.md after the pipeline harvest was frozen) The fixture now PRINTS A CHECKLIST, both branches, because the
 // guard reads it. A post_gen with no checklist is COVERAGE LOST, not a pass —
 // so a fixture without one would have quietly disabled the new limb for every
 // case in this file.

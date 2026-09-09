@@ -113,7 +113,23 @@
 // catch. It was written into tooling/ci/ first and moved the same day, after
 // `assert-guard-coverage` correctly reported it as an orphan.
 //
-// Usage:  node tooling/scripts/assert-public-citations.mjs
+// 🔴 A CITATION MAY BE PINNED TO A TAG IN THE PRIVATE CORPUS (2026-09-08). The
+// private prune of 2026-09-08 removed files that public records and guard comments
+// name by path. Those bytes are dated records and comments, which ADR 053 rule 2
+// says are appended beside and never rewritten to keep a pointer alive — and the
+// files themselves are EVIDENCE, which the owner's "only required files" order says
+// must not force a tree to stay. Both halves are satisfied by naming WHERE the
+// evidence is rather than pretending it is still on disk: the logical prefix, then a
+// git tag, a colon, and the path the file had at that tag.
+//
+// ⚠️ THIS IS NOT A DISCLOSURE AND IT IS NOT A LOOSENING. A disclosed absence is a
+// promise a reader cannot check; a pinned citation is RESOLVED, by asking the private
+// repository whether that blob exists at that tag (`git cat-file -e <tag>:<path>`).
+// A pin whose path was never at the tag FAILS, a pin naming a tag the corpus does not
+// carry is COVERAGE LOST, and a plain path that no longer exists still fails exactly
+// as it always did. The set of resolvable citations grows by the set of things git
+// can still prove, and by nothing else.
+//// Usage:  node tooling/scripts/assert-public-citations.mjs
 // ─────────────────────────────────────────────────────────────────────────────
 /* 🔴 2026-09-07 — `git` IS NOT SPAWNED DIRECTLY FROM HERE ANY MORE, and the reason
    is the one defect that had been refusing every private commit on this machine.
@@ -125,7 +141,7 @@
    this guard refused in 170 ms on a subject that was never its own. See
    `repo-git.mjs`, which deletes the six redirecting variables from the child
    environment and proves the root is its own repository before reading it. */
-import { repoGit, RepoGitError, strippedNote } from './repo-git.mjs';
+import { repoGit, repoGitRaw, RepoGitError, strippedNote } from './repo-git.mjs';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -314,23 +330,161 @@ if (files.length < FILE_FLOOR) {
   process.exit(2);
 }
 
+/* 🔴 THE SPEC DIRECTORY IS NOT FLAT, AND A ONE-LEVEL `readdirSync` READ IT AS IF IT
+   WERE (2026-09-08). The scan below was a single `readdirSync(SPEC)` taking `*.json`,
+   which is exactly right for the layout that existed when it was written and silently
+   wrong for the one the corpus is moving to. Private S1 phase 4 splits five registers
+   — `lost-deliberately`, `invariants`, `not-built`, `ledger`, `gates` — into 37 shard
+   files under `requirements/<register>/NN-<topic>.json`, declared in a `shards` block
+   in `requirements/index.json`. MEASURED on that tree, with the sharding applied and
+   green on all eleven private guards: this guard saw 6 files instead of 11, parsed
+   233 origin refs against `ORIGIN_FLOOR` below, and refused at exit 2.
+
+   THAT REFUSAL WAS THE FLOOR WORKING AND THE SCAN FAILING, which are different
+   things, and only one of them is a defect. The floor exists so a thin resolution
+   table cannot silently accept a dead citation; a one-level scan of a sharded
+   directory produces exactly that thin table. So the floor STAYS at 300 and the scan
+   is what changes: this guard now READS THE SHARDS rather than skipping them. A guard
+   that refuses on the other repository's file layout is a guard people learn to
+   bypass, and `--no-verify` is prohibited here — the cost of that refusal was a whole
+   private phase built, verified and reverted (Private
+   research/full-read-2026-09-08/S3-structure-apply-run2-2026-09-08.md, sections 2.2
+   to 2.5).
+
+   TWO SOURCES, AND THE DECLARATION IS THE AUTHORITATIVE ONE. The `shards` block is
+   read first and every file it declares MUST exist: a declared shard that is not on
+   disk is exit 2, never a smaller scan, because the register it belongs to would
+   otherwise be resolved against a table missing a chunk of itself and nothing in the
+   output would say so. That is the rule the two private guards apply to the same
+   block. Then the directory is walked ONE LEVEL DEEPER anyway, declared or not, so a
+   corpus with no `shards` block at all — or a shard on disk the block does not name —
+   is still READ rather than skipped. Reading more than the declaration is safe here;
+   reading less is the defect this note is about. */
+const SPEC_INDEX = 'index.json';
+
+/** The `<register>/<file>` list the `shards` block declares, or null when there is no
+ *  block to read. `_`-prefixed keys (`_what`, `_rule`, `_guard`, `_generated`) are the
+ *  block's own prose about itself and are not registers. A key whose value is not a
+ *  non-empty array of strings is `malformed` rather than ignored: a declaration this
+ *  guard cannot read is one it cannot honour, and honouring it is the whole point. */
+function declaredShardFiles(specDir) {
+  let idx;
+  try { idx = JSON.parse(readFileSync(join(specDir, SPEC_INDEX), 'utf8')); } catch { return null; }
+  if (!idx || typeof idx !== 'object' || Array.isArray(idx)) return null;
+  const block = idx.shards;
+  if (!block || typeof block !== 'object' || Array.isArray(block)) return null;
+  const declared = [];
+  const malformed = [];
+  for (const [register, files] of Object.entries(block)) {
+    if (register.startsWith('_')) continue;
+    if (!Array.isArray(files) || !files.length || files.some((f) => typeof f !== 'string' || !f)) {
+      malformed.push(register);
+      continue;
+    }
+    for (const f of files) declared.push(`${register}/${f}`);
+  }
+  return { declared, malformed };
+}
+
+/* Every spec file to parse, relative to SPEC, deduplicated: the declaration and the
+   walk below overlap by construction, and a file parsed twice inflates the count this
+   guard prints for a reader to check. */
+const specRels = [];
+const seenSpecRel = new Set();
+const addSpecRel = (rel) => { if (!seenSpecRel.has(rel)) { seenSpecRel.add(rel); specRels.push(rel); } };
+
+/* The flat top level — the scan this guard has always done, unchanged. */
+for (const f of readdirSync(SPEC)) {
+  if (f.endsWith('.json')) addSpecRel(f);
+}
+
+/* Declared BEFORE the descent so that deleting the descent leaves this file valid and
+   leaves it behaving exactly as it did before 2026-09-08. That is not a convenience:
+   it is how the test mutates this guard back into the defect it closes. */
+let shardDecl = null;
+
+/* ── SHARD DESCENT BEGIN ─────────────────────────────────────────────────────── */
+shardDecl = declaredShardFiles(SPEC);
+if (shardDecl && shardDecl.malformed.length) {
+  console.error(`✗  public citations — REFUSING: the \`shards\` block in ${join(SPEC, SPEC_INDEX)} is unreadable.`);
+  for (const r of shardDecl.malformed) console.error(`      ${r}  ->  not a non-empty array of shard file names`);
+  console.error('   A declaration this guard cannot read is one it cannot honour, and the registers it names');
+  console.error('   would then be resolved against a table missing part of itself. Exit 2, never a pass.');
+  process.exit(2);
+}
+if (shardDecl) {
+  const missingShards = [];
+  for (const rel of shardDecl.declared) {
+    if (existsSync(join(SPEC, rel))) addSpecRel(rel);
+    else missingShards.push(rel);
+  }
+  if (missingShards.length) {
+    console.error(`✗  public citations — REFUSING: ${missingShards.length} of ${shardDecl.declared.length} declared shard(s) are not on disk.`);
+    for (const rel of missingShards) console.error(`      ${join(SPEC, rel)}`);
+    console.error(`   Declared by the \`shards\` block in ${join(SPEC, SPEC_INDEX)}. A register whose shards are only`);
+    console.error('   partly present resolves citations against part of itself and prints nothing about it.');
+    console.error('   Exit 2 COVERAGE LOST, which is deliberately not a pass.');
+    process.exit(2);
+  }
+}
+/* One level deeper, declared or not, so an undeclared shard is READ rather than
+   skipped and a corpus carrying no `shards` block at all still resolves. Deeper than
+   one level is not walked: the declared layout is `<register>/<shard>.json`, and a
+   guard that recursed would start indexing `requirements/tooling/retired/`. */
+for (const e of readdirSync(SPEC, { withFileTypes: true })) {
+  if (!e.isDirectory()) continue;
+  let inner;
+  try { inner = readdirSync(join(SPEC, e.name)); } catch { continue; }
+  for (const f of inner) {
+    if (f.endsWith('.json')) addSpecRel(`${e.name}/${f}`);
+  }
+}
+/* ── SHARD DESCENT END ───────────────────────────────────────────────────────── */
+
+const declaredShardSet = new Set(shardDecl ? shardDecl.declared : []);
+
 /* Every `origin` the spec knows, plus the frozen harvest in origins.lock.json —
    which is DATA, not a cache: the prose it came from no longer exists, so it can
    never be regenerated. Both are read because an id can be declared in one and
    cited from the other. */
 const origins = new Set();
 let specFiles = 0;
-for (const f of readdirSync(SPEC)) {
-  if (!f.endsWith('.json')) continue;
+let shardsRead = 0;
+for (const rel of specRels) {
   let j;
-  try { j = JSON.parse(readFileSync(join(SPEC, f), 'utf8')); } catch { continue; }
+  try { j = JSON.parse(readFileSync(join(SPEC, rel), 'utf8')); } catch (e) {
+    /* An UNDECLARED file that will not parse is skipped exactly as it always was —
+       the top level carries schemas and notes this guard has never needed. A DECLARED
+       shard that will not parse is a refusal: the declaration says its entries are in
+       the table, so dropping it thins the table by a chunk the floor may not be low
+       enough to notice. */
+    if (declaredShardSet.has(rel)) {
+      console.error(`✗  public citations — REFUSING: declared shard ${join(SPEC, rel)} could not be parsed.`);
+      console.error(`   ${e.message}`);
+      console.error('   A declared shard that is on disk and unreadable is not a smaller table, it is an');
+      console.error('   unknown one. Exit 2 COVERAGE LOST.');
+      process.exit(2);
+    }
+    continue;
+  }
   specFiles++;
+  if (declaredShardSet.has(rel)) shardsRead++;
   const walk = (v) => {
     if (typeof v === 'string') { if (/^\[\d+\][A-Za-z]/.test(v)) origins.add(v); return; }
     if (Array.isArray(v)) { v.forEach(walk); return; }
     if (v && typeof v === 'object') { Object.values(v).forEach(walk); }
   };
   walk(j);
+}
+/* THE SHARD FLOOR IS THE DECLARATION'S OWN COUNT, never a typed number: a scan that
+   reads fewer shards than the block declares is exit 2 in both private guards and it
+   is exit 2 here. The two limbs above make it unreachable on any tree they have both
+   run on, and it is carried anyway — it is the assertion that the two halves of this
+   scan agree about how big the resolution table is. */
+if (shardDecl && shardsRead !== shardDecl.declared.length) {
+  console.error(`✗  public citations — REFUSING: read ${shardsRead} of the ${shardDecl.declared.length} declared shard(s).`);
+  console.error('   The declaration and the scan disagree about the size of the resolution table.');
+  process.exit(2);
 }
 /* 352 distinct origin refs on 2026-08-17: the union of every `origin` field in
    the spec arrays and the 221 `knownIds` + 204 `requirementHeadings` frozen in
@@ -342,7 +496,11 @@ for (const f of readdirSync(SPEC)) {
 const ORIGIN_FLOOR = 300;
 if (origins.size < ORIGIN_FLOOR) {
   console.error(`✗  only ${origins.size} origin ref(s) parsed from ${specFiles} spec file(s) — below ${ORIGIN_FLOOR}.`);
-  console.error('   Refusing: a thin resolution table would silently accept a dead citation.');
+  console.error(`   Read from ${SPEC}: ${specRels.length} path(s), of which ${shardsRead} declared shard(s)` +
+    (shardDecl ? ` out of ${shardDecl.declared.length} declared.` : ', no `shards` block declared.'));
+  console.error('   Refusing: a thin resolution table would silently accept a dead citation. If the corpus is');
+  console.error('   sharded and the shard count above is 0, the scan did not descend and THAT is the defect,');
+  console.error('   not the floor — see the SHARD DESCENT block above.');
   process.exit(2);
 }
 /* Public tags usually omit the leading stage number (`[pipeline C-6]` for
@@ -352,17 +510,153 @@ const bareOrigins = new Set([...origins].map((o) => o.replace(/^\[\d+\]/, '')));
 /* The logical prefix every private citation is written with. RE_PRIVATE_PATH
    cannot match without it, so slicing it off a match is total, not a lucky case. */
 const LOGICAL_PREFIX = 'Private/';
-const RE_PRIVATE_PATH = /Private\/[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
+/* 🔴 THE FIRST SEGMENT MAY BE A GIT TAG AND A COLON — see the TAG PIN block below.
+   The tag alternative lives INSIDE this one expression rather than in a second regex
+   because a citation is one token: matched separately, the pinned form would ALSO
+   match as a plain path (the tag alone, the colon and everything after it cut off at
+   the character class) and be reported as a missing directory that nobody wrote. A
+   tag is `[A-Za-z0-9][A-Za-z0-9_.-]*` and carries no slash, so which colon ends the
+   tag is never ambiguous, and a citation with no colon in its first segment matches
+   byte-for-byte the shape this guard has always matched. */
+const RE_PRIVATE_PATH = /Private\/(?:[A-Za-z0-9][A-Za-z0-9_.-]*:)?[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
 const RE_PIPELINE_TAG = /\[pipeline ([^\]]{1,120})\]/g;
 /* An id is a letter-block, a dash and a number, optionally sub-lettered: C-6,
    F-5a, N-4, S-12r. Extracted from ANYWHERE in the tag body, so `C-2/C-7`,
    `C-3, C-9` and `N-4 clause 7` each yield the ids they actually name. */
 const RE_ID = /\b([A-Z]{1,2}-\d{1,3}[a-z]?)\b/g;
 
+/** `requirements/<register>.json` -> `requirements/<register>/`, and only when the
+ *  `shards` block declares that register AND the directory is on disk. The register
+ *  set comes from the DECLARATION rather than from a hard-coded list, so the next
+ *  register to be sharded needs no edit here. RE_PRIVATE_PATH only ever matches
+ *  forward slashes, so there is nothing to normalise. */
+const SHARD_PREFIX = 'requirements/';
+const SHARD_SUFFIX = '.json';
+const SHARDED_REGISTERS = new Set((shardDecl ? shardDecl.declared : []).map((rel) => rel.split('/')[0]));
+function resolvesOntoShardDir(relFromPrivate) {
+  if (!relFromPrivate.startsWith(SHARD_PREFIX) || !relFromPrivate.endsWith(SHARD_SUFFIX)) return false;
+  const register = relFromPrivate.slice(SHARD_PREFIX.length, -SHARD_SUFFIX.length);
+  if (!register || register.includes('/')) return false;
+  if (!SHARDED_REGISTERS.has(register)) return false;
+  return existsSync(join(SPEC, register));
+}
+
+/* ── TAG PIN BEGIN ───────────────────────────────────────────────────────────
+   The resolver for a pinned citation. Everything here is ASKED OF GIT; nothing is
+   assumed from the shape of the string. Three states, three different answers:
+
+     · the blob is at that tag            -> resolved, exactly like a path on disk
+     · the tag is there, the blob is not  -> a FAILURE (exit 1), same as any dead path
+     · the corpus does not carry the tag  -> COVERAGE LOST (exit 2), never a pass:
+       the citation was not evaluated, and "I could not check" is not "it checks out"
+
+   🔴 GIT IS SPAWNED LAZILY, and that is load-bearing rather than an optimisation: a
+   tree carrying no pinned citation must behave exactly as it did before this block
+   existed, including on a corpus that is a plain directory and not a checkout.
+
+   Both caches are keyed on what was asked, not on what was found, so a repeated
+   citation of one file costs one spawn no matter how many public files carry it. */
+const RE_TAG_PIN = /^([A-Za-z0-9][A-Za-z0-9_.-]*):(.+)$/;
+const pinCache = new Map();
+const tagCache = new Map();
+
+function pinRefuse(root, lines) {
+  console.error('✗  public citations — REFUSING: a tag-pinned citation could not be evaluated.');
+  for (const l of lines) console.error(`      ${l}`);
+  console.error(`   The repository asked was ${root}.`);
+  console.error('   Exit 2 COVERAGE LOST: an unevaluated citation is not a resolved one, and the two');
+  console.error('   must not share an exit code.');
+  console.error('   ' + strippedNote());
+  process.exit(2);
+}
+
+/** Does the corpus carry this tag? A missing tag is a refusal at the call site, not
+ *  here, so this stays a question and the caller keeps the sentence it prints. */
+function tagExists(root, tag) {
+  const ck = `${root}\u0000${tag}`;
+  if (tagCache.has(ck)) return tagCache.get(ck);
+  let r;
+  try {
+    r = repoGitRaw(root, ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]);
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    pinRefuse(root, [`git could not be asked about tag \`${tag}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+  }
+  const ok = r.status === 0 && r.stdout.trim().length > 0;
+  tagCache.set(ck, ok);
+  return ok;
+}
+
+/** Was `path` a real blob (or tree) at `tag`? `git cat-file -e` answers exactly that
+ *  and nothing else — status 0 yes, non-zero no — which is why it is the probe rather
+ *  than `git show`, whose output a reader of this guard would then have to trust. */
+function resolvesAtTag(root, tag, path) {
+  const key = `${tag}:${path}`;
+  const ck = `${root}\u0000${key}`;
+  if (pinCache.has(ck)) return pinCache.get(ck);
+  if (!tagExists(root, tag)) {
+    pinRefuse(root, [
+      `the citation pins tag \`${tag}\`, which this repository does not carry.`,
+      'A pin is only as good as the tag behind it. If the tag was never pushed, or the',
+      'checkout is shallow or tagless, this guard has verified NOTHING about that line.',
+    ]);
+  }
+  let r;
+  try {
+    r = repoGitRaw(root, ['cat-file', '-e', key]);
+  } catch (e) {
+    if (!(e instanceof RepoGitError)) throw e;
+    pinRefuse(root, [`git could not read \`${key}\`: ${e.message}`, ...(e.detail ? [e.detail] : [])]);
+  }
+  const ok = r.status === 0;
+  pinCache.set(ck, ok);
+  return ok;
+}
+/* ── SELF PIN BEGIN ──────────────────────────────────────────
+   🔴 A CITATION MAY ALSO BE PINNED TO A TAG IN *THIS* REPOSITORY (2026-09-08).
+
+   The limb above resolves a pin only when the citation carries the `Private/` logical
+   prefix, and it resolves it only against the private corpus. That left a hole with a
+   name: a public file naming a path INSIDE THIS REPO that this repo has since deleted
+   was checked by no guard at all — not by this one, whose path limb never matched it,
+   and not by `assert-no-dead-files.mjs`, whose subject is tracked files that nothing
+   reaches, never prose that reaches nothing. So the first rule of the 2026-09-08 prune
+   method — *a citation to a removed file is PINNED, not deleted* — was not executable
+   here, and the prune plan (docs/prune-plan-2026-09-08.md § 5.1) says so in as many words.
+
+   This closes it with the SAME machinery and no second implementation: one root-taking
+   `resolvesAtTag`, asked about THIS repo instead of the sibling. The three states are
+   therefore identical, and deliberately so — blob at the tag resolves, tag present and
+   blob absent is exit 1, tag not carried is exit 2 COVERAGE LOST.
+
+   ⚠️ THE PIN IS RECOGNISED BY THIS REPO'S OWN TAG NAMESPACE, and that is what makes it
+   safe to match in free prose. Every tag this repository has ever carried is named
+   `ref/<something>` — the convention predates this limb (`ref/app-shell-2026-09-07`,
+   `ref/cutover-blockers-wip-2026-09-07`) — so a self-pin is `ref/<tag>:<path>` and
+   nothing else in 2063 tracked files has that shape. Measured before this landed: the
+   pattern below matched ZERO lines in the whole tree. A bare `<tag>:<path>` was
+   rejected for exactly the reason the private limb gives about which colon ends a tag:
+   in prose, `note: docs/x.md` and `tooling/x.mjs:12` are not citations, and a matcher
+   that cannot tell them apart reports defects nobody wrote.
+
+   🔴 IT IS NOT A GENERAL PUBLIC PATH LIMB, AND THE DIFFERENCE IS STATED RATHER THAN
+   IMPLIED. This checks that a pin RESOLVES. It does not yet demand that every repo-local
+   path in tracked prose exists — that is a larger claim over ~2000 files with its own
+   disclosure conventions to earn, and shipping it half-measured here would be the
+   confident wrong answer this guard's header refuses elsewhere. What it buys today is
+   precisely what the prune needed: a deletion in this repo can be cited, and the
+   citation is CHECKED rather than believed. */
+const RE_SELF_PIN = /(?<![A-Za-z0-9_.\/-])ref\/[A-Za-z0-9][A-Za-z0-9_.-]*:[A-Za-z0-9_.{}-]+(?:\/[A-Za-z0-9_.{}-]+)*/g;
+const RE_SELF_SPLIT = /^(ref\/[A-Za-z0-9][A-Za-z0-9_.-]*):(.+)$/;
+/* ── SELF PIN END ─────────────────────────────────────────── */
+
+/* ── TAG PIN END ─────────────────────────────────────────────────────────── */
+
 const DISCLOSED = /\(\s*(?:does not exist|never existed|no longer exists|deleted|retired|gone|removed|absent)/i;
 
 const failures = [];
-let pathsChecked = 0, tagsChecked = 0, idsChecked = 0, filesScanned = 0;
+let pathsChecked = 0, pinsChecked = 0, tagsChecked = 0, idsChecked = 0, filesScanned = 0;
+let selfPinsChecked = 0;
 let skippedStruck = 0, skippedDisclosed = 0;
 
 for (const rel of files) {
@@ -396,6 +690,21 @@ for (const rel of files) {
       const p = m[0].replace(/[.,;:)]+$/, '');
       if (p === 'Private' || p === 'Private/') continue;
       pathsChecked++;
+      /* ── TAG PIN USE BEGIN ─────────────────────────────────────────────────────
+         A pinned citation is answered HERE and never falls through to the on-disk
+         resolution below: the whole point of a pin is that the file is NOT on disk.
+         Deleting this region is exactly this guard as it stood before 2026-09-08 —
+         written to be deletable so the test can put the defect back and watch it
+         bite. */
+      const pinned = RE_TAG_PIN.exec(p.slice(LOGICAL_PREFIX.length));
+      if (pinned) {
+        pinsChecked++;
+        if (resolvesAtTag(PRIVATE, pinned[1], pinned[2])) continue;
+        if (disclosed) { skippedDisclosed++; continue; }
+        failures.push({ rel, line: i + 1, kind: 'pin', what: p, text: line.trim().slice(0, 130) });
+        continue;
+      }
+      /* ── TAG PIN USE END ─────────────────────────────────────────────────────── */
       /* Swap the logical prefix for the resolved root, keeping the remainder. Was
          `join(REPO, p)` until 2026-08-18, which only worked while `Private/` was a
          real subdirectory of the repo; it is a logical prefix now — see
@@ -405,9 +714,42 @@ for (const rel of files) {
          public file. Left recorded rather than quietly fixed: it is the negative
          test this edit needed, and it cost nothing to get.) */
       if (existsSync(join(PRIVATE, p.slice(LOGICAL_PREFIX.length)))) continue;
+      /* THE SHARD TOMBSTONE, AND WHY THE PATH LIMB NEEDS ITS OWN (2026-09-08).
+         The spec scan above taught the ORIGIN TABLE to read a sharded register. It
+         did nothing for THIS limb, which resolves a cited PATH, and the two fail
+         apart: with the sharding applied the origin table is complete and four public
+         files still cite `Private/requirements/ledger.json` and `.../not-built.json` -
+         a dated line in sites/_shared/README.md and three guard comments each naming a
+         specific entry. Those registers moved into `<register>/NN-<topic>.json`; the
+         bytes that cite them are dated records and comments, which ADR 053 rule 2 says
+         are appended beside and never rewritten.
+         MEASURED, and only visible once the origin fix landed: before it this guard
+         exited 2 on the floor and never reached this loop, so the run S3 section 2.2
+         recorded saw one defect where there were two.
+         So a declared shard directory RESOLVES ITS OWN PRE-SHARD FILENAME. That does
+         not weaken the limb. The register must still be there, as a directory the
+         `shards` block declares and whose every shard was proven present above (exit 2
+         otherwise). A path naming a register that was genuinely deleted still fails,
+         because a deleted register is not in the block. */
+      if (shardDecl && resolvesOntoShardDir(p.slice(LOGICAL_PREFIX.length))) continue;
       if (disclosed) { skippedDisclosed++; continue; }
       failures.push({ rel, line: i + 1, kind: 'path', what: p, text: line.trim().slice(0, 130) });
     }
+
+    /* ── SELF PIN USE BEGIN ────────────────────────────────────────
+       A citation pinned to one of THIS repository's own tags. Deleting this region is
+       exactly this guard as it stood before the public limb existed, which is what the
+       negative test mutates so the fix can be watched to bite. */
+    for (const m of scan.matchAll(RE_SELF_PIN)) {
+      const p = m[0].replace(/[.,;:)]+$/, '');
+      const split = RE_SELF_SPLIT.exec(p);
+      if (!split) continue;
+      selfPinsChecked++;
+      if (resolvesAtTag(REPO, split[1], split[2])) continue;
+      if (disclosed) { skippedDisclosed++; continue; }
+      failures.push({ rel, line: i + 1, kind: 'selfpin', what: p, text: line.trim().slice(0, 130) });
+    }
+    /* ── SELF PIN USE END ───────────────────────────────────── */
 
     for (const m of scan.matchAll(RE_PIPELINE_TAG)) {
       tagsChecked++;
@@ -429,9 +771,11 @@ for (const rel of files) {
    how many citations resolved without saying what they resolved AGAINST is not a
    report a reader can check. */
 const label = `${filesScanned} tracked file(s) · ${pathsChecked} Private/ path ref(s) ` +
-  `resolved against ${PRIVATE} · ` +
+  `resolved against ${PRIVATE} (${pinsChecked} of them tag-pinned, resolved with \`git cat-file -e\`) · ` +
+  `${selfPinsChecked} self-pin(s) to this repository's own tag(s), resolved with \`git cat-file -e\` against ${REPO} · ` +
   `${tagsChecked} [pipeline] tag(s) yielding ${idsChecked} id(s), resolved against ` +
-  `${origins.size} origin(s) from ${specFiles} spec file(s)`;
+  `${origins.size} origin(s) from ${specFiles} spec file(s)` +
+  (shardDecl ? `, ${shardsRead} of them declared shard(s) under ${Object.keys(shardDecl.declared.reduce((a, r) => { a[r.split('/')[0]] = 1; return a; }, {})).length} sharded register(s)` : ' (no `shards` block declared)');
 
 if (!failures.length) {
   console.log(`ok  public citations — every citation resolves. ${label}` +
@@ -451,7 +795,11 @@ console.error(`✗  public citations — ${failures.length} unresolved citation(
 for (const [rel, hits] of [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)) {
   console.error(`  ${rel}  (${hits.length})`);
   for (const h of hits.slice(0, 6)) {
-    console.error(`    :${h.line}  ${h.kind === 'path' ? 'no such path' : 'unknown requirement id'}  ${h.what}`);
+    const why = h.kind === 'path' ? 'no such path'
+      : h.kind === 'pin' ? 'not at that tag'
+      : h.kind === 'selfpin' ? 'not at that tag in this repository'
+      : 'unknown requirement id';
+    console.error(`    :${h.line}  ${why}  ${h.what}`);
   }
   if (hits.length > 6) console.error(`    … and ${hits.length - 6} more in this file`);
 }

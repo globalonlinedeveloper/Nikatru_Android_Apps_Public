@@ -56,9 +56,13 @@ class AppConfig {
   // (services/{{app_id}}-api) holding its private D1. Shared concerns — config,
   // analytics, entitlements — still come from the platform Worker.
 {{/needs_backend}}{{^needs_backend}}  // This app is CLIENT-ONLY: it stamps no Worker and no database, and points
-  // straight at the ONE shared platform Worker. That is the default on purpose
-  // — D1 Free allows 10 databases per ACCOUNT in total, so a per-app database
-  // is a scarce resource, not a default.
+  // straight at the ONE shared platform Worker. That is the default on purpose —
+  // one bad migration in a shared database is a portfolio outage, and an app
+  // that stores no user rows server-side should not own a database, a migration
+  // set and an erasure route it never needed. (Until 2026-09-08 this line said
+  // "D1 Free allows 10 databases per ACCOUNT"; the account has been on Workers
+  // Paid since 2026-09-03 — see tooling/ceilings.json — so scarcity is no longer
+  // the reason, and the reason it was replaced with is the one [ADR 020] gave.)
 {{/needs_backend}}  static const String _phApiBase = '{{{api_base_url}}}';
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',

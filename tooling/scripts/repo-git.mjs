@@ -60,9 +60,9 @@
 // thing that knows which of its limbs a failure belongs to.
 //
 // Evidence, site list, mutation table and both hook proofs:
-//   Private/research/revamp-2026-09-05/fix-cross-repo-git-env-2026-09-07.md
+//   Private/pre-prune-2026-09-08:research/revamp-2026-09-05/fix-cross-repo-git-env-2026-09-07.md
 // The private half of the same defect:
-//   Private/research/revamp-2026-09-05/fix-index-guards-gitdir-2026-09-07.md
+//   Private/pre-prune-2026-09-08:research/revamp-2026-09-05/fix-index-guards-gitdir-2026-09-07.md
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';

@@ -101,12 +101,12 @@ const PAGE = `# Definition of Done
 
 const build = ({ register = REGISTER, plan = PLAN, page = PAGE } = {}) => fixture({
   'tooling/dod-register.json': register === null ? null : JSON.stringify(register, null, 2),
-  'Private/MASTER_PLAN.md': plan,
+  'Private/requirements/dod-master-items.md': plan,  // 2026-09-08: MASTER_PLAN.md retired and its section 4 moved here verbatim; the fixture writes the file the guard reads
   'Private/requirements/definition-of-done.md': page,
 });
 
 describe('check-dod-sync', () => {
-  test('passes when the register, the one-pager and MASTER_PLAN §4 agree', () => {
+  test('passes when the register, the one-pager and dod-master-items §4 agree', () => {
     const { code, out } = run(SYNC, build());
     assert.equal(code, 0, out);
     assert.match(out, /ok {2}DoD sync/);
@@ -122,7 +122,7 @@ describe('check-dod-sync', () => {
     const plan = PLAN.replace('**Enforcement:**', '**C. Adaptive** [brick]: five classes.\n\n**Enforcement:**');
     const { code, out } = run(SYNC, build({ plan }));
     assert.equal(code, 1, 'the two documents drifted once already; this is the shape that stops it');
-    assert.match(out, /MASTER_PLAN §4 declares item C and tooling\/dod-register\.json has no row for it/);
+    assert.match(out, /dod-master-items §4 declares item C and tooling\/dod-register\.json has no row for it/);
   });
 
   test('FAILS when the register invents an item §4 does not declare', () => {
@@ -130,7 +130,7 @@ describe('check-dod-sync', () => {
     register.items.push({ id: 'Z', title: 'Invented', enforcedBy: 'human', check: 'four-states' });
     const { code, out } = run(SYNC, build({ register }));
     assert.equal(code, 1);
-    assert.match(out, /which is not a lettered item in MASTER_PLAN §4/);
+    assert.match(out, /which is not a lettered item in dod-master-items §4/);
   });
 
   test('FAILS when the one-pager and the register disagree on enforced-by', () => {
@@ -185,7 +185,7 @@ describe('check-dod-sync', () => {
     assert.match(out, /declares no items/);
   });
 
-  test('COVERAGE LOST when §4 cannot be located in MASTER_PLAN', () => {
+  test('COVERAGE LOST when §4 cannot be located in dod-master-items.md', () => {
     const { code, out } = run(SYNC, build({ plan: PLAN.replace('## 4. Per-app', '## Four. Per-app') }));
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);

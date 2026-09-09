@@ -51,6 +51,39 @@ GITHUB_TOKEN="$(gh auth token)" node tooling/scripts/preflight.mjs
       `tooling/ops/register.json` and an owner in
       `tooling/ci/assert-release-lane-generic.mjs` — both, or the build is red.
 
+## If this touches `extensions/`
+
+<!-- ⏱ ADDED 2026-09-08, FOLDED FORWARD FROM A TEMPLATE GITHUB NEVER READ.
+     `extensions/.github/pull_request_template.md` arrived in the 2026-09-05
+     subtree merge and was inert from the moment it landed: GitHub reads only
+     <root>/.github/PULL_REQUEST_TEMPLATE.md. It was not merely a duplicate —
+     it carried the four ADR 067 decision-1 promises below, and its "No
+     network" checkbox is CITED BY NAME as a store-compliance control at
+     extensions/Extension/Full_Screen_Shot/publish/COMPLIANCE-CHECKLIST.md.
+     Deleting it without this block would have silently dropped a stated
+     control. The whole superseded template, including the manifest,
+     permission and store-listing sections not reproduced here, is at
+     `ref/pre-prune-2026-09-08:extensions/.github/pull_request_template.md`. -->
+
+- [ ] **No build step.** Clone → load unpacked → it runs. (A per-tool bundler is
+      an opt-in with its own `tool.json` `build` block, never a repo-wide
+      requirement.)
+- [ ] **No runtime dependency.** Nothing from npm ends up inside a shipped zip.
+- [ ] **No network.** No `fetch` / `XMLHttpRequest` / `WebSocket` / `sendBeacon` /
+      remote `src` in any packaged file. These extensions collect no analytics;
+      `tool.json` → `policy.networkAllowlist` is the machine-readable form of that
+      claim, and the gate must read the packaged BYTES rather than grep the prose.
+      On **Chromium** the manifest CSP (`connect-src 'none'`) additionally backs
+      this for extension pages and the service worker, but **not** for the three
+      `content/` scripts — `extension_pages` does not govern them. On **Firefox**
+      neither half is browser-backed: the Gecko package ships no CSP at all, by
+      design, so the claim there rests on the source scan alone.
+- [ ] **Nothing forbidden committed:** secrets, `.pem`/`.key`, `node_modules/`,
+      generated `out/`, built zips, third-party screenshots.
+- [ ] If a tool id was added or renamed, both `.github/ISSUE_TEMPLATE/bad-page.yml`
+      and `.github/ISSUE_TEMPLATE/bug.yml` name it — the `discover` job of
+      `extensions.yml` greps the ROOT copies and goes red otherwise.
+
 ## What is still open
 
 <!-- Anything this deliberately does not do, and who it is waiting on. -->

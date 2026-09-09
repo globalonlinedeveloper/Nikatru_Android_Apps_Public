@@ -70,7 +70,7 @@
 //      rename in Gradle alone is still silent". It is not, now.
 //
 // ⚠️ DEFERRED-ROW GAPS PRINT, THEY DO NOT FAIL. Apple's Xcode 26 floor is real
-// and unpinned, and the channel is owner-deferred (OWNER_QUEUE A-4). Per the
+// and unpinned, and the channel has no issued certificate (OWNER_QUEUE A-4 closed 2026-08-31). Per the
 // standing rule (assert-seams-wired.mjs, [pipeline C-6]) a guard on owner-gated
 // work prints the gap on every run rather than blocking all CI on work only the
 // owner can do. A known gap nobody sees becomes permanent.
@@ -896,8 +896,10 @@ for (const c of channels) {
     }
   } else if (Array.isArray(c.minimumToolchain)) {
     // Deferred rows PRINT their unpinned floors. Apple's Xcode 26 requirement is
-    // already in force and the channel is owner-deferred — failing here would
-    // block all CI on OWNER_QUEUE A-4, which is not ours to close.
+    // already in force and the channel is unsigned — failing here would block all
+    // CI on a gap no build can close. (OWNER_QUEUE A-4 closed 2026-08-31; what is
+    // left is a certificate nobody has issued, which IS ours - from the ASC API,
+    // not from inside a CI run.)
     const unpinned = c.minimumToolchain.filter((k) => !isPinned(k));
     if (unpinned.length) {
       prints.push(`${where} (deferred) needs a pinned ${unpinned.map((k) => `\`${k}\``).join(', ')} and ${VERSIONS} has no such key.`);
@@ -1857,7 +1859,7 @@ for (const s of register.nonChannelSigningIdentities ?? []) {
 // release lane with no secrets; a name appearing in YAML proves nothing about
 // application, so failing on an unused declaration would swap a real proof for a
 // textual one. And the rows that would fail it are ios/macos-appstore, whose
-// identities do not exist because no Apple account does (OWNER_QUEUE A-4) —
+// identities do not exist because no certificate has been ISSUED into the (active) account —
 // blocking all CI on owner-gated work, against the standing rule ([pipeline C-6]).
 // So a declared-but-unnamed secret PRINTS on every run instead.
 //
@@ -1936,7 +1938,7 @@ const collectSigning = (label, signing, hasLane) => {
     } else if (keyKind !== undefined && keyKind !== 'none' && !identityExists) {
       // ⚠️ TWO DIFFERENT FACTS, AND CONFLATING THEM WOULD PUT A FALSE CLAIM IN
       // THE OUTPUT. `identity: null` is a row saying its identity does not exist
-      // yet (the Apple rows, owner-gated on A-4). A row with NO `identity` field
+      // yet (the Apple rows: no certificate issued; A-4 itself closed 2026-08-31). A row with NO `identity` field
       // is saying nothing about existence — content-pack-k1's key demonstrably
       // exists, it is pinned in packages/core/lib/src/content/pack_verifier.dart.
       // Both are uncovered by limb 2; only one of them is uncovered because the

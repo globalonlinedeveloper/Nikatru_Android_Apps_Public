@@ -34,15 +34,26 @@
 //     rule that survives both eras: declaring without a door is a second rail
 //     nobody decided to run, and a door without a declaration is a Worker that
 //     503s every money read in production.)
-//   2 NO sandbox-shaped credential or base URL appears in ANY deployed config.
+//     ⏱ 2026-09-08 — THE SUBJECT NOW INCLUDES THE BRICK'S SERVICE TEMPLATE, in
+//     both directions, and its ABSENCE of a money world is a CHECKED absence
+//     rather than an unexamined one. The template ships no money door on
+//     purpose; until this widening it could have grown one with no declaration
+//     (every money read 503ing in production) or a declaration with no door
+//     (a generator that generates a repository failing this very limb) with
+//     nothing red. The full reasoning, and the measurement that disproved the
+//     "just add the missing line" reading, is at the config-discovery block.
+//   2 NO sandbox-shaped credential or base URL appears in ANY config, the
+//     template included.
 //   3 EXACTLY ONE destination secret per registered rail, and NONE of them is a
 //     committed var. The set comes from the adapter registry, so a second rail
 //     is inside this limb the day it is registered.
 //   4 THE MoR ROUTE FAILS CLOSED on an absent or unrecognised environment. A
 //     default in either direction is a silent catastrophe: 'live' honours
 //     sandbox money as real, 'sandbox' stops honouring real money, both green.
-//   5 EVERY money-door Worker's own tests EXERCISE the 503 — a branch that is
-//     written but never fired is exactly what the MC7 mutation run found.
+//   5 EVERY DEPLOYED money-door Worker's own tests EXERCISE the 503 — a branch
+//     that is written but never fired is exactly what the MC7 mutation run found.
+//     (Limbs 3, 4 and 5 stay on the DEPLOYED set; the reason each does is written
+//     out at the config-discovery block below, beside the widening of 1 and 2.)
 //
 // ── HOW THIS GUARD READS SOURCE (2026-08-21) ────────────────────────────────
 // SIX FILE READS LIVE IN THIS GUARD AND THIS LIST IS ALL OF THEM. An
@@ -165,7 +176,43 @@ function parseJsonc(text, where) {
   }
 }
 
-// ── the deployed configs ─────────────────────────────────────────────────────
+// ── the configs ──────────────────────────────────────────────────────────────
+//
+// ⏱ THE BRICK'S SERVICE TEMPLATE JOINED THIS SET ON 2026-09-08, AND THE REASON
+// IS THE OPPOSITE OF THE ONE THAT WAS PROPOSED.
+//
+// A review that day read `MONEY_ENVIRONMENT` as MISSING from
+// `tooling/bricks/app/__brick__/…/{{app_id}}-api/wrangler.jsonc` and called
+// adding it a one-line fix, on the reasoning that a stamped backend would
+// otherwise "ship payment and entitlement routes that answer 503". MEASURED, that
+// premise is false in both halves and the fix would have been a REGRESSION:
+//
+//   · the template ships NO money door at all. Its `src/routes/` holds
+//     `account.ts` and nothing else — no entitlements route, no webhook route —
+//     and its own clone contract says so in the file the line would have gone
+//     into: "NEVER HERE: MoR/payment webhooks. They terminate in `platform`".
+//     There is no route to answer 503.
+//   · adding the declaration would have made every stamped backend violate
+//     LIMB 1 BELOW the moment its `services/<app>-api/` was committed — "a
+//     declaration without a door is a second rail nobody decided to run" —
+//     so the generator would have generated a repository that fails its own gate.
+//
+// WHAT WAS ACTUALLY WRONG IS THAT NOTHING CHECKED EITHER DIRECTION HERE. This
+// guard's subject was `services/` alone, so the template could grow a money door
+// with no declaration — every money read 503ing in production, which IS the
+// failure the review feared — or grow a declaration with no door, and CI would
+// have said nothing. That is the same blind spot recorded in
+// tooling/platform-register.json's `bindingSources._why`: assert-clone-contract
+// only ever inspects the throwaway CI probe stamp, "which is exactly how a
+// per-app R2 bucket stayed live from 2026-07-17 with every guard green".
+//
+// So the template is IN SCOPE for limbs 1 and 2, and its ABSENCE of a money
+// world is now a CHECKED absence rather than an unexamined one. Limbs 3-5 stay
+// on the deployed set: limb 3 is about the adapter registry and the destination
+// secrets of the live rail, limb 4 is about one file in services/platform, and
+// limb 5 requires a vitest suite the brick ships no `test/` directory for —
+// requiring one of a template is a different change, and limb 1's biconditional
+// already refuses the state that reaches production.
 const configs = [];
 if (!existsSync(SERVICES)) {
   console.error('✗ COVERAGE LOST — no services/ directory. Every limb would range over nothing.');
@@ -175,10 +222,68 @@ for (const e of listDir(SERVICES, { withFileTypes: true })) {
   if (!e.isDirectory() || e.name.startsWith('.')) continue;
   for (const f of ['wrangler.jsonc', 'wrangler.json']) {
     const p = join(SERVICES, e.name, f);
-    if (existsSync(p)) configs.push({ service: e.name, rel: `services/${e.name}/${f}`, raw: readFileSync(p, 'utf8') });
+    if (existsSync(p)) {
+      configs.push({
+        service: e.name,
+        rel: `services/${e.name}/${f}`,
+        raw: readFileSync(p, 'utf8'),
+        srcDir: join(SERVICES, e.name, 'src'),
+        deployed: true,
+      });
+    }
   }
 }
+
+/** The brick's service template, found by WALKING for a wrangler config rather
+ *  than by a path literal. The directory name is a mustache expression
+ *  (`{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api`) and a literal
+ *  would rot the day it is renamed — silently, by matching nothing, which reads
+ *  as "the template is clean". Same derivation assert-platform-register.mjs uses
+ *  for the same file. */
+const BRICK_ROOT = join(ROOT, 'tooling', 'bricks', 'app', '__brick__');
+function brickServiceConfigs() {
+  const out = [];
+  const walk = (dir, base) => {
+    let entries;
+    try {
+      entries = listDir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) walk(join(dir, e.name), `${base}/${e.name}`);
+      else if (e.name === 'wrangler.jsonc' || e.name === 'wrangler.json') {
+        out.push({
+          service: base,
+          rel: `${base}/${e.name}`,
+          raw: readFileSync(join(dir, e.name), 'utf8'),
+          srcDir: join(dir, 'src'),
+          deployed: false,
+        });
+      }
+    }
+  };
+  walk(BRICK_ROOT, 'tooling/bricks/app/__brick__');
+  return out;
+}
+const templateConfigs = existsSync(BRICK_ROOT) ? brickServiceConfigs() : [];
+if (templateConfigs.length === 0) {
+  console.error(
+    '✗ COVERAGE LOST — found ZERO wrangler configs under tooling/bricks/app/__brick__.',
+    '\n  Limb 1 must range over the template every future backend is stamped from; a walk that finds',
+    '\n  nothing there certifies the deployed Workers and says nothing about the generator.',
+  );
+  process.exit(1);
+}
+for (const c of templateConfigs) configs.push(c);
+
 if (configs.length === 0) {
+  console.error('✗ COVERAGE LOST — found ZERO wrangler configs. The scan is broken, not the tree.');
+  process.exit(1);
+}
+/** The DEPLOYED subset — limbs 3, 4 and 5's subject, for the reasons above. */
+const deployedConfigs = configs.filter((c) => c.deployed);
+if (deployedConfigs.length === 0) {
   console.error('✗ COVERAGE LOST — found ZERO deployed wrangler configs. The scan is broken, not the tree.');
   process.exit(1);
 }
@@ -189,11 +294,15 @@ if (!configs.some((c) => c.service === MONEY_WORKER)) {
 }
 
 // ── LIMB 1 · the declaring set IS the money-door set, and every value is live ─
-/** A service "has a money door" iff a file under its src/ refuses with the
+/** A config "has a money door" iff a file under ITS OWN src/ refuses with the
  *  `money_rail_not_configured` marker — read comment-stripped, the same idiom
- *  limb 4 uses, so the prose explaining the refusal cannot count as one. */
-function hasMoneyDoor(service) {
-  const srcDir = join(SERVICES, service, 'src');
+ *  limb 4 uses, so the prose explaining the refusal cannot count as one.
+ *
+ *  ⚠️ TAKES THE DIRECTORY, NOT A SERVICE NAME. It was `join(SERVICES, service,
+ *  'src')` until 2026-09-08, which is a path this guard could only build for a
+ *  Worker under services/ — so widening the subject to the brick template meant
+ *  the src directory had to come from the config that owns it. */
+function hasMoneyDoor(srcDir) {
   if (!existsSync(srcDir)) return false;
   let found = false;
   const walk = (d) => {
@@ -214,10 +323,13 @@ function hasMoneyDoor(service) {
   return found;
 }
 
-const doorServices = [...new Set(configs.map((c) => c.service))].filter(hasMoneyDoor);
-if (doorServices.length === 0) {
+const doorConfigs = configs.filter((c) => hasMoneyDoor(c.srcDir));
+const doorServices = doorConfigs.map((c) => c.service);
+if (doorConfigs.filter((c) => c.deployed).length === 0) {
   // A recorded failure, not an early exit: the limbs below still run, so a tree
   // that ALSO lost its route file reports both findings rather than the first.
+  // Scoped to DEPLOYED doors on purpose: the template legitimately has none, so
+  // counting it here would let a tree that lost both real doors read as ok.
   fail(
     'COVERAGE LOST — no deployed source refuses with `money_rail_not_configured`, so the money-door set is empty; ' +
       'limb 1 has nothing to compare and limb 5 nothing to exercise. The scan is broken, not the tree.',
@@ -233,35 +345,53 @@ for (const c of configs) {
   declaringEnvironment.push({ ...c, value });
   if (value !== 'live') {
     fail(
-      `${c.rel} declares MONEY_ENVIRONMENT = ${JSON.stringify(value)}. This file is the DEPLOYED configuration, so ` +
-        "it must be exactly \"live\". A sandbox rail is a separate wrangler environment with its own secret, never " +
+      `${c.rel} declares MONEY_ENVIRONMENT = ${JSON.stringify(value)}. ` +
+        (c.deployed
+          ? 'This file is the DEPLOYED configuration, so it must be exactly "live". '
+          : 'This is the template every stamped backend is generated from, so it must be exactly "live" — a stamp ' +
+            'is a production deploy waiting to happen. ') +
+        'A sandbox rail is a separate wrangler environment with its own secret, never ' +
         'this file with the value edited — a sandbox payment would otherwise write a production entitlement and ' +
         'nothing would go red. [5]M-12',
     );
   }
 }
-if (declaringEnvironment.length === 0) {
+if (declaringEnvironment.filter((d) => d.deployed).length === 0) {
   fail(
     'NO deployed config declares MONEY_ENVIRONMENT. The money doors refuse to serve without it (503), so the rail ' +
       'would be dead in production — and neither the notification payload nor the destination secret can supply the ' +
       'value, because no primary source establishes either. [5]M-12',
   );
-} else if (doorServices.length > 0) {
+} else if (doorConfigs.length > 0) {
+  // THE BICONDITIONAL, over EVERY config including the template: a door with no
+  // declaration 503s every money read in production; a declaration with no door
+  // is a second rail nobody decided to run. Both directions, both kinds of file.
+  const doorRels = new Set(doorConfigs.map((c) => c.rel));
+  const declaringRels = new Set(declaringEnvironment.map((d) => d.rel));
   for (const d of declaringEnvironment) {
-    if (!doorServices.includes(d.service)) {
+    if (!doorRels.has(d.rel)) {
       fail(
-        `${d.rel} declares MONEY_ENVIRONMENT but no file under services/${d.service}/src refuses with ` +
+        `${d.rel} declares MONEY_ENVIRONMENT but no file under its own src/ refuses with ` +
           '`money_rail_not_configured` — a declaration without a door is a second rail nobody decided to run ' +
-          '([ADR 020]:18; the decided set is the MoR rail plus [ADR 039] D5\'s RevenueCat fan-in).',
+          '([ADR 020]:18; the decided set is the MoR rail plus [ADR 039] D5\'s RevenueCat fan-in).' +
+          (d.deployed
+            ? ''
+            : ' For the BRICK TEMPLATE this is not a hypothetical: the stamped `services/<app>-api/` inherits the ' +
+              'declaration, and this very limb then fails on the generated repository. The template ships no money ' +
+              'door on purpose — its own clone contract reads "NEVER HERE: MoR/payment webhooks. They terminate in ' +
+              '`platform`" — so the correct template carries no declaration either.'),
       );
     }
   }
-  for (const s of doorServices) {
-    if (!declaringEnvironment.some((d) => d.service === s)) {
+  for (const s of doorConfigs) {
+    if (!declaringRels.has(s.rel)) {
       fail(
-        `services/${s} carries a money door (its source refuses with \`money_rail_not_configured\`) but its deployed ` +
-          'config declares no MONEY_ENVIRONMENT — every money read on that Worker would 503 in production, which is ' +
-          'the fail-closed branch firing on every request instead of on a misconfiguration. [5]M-12',
+        `${s.rel} names a Worker that carries a money door (its source refuses with \`money_rail_not_configured\`) ` +
+          'but that config declares no MONEY_ENVIRONMENT — every money read on that Worker would 503 in production, ' +
+          'which is the fail-closed branch firing on every request instead of on a misconfiguration. [5]M-12' +
+          (s.deployed
+            ? ''
+            : ' This is the BRICK TEMPLATE: every backend ever stamped from it would ship that dead rail.'),
       );
     }
   }
@@ -438,7 +568,12 @@ if (!existsSync(routePath)) {
 // The two together are what make limb 4 more than a shape. PER MONEY-DOOR
 // WORKER: each service in the door set proves its own 503 with its own tests —
 // platform's suite firing says nothing about subly-api's door.
-for (const svc of doorServices) {
+// ⚠️ DEPLOYED DOORS ONLY. The brick's service template ships no `test/` directory
+// at all, so requiring a vitest suite of it would fail on a template that is
+// correct today — and an invented limit that fires on correct input is one
+// somebody switches off. Limb 1's biconditional above already refuses the state
+// that reaches production: a template door with no declaration is RED there.
+for (const svc of doorConfigs.filter((c) => c.deployed).map((c) => c.service)) {
   const testDir = join(ROOT, 'services', svc, 'test');
   const files = existsSync(testDir) ? listDir(testDir).filter((f) => f.endsWith('.test.ts')) : [];
   if (files.length === 0) {
@@ -519,8 +654,9 @@ if (problems.length) {
 }
 
 console.log(
-  `ok  money config — ${configs.length} deployed config(s) scanned; MONEY_ENVIRONMENT declared by exactly the ` +
-    `${doorServices.length} money-door Worker(s) {${doorServices.join(', ')}} and every value is "live"; no sandbox ` +
-    `credential or host in any deployed config; ${secretVars.length} destination secret(s) derived from the adapter ` +
-    `registry, none committed; each door refuses an undeclared environment and its own tests fire the 503`,
+  `ok  money config — ${deployedConfigs.length} deployed config(s) + ${templateConfigs.length} brick service ` +
+    `template(s) scanned; MONEY_ENVIRONMENT declared by exactly the ${doorConfigs.length} money-door Worker(s) ` +
+    `{${doorServices.join(', ')}} and every value is "live"; no sandbox credential or host in any of them; ` +
+    `${secretVars.length} destination secret(s) derived from the adapter registry, none committed; each deployed ` +
+    `door refuses an undeclared environment and its own tests fire the 503`,
 );

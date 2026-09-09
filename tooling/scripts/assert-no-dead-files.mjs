@@ -320,15 +320,17 @@ const EXEMPTIONS = [
       'script so deleting it reddens assert-ops-register.mjs, and this waiver can go — the same ' +
       'build-failing-binding test that retired the preflight.mjs row above on 2026-08-17.',
   },
-  {
-    path: 'tooling/release/RELEASE-RUNBOOK.md',
-    kind: 'human-entry-point',
-    since: '2026-08-17',
-    why:
-      'the owner opens it at the moment of a release; its own first line names that audience. Nothing links ' +
-      'to it because a runbook is read by a person rather than called by anything, and it is in the public ' +
-      'tree on purpose so a fork can release from it.',
-  },
+  /* ⏱ RETIRED 2026-09-08 — the `human-entry-point` waiver for
+     `tooling/release/RELEASE-RUNBOOK.md` (added 2026-08-17) is gone from this table.
+     It did not have to be argued away: this guard had been ASKING for its removal on
+     every single run, in its own words —
+        note  tooling/release/RELEASE-RUNBOOK.md is waived but `path-reference`
+              now reaches it — a real consumer exists, so the row can go.
+     That note exists, as the header below says, "precisely so a row cannot quietly
+     outlive its reason". A real consumer appeared; the reason expired; the row goes.
+     The runbook itself is untouched and still tracked — what is removed is the
+     CLAIM that nothing reaches it, which had stopped being true. The table drops
+     from 3 rows to 2, which is the direction the header says it should move. */
   {
     path: 'services/platform/.dev.vars.example',
     kind: 'human-entry-point',

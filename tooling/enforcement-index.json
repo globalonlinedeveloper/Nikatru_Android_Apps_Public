@@ -968,6 +968,19 @@
   },
   {
     "claims": [
+      "D-3",
+      "D-5"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-store"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-name-clearance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 070",
       "C-10",
       "C-11",
@@ -2599,6 +2612,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "script",
+    "ref": "tooling/scripts/check-agent-docs.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "C-6",
       "N-9"
@@ -2608,6 +2631,16 @@
     ],
     "kind": "script",
     "ref": "tooling/scripts/check-selection-record.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "script",
+    "ref": "tooling/scripts/gen-start-here.mjs",
     "references": [],
     "state": "WIRED"
   },

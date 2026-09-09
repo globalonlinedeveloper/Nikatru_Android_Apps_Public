@@ -240,7 +240,7 @@ export function resolveEnvironment(register, environment) {
  *
  * ⬜ IT RETURNS AN EMPTY SET TODAY AND THAT IS CORRECT, not a defect: no
  * submission has happened, because no publisher account exists ([10]D-4 /
- * OWNER_QUEUE A-2, A-3, A-4, A-6). [10]D-10 limb (iii) — "the ledger holds a
+ * OWNER_QUEUE A-2, A-6; A-3 and A-4 closed). [10]D-10 limb (iii) — "the ledger holds a
  * submission record" — is owner-gated BY DEFINITION and cannot be satisfied by
  * any amount of agent work. Callers must PRINT that emptiness rather than
  * asserting over it.

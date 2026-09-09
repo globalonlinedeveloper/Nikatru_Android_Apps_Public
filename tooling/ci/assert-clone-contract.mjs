@@ -42,7 +42,7 @@
 //   · YAGNI. An app that does not store user rows server-side should not own a
 //     database, a migration set and an erasure route it never needed.
 //
-// Full evidence: Private/research/80-DATABASE-LAYOUT-PER-APP-VS-SHARED.md.
+// Full evidence: Private/pre-minimal-2026-09-08:research/80-DATABASE-LAYOUT-PER-APP-VS-SHARED.md.
 //
 // Checks are STRUCTURAL, never textual. An earlier version of this grepped for
 // the string "r2_buckets" and matched the comment in the template explaining

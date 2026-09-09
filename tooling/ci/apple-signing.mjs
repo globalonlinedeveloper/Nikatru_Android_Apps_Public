@@ -25,8 +25,8 @@
 //                         per-run keychain, write the ExportOptions.plist the
 //                         signed export needs, posture = `release-signed`
 //   none supplied       → posture = `unsigned-build-proof`, the gap PRINTED IN
-//                         CAPITALS and named (Apple Developer account,
-//                         OWNER_QUEUE A-4) — UNLESS this is a release lane AND
+//                         CAPITALS and named (the Apple distribution certificate;
+//                         the account is ACTIVE, none issued) — UNLESS this is a release lane AND
 //                         the register ARMS one of the two Apple rows, where the
 //                         absence is a FAILURE and not a posture
 //   some supplied       → FAIL. Three of four is an artifact nobody can
@@ -109,12 +109,14 @@
 // 2026-08-20 the register declares BOTH — `APPLE_DIST_CERT_P12_BASE64` on both
 // Apple rows and `APPLE_INSTALLER_CERT_P12_BASE64` on macos-appstore alone — so
 // what is missing is no longer the NAME, it is the certificate: nothing can
-// issue one until the account exists. The macos-appstore `.pkg` intent below is
+// issue one until something asks the ASC API for one; the ACCOUNT is active. The macos-appstore `.pkg` intent below is
 // therefore planned and printed rather than run, and nothing in this file
 // imports an installer identity into the keychain. That is printed on every run
 // rather than failing the build, because the missing item is an owner action on
-// an account that does not exist yet (OWNER_QUEUE A-4) and a guard that blocks
-// CI on work only the owner can do blocks every merge in the repository.
+// a certificate nothing has issued yet (the account is ACTIVE) and a guard that blocks
+// CI on an unclosed gap blocks every merge in the repository. CORRECTED 2026-09-08:
+// this gap is no longer owner-gated. It is code-gated - an agent holding the ASC
+// key can issue the certificate - and it is printed for the second reason only.
 //
 // Usage:
 //   node tooling/ci/apple-signing.mjs [--app <slug>] [--out <dir>]
@@ -275,9 +277,19 @@ export function homeRowOf(name) {
   return Object.entries(ROW_ONLY_ENV).find(([, names]) => names.includes(name))?.[0] ?? null;
 }
 
-/** The owner item behind the absent account, named in full so the printed gap
+/** The item behind the absent signing arrangement, named in full so the printed gap
  *  is actionable without opening another file. */
-export const OWNER_GAP = 'Apple Developer account (OWNER_QUEUE A-4)';
+export const OWNER_GAP = 'Apple distribution certificate (the account is ACTIVE, verified 2026-09-08; none issued)';
+//
+// CORRECTED 2026-09-08, and this constant is the root of the correction: every
+// guard that imports it printed the old text. The enrolment completed 2026-08-31
+// and OWNER_QUEUE A-4 closed with it; an authenticated App Store Connect call on
+// 2026-09-08 answered HTTP 200 with an ACCOUNT_HOLDER record for
+// rajasekar@nikatru.com. The SAME call showed the real gap: GET /v1/certificates
+// returned an empty set. So the missing item is a distribution CERTIFICATE, and
+// unlike an account it is issuable through the ASC API with the key this
+// repository already holds. The gap moved from owner-gated to CODE-gated - a
+// change in who can act, not in whether anything ships today.
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PURE DECISION LOGIC
@@ -411,8 +423,8 @@ export function resolvePosture({ law, required, platform = process.platform, arm
     // failed by the arrival of a value it had already decided not to use.
     //
     // THE FIX IS NOT TO WEAKEN THE ALL-OR-NONE LAW, AND IT IS NOT A PLACEHOLDER
-    // SECRET. The Apple enrolment does not exist (OWNER_QUEUE A-4), so the other
-    // three CANNOT be created by anybody working in this repository, and a build
+    // SECRET. No Apple distribution certificate exists (the enrolment IS active), so the other
+    // three are not created in this repository today, and a build
     // PROOF that depends on them is a proof that can never run. What is wrong is
     // the ARITHMETIC: "three of four are missing" is a statement about a signing
     // arrangement, and on a proof lane there is no arrangement to be partial
@@ -460,9 +472,9 @@ export function resolvePosture({ law, required, platform = process.platform, arm
             '     unsigned upload, so continuing here would spend a build, an artifact and a version string to',
             '     arrive at a bundle that cannot be submitted — with every check green.',
             '',
-            `     🔴 THE MISSING ITEM IS NOT A SECRET, IT IS AN ACCOUNT: ${OWNER_GAP}.`,
-            '     There is no distribution certificate to export until the enrolment exists, so the four',
-            '     secrets below cannot be created by anybody working in this repository:',
+            `     🔴 THE MISSING ITEM IS NOT A SECRET, IT IS A CERTIFICATE: ${OWNER_GAP}.`,
+            '     There is no distribution certificate to export - the enrolment is ACTIVE and empty - so the four',
+            '     secrets below have not been created; the ASC API can now issue what they carry:',
             ...WANTED.map((n) => `       ${n}`),
             '     …or run this lane on a non-release trigger, where an unsigned BUILD PROOF is the recorded,',
             '     labelled outcome rather than a silent one.',
@@ -695,8 +707,9 @@ export function signedExportPlan({ appSlug, exportOptionsPath, keychain, teamId,
         `one ${ROLE_ENV.p12} carries — that one signs the .app INSIDE the package and cannot sign the ` +
         'package itself. As of 2026-08-20 the macos-appstore row DECLARES ' +
         '`APPLE_INSTALLER_CERT_P12_BASE64` with its reason, so the name is no longer missing from the ' +
-        'register; what is missing is the certificate, which nothing can issue until ' +
-        `${OWNER_GAP} creates the account. This command stays PLANNED and unrunnable, and the ` +
+        'register; what is missing is the certificate itself, and nothing here has issued one: ' +
+        `${OWNER_GAP}. OWNER_QUEUE A-4 closed 2026-08-31, so this is agent-closable through the ` +
+        'App Store Connect API rather than owner-gated. This command stays PLANNED and unrunnable, and the ' +
         'sentence says which of the two gaps it is — they close on different days and by different ' +
         'people.',
     },
@@ -1109,7 +1122,8 @@ function main() {
         armings: gap.unarmed,
         secretNames: law.missing,
         laneReasons: lane.reasons,
-        ownerItem: `${OWNER_GAP} — there is no distribution certificate to export until the enrolment exists`,
+        ownerItem: `${OWNER_GAP} — the enrolment is active and holds no certificate to export`,
+        ownerGated: false,
       })) {
         console.log(l);
       }
@@ -1129,8 +1143,8 @@ function main() {
       console.log(`   🔴 NO APPLE SIGNING SECRETS ARE SET, AND THE REASON IS NOT A MISSING SECRET.`);
     }
     console.log(`   🔴 THE MISSING ITEM IS THE ${OWNER_GAP.toUpperCase()}.`);
-    console.log('   Without the enrolment there is no distribution certificate and no provisioning profile,');
-    console.log('   so nobody working in this repository can close this.');
+    console.log('   The enrolment is ACTIVE and EMPTY: no distribution certificate, no provisioning profile,');
+    console.log('   so nothing here can sign yet - but the ASC API can issue both, so this IS closable here.');
     console.log('   🔴 AN UNSIGNED BUNDLE CANNOT BE UPLOADED TO APP STORE CONNECT. This artifact is a build');
     console.log('      proof: it proves the Apple modules compile, and nothing about a signing identity.');
     console.log('   This is the correct outcome for a branch, a fork PR and the weekly platform proof.');

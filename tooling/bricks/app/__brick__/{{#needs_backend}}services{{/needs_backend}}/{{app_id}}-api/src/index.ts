@@ -15,6 +15,7 @@ import {
   JWKS_READING_TTL_MS,
   READING_TTL_MS,
 } from './lib/health';
+import { reportWorkerError } from './lib/error-sink';
 import { corsMiddleware } from './middleware/cors';
 import { supabaseAuth, erasureAuth } from './middleware/auth';
 import account from './routes/account';
@@ -132,8 +133,48 @@ api.use('*', supabaseAuth);
 app.route('/v1', api);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
+
+// ── [pipeline 11]E-8 — AN UNHANDLED ERROR REACHES A SINK, NOT JUST THE LOG ───
+//
+// 🔴 THIS HANDLER ONLY CALLED `console.error` UNTIL 2026-09-08, and a stamped
+// backend inherited that. On a Worker, `console.error` goes to a `wrangler tail`
+// stream nobody is watching, with no searchable history behind it — the error is
+// invisible the moment it happens. Both live Workers were fixed and the template
+// every future backend is stamped from was not, so
+// `tooling/ci/assert-worker-error-sink.mjs` — whose subject is every
+// `services/*/src/index.ts` — would have failed the generated repository on its
+// first CI run.
+//
+// The report is handed to `waitUntil` so the caller's 500 is not held open
+// behind GlitchTip, and `reportWorkerError` never rejects (it fails OPEN: an
+// unset `GLITCHTIP_DSN` means no report, silently). `release` is
+// `c.env.RELEASE` — the deployed SHA — and never `API_VERSION`, which is the
+// literal "v1" and would group every error this app ever reports into one
+// bucket named after a URL prefix.
+//
+// ⚠️ STEP 6 OF THE post_gen CHECKLIST IS THE OTHER HALF: `deploy-workers.yml`
+// needs a job named `{{app_id}}-api` passing `--var GLITCHTIP_DSN:` and
+// `--var RELEASE:`, or that guard's limb 5 stays red. It cannot be stamped —
+// a deploy job for an app that does not exist yet has nothing to deploy.
 app.onError((err, c) => {
   console.error(`[unhandled] rid=${c.get('requestId') ?? '-'}`, err);
+  const url = new URL(c.req.url);
+  const report = reportWorkerError(
+    err,
+    {
+      service: '{{app_id}}-api',
+      release: c.env.RELEASE,
+      requestId: c.get('requestId'),
+      method: c.req.method,
+      path: url.pathname, // pathname only — never the query string
+    },
+    c.env,
+  );
+  try {
+    c.executionCtx.waitUntil(report);
+  } catch {
+    void report;
+  }
   return c.json({ error: 'internal_error' }, 500);
 });
 

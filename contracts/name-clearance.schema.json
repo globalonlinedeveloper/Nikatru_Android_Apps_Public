@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nikatru.invalid/contracts/name-clearance.schema.json",
+  "title": "name-clearance",
+  "description": "THE SHAPE OF apps/<app>/name-clearance.json — the record `tooling/store/name-clearance.mjs --execute` writes and `tooling/ci/assert-name-clearance.mjs` reads. A clearance is a MEASUREMENT WITH A DATE, not a permanent fact: names get taken. The dating mechanism is not invented here — it is `{value, asOf, verify, verifyKind}` from Private/platform-state/schema/fact.schema.json, verbatim, with verifyKind:\"remote\" because that is precisely what tells a pre-commit hook not to dial out. Validated by tooling/app-yaml/schema-validate.mjs, whose implemented-keyword set is closed: a keyword this schema names and that validator does not implement is refused rather than skipped.",
+  "type": "object",
+  "required": ["app", "slug", "name", "overall", "asOf", "channels", "identifiers", "trademark", "controls"],
+  "additionalProperties": false,
+  "properties": {
+    "_why": {
+      "type": "array",
+      "description": "Free prose. Present so a seeded record can carry the sentence that explains it without inventing a field.",
+      "items": { "type": "string" }
+    },
+    "app": {
+      "type": "string",
+      "format": "repo-path",
+      "description": "The app slug this record belongs to. Must be the directory it sits in — a record filed under the wrong app is a clearance for somebody else's name."
+    },
+    "slug": {
+      "type": "string",
+      "description": "The lowercased identifier form of the name: the snap name, the AMO slug, the subdomain. Distinct from `app` because a rename changes this before it changes the directory."
+    },
+    "name": {
+      "type": "object",
+      "description": "THE FACT TRIPLE. `value` is the name that was cleared, and the guard compares it against apps/<app>/app.yaml's `name:`. A record for a different name is not a record.",
+      "required": ["value", "asOf", "verify", "verifyKind"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "minLength": 1 },
+        "asOf": { "type": "string", "format": "date" },
+        "verify": { "type": "string", "minLength": 4 },
+        "verifyKind": {
+          "type": "string",
+          "enum": ["remote"],
+          "description": "ALWAYS `remote`, and the enum is closed to one value on purpose. Re-deriving a clearance means ~20 external calls over ~16.5 s. `remote` is the flag a hook reads to refuse to run it, which is the whole reason the field exists rather than the guard sniffing the command string."
+        }
+      }
+    },
+    "asOf": {
+      "type": "string",
+      "format": "date",
+      "description": "The day the probes ran. Duplicated out of `name.asOf` so the staleness limb can age the RECORD even if the name triple is edited by hand."
+    },
+    "overall": {
+      "type": "string",
+      "enum": ["CLEAR", "QUALIFIED", "BLOCKED", "UNDETERMINED"],
+      "description": "CLEAR — every channel that can answer said free. QUALIFIED — nothing blocks and something is owed (an owner ruling, a manual step). BLOCKED — a record was READ that holds the name on a channel that refuses duplicates. UNDETERMINED — coverage was lost on a globally-unique channel, which is not a pass."
+    },
+    "controls": {
+      "type": "object",
+      "description": "THE RED CONTROLS, PER CHANNEL, as measured on the run that wrote this record. `--execute` REFUSES to overwrite a good record with one whose controls failed: a stale-but-real clearance beats a fresh record full of \"I could not check\".",
+      "required": ["green", "failed"],
+      "additionalProperties": false,
+      "properties": {
+        "green": { "type": "integer" },
+        "failed": {
+          "type": "array",
+          "description": "Channel ids whose control did not come back. Non-empty means every verdict in this record is worth less than it looks, and the guard says so.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "description": "One entry per channel in tooling/channel-register.json, keyed by its `id`. THE SET IS THE REGISTER'S, NOT A LIST KEPT HERE: a channel with no probe registered appears with verdict UNDETERMINED and says so, and is never silently absent.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["verdict", "uniqueness", "why"],
+        "additionalProperties": false,
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": ["PROVEN-FREE", "PROVEN-TAKEN", "UNDETERMINED", "NOT-APPLICABLE"],
+            "description": "THREE ANSWERS, NEVER TWO, plus the non-answer for a channel with no namespace. UNDETERMINED never counts as clear."
+          },
+          "uniqueness": {
+            "type": "string",
+            "enum": ["global", "tolerated", "none", "UNKNOWN"],
+            "description": "`global` — the store refuses a duplicate, so a hit is a wall. `tolerated` — a hit is a discoverability cost. `none` — no third party holds a name here. `UNKNOWN` — no probe is registered for this channel."
+          },
+          "why": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "control": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["what", "green"],
+                "additionalProperties": false,
+                "properties": {
+                  "what": { "type": "string" },
+                  "green": { "type": "boolean" },
+                  "detail": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "identifiers": {
+      "type": "array",
+      "description": "THE PERMANENT IDENTIFIERS, which unlike names can never be changed or recycled once claimed. Every value here is read by tooling/ci/read-identity.mjs from the file tooling/channel-register.json declares — never synthesised from the name, because a name change that updates four of five files is exactly the defect [10]D-3 exists to catch.",
+      "items": {
+        "type": "object",
+        "required": ["channel", "kind", "verdict", "why"],
+        "additionalProperties": false,
+        "properties": {
+          "channel": { "type": "string" },
+          "kind": { "type": "string" },
+          "declaredIn": { "anyOf": [{ "type": "null" }, { "type": "string" }] },
+          "value": { "anyOf": [{ "type": "null" }, { "type": "string" }] },
+          "verdict": { "type": "string", "enum": ["PROVEN-FREE", "PROVEN-TAKEN", "UNDETERMINED", "NOT-APPLICABLE"] },
+          "why": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "trademark": {
+      "type": "object",
+      "description": "ADVISORY SIGNAL ONLY. SOFTWARE CANNOT CLEAR A TRADEMARK AND THIS RECORD DOES NOT PRETEND OTHERWISE. Registry databases (USPTO TSDR, the UK IPO, the Indian registry) are not reachable from an unauthenticated read, and are not faked: an absence of evidence is recorded as an absence of evidence. `ruling: null` reads as QUALIFIED — never as a pass.",
+      "required": ["disclaimer", "signals", "ruling", "ruledBy", "ruledOn"],
+      "additionalProperties": false,
+      "properties": {
+        "disclaimer": {
+          "type": "string",
+          "description": "Printed verbatim by both the probe and the guard. It must say, in the output itself, that this is not legal advice."
+        },
+        "signals": { "type": "array", "items": { "type": "string" } },
+        "ruling": {
+          "anyOf": [{ "type": "null" }, { "type": "string", "enum": ["PROCEED", "DO-NOT-PROCEED"] }],
+          "description": "ONLY THE OWNER WRITES THIS. null is not neutral: it is a finding that a dated ruling is owed."
+        },
+        "ruledBy": { "anyOf": [{ "type": "null" }, { "type": "string" }] },
+        "ruledOn": { "anyOf": [{ "type": "null" }, { "type": "string", "format": "date" }] },
+        "ownerItem": {
+          "anyOf": [{ "type": "null" }, { "type": "string" }],
+          "description": "The `O-<ID>` row in Private/platform-state/open.json that carries the owed ruling. A null ruling with no owner item is a finding nobody owns, so the guard refuses it outright."
+        },
+        "gatedUntil": {
+          "anyOf": [{ "type": "null" }, { "type": "string", "format": "date" }],
+          "description": "THE BOUND ON THE OWNER GATE, and it is a bound rather than a waiver. While this date is in the future a null ruling PRINTS AS FAILING and does not block the build; on and after it, it blocks. It is written ONCE, by hand, and `--execute` PRESERVES it — a re-probe must never be able to extend its own gate, which is how a waiver outlives its reason."
+        }
+      }
+    }
+  }
+}

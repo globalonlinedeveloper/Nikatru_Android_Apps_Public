@@ -86,7 +86,7 @@ const VALID_HINTS = ['wnam', 'enam', 'weur', 'eeur', 'apac', 'oc'];
  *  It lives up here, above the credential gate, because `--self-check` must
  *  exercise THE REAL EXPRESSION. A self-check with its own copy of the pattern
  *  proves that the copy works, which is worth nothing: the two would rot apart
- *  and the check would go on passing. [pipeline S-12r] (absent from origins.lock.json by construction — S-12r is a residual of S-12, raised by Private/plans/03-stamper-plan.md after the pipeline harvest was frozen) */
+ *  and the check would go on passing. [pipeline S-12r] (absent from origins.lock.json by construction — S-12r is a residual of S-12, raised by Private/pre-minimal-2026-09-08:plans/03-stamper-plan.md after the pipeline harvest was frozen) */
 const APP_DB_BLOCK = /("binding"\s*:\s*"APP_DB"[\s\S]{0,400}?"database_id"\s*:\s*")([^"]+)(")/;
 
 const args = process.argv.slice(2);

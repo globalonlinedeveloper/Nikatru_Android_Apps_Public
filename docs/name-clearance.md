@@ -1,0 +1,172 @@
+# Name clearance — the decision, and where it is enforced
+
+**Landed 2026-09-09.** This is the public half of the record. The ADR that locks
+it belongs in `Private/decisions/`, and the row that owes the owner ruling
+belongs in `Private/platform-state/open.json`; both are **owed** and named at the
+bottom of this page, because the branch that landed this mechanism had the
+private corpus read-only.
+
+---
+
+## 1. What happened, and why a person cannot be the check
+
+On 2026-09-09 the Microsoft Partner Center **reserve a name** dialog was open on
+**Subly**, one click from starting a three-month submit-or-lose clock.
+
+Subly is a name iOS and macOS **can never ship under**. App Store names are
+**globally unique**, and the iTunes Search API returns two live listings carrying
+that exact name — one of them in **Finance**, the same category:
+
+```
+"Subly" — Kaizhi Liu            — Lifestyle — apps.apple.com/us/app/id6471869381
+"Subly" — MAXENCE GUY H. LANONE — Finance   — apps.apple.com/us/app/id6760964796
++ 27 near-miss listings containing the word
+```
+
+`subly.app` also resolves to a live commercial site selling a same-category
+product on Windows, macOS and Linux.
+
+Reserving the name would have committed half the platforms to a name the other
+half refuses. Nothing in the factory would have noticed. **The owner asked for
+this to be handled by the pipeline rather than by someone remembering.**
+
+## 2. The rule: three answers, never two
+
+`PROVEN-TAKEN` · `PROVEN-FREE` · `UNDETERMINED`. **"Not found" is not "free."** A
+store search page that renders in JavaScript returns an empty body to a `fetch`;
+an unauthenticated 404 can mean free, reserved-but-unpublished, rate-limited or
+down. Collapsing those into "clear" is worse than no check, because it also
+carries the belief that something was checked.
+
+**Every probe declares a RED CONTROL** — a query with a known non-empty answer,
+same transport, same run. If the control does not go green the probe downgrades
+**itself** to `UNDETERMINED`. The five controls, each verified live on
+2026-09-09, are listed in `tooling/store/name-probes.mjs`.
+
+Three answers this design refuses to fake:
+
+- **Apple has no name-availability endpoint.** The only authority is the App
+  Store Connect New App dialog, and asking it means *creating a record*, which is
+  forbidden. A no-hit is `UNDETERMINED` with the manual step named.
+- **Microsoft's only authority is the reservation itself.** Owner-only, manual,
+  and cancelled without reserving.
+- **A snap name registered-but-unpublished 404s identically to a free one.**
+  `UNDETERMINED`, with `snapcraft register --dry-run` named.
+
+## 3. The split: a slow tool, a fast guard
+
+| Unit | Measured on this machine, 2026-09-09, wall clock | Network |
+|---|---|---|
+| `tooling/store/name-clearance.mjs` (the 12-channel probe) | 15,365 ms / 13,726 ms, two samples, warm | ~20 external calls |
+| `tooling/ci/assert-name-clearance.mjs` (reads the record) | 297 / 285 / 269 ms, three samples, warm | **none** |
+
+Fourteen seconds of network on every commit gets bypassed inside a week, and a
+guard that is skipped is worth less than no guard. **So the probe is a tool you
+run and the guard is the thing that blocks the build.** The guard is wired into
+`ci.yml#guards-store` *and* into the pre-commit spec-guard runner — it is the
+first entry in that array with `needsPrivate: false`, because its subject is
+public.
+
+## 4. Where each piece lives
+
+| File | What it is |
+|---|---|
+| `tooling/store/name-clearance.mjs` | the probe; walks `tooling/channel-register.json`, calls `tooling/ci/read-identity.mjs`, writes the record under `--execute` |
+| `tooling/store/name-probes.mjs` | the per-channel probe table and its red controls |
+| `contracts/name-clearance.schema.json` | the record shape |
+| `apps/<app>/name-clearance.json` | the record — a measurement with a date |
+| `tooling/ci/assert-name-clearance.mjs` | the offline guard |
+| `tooling/ops/name-clearance-sweep.mjs` | the re-verification routine |
+
+**The identity readers are reused, not rewritten.** `read-identity.mjs` already
+resolves the *file* for each identity from the register — which is why it reads
+the macOS xcconfig rather than the pbxproj that carries only the **test** bundle's
+id — and already answers `{value} / {missing} / {lost}`, where `lost` means
+COVERAGE LOST. A second reader would inherit none of its tests and would report
+agreement between two things it read wrongly.
+
+## 5. Why `main` is green while the record says BLOCKED
+
+The record for Subly is honestly `overall: "BLOCKED"`. The build is not red, and
+the reason is **derived, not waived**:
+
+- The guard weighs every wall against `tooling/ci/channel-arming.mjs`, the
+  existing single reading of *"can this channel reach a user today?"*
+  (`served: true`, or `submittable: true` with a real lane). `ios-appstore` and
+  `macos-appstore` are `served: false` with `lane: null`, so the finding is
+  **printed on every run** as `⬜ NOT BLOCKING TODAY` and does not block.
+- **It arms itself.** Flip `served` on that channel and the same unchanged record
+  turns the guard red. That is asserted by mutation in
+  `tooling/ci/test/assert-name-clearance.test.mjs` case **M3**: exit `0 → 1`.
+- `trademark.ruling: null` reads as **QUALIFIED, never a pass**, and prints as
+  FAILING every run. Only its *block* is lifted, and only while a named owner
+  item and a dated `gatedUntil` both stand — **2026-10-09**, after which it
+  blocks. `--execute` **preserves** that date rather than rewriting it, so a
+  re-probe can never extend its own gate.
+
+## 6. Staleness
+
+Not a second mechanism: `assert-platform-state.mjs`'s, verbatim — every fact is a
+`{value, asOf, verify, verifyKind}` triple, `verifyKind: "remote"` (which is
+precisely what tells a hook not to dial out), and a **30-day** ceiling. Age is a
+**warning in the hook** and a **finding under `--execute`**, because every record
+shares a birthday and a hook that refuses every commit on the day the window
+closes is a hook this corpus has recorded itself skipping.
+
+## 7. What this does not do
+
+- It cannot prove a name is free on Apple. No software can, short of creating a
+  record.
+- It cannot clear a trademark. It gathers signals and demands a dated owner
+  ruling. **It is not legal advice.**
+- It cannot see drafts in anyone's Play Console, Partner Center or App Store
+  Connect — including a reservation a competitor made this morning.
+
+The value is not that it answers everything. It is that **it never claims to have
+answered something it did not**, and it makes the difference visible on every
+build.
+
+## 8. Still owed
+
+1. **`Private/decisions/074-name-clearance-is-a-pipeline-step.md`** (does not exist yet — owed 2026-09-09, and the next free number was 074 on that day) — the ADR, with its row in `Private/decisions/index.json`.
+2. **`Private/platform-state/open.json`** — one row:
+   ```json
+   {
+     "id": "O-NAME-SUBLY-TRADEMARK",
+     "owner": "owner",
+     "state": "open",
+     "closedOn": null,
+     "severity": "red",
+     "what": "Rule on the Subly name. MEASURED 2026-09-09 by tooling/store/name-clearance.mjs: two live iOS listings carry the exact name (one in Finance, the same category) and App Store names are globally unique, so iOS and macOS can never ship under it; subly.app resolves to a live commercial site selling a same-category product on Windows/macOS/Linux. Software cannot clear a trademark — this needs a dated owner ruling.",
+     "blocks": "reserving the name on any store, and the first iOS/macOS submission",
+     "due": "2026-10-09",
+     "closes": "apps/subly/name-clearance.json carries trademark.ruling PROCEED or DO-NOT-PROCEED with ruledBy and ruledOn set",
+     "source": "docs/name-clearance.md; the clearance record apps/subly/name-clearance.json",
+     "note": "tooling/ci/assert-name-clearance.mjs PRINTS this as FAILING on every run and lifts the block only until trademark.gatedUntil (2026-10-09), after which the build fails."
+   }
+   ```
+3. **The weekly routine's workflow.** `tooling/ops/name-clearance-sweep.mjs` is
+   landed and tested; `.github/workflows/name-clearance.yml` is **not**, because
+   `assert-ops-register.mjs` holds `watched workflows ≡ .github/workflows/*.yml`
+   in both directions and the duty row it would need lives in
+   `tooling/ops/register.json`, which carried another writer's uncommitted edit
+   when this landed. The workflow and its duty row must land **together**, in one
+   commit:
+   ```yaml
+   # .github/workflows/name-clearance.yml — weekly, 07:10 UTC Mondays
+   on: { workflow_dispatch: {}, schedule: [{ cron: '10 7 * * 1' }] }
+   permissions: {}
+   jobs:
+     sweep:
+       runs-on: ubuntu-24.04
+       timeout-minutes: 15
+       permissions: { contents: read }
+       steps:
+         - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+           with: { persist-credentials: false }
+         - uses: ./.github/actions/setup-node
+         - run: node tooling/ops/name-clearance-sweep.mjs
+   ```
+   with a `kind: "duty"` row in `tooling/ops/register.json` anchored at
+   `.github/workflows/name-clearance.yml`, `cadence: "7d"`, whose `detector` is
+   the flip report this script prints and whose `absenceWatcher` is `ops-watch`.

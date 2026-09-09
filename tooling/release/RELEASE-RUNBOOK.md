@@ -75,8 +75,9 @@ gate ─► prepare ─┬─► linux_web_android ─┐
 ### 🔴 The credential steps and the tag — read this before your first tag
 
 Four channels are owner-gated and **cannot** sign: `windows-direct` (a certificate that
-must be BOUGHT and renewed yearly), `ios-appstore` + `macos-appstore` (OWNER_QUEUE A-4,
-the Apple enrolment), `linux-appimage` (a keypair, its custody and a restore drill).
+must be BOUGHT and renewed yearly), `ios-appstore` + `macos-appstore` (a distribution certificate
+nothing has issued; the enrolment itself closed OWNER_QUEUE A-4 on 2026-08-31,
+and is ACTIVE), `linux-appimage` (a keypair, its custody and a restore drill).
 
 Until **2026-08-09** each of those four seams treated *any* tag push with no secrets as
 **fatal**, which killed `windows`, `apple` and `linux_web_android` — and `release`

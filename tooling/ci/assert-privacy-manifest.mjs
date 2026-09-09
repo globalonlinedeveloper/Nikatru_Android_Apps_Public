@@ -40,7 +40,7 @@
 // ── WHILE NO MANIFEST EXISTS IT PRINTS, IT DOES NOT FAIL ────────────────────
 // Zero `.xcprivacy` files exist in this tree today. Writing one correctly needs
 // Apple's constants sourced first, and the Apple channels are owner-gated behind
-// OWNER_QUEUE A-4 — so failing CI on it would red the build over work only a
+// the unissued Apple distribution certificate (OWNER_QUEUE A-4 itself closed 2026-08-31) — so failing CI on it would red the build over work only a
 // person with an Apple account can finish, which is the shape this repository
 // switches off. The gap PRINTS on every run instead, and the moment a manifest
 // appears the checks above become hard.
@@ -163,7 +163,7 @@ for (const app of apps) {
         `${manifestRel} does not exist. Apple requires a privacy manifest for an app that uses a ` +
           'required-reason API or collects data; ITMS-91053 names the missing-reason case. Printed and not ' +
           'failed: writing one needs Apple\'s constant strings sourced first, and the Apple channels are ' +
-          'owner-gated (OWNER_QUEUE A-4). The moment this file appears, the two checks below become hard.',
+          'not built yet (OWNER_QUEUE A-4 closed 2026-08-31; the account is active). The moment this file appears, the two checks below become hard.',
       );
       continue;
     }
@@ -203,7 +203,7 @@ if (checked === 0) {
 }
 
 if (prints.length) {
-  console.log('   ── printed, not failed (owner-gated behind OWNER_QUEUE A-4) ──');
+  console.log('   ── printed, not failed (no Apple manifest is built yet; A-4 closed 2026-08-31) ──');
   for (const p of prints) console.log(`   ⬜ ${p}`);
 }
 if (problems.length) {

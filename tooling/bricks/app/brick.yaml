@@ -30,13 +30,18 @@ vars:
       client-only and talks to the ONE shared platform Worker for config,
       analytics, entitlements and account deletion — it stamps no Worker, no D1
       and no R2 bucket of its own. Say yes ONLY when the app genuinely needs a
-      private database, and remember the ceilings: D1 Free allows 10 databases
-      per account TOTAL, one of which is platform_db — but the one that BINDS
-      FIRST is the 5 GB account-wide storage cap, which across 50 apps is ~100 MB
-      each, tighter than the 500 MB per-database limit anyone would think to
-      check. (All three re-read from developers.cloudflare.com/d1/platform/limits
-      on 2026-07-29 and unchanged: 10 free / 50,000 paid databases, 500 MB free /
-      10 GB paid per database, 5 GB free / 1 TB paid per account.)
+      private database. ⏱ THE CEILING ARGUMENT THAT STOOD HERE UNTIL 2026-09-08
+      IS DEAD, AND IT IS RECORDED RATHER THAN QUIETLY DROPPED: it read "D1 Free
+      allows 10 databases per account TOTAL … the 5 GB account-wide storage cap
+      … binds first", re-read from the vendor on 2026-07-29. tooling/ceilings.json
+      records the account on Workers Paid since 2026-09-03 — 50,000 databases,
+      10 GB each — so nothing about a per-app database is scarce any more, and
+      the included D1 allowance is per ACCOUNT, so splitting buys no headroom and
+      changes no bill. THE DEFAULT IS STILL NO, for the three reasons that
+      outlived the ceiling: BLAST RADIUS (one bad migration in a shared database
+      is a portfolio outage), MIGRATION COST (`wrangler d1 migrations apply`
+      takes ONE database, and N of them is a loop with no cross-database
+      transactionality) and YAGNI. Full correction: tooling/ci/assert-clone-contract.mjs.
     prompt: Does this app store user rows server-side? (per-app D1 — say no unless sure)
     default: false
   display_name:

@@ -22,3 +22,22 @@
 *.webp binary
 *.mp3 binary
 
+
+# ── ADDED 2026-09-08, S1 phase 1 ────────────────────────────────────────────
+# `* text=auto eol=lf` above already gives every text file LF, by a HEURISTIC.
+# These six lines say the same thing for the four extensions an agent writes
+# most, EXPLICITLY, so the rule survives a future narrowing of the wildcard and
+# so the same six lines read identically in all three repositories. Private had
+# no rule at all for them until today and its working tree disagreed with its
+# index on every .md and .json in it.
+*.md    text eol=lf
+*.json  text eol=lf
+*.jsonl text eol=lf
+*.mjs   text eol=lf
+# .ps1 and .bat go the OTHER way, and this one is a real change rather than a
+# restatement: `text=auto eol=lf` was handing tooling/windows-setup.ps1 LF
+# endings. It is read by a Windows shell, is never copied to the Linux box, and
+# CRLF is its native form. The index keeps LF either way, so nothing in history
+# moves; only the checkout changes.
+*.ps1   text eol=crlf
+*.bat   text eol=crlf

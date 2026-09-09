@@ -55,7 +55,7 @@
 // the owner can do blocks every merge in the repository" (apple-signing.mjs:88).
 // Every one of the four rows above is owner-gated on money or an enrolment: a
 // code-signing certificate that must be BOUGHT from a CA in the Microsoft Trusted
-// Root Program and renewed yearly; an Apple Developer account (OWNER_QUEUE A-4);
+// Root Program and renewed yearly; an Apple distribution certificate (the account is active, OWNER_QUEUE A-4 closed 2026-08-31);
 // an Ed25519 keypair whose custody and restore drill only the owner can perform.
 // No agent can close any of them, so no agent can unblock a build that fails on
 // them.
@@ -192,7 +192,7 @@ export function armingOfTool(row, { toolId = null, identityField = 'listingId', 
     reasons.push(`tool "${tool}" declares its own \`${identityField}\` for this store, so the destination is this tool's listing and not another's`);
   } else {
     blockers.push(
-      `tool "${tool}" declares no \`${identityField}\` for this store — the listing id is issued by the store at the FIRST MANUAL publish (ADR 067 decision 8) and is not derivable, so there is no destination to address`,
+      `tool "${tool}" declares no \`${identityField}\` for this store — the listing id is issued by the STORE and never by this factory, is not derivable, and is read off that store's own dashboard into the tool manifest — so there is no destination to address`,
     );
   }
 
@@ -225,7 +225,7 @@ export function releaseGapVerdict(rows) {
  * signals the caller already derived (a tag push, a declared submission
  * workflow) — quoted back so the printed block says WHY it was consulted.
  */
-export function unarmedGapLines({ armings = [], secretNames = [], laneReasons = [], ownerItem = null } = {}) {
+export function unarmedGapLines({ armings = [], secretNames = [], laneReasons = [], ownerItem = null, ownerGated = true } = {}) {
   const lines = [];
   lines.push('🔴 RELEASE LANE, NO SIGNING SECRETS — PRINTED IN FULL AND NOT FAILED, BECAUSE NOTHING THIS');
   lines.push('   SEAM SERVES CAN REACH A USER. Read the derivation before reading this as an excuse:');
@@ -238,9 +238,23 @@ export function unarmedGapLines({ armings = [], secretNames = [], laneReasons = 
     lines.push(`   · absent secrets: ${secretNames.join(', ')}`);
   }
   if (ownerItem !== null) {
-    lines.push(`   🔴 THE BLOCKER IS OWNER-GATED: ${ownerItem}`);
-    lines.push('      No agent can create these secrets, so failing here would block every release of every');
-    lines.push('      OTHER channel on work only the owner can do. [pipeline C-6] says PRINT, not fail.');
+    // `ownerGated` defaults TRUE, so every existing caller prints byte for byte
+    // what it printed before. The Apple caller passes FALSE, and the reason is a
+    // measurement rather than a preference: on 2026-09-08 an authenticated App
+    // Store Connect call answered HTTP 200 with an ACCOUNT_HOLDER record, so the
+    // enrolment that limb used to name as the blocker is ACTIVE. The blocker is a
+    // certificate nobody has issued into it, and the ASC API issues those. A
+    // printed line that says OWNER-GATED over work an agent can do is how a
+    // closable gap stays open for a month.
+    lines.push(`   🔴 THE BLOCKER IS ${ownerGated ? 'OWNER-GATED' : 'CODE-GATED'}: ${ownerItem}`);
+    if (ownerGated) {
+      lines.push('      No agent can create these secrets, so failing here would block every release of every');
+      lines.push('      OTHER channel on work only the owner can do. [pipeline C-6] says PRINT, not fail.');
+    } else {
+      lines.push('      An agent CAN close this one, so it is not deferred to anybody. It is not closed TODAY,');
+      lines.push('      and failing here would block every release of every OTHER channel until it is.');
+      lines.push('      [pipeline C-6] says PRINT, not fail; this print is the tripwire, and it is now a to-do.');
+    }
   }
   lines.push('   ⚠️ THIS IS A TRIPWIRE, NOT A WAIVER. The same tag with the same missing secrets FAILS the');
   lines.push(`      moment ${REGISTER} arms any row above — \`served: true\`, or \`submittable: true\` with a`);

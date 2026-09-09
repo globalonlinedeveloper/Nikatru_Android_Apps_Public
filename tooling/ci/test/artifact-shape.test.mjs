@@ -249,7 +249,11 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     // disclaimer from the new one — exactly the weak proxy this repo keeps
     // deleting. What is owner-gated is the FORMAT, and that is what is asserted.
     assert.match(out, /GAP — iOS — THE \.ipa/);
-    assert.match(out, /OWNER_QUEUE A-4/);
+    // RE-PINNED 2026-09-08. /OWNER_QUEUE A-4/ alone still matched the corrected
+    // sentence, so it was a pin that could not tell the correction from the
+    // defect. What the gap now claims is the thing worth pinning: CODE-gated.
+    assert.match(out, /this gap is CODE-gated, not owner-gated/);
+    assert.doesNotMatch(out, /So this gap is owner-gated, not code-gated/, 'the inversion was the finding');
     assert.doesNotMatch(out, /STILL ASSERTS NOTHING ABOUT IT/, 'the old disclaimer must be gone, not merely outvoted');
     assert.match(out, /no channel in tooling\/channel-register\.json names lane job "apple"/);
   });

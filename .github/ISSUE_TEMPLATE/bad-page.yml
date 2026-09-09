@@ -1,4 +1,4 @@
-name: "🧩 Report a bad page"
+name: "🧩 Report a bad page (browser extensions)"
 description: A page that didn't capture correctly — cut off, blank, duplicated, endless…
 title: "[bad page] "
 labels: ["bad-page", "needs-triage"]

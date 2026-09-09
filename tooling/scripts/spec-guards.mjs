@@ -150,6 +150,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* 🔴 git EXPORTS `GIT_DIR` into every hook process and it BEATS `-C`, so the one
+   `git` read this runner makes goes through the helper that deletes the six
+   redirecting variables from the child environment. See repo-git.mjs. */
+import { repoGit, RepoGitError } from './repo-git.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');          // tooling/scripts -> repo root
@@ -208,6 +212,104 @@ if (!WORKSPACE_ROOT) {
 const BRAIN = join(WORKSPACE_ROOT, 'nikatru');       // the shared business brain
 const PRODUCTS_ROOT = join(WORKSPACE_ROOT, 'Projects'); // the products root
 
+/* 🔴 A LINKED WORKTREE HAS NO CREDENTIAL VAULT, AND THAT MADE EVERY WORKTREE COMMIT AN
+   `--no-verify` COMMIT (2026-09-08). This runner does not read `CLAUDE.md` or
+   `.claude/scripts/backup-offsite.ps1` itself, and that is exactly why the failure was
+   hard to see: `assert-spec` derives the public repo from the corpus it lives in, walks
+   it, and requires FOUR top-level anchors — `pubspec.yaml`, `CLAUDE.md`, `mason.yaml`,
+   `pnpm-workspace.yaml` — before it will resolve the eight `invariants.json` and
+   `gates.json` ENFORCEMENT rows that name `.claude/scripts/…`. `.claude/` is gitignored
+   IN FULL and is the local credential vault, and `CLAUDE.md` is gitignored too, so
+   NEITHER exists in a worktree: only tracked files are checked out there.
+
+   MEASURED 2026-09-07 and recorded in Private research/full-read-2026-09-08/
+   S2-structure-apply-2026-09-08.md sections 9 and 12: three agents committed with
+   `--no-verify` on that date, and a fourth abandoned a finished, staged, guard-green
+   branch in a worktree and re-applied it as a patch in the main checkout. A guard that
+   cannot run inside a worktree teaches people to bypass it, and `--no-verify` is a
+   root-`AGENTS.md` prohibition. So the fix is to RESOLVE, never to skip.
+
+   HOW, AND WHAT IS DELIBERATELY NOT DONE. `git rev-parse --git-common-dir` answers
+   `.git` in a main checkout and `<main checkout>/.git` in a linked worktree, so the
+   PARENT of the common dir IS the main worktree — asked of git rather than derived from
+   the directory name, because a worktree may be called anything and may live anywhere.
+   When this tree lacks an anchor and git names a DIFFERENT main checkout, the main
+   checkout becomes the root everything outside this repo is addressed from: the private
+   sibling is named from IT, so `assert-spec` resolves the pair `<main>_Private` ↔
+   `<main>_Public` and walks the main checkout, where the vault and `CLAUDE.md` really
+   are. Nothing is copied. Copying a credential vault into a second directory to satisfy
+   a guard is not a trade this repo makes, and a guard reading a COPIED vault would be
+   asserting about the copy.
+
+   AND IT WEAKENS NOTHING. No floor moves, no enforcement row is dropped, no exit code
+   becomes friendlier, and no limb learns to skip: if the MAIN checkout is also missing
+   the file, the anchors are still absent, `assert-spec` still refuses, and this runner
+   still exits 2. The only change is which directory the question is asked about — from
+   one that structurally cannot answer it to the one that can. In a main checkout
+   `--git-common-dir` resolves to this very repo and every line below behaves exactly as
+   it did before. */
+const HOST_ANCHORS = ['CLAUDE.md', '.claude/scripts/backup-offsite.ps1'];
+const absentHostAnchors = (root) => HOST_ANCHORS.filter((rel) => !existsSync(join(root, ...rel.split('/'))));
+
+/* Two spellings of one directory must compare equal: git answers with forward slashes
+   and whichever drive-letter case it found, `path.resolve` does not. Same normalisation
+   the git helper applies for the same reason. */
+const sameRoot = (a, b) => {
+  const norm = (p) => {
+    const s = resolve(String(p)).replace(/\\/g, '/').replace(/\/+$/, '');
+    return process.platform === 'win32' ? s.toLowerCase() : s;
+  };
+  return norm(a) === norm(b);
+};
+
+/** The MAIN worktree of the repository checked out at `root`, or `{ main: null, why }`
+ *  when there is no answer to be had. Read through `repo-git.mjs`, never with a bare
+ *  `spawnSync('git', …)`: this file runs INSIDE a pre-commit hook, git exports `GIT_DIR`
+ *  into every hook process, and `GIT_DIR` beats `-C`. Asking the wrong repository which
+ *  checkout is its main one is precisely the class of answer this runner must not
+ *  produce confidently. A refusal here is not fatal — it leaves `HOST_ROOT` as this
+ *  tree, which is what every run before 2026-09-08 used. */
+function mainWorktreeOf(root) {
+  let out;
+  try {
+    out = repoGit(root, 'rev-parse', '--git-common-dir').trim();
+  } catch (e) {
+    if (e instanceof RepoGitError) return { main: null, why: `${e.message}` };
+    throw e;
+  }
+  if (!out) return { main: null, why: '`git rev-parse --git-common-dir` printed nothing' };
+  const common = resolve(root, out);
+  if (basename(common) !== '.git') {
+    return { main: null, why: `the common dir is ${common}, whose basename is not \`.git\`, so its parent is not a work tree` };
+  }
+  return { main: dirname(common), why: null };
+}
+
+const ABSENT_HERE = absentHostAnchors(REPO);
+let HOST_ROOT = REPO;
+let WORKTREE = null;
+let WORKTREE_REFUSED = null;
+if (ABSENT_HERE.length) {
+  const { main, why } = mainWorktreeOf(REPO);
+  if (main && !sameRoot(main, REPO)) {
+    HOST_ROOT = main;
+    WORKTREE = { main, absentHere: ABSENT_HERE, absentThere: absentHostAnchors(main) };
+  } else if (!main) {
+    WORKTREE_REFUSED = why;
+  }
+}
+if (WORKTREE) {
+  console.log(`  worktree mode — this tree is missing ${WORKTREE.absentHere.join(' , ')}, which the ENFORCEMENT rows need.`);
+  console.log(`    this tree     : ${REPO}`);
+  console.log(`    main checkout : ${WORKTREE.main}   (parent of \`git rev-parse --git-common-dir\`)`);
+  console.log(WORKTREE.absentThere.length
+    ? `    ⚠️ the main checkout is missing them too: ${WORKTREE.absentThere.join(' , ')}. Nothing is skipped for that — the guards below still refuse.`
+    : '    Resolved there, and nothing is copied: the gitignored vault stays in the one checkout that has it.');
+} else if (WORKTREE_REFUSED && ABSENT_HERE.length) {
+  console.log(`  note — ${ABSENT_HERE.join(' , ')} absent here and the main checkout could not be asked for: ${WORKTREE_REFUSED}`);
+  console.log('    Continuing against this tree, which is what every run before 2026-09-08 did.');
+}
+
 /* The guards live in two trees and this script may be invoked from EITHER — the
    public repo's hook, or Private/'s own hook, whose repo root is a
    different directory entirely. So each guard is resolved by trying both
@@ -224,9 +326,10 @@ const PRODUCTS_ROOT = join(WORKSPACE_ROOT, 'Projects'); // the products root
    candidate list is not a museum. What replaces them is anchor-derived and cannot drift. */
 const CANDIDATE_ROOTS = [
   REPO,                                  // invoked from the public repo
+  HOST_ROOT,                             // 🔴 2026-09-08: the MAIN checkout when this tree is a worktree; === REPO otherwise, and deduplicated below
   PRODUCTS_ROOT,                         // anchor-derived: the products root
   WORKSPACE_ROOT,                        // anchor-derived: products root + brain, side by side
-];
+].filter((root, i, all) => all.findIndex((other) => sameRoot(other, root)) === i);
 
 /* WHERE THE PRIVATE CORPUS ITSELF LIVES — its own list, ordered newest-first, because
    after 2026-08-18 the corpus is no longer a `Private/` child of anything. It is a
@@ -250,15 +353,25 @@ const CANDIDATE_ROOTS = [
    in CANDIDATE_ROOTS above. What is KEPT is repo-RELATIVE and therefore depth-immune:
    `REPO/Private` (the pre-move nested corpus) and REPO itself (the corpus's own hook,
    where the corpus IS the repo root). Neither one counts a level outside this repo. */
-const REPO_NAME = basename(REPO);
+/* 🔴 2026-09-08 — NAMED FROM `HOST_ROOT`, NOT FROM `REPO`. In a main checkout the two
+   are one directory and nothing changes. In a linked worktree they differ, and the
+   worktree's own name is the wrong input: `Projects/structure_Public` composes
+   `Projects/structure_Private`, a corpus that has never existed, and the run then
+   refused with CANNOT RUN on a machine where the real corpus was sitting one
+   directory over. Measured 2026-09-07; S2 section 9 records the whole afternoon it
+   cost, including the throwaway private worktree that was created to satisfy this
+   very line and then broke a relative link two levels down. The main checkout's name
+   is the stable half of the pair, so it is the half the sibling is derived from. */
+const REPO_NAME = basename(HOST_ROOT);
 const PRIVATE_SIBLING_NAME = REPO_NAME.endsWith('_Public')
   ? `${REPO_NAME.slice(0, -'_Public'.length)}_Private`
   : `${REPO_NAME}_Private`;
 const PRIVATE_ROOT_CANDIDATES = [
-  join(dirname(REPO), PRIVATE_SIBLING_NAME),  // 🔴 the sibling, addressed by name at whatever depth the repo sits
-  join(REPO, 'Private'),                  // pre-move: the corpus nested inside this repo
+  join(dirname(HOST_ROOT), PRIVATE_SIBLING_NAME),  // 🔴 the sibling, addressed by name at whatever depth the repo sits
+  join(HOST_ROOT, 'Private'),             // pre-move: the corpus nested inside this repo
+  join(REPO, 'Private'),                  // the same, from a worktree of it
   REPO,                                   // invoked from the corpus's OWN hook, where it IS the repo root
-];
+].filter((root, i, all) => all.findIndex((other) => sameRoot(other, root)) === i);
 
 /* 🔴 THE MARKER IS LOAD-BEARING, NOT A BELT-AND-BRACES EXISTENCE CHECK, AND THIS WAS
    MEASURED ON 2026-08-18 RATHER THAN REASONED ABOUT. On that date the sibling
@@ -320,8 +433,8 @@ function locate(...relCandidates) {
    against an `origin` field there; the recovery command lives HERE rather than in
    each of them, so that sixty-odd citations do not carry sixty copies of it.
 
-   Where each property went (full reasoning: Private/notes/RETIREMENT-PLAN.md, and
-   the four are readable in Private/requirements/tooling/retired/ — `company/tooling/` until the flatten):
+   Where each property went (full reasoning: Private/pre-minimal-2026-09-08:notes/RETIREMENT-PLAN.md, and
+   the four are readable in Private/pre-minimal-2026-09-08:requirements/tooling/retired/ — `company/tooling/` until the flatten):
      assert-status-honest   → assert-spec limbs 4 + 6. The markdown format kept a
                               status in three places that could disagree; the JSON
                               format has no status on an invariant at all, and limb
@@ -337,14 +450,23 @@ function locate(...relCandidates) {
                               slow guard.
 
    `check-dod-sync` never read the pipeline (its subjects are tooling/dod-register.json,
-   MASTER_PLAN.md and requirements/definition-of-done.md) and is deliberately
+   requirements/dod-master-items.md — MASTER_PLAN.md §4, moved verbatim on 2026-09-08 — and
+   requirements/definition-of-done.md) and is deliberately
    untouched — it is the control that proves the deletion broke nothing it did not
    model. If it ever goes red for this reason, the deletion touched something the
    plan did not model. */
+/* 🔴 2026-09-08 — THREE ROWS REMOVED, AND EACH ONE WENT WITH ITS OWN SUBJECT.
+   `assert-session-index`, `assert-research-archive` and `assert-plans-archive` are retiring in
+   the private corpus’s minimal-corpus pass: `notes/session-notes-index.json`, `research/` and
+   `plans/` are all being deleted, and a guard whose only subject is gone passes VACUOUSLY, which
+   is the one result this runner exists to refuse. The private guards stay green in the corpus’s
+   own sweep until the commit that deletes their subject retires them in the same commit.
+   The plan and its measurements: `Private/pre-minimal-2026-09-08:research/full-read-2026-09-08/P2-minimal-corpus-2026-09-08.md`.
+   The runner’s fast set drops from 10 to 7. No surviving guard lost a limb and no floor moved. */
 const GUARDS = [
   { name: 'check-dod-sync', speed: 'fast', needsPrivate: true,
     rel: ['tooling/scripts/check-dod-sync.mjs'],
-    what: 'the DoD page, the register and MASTER_PLAN §4 agree' },
+    what: 'the DoD page, the register and requirements/dod-master-items.md §4 agree' },
   { name: 'assert-spec', speed: 'fast', needsPrivate: true,
     rel: ['requirements/tooling/assert-spec.mjs', 'Private/requirements/tooling/assert-spec.mjs', 'Private/spec/tooling/assert-spec.mjs', 'tooling/assert-spec.mjs'],  // fallback chain — `locate` takes the FIRST that exists, so only one candidate need resolve. 🔴 2026-08-18: the LEADING entry is now corpus-RELATIVE, which is what survives the move — `locate` joins it onto PRIVATE_ROOT, so it resolves to `Private/requirements/…` before the move and `..._Private/requirements/…` after it, with no second edit on the day. The `Private/…` spelling is demoted to a fallback rather than deleted because it is still how the path resolves from the OTHER candidate roots. The `spec/` entry names the pre-flatten layout (retired 2026-08-16, when spec/ dissolved into requirements/) and is kept on purpose. Same shape as the four entries below it.
     what: 'the JSON spec is schema-valid, id-unique, origin-locked, and every enforcer it names exists' },
@@ -364,9 +486,6 @@ const GUARDS = [
      files, and carried a link to `../../company/MASTER_PLAN.md` for a day after
      that path stopped existing. So the directory gets its own register and its
      own guard, at its own depth. Same doctrine, one level down. */
-  { name: 'assert-research-archive', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-research-archive.mjs', 'Private/requirements/tooling/assert-research-archive.mjs', 'Private/spec/tooling/assert-research-archive.mjs', 'tooling/assert-research-archive.mjs'],  // same fallback chain, corpus-relative leading entry added 2026-08-18 (retired 2026-08-16 layout in the third slot) — see the assert-spec entry above
-    what: 'research/index.json, the files on disk and research/README.md are in bijection, and no successor pointer dangles' },
   /* ADDED 2026-08-31 with the plans/ streamline. The SECOND directory to get its
      own register at its own depth, and the reasoning is `assert-research-archive`'s
      verbatim: `assert-index-complete` guards the `### dir/ — N files` heading for
@@ -385,9 +504,6 @@ const GUARDS = [
      flat, so its readdir is RECURSIVE and a floor (`nested`, 25) fails the run if
      the walk ever stops descending. A non-recursive walk here would check 16 of 46
      files and print ok. */
-  { name: 'assert-plans-archive', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-plans-archive.mjs'],  // ONE candidate, corpus-relative: this guard never existed under the pre-2026-08-18 layouts, so it has no legacy spellings to fall back to and adding dead ones would be citing paths that do not resolve — same reasoning as the assert-requirements-index entry below.
-    what: 'plans/index.json, the files on disk (recursively) and plans/README.md are in bijection, and no successor or execution pointer dangles' },
   /* ADDED 2026-08-16 with the decisions/ streamline. The ADR set had ONE property
      nothing could check and nothing structurally could: whether a cited number is
      a decision at all. Three — 012, 014, 018 — were pre-allocated as headings in
@@ -434,9 +550,6 @@ const GUARDS = [
   { name: 'assert-public-citations', speed: 'fast', needsPrivate: true,
     rel: ['tooling/scripts/assert-public-citations.mjs'],
     what: 'every `Private/` path and every `[pipeline]` requirement id cited in the PUBLIC tree resolves' },
-  { name: 'assert-session-index', speed: 'fast', needsPrivate: true,
-    rel: ['requirements/tooling/assert-session-index.mjs', 'Private/requirements/tooling/assert-session-index.mjs', 'Private/spec/tooling/assert-session-index.mjs', 'tooling/assert-session-index.mjs'],  // same fallback chain, corpus-relative leading entry added 2026-08-18 (retired 2026-08-16 layout in the third slot) — see the assert-spec entry above
-    what: 'every `## ` entry in session-notes.md has an index row, every row resolves, and the titles are byte-identical' },
   /* ADDED 2026-08-27. `Private/requirements/index.json` is a hand-kept second copy
      of the tree here. Measured with `fs` instrumented
      rather than grepped: assert-spec, assert-research-archive and assert-session-index touch
@@ -469,6 +582,84 @@ const GUARDS = [
   { name: 'assert-platform-state', speed: 'fast', needsPrivate: true,
     rel: ['requirements/tooling/assert-platform-state.mjs'],
     what: 'platform-state/ validates against its schemas and carries no bare number — every fact names the command that re-derives it' },
+  /* ADDED 2026-09-09. BOTH OF THESE LANDED ON 2026-09-08 AND NOTHING INVOKED THEM.
+     They ran in the manual sweep (`.claude/skills/run-guards/`) and in no hook and no
+     CI job, which is the `assert-platform-state` failure one entry above, repeated
+     within a day of being written down there. A guard nothing runs is a guard nobody
+     runs, and the defect that prompted the link guard had survived three commits.
+
+     🔴 CI IS NOT THE ALTERNATIVE HERE, and that is not a preference. Both subjects are
+     under `Private/`, which no CI job can read — the reason this whole runner exists
+     (see the header). Wiring them "into CI instead" would produce a job that answers
+     NOT APPLICABLE forever, i.e. a check that always passes. The hook is the only
+     enforcement surface these two have, so the cost below is the price of enforcing
+     them at all, not a choice between two places to put them.
+
+     ⏱ MEASURED 2026-09-09 on this machine, three samples each, warm:
+       assert-links       3641 / 3745 / 3652 ms
+       check-agent-docs    585 /  590 /  650 ms
+       the fast set before  7044 ms in-runner (7.3-8.6 s wall)
+     So the hook goes from ~7.0 s to ~11.3 s in-runner: +4.3 s, and `assert-links` is
+     four fifths of it. That is deliberately RECORDED rather than absorbed: it is the
+     second-slowest entry in the set after `assert-public-citations` (4.5 s), and if
+     the set is ever split into a hook tier and a pre-push tier, these numbers are
+     where that split should be argued from.
+
+     `args: ['--index']` is NOT a loosening. Both guards implement the honesty gate
+     from the 2026-09-08 index-blind-spot audit: their subject is the git INDEX, so a
+     run over an unstaged edit exits 2 (COVERAGE LOST) rather than printing a green
+     about content nobody staged. In a pre-commit hook, judging the staged index IS
+     the question being asked — "is what I am about to commit clean?" — so `--index`
+     is the mode that MATCHES the caller. Anywhere else the gate stays armed. Proved
+     mid-pass on the live tree: over three unstaged edits `assert-links` exited 2 and
+     named all three files.
+
+     Both entries anchor their own ROOT from `import.meta.url`, not from cwd, so they
+     check the corpus from a public-repo commit and a private-repo commit alike — one
+     `rel` candidate each, corpus-relative, for the same reason as the two entries
+     above: neither guard existed under any pre-2026-08-18 layout, so a legacy
+     spelling would be a path that does not resolve. */
+  { name: 'assert-links', speed: 'fast', needsPrivate: true,
+    rel: ['requirements/tooling/assert-links.mjs'],
+    args: ['--index'],
+    what: 'every private→private link resolves in the index, and every pin names a checkout that is here' },
+  { name: 'check-agent-docs', speed: 'fast', needsPrivate: true,
+    rel: ['requirements/tooling/check-agent-docs.mjs'],
+    args: ['--index'],
+    what: 'the corpus’s agent-facing docs stay under their byte and line caps' },
+  /* ADDED 2026-09-09. THE FIRST ENTRY IN THIS ARRAY WHOSE SUBJECT IS PUBLIC, and
+     `needsPrivate: false` is that fact declared rather than assumed: every other
+     row here guards a file under the corpus, which is why the hook is their only
+     enforcement surface. This one's subject is `apps/<app>/name-clearance.json`,
+     `apps/<app>/app.yaml` and `tooling/channel-register.json` — all tracked, all
+     present in a fresh clone and in every agent worktree — so it runs in CI TOO
+     (`ci.yml#guards-store`) and is registered there. It is in this runner as
+     well, and the reason is the cost of finding out late: a rename is ONE field
+     and a re-render today (`tooling/app-yaml/render.mjs` line 252 is
+     `'title.txt': doc.name`), and after listings exist it is store records,
+     install bases, backlinks and a reservation clock, none of which come back.
+     The check that costs 0.3 s at commit time is the same check that costs a
+     product name at submission time.
+
+     🔴 THE NETWORK PROBE IS NOT HERE AND MUST NEVER BE. `tooling/store/name-clearance.mjs`
+     measured 15,365 / 13,726 ms on this machine over ~20 external calls; this
+     guard measured 297 / 285 / 269 ms and dials out zero times. A blocking hook
+     with fourteen seconds of network in it gets bypassed inside a week, and a
+     guard that is skipped is worth less than no guard because it also carries the
+     belief that something was checked. The probe is a routine; the record it
+     writes is what this reads. One `rel` candidate, repo-relative: this guard has
+     never existed under any earlier layout, so a legacy spelling would be a path
+     that does not resolve — the same reasoning as the three entries above.
+
+     ⚠️ NOTE ON AGE. It carries `assert-platform-state`'s staleness mechanism
+     verbatim — `{value, asOf, verify, verifyKind}` with a 30-day ceiling — and
+     therefore its rule about WHERE age speaks: a WARNING here, a FINDING under
+     `--execute`. Every clearance record shares a birthday, and a hook that
+     refuses every commit on the day the window closes is a hook this corpus has
+     recorded itself skipping. It is deliberately invoked here WITHOUT `--execute`. */
+  { name: 'assert-name-clearance', speed: 'fast', needsPrivate: false,
+    rel: ['tooling/ci/assert-name-clearance.mjs'],
+    what: 'every declared app name carries a current, non-blocked clearance record' },
 ];
 
 const selected = GUARDS.filter((g) => FULL || g.speed === 'fast');
@@ -498,6 +689,7 @@ if (!PRIVATE_ROOT) {
   // it "not found" is one message covering two unrelated causes.
   console.error(`  Workspace anchor: ${WORKSPACE_ROOT}   (brain: ${BRAIN} , products: ${PRODUCTS_ROOT})`);
   console.error(`  This repo: ${REPO_NAME}   ->   expected private sibling: ${PRIVATE_SIBLING_NAME}`);
+  if (WORKTREE) console.error(`  This tree is a linked worktree of ${WORKTREE.main}, and the sibling above is named from THAT checkout.`);
   console.error('  These guard(s) were therefore not run:');
   for (const g of selected) console.error(`    --   ${g.name.padEnd(24)} ${g.what}`);
   console.error('  A runner that cannot find its subject has checked nothing, and nothing is not a pass.');
@@ -540,6 +732,22 @@ if (inapplicable.length) {
   for (const g of inapplicable) console.log(`    --   ${g.name}`);
 }
 
+/* 🔴 THE CHILDREN ARE TOLD WHICH CORPUS WAS ELECTED (2026-09-08), and only when this
+   tree is a worktree. `assert-public-citations.mjs` and `assert-spec.mjs` each resolve
+   the logical `Private/` prefix for themselves, by the same convention this file uses —
+   which lands on the same directory from a main checkout and on nothing at all from a
+   worktree, because the sibling of `<worktree>` is not the corpus. `NIKATRU_PRIVATE_ROOT`
+   is their documented override and it is set to the root THIS runner already elected by
+   the non-empty + `requirements/` probes, so the runner and its guards cannot disagree
+   about what they are checking. An override the caller set by hand is never overwritten.
+   It is not a loosening: `assert-spec` still refuses if the corpus it is handed is not
+   the corpus it lives in, which is the round-trip its own header describes. */
+const CHILD_ENV = { ...process.env };
+if (WORKTREE && !process.env.NIKATRU_PRIVATE_ROOT) {
+  CHILD_ENV.NIKATRU_PRIVATE_ROOT = PRIVATE_ROOT;
+  console.log(`    NIKATRU_PRIVATE_ROOT=${PRIVATE_ROOT} passed to every guard below.`);
+}
+
 const t0 = Date.now();
 const results = [];
 for (const g of resolved) {
@@ -547,7 +755,7 @@ for (const g of resolved) {
   // spawnSync, never a shell pipeline: `$?` after a pipe is the LAST stage's
   // status, which is how a failing guard reads as 0. This corpus has been bitten
   // by that twice, once while testing a guard against exactly that trap.
-  const r = spawnSync(process.execPath, [g.path], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [g.path, ...(g.args ?? [])], { encoding: 'utf8', env: CHILD_ENV });
   const code = r.status === null ? 2 : r.status;
   results.push({ ...g, code, ms: Date.now() - started, out: (r.stdout ?? '') + (r.stderr ?? '') });
 }

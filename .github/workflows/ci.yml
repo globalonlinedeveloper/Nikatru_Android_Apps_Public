@@ -189,6 +189,24 @@ jobs:
         run: node tooling/ci/assert-provider-graph-acyclic.mjs
       - name: Selection records resolve (N-9)
         run: node tooling/scripts/check-selection-record.mjs
+      # ⏱ WIRED 2026-09-08, the day after it landed. check-agent-docs.mjs arrived
+      # in 9b4cd308 with no workflow, no hook, no enforcement-index row and no
+      # test, and all five of its limbs are warnings until promoteOn 2026-09-22 —
+      # so without this step that date would have arrived on a guard that had
+      # never executed in CI, and the first thing it ever did in a build would be
+      # to fail one. It exits 0 on a warn-limb finding by design and 2 on
+      # COVERAGE LOST, so a step that goes red here is a real finding or a real
+      # refusal, never a warning. It reads the git INDEX, which is why this job's
+      # checkout uses fetch-depth: 0.
+      - name: The instruction docs stay inside their caps (warn until 2026-09-22)
+        run: node tooling/scripts/check-agent-docs.mjs
+      # START-HERE.md is GENERATED and has TWO guards, because they catch
+      # different things. This one fails on a HAND EDIT: the card is the first
+      # thing a cold session reads, and a card somebody typed into can say
+      # anything. check-agent-docs limb A-SIZE is the other, and it fails on a
+      # card that grew legitimately, through the generator, past 4 KiB.
+      - name: START-HERE.md is what the tree generates
+        run: node tooling/scripts/gen-start-here.mjs --check
 
   guards-legal:
     name: Guards — privacy, legal and money
@@ -275,6 +293,11 @@ jobs:
         run: node tooling/ci/assert-store-metadata.mjs
       - name: The app declaration is valid and everything rendered from it is fresh
         run: node tooling/ci/assert-app-yaml.mjs
+      # why: OFFLINE. It reads apps/<app>/name-clearance.json and never dials out —
+      # the networked probe that WRITES that record takes ~14 s and is a routine, not
+      # a gate. docs/name-clearance.md carries the measurement and the split.
+      - name: Every declared app name carries a current, non-blocked clearance record
+        run: node tooling/ci/assert-name-clearance.mjs
       - name: Every Linux store channel can produce a complete snapcraft recipe
         run: node tooling/ci/assert-snapcraft-generable.mjs
       - name: The Play listing graphics exist, are the sourced size, and say where they came from

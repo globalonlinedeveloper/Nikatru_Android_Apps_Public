@@ -1,6 +1,11 @@
 # Store listing — {{{short_name}}} · `ios-appstore`
 
-**iOS App Store — a SEPARATE App Store Connect record with its own review outcome (OWNER_QUEUE A-4).**
+**iOS App Store — a SEPARATE App Store Connect record with its own review outcome.**
+
+The Apple Developer account is ACTIVE (enrolled 2026-08-31; OWNER_QUEUE A-4 closed with
+it, and App Store Connect answered HTTP 200 on 2026-09-08). What this channel still
+lacks is a distribution certificate - none has been issued into the account - and a
+packaging step, both of which an agent can close through the ASC API.
 
 ## This tree was GENERATED, not typed
 

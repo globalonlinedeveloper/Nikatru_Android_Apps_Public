@@ -10,15 +10,25 @@ body:
         [Report a bad page](?template=bad-page.yml)** — that form asks for the URL
         and the page shape, which is what makes a capture bug fixable.
 
-        Use this one for everything else: the options page, saving and downloads,
-        history, keyboard shortcuts, the editor, an error the extension shows you.
+        Use this one for everything else, in any part of this repository: an
+        extension's options page, saving and downloads, history, keyboard
+        shortcuts, the editor, an error something shows you — and equally a
+        published app or one of the websites built from this tree.
 
+  # ⚠️ THE PARENTHESISED IDS ARE GRADED, NOT DECORATIVE. The `discover` job of
+  # .github/workflows/extensions.yml greps this file for "($id)" for every tool id
+  # it finds on disk, so an extension option's id must match its tool.json exactly
+  # and must keep its brackets. The non-extension options below carry no id
+  # because no tool.json produces one — they are graded by nothing and free to be
+  # worded for a reader.
   - type: dropdown
     id: tool
     attributes:
-      label: Which extension?
+      label: Which part of the project?
       options:
-        - FullShot (fullshot)
+        - FullShot extension (fullshot)
+        - A NIKATRU app
+        - nikatru.com or rajasekarselvam.com
         - Something else / not listed
     validations: { required: true }
 
@@ -54,8 +64,8 @@ body:
   - type: input
     id: env
     attributes:
-      label: Browser + version, OS, extension version
-      placeholder: "Firefox 143 · macOS 15 · FullShot 1.10.1"
+      label: Browser or device + version, OS, and the version of the thing that broke
+      placeholder: "Firefox 143 · macOS 15 · FullShot 1.10.1   (or: Pixel 8 · Android 15 · Subly 1.4.0)"
     validations: { required: true }
 
   - type: textarea
@@ -63,10 +73,10 @@ body:
     attributes:
       label: Any error text
       description: >-
-        The message the extension showed you, and/or the console output from the
-        extension's own pages (right-click the popup → Inspect, or the service
-        worker's console on the extensions page). These extensions send us
-        nothing, so an error you don't paste is an error we never see.
+        The message you were shown, and/or the console output from the thing's own
+        pages (for an extension: right-click the popup → Inspect, or the service
+        worker's console on the extensions page). Nothing here reports errors home
+        by itself, so an error you don't paste is an error we never see.
       render: text
 
   - type: textarea

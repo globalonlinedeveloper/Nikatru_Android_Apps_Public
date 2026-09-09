@@ -20,7 +20,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-09-05",
       "how": "deleted",
-      "wentTo": "Nikatru_Platform_Private/extensions/ — the imported docs set, [ADR 067] decision 1",
+      "wentTo": "Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/ — the imported docs set, [ADR 067] decision 1",
       "measured": "2026-09-06: `gh api repos/globalonlinedeveloper/Nikatru_Extensions_Private` exits non-zero; the name is absent from `gh api user/repos`. No rename redirect.",
       "localPathWas": "Projects/Nikatru_Extensions_Private",
       "snapshot": "Projects/_archived-2026-09-05/Nikatru_Extensions_Private"
@@ -39,7 +39,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-08-19",
       "how": "renamed",
-      "wentTo": "Nikatru_Extensions_Private, which itself died 2026-09-05. Follow it to Nikatru_Platform_Private/extensions/.",
+      "wentTo": "Nikatru_Extensions_Private, which itself died 2026-09-05. Follow it to Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/.",
       "measured": "2026-09-06: absent from `gh api user/repos`.",
       "localPathWas": "Projects/Chrome_Web_Store/Chrome/Extensions/Nikatru_Chrome_Extensions_Private"
     },
@@ -56,7 +56,7 @@
       "owner": "globalonlinedeveloper",
       "died": "2026-08-19",
       "how": "renamed",
-      "wentTo": "Nikatru_Chrome_Extensions_Private, then Nikatru_Extensions_Private, then deleted. Follow it to Nikatru_Platform_Private/extensions/.",
+      "wentTo": "Nikatru_Chrome_Extensions_Private, then Nikatru_Extensions_Private, then deleted. Follow it to Nikatru_Platform_Private/pre-minimal-2026-09-08:extensions/.",
       "measured": "2026-09-06: absent from `gh api user/repos`."
     },
     {
@@ -114,13 +114,45 @@
       ".github/workflows/**/*.yml",
       ".github/workflows/**/*.yaml",
       "tooling/**/*.json",
+      "tooling/**/*.mjs",
       "renovate.json",
       "**/package.json",
       "catalog/**/*.json",
       "extensions/catalog/**/*.json"
     ],
-    "_globsWhy": "Every one of these is READ BY A MACHINE. A dead name in any of them is acted on rather than merely read: a workflow dispatches against it, a register is joined on it, a package manifest resolves it. Prose is out of scope by construction — see excludedPaths."
+    "_globsWhy": "Every one of these is READ BY A MACHINE. A dead name in any of them is acted on rather than merely read: a workflow dispatches against it, a register is joined on it, a package manifest resolves it. Prose is out of scope by construction — see excludedPaths.",
+    "_mjsAddedWhy": "⏱ 2026-09-08 — `tooling/**/*.mjs` was MISSING, and it is the strongest member of the set rather than the weakest. Every other glob names a file a machine READS; a .mjs under tooling/ is a file a machine EXECUTES, so a dead repository name on a live line there is not merely read aloud, it is acted on. Measured the day it was added: the six other globs reached 61 files; with this one the walk reads 291. The hole was real and had a name — `tooling/scripts/install-hooks.mjs:162` holds a dead repository name in an executable array and was invisible to this guard, which is exactly the shape the guard exists for. It is now VISIBLE and declared in `codeMentions` below, which is the difference between an exemption and a blind spot.",
+    "commentStripped": [".yml", ".yaml", ".mjs"],
+    "_commentStrippedWhy": "A comment is not acted on, so it is not this guard's subject — the argument the YAML limb already makes at length, applied to the language the new glob admits. Without it this guard would have gone red on ~28 dated records of the very renames it enforces, INCLUDING ITS OWN HEADER, and a guard that forbids the record of its own defect is a guard people delete. The stripper is `stripSourceComments` from tooling/ci/text-reductions.mjs — the corpus's existing one, reused rather than rivalled — and it is offset- and line-preserving, so every reported line and column still points at the real byte. STRING LITERALS ARE STILL SCANNED, exactly as in YAML: a name is no less live for being quoted."
   },
+
+  "codeMentions": [
+    {
+      "path": "tooling/scripts/install-hooks.mjs",
+      "count": 1,
+      "kind": "evidence-constant",
+      "why": "PRIVATE_WAS keeps the pre-2026-08-18 corpus location as EVIDENCE for the leftover branch's test, and lines 156-159 say nothing is ever installed into it. It is live code, not a comment, and it is the single hit that made adding the .mjs glob worth doing: before 2026-09-08 this guard could not see it at all."
+    },
+    {
+      "path": "tooling/scripts/assert-no-dead-files.mjs",
+      "count": 1,
+      "kind": "message-prose",
+      "why": "a sentence inside a printed explanation naming where the private corpus moved to on 2026-08-18. It is prose that happens to live in a string rather than in a comment; nothing resolves it."
+    },
+    {
+      "path": "tooling/ci/assert-release-lane-generic.mjs",
+      "count": 1,
+      "kind": "message-prose",
+      "why": "a printed WORKSPACE DOES NOT CONTAIN message recording that RENOVATE_REPOSITORIES named the now-deleted extensions repo until 2026-09-06. A dated record of the removal this guard enforces."
+    },
+    {
+      "path": "tooling/sites/chrome.mjs",
+      "count": 1,
+      "kind": "message-prose",
+      "why": "a printed sentence recording that the extensions repo was merged into this one on 2026-09-05 under ADR 067. Same class as the row above."
+    }
+  ],
+  "_codeMentionsWhy": "THE RESIDUE AFTER COMMENTS ARE STRIPPED, DECLARED WITH A COUNT RATHER THAN WAIVED BY PATH. An entry excuses EXACTLY `count` occurrences in that file: MORE is a finding, because a new mention appeared that nobody argued for; FEWER is COVERAGE LOST, because the reason has expired and the row must retire with it. That asymmetry is the whole point — an excludedPaths entry blinds a whole file forever, and blinding tooling/scripts/install-hooks.mjs is precisely how the hole the .mjs glob just closed would have been re-opened under a politer name.",
 
   "excludedPaths": [
     "catalog/store-matrix.json",
@@ -133,8 +165,15 @@
   "_excludedPathsWhy": "DATED RECORDS and fixtures, each excluded for a stated reason, not for convenience. catalog/store-matrix.json carries removedSlot20260906_Chrome_Web_Store and deletionRecord20260819 — dated records OF the deaths this file lists, and the one place the old names must survive verbatim. tooling/ops/register.json carries dated operational history. tooling/ci/test/ holds FIXTURES that deliberately name dead repos to prove guards catch them, this guard's own mutation test included. tooling/bricks/ is template source, not a live register. tooling/dead-repos.json is this file, which names every dead repo by definition and would otherwise be its own first finding.",
 
   "floors": {
-    "files": 8,
+    "files": 240,
     "repos": 11
+  },
+  "_floorsMeasured": {
+    "on": "2026-09-08",
+    "filesScanned": 291,
+    "reposDeclared": 11,
+    "verify": "node tooling/ci/assert-no-dead-repo-names.mjs   — the first line prints `<n> machine-read file(s) scanned against <m> dead repository name(s)`",
+    "why": "`files` was 8 against a measured 61 before `tooling/**/*.mjs` joined the scan set, and 8 against 291 after it — a floor two orders of magnitude under its subject cannot detect a scan that stopped scanning, which is the only thing a floor is for. Re-based to 240, which is ~18% under today's 291: enough headroom for the tooling tree to shrink through ordinary churn, not enough for a glob to silently stop matching. Raised in a commit of its own, AFTER the change that moved the measurement and while the tree it describes is green, because a floor that moves in the same commit as its subject cannot be read as evidence of either. `repos` is deliberately untouched at 11 against 11: `_theRule` says a name is never removed, so that floor has zero margin BY DESIGN and any drop is exit 2."
   },
   "_floorsWhy": "A scan that silently matched nothing must not read as a pass. If the walk finds fewer than `files` files, or the list holds fewer than `repos` names, the guard exits 2 CANNOT RUN rather than 0. Raise these when the tree grows; never lower them to make a run go green."
 }

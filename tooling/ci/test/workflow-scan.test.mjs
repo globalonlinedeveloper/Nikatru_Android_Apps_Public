@@ -28,7 +28,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { parseWorkflow, parseAllWorkflows, joinBlockScalars, shellSegments } from '../workflow-scan.mjs';
+import { parseWorkflow, parseAllWorkflows, joinBlockScalars, shellSegments, workflowEvents } from '../workflow-scan.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 assert.ok(CI_DIR.endsWith(join('tooling', 'ci')), 'the module under test must be the real one');
@@ -299,5 +299,107 @@ jobs:
     const lines = wf.jobs.get('build').logical.map((l) => l.text.trim()).filter(Boolean);
     assert.ok(lines.some((l) => l === '- run: flutter build web --release'), JSON.stringify(lines));
     assert.ok(lines.some((l) => l === '- run: echo after'));
+  });
+
+  /* ⏱ ADDED 2026-09-08 with `workflowEvents`, which moved here out of
+     assert-app-dod.mjs's own parser. It reads the region ABOVE `jobs:` off the
+     parse's `lines`, and the failure it has to be able to make is the one that
+     matters to its caller: an `on:` GitHub honours that this function cannot see
+     reads as "this lane does not run on push", which turns a gated guard into an
+     ungated one in the report. */
+  describe('workflowEvents', () => {
+    test('the BLOCK form yields every event key', () => {
+      const root = fixture({
+        'a.yml': `name: A
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      const ev = workflowEvents(parseWorkflow(root, '.github/workflows/a.yml'));
+      assert.deepEqual([...ev].sort(), ['pull_request', 'push', 'workflow_dispatch']);
+    });
+
+    test('the FLOW form yields every event, and stops at the bracket', () => {
+      const root = fixture({
+        'a.yml': `name: A
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      const ev = workflowEvents(parseWorkflow(root, '.github/workflows/a.yml'));
+      assert.deepEqual([...ev].sort(), ['pull_request', 'push']);
+    });
+
+    test("a nested key is NOT an event — `branches:` under `push:` sits deeper than two spaces", () => {
+      const root = fixture({
+        'a.yml': `name: A
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      const ev = workflowEvents(parseWorkflow(root, '.github/workflows/a.yml'));
+      assert.deepEqual([...ev], ['push'], 'branches/paths are the event\'s OPTIONS; counting them as events would make every paths-filtered workflow claim triggers it does not have');
+    });
+
+    test("the block ENDS at the next top-level key — `jobs:` is not an event", () => {
+      const root = fixture({
+        'a.yml': `name: A
+on:
+  schedule:
+    - cron: '0 3 * * *'
+env:
+  NODE_VERSION: '24'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      const ev = workflowEvents(parseWorkflow(root, '.github/workflows/a.yml'));
+      assert.deepEqual([...ev], ['schedule'], 'the walk must stop at the first unindented line, or every top-level key becomes an event');
+    });
+
+    test('a COMMENTED-OUT event is not an event — comments are blanked before this reads', () => {
+      const root = fixture({
+        'a.yml': `name: A
+on:
+  push:
+  # pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      const ev = workflowEvents(parseWorkflow(root, '.github/workflows/a.yml'));
+      assert.deepEqual([...ev], ['push'], 'a commented trigger does not run; reading it as one is the "reports clean" direction this module exists to stop');
+    });
+
+    test('a workflow with no `on:` yields an EMPTY set, and a missing file does too', () => {
+      const root = fixture({
+        'a.yml': `name: A
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+`,
+      });
+      assert.equal(workflowEvents(parseWorkflow(root, '.github/workflows/a.yml')).size, 0);
+      /* null in, empty out — the caller's `.has('push')` must not throw on a
+         workflow that is not there, because the ABSENCE is already somebody
+         else's COVERAGE LOST and two refusals for one fact help nobody. */
+      assert.equal(workflowEvents(parseWorkflow(root, '.github/workflows/nope.yml')).size, 0);
+    });
   });
 });

@@ -429,8 +429,9 @@ function main() {
     prints.push(
       `NO PINNED TEAM — no Apple row in ${REGISTER} carries \`signing.distributionCertificate.teamId\`, so limb 4 ` +
         'is not enforced: ANY distribution certificate passes. That is the honest state today — there is no ' +
-        'Apple Developer account (OWNER_QUEUE A-4) and therefore no team identifier to pin. Adding it is a ' +
-        'one-line record edit on enrolment day, and this line is what stops that being forgotten.',
+        'Apple distribution certificate. CORRECTED 2026-09-08: the account is ACTIVE and APPLE_TEAM_ID IS a ' +
+        'repository secret, so the team identifier is pinnable TODAY - this is now a to-do, not a gap. ' +
+        'It is a one-line record edit, and this line is what stops it being forgotten.',
     );
   }
 
