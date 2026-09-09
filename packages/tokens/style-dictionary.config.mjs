@@ -341,9 +341,10 @@ function formatDart({ dictionary }) {
   lines.push('');
   lines.push('/// The NIKATRU company brand tokens, dark-scheme overrides.');
   lines.push('///');
-  lines.push('/// Only surfaces and text change; [BrandTokens.ink], [BrandTokens.ink2],');
-  lines.push('/// [BrandTokens.primary] and [BrandTokens.teal] are shared with the light');
-  lines.push('/// palette and are deliberately absent here.');
+  lines.push('/// [BrandTokens.ink] and [BrandTokens.ink2] are shared with the light palette');
+  lines.push('/// and are deliberately absent here. `primary` and `teal` were shared too');
+  lines.push('/// until 2026-09-09; they fork because no single value passes WCAG AA on');
+  lines.push('/// both a white card and a #111C33 one. See contracts/tokens/dtcg/color.dark.json.');
   lines.push('class BrandTokensDark {');
   lines.push('  BrandTokensDark._();');
   lines.push('');

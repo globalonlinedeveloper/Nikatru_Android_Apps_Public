@@ -63,9 +63,10 @@ class BrandTokens {
 
 /// The NIKATRU company brand tokens, dark-scheme overrides.
 ///
-/// Only surfaces and text change; [BrandTokens.ink], [BrandTokens.ink2],
-/// [BrandTokens.primary] and [BrandTokens.teal] are shared with the light
-/// palette and are deliberately absent here.
+/// [BrandTokens.ink] and [BrandTokens.ink2] are shared with the light palette
+/// and are deliberately absent here. `primary` and `teal` were shared too
+/// until 2026-09-09; they fork because no single value passes WCAG AA on
+/// both a white card and a #111C33 one. See contracts/tokens/dtcg/color.dark.json.
 class BrandTokensDark {
   BrandTokensDark._();
 
