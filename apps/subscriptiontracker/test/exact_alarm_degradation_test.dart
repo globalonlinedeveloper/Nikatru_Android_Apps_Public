@@ -216,7 +216,7 @@ void main() {
 
   // ───────────────────────────────────────────────────────────────────────────
   group('a device that HAS granted it', () {
-    test('keeps exact precision — degrading is a fallback, not a downgrade', () async {
+    test('keeps exact precision when the OS grants it', () async {
       exactPermitted = true;
       final NotificationService service = await readyService();
 
@@ -288,7 +288,7 @@ void main() {
 
       await service.syncAll(_subs(4), copy: _copy);
 
-      expect(scheduled().length, 8, reason: 'four exact attempts, four retries');
+      expect(scheduled().length, 8, reason: '4 exact tries, 4 retries');
       expect(
         modes().where((String m) => m == 'inexactAllowWhileIdle').length,
         4,
@@ -325,20 +325,14 @@ void main() {
       // `exactAllowWhileIdle` all reach `checkCanScheduleExactAlarms` in the
       // plugin's Java. Only the two inexact modes do not, and only
       // `inexactAllowWhileIdle` also survives Doze.
-      const AndroidScheduleMode refused = AndroidScheduleMode
-          .inexactAllowWhileIdle;
-      expect(
-        <AndroidScheduleMode>[
-          AndroidScheduleMode.alarmClock,
-          AndroidScheduleMode.exact,
-          AndroidScheduleMode.exactAllowWhileIdle,
-        ],
-        isNot(contains(refused)),
-      );
-      expect(
-        NotificationService.scheduleModeFor(permitted: false),
-        refused,
-      );
+      const List<AndroidScheduleMode> needPermission = <AndroidScheduleMode>[
+        AndroidScheduleMode.alarmClock,
+        AndroidScheduleMode.exact,
+        AndroidScheduleMode.exactAllowWhileIdle,
+      ];
+      const AndroidScheduleMode ok = AndroidScheduleMode.inexactAllowWhileIdle;
+      expect(needPermission, isNot(contains(ok)));
+      expect(NotificationService.scheduleModeFor(permitted: false), ok);
     });
   });
 }
