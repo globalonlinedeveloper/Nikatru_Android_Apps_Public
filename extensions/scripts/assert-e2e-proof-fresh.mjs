@@ -243,6 +243,45 @@ if (!/^ {4}name:\s*e2e[^A-Za-z0-9]/m.test(yaml)) {
   err(`COVERAGE LOST — no job in ${WORKFLOW} carries a name starting e2e at the job indent, which is the prefix the GREEN limb matches run jobs on. Rename the matcher in the same commit as the job.`);
 }
 
+/* ── AND THE PREFIX MATCHES NOTHING BUT THE LEGS ────────────────────────────
+   The CONVERSE of the check above, and the one whose absence cost this
+   repository a day of red pull requests. LEG is a PREFIX match, so ANY job
+   whose name begins `e2e` followed by a non-alphanumeric is counted by the
+   GREEN limb as a matrix leg. The comment on LEG has asserted since it was
+   written that "Discover e2e suites does not match, nor does proof-fresh" —
+   and nothing enforced it.
+
+   🔴 MEASURED, NOT IMAGINED — scheduled run 34168610730, 2026-09-07T23:01Z.
+   This gate's own job was then named `e2e proof freshness (is the weekly cron
+   alive?)`. It matched LEG. So a scheduled run whose ONLY real leg,
+   `e2e · Extension/Full_Screen_Shot`, had SUCCEEDED was graded
+   `legs=2/1 not-green … NOT IN THIS CHECKOUT: proof freshness (…)`, and the
+   error it printed — "NO GREEN SCHEDULED RUN" — named the weekly proof as the
+   suspect. Every pull request in the repository then failed `Extensions` behind
+   it, because each one reads that same newest scheduled run. Nothing had broken
+   except a job name. PR #541 renamed the job to `Proof freshness (…)`, which
+   fixed the instance; this is the guard that stops the class.
+
+   A REAL LEG IS A MATRIX LEG. The leg name is built once per discovered suite,
+   so it necessarily carries a `${{ matrix… }}` expression. A STATIC name that
+   matches the prefix cannot be one member of a discovered set, and is refused
+   here. Fail-closed on purpose: a future non-matrix leg has to teach this guard
+   about itself, which is the direction that keeps the GREEN limb honest rather
+   than the direction that silently widens it.
+
+   ANCHORED AT THE SAME 4-SPACE JOB INDENT as the check above, and for the same
+   measured reason — e2e.yml's artifact-upload step carries a `name: e2e-out-…`
+   at step depth, and an unanchored read would report that as an impostor job
+   and redden a healthy tree. */
+{
+  const jobNames = [...yaml.matchAll(/^ {4}name:[ \t]*(.*?)[ \t]*$/gm)]
+    .map(m => m[1].replace(/^(['"])(.*)\1$/, '$2'));
+  const impostors = jobNames.filter(n => LEG.test(n) && !/\$\{\{[^}]*\bmatrix\./.test(n));
+  if (impostors.length) {
+    err(`COVERAGE LOST — ${WORKFLOW} carries ${impostors.length} job name(s) matching ${LEG} at the job indent that are NOT matrix legs: ${impostors.map(n => JSON.stringify(n)).join(', ')}. The GREEN limb prefix-matches past runs' job names on that pattern, so each of these is counted as an e2e leg that no checkout can ever account for — and a scheduled run whose real legs ALL passed is then graded not-green over a job name, reddening every pull request behind it. That is run 34168610730, 2026-09-07. Rename the job so it does not begin with the leg prefix, in the same commit that adds it.`);
+  }
+}
+
 /* ── WHICH LEGS A GREEN RUN HAS TO CARRY ────────────────────────────────────
    `legs.every(success)` is vacuously true over an EMPTY list. It is ALSO true
    over ONE leg on a run whose matrix used to be four legs wide, so without a

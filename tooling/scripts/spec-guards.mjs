@@ -631,6 +631,39 @@ const GUARDS = [
     rel: ['requirements/tooling/check-agent-docs.mjs'],
     args: ['--index'],
     what: 'the corpus’s agent-facing docs stay under their byte and line caps' },
+  /* ADDED 2026-09-09. THE FIRST ENTRY IN THIS ARRAY WHOSE SUBJECT IS PUBLIC, and
+     `needsPrivate: false` is that fact declared rather than assumed: every other
+     row here guards a file under the corpus, which is why the hook is their only
+     enforcement surface. This one's subject is `apps/<app>/name-clearance.json`,
+     `apps/<app>/app.yaml` and `tooling/channel-register.json` — all tracked, all
+     present in a fresh clone and in every agent worktree — so it runs in CI TOO
+     (`ci.yml#guards-store`) and is registered there. It is in this runner as
+     well, and the reason is the cost of finding out late: a rename is ONE field
+     and a re-render today (`tooling/app-yaml/render.mjs` line 252 is
+     `'title.txt': doc.name`), and after listings exist it is store records,
+     install bases, backlinks and a reservation clock, none of which come back.
+     The check that costs 0.3 s at commit time is the same check that costs a
+     product name at submission time.
+
+     🔴 THE NETWORK PROBE IS NOT HERE AND MUST NEVER BE. `tooling/store/name-clearance.mjs`
+     measured 15,365 / 13,726 ms on this machine over ~20 external calls; this
+     guard measured 297 / 285 / 269 ms and dials out zero times. A blocking hook
+     with fourteen seconds of network in it gets bypassed inside a week, and a
+     guard that is skipped is worth less than no guard because it also carries the
+     belief that something was checked. The probe is a routine; the record it
+     writes is what this reads. One `rel` candidate, repo-relative: this guard has
+     never existed under any earlier layout, so a legacy spelling would be a path
+     that does not resolve — the same reasoning as the three entries above.
+
+     ⚠️ NOTE ON AGE. It carries `assert-platform-state`'s staleness mechanism
+     verbatim — `{value, asOf, verify, verifyKind}` with a 30-day ceiling — and
+     therefore its rule about WHERE age speaks: a WARNING here, a FINDING under
+     `--execute`. Every clearance record shares a birthday, and a hook that
+     refuses every commit on the day the window closes is a hook this corpus has
+     recorded itself skipping. It is deliberately invoked here WITHOUT `--execute`. */
+  { name: 'assert-name-clearance', speed: 'fast', needsPrivate: false,
+    rel: ['tooling/ci/assert-name-clearance.mjs'],
+    what: 'every declared app name carries a current, non-blocked clearance record' },
 ];
 
 const selected = GUARDS.filter((g) => FULL || g.speed === 'fast');

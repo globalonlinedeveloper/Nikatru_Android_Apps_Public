@@ -295,6 +295,11 @@ jobs:
         run: node tooling/ci/assert-app-yaml.mjs
       - name: Both of an app's names are shippable — the store title and the icon label
         run: node tooling/ci/assert-app-naming.mjs
+      # why: OFFLINE. It reads apps/<app>/name-clearance.json and never dials out —
+      # the networked probe that WRITES that record takes ~14 s and is a routine, not
+      # a gate. docs/name-clearance.md carries the measurement and the split.
+      - name: Every declared app name carries a current, non-blocked clearance record
+        run: node tooling/ci/assert-name-clearance.mjs
       - name: Every Linux store channel can produce a complete snapcraft recipe
         run: node tooling/ci/assert-snapcraft-generable.mjs
       - name: The Play listing graphics exist, are the sourced size, and say where they came from
