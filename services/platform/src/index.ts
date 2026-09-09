@@ -188,6 +188,17 @@ app.route('/v1', account);
 // CLIENT-ONLY stamped app had no way to ask whether its user had paid.
 // Path-scoped for the same reason as /v1/account above.
 app.use('/v1/entitlements', platformAuth);
+// 🔴 A SECOND LINE, AND IT IS NOT REDUNDANT. `app.use('/v1/entitlements', …)`
+// matches THAT PATH AND NOTHING BELOW IT — Hono needs an explicit `/*` for the
+// sub-tree. When `/v1/entitlements/subject` landed (2026-09-09, the bundle read)
+// it was therefore mounted OUTSIDE the middleware: the route existed, answered
+// 200, and `c.get('userId')` was undefined for an anonymous caller. The query
+// binds that undefined to `user_id = ?`, so it returned an empty set rather than
+// somebody else's rows — but "the injury was small" is not the same as "the
+// route was authenticated", and the next sub-route would not have been so lucky.
+// test/bundle-entitlements.test.ts asserts the 401 specifically, because a
+// missing route also returns non-2xx and would satisfy a weaker claim.
+app.use('/v1/entitlements/*', platformAuth);
 app.route('/v1', entitlements);
 
 // AUTHENTICATED: the ROSCA cancel path ([5]M-9). Cancelling has to be a real
