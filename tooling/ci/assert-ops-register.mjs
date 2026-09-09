@@ -438,13 +438,64 @@ export function cadenceDays(cadence) {
 // HTTP 401. So a probe reports the newest SUCCESS, and a reachable record with
 // no success inside the window is RED.
 //
-// ── WHY 1.5x THE CADENCE ────────────────────────────────────────────────────
-// Not chosen here: it is `check-heartbeats.mjs`'s own ratio, and its reasoning
-// is the register's — a window EQUAL to the cadence has zero margin, so one late
-// run reads as a dead duty and the guard gets disabled. One missed run is not an
-// alarm; two are. The number lives in `_recordReaders._windowMultiplier` so it
-// is stated once and can be read by a human without reading this file.
+// ── THE WINDOW, AND THE RULE IT NOW ACTUALLY ENCODES ────────────────────────
+//
+// 🔴 THE SENTENCE THAT STOOD HERE UNTIL 2026-09-09 CONTRADICTED THE NUMBER IT
+// EXPLAINED, AND THE CONTRADICTION IS ARITHMETIC RATHER THAN OPINION. It read
+// "One missed run is not an alarm; two are" over a multiplier of 1.5. Put the
+// last success at t=0 and the runs due at t=C, 2C, 3C:
+//
+//     age C   — the run due at C was missed.  ONE run missed.
+//     age 2C  — the run due at 2C was missed too.  TWO runs missed.
+//
+// The alarm fires when `age > window`. A window of 1.5C therefore fires at age
+// 1.5C, when exactly ONE run has been missed — the opposite of what the prose
+// promised. For the prose to be true the window has to sit strictly between 2C
+// and 3C. It never did, and nobody noticed because the two halves were never
+// read against each other.
+//
+// ⚠️ IT IS ALSO NOT `check-heartbeats.mjs`'s RATIO ANY MORE, AND HAS NOT BEEN
+// SINCE 2026-08-06. That file's citation was the other half of the stale claim:
+// it ABANDONED the `1.5 x interval` staleness ceiling that morning, because a
+// ratio answers "how stale is the newest row" when the question is "did the run
+// that was supposed to happen, happen" — and it replaced it with an
+// occurrence-anchored limb plus a fixed `MISSED_RUN_GRACE_HOURS = 2`. Citing a
+// number to a file that deleted it is how a rationale outlives its reason.
+//
+// ── SO THE WINDOW IS DERIVED, AND THE DERIVATION IS THE RULE ────────────────
+//
+//     window = (missedRunsTolerated + BASE) x cadence,  BASE = 1.5
+//
+// BASE is the original and still-correct half-cadence margin: a window EQUAL to
+// the cadence has zero margin, so a merely LATE run reads as a dead duty and the
+// guard gets switched off. Adding the budget to it, rather than multiplying,
+// keeps the result strictly inside `(M+1)C .. (M+2)C` for every integer M — so
+// the alarm fires on exactly `M+1` missed runs, with half a cadence of slack on
+// each side against clock skew and queue jitter.
+//
+//     missedRunsTolerated: 0  ->  1.5x  ->  a LATE run is not an alarm; a
+//                                           MISSED one is.
+//     missedRunsTolerated: 1  ->  2.5x  ->  one missed run is not an alarm;
+//                                           two are.
+//
+// ⬜ THE GLOBAL DEFAULT STAYS 1.5 AND NOTHING WIDENED. The defect was the claim,
+// not the number: 1.5 is exactly the M=0 window, so correcting the sentence
+// costs no strictness anywhere. `_windowMultiplier` is BASE and lives in
+// `_recordReaders` so it is stated once; `missedRunsTolerated` is per-row,
+// capped by `_recordReaders._maxMissedRunsTolerated`, and refused without a
+// `missedRunsToleratedWhy` carrying a MEASUREMENT — because a budget nobody
+// measured is the waiver this whole limb exists to prevent.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** The per-row window multiplier: the register-wide BASE plus this row's own
+ *  budget of tolerated missed runs. `evaluateRunRecords` has already refused a
+ *  budget that is not a small non-negative integer, so a bad value can only
+ *  reach here through a direct call, and it degrades to the base rather than to
+ *  a wider window — the safe direction. */
+export function effectiveMultiplier(row, base) {
+  const b = row?.mechanism?.recordQuery?.missedRunsTolerated;
+  return Number.isInteger(b) && b > 0 ? base + b : base;
+}
 
 /** The four honest outcomes of asking a mechanism whether it ran. `pass` and
  *  `fail` are the only ones that come from an answered query; `unreadable` and
@@ -457,8 +508,15 @@ export function classifyRunRecord(row, probe, nowMs, multiplier) {
   const q = row?.mechanism?.recordQuery ?? {};
   if (days === null) return { verdict: 'skip', line: `${id} — not on a clock` };
 
-  const windowMs = days * 86_400_000 * multiplier;
-  const windowLabel = `${row.cadence} x ${multiplier} = ${(days * multiplier * 24).toFixed(1)}h`;
+  const mult = effectiveMultiplier(row, multiplier);
+  const budget = mult - multiplier;
+  const windowMs = days * 86_400_000 * mult;
+  // The budget is NAMED in the label, not folded into the number: a row with a
+  // wider window than its neighbours must say so on every line it prints, or the
+  // waiver is invisible in exactly the output that is meant to expose it.
+  const windowLabel =
+    `${row.cadence} x ${mult} = ${(days * mult * 24).toFixed(1)}h` +
+    (budget > 0 ? ` (base ${multiplier} + ${budget} missed run(s) TOLERATED on this row)` : '');
 
   if (q.reader === 'unreachable') {
     return { verdict: 'unreachable', line: `${id} (cadence ${row.cadence}) — NO REACHABLE RECORD: ${q.why}` };
@@ -695,10 +753,56 @@ export function evaluateRunRecords(reg, probes, nowMs) {
       }
       used.set(t.reader, (used.get(t.reader) ?? 0) + 1);
     }
+    // 🔴 THE PER-ROW MISS BUDGET, AND EVERY CONDITION THAT KEEPS IT FROM BECOMING
+    // A WAIVER. It widens THIS row's alarm window and nothing else's, which is
+    // the point — one global ratio cannot serve an hourly laptop routine that
+    // only fires while the desktop app is open AND a 7d workflow duty, and the
+    // way that tension has historically been resolved is by widening the GLOBAL
+    // number, which silences every duty at once. So: it is a small non-negative
+    // integer, capped by a declared ceiling, refused on a row nothing queries,
+    // and refused without a `why` that carries a MEASUREMENT a later reader can
+    // check. "This row misses sometimes" is an adjective; "worst observed gap
+    // 4.98h across 66 gaps" is evidence, and only the second may buy slack.
+    if (q.missedRunsTolerated !== undefined) {
+      const b = q.missedRunsTolerated;
+      const budgetCap = decl._maxMissedRunsTolerated;
+      if (!Number.isInteger(b) || b < 0) {
+        errors.push(
+          `${r.id} — \`recordQuery.missedRunsTolerated: ${JSON.stringify(b)}\` must be a non-negative INTEGER. ` +
+            'It counts missed runs; a fraction of a missed run is not a thing the window can mean.',
+        );
+      } else if (!Number.isInteger(budgetCap) || budgetCap < 0) {
+        errors.push(
+          `${r.id} — \`recordQuery.missedRunsTolerated\` is set and \`_recordReaders._maxMissedRunsTolerated\` is ` +
+            'missing or not a non-negative integer. An UNDECLARED ceiling reads as NO ceiling, and this is the one ' +
+            'field on the object that widens an alarm.',
+        );
+      } else if (b > budgetCap) {
+        errors.push(
+          `${r.id} — \`recordQuery.missedRunsTolerated: ${b}\` is above the declared ceiling of ${budgetCap}. ` +
+            'This number RATCHETS DOWN as duties move off substrates that cannot keep their own schedule; ' +
+            'raising the ceiling to fit a row is how every window gets widened one row at a time.',
+        );
+      } else if (q.reader === 'unreachable') {
+        errors.push(`${r.id} — \`recordQuery.missedRunsTolerated\` on a row whose reader is \`unreachable\`. No query is made, so no window applies and nothing could be tolerated.`);
+      } else if (b > 0 && (!nonEmpty(q.missedRunsToleratedWhy) || !DURABLE_ID.test(q.missedRunsToleratedWhy))) {
+        errors.push(
+          `${r.id} — \`recordQuery.missedRunsTolerated: ${b}\` with no \`missedRunsToleratedWhy\` carrying a ` +
+            'MEASUREMENT (a count, a gap, a date a later reader can re-take). A budget stated as a judgement is a ' +
+            'waiver; a budget stated as an observation is a window somebody can re-derive and shrink.',
+        );
+      }
+    }
+    if (q.missedRunsToleratedWhy !== undefined && !Number.isInteger(q.missedRunsTolerated)) {
+      errors.push(`${r.id} — \`recordQuery.missedRunsToleratedWhy\` with no \`missedRunsTolerated\`. A justification for a budget that does not exist reads as slack this row does not actually have.`);
+    }
     if (q.firstDue !== undefined) {
       const dueMs = typeof q.firstDue === 'string' ? Date.parse(q.firstDue) : NaN;
       const days = cadenceDays(r.cadence);
-      const mult = decl._windowMultiplier;
+      // The bootstrap wait is bounded by THIS row's own window, budget included —
+      // the same number `classifyRunRecord` will measure it against. Using the
+      // bare base here would let a budgeted row wait longer than it may.
+      const mult = effectiveMultiplier(r, decl._windowMultiplier);
       if (Number.isNaN(dueMs)) {
         errors.push(
           `${r.id} — \`recordQuery.firstDue: ${JSON.stringify(q.firstDue)}\` is not a parseable instant. This field ` +
@@ -853,11 +957,20 @@ export function evaluateRunRecords(reg, probes, nowMs) {
   // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE. `0 queried` and `4 queried` read
   // identically in a wall of prints unless the count is stated, and "queried 0
   // records" is precisely the state that was green for a day and a half.
+  // ⚠️ EVERY COUNT CARRIES ITS OWN LABEL IMMEDIATELY BEFORE IT, AND THE CEILINGS
+  // ARE BOUND TO THEIR OWN NUMBER RATHER THAN TRAILING THE CLAUSE. On 2026-09-09
+  // two separate reading passes filed a defect that did not exist — "22
+  // unreadable duties against a ceiling of 12" — off the previous shape of this
+  // line, in which `22 record(s) QUERIED` and `(ceiling 12)` sat in the same
+  // sentence with `0 reader(s) unreadable` between them. The measured run said
+  // 22 QUERIED, 0 unreadable. A summary line that can be misread into an alarm
+  // costs exactly what a false alarm costs, so the format is part of the guard.
   prints.push(
-    `[14]O-3 — ${scheduled.length} scheduled duty(ies) · ${tally.pass} record(s) QUERIED and inside window · ` +
-      `${tally.fail} FAILING (${gatedFailLines.length} of them OWNER-GATED: printed, not blocking) · ` +
-      `${tally.unreadable} reader(s) unreadable on this runner (ceiling ${readCap}) · ` +
-      `${tally.unreachable} declared unreachable (ceiling ${cap})`,
+    `[14]O-3 — scheduled=${scheduled.length} · queried_ok=${tally.pass} · failing=${tally.fail} ` +
+      `(owner-gated=${gatedFailLines.length}: printed, not blocking) · ` +
+      `unreadable=${tally.unreadable}/ceiling ${readCap} · unreachable=${tally.unreachable}/ceiling ${cap} ` +
+      `— [queried_ok is duties whose record WAS read and is inside its window; unreadable is duties this ` +
+      `runner could not read at all. They are different numbers and only the second has the ceiling ${readCap}.]`,
   );
   if (tally.pass === 0 && tally.fail === 0) {
     prints.push(
