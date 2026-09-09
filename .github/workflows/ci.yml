@@ -258,6 +258,8 @@ jobs:
         run: node tooling/ci/assert-analytics-contract.mjs
       - name: The entitlement contract is complete before the first payment
         run: node tooling/ci/assert-entitlement-contract.mjs
+      - name: No writer can strand a NULL in a money-schema key column
+        run: node tooling/ci/assert-no-null-entitlement-key.mjs
       - name: One verifier stands between a provider and the entitlement table
         run: node tooling/ci/assert-mor-adapters.mjs
       - name: Sandbox money cannot grant a production unlock
@@ -266,6 +268,8 @@ jobs:
         run: node tooling/ops/money-dry-run.mjs
       - name: The bundle's coming-soon gate is derived, and it moves in both directions
         run: node tooling/ci/assert-bundle-availability.mjs
+      - name: No store surface promises a bundle that cannot be bought
+        run: node tooling/ci/assert-no-store-bundle-copy.mjs
       - name: Every app with accounts ships a deletion control
         run: node tooling/ci/assert-deletion-control.mjs
       - name: Account deletion reaches every user-owned table, never via a shared secret
