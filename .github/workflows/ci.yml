@@ -270,6 +270,8 @@ jobs:
         run: node tooling/ci/assert-bundle-availability.mjs
       - name: No store surface promises a bundle that cannot be bought
         run: node tooling/ci/assert-no-store-bundle-copy.mjs
+      - name: No bundle entitlement exists without a verified receipt
+        run: node tooling/ci/assert-bundle-provenance.mjs
       - name: Every app with accounts ships a deletion control
         run: node tooling/ci/assert-deletion-control.mjs
       - name: Account deletion reaches every user-owned table, never via a shared secret

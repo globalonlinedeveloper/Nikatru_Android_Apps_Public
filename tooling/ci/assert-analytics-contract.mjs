@@ -411,6 +411,16 @@ const WIRE_CONTRACTS = [
     },
   },
   {
+    id: 'receipts',
+    kind: 'gap',
+    reason:
+      'NO CLIENT IN THIS REPO, AND IT IS A STATE RATHER THAN A CONSTRUCTION — which is why the claim below is checked rather than argued. POST /v1/receipts/:store takes an opaque store token and answers from a SERVER-SIDE pull; no rail has a credential minted, so every verifier answers 503 in this deploy and there is nothing a client could succeed at yet. The purchase surface arrives with the store rails. What stands in for a pin meanwhile is tooling/ci/assert-bundle-provenance.mjs, which asserts every writer into bundle_grants is downstream of a verification seam and that no grant-deciding field derives from a request body — a stronger claim about this route than an envelope pin would be, because the risk here is not a renamed key, it is a grant minted from the caller.',
+    /** THE CLAIM IS CHECKED, NOT ASSERTED. The day any Dart source builds this
+     *  path there IS a released client, the printed gap becomes a false
+     *  statement, and this fails rather than going on printing it. */
+    absentFromDart: '/v1/receipts',
+  },
+  {
     id: 'money-webhook',
     kind: 'gap',
     reason:

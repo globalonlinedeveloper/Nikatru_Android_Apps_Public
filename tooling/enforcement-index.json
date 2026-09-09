@@ -304,6 +304,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-bundle-provenance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "C-1",
       "C-2",
