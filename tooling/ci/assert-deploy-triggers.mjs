@@ -79,6 +79,20 @@ const REQUIRED = [
   // of the declaration: the first value consumed without a local literal would
   // otherwise change the build silently. Belt and braces, on the record as such.
   ['tooling/versions.json', 'the one declaration this lane\'s SDK/tool pins are held to [pipeline F-2]'],
+  // 🔴 ADDED 2026-09-09 [ADR 075], AND IT IS NOT BELT AND BRACES. Since the app's
+  // public address became a path on the apex, this lane resolves `--base-href`
+  // from `catalog/apps.json` (`assert-catalog-reachable.mjs --emit-base-href`),
+  // and the catalogue is where a RENAME lands: `apps/<id>/app.yaml` renders the
+  // row, and the row is what says the app is served at `/<id>/`.
+  //
+  // ⚠️ THE FAILURE THIS CLOSES IS SILENT AND TOTAL. Without the catalogue in this
+  // filter, a commit that changed only the address would deploy the ROUTER (the
+  // `nikatru` Pages project is Git-connected and redeploys on every push to main)
+  // while the app kept the base href of the PREVIOUS address. index.html would
+  // answer 200 and every asset would 404 — a white page, with a green lane and a
+  // green post-deploy smoke behind it, because `version.json` is a static file
+  // that answers whatever the base href says.
+  ['catalog/apps.json', 'the address and therefore the `--base-href` this lane compiles with [ADR 075]'],
 ];
 
 /** Scripts the lane executes, pulled out of its own text. */

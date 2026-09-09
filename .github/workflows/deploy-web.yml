@@ -18,6 +18,12 @@ on:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'tooling/versions.json'
+      # The address the build is COMPILED FOR. Since [ADR 075] `--base-href` is
+      # resolved from this row, so a commit that changes only the address must
+      # rebuild the app — otherwise the router deploys (the `nikatru` Pages
+      # project is Git-connected) while the app keeps the previous base href, and
+      # every asset 404s behind a 200 index.html.
+      - 'catalog/apps.json'
       - 'tooling/ci/assert-gate-passed.mjs'
       - 'tooling/ci/assert-app-versioning.mjs'
       - 'tooling/ci/assert-release-lane-generic.mjs'
