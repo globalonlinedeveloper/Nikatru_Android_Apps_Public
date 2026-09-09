@@ -593,10 +593,21 @@ export function storeLede(repoRoot, slug) {
 //   apps/<slug>/store/android-play/screenshots/NN-<screen>.png  THE MASTERS.
 //     1080x1920 store art, captured by tooling/store/capture-play-screenshots.mjs,
 //     submitted to Play. Never served — 889 KB for four images.
-//   sites/nikatru/apps/shots/<slug>-N.webp                      THE WEB COPIES.
+//   sites/nikatru/apps/shots/<slug>-N-vV.webp                    THE WEB COPIES.
 //     540px wide (2x the ~260 CSS px the .shots grid gives them), WebP q72,
 //     69.5 KB for the same four. Committed, because Cloudflare serves this repo
 //     with no build step.
+//
+// 🔴 THE `-vV` IN THE WEB NAME IS LOAD-BEARING, AND IT IS NOT A STYLE CHOICE.
+// `sites/nikatru/_headers` gives `/*.webp` a one-year `immutable`, which
+// suppresses revalidation even on an explicit reload. A stable name under that
+// rule means re-cutting a screenshot would not reach a returning visitor for a
+// YEAR. `assert-web-cache-policy.mjs` prints exactly that finding, and its test
+// asserts the REAL repository leaves no stable name declared immutable — these
+// four files failed it on their first CI run. `founder-v4.jpg` is the convention
+// they now follow: the version lives IN THE NAME, so a new cut is a new URL.
+// Re-cutting means writing `<slug>-N-v2.webp` and DELETING the v1; the version
+// is never typed into this generator, which reads whatever is on disk.
 //
 // 🔴 THE LABEL COMES FROM THE MASTER'S FILENAME, and that is deliberate. `01-home`
 // and `03-insights` are names the OWNER gave the screens when the captures were
@@ -609,6 +620,12 @@ const SHOTS_DIR = `${APPS_DIR}/shots`;
 const SHOTS_HREF = '/apps/shots';
 /** The masters' directory, per app. One channel: Play is the only one with art. */
 const SHOT_MASTERS = (slug) => `apps/${slug}/store/android-play/screenshots`;
+/** `<slug>-<index>-v<version>.webp`. The index orders the set and lines it up
+ *  with the masters' labels; the version is what makes `immutable` honest. A
+ *  file that does not match is not a screenshot this generator will publish —
+ *  which is how an unversioned name fails to appear rather than appearing under
+ *  a cache header that would freeze it for a year. */
+const SHOT_NAME = /^([a-z0-9-]+?)-(\d+)-v\d+\.webp$/i;
 /** The intrinsic size every web copy is written at. Emitted as width/height on
  *  every <img> so the grid reserves its box before the bytes arrive (CLS). */
 const SHOT_W = 540;
@@ -623,13 +640,20 @@ function screenshotsFor(repoRoot, slug) {
       labels.push(name.replace(/\.png$/i, '').replace(/^\d+[-_]?/, '').replace(/[-_]+/g, ' ').trim());
     }
   }
-  const out = [];
-  for (let i = 1; ; i++) {
-    const file = `${slug}-${i}.webp`;
-    if (!existsSync(join(repoRoot, ...`${SHOTS_DIR}/${file}`.split('/')))) break;
-    out.push({ file, width: SHOT_W, height: SHOT_H, label: labels[i - 1] || `screenshot ${i}` });
+  const dir = join(repoRoot, ...SHOTS_DIR.split('/'));
+  if (!existsSync(dir)) return [];
+  const found = [];
+  for (const name of listDir(dir)) {
+    const m = SHOT_NAME.exec(name);
+    if (m && m[1] === slug) found.push({ file: name, index: Number(m[2]) });
   }
-  return out;
+  found.sort((a, b) => a.index - b.index);
+  return found.map(({ file, index }) => ({
+    file,
+    width: SHOT_W,
+    height: SHOT_H,
+    label: labels[index - 1] || `screenshot ${index}`,
+  }));
 }
 
 function landingHtml(app, ctx, problems) {
