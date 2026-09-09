@@ -31,8 +31,10 @@ function appWith(allowedOrigins: string | undefined) {
     );
 }
 
-/** Mirrors the deployed `vars.ALLOWED_ORIGINS`. */
-const SHIPPED = 'https://subly.nikatru.com,https://subly-9cp.pages.dev';
+/** Mirrors the deployed `vars.ALLOWED_ORIGINS`. Read 2026-09-09, after [ADR 075]
+ *  moved the app to a PATH on the apex and the old subdomain was retired behind a
+ *  301 -- so the live browser origin is the apex, and the subdomain is gone. */
+const SHIPPED = 'https://nikatru.com,https://subly-9cp.pages.dev';
 
 describe('subly-api CORS — exact allowlist', () => {
   it('reflects an origin that is on the list, exactly', async () => {
@@ -47,10 +49,15 @@ describe('subly-api CORS — exact allowlist', () => {
     const call = appWith(SHIPPED);
     for (const origin of [
       'https://other.nikatru.com', // a SIBLING portfolio origin is not implied
-      'https://nikatru.com',
-      'https://subly.nikatru.com.evil.test', // suffix-of-hostname attack
-      'http://subly.nikatru.com', // plaintext variant of an allowed origin
-      'https://subly.nikatru.com/', // trailing slash is a different origin
+      // ⏱ The apex moved from this list to the allowed one on 2026-09-09: it is
+      // now where the app is SERVED. The three attacks below moved with it, and
+      // they matter more here than they did on a subdomain -- an origin that
+      // merely LOOKS like the apex now looks like the whole portfolio.
+      'https://nikatru.com.evil.test', // suffix-of-hostname attack
+      'http://nikatru.com', // plaintext variant of an allowed origin
+      'https://nikatru.com/', // trailing slash is a different origin
+      'https://nikatru.com/subly', // an origin is not a URL: the PATH is not part of it
+      'https://subly.nikatru.com', // the RETIRED subdomain is refused, not grandfathered
       'https://evil.test',
       'not-a-url',
     ]) {
@@ -72,7 +79,10 @@ describe('subly-api CORS — exact allowlist', () => {
   });
 
   it('an empty allowlist does not even reflect a LISTED-looking origin', async () => {
-    const res = await appWith('')('GET', 'https://subly.nikatru.com');
+    // Probed with the origin that IS on the list when the list is not empty --
+    // the apex since [ADR 075]. Probing a host that would be refused anyway
+    // proves nothing about emptiness.
+    const res = await appWith('')('GET', 'https://nikatru.com');
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
@@ -129,7 +139,7 @@ describe('the localhost exception is a RECORDED per-app trade', () => {
 
 describe('preflight covers every method the routes actually expose', () => {
   it('includes PUT — `PUT /v1/budget` is live and was preflight-blocked without it', async () => {
-    const res = await appWith(SHIPPED)('OPTIONS', 'https://subly.nikatru.com');
+    const res = await appWith(SHIPPED)('OPTIONS', 'https://nikatru.com');
     const methods = res.headers.get('Access-Control-Allow-Methods') ?? '';
     for (const m of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
       expect(methods, `missing ${m}`).toContain(m);

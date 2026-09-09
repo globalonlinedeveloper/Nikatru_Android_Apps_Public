@@ -281,6 +281,18 @@
   },
   {
     "claims": [
+      "D-1"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#sites"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-availability.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "C-1",
       "C-2",
       "C-3",
@@ -2773,6 +2785,7 @@
   },
   {
     "claims": [
+      "ADR 075",
       "O-7",
       "R-13"
     ],

@@ -155,7 +155,7 @@ export function isChromePage(rel) {
  */
 export function footer() {
   return `<footer>
-  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/delete-account">Delete account</a> &middot; <a href="/contact">Contact</a><br><br>
+  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/about">About</a> &middot; <a href="/support">Support</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/shipping">Shipping</a> &middot; <a href="/delete-account">Delete account</a><br><br>
   <span class="foot-em">Nikatru&trade;</span> &middot; Chennai, Tamil Nadu, India &middot; Registered MSME UDYAM-TN-02-0487004<br>
   Developed by <a href="https://rajasekarselvam.com" target="_blank" rel="noopener"><span class="foot-em">Rajasekar Selvam</span></a><br>
   &copy; 2026 Nikatru. All rights reserved.
@@ -224,8 +224,8 @@ export function skipLink() {
  * one way to write a skip link that cannot be used at all.
  */
 export function a11yCss() {
-  return `  :focus-visible{outline:2px solid var(--primary,#2E6FF2);outline-offset:2px;border-radius:6px}
-  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2E6FF2);color:#fff;
+  return `  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:#fff;
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
   .skip-link:focus{left:0}`;
 }

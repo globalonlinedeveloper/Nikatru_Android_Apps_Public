@@ -101,8 +101,8 @@ parses braces in *any* string field as a token reference, so prose like
 | --- | --- | --- | --- |
 | ink | `--ink` | `#0B1220` | (shared) |
 | ink-2 | `--ink-2` | `#111C33` | (shared) |
-| primary | `--primary` | `#2E6FF2` | (shared) |
-| teal | `--teal` | `#17C3A2` | (shared) |
+| primary | `--primary` | `#2563EB` | `#6E9BFF` |
+| teal | `--teal` | `#0F766E` | `#17C3A2` |
 | bg | `--bg` | `#F6F8FC` | `#0B1220` |
 | card | `--card` | `#FFFFFF` | `#111C33` |
 | card-2 | `--card-2` | `#F8FAFD` | `#0E1830` |

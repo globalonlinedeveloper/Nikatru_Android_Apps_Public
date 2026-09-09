@@ -22,10 +22,10 @@ class BrandTokens {
   static const Color ink2 = Color(0xFF111C33);
 
   /// `--primary` in the light palette.
-  static const Color primary = Color(0xFF2E6FF2);
+  static const Color primary = Color(0xFF2563EB);
 
   /// `--teal` in the light palette.
-  static const Color teal = Color(0xFF17C3A2);
+  static const Color teal = Color(0xFF0F766E);
 
   /// `--bg` in the light palette.
   static const Color bg = Color(0xFFF6F8FC);
@@ -63,11 +63,18 @@ class BrandTokens {
 
 /// The NIKATRU company brand tokens, dark-scheme overrides.
 ///
-/// Only surfaces and text change; [BrandTokens.ink], [BrandTokens.ink2],
-/// [BrandTokens.primary] and [BrandTokens.teal] are shared with the light
-/// palette and are deliberately absent here.
+/// [BrandTokens.ink] and [BrandTokens.ink2] are shared with the light palette
+/// and are deliberately absent here. `primary` and `teal` were shared too
+/// until 2026-09-09; they fork because no single value passes WCAG AA on
+/// both a white card and a #111C33 one. See contracts/tokens/dtcg/color.dark.json.
 class BrandTokensDark {
   BrandTokensDark._();
+
+  /// `--primary` in the dark palette.
+  static const Color primary = Color(0xFF6E9BFF);
+
+  /// `--teal` in the dark palette.
+  static const Color teal = Color(0xFF17C3A2);
 
   /// `--bg` in the dark palette.
   static const Color bg = Color(0xFF0B1220);

@@ -159,7 +159,7 @@ export const cell = (s) => String(s).replace(/\|/g, '&#124;').replace(/\r?\n/g, 
 /* The per-app notice page                                             */
 
 /** Shared with the FullShot policy on purpose: one site, one palette. */
-const STYLE_BODY = `  :root { --ink:#0B1220; --muted:#586275; --line:#E2E8F0; --accent:#2E6FF2; }
+const STYLE_BODY = `  :root { --ink:#0B1220; --muted:#586275; --line:#E2E8F0; --accent:#2563EB; }
   * { box-sizing: border-box; }
   body { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px;
          font: 16px/1.65 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
