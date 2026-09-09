@@ -32,7 +32,7 @@ import 'package:nikatru_notifications/nikatru_notifications.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 import '../../core/app_config.dart';
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
@@ -170,7 +170,10 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Currency currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(
+      l10n.localeName,
+      emptyCurrencyCode: ref.watch(currencyCodeProvider),
+    );
     final core.AuthUser? user = ref.watch(authRepositoryProvider).currentUser;
     // The `unused` setting was declared in settings_controller.dart and read
     // NOWHERE, so the switch in Settings did nothing. It now gates the surface it
@@ -269,7 +272,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
             builder: (BuildContext listContext) => _listColumn(
               listContext,
               l10n,
-              currency,
+              money,
               user,
               subs,
               now,
@@ -319,7 +322,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           children: <Widget>[
             SizedBox(
               width: AppBreakpoints.form,
-              child: _asideColumn(l10n, currency, subs, now),
+              child: _asideColumn(l10n, money, subs, now),
             ),
             // The SAME divider [TwoPane] draws between ITS two columns, at the
             // same thickness and off the same constant, so a three-column home
@@ -345,7 +348,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   Widget _listColumn(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     core.AuthUser? user,
     AsyncValue<List<Subscription>> subs,
     DateTime now,
@@ -498,7 +501,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
             data: (List<Subscription> list) => _dashboard(
               context,
               l10n,
-              currency,
+              money,
               list,
               now,
               showUnused,
@@ -523,7 +526,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   /// to put in it.
   Widget _asideColumn(
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     AsyncValue<List<Subscription>> subs,
     DateTime now,
   ) {
@@ -544,7 +547,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
         if (data != null)
           _heroCard(
             l10n,
-            currency,
+            money,
             SubMath.totalMonthly(data),
             data.length,
             SubMath.dueWithin(data, now, 7),
@@ -725,17 +728,17 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   List<Widget> _dashboard(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     List<Subscription> subs,
     DateTime now,
     bool showUnused, {
     required bool heroInList,
     required bool twoPane,
   }) {
-    final double total = SubMath.totalMonthly(subs);
-    final double dueSoon = SubMath.dueWithin(subs, now, 7);
+    final MoneyBag total = SubMath.totalMonthly(subs);
+    final MoneyBag dueSoon = SubMath.dueWithin(subs, now, 7);
     final List<Subscription> unused = SubMath.unused(subs);
-    final double savings = SubMath.savings(subs);
+    final MoneyBag savings = SubMath.savings(subs);
     final List<Subscription> upcoming = SubMath.upcoming(subs, now);
     final List<Subscription> all = SubMath.byMonthlyDesc(subs);
 
@@ -748,7 +751,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
       if (heroInList) ...<Widget>[
         _heroCard(
           l10n,
-          currency,
+          money,
           total,
           subs.length,
           dueSoon,
@@ -843,7 +846,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           // `RowCard` is theme-aware (its ground is `cardDecoration(context)`),
           // so a const `AppText.muted` here is near-grey prose on a dark card.
           subtitle: Text(
-            l10n.cancelToSave(currency.fmt(savings)),
+            l10n.cancelToSave(money.formatBag(savings)),
             style: AppText.of(context).muted.copyWith(fontSize: 12),
           ),
           // 🔴 THE ONE GLYPH THE PROSE MIGRATION COULD NOT SEE, FIXED
@@ -967,7 +970,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           child: _subTile(
             context,
             l10n,
-            currency,
+            money,
             s,
             now,
             showDue: true,
@@ -988,7 +991,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           child: _subTile(
             context,
             l10n,
-            currency,
+            money,
             s,
             now,
             showDue: false,
@@ -1017,11 +1020,11 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   /// and nothing else would notice.
   Widget _heroCard(
     AppLocalizations l10n,
-    Currency currency,
-    double total,
+    MoneyFormatter money,
+    MoneyBag total,
     int count,
-    double dueSoon,
-    double due30,
+    MoneyBag dueSoon,
+    MoneyBag due30,
   ) {
     return Container(
       padding: const EdgeInsets.all(22),
@@ -1048,7 +1051,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           ),
           const SizedBox(height: 4),
           Text(
-            currency.fmt(total),
+            money.formatBag(total),
             style: AppText.fig.copyWith(
               fontSize: 44,
               color: Colors.white,
@@ -1074,7 +1077,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
                 fg: Colors.white,
               ),
               Pill(
-                l10n.perYearTotal(currency.fmt0(total * 12)),
+                l10n.perYearTotal(money.formatBagRounded(total.times(12))),
                 bg: const Color.fromRGBO(255, 255, 255, 0.13),
                 fg: Colors.white,
               ),
@@ -1083,7 +1086,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
           const SizedBox(height: 18),
           Row(
             children: <Widget>[
-              _statBox(l10n.dueIn7Days, currency.fmt(dueSoon), Colors.white),
+              _statBox(l10n.dueIn7Days, money.formatBag(dueSoon), Colors.white),
               const SizedBox(width: 12),
               // Was 'VS LAST MONTH', computed as `total - 174`. 174 was the last
               // element of the fabricated six-month trend array in insights, so this
@@ -1091,7 +1094,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
               // also hardcoded a '+', so it reported an increase every single month.
               // The app stores no history, so no month-over-month figure can be
               // honest. Replaced with a 30-day horizon, which is derived.
-              _statBox(l10n.dueIn30Days, currency.fmt(due30), Colors.white),
+              _statBox(l10n.dueIn30Days, money.formatBag(due30), Colors.white),
             ],
           ),
         ],
@@ -1133,7 +1136,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
   Widget _subTile(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     Subscription s,
     DateTime now, {
     required bool showDue,
@@ -1249,7 +1252,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: <Widget>[
                 Text(
-                  currency.fmt(s.monthlyPrice),
+                  money.format(s.monthlyPrice),
                   style: text.fig.copyWith(fontSize: 16),
                 ),
                 Text(
@@ -1259,7 +1262,7 @@ class _HomeDashboardState extends ConsumerState<_HomeDashboard> {
               ],
             )
           : Text(
-              currency.fmt(s.monthlyPrice),
+              money.format(s.monthlyPrice),
               style: text.fig.copyWith(fontSize: 16),
             ),
     );

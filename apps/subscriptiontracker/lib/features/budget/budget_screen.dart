@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../data/models/budget_info.dart';
 import '../../data/models/subscription.dart';
@@ -126,21 +126,39 @@ class BudgetScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ({Color ink, Color muted, Color line}) neutral = neutrals(context);
-    final Currency currency = ref.watch(currencyProvider);
+    // The currency the BUDGET is in. A budget figure arrives from the wire with
+    // no currency of its own (see `BudgetInfo.fromJson`), so the user's choice
+    // is what it means — `inCurrency` below relabels it and converts nothing.
+    final String currencyCode = ref.watch(currencyCodeProvider);
+    final MoneyFormatter money = MoneyFormatter(
+      l10n.localeName,
+      emptyCurrencyCode: currencyCode,
+    );
     final List<Subscription> subs =
         ref.watch(subscriptionsControllerProvider).valueOrNull ??
         const <Subscription>[];
-    final BudgetInfo? budget = ref.watch(budgetProvider).valueOrNull;
-    if (budget == null) {
+    final BudgetInfo? rawBudget = ref.watch(budgetProvider).valueOrNull;
+    if (rawBudget == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final BudgetInfo budget = rawBudget.inCurrency(currencyCode);
 
     final DateTime now = DateTime.now();
-    final double total = SubMath.totalMonthly(subs);
-    final double budgetVal = budget.monthlyBudget;
-    final bool over = total > budgetVal;
-    final double pct = budgetVal <= 0 ? 0 : (total / budgetVal).clamp(0, 1);
-    final Map<String, double> capMap = <String, double>{
+    // 🔴 TWO FIGURES, AND THEY ARE NOT THE SAME FIGURE. `spent` is every
+    // subtotal and is what the screen PRINTS, so a rupee subscription is never
+    // hidden from the user. `spentHere` is only the part in the budget's own
+    // currency, and it is what the RING measures — because a budget stated in
+    // one currency cannot judge spending in another, and there is no rate
+    // table in this app that could make it. For a single-currency user, which
+    // is essentially everybody, the two are the same number.
+    final MoneyBag spent = SubMath.totalMonthly(subs);
+    final Money spentHere = spent.inCurrency(currencyCode);
+    final Money budgetVal = budget.monthlyBudget;
+    final bool over = spentHere > budgetVal;
+    final double pct = budgetVal.minorUnits <= 0
+        ? 0
+        : (spentHere.minorUnits / budgetVal.minorUnits).clamp(0, 1);
+    final Map<String, Money> capMap = <String, Money>{
       for (final BudgetCap c in budget.categories) c.name: c.cap,
     };
     final List<CategoryTotal> cats = SubMath.categoryTotals(subs);
@@ -195,13 +213,13 @@ class BudgetScreen extends ConsumerWidget {
               container: true,
               label: over
                   ? l10n.a11yBudgetRingOver(
-                      currency.fmt(total),
-                      currency.fmt0(budgetVal),
+                      money.formatBag(spent),
+                      money.formatRounded(budgetVal),
                       NumberFormat.percentPattern(l10n.localeName).format(pct),
                     )
                   : l10n.a11yBudgetRing(
-                      currency.fmt(total),
-                      currency.fmt0(budgetVal),
+                      money.formatBag(spent),
+                      money.formatRounded(budgetVal),
                       NumberFormat.percentPattern(l10n.localeName).format(pct),
                     ),
               excludeSemantics: true,
@@ -266,13 +284,15 @@ class BudgetScreen extends ConsumerWidget {
             children: <Widget>[
               _stat(
                 label: l10n.statSpent,
-                value: currency.fmt(total),
+                value: money.formatBag(spent),
                 valueColor: neutral.ink,
                 labelColor: neutral.muted,
               ),
               _stat(
                 label: l10n.statLeft,
-                value: currency.fmt0(math.max(budgetVal - total, 0)),
+                value: money.formatRounded(
+                  (budgetVal - spentHere).clampAtZero(),
+                ),
                 // `positive` is a STATUS colour, not a neutral: green
                 // means "money left" in either brightness, so it stays
                 // the literal token deliberately — the same reason
@@ -283,7 +303,7 @@ class BudgetScreen extends ConsumerWidget {
               ),
               _stat(
                 label: l10n.statBudget,
-                value: currency.fmt0(budgetVal),
+                value: money.formatRounded(budgetVal),
                 valueColor: neutral.ink,
                 labelColor: neutral.muted,
               ),
@@ -302,9 +322,10 @@ class BudgetScreen extends ConsumerWidget {
         // constant at the call site.
         _categoryBar(
           context,
-          currency,
+          money,
+          currencyCode,
           cats[i],
-          capMap[cats[i].name] ?? cats[i].value * 1.2,
+          capMap[cats[i].name] ?? _softCap(cats[i], currencyCode),
           i,
         ),
     ];
@@ -487,15 +508,32 @@ class BudgetScreen extends ConsumerWidget {
     );
   }
 
+  /// The SILENT DEFAULT, carried over unchanged in arithmetic and moved here
+  /// so it can be named: a category with no configured cap gets its own spend
+  /// times 1.2, so its bar always renders at 83% and can never read as over
+  /// budget. That is a product decision, not a bug.
+  static Money _softCap(CategoryTotal cat, String currencyCode) => Money(
+    (SubMath.chartWeight(cat.value, currencyCode) * 1.2).round(),
+    currencyCode,
+  );
+
   Widget _categoryBar(
     BuildContext context,
-    Currency currency,
+    MoneyFormatter money,
+    String currencyCode,
     CategoryTotal cat,
-    double cap,
+    Money cap,
     int i,
   ) {
-    final bool over = cat.value > cap;
-    final double frac = cap <= 0 ? 1 : math.min(cat.value / cap, 1);
+    // The BAR is drawn in the budget's own currency — see [SubMath.chartWeight]
+    // for why a proportion cannot span two. The FIGURE beside it prints every
+    // subtotal, so a foreign-currency row stays visible even where it cannot be
+    // measured against a cap that is not in its units.
+    final double spentHere = SubMath.chartWeight(cat.value, currencyCode);
+    final bool over = spentHere > cap.minorUnits;
+    final double frac = cap.minorUnits <= 0
+        ? 1
+        : math.min(spentHere / cap.minorUnits, 1);
     final Color barColor = over
         ? AppColors.danger
         : AppColors.ramp[i % AppColors.ramp.length];
@@ -520,7 +558,7 @@ class BudgetScreen extends ConsumerWidget {
               ),
               Text.rich(
                 TextSpan(
-                  text: currency.fmt0(cat.value),
+                  text: money.formatBagRounded(cat.value),
                   style: AppText.fig.copyWith(
                     fontSize: 13,
                     color: over ? AppColors.danger : neutral.ink,
@@ -529,7 +567,7 @@ class BudgetScreen extends ConsumerWidget {
                     // NOT an l10n key: ' / ' is a separator between two
                     // formatted figures, and both figures come from `Currency`.
                     TextSpan(
-                      text: ' / ${currency.fmt0(cap)}',
+                      text: ' / ${money.formatRounded(cap)}',
                       style: AppText.muted.copyWith(
                         fontSize: 13,
                         color: neutral.muted,

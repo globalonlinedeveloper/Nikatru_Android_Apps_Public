@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 
-import '../core/format/currency.dart';
 import 'analytics_providers.dart';
 import 'providers.dart' show subscriptiontrackerNotificationServiceProvider;
 
@@ -24,8 +23,37 @@ class SettingsState {
     },
   });
 
+  /// What the picker in Settings writes: one of four glyphs.
   final String currencySymbol;
+
   final Map<String, bool> prefs;
+
+  /// The chosen currency as an ISO 4217 code — the unit a NEW subscription is
+  /// entered in, and the unit a stored figure that never carried a currency
+  /// (the budget, a pre-migration row) is read under.
+  ///
+  /// 🔴 THE PICKER STORES A GLYPH, AND THIS IS THE BOUNDED MAP BACK. A symbol
+  /// is not a currency in general — a bare dollar sign is written by the US,
+  /// Australia and Canada among others — so a reverse lookup would be a guess
+  /// on an open set. It is not an open set here: `settings_screen.dart` offers
+  /// EXACTLY these four chips, so the mapping is a statement of what this app's
+  /// dollar chip MEANS, not an inference from the glyph. A symbol that is not
+  /// one of the four (an older or corrupted store) falls back rather than
+  /// picking a currency nobody chose.
+  ///
+  /// ⚠️ Adding a fifth chip means adding a row here. Anything else silently
+  /// spends the new chip's money in dollars.
+  String get currencyCode => codeForSymbol(currencySymbol);
+
+  static const Map<String, String> _codeBySymbol = <String, String>{
+    r'$': 'USD',
+    '€': 'EUR',
+    '£': 'GBP',
+    '₹': 'INR',
+  };
+
+  static String codeForSymbol(String symbol) =>
+      _codeBySymbol[symbol] ?? core.Money.fallbackCurrencyCode;
 
   SettingsState copyWith({String? currencySymbol, Map<String, bool>? prefs}) =>
       SettingsState(
@@ -162,7 +190,14 @@ final NotifierProvider<SettingsController, SettingsState>
 settingsControllerProvider =
     NotifierProvider<SettingsController, SettingsState>(SettingsController.new);
 
-/// The active [Currency], derived from the chosen symbol.
-final Provider<Currency> currencyProvider = Provider<Currency>(
-  (ref) => Currency(ref.watch(settingsControllerProvider).currencySymbol),
+/// The user's chosen currency, as an ISO 4217 code.
+///
+/// 🔴 THIS REPLACED A `Provider<Currency>` THAT WAS A FORMATTER. That shape
+/// hardcoded `en_US` grouping into every figure in the app and glued a bare
+/// glyph to the front of it, because a provider has no `BuildContext` and so no
+/// locale. Formatting now happens where the reader's locale is known and takes
+/// a `MoneyFormatter(l10n.localeName)`; what a provider can honestly answer is
+/// which currency the user picked, which is this.
+final Provider<String> currencyCodeProvider = Provider<String>(
+  (ref) => ref.watch(settingsControllerProvider).currencyCode,
 );

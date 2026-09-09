@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
-import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
 import '../shared/widgets.dart';
 
@@ -211,10 +210,10 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final _SheetPalette p = _SheetPalette.of(context);
-    final Currency currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(l10n.localeName);
     final Subscription s = widget.sub;
-    final String monthly = currency.fmt(s.monthlyPrice);
-    final String yearly = currency.fmt0(s.monthlyPrice * 12);
+    final String monthly = money.format(s.monthlyPrice);
+    final String yearly = money.formatRounded(s.monthlyPrice.times(12));
     // `l10n.localeName` rather than the ambient default: `DateFormat` with no
     // locale uses whatever `Intl.defaultLocale` happens to be, which is a
     // process-wide global nothing on this screen sets. Passing the locale the

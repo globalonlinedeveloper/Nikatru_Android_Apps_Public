@@ -54,7 +54,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart';
-import 'package:subscriptiontracker/core/format/currency.dart';
+import 'package:subscriptiontracker/core/format/money_format.dart';
 import 'package:subscriptiontracker/core/format/sub_math.dart';
 import 'package:subscriptiontracker/data/api/seed_api_client.dart';
 import 'package:subscriptiontracker/data/models/payment_record.dart';
@@ -113,7 +113,7 @@ class _NoHistoryApi extends SeedApiClient {
 /// channels that do not exist under flutter_test, and restating them here would
 /// be a second copy to drift.
 ///
-/// Returns the container so a case can read the same `currencyProvider` the
+/// Returns the container so a case can read the same `currencyCodeProvider` the
 /// screen read, rather than assuming the default symbol.
 Future<ProviderContainer> _pump(
   WidgetTester tester,
@@ -687,8 +687,15 @@ void main() {
         );
         await _toResults(tester);
 
-        final Currency currency = c.read(currencyProvider);
-        final double total = SubMath.totalMonthly(
+        expect(
+          c.read(currencyCodeProvider),
+          'USD',
+          reason:
+              'the demo seed is dollar-priced; if this moves the expected '
+              'string below moves with it rather than silently agreeing',
+        );
+        final MoneyFormatter money = MoneyFormatter(l10n.localeName);
+        final MoneyBag total = SubMath.totalMonthly(
           DemoData.subscriptions().take(3).toList(),
         );
 
@@ -697,7 +704,7 @@ void main() {
         expect(find.text(l10n.goToDashboard), findsOneWidget);
         expect(find.text(l10n.scanResultsHeading), findsOneWidget);
         expect(
-          find.text(l10n.perMonthTotal(currency.fmt(total))),
+          find.text(l10n.perMonthTotal(money.formatBag(total))),
           findsOneWidget,
         );
       });

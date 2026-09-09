@@ -74,7 +74,7 @@ Subscription _dueIn(int days, DateTime now) => Subscription(
   id: 's1',
   name: 'Netflix',
   category: 'Streaming',
-  price: 649,
+  price: const Money(64900, 'USD'),
   cycle: BillingCycle.monthly,
   nextRenewal: now.add(Duration(days: days)),
 );

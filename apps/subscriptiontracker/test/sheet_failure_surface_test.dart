@@ -159,7 +159,7 @@ Subscription _sub() => Subscription(
   id: 'sub-1',
   name: 'Netflix',
   category: 'Streaming',
-  price: 15,
+  price: const Money(1500, 'USD'),
   cycle: BillingCycle.monthly,
   nextRenewal: DateTime.utc(2026, 9, 12),
 );
