@@ -162,8 +162,8 @@ const REST = Object.freeze({
  *  a note and a gap with one is a decision somebody can overturn with a URL. */
 const UNSOURCED = Object.freeze([
   {
-    gap: 'whether `msstore reconfigure` REQUIRES `--sellerId` for a non-interactive CI configuration. The options table lists it beside --tenantId/--clientId/--clientSecret and marks none of them required, and no page fetched states the rule.',
-    limb: 'this script passes tenant, client and secret and NOT a seller id. If the CLI turns out to need one, `reconfigure` fails and this lane fails CLOSED with the CLI\'s own message — it does not invent a fifth MS_STORE_* name to fill a hole nobody has measured.',
+    gap: 'whether `msstore reconfigure` STRICTLY REQUIRES `--sellerId`, or merely accepts it. The options table still marks none of the four account parameters required, and no page fetched states the rule — so the REQUIREMENT is unsourced in exactly the way it was on 2026-09-07.',
+    limb: 'RESOLVED IN THE OTHER DIRECTION on 2026-09-09, and the limb moved with it. This script now PASSES `--sellerId`, because the question that decides the code is not "is it required" but "is it correct", and that one IS sourced: the page names SellerId as one of the account-identifying parameters and BOTH of its CI/CD examples pass it. Passing a documented identifier the examples supply costs nothing if it is optional and is the whole lane if it is not, so the asymmetry decides it. What stays unsourced is only the strictness, which no longer gates anything.',
   },
   {
     gap: 'the RAW-HTTP transport: the exact Azure Blob request the ZIP upload to `fileUploadUrl` must make (the documentation demonstrates it only through the .NET CloudBlockBlob class), and the submission-body shape a full listing PUT would need field by field.',
@@ -477,11 +477,19 @@ if (existsSync(abs(msixRel))) {
 // (formerly Azure AD) application registered against the Partner Center tenant.
 // These names are OURS — the secret names this repo would use — not an API
 // contract, so nothing here is claimed as sourced.
+// 🔴 MS_STORE_SELLER_ID IS AN ACCOUNT IDENTIFIER, NOT A SECRET-SHAPED THING, and it
+// is in this list anyway because this list is what makes a missing value a NAMED
+// refusal instead of the CLI's own error. See the `reconfigure` call below for why
+// it is passed; see Private/runbooks/store-submission-windows.md for which of the two
+// seller ids on this account is the live one — they differ by three digits and the
+// wrong one authenticates against nothing. The VALUES live in that runbook and in the
+// repository secret; neither is written into this public tree.
 const CREDENTIAL_ENV = [
   ['MS_STORE_TENANT_ID', 'the Entra tenant the Partner Center account is associated with'],
   ['MS_STORE_CLIENT_ID', 'the Entra application (client) id authorised in Partner Center'],
   ['MS_STORE_CLIENT_SECRET', 'that application\'s client secret'],
   ['MS_STORE_PRODUCT_ID', 'the Partner Center product this app record is'],
+  ['MS_STORE_SELLER_ID', 'the Partner Center SELLER id — the account `msstore reconfigure` configures against'],
 ];
 const missingCreds = CREDENTIAL_ENV.filter(([k]) => !process.env[k] || process.env[k].trim() === '');
 if (missingCreds.length === 0) {
@@ -501,6 +509,18 @@ if (missingCreds.length === 0) {
     problems.push(
       `${missingCreds.length} of ${CREDENTIAL_ENV.length} Microsoft Store credential(s) are EMPTY: ${missingCreds.map(([k]) => k).join(', ')}. --submit cannot authenticate without them, and a submission job that discovers that and reports success is a green tick over a store that received nothing.`,
     );
+    // 🔴 THE SELLER ID GETS ITS OWN SENTENCE, because it is the newest of the five and
+    // the only one whose absence used to be INVISIBLE. Before 2026-09-09 this script
+    // passed tenant/client/secret and no seller id at all, so a missing one produced
+    // no message here and no message from the CLI either — there was nothing to miss.
+    // Now that `--sellerId` is passed, an empty value reaches `msstore reconfigure` as
+    // a bare `--sellerId` with nothing after it, and what comes back is the CLI's own
+    // argument error naming no repository secret. This line is what stops that.
+    if (missingCreds.some(([k]) => k === 'MS_STORE_SELLER_ID')) {
+      problems.push(
+        'MS_STORE_SELLER_ID specifically: it is the Partner Center SELLER id, which `msstore reconfigure` takes as --sellerId, and it is NOT the product id. This account has carried TWO seller ids that differ by three digits; the retired one authenticates against nothing while looking entirely plausible in a log, so read the live one from Private/runbooks/store-submission-windows.md rather than from memory or from an old workflow run.',
+      );
+    }
   }
 }
 
@@ -591,7 +611,7 @@ async function submitPath() {
       '     from an Entra application associated with the Partner Center account:',
       `     ${PRIMARY_SOURCES.submissionApi} — "You must associate an Azure AD application with your`,
       '     Partner Center account and obtain your tenant ID, client ID and key."',
-      '     OWNER STEP: Private/runbooks/store-submission-windows.md, section "the four secrets".',
+      '     OWNER STEP: Private/runbooks/store-submission-windows.md, section "the four secrets" (FIVE since 2026-09-09 — MS_STORE_SELLER_ID joined them).',
     ]);
   }
   ok(`credentials — all ${CREDENTIAL_ENV.length} environment variable(s) present (values never read or printed)`);
@@ -675,9 +695,29 @@ async function submitPath() {
     }
   };
 
-  // 1. configure the CLI non-interactively from the four secrets.
+  // 1. configure the CLI non-interactively from the five secrets.
+  //
+  // 🔴 THE SELLER ID IS NOT RE-CHECKED HERE, and the reason is worth a line so it is
+  // not "helpfully" re-added. A guard was written at exactly this point — refuse if
+  // MS_STORE_SELLER_ID is empty, before the CLI is handed `--sellerId ''` — and it is
+  // UNREACHABLE: PG-3 above pushes every empty credential onto `problems`, and
+  // `problems.length` exits at line ~522, which is before this function is ever
+  // called. An assertion that cannot fail is worse than none (docs/verification-
+  // discipline.md), so PG-3 is the one preflight and it carries the whole message.
   runCli(
-    ['reconfigure', '--tenantId', process.env.MS_STORE_TENANT_ID, '--clientId', process.env.MS_STORE_CLIENT_ID, '--clientSecret', process.env.MS_STORE_CLIENT_SECRET],
+    [
+      'reconfigure',
+      '--tenantId', process.env.MS_STORE_TENANT_ID,
+      '--clientId', process.env.MS_STORE_CLIENT_ID,
+      '--clientSecret', process.env.MS_STORE_CLIENT_SECRET,
+      // 🔴 ADDED 2026-09-09, closing the gap UNSOURCED used to carry. The options
+      // table marks none of the four required, which is why this script passed
+      // three and called the fourth unmeasured — but "not marked required" is a
+      // property of a documentation table, not of the CLI, and both of the CI/CD
+      // examples on that page pass it. Passing an identifier the tool documents
+      // and both of its examples supply is not a guess; omitting it was.
+      '--sellerId', process.env.MS_STORE_SELLER_ID,
+    ],
     'msstore reconfigure',
   );
   // 2. upload the package into a DRAFT submission. `--noCommit` is deliberate:
