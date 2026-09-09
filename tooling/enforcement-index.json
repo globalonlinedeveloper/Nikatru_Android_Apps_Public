@@ -772,7 +772,9 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-glitchtip-project.mjs",
-    "references": [],
+    "references": [
+      "D-2b"
+    ],
     "state": "WIRED"
   },
   {

@@ -1481,3 +1481,38 @@ printing both spellings; the flag renamed away ⇒ **exit 1 COVERAGE LOST**; `--
 **exit 1** naming the secret. With the token, `--live` reads `"subscriptiontracker" (id 1)` back off
 the live instance. CI runs it **offline** — ci.yml's standing objection to a CI limb depending on the
 GlitchTip box stands, and the half that was false today is knowable from the tree alone.
+
+#### ⏱ APPENDED the same day — the first repair spelled the project out, and the lane guard refused it
+
+The paragraph above says the project is written out at each call site. **That was true for
+about an hour and it is now wrong**, and the correction is worth more than the edit would be.
+`assert-release-lane-generic.mjs` failed the change on `deploy-web.yml`: **[pipeline 10]D-2b**
+abolishes per-app workflow authoring, and an app id typed into a graded lane's `run` is exactly
+that — shipping app #2 would mean finding and editing every copy on the one lane that reaches
+users. The guard also states the remedy: an app id belongs to the matrix leg, *or to a file the
+lane reads at run time*.
+
+So the value lives in **`tooling/ops/glitchtip-project.json`** and every lane reads it at run
+time. It is not the matrix leg, because the value is not per-app: it is one crash sink for the
+whole portfolio. The two forms now in the tree are both accepted and both graded:
+
+| lane | form | why |
+| --- | --- | --- |
+| `build-platforms.yml`, `deploy-web.yml` | `gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"` (bash) / `Get-Content \| ConvertFrom-Json` (pwsh) | graded by D-2b; the id may not appear in `run` |
+| `submit-*.yml` | the literal | not graded by D-2b, and PR #567 is editing these same lines — a second form here would be a merge conflict for no gain |
+
+`assert-glitchtip-project.mjs` holds both: a **variable-form** call site must read the
+declaration **in its own step** (a variable assigned somewhere else can hold anything), a
+**literal-form** call site must equal the declared project, and **no** call site may be derived
+from the app — `$APP`, `${env:APP}`, `${{ matrix.app }}`. Mutation record, green control first,
+each exit code on its own line: real tree ⇒ **exit 0, 12 call sites, 5 reading the declaration**;
+`--project "$APP"` ⇒ **exit 1**; `${{ matrix.app }}` ⇒ **exit 1**; `${env:APP}` ⇒ **exit 1**; a
+lane spelling a different project ⇒ **exit 1**; the read line deleted and the variable left ⇒
+**exit 1**; the flag renamed away ⇒ **exit 1 COVERAGE LOST**; the declaration file absent ⇒
+**exit 1**; a declaration with no `project` ⇒ **exit 1**. 17/17 in
+`tooling/ci/test/glitchtip-project.test.mjs`.
+
+🔴 **Case R1b paid for itself.** The first regex was `--project\s+(\S+)`, which stops at the
+space inside `${{ matrix.app }}` and captures `${{`. That is a variable but not recognisably
+app-derived, so the single expression this guard exists to refuse would have been graded by the
+weaker of its two rules. The test caught it; the regex now matches the whole `${{ … }}` form.
