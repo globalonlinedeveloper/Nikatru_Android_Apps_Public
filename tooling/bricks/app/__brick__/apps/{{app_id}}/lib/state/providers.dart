@@ -257,8 +257,8 @@ final Provider<bool> mustForceUpdateProvider = Provider<bool>((ref) {
 /// which is the collision itself.
 final FutureProvider<core.KeyValueStore> keyValueStoreProvider =
     FutureProvider<core.KeyValueStore>(
-  (ref) => PrefsKeyValueStore.create(appId: AppConfig.appId),
-);
+      (ref) => PrefsKeyValueStore.create(appId: AppConfig.appId),
+    );
 
 /// Secure store (auth tokens, the entitlement cache).
 ///
