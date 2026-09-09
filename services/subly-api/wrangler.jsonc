@@ -24,7 +24,10 @@
     "SUPABASE_URL": "https://lcrkiurkvzhkonjwhpiv.supabase.co",
     "API_VERSION": "v1",
     // This app's web origins only (comma-separated). Empty/absent ⇒ '*'.
-    "ALLOWED_ORIGINS": "https://subly.nikatru.com,https://subly-9cp.pages.dev",
+    // WIDENED BEFORE THE MOVE [ADR 075] -- see the longer note in
+    // services/platform/wrangler.jsonc. Apex first; the subdomain is held only
+    // until the 301 lands, then removed.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly.nikatru.com,https://subly-9cp.pages.dev",
     // [5]M-12 — this deploy's money world. The RevenueCat webhook ignores
     // events from the other world and /v1/entitlements grants nothing from it.
     // Absent/unrecognised ⇒ 503 on both (fail closed, src/lib/money.ts).

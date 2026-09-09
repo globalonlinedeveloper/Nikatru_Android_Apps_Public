@@ -46,6 +46,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { listDir } from './tree-walk.mjs';
+import { APEX_ORIGIN } from '../sites/apex.mjs';
 
 const ROOT = resolve(process.argv[2] ?? '.');
 const SERVICES = join(ROOT, 'services');
@@ -73,8 +74,22 @@ const SERVICE_POLICY = {
  * so each one has to earn its line. An origin in a config that is neither
  * catalogue-derived nor listed here is a hard failure.
  */
+const RETIRING_SUBDOMAIN_WHY =
+  'THE RETIRING APP SUBDOMAIN, held open for the length of the cutover ONLY [ADR 075]. ' +
+  'The catalogue now derives https://nikatru.com, because the app is published at ' +
+  'nikatru.com/<id>; until the zone Redirect Rule 301s the old host, a browser that ' +
+  'already has the app open at subly.nikatru.com still sends this Origin, and an exact ' +
+  'allowlist fails CLOSED and silently. REMOVE THIS ENTRY, and the matching origin from ' +
+  'both wrangler.jsonc files, in the commit that lands the 301 -- that removal is the ' +
+  'last step of the migration, and this line is what makes it a step somebody owes ' +
+  'rather than a leftover nobody notices.';
+
 const EXTRAS = {
   platform: [
+    {
+      origin: 'https://subly.nikatru.com',
+      why: RETIRING_SUBDOMAIN_WHY,
+    },
     {
       origin: 'https://subly-9cp.pages.dev',
       why: 'Subly’s Cloudflare Pages preview domain. Not in apps.json — the catalogue advertises production URLs to the public and a preview host has no business there.',
@@ -85,6 +100,10 @@ const EXTRAS = {
     },
   ],
   'subly-api': [
+    {
+      origin: 'https://subly.nikatru.com',
+      why: RETIRING_SUBDOMAIN_WHY,
+    },
     {
       origin: 'https://subly-9cp.pages.dev',
       why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform.',
@@ -195,7 +214,29 @@ if (catalogueOrigins.length < MIN_CATALOGUE_ORIGINS) {
   process.exit(1);
 }
 
-// ── enumerate every Worker config under services/ ────────────────────────────
+// 🔴 DECLARED, NOT DISCOVERED: EVERY CATALOGUE ORIGIN IS THE APEX [ADR 075].
+// MIN_CATALOGUE_ORIGINS above is now a floor that can never RISE -- one apex, N
+// apps, one origin forever -- so on its own it has stopped being coverage. What
+// replaces it is this: the set of catalogue origins must be exactly {apex}. That
+// is an assertion that CAN fail (publish one app on a subdomain again and it goes
+// red), and it says out loud that the per-app CORS boundary was traded away on
+// purpose rather than lost by accident. The apex is imported, never retyped.
+{
+  const apex = new URL(APEX_ORIGIN).origin;
+  const strays = catalogueOrigins.filter((o) => o !== apex);
+  if (strays.length) {
+    console.error(
+      `assert-cors-allowlist: ${strays.length} catalogue origin(s) are not the apex ${apex}: ` +
+        `${strays.join(', ')}.\n` +
+        '    [ADR 075] publishes every app at a PATH on the apex. An app back on its\n' +
+        '    own origin needs its own payment-provider approval and its own allowlist\n' +
+        '    entry, and assert-app-address-shape.mjs is the guard that names it.',
+    );
+    process.exit(1);
+  }
+}
+
+// ── enumerate every Worker config under services/ ───────────────────────────
 const configs = [];
 for (const entry of listDir(SERVICES, { withFileTypes: true }).sort((a, b) =>
   a.name < b.name ? -1 : 1,
@@ -293,6 +334,29 @@ for (const { service, path, where } of configs) {
   }
 
   checked++;
+
+  // ── ORIGIN IS NO LONGER A PER-APP BOUNDARY [ADR 075] ───────────────────
+  // This guard's whole design is an EXACT PER-WORKER allowlist: services/<slug>-api
+  // must list THAT ONE APP'S origin. That was a real boundary while every app had
+  // its own subdomain. It is not one any more. Every app is published at
+  // https://nikatru.com/<id>, so every app's browser tab sends the SAME Origin, and
+  // app #2's Worker will be required to allow the string app #1's tab also sends.
+  //
+  // 🔴 THE DANGEROUS PART IS THAT NOTHING GOES RED WHEN THAT HAPPENS. The guard
+  // stays green while meaning strictly less. So the replacement boundary is asserted
+  // HERE, next to the assertion it replaces: a per-app Worker must carry vars.APP_ID,
+  // because the token+APP_ID pair is the only thing left that can tell one app's
+  // caller from another's. A per-app Worker without it is authorising on nothing but
+  // a shared string.
+  if (SERVICE_POLICY[service]?.scope !== 'every-app' && typeof cfg?.vars?.APP_ID !== 'string') {
+    problems.push(
+      `✗ ${where} — vars.APP_ID is missing on a PER-APP Worker.\n` +
+        '    Every app is published on one shared origin (https://nikatru.com/<id>),\n' +
+        '    so ALLOWED_ORIGINS can no longer distinguish this app from any other.\n' +
+        '    APP_ID is the surviving half of that decision; without it this Worker\n' +
+        '    authorises on a string every app in the portfolio sends.',
+    );
+  }
 
   // The allowlist must EQUAL derived ∪ EXTRAS — a floor and a ceiling in one.
   // A declared EXTRA is required too: it is an origin somebody wrote a reason

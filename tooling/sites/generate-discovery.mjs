@@ -126,6 +126,7 @@ import {
   closeMarker,
 } from './chrome.mjs';
 import { lastmodFor } from './lastmod.mjs';
+import { APEX_ORIGIN } from './apex.mjs';
 
 /** The deploy root this generator owns. The mirror (`sites/rajasekarselvam`) is
  *  deliberately NOT generated into — see the note in assert-discovery-surface.mjs
@@ -136,7 +137,12 @@ export const APPS_DIR = `${DEPLOY_ROOT}/apps`;
 export const REGISTRY = 'sites/_shared/_data/apps.json';
 export const SITEMAP = `${DEPLOY_ROOT}/sitemap.xml`;
 export const LLMS = `${DEPLOY_ROOT}/llms.txt`;
-export const ORIGIN = 'https://nikatru.com/';
+/** RE-EXPORTED, not declared. The literal moved to `apex.mjs` on 2026-09-09 so
+ *  that `render.mjs` and `assert-app-address-shape.mjs` could import the apex
+ *  without importing this generator — see that file's header for the four
+ *  readers that now have to agree. Every existing importer of `ORIGIN` keeps
+ *  working unchanged, which is why the name stays. */
+export const ORIGIN = APEX_ORIGIN;
 
 /** 🔴 THE ONE PLACE A PRICE EXISTS IN THIS REPOSITORY. `services/platform/src/
  *  config.ts` serves these bytes to the app, `tooling/ci/assert-purchase-path.mjs`
