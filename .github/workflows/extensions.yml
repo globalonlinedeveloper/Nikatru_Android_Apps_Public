@@ -2112,15 +2112,18 @@ jobs:
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
         run: node scripts/publish-amo.mjs --tool ${{ steps.tag.outputs.id }} --source-dir dist/unpacked-firefox
 
+      # why: the Chrome lane authenticates with a SERVICE ACCOUNT as of 2026-09-09
+      # (https://developer.chrome.com/docs/webstore/service-accounts). CWS_CLIENT_ID,
+      # CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN are retired -- a preflight that still
+      # demanded them would refuse a fully credentialled lane over names no file reads,
+      # which is a FALSE BLOCKER and not a floor.
       - name: Chrome Web Store — credentials present, or the owner step
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
         run: |
           set -euo pipefail
-          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ] || [ -z "$CWS_PUBLISHER_ID" ]; then
+          if [ -z "$CWS_SERVICE_ACCOUNT_JSON" ] || [ -z "$CWS_PUBLISHER_ID" ]; then
             echo "one or more CWS_* repository secrets are empty; the register decides what that means."
           fi
           if ! node scripts/publish-arming.mjs --channel chrome-webstore --tool "${{ steps.tag.outputs.id }}"; then
@@ -2131,9 +2134,7 @@ jobs:
       - name: Submit to the Chrome Web Store
         if: github.event_name == 'push' && inputs.dry_run != true
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
         run: node scripts/publish-cws.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
 
@@ -2179,12 +2180,21 @@ jobs:
           echo "::notice::dry run finished. Every gate above ran on a real --release build of ${{ steps.tag.outputs.id }} v${{ steps.tag.outputs.version }}; the publish step was skipped by its if:, so no GitHub Release exists and nothing was sent to a store. Push the tag to release."
 
 
-  # why: a Google OAuth refresh token that goes unused is revoked, and nothing in this
-  # repository would say so until the first tag push -- on the one path that ships bytes.
-  # A scheduled exchange turns a release-day surprise into a next-morning alarm. It rides the
-  # schedule that already exists rather than adding a second cron slot to the file.
+  # why: RETIRED DUTY, REPLACED DUTY -- 2026-09-09. This job existed because a Google OAuth
+  # refresh token that goes unused is revoked. The lane no longer holds a refresh token: it
+  # authenticates with a service account (https://developer.chrome.com/docs/webstore/service-accounts),
+  # whose JWT-bearer assertion is minted fresh per call and has no non-use clock. That duty is GONE.
+  # What replaced it is not smaller: a service-account key can be disabled, deleted or rotated in
+  # the Google Cloud console, instantly and invisibly from this repository, and nothing would say so
+  # until the first tag push -- on the one path that ships bytes. So the job now MINTS A TOKEN on the
+  # schedule, with the same module the release uses. It rides the schedule that already exists rather
+  # than adding a second cron slot to the file.
+  # ⚠️ THE JOB ID IS DELIBERATELY UNCHANGED. tooling/ops/register.json names `cws-token-keepalive`
+  # as the detector for this duty; renaming the job here while that file is owned elsewhere would
+  # point a detector at a job that does not exist -- a silent failure, not a tidier name. The prose
+  # rows in that register are OWED an update.
   cws-token-keepalive:
-    name: The Chrome Web Store refresh token is still alive
+    name: The Chrome Web Store service-account credential still mints
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2197,18 +2207,16 @@ jobs:
       # workflow itself; the VERDICT is the register's, read through channel-arming.mjs, so
       # an unarmed channel prints the owner step instead of reddening a scheduled lane on
       # work only the owner can do ([pipeline C-6]).
-      - name: Exchange the refresh token, or print the owner step
+      - name: Mint a service-account token, or print the owner step
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
-          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; then
-            echo "one or more CWS_* repository secrets are empty; the register decides what that means."
+          if [ -z "$CWS_SERVICE_ACCOUNT_JSON" ]; then
+            echo "the CWS_SERVICE_ACCOUNT_JSON repository secret is empty; the register decides what that means."
           fi
           if ! node scripts/publish-cws-keepalive.mjs; then
-            echo "::error::the Chrome Web Store credential the release lane depends on could not be exercised. Re-mint CWS_REFRESH_TOKEN; a dead refresh token is invisible until a tag push tries to use it."
+            echo "::error::the Chrome Web Store credential the release lane depends on could not be exercised. The service-account key in CWS_SERVICE_ACCOUNT_JSON no longer mints a token -- disabled, deleted or rotated. A dead key is invisible until a tag push tries to use it."
             exit 1
           fi
 
@@ -2316,7 +2324,7 @@ jobs:
           case "$EVENT:$KEEPALIVE" in
             schedule:success) ;;
             schedule:*)
-              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on the daily schedule. That job is the only thing in this repository that touches the Chrome Web Store refresh token between releases; a skipped or failed run means the credential is unexercised and its death stays invisible until a tag push."
+              echo "::error::'cws-token-keepalive' came out '$KEEPALIVE' on the daily schedule. That job is the only thing in this repository that exercises the Chrome Web Store service-account credential between releases; a skipped or failed run means the credential is unexercised and a disabled, deleted or rotated key stays invisible until a tag push."
               fail=1 ;;
             *:skipped) ;;
             *)

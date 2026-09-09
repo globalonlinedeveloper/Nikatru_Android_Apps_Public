@@ -244,9 +244,7 @@ it is a lane that cannot run until the credential is created.
 | `SNAPCRAFT_STORE_CREDENTIALS_EXPIRES` | `submit-snap.yml` | the Snap lane refuses a credential whose expiry it cannot read — the date passed to `snapcraft export-login --expires`, recorded because the exported blob's format is documented nowhere |
 | `AMO_JWT_ISSUER` | `extensions.yml` | the Firefox (AMO) submission — the ONE store whose API can make a first submission |
 | `AMO_JWT_SECRET` | `extensions.yml` | as above |
-| `CWS_CLIENT_ID` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the daily `cws-token-keepalive` job |
-| `CWS_CLIENT_SECRET` | `extensions.yml` | as above |
-| `CWS_REFRESH_TOKEN` | `extensions.yml` | as above — a refresh token that goes unused is revoked, which is what the keep-alive exists to catch |
+| `CWS_SERVICE_ACCOUNT_JSON` | `extensions.yml` | the Chrome Web Store upload+publish pair, and the daily `cws-token-keepalive` job — a Google service-account key, minted into an access token by the JWT-bearer grant. **Replaced `CWS_CLIENT_ID` + `CWS_CLIENT_SECRET` + `CWS_REFRESH_TOKEN` on 2026-09-09**, when [developer.chrome.com's service-account page](https://developer.chrome.com/docs/webstore/service-accounts) turned the refresh-token shape from a requirement into a stale assumption |
 | `CWS_PUBLISHER_ID` | `extensions.yml` | as above; the v2 API path carries a publisher segment the older v1.1 path did not |
 | `EDGE_CLIENT_ID` | `extensions.yml` | the Edge Add-ons v1.1 four-call submission |
 | `EDGE_API_KEY` | `extensions.yml` | as above |
