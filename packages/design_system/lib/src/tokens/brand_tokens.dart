@@ -27,6 +27,9 @@ class BrandTokens {
   /// `--teal` in the light palette.
   static const Color teal = Color(0xFF0F766E);
 
+  /// `--on-accent` in the light palette.
+  static const Color onAccent = Color(0xFFFFFFFF);
+
   /// `--bg` in the light palette.
   static const Color bg = Color(0xFFF6F8FC);
 
@@ -75,6 +78,9 @@ class BrandTokensDark {
 
   /// `--teal` in the dark palette.
   static const Color teal = Color(0xFF17C3A2);
+
+  /// `--on-accent` in the dark palette.
+  static const Color onAccent = Color(0xFF0B1220);
 
   /// `--bg` in the dark palette.
   static const Color bg = Color(0xFF0B1220);

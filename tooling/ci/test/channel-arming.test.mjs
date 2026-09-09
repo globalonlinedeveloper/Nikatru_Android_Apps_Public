@@ -246,9 +246,13 @@ describe('channel-arming · against the REAL tooling/channel-register.json', () 
     assert.ok(armings.some((a) => a.armed), 'no channel at all is armed; the derivation has stopped reading the register');
   });
 
-  test('🔴 the four owner-gated signing rows are UNARMED — this is what makes the first tag survivable', () => {
+  // ⏱ WAS FOUR ROWS, IS NOW TWO — 2026-09-09. `ios-appstore` and `macos-appstore`
+  // left this list on the day their certificates were issued and their secrets
+  // created, which is precisely what the message below was written to announce.
+  // The two that remain are the ones whose credential still does not exist.
+  test('🔴 the remaining owner-gated signing rows are UNARMED — this is what makes the first tag survivable', () => {
     const byId = new Map(rows().map((c) => [c.id, c]));
-    for (const id of ['windows-direct', 'ios-appstore', 'macos-appstore', 'linux-appimage']) {
+    for (const id of ['windows-direct', 'linux-appimage']) {
       const row = byId.get(id);
       assert.ok(row, `${REGISTER} declares no ${id} row`);
       const a = armingOf(row);
@@ -257,6 +261,21 @@ describe('channel-arming · against the REAL tooling/channel-register.json', () 
         false,
         `${id} is now armed (${a.reasons.join('; ')}). Its signing seam's release lane is fatal again without the credential — correct, and this is where that announces itself.`,
       );
+    }
+  });
+
+  // The other half of the same statement, and the reason the list above shrank
+  // rather than the assertion loosening: these two ARE armed now, deliberately,
+  // and a silent revert to `lane: null` would make this red.
+  test('the two Apple rows ARMED on 2026-09-09 — the signing infrastructure exists and a lane emits the artifact', () => {
+    const byId = new Map(rows().map((c) => [c.id, c]));
+    for (const id of ['ios-appstore', 'macos-appstore']) {
+      const row = byId.get(id);
+      assert.ok(row, `${REGISTER} declares no ${id} row`);
+      const a = armingOf(row);
+      assert.equal(a.armed, true, `${id} is expected to be armed: ${a.blockers.join(' | ')}`);
+      assert.equal(a.lane.job, 'apple');
+      assert.equal(row.served, false, `${id} is BUILT, not published — submitting remains the owner's call`);
     }
   });
 

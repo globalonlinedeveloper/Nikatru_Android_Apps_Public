@@ -182,6 +182,16 @@ const SHA_RE = /^[0-9a-f]{40}$/;
  * which of them a lane emits is assert-channel-register.mjs's question (it
  * compares a row's artifactFormats against what its lane produces), not this
  * one's. This guard asks only "did Android compile".
+ *
+ * ⏱ `ios` GAINED `ipa` ON 2026-09-09, for exactly the Android reason and not a
+ * new one. `flutter build ipa` runs `xcodebuild archive` and then
+ * `-exportArchive`; it compiles the same iOS target as `flutter build ios` and
+ * additionally signs and packages it. Since that date build-platforms.yml picks
+ * between the two on the SIGNING POSTURE — `ipa` when there is an identity, the
+ * `--no-codesign` form when there is not — so a list naming only `ios` would
+ * report iOS unproven on precisely the runs that produce the submittable
+ * artifact. That is a false negative on the better build, which is the worst
+ * direction for a freshness guard to be wrong in.
  */
 export const PLATFORM_BUILD_TARGETS = new Map([
   ['web', ['web']],
@@ -189,7 +199,7 @@ export const PLATFORM_BUILD_TARGETS = new Map([
   ['android', ['apk', 'appbundle']],
   ['windows', ['windows']],
   ['macos', ['macos']],
-  ['ios', ['ios']],
+  ['ios', ['ios', 'ipa']],
 ]);
 
 // A hand-pressed run proves the workflow works. It does NOT prove the timer

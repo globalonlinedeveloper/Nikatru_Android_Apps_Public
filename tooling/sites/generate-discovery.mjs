@@ -333,9 +333,9 @@ const OG_IMAGE = `<meta property="og:image" content="${ORIGIN}og-image.png">
 <meta property="og:image:alt" content="Nikatru &mdash; Apps for every screen. iOS, Android, Windows, macOS, Linux and Web.">`;
 
 const STYLE = `<style>
-  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
+  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--on-accent:#FFFFFF;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
   @media (prefers-color-scheme: dark){
-    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2}
+    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2;--on-accent:#0B1220}
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
@@ -354,7 +354,7 @@ ${closeMarker('a11y-css', true)}
   h1{font-size:clamp(28px,4.5vw,40px);font-weight:800;letter-spacing:-.02em}
   .tagline{color:#A9B7CE;font-size:17.5px;margin-top:8px;max-width:560px}
   .stores{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
-  .store{display:inline-flex;align-items:center;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:11px;background:linear-gradient(90deg,var(--primary),var(--teal));color:#fff;border:0}
+  .store{display:inline-flex;align-items:center;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:11px;background:linear-gradient(90deg,var(--primary),var(--teal));color:var(--on-accent);border:0}
   .store:hover{filter:brightness(1.08)}
   .store.ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.20)}
   .store.ghost:hover{background:rgba(255,255,255,.16);filter:none}
@@ -372,7 +372,7 @@ ${closeMarker('a11y-css', true)}
   .card .amount small{font-size:14.5px;font-weight:600;color:var(--muted);letter-spacing:0}
   .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:10px}
   .shots img{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);background:var(--soft)}
-  .trial{display:inline-block;background:var(--teal);color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:99px;margin-bottom:8px}
+  .trial{display:inline-block;background:var(--teal);color:var(--on-accent);font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:99px;margin-bottom:8px}
   .note{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;color:var(--muted);font-size:15px;margin-top:16px}
   .note p{margin:0;font-size:15px}
   .note p+p{margin-top:8px}

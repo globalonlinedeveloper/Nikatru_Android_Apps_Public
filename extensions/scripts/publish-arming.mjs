@@ -294,6 +294,7 @@ export function readSubmittablePackage(zipPath) {
 // ─────────────────────────────────────────────────────────────────────────────
 const AMO_DOC = 'https://extensionworkshop.com/documentation/develop/web-ext-command-reference/';
 const CWS_DOC = 'https://developer.chrome.com/docs/webstore/using-api';
+const CWS_SA_DOC = 'https://developer.chrome.com/docs/webstore/service-accounts';
 const EDGE_DOC = 'https://learn.microsoft.com/en-us/microsoft-edge/extensions/update/api/using-addons-api';
 const EXT_RUNBOOK = 'Private/runbooks/store-submission-extensions.md';
 
@@ -312,13 +313,20 @@ export const LANES = Object.freeze({
     channelId: 'chrome-webstore',
     label: 'Chrome Web Store',
     secrets: [
-      { name: 'CWS_CLIENT_ID', why: `the OAuth client id of the Google Cloud project authorised for the chromewebstore scope (${CWS_DOC})` },
-      { name: 'CWS_CLIENT_SECRET', why: `that client's secret (${CWS_DOC})` },
-      { name: 'CWS_REFRESH_TOKEN', why: `the refresh token obtained once through the OAuth playground; the cws-token-keepalive job exists to keep it alive (${CWS_DOC})` },
+      // ⏱ CONVERTED 2026-09-09. CWS_CLIENT_ID, CWS_CLIENT_SECRET and
+      // CWS_REFRESH_TOKEN are RETIRED. Google documents service accounts for
+      // this API at ${CWS_SA_DOC} (fetched 2026-09-09) — the account email is
+      // added in the Developer Dashboard under Account, and "you can only add
+      // one service account to your publisher". The refresh-token shape was a
+      // stale assumption, not a requirement, and it cost this repository a
+      // second way of authenticating to Google beside the Play lane's.
+      // 🔴 A PREFLIGHT THAT STILL DEMANDED THE THREE WOULD BE A FALSE BLOCKER:
+      // it would refuse a fully credentialled lane over names no file reads.
+      { name: 'CWS_SERVICE_ACCOUNT_JSON', why: `the Google service-account key JSON, whose email is added to the publisher in the Developer Dashboard under Account (${CWS_SA_DOC}); the same shape the Play lane's PLAY_SERVICE_ACCOUNT_JSON uses` },
       { name: 'CWS_PUBLISHER_ID', why: `the publisher id shown in the Developer Dashboard under Publisher → Settings; the v2 API path carries it and the older v1.1 path did not (${CWS_DOC})` },
     ],
     ownerStep:
-      `pay the $5 Chrome Web Store developer fee, publish THE TOOL BEING RELEASED manually once (no store API can create a first submission — ADR 067 decision 8), create an OAuth client, exchange a refresh token through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope, then add CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN and CWS_PUBLISHER_ID as repository secrets — and write the item id the store issued into that tool's OWN ${TOOL_JSON_REL} \`storeMetadata.stores.chrome.listingId\`, never into a repository secret: the credentials are shared across tools and the listing is not. Runbook: ${EXT_RUNBOOK}`,
+      `pay the $5 Chrome Web Store developer fee, publish THE TOOL BEING RELEASED manually once (no store API can create a first submission — ADR 067 decision 8), then add the service account's email to the publisher in the Developer Dashboard under Account (${CWS_SA_DOC} — only ONE service account may be added per publisher) and set CWS_SERVICE_ACCOUNT_JSON and CWS_PUBLISHER_ID as repository secrets — and write the item id the store issued into that tool's OWN ${TOOL_JSON_REL} \`storeMetadata.stores.chrome.listingId\`, never into a repository secret: the credentials are shared across tools and the listing is not. Runbook: ${EXT_RUNBOOK}`,
   },
   'edge-addons': {
     channelId: 'edge-addons',

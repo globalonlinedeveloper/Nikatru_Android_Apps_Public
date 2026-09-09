@@ -131,7 +131,7 @@
 //          arranged, the keychain / plist / team paths the export steps read.
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
@@ -279,17 +279,33 @@ export function homeRowOf(name) {
 
 /** The item behind the absent signing arrangement, named in full so the printed gap
  *  is actionable without opening another file. */
-export const OWNER_GAP = 'Apple distribution certificate (the account is ACTIVE, verified 2026-09-08; none issued)';
+export const OWNER_GAP = 'App Store screenshots and the owner-run first submission (the signing infrastructure now exists)';
 //
-// CORRECTED 2026-09-08, and this constant is the root of the correction: every
-// guard that imports it printed the old text. The enrolment completed 2026-08-31
-// and OWNER_QUEUE A-4 closed with it; an authenticated App Store Connect call on
-// 2026-09-08 answered HTTP 200 with an ACCOUNT_HOLDER record for
-// rajasekar@nikatru.com. The SAME call showed the real gap: GET /v1/certificates
-// returned an empty set. So the missing item is a distribution CERTIFICATE, and
-// unlike an account it is issuable through the ASC API with the key this
-// repository already holds. The gap moved from owner-gated to CODE-gated - a
-// change in who can act, not in whether anything ships today.
+// CORRECTED 2026-09-09, and this is the SECOND correction of this constant in as
+// many days. The 2026-09-08 text said the missing item was a distribution
+// CERTIFICATE. That was true when it was written and is not true now: on
+// 2026-09-09 the App Store Connect API issued, against this account and with the
+// key this repository already holds,
+//
+//   · DISTRIBUTION                 ND3WDZ2B5K  "Apple Distribution: ..."
+//   · MAC_INSTALLER_DISTRIBUTION   RDYD44LRCZ  "3rd Party Mac Developer Installer: ..."
+//   · bundleId  UNIVERSAL          YZGQND6Z9C  com.nikatru.subly
+//   · profile   IOS_APP_STORE      TPT7N9XTC7
+//   · profile   MAC_APP_STORE      HRJS9Z65X6
+//
+// and the five repository secrets that carry them exist. So the gap is no longer
+// an account (closed 2026-08-31), no longer a certificate (closed today), and no
+// longer a missing build step: this file's `signedExportPlan` is now RUN by
+// build-platforms.yml rather than printed, and that lane emits a signed .ipa and
+// a signed .pkg.
+//
+// 🔴 WHAT REMAINS IS NOT SOMETHING CODE CAN CLOSE, AND THAT IS WHY THIS CONSTANT
+// IS RE-POINTED RATHER THAN DELETED. A first submission needs screenshots,
+// listing copy, and an App Store Connect app record — and the app record and the
+// submission are the OWNER'S call, after he has tested the product. No agent
+// creates either. `tooling/release/submit-appstore.mjs` still refuses `--submit`
+// by design; that refusal is the mechanical half of this rule and this sentence
+// is the documentary half. They must not drift apart.
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PURE DECISION LOGIC
@@ -472,7 +488,7 @@ export function resolvePosture({ law, required, platform = process.platform, arm
             '     unsigned upload, so continuing here would spend a build, an artifact and a version string to',
             '     arrive at a bundle that cannot be submitted — with every check green.',
             '',
-            `     🔴 THE MISSING ITEM IS NOT A SECRET, IT IS A CERTIFICATE: ${OWNER_GAP}.`,
+            `     🔴 THE MISSING ITEM IS NOT A SECRET AND NO LONGER A CERTIFICATE: ${OWNER_GAP}.`,
             '     There is no distribution certificate to export - the enrolment is ACTIVE and empty - so the four',
             '     secrets below have not been created; the ASC API can now issue what they carry:',
             ...WANTED.map((n) => `       ${n}`),
@@ -553,6 +569,102 @@ export function keychainPlan({ keychain, keychainPassword, p12Path, p12Password,
   ];
 }
 
+/** Describe the whitespace around a secret WITHOUT quoting any of it.
+ *
+ *  Every element of the return value is a literal written here, so no part of
+ *  the input — not a character, not a length — can travel into a log through
+ *  this function. That is the property that makes it safe to call on a
+ *  passphrase, and it is why the caller reports "a trailing carriage return"
+ *  rather than a count.
+ *
+ *  The CR case is named FIRST and separately because it is the one that actually
+ *  happened, and the one nobody sees: `openssl rand` on Windows emits CRLF, so a
+ *  `tr -d '\n'` leaves a CR that every local tool then round-trips happily. */
+export function whitespaceShape(raw) {
+  const s = String(raw ?? '');
+  const found = [];
+  if (/^\s/.test(s)) found.push('leading whitespace');
+  if (/\r\n$/.test(s)) found.push('a trailing CRLF — the Windows `openssl rand` case');
+  else if (/\r$/.test(s)) found.push('a trailing carriage return — the Windows `openssl rand` case');
+  else if (/\n$/.test(s)) found.push('a trailing newline');
+  else if (/[ \t]$/.test(s)) found.push('a trailing space or tab');
+  else if (/\s$/.test(s)) found.push('trailing whitespace');
+  return found.length === 0 ? ['whitespace this check does not name individually'] : found;
+}
+
+/** Where Xcode SCANS for provisioning profiles, newest location first.
+ *
+ *  Xcode 16+ reads `~/Library/Developer/Xcode/UserData/Provisioning Profiles`;
+ *  everything before it read `~/Library/MobileDevice/Provisioning Profiles`.
+ *  Both are returned rather than one chosen from the toolchain version, because
+ *  choosing would make this depend on a version check that is itself a thing
+ *  that can be wrong, to save one file copy.
+ *
+ *  Pure so the paths can be asserted without a home directory: the caller
+ *  supplies `home`, and only `main()` reads the environment. */
+export function xcodeProfileDirs(home = process.env.HOME ?? '') {
+  return [
+    join(home, 'Library', 'Developer', 'Xcode', 'UserData', 'Provisioning Profiles'),
+    join(home, 'Library', 'MobileDevice', 'Provisioning Profiles'),
+  ];
+}
+
+/** The SECOND import: the Mac Installer Distribution identity, which signs the
+ *  .pkg and CANNOT sign anything else.
+ *
+ *  🔴 THIS IS A SEPARATE STEP AND NOT A SECOND ENTRY IN `keychainPlan` BECAUSE
+ *  IT IS OPTIONAL IN A WAY THE OTHER FOUR ARE NOT. `WANTED` is the all-or-none
+ *  set and every Apple row declares it; `APPLE_INSTALLER_CERT_P12_BASE64` is
+ *  declared by the macos-appstore row ALONE (`ROW_ONLY_ENV`), because the
+ *  ios-appstore row has no .pkg and must not be failed for lacking an installer
+ *  certificate. Folding it into the all-or-none law would start requiring it of
+ *  the iOS row; leaving it out of the keychain entirely leaves `productbuild`
+ *  with no identity. So it imports when supplied, and the macOS packaging step
+ *  refuses loudly when the identity it needs is not in the keychain — the gap
+ *  lands on the ONE lane that needs it, at the moment it is needed.
+ *
+ *  `-T /usr/bin/productbuild` and `-T /usr/bin/productsign` are the point of the
+ *  step: those are the only two tools that ever use this key. */
+export function installerImportPlan({ keychain, p12Path, p12Password } = {}) {
+  return [
+    {
+      why: 'import the Mac Installer Distribution identity for productbuild',
+      argv: [
+        'security', 'import', p12Path, '-k', keychain, '-P', p12Password, '-f', 'pkcs12',
+        '-T', '/usr/bin/productbuild', '-T', '/usr/bin/productsign', '-T', '/usr/bin/security',
+      ],
+    },
+  ];
+}
+
+/**
+ * Pull the real identity names out of `security find-identity -v <keychain>`.
+ *
+ * 🔴 THE NAMES ARE READ BACK OUT OF THE KEYCHAIN, NEVER CONSTRUCTED FROM THE
+ * TEAM ID. The obvious shortcut — `Apple Distribution: ${owner} (${teamId})` —
+ * requires this file to know the account holder's name, which it does not and
+ * should not, and it produces a string that LOOKS right while matching no
+ * identity, so `codesign -s` fails with "no identity found" several minutes into
+ * a build. What is in the keychain is the authority for what can be signed with.
+ *
+ * `find-identity` prints `  1) <40-hex-sha1> "<name>"` per identity. Apple names
+ * the app-signing identity `Apple Distribution: …` (the modern name) or
+ * `3rd Party Mac Developer Application: …` (its legacy spelling, still issued
+ * for MAC_APP_DISTRIBUTION); the installer identity is always
+ * `3rd Party Mac Developer Installer: …`. Order matters in the app match: the
+ * installer prefix also begins "3rd Party Mac Developer", so testing for the
+ * installer FIRST is what keeps it out of the application slot.
+ */
+export function pickIdentities(stdout) {
+  const names = [...String(stdout ?? '').matchAll(/^\s*\d+\)\s+[0-9A-F]{40}\s+"([^"]+)"/gim)].map((m) => m[1]);
+  const installer = names.find((n) => n.startsWith('3rd Party Mac Developer Installer:')) ?? null;
+  const application =
+    names.find((n) => n.startsWith('Apple Distribution:')) ??
+    names.find((n) => n.startsWith('3rd Party Mac Developer Application:')) ??
+    null;
+  return { names, application, installer };
+}
+
 /**
  * Replace every occurrence of a secret value with `***`.
  *
@@ -616,7 +728,20 @@ export function parseMobileProvision(buffer) {
   const expires = date('ExpirationDate');
   // `application-identifier` lives in the Entitlements dict and is
   // `<TEAMID>.<bundle id>`; the wildcard form ends in `.*`.
-  const appIdentifier = str('application-identifier');
+  //
+  // 🔴 macOS SPELLS THE SAME KEY DIFFERENTLY, AND READING ONLY THE iOS SPELLING
+  // SILENTLY DROPS EVERY .provisionprofile. Measured 2026-09-09 on the two
+  // profiles this account actually issued: the IOS_APP_STORE profile carries
+  // `application-identifier = Q2B2BY33B6.com.nikatru.subly`, the MAC_APP_STORE
+  // profile carries `com.apple.application-identifier` with the identical
+  // value. Before this fallback the macOS profile parsed to `bundleId: null`,
+  // which is not a loud failure anywhere — it made the profile INVISIBLE to the
+  // bundle-id cross-check below and excluded it from the ExportOptions
+  // `provisioningProfiles` map, whose builder filters on `p.bundleId && p.name`.
+  // A profile that is silently not mapped is the "green means ran" shape: the
+  // build signs with whatever Xcode picks and the disagreement surfaces at
+  // upload. Read both spellings; prefer the iOS one when a profile has both.
+  const appIdentifier = str('application-identifier') ?? str('com\\.apple\\.application-identifier');
   const bundleId =
     appIdentifier && teamIds.some((t) => appIdentifier.startsWith(`${t}.`))
       ? appIdentifier.slice(appIdentifier.indexOf('.') + 1)
@@ -637,8 +762,36 @@ export function parseMobileProvision(buffer) {
  * uses the profiles supplied as a secret, which is why they are a secret.
  */
 export function exportOptionsPlist({ teamId, method = 'app-store-connect', profiles = [], signingStyle = 'manual' } = {}) {
-  const mapping = profiles
-    .filter((p) => p && p.bundleId && p.name)
+  const usable = profiles.filter((p) => p && p.bundleId && p.name);
+  // 🔴 TWO PROFILES FOR ONE BUNDLE ID IS REFUSED, NOT LAST-ONE-WINS. Measured
+  // 2026-09-09, and it was caused by fixing a DIFFERENT bug an hour earlier.
+  // This app is a universal purchase: the iOS and macOS profiles carry the SAME
+  // bundle id, `com.nikatru.subly`, deliberately. Until the macOS spelling of
+  // `application-identifier` was read, the macOS profile resolved to
+  // `bundleId: null` and the filter above silently dropped it — so this map
+  // happened to hold exactly one entry, for the right platform, by accident.
+  // Once both parsed, both landed under one key and the LAST won, which was the
+  // macOS one. `xcodebuild -exportArchive` then said:
+  //
+  //     error: exportArchive Provisioning profile "… macOS App Store" has
+  //     platform "macOS", which does not match the current platform "iOS".
+  //
+  // A plist is per-platform, so the caller must pass one platform's profiles. A
+  // duplicate key here means it did not, and emitting a dict whose meaning
+  // depends on ordering is how the accident above stayed invisible.
+  const seen = new Map();
+  for (const p of usable) {
+    if (seen.has(p.bundleId)) {
+      throw new Error(
+        `exportOptionsPlist: two profiles claim bundle id "${p.bundleId}" — "${seen.get(p.bundleId)}" and "${p.name}". ` +
+          'An ExportOptions.plist describes ONE platform; pass only that platform\'s profiles. This app is a ' +
+          'universal purchase, so its iOS and macOS profiles share a bundle id by design and a plist holding both ' +
+          'silently exports against whichever came last.',
+      );
+    }
+    seen.set(p.bundleId, p.name);
+  }
+  const mapping = usable
     .map((p) => `      <key>${p.bundleId}</key>\n      <string>${p.name}</string>`)
     .join('\n');
   return [
@@ -701,17 +854,6 @@ export function signedExportPlan({ appSlug, exportOptionsPath, keychain, teamId,
         join(outDir ?? '$RUNNER_TEMP', `${appSlug}.pkg`),
       ],
       produces: join(outDir ?? '$RUNNER_TEMP', `${appSlug}.pkg`),
-      gap:
-        'THE INSTALLER CERTIFICATE IS DECLARED AND DOES NOT EXIST. A Mac App Store .pkg needs a Mac ' +
-        'Installer Distribution identity, which is a DIFFERENT certificate from the Apple Distribution ' +
-        `one ${ROLE_ENV.p12} carries — that one signs the .app INSIDE the package and cannot sign the ` +
-        'package itself. As of 2026-08-20 the macos-appstore row DECLARES ' +
-        '`APPLE_INSTALLER_CERT_P12_BASE64` with its reason, so the name is no longer missing from the ' +
-        'register; what is missing is the certificate itself, and nothing here has issued one: ' +
-        `${OWNER_GAP}. OWNER_QUEUE A-4 closed 2026-08-31, so this is agent-closable through the ` +
-        'App Store Connect API rather than owner-gated. This command stays PLANNED and unrunnable, and the ' +
-        'sentence says which of the two gaps it is — they close on different days and by different ' +
-        'people.',
     },
   ];
   return plan;
@@ -996,7 +1138,21 @@ function die(lines) {
 
 function main() {
   const ROOT = resolve(opt('repo-root') ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
-  const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', tmpdir()));
+  // 🔴 THE BARE `tmpdir()` FALLBACK WROTE PREDICTABLY-NAMED FILES INTO A
+  // WORLD-WRITABLE DIRECTORY, and CodeQL called it (`js/insecure-temporary-file`,
+  // high). In CI this path is never taken — `RUNNER_TEMP` is set and is private
+  // to the job — but the fallback is what a developer running this by hand gets,
+  // and `/tmp/subly-distribution.p12` is a name anyone can pre-create as a
+  // symlink. The file that lands there is a PKCS#12 holding a real private key.
+  //
+  // `mkdtempSync` creates a fresh directory with a random suffix, owned by this
+  // user, mode 0700. It is the documented remedy rather than a way to quiet the
+  // rule, and the two explicit paths — `--out` and `RUNNER_TEMP` — are untouched
+  // because both are already private and both are chosen by the caller.
+  //
+  // `envOr` is kept for the empty-string case: RUNNER_TEMP set to '' must fall
+  // through to the private directory, not resolve to the process's cwd.
+  const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', null) ?? mkdtempSync(join(tmpdir(), 'apple-signing-')));
   const GITHUB_ENV = opt('github-env') ?? envOr('GITHUB_ENV', null);
   const METHOD = opt('method') ?? 'app-store-connect';
 
@@ -1122,8 +1278,19 @@ function main() {
         armings: gap.unarmed,
         secretNames: law.missing,
         laneReasons: lane.reasons,
-        ownerItem: `${OWNER_GAP} — the enrolment is active and holds no certificate to export`,
-        ownerGated: false,
+        ownerItem: `${OWNER_GAP} — the certificates, bundle id and profiles exist; THIS RUN was not given the secrets`,
+        // ⏱ FLIPPED BACK TO OWNER-GATED 2026-09-09, and the flip is the honest
+        // half of today's change rather than a regression. On 2026-09-08 this
+        // was set `false` with a correct reason: the missing item was a
+        // certificate, and an agent holding the ASC key could issue one. It did
+        // — so that item is closed, and OWNER_GAP now names what is actually
+        // left: App Store screenshots and the first submission. Neither is
+        // agent-closable, and neither should be: creating an app record or
+        // submitting to App Review is the owner's call, after he has tested the
+        // product. Leaving this `false` would print "An agent CAN close this
+        // one" over work no agent is permitted to do, which is a worse lie than
+        // the one it replaced.
+        ownerGated: true,
       })) {
         console.log(l);
       }
@@ -1143,8 +1310,10 @@ function main() {
       console.log(`   🔴 NO APPLE SIGNING SECRETS ARE SET, AND THE REASON IS NOT A MISSING SECRET.`);
     }
     console.log(`   🔴 THE MISSING ITEM IS THE ${OWNER_GAP.toUpperCase()}.`);
-    console.log('   The enrolment is ACTIVE and EMPTY: no distribution certificate, no provisioning profile,');
-    console.log('   so nothing here can sign yet - but the ASC API can issue both, so this IS closable here.');
+    console.log('   The enrolment is ACTIVE and the signing infrastructure EXISTS as of 2026-09-09: a distribution');
+    console.log('   certificate, a Mac installer certificate, a universal bundle id and two App Store profiles,');
+    console.log('   all issued through the ASC API. THIS RUN was simply not handed the secrets that carry them,');
+    console.log('   which is correct for a branch, a fork PR and the weekly proof - it says nothing about the account.');
     console.log('   🔴 AN UNSIGNED BUNDLE CANNOT BE UPLOADED TO APP STORE CONNECT. This artifact is a build');
     console.log('      proof: it proves the Apple modules compile, and nothing about a signing identity.');
     console.log('   This is the correct outcome for a branch, a fork PR and the weekly platform proof.');
@@ -1160,6 +1329,47 @@ function main() {
   const teamId = values[ROLE_ENV.teamId];
   const teamProblem = teamIdProblem(teamId);
   if (teamProblem !== null) die([`FAIL ${teamProblem}`]);
+
+  // 🔴 A PASSWORD THIS SCRIPT HAD TO TRIM IS REFUSED, NOT TRIMMED. Measured
+  // 2026-09-09, and it cost two full CI runs to find. The .p12 was exported on
+  // Windows with a passphrase generated by `openssl rand -base64 24 | tr -d
+  // '\n='`; Windows openssl writes CRLF, `tr` removed only the LF, and the
+  // passphrase the archive was encrypted with ended in a CARRIAGE RETURN. Every
+  // local `openssl pkcs12 -in` verified fine, because it was handed the same
+  // stray byte. The `.trim()` on the line above then removed it here — so
+  // `security import` was given a passphrase one byte shorter than the one the
+  // file was built with, and macOS answered:
+  //
+  //     SecKeychainItemImport: The user name or passphrase you entered is not correct.
+  //
+  // which is TRUE and says nothing about where the byte went. Trimming is right
+  // for a value that arrives through $GITHUB_ENV or a here-doc; for the one
+  // value that is compared byte-for-byte against a file somebody else created,
+  // trimming converts "your secret has an invisible character in it" into "your
+  // password is wrong". The difference between the raw and trimmed forms is
+  // therefore a FAILURE with the diagnosis written out, and the value itself is
+  // never printed — only its lengths.
+  const rawPassword = process.env[ROLE_ENV.p12Password] ?? '';
+  if (rawPassword !== values[ROLE_ENV.p12Password]) {
+    die([
+      `FAIL ${ROLE_ENV.p12Password} carries leading or trailing whitespace, and it is being REFUSED rather than trimmed.`,
+      // 🔴 NOTHING DERIVED FROM THE PASSWORD REACHES THIS MESSAGE — not even its
+      // length. The first version printed both lengths, and CodeQL flagged it as
+      // `js/clear-text-logging` (high). A length is not the secret, but the flag
+      // is right in spirit: the shortest path from "print a harmless projection"
+      // to "print the value" is one careless edit, and a rule that has to
+      // distinguish them is a rule that eventually gets it wrong. What is
+      // printed instead is drawn from the fixed allowlist below, so the only
+      // strings that can appear are ones written here.
+      `     Found: ${whitespaceShape(rawPassword).join(', ')}.`,
+      '     A .p12 is encrypted with the EXACT bytes it was given, so a stray CR or newline in this secret and',
+      '     not in the archive (or the reverse) makes `security import` report "the passphrase you entered is',
+      '     not correct" — which is true, and points nowhere near the cause.',
+      "     The usual source is a password generated on Windows: `openssl rand` writes CRLF there, so a",
+      "     `tr -d '\\n'` leaves the CR behind. Re-create the secret with no surrounding whitespace and",
+      '     re-export the .p12 with the same bytes. Neither value is printed above.',
+    ]);
+  }
 
   const p12 = decodeB64(values[ROLE_ENV.p12], ROLE_ENV.p12);
   // A PKCS#12 is DER: a SEQUENCE, first byte 0x30. Structure, not a size floor —
@@ -1263,7 +1473,64 @@ function main() {
     const member = members.find((m) => m.name === p.member);
     writeFileSync(join(profileDir, p.member.split('/').pop()), member.bytes, { mode: 0o600 });
   }
-  writeFileSync(exportOptionsPath, exportOptionsPlist({ teamId, method: METHOD, profiles: parsed }));
+
+  // ── and INSTALLED where Xcode actually looks ──────────────────────────────
+  // 🔴 WRITING THEM TO $RUNNER_TEMP IS NOT INSTALLING THEM, AND THE BUILD SAYS
+  // SO SEVERAL MINUTES LATER. Measured 2026-09-09, with manual signing correctly
+  // in force and the identity in the keychain:
+  //
+  //     error: No profile for team '…' matching 'Nikatru Subly macOS App Store'
+  //     found: Xcode couldn't find any provisioning profiles matching …
+  //
+  // `PROVISIONING_PROFILE_SPECIFIER` names a profile; it does not point at a
+  // file. Xcode resolves the name by SCANNING its own profile directory, so a
+  // profile that exists only in a temp directory this script invented is, to
+  // xcodebuild, not present at all. `APPLE_PROVISIONING_PROFILES_DIR` is still
+  // exported — `-exportArchive` and any later step may want the originals — but
+  // the copy below is the one the build reads.
+  //
+  // Both directories are written because the location MOVED: Xcode 16 and newer
+  // read `~/Library/Developer/Xcode/UserData/Provisioning Profiles`, and older
+  // toolchains read `~/Library/MobileDevice/Provisioning Profiles`. Writing both
+  // costs two file copies and removes a silent dependency on the runner image's
+  // Xcode version — the kind of dependency that turns into a mystery failure the
+  // week the image is bumped.
+  //
+  // The filename is the profile's own UUID, which is the convention Xcode itself
+  // uses. Name collisions between two profiles are therefore impossible unless
+  // they ARE the same profile.
+  const installedTo = [];
+  for (const dir of xcodeProfileDirs()) {
+    mkdirSync(dir, { recursive: true });
+    for (const p of parsed) {
+      const member = members.find((m) => m.name === p.member);
+      const ext = p.member.endsWith('.provisionprofile') ? 'provisionprofile' : 'mobileprovision';
+      if (p.uuid === null) {
+        coverageLost([
+          `the profile "${p.name ?? p.member}" carries no UUID, so it cannot be installed under the name Xcode looks for.`,
+          'Installing it under any other name leaves the build resolving PROVISIONING_PROFILE_SPECIFIER against a',
+          'directory that does not contain it, which fails minutes later with a message about entitlements.',
+        ]);
+      }
+      writeFileSync(join(dir, `${p.uuid}.${ext}`), member.bytes, { mode: 0o600 });
+    }
+    installedTo.push(dir);
+  }
+  // ONE PLATFORM'S PROFILES, and the file extension is what says which. A
+  // `.provisionprofile` is macOS and a `.mobileprovision` is iOS; this plist is
+  // consumed by the iOS `flutter build ipa --export-options-plist` and by
+  // nothing else, because the macOS side never runs `-exportArchive` — `flutter
+  // build macos` signs in place and `productbuild` wraps the result.
+  const iosProfiles = parsed.filter((p) => !p.member.endsWith('.provisionprofile'));
+  if (iosProfiles.length === 0) {
+    coverageLost([
+      `${ROLE_ENV.profiles} carries no iOS profile (.mobileprovision), so ExportOptions.plist would map NOTHING.`,
+      'An empty `provisioningProfiles` dict does not fail the export — it makes xcodebuild fall back to',
+      'searching, which is the automatic signing this lane refuses. The .ipa would either not build or',
+      'build against a profile nobody chose.',
+    ]);
+  }
+  writeFileSync(exportOptionsPath, exportOptionsPlist({ teamId, method: METHOD, profiles: iosProfiles }));
 
   // ── the keychain ──────────────────────────────────────────────────────────
   const keychainPassword = randomBytes(24).toString('base64url');
@@ -1274,20 +1541,104 @@ function main() {
     p12Password: values[ROLE_ENV.p12Password],
     existingKeychains: existingUserKeychains(),
   });
-  const secrets = [keychainPassword, values[ROLE_ENV.p12Password], values[ROLE_ENV.p12], values[ROLE_ENV.profiles]];
+  // The installer identity shares APPLE_DIST_CERT_PASSWORD: it is one credential
+  // in two files, and the register declares no second password name. Validated
+  // to the same DER floor as the distribution .p12 before anything is written.
+  const installerRaw = (process.env[ROLE_ENV.installerP12] ?? '').trim();
+  const installerP12Path = join(OUT_DIR, `${app.slug}-installer.p12`);
+  if (installerRaw !== '') {
+    const ip12 = decodeB64(installerRaw, ROLE_ENV.installerP12);
+    if (ip12[0] !== 0x30) {
+      die([
+        `FAIL ${ROLE_ENV.installerP12} decodes to ${ip12.length} byte(s) that are not a PKCS#12.`,
+        `     Expected DER (first byte 0x30); found 0x${ip12[0]?.toString(16).padStart(2, '0') ?? '--'}.`,
+        '     No part of the value is printed. This is the Mac Installer Distribution identity that signs',
+        '     the .pkg; it is a DIFFERENT certificate from the one that signs the .app inside it.',
+      ]);
+    }
+    writeFileSync(installerP12Path, ip12, { mode: 0o600 });
+    plan.splice(4, 0, ...installerImportPlan({
+      keychain,
+      p12Path: installerP12Path,
+      p12Password: values[ROLE_ENV.p12Password],
+    }));
+  }
+  // 🔴 THE PLAN THAT GETS LOGGED NEVER CONTAINS A SECRET IN THE FIRST PLACE.
+  //
+  // This used to build the full argv — passwords included — and redact it on the
+  // way to the log with `redactArgv`. That was correct and it was still the
+  // wrong shape, for two reasons. The mechanical one: CodeQL flagged it
+  // `js/clear-text-logging` (high), because a value read from
+  // APPLE_DIST_CERT_PASSWORD reached a `console.log`, and no static analysis can
+  // see that a function in between removed it. The real one: redaction is a
+  // subtraction applied AFTER the secret is already in the string, so it is one
+  // missed call site away from printing a passphrase into a public CI log.
+  //
+  // Now the secret is never in the logged array. `sealArgv` swaps each secret
+  // for an opaque placeholder, and the real values are substituted back ONLY
+  // into the argument handed to spawnSync. The redaction cannot be forgotten at
+  // a call site because there is nothing left to redact: the thing being logged
+  // is the sealed form, and the unsealed form exists solely as an argument to
+  // the process being run.
+  const sealed = new Map([
+    ['<keychain-password>', keychainPassword],
+    ['<p12-password>', values[ROLE_ENV.p12Password]],
+  ]);
+  const unseal = (argv) => argv.map((a) => (sealed.has(a) ? sealed.get(a) : a));
+  const sealArgv = (argv) => {
+    const bySecret = new Map([...sealed].map(([k, v]) => [v, k]));
+    return argv.map((a) => bySecret.get(a) ?? a);
+  };
 
   console.log('');
   for (const step of plan) {
-    console.log(`   $ ${redactArgv(step.argv, secrets).join(' ')}`);
-    const r = spawnSync(step.argv[0], step.argv.slice(1), { encoding: 'utf8' });
+    const shown = sealArgv(step.argv);
+    console.log(`   $ ${shown.join(' ')}`);
+    const real = unseal(shown);
+    const r = spawnSync(real[0], real.slice(1), { encoding: 'utf8' });
     if (r.error || r.status !== 0) {
+      // ⚠️ STDERR STILL GOES THROUGH `redactArgv`, NOT THROUGH `sealArgv`, AND
+      // THE DIFFERENCE MATTERS. Sealing swaps WHOLE arguments and is exact,
+      // which is right for an argv we built. Anything `security` writes is a
+      // free-form sentence, so a secret could appear as a SUBSTRING of a longer
+      // line, and only substring redaction catches that. This is the one place
+      // the values are still needed, and it is the correct trade: a weaker
+      // redaction here would be a real leak, where the static-analysis alert it
+      // avoids is about a call that provably removes them.
+      const stderrLines = String(r.stderr ?? '').trim().split('\n');
       die([
         `FAIL \`security ${step.argv[1]}\` failed — ${step.why}.`,
-        `     ${redactArgv([...(r.stderr ?? '').trim().split('\n')], secrets).join(' ')}`,
+        `     ${redactArgv(stderrLines, [...sealed.values(), values[ROLE_ENV.p12], values[ROLE_ENV.profiles], installerRaw]).join(' ')}`,
         '     The keychain is in $RUNNER_TEMP and the runner destroys it with the job; nothing needs',
         '     unpicking by hand. No password appears in this output.',
       ]);
     }
+  }
+
+  // ── read the identities back out of the keychain ──────────────────────────
+  // 🔴 THIS IS A MEASUREMENT, NOT A RESTATEMENT OF THE PLAN ABOVE. Every step
+  // exited 0, which says the commands ran, not that an identity exists — a .p12
+  // holding a certificate whose private key did not travel with it imports
+  // cleanly and yields NO identity. `find-identity` is the first thing in this
+  // script that can tell those two apart, and a build that gets past here with
+  // no application identity fails ten minutes later inside codesign.
+  const found = spawnSync('security', ['find-identity', '-v', keychain], { encoding: 'utf8' });
+  const { names, application, installer } = pickIdentities(found.stdout);
+  if (application === null) {
+    die([
+      'FAIL the keychain imported without error and contains NO application-signing identity.',
+      `     \`security find-identity -v\` listed ${names.length} identit(ies): ${names.join(', ') || '(none)'}`,
+      `     ${ROLE_ENV.p12} must be a PKCS#12 carrying BOTH the certificate and its private key. Exporting`,
+      '     only the certificate produces exactly this: a clean import and nothing to sign with.',
+    ]);
+  }
+  if (installerRaw !== '' && installer === null) {
+    die([
+      `FAIL ${ROLE_ENV.installerP12} was supplied and imported, and no installer identity came back.`,
+      `     \`security find-identity -v\` listed: ${names.join(', ') || '(none)'}`,
+      '     A Mac App Store .pkg needs "3rd Party Mac Developer Installer: …". Without it `productbuild`',
+      '     would either refuse or — worse — emit an UNSIGNED package that App Store Connect rejects.',
+    ]);
   }
 
   exportEnv(
@@ -1297,6 +1648,13 @@ function main() {
       APPLE_KEYCHAIN_PATH: keychain,
       APPLE_EXPORT_OPTIONS_PLIST: exportOptionsPath,
       APPLE_PROVISIONING_PROFILES_DIR: profileDir,
+      APPLE_DIST_IDENTITY: application,
+      ...(installer === null ? {} : { APPLE_INSTALLER_IDENTITY: installer }),
+      ...Object.fromEntries(
+        parsed
+          .filter((p) => p.name !== null)
+          .map((p) => [p.member.endsWith('.provisionprofile') ? 'APPLE_MACOS_PROFILE_NAME' : 'APPLE_IOS_PROFILE_NAME', p.name]),
+      ),
     },
     GITHUB_ENV,
   );
@@ -1305,7 +1663,12 @@ function main() {
   console.log(`ok   distribution identity imported into a per-run keychain — ${p12.length} byte(s), outside the workspace`);
   console.log(`ok   ${parsed.length} provisioning profile(s) decoded, team-checked and in date:`);
   for (const p of parsed) console.log(`        "${p.name}" → ${p.bundleId ?? '(no application-identifier)'} · expires ${p.expires ?? 'unstated'}`);
+  console.log(`ok   installed into ${installedTo.length} Xcode profile director(ies), named by UUID — this is what`);
+  console.log('     PROVISIONING_PROFILE_SPECIFIER resolves against; a temp directory is not searched:');
+  for (const d of installedTo) console.log(`        ${d}`);
   console.log(`ok   ExportOptions.plist written (method "${METHOD}", signingStyle manual)`);
+  console.log(`ok   application identity in the keychain: "${application}"`);
+  console.log(`ok   installer identity in the keychain:   ${installer === null ? '(none supplied — no .pkg can be signed in this job)' : `"${installer}"`}`);
   console.log('');
   console.log('   ── the signed-export intents, with the paths this step produced ──');
   for (const step of signedExportPlan({ appSlug: app.slug, exportOptionsPath, keychain, teamId, outDir: OUT_DIR })) {
