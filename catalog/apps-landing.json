@@ -27,7 +27,7 @@
     "offerings": [
       {
         "id": "pro_monthly",
-        "amount": "$4.99",
+        "amount": "$5.99",
         "termHeading": "Monthly",
         "termUnit": "month",
         "termRenews": "Renews every month until you cancel.",
@@ -35,10 +35,18 @@
       },
       {
         "id": "pro_yearly",
-        "amount": "$19.99",
+        "amount": "$34.99",
         "termHeading": "Yearly",
         "termUnit": "year",
         "termRenews": "Renews every year until you cancel.",
+        "trialDays": 30
+      },
+      {
+        "id": "pro_lifetime",
+        "amount": "$89.00",
+        "termHeading": "One-time",
+        "termUnit": null,
+        "termRenews": "A single payment. Nothing renews.",
         "trialDays": 30
       }
     ]

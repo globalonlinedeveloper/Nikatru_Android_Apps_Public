@@ -37,6 +37,8 @@ import checkout, {
   FORBIDDEN_CREATE_KEYS,
   MAX_CHECKOUT_BODY_BYTES,
   PADDLE_PRICE_IDS,
+  RAIL_PRICE_AMOUNTS_MINOR,
+  RAIL_PRICE_PENDING,
   buildCreateTransactionBody,
   serializeCreateTransactionBody,
   type PaddleCreateTransactionBody,
@@ -495,8 +497,18 @@ describe('the refusals that happen BEFORE any transaction is created', () => {
   });
 
   it('an offering the app does NOT sell is 404 and creates nothing', async () => {
+    // ⚠️ THE EXAMPLE MOVED ON 2026-09-09 AND HAD TO. It used to be
+    // `pro_lifetime`, chosen because the served config declared no such SKU — and
+    // the owner's 2026-09-09 price decision added exactly that one, so this test
+    // began asserting 404 against an offering the app now genuinely sells and
+    // got the 503 from the branch below instead. The two cases are one line
+    // apart and they are NOT interchangeable: 404 is "we do not sell that",
+    // 503 is "we sell it and our own rail mapping is broken". `pro_weekly` is
+    // the new never-served id, and the test one line down still constructs its
+    // own config rather than relying on the real one, which is why only this
+    // half moved.
     const h = harness();
-    const res = await h.post({ ...BUY, offering_id: 'pro_lifetime' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ ...BUY, offering_id: 'pro_weekly' }, `Bearer ${await token(USER)}`);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'unknown_offering' });
     noCall();
@@ -605,10 +617,19 @@ describe('REQUIRED_COVERAGE — the price map and the served offerings cannot dr
     }
   });
 
-  it('every SERVED offering has a price id, and every price id has a served offering', () => {
+  it('every SERVED offering is either priced by the rail or DECLARED pending, and every price id has a served offering', () => {
     // 🔴 BOTH DIRECTIONS, and the second is the one that catches the real drift:
     // adding a third SKU to src/app-config-data.json without a `pri_` id here
     // would otherwise ship an offering the paywall shows and the rail refuses.
+    //
+    // 🔄 WIDENED 2026-09-09, AND DELIBERATELY NOT WEAKENED. The predecessor
+    // required `priced` to EQUAL `served`, which made "decide a price before the
+    // vendor catalogue carries it" impossible to express — so the only way to
+    // land an owner price decision was to leave the config on the old number and
+    // let the decision live nowhere. The invariant is now the honest one: every
+    // served offering is accounted for by EXACTLY ONE of a real `pri_` id or a
+    // written reason, never neither and never both, and the `paywall.enabled`
+    // limb below forbids selling under a pending one.
     let compared = 0;
     for (const appId of Object.keys(DEFAULT_CONFIGS)) {
       const cfg = baseConfig(appId);
@@ -619,12 +640,81 @@ describe('REQUIRED_COVERAGE — the price map and the served offerings cannot dr
         .filter((p): p is string => typeof p === 'string')
         .sort();
       const priced = Object.keys(PADDLE_PRICE_IDS[appId] ?? {}).sort();
-      if (served.length === 0 && priced.length === 0) continue;
-      expect(priced, `price ids for ${appId}`).toEqual(served);
+      const pending = Object.keys(RAIL_PRICE_PENDING[appId] ?? {}).sort();
+      if (served.length === 0 && priced.length === 0 && pending.length === 0) continue;
+
+      // Nothing may be priced or pending that is not served.
+      for (const id of priced) expect(served, `${appId}.${id} is priced but not served`).toContain(id);
+      for (const id of pending) expect(served, `${appId}.${id} is pending but not served`).toContain(id);
+      // Every served offering is accounted for exactly once.
+      for (const id of served) {
+        const hasPrice = priced.includes(id);
+        const hasPending = pending.includes(id);
+        expect(
+          hasPrice || hasPending,
+          `${appId}.${id} is served with neither a Paddle price id nor a RAIL_PRICE_PENDING reason`,
+        ).toBe(true);
+      }
+      // A pending entry has to say something. An empty string is not a reason.
+      for (const id of pending) {
+        expect((RAIL_PRICE_PENDING[appId] ?? {})[id]?.trim().length ?? 0, `reason for ${appId}.${id}`).toBeGreaterThan(20);
+      }
       compared += served.length;
     }
     // The self-check: a scan that reached nothing must not report a pass.
     expect(compared, 'offerings compared').toBeGreaterThan(0);
+  });
+
+  it('a price id that is NOT pending charges exactly what the served config declares', () => {
+    // 🔴 THE MONEY LIMB. Without it `app-config-data.json` can be moved to any
+    // number while POST /v1/checkout goes on resolving a `pri_` that bills the
+    // old one — the page quotes one price and the card is charged another, and
+    // no guard in this repository looks at both sides. `assert-no-price-literals`
+    // cannot: the Paddle amount is a fact about a vendor's catalogue, not a
+    // literal in our UI.
+    let compared = 0;
+    for (const appId of Object.keys(DEFAULT_CONFIGS)) {
+      const cfg = baseConfig(appId);
+      if (cfg === null) continue;
+      const offerings = (cfg.paywall.offerings ?? []) as Array<{ product_id?: unknown; amount_minor?: unknown }>;
+      for (const o of offerings) {
+        const id = o.product_id;
+        if (typeof id !== 'string') continue;
+        if (Object.prototype.hasOwnProperty.call(RAIL_PRICE_PENDING[appId] ?? {}, id)) continue;
+        const railAmount = (RAIL_PRICE_AMOUNTS_MINOR[appId] ?? {})[id];
+        expect(railAmount, `no measured rail amount recorded for ${appId}.${id}`).toBeTypeOf('number');
+        expect(
+          o.amount_minor,
+          `${appId}.${id}: the served config declares ${String(o.amount_minor)} minor units and the ` +
+            `Paddle price carries ${String(railAmount)}. Either the vendor catalogue was re-priced and ` +
+            'RAIL_PRICE_AMOUNTS_MINOR was not re-measured, or the config moved and the rail did not. ' +
+            'Do NOT edit RAIL_PRICE_AMOUNTS_MINOR to match the config — read Paddle.',
+        ).toBe(railAmount);
+        compared += 1;
+      }
+    }
+    // A scan that compared nothing is not a pass — but with every SKU pending it
+    // legitimately compares zero, so the assertion is on the union instead.
+    const pendingCount = Object.values(RAIL_PRICE_PENDING).reduce((n, m) => n + Object.keys(m).length, 0);
+    expect(compared + pendingCount, 'offerings either compared or declared pending').toBeGreaterThan(0);
+  });
+
+  it('NO APP WITH A LIVE PAYWALL HAS A PENDING RAIL PRICE — a price may be decided before the rail carries it, never sold', () => {
+    // ⚠️ THIS IS THE LIMB THAT KEEPS RAIL_PRICE_PENDING FROM BECOMING AN EXEMPTION
+    // LIST. Every entry in it is a promise that nothing is being sold at that
+    // price yet, and `paywall.enabled` is the switch that would break the
+    // promise. Flipping it with an entry standing is the failure.
+    for (const appId of Object.keys(RAIL_PRICE_PENDING)) {
+      const cfg = baseConfig(appId);
+      if (cfg === null) continue;
+      const ids = Object.keys(RAIL_PRICE_PENDING[appId] ?? {});
+      if (ids.length === 0) continue;
+      expect(
+        cfg.paywall.enabled,
+        `${appId} has paywall.enabled true while ${ids.join(', ')} are declared RAIL_PRICE_PENDING. ` +
+          'Clear the pending entries by re-pricing the Paddle catalogue before opening the paywall.',
+      ).not.toBe(true);
+    }
   });
 
   it('every mapped price id has the documented `pri_` shape', () => {

@@ -61,7 +61,7 @@
 // one formatter and that case goes green — which is precisely what
 // `assert-discovery-surface.mjs` limb G records happening to its own first
 // version, printing `ok — 2 rendered price(s) equal what the config declares`
-// over a page quoting $5.99 against a config saying 499.
+// over a page quoting $6.99 against a config saying 599.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -293,7 +293,7 @@ describe('assert-render-payload — the published projection', () => {
   });
 
   test('STALE after the PRICE SOURCE moves — refuses NAMING the field', () => {
-    const root = tree({ rail: edit(real(REL.rail), '"amount_minor": 499', '"amount_minor": 599') });
+    const root = tree({ rail: edit(real(REL.rail), '"amount_minor": 599', '"amount_minor": 699') });
     try {
       const r = guard(root);
       refuses(r, 'offerings[0].amount', 'a price change nobody republished');
@@ -317,11 +317,17 @@ describe('assert-render-payload — the published projection', () => {
     // This is the case that proves limb E does not import the publisher's
     // formatter. If it ever does, both sides of the comparison agree with each
     // other about a wrong answer and this goes green.
-    const root = tree({ payload: withRow((row) => { row.offerings[0].amount = '$5.99'; }) });
+    // ⚠️ THE MUTANT MOVED ON 2026-09-09 AND HAD TO. It was `$5.99`, chosen
+    // because the config declared 499 and so `$5.99` was a number no honest
+    // publish could produce. The owner's price decision made 599 the real
+    // monthly price, which turned this mutant into the CORRECT answer and the
+    // case into one that could only ever pass. `$6.99` restores the property:
+    // one step away from what the config declares, in the same shape.
+    const root = tree({ payload: withRow((row) => { row.offerings[0].amount = '$6.99'; }) });
     try {
       const r = guard(root);
       refuses(r, 'MONEY DEFECT', 'a page quoting a price the config does not declare');
-      assert.ok(r.out.includes('amount_minor 499'), `it must quote the config's own number:\n${r.out}`);
+      assert.ok(r.out.includes('amount_minor 599'), `it must quote the config's own number:\n${r.out}`);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
@@ -541,8 +547,8 @@ describe('assert-render-payload — the published projection', () => {
     //
     // So the TOOLING is mutated, not the fixture: a copy of the real guard, the
     // real publisher and the real renderer, with `money()`'s division broken so
-    // 499 renders as $5.99. Republished through the broken copy, then checked by
-    // the copied guard. It must FAIL, and it must name the config's own 499.
+    // 599 renders as $6.99. Republished through the broken copy, then checked by
+    // the copied guard. It must FAIL, and it must name the config's own 599.
     const t = brokenToolingTree((rel, text) =>
       rel === 'tooling/sites/generate-discovery.mjs'
         ? edit(
@@ -556,11 +562,11 @@ describe('assert-render-payload — the published projection', () => {
       const published = run(join(t, 'tooling', 'sites', 'generate-landing-payload.mjs'), t);
       assert.equal(published.code, 0, `the broken publisher must still PUBLISH — that is the danger:\n${published.out}`);
       const wrote = readFileSync(join(t, ...REL.payload.split('/')), 'utf8');
-      assert.ok(wrote.includes('$5.99'), `the mutation must actually reach the price:\n${wrote}`);
+      assert.ok(wrote.includes('$6.99'), `the mutation must actually reach the price:\n${wrote}`);
 
       const r = run(join(t, 'tooling', 'ci', 'assert-render-payload.mjs'), t);
       refuses(r, 'MONEY DEFECT', 'a payload that is exactly what a WRONG publisher produces');
-      assert.ok(r.out.includes('amount_minor 499'), `the config's own number must be quoted:\n${r.out}`);
+      assert.ok(r.out.includes('amount_minor 599'), `the config's own number must be quoted:\n${r.out}`);
     } finally { rmSync(t, { recursive: true, force: true }); }
   });
 });
@@ -699,7 +705,7 @@ describe('generate-landing-payload — the publisher', () => {
   });
 
   test('--check goes RED on drift and WRITES NOTHING', () => {
-    const root = tree({ rail: edit(real(REL.rail), '"amount_minor": 499', '"amount_minor": 599') });
+    const root = tree({ rail: edit(real(REL.rail), '"amount_minor": 599', '"amount_minor": 699') });
     const before = real(REL.payload);
     try {
       refuses(publish(root, '--check'), 'DRIFTED', 'a source that moved without a republish');

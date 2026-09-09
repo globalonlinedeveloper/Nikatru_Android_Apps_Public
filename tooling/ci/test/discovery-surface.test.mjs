@@ -482,7 +482,16 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { planDiscovery, renderSitemap, rewriteLlms, urlForPage } from '../../sites/generate-discovery.mjs';
+import {
+  planDiscovery,
+  renderSitemap,
+  rewriteLlms,
+  urlForPage,
+  applyPricing,
+  pricingMeta,
+  pricingPlans,
+  pricingTable,
+} from '../../sites/generate-discovery.mjs';
 import { today, lastmodFor, isGitRepo } from '../../sites/lastmod.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -613,7 +622,23 @@ function tree(entries, opts = {}) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'long-description.txt'), text);
   }
-  if (opts.pricingPage) writeFileSync(join(root, 'sites', 'nikatru', 'pricing.html'), chromed('<h1>Pricing</h1>'));
+  // 🔴 THE PRICE LIST CARRIES ITS THREE SENTINEL PAIRS, exactly as the real page
+  // does since 2026-09-09, and for the same reason the homepage fixture above
+  // carries `<!-- APPS-GRID -->`: `applyPricing` REFUSES a pricing page without
+  // the pair rather than skipping it, because a splice that quietly does nothing
+  // would leave a PRICE on a served page while every count still included the
+  // file. A fixture without the markers is not a lighter fixture — it is a page
+  // this generator is right to reject.
+  if (opts.pricingPage) {
+    writeFileSync(
+      join(root, 'sites', 'nikatru', 'pricing.html'),
+      chromed(
+        '<!-- PRICING:meta -->\n<!-- /PRICING:meta -->\n<h1>Pricing</h1>\n' +
+          '<!-- PRICING:plans -->\n<!-- /PRICING:plans -->\n' +
+          '<!-- PRICING:table -->\n<!-- /PRICING:table -->',
+      ),
+    );
+  }
   return root;
 }
 
@@ -2819,5 +2844,91 @@ describe('the page-quality contract reaches the mirror deploy root', () => {
     // and nothing else is wrong with that tree — the audit is the only reporter.
     assert.doesNotMatch(r.out, /has no skip link/);
     assert.doesNotMatch(r.out, /DRIFTED/);
+  });
+});
+
+
+// -----------------------------------------------------------------------------
+// THE PRICE LIST SPLICE - tooling/sites/generate-discovery.mjs `applyPricing`
+//
+// 🔴 THE FAILING CASE IS THE POINT. `sites/nikatru/pricing.html` carried four
+// hand-typed prices until 2026-09-09 and no guard in this repository could see
+// them, because `assert-no-price-literals.mjs` does not scan `sites/` and the two
+// guards that DO re-derive prices only look at the generated app landing. The
+// splice closes that, and the only way the splice can silently reopen it is a
+// deleted sentinel - so a deleted sentinel has to THROW, and that is asserted
+// here rather than described in a comment.
+// -----------------------------------------------------------------------------
+describe('applyPricing - the price list derives its numbers and REFUSES to skip', () => {
+  const app = (offerings) => ({ slug: 'x', offerings, paywallEnabled: false });
+  const YEARLY = { id: 'pro_yearly', amount: '$34.99', code: 'USD', trialDays: 30, term: { unit: 'year', heading: 'Yearly', renews: 'Renews every year until you cancel.' } };
+  const ONCE = { id: 'pro_lifetime', amount: '$89.00', code: 'USD', trialDays: 0, term: { unit: null, heading: 'One-time', renews: 'A single payment. Nothing renews.' } };
+  const PAGE = [
+    '<!-- PRICING:meta -->', '<!-- /PRICING:meta -->',
+    '<div class="plans"><!-- PRICING:plans -->', '<!-- /PRICING:plans --></div>',
+    '<table><!-- PRICING:table -->', '<!-- /PRICING:table --></table>',
+    '<p>hand-written argument that must survive byte for byte</p>',
+  ].join('\n');
+
+  test('the rendered spans carry the amounts the offerings declare, and nothing else does', () => {
+    const out = applyPricing(PAGE, app([YEARLY, ONCE]));
+    assert.match(out, /\$34\.99/);
+    assert.match(out, /\$89\.00/);
+    assert.match(out, /30-DAY TRIAL/);
+    // The hand-written prose outside the pairs is untouched.
+    assert.match(out, /hand-written argument that must survive byte for byte/);
+    // And the yearly plan is the highlighted one, derived from the TERM.
+    assert.match(out, /<div class="plan hi">\s*\n\s*<h3>Yearly/);
+  });
+
+  test('a one-time offering is billed "One-time payment" and shows no renewal claim', () => {
+    const table = pricingTable(app([ONCE]));
+    assert.match(table, /One-time payment/);
+    assert.doesNotMatch(table, /Every /);
+    // trialDays 0 must not print "0 days" - that reads as a trial that exists.
+    assert.doesNotMatch(table, /0 days/);
+  });
+
+  test('🔴 a MISSING sentinel pair THROWS - it may never be a silent skip', () => {
+    const stripped = PAGE.replace('<!-- /PRICING:table -->', '');
+    assert.throws(
+      () => applyPricing(stripped, app([YEARLY])),
+      /expected exactly one .*PRICING:table.* pair/,
+      'a price list with no closing table sentinel must refuse, not quietly keep the price it last had',
+    );
+  });
+
+  test('🔴 a DUPLICATED pair THROWS - the second copy would be left stale and served', () => {
+    const doubled = PAGE + '\n<!-- PRICING:plans -->\n<!-- /PRICING:plans -->';
+    assert.throws(() => applyPricing(doubled, app([YEARLY])), /found 2 opening/);
+  });
+
+  test('no app with offerings means no price is claimed anywhere', () => {
+    assert.match(pricingMeta(null), /Nothing is sold from this website today/);
+    assert.match(pricingPlans(null), /No plan is on sale/);
+    assert.doesNotMatch(pricingPlans(null), /[$₹]\d/);
+    assert.doesNotMatch(pricingMeta(null), /[$₹]\d/);
+  });
+
+  test('🔴 THE REAL PAGE carries the pairs, and every price on it came from the rail config', () => {
+    const page = readFileSync(join(REPO, 'sites', 'nikatru', 'pricing.html'), 'utf8');
+    for (const region of ['meta', 'plans', 'table']) {
+      assert.ok(page.includes(`<!-- PRICING:${region} -->`), `the real price list lost its PRICING:${region} sentinel`);
+      assert.ok(page.includes(`<!-- /PRICING:${region} -->`), `the real price list lost its /PRICING:${region} sentinel`);
+    }
+    // Every currency-shaped literal on the page must sit INSIDE a generated span.
+    // Outside them the page is prose, and prose with a price in it is the second
+    // home this splice was made to end.
+    let outside = page;
+    for (const region of ['meta', 'plans', 'table']) {
+      const open = `<!-- PRICING:${region} -->`;
+      const close = `<!-- /PRICING:${region} -->`;
+      const a = outside.indexOf(open);
+      const b = outside.indexOf(close);
+      if (a === -1 || b === -1) continue;
+      outside = outside.slice(0, a) + outside.slice(b + close.length);
+    }
+    const stray = outside.match(/[$€£¥₹]\s?\d[\d,]*(?:\.\d{1,2})?/g) ?? [];
+    assert.deepEqual(stray, [], `hand-written price literal(s) outside the generated spans: ${stray.join(', ')}`);
   });
 });
