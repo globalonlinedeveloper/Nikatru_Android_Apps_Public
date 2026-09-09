@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nikatru_core/nikatru_core.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 void main() {
@@ -230,6 +231,53 @@ void main() {
         ],
       });
       expect(c.longestTrialDays, 30);
+    });
+  });
+
+  group('the offering and the portfolio money type CANNOT DRIFT', () {
+    // 🔴 WHY THIS GROUP EXISTS. `assert-no-price-literals.mjs` scopes its
+    // derivation check to `formattedPrice`'s own body, so that getter has to
+    // keep computing in place rather than delegating to `Money.plainFormat`.
+    // Two renderings of one rule is exactly the duplication that let a symbol
+    // be right on the paywall and wrong on the next screen, so the two are
+    // pinned to each other here. If either changes alone, this goes red.
+    const List<(int, String)> matrix = <(int, String)>[
+      (499, 'USD'),
+      (1999, 'USD'),
+      (39900, 'INR'),
+      (1250, 'EUR'),
+      (500, 'JPY'),
+      (1005, 'KWD'),
+      (499, 'ZZZ'),
+    ];
+
+    for (final (int amount, String code) in matrix) {
+      test('$amount $code renders identically either way', () {
+        final Offering o = Offering(
+          productId: 'p',
+          amountMinor: amount,
+          currencyCode: code,
+          term: OfferingTerm.month,
+          trialDays: 0,
+        );
+        expect(o.price, Money(amount, code));
+        expect(o.formattedPrice, o.price.plainFormat());
+      });
+    }
+
+    test('the minor-unit digits come from the SHARED table', () {
+      // A yen plan has no decimal places and a Kuwaiti one has three. A
+      // hardcoded division by a hundred misprices the first by 100x, and
+      // that table now has exactly one home.
+      const Offering yen = Offering(
+        productId: 'p',
+        amountMinor: 500,
+        currencyCode: 'JPY',
+        term: OfferingTerm.month,
+        trialDays: 0,
+      );
+      expect(yen.formattedPrice, '¥500');
+      expect(Money.minorUnitDigitsFor('JPY'), 0);
     });
   });
 }

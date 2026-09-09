@@ -85,6 +85,12 @@ import { fileURLToPath } from 'node:url';
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
 
+/** Escape a LITERAL string for `new RegExp(...)`. COMPLETE metacharacter set —
+ *  `\` included, which `[/.]` left live. Same defect class CodeQL
+ *  `js/incomplete-sanitization` flagged in ops-register.test.mjs on 2026-09-09;
+ *  fixed here in the same pass rather than left as the next one to be found. */
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
 /** Written as a repo-relative path, not assembled from a bare basename: this is
  *  the string that makes the guard a REACHED file for
  *  `tooling/scripts/assert-no-dead-files.mjs`, and a `join(CI_DIR, '…')` alone
@@ -446,7 +452,7 @@ describe('the dated-snapshot exclusion', () => {
   test('…and the identical edit on a LIVE page does fail — so the exclusion is a real distinction', () => {
     const r = run(patch(fixture(), LIVE_POLICY, '--text:#1E293B', '--text:#334155'));
     assert.equal(r.code, 1, r.all);
-    assert.match(r.err, new RegExp(LIVE_POLICY.replace(/[/.]/g, '\\$&')));
+    assert.match(r.err, new RegExp(reEscape(LIVE_POLICY)));
   });
 
   test('an exclusion that matches too few files is COVERAGE LOST, not a pass', () => {
@@ -527,7 +533,7 @@ describe('it refuses rather than reporting on a subject it did not read', () => 
     const r = run(untrack(fixture(), LIVE_POLICY));
     assert.equal(r.code, 2, r.all);
     assert.match(r.err, /named source\(s\) are not in the compared set/);
-    assert.match(r.err, new RegExp(LIVE_POLICY.replace(/[/.]/g, '\\$&')));
+    assert.match(r.err, new RegExp(reEscape(LIVE_POLICY)));
     assert.doesNotMatch(r.err, /page\(s\) in the subject/);
   });
 
@@ -544,7 +550,7 @@ describe('it refuses rather than reporting on a subject it did not read', () => 
   test('an ordinary page losing its :root trips the block floor', () => {
     const r = run(patch(fixture(), 'sites/nikatru/404.html', ':root{', 'html{'));
     assert.equal(r.code, 2, r.all);
-    assert.match(r.err, /`:root` block\(s\) parsed across .* expected at least 39/);
+    assert.match(r.err, /`:root` block\(s\) parsed across .* expected at least 56/);
   });
 
   test('a file that is tracked but missing from disk is COVERAGE LOST', () => {

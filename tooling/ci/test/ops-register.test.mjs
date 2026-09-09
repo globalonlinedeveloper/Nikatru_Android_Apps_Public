@@ -135,6 +135,9 @@ import {
   formatTaskResult,
   classifyGlitchtipChecks,
   classifyRunHistoryAnswer,
+  newestOnPage,
+  reconcileRunReads,
+  RUN_READ_RACE_MS,
   combineLimbProbes,
   describeNarrowing,
   dispatchTargetsFromSource,
@@ -3086,7 +3089,100 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
       assert.match(r.detail, /on main/);
     });
 
-    // ── and the SCHEMA half: the field cannot be dropped, and cannot be put
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 🔴 A `per_page=1` ANSWER BELIEVED ON SIGHT — the staleness cross-check.
+  // Added 2026-09-09. The filter checks above validate WHAT came back; nothing
+  // validated WHEN. Measured live inside run 34351841295: the same query
+  // answered run 32560795997 from 2026-08-22 (436.7h stale) and run
+  // 34332836726 from that morning. These are the cases that make the refusal
+  // real — a GREEN CONTROL first, then the stale page.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('run-history reads are cross-checked for staleness, not just for shape', () => {
+    const NOW = Date.parse('2026-09-09T12:00:00Z');
+    const run = (id, at) => ({ id, updated_at: at, head_branch: 'main', conclusion: 'success' });
+    const FRESH = run(34332836726, '2026-09-09T09:08:21Z');
+    const STALE = run(32560795997, '2026-08-22T00:00:00Z');
+
+    // ── newestOnPage: the page's order is a promise, not a check ────────────
+    test('GREEN CONTROL — newestOnPage returns the only run on a one-entry page', () => {
+      assert.equal(newestOnPage([FRESH]).id, FRESH.id);
+    });
+
+    test('🔴 newestOnPage takes the NEWEST, not entry zero — sort order is not trusted', () => {
+      // A page served newest-last would otherwise decide the verdict.
+      assert.equal(newestOnPage([STALE, FRESH]).id, FRESH.id, 'entry zero was stale and must not win');
+    });
+
+    test('newestOnPage on an empty or absent page is null, never a throw', () => {
+      assert.equal(newestOnPage([]), null);
+      assert.equal(newestOnPage(undefined), null);
+      assert.equal(newestOnPage([{ id: 1 }]), null, 'a run with no updated_at cannot be newest');
+    });
+
+    // ── reconcileRunReads: agreement passes, staleness refuses ──────────────
+    test('GREEN CONTROL — two reads that agree return that run and never throw', () => {
+      assert.equal(reconcileRunReads(FRESH, FRESH, 'what', NOW).id, FRESH.id);
+    });
+
+    test('GREEN CONTROL — two reads that both saw no run at all return null', () => {
+      assert.equal(reconcileRunReads(null, null, 'what', NOW), null);
+    });
+
+    test('🔴 THE MUTATION — a stale narrow page beside a fresh wide one REFUSES', () => {
+      // This is the measured defect, fed in as data: per_page=1 answered the
+      // 2026-08-22 run, per_page=30 answered that morning's. Before this fix
+      // the stale answer was returned and the duty read as 436.7h stale.
+      assert.throws(
+        () => reconcileRunReads(STALE, FRESH, 'the newest successful schedule run of ops-watch.yml on main', NOW),
+        (e) => {
+          assert.match(e.message, /disagreed, and the gap is not a race/);
+          assert.match(e.message, /32560795997/, 'the stale run must be named or nobody can debug it');
+          assert.match(e.message, /34332836726/, 'the fresh run must be named too');
+          assert.match(e.message, /NO verdict is available/);
+          return true;
+        },
+      );
+    });
+
+    test('🔴 AND THE OTHER DIRECTION — a stale WIDE page refuses just the same', () => {
+      // The limb that HIDES a red: a stale failure read makes a broken main
+      // grade green. Symmetry is the property, so it is asserted, not assumed.
+      assert.throws(() => reconcileRunReads(FRESH, STALE, 'what', NOW), /gap is not a race/);
+    });
+
+    test('🔴 a read that saw NOTHING beside one that saw a run is a disagreement too', () => {
+      // "No successful run at all" is the strongest possible claim this guard
+      // makes; it must never come from the emptier of two disagreeing pages.
+      assert.throws(() => reconcileRunReads(null, STALE, 'what', NOW), /per_page=1 answered NO run/);
+    });
+
+    test('a run that completed seconds ago IS accepted — a real race is not staleness', () => {
+      // The bounded exception. Two concurrent requests can straddle a run
+      // finishing; refusing that would red the queue on a normal event.
+      const justNow = run(999, new Date(NOW - 5_000).toISOString());
+      assert.equal(reconcileRunReads(FRESH, justNow, 'what', NOW).id, 999, 'the newer run wins inside the race window');
+    });
+
+    test('🔴 the race window is a BOUNDARY, and just past it refuses', () => {
+      // Green control at the edge, then one millisecond over it.
+      const atEdge = run(1000, new Date(NOW - RUN_READ_RACE_MS).toISOString());
+      assert.equal(reconcileRunReads(FRESH, atEdge, 'what', NOW).id, 1000);
+      const overEdge = run(1001, new Date(NOW - RUN_READ_RACE_MS - 1).toISOString());
+      assert.throws(() => reconcileRunReads(FRESH, overEdge, 'what', NOW), /gap is not a race/);
+    });
+
+    test('the refusal names the question, so a persistent one is debuggable from the print', () => {
+      assert.throws(
+        () => reconcileRunReads(STALE, FRESH, 'the newest failure run of build-platforms.yml on main', NOW),
+        /the newest failure run of build-platforms\.yml on main/,
+      );
+    });
+  });
+
+  describe('recordQuery.headBranch — the schema half', () => {
+    // ── the field cannot be dropped, and cannot be put
     //    where nothing would apply it.
     test('🔴 the schema REFUSES a github-run-history row with no headBranch — this is the ratchet', () => {
       const reg = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));

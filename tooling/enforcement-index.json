@@ -2461,6 +2461,18 @@
   },
   {
     "claims": [
+      "ADR 075"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#pages-deployments"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-pages-deployments.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "B-17"
     ],
     "invokedBy": [
@@ -2468,6 +2480,16 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/check-prod-provenance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/money-dry-run.mjs",
     "references": [],
     "state": "WIRED"
   },

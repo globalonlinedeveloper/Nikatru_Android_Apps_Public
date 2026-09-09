@@ -11,12 +11,26 @@ import 'package:nikatru_platform_storage/nikatru_platform_storage.dart';
 import 'package:nikatru_telemetry/nikatru_telemetry.dart';
 
 import 'app.dart';
+import 'core/a11y/web_semantics.dart';
 import 'core/app_config.dart';
 import 'services/notifications/notification_service.dart';
 import 'state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔴 WEB HAD NO ACCESSIBILITY TREE UNTIL THIS LINE. Flutter web compiles the
+  // semantics DOM only once a client asks for it; until then a screen reader
+  // finds a canvas and a hidden "Enable accessibility" placeholder button, and
+  // the store listings publish "WCAG 2.2 AA". See lib/core/a11y/web_semantics.dart
+  // for why no widget test and no a11y guard could see this.
+  //
+  // FIRST, and before `runApp`: the handle only makes semantics collection
+  // start, so a frame built before it is a frame with no tree. It is above the
+  // telemetry bootstrap for the same reason `AppErrorScreen.install()` is first
+  // inside `appRunner` — the error screen is a surface too, and on web it must
+  // be readable.
+  enableWebSemantics();
 
   // [pipeline K-10/K-11] The licences of assets that ship in the bundle but that
   // Flutter's NOTICES collector never sees — today, the CC BY 4.0 Material Icons

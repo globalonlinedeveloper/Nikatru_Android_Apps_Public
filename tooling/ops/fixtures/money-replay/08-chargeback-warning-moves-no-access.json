@@ -1,0 +1,17 @@
+{
+  "provider": "paddle",
+  "note": "An ADJUSTMENT, and the newest event in the corpus by the provider's clock - deliberately. A chargeback WARNING is notice that a dispute may be coming; it moves no money and must move no access, so the final row stays the paused one from 07 even though this arrived after it. Pre-emptively locking a customer who has not actually charged back is a support incident we would create ourselves. It is also the only adjustment shape that can sit in an order-independence corpus at all: an access-MOVING adjustment derives its decision from the entitlement row as it stands, so which subscription event landed first would decide the period it snapshots. That case is covered as an explicit ordered sequence in services/platform/test/money-replay.test.ts.",
+  "payload": {
+    "event_id": "evt_replay000000000000000008",
+    "notification_id": "ntf_replay000000000000000008",
+    "event_type": "adjustment.created",
+    "occurred_at": "2026-10-25T00:00:00.000Z",
+    "data": {
+      "id": "adj_replayfixture0000000001",
+      "action": "chargeback_warning",
+      "status": "approved",
+      "transaction_id": "txn_replayfixture0000000001",
+      "subscription_id": "sub_replayfixture0000000001"
+    }
+  }
+}
