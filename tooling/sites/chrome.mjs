@@ -62,6 +62,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { MARK_CSS } from './availability.mjs';
 
 /** The repository root, from this file's own location — not from `process.cwd()`.
  *  `applyChrome` is called by the generator, by the guard and by three test files,
@@ -286,6 +287,19 @@ export function scaleCss() {
 }
 
 /**
+ * The status mark, on every page, from the ONE string that declares it.
+ *
+ * See `MARK_CSS` in tooling/sites/availability.mjs for why it is emitted as
+ * chrome rather than declared beside each of its two uses: the mark appears
+ * labelled inside an availability tile and bare in the homepage register row,
+ * and two rule sets for one mark would drift with nothing able to see it — a CSS
+ * rule is not a custom property, so the palette guard is blind to it.
+ */
+export function marksCss() {
+  return MARK_CSS;
+}
+
+/**
  * The accessibility chrome that has to be present on every page to be worth
  * anything: a visible focus ring, and the skip link's own styling.
  *
@@ -329,6 +343,7 @@ export function a11yCss() {
  *  iterate this map rather than naming regions of their own. */
 export const REGIONS = new Map([
   ['scale-css', scaleCss],
+  ['marks-css', marksCss],
   ['a11y-css', a11yCss],
   ['skiplink', skipLink],
   ['footer', footer],
@@ -342,7 +357,7 @@ export const openMarker = (region, css) => (css ? `  /* CHROME:${region} */` : `
 export const closeMarker = (region, css) => (css ? `  /* /CHROME:${region} */` : `<!-- /CHROME:${region} -->`);
 
 /** Regions written in CSS comment syntax because they live inside `<style>`. */
-const CSS_REGIONS = new Set(['footer-css', 'a11y-css', 'scale-css']);
+const CSS_REGIONS = new Set(['footer-css', 'a11y-css', 'scale-css', 'marks-css']);
 export const isCssRegion = (region) => CSS_REGIONS.has(region);
 
 /**

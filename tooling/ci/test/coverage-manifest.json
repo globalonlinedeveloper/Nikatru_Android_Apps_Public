@@ -55,7 +55,7 @@
   "deploy-triggers.test.mjs": 17,
   "deployment-record.test.mjs": 58,
   "desktop-runner-identity.test.mjs": 16,
-  "discovery-surface.test.mjs": 128,
+  "discovery-surface.test.mjs": 129,
   "dod-sync.test.mjs": 20,
   "e2e-auth-target.test.mjs": 29,
   "e2e-legs.test.mjs": 28,

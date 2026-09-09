@@ -51,6 +51,12 @@
   --container-gutter:24px;
   /* /CHROME:scale-css */
   }
+  /* CHROME:marks-css */
+  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}
+  /* /CHROME:marks-css */
   /* Nikatru brand palette, the generated values from
      sites/_shared/assets/tokens.css — edit contracts/tokens, never this
      line. assert-palette-consistent.mjs compares every page on this site

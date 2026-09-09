@@ -65,6 +65,12 @@
   --container-gutter:24px;
   /* /CHROME:scale-css */
   }
+  /* CHROME:marks-css */
+  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}
+  /* /CHROME:marks-css */
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
   .wrap{max-width:880px;margin:0 auto;padding:0 24px}
@@ -154,10 +160,15 @@
   .avail-top{display:flex;align-items:center;gap:9px}
   .avail-name{font-family:var(--font-display,inherit);font-weight:600;color:var(--strong);line-height:1.25}
   .avail-tile.is-soon .avail-name{color:var(--muted)}
-  .avail-meta{display:flex;flex-direction:column;gap:2px;font-size:13.5px;color:var(--muted);padding-left:18px}
-  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px}
-  .mark-served{background:var(--teal)}
-  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .avail-meta{display:flex;flex-direction:column;gap:2px;font-size:var(--type-sm,13.5px);color:var(--muted);padding-left:18px}
+  /* The mark rules (.mark, .mark-served, .mark-soon) are NOT declared here. That is the
+     STATUS MARK - the design one status device - and it appears in two
+     densities: labelled, inside these tiles, and bare, in the homepage register
+     row beside "1 of 6 channels live". Two densities of one mark must not be two
+     rule sets: they would drift by a pixel and by a colour, and no guard could
+     see it, because a CSS rule is not a custom property and the palette guard
+     compares only custom properties. So the mark is MARK_CSS below, emitted once
+     as the shared marks-css chrome region onto every page. */
   /* The generator's column count is a DESKTOP answer; below the collapse points
      the viewport decides instead, and the cap is released so a tile fills the
      width rather than leaving a 252px column against a 358px screen. */

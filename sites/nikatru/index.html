@@ -61,6 +61,12 @@
   --container-gutter:24px;
   /* /CHROME:scale-css */
   }
+  /* CHROME:marks-css */
+  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}
+  /* /CHROME:marks-css */
   :root{
     --ink:#0B1220; --ink-2:#111C33; --primary:#2563EB; --teal:#0F766E; --on-accent:#FFFFFF;
     --bg:#F6F8FC; --card:#FFFFFF; --card-2:#F8FAFD;
@@ -74,131 +80,178 @@
       --line:#22304D;--primary:#6E9BFF;--teal:#17C3A2; --on-accent:#0B1220;
     }
   }
+  /* ── THE DARK BAND ────────────────────────────────────────────────────────
+     The nav, the hero and the sign-up band are ink in BOTH schemes, so their
+     foregrounds are literals rather than tokens — and that is the one place a
+     literal is correct here, because the background beside it is the same
+     literal in both schemes. The defect this design was corrected for is the
+     opposite shape: a light-scheme hex painted on var(--card), which collapses
+     the moment --card forks. Every pair below is measured against #0B1220 and
+     is stated in the commit that introduced it. */
+  :root{
+    --band:#0B1220;          /* the band ground, both schemes */
+    --band-text:#C4D0E4;     /* 12.03:1 on --band, measured */
+    --band-quiet:#93A6C4;    /* 7.57:1  on --band, measured */
+    --band-line:rgba(255,255,255,.10);
+  }
   *{margin:0;padding:0;box-sizing:border-box}
-  html{scroll-behavior:smooth;scroll-padding-top:84px}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
-  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.6;font-size:var(--type-body)}
+  .wrap{max-width:var(--container-max);margin:0 auto;padding:0 var(--container-gutter)}
   a{color:var(--primary)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  /* Tabular figures wherever a number is meant to be READ rather than skimmed.
+     The register's whole argument is that its numbers are checkable, and
+     proportional digits in a count undercut that before a word is read. */
+  .fig{font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .label{font-size:var(--type-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 
-  /* Skip link */
-  .skip{position:absolute;left:12px;top:-48px;z-index:200;background:var(--primary);color:var(--on-accent);
-    padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600;transition:top .2s}
-  .skip:focus{top:12px}
-
-
-  /* Nav */
-  nav{position:sticky;top:0;z-index:50;background:rgba(11,18,32,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
-  .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
-  .brand{display:flex;align-items:center;gap:12px;text-decoration:none}
-  .brand svg{width:36px;height:36px;flex:none}
+  /* ── NAV ─────────────────────────────────────────────────────────────────
+     🔴 NO TOGGLE BUTTON AND NO JAVASCRIPT, changed 2026-09-09. The previous nav
+     collapsed to `max-height:0;overflow:hidden` below 720px and reopened only
+     when a script set a class — so on a phone WITH JAVASCRIPT OFF every
+     navigation link on this site's most-fetched page was unreachable. A menu
+     that needs a script to exist is not progressive enhancement, it is the
+     content living in the script. The links now wrap onto a second line, which
+     costs 24px of header height and removes 18 lines of JS. */
+  nav{position:sticky;top:0;z-index:50;background:var(--band);border-bottom:1px solid var(--band-line)}
+  .nav-in{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:64px;padding:var(--space-2) 0}
+  .brand{display:flex;align-items:center;gap:var(--space-3);text-decoration:none}
+  .brand svg{width:34px;height:34px;flex:none}
   .brand span{color:#fff;font-weight:800;letter-spacing:.14em;font-size:17px}
-  .nav-right{display:flex;align-items:center;gap:20px}
-  .nav-links{display:flex;gap:26px}
-  .nav-links a{color:#B6C2D9;text-decoration:none;font-size:14.5px;font-weight:500}
-  .nav-links a:hover{color:#fff}
-  .nav-cta{display:inline-flex;align-items:center;background:linear-gradient(90deg,var(--primary),var(--teal));
-    color:var(--on-accent);text-decoration:none;font-weight:700;font-size:14px;padding:9px 18px;border-radius:10px;white-space:nowrap}
-  .nav-cta:hover{filter:brightness(1.08)}
-  .nav-toggle{display:none;flex-direction:column;justify-content:center;gap:5px;width:44px;height:44px;padding:11px;margin:0;background:transparent;border:0;cursor:pointer;border-radius:10px}
-  .nav-toggle:hover{background:rgba(255,255,255,.06)}
-  .nav-toggle .bar{display:block;width:22px;height:2px;background:#DCE4F1;border-radius:2px;transition:transform .25s ease,opacity .2s ease}
-  .nav-toggle[aria-expanded="true"] .bar:nth-child(1){transform:translateY(7px) rotate(45deg)}
-  .nav-toggle[aria-expanded="true"] .bar:nth-child(2){opacity:0}
-  .nav-toggle[aria-expanded="true"] .bar:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+  .nav-links{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-5)}
+  .nav-links a{color:var(--band-text);text-decoration:none;font-size:14.5px;font-weight:500;
+    display:inline-block;padding:var(--space-2) 0;min-height:24px}
+  .nav-links a:hover{color:#fff;text-decoration:underline}
 
-  /* Hero */
-  header{background:linear-gradient(180deg,#0E1830 0%,#0B1220 100%);color:#fff;padding:92px 0 84px;text-align:center}
-  .eyebrow{display:inline-block;font-weight:800;font-size:13px;letter-spacing:.3em;margin-bottom:16px;background:linear-gradient(90deg,#5B93FF,#25E0BC);-webkit-background-clip:text;background-clip:text;color:transparent}
-  h1{font-size:clamp(34px,5.5vw,58px);font-weight:800;letter-spacing:-.02em;line-height:1.12;color:#fff}
-  h1 .grad{background:linear-gradient(90deg,#5B93FF,#25E0BC);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{max-width:660px;margin:20px auto 0;color:#A9B7CE;font-size:18px}
-  .trust{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;align-items:center;margin:26px auto 0;color:#C4D0E4;font-size:13.5px;font-weight:600}
-  .trust .sep{color:#3F5478}
-  .cta-row{display:flex;flex-wrap:wrap;gap:14px 20px;justify-content:center;align-items:center;margin-top:34px}
-  .cta{display:inline-flex;align-items:center;background:linear-gradient(90deg,var(--primary),var(--teal));color:var(--on-accent);text-decoration:none;font-weight:700;padding:14px 32px;border-radius:12px;font-size:16px}
+  /* ── HERO ────────────────────────────────────────────────────────────────
+     🔴 NO `background-clip:text` GRADIENT HEADING, and no aurora. The clipped
+     gradient renders TRANSPARENT under forced-colors — the heading disappears
+     entirely for a reader using a high-contrast theme, which is the population
+     most likely to need it. The brand gradient is demoted to a 3px rule and to
+     the logo mark, where it decorates instead of carrying text. The aurora was
+     two infinite keyframe animations behind a 72px blur, repainting on the
+     critical path of a mid-range Android for no information at all. */
+  header{background:var(--band);color:#fff;padding:var(--space-7) 0 var(--space-6)}
+  .eyebrow{display:inline-block;font-weight:700;font-size:var(--type-xs);letter-spacing:.24em;
+    text-transform:uppercase;color:var(--band-quiet)}
+  .rule{width:64px;height:3px;border-radius:2px;margin:var(--space-4) 0 var(--space-5);
+    background:linear-gradient(90deg,#5B93FF,#25E0BC)}
+  h1{font-size:var(--type-display);font-weight:800;letter-spacing:-.02em;line-height:1.1;color:#fff;
+    margin-top:var(--space-3);max-width:15ch}
+  .sub{max-width:62ch;margin-top:var(--space-4);color:var(--band-text);font-size:var(--type-lead)}
+  .cta-row{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-5);align-items:center;margin-top:var(--space-6)}
+  .cta{display:inline-flex;align-items:center;background:var(--primary);color:var(--on-accent);
+    text-decoration:none;font-weight:700;padding:13px 26px;border-radius:var(--radius-md);font-size:15.5px}
   .cta:hover{filter:brightness(1.08)}
-  .cta-2{color:#CFDBF0;text-decoration:none;font-weight:600;font-size:15.5px;border-bottom:1px solid rgba(207,219,240,.3);padding-bottom:2px}
-  .cta-2:hover{color:#fff;border-color:#fff}
-  .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:40px}
-  .chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:8px 16px;font-size:13.5px;color:#D7E0EF}
-  .dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(90deg,var(--primary),var(--teal))}
+  .cta-2{color:#fff;text-decoration:none;font-weight:600;font-size:15.5px;
+    border-bottom:1px solid rgba(255,255,255,.4);padding:2px 0}
+  .cta-2:hover{border-color:#fff}
 
-  /* Sections */
-  section{padding:80px 0}
-  h2{font-size:31px;font-weight:800;letter-spacing:-.01em;color:var(--strong);text-align:center}
-  .section-sub{text-align:center;color:var(--muted);margin:12px auto 46px;max-width:600px;font-size:16.5px}
+  /* ── THE FACT ROW ────────────────────────────────────────────────────────
+     Four things that are true and checkable, each with the register number or
+     the place that proves it. NOT a "trusted by" strip: there is nobody to
+     name, and an empty logo wall is a worse claim than none. */
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--space-4);
+    margin-top:var(--space-7);border-top:1px solid var(--band-line);padding-top:var(--space-5)}
+  .facts div{min-width:0}
+  .facts dt{font-size:var(--type-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--band-quiet)}
+  .facts dd{margin-top:var(--space-1);color:#fff;font-size:15.5px;font-weight:600;overflow-wrap:anywhere}
 
-  /* Cards grid (What we're building) */
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;display:flex;flex-direction:column;gap:14px;transition:box-shadow .2s,transform .2s}
-  .card:hover{box-shadow:0 12px 32px rgba(11,18,32,.10);transform:translateY(-2px)}
-  .card-ico{width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(135deg,rgba(46,111,242,.14),rgba(23,195,162,.14));color:var(--primary);flex:none}
-  .card-ico svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-  .card h3{font-size:18.5px;color:var(--strong);font-weight:700}
-  .card p{color:var(--muted);font-size:15.5px}
-  .tag{align-self:flex-start;margin-top:auto;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-    color:var(--teal);background:rgba(23,195,162,.12);border:1px solid rgba(23,195,162,.3);padding:5px 11px;border-radius:999px}
+  /* ── SECTIONS ────────────────────────────────────────────────────────────── */
+  section{padding:var(--space-7) 0}
+  .sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
+    gap:var(--space-2);border-bottom:2px solid var(--strong);padding-bottom:var(--space-3);margin-bottom:var(--space-5)}
+  h2{font-size:var(--type-h2);font-weight:800;letter-spacing:-.01em;color:var(--strong);line-height:1.2}
+  .sec-note{color:var(--muted);font-size:15px;max-width:60ch}
+  .lede{color:var(--muted);font-size:16.5px;max-width:70ch;margin-bottom:var(--space-5)}
 
-  /* Apps grid (server-rendered between the APPS-GRID sentinels) */
-  .app-head{display:flex;align-items:center;gap:14px}
-  .app-icon{width:56px;height:56px;border-radius:14px;background:var(--ink);display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;overflow:hidden}
-  .app-icon img{width:100%;height:100%;object-fit:cover}
-  .app-icon svg{width:38px;height:38px}
-  .app-more a{font-size:14.5px;font-weight:600;text-decoration:none}
-  .app-more a:hover{text-decoration:underline}
-  .app-name{font-weight:700;font-size:18px;color:var(--strong)}
-  .app-tag{color:var(--muted);font-size:14.5px}
-  .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
-  .badge{display:inline-block;font-size:12.5px;font-weight:600;text-decoration:none;padding:6px 12px;border-radius:8px;border:1px solid var(--line);color:var(--strong);background:var(--card-2)}
-  .badge:hover{border-color:var(--primary);color:var(--primary)}
-  .badge.soon{background:rgba(245,217,168,.16);border-color:#F5D9A8;color:#8A5F14;cursor:default}
-  @media (prefers-color-scheme: dark){ .badge.soon{color:#F5D9A8} }
+  /* ── THE REGISTER ────────────────────────────────────────────────────────
+     🔴 THE LAYOUT ARGUMENT, in one sentence: a register with one row is
+     complete, and a register with six rows is complete. A three-up card grid is
+     neither — at one product it reads as two cards that failed to load. This
+     site has exactly one live product and will have more, so the shape has to
+     be honest at both ends without being redesigned in between. Rows are
+     generated between the APPS-GRID sentinels from the catalogue; see
+     tooling/sites/generate-discovery.mjs. */
+  .reg{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+  .reg-row{border-bottom:1px solid var(--line);display:flex;align-items:center;gap:var(--space-4);padding:var(--space-5) var(--space-2);
+    transition:background var(--motion-fast) var(--motion-ease)}
+  .reg-row:hover{background:var(--card)}
+  .reg-icon{width:52px;height:52px;border-radius:var(--radius-md);background:var(--ink);
+    display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden}
+  .reg-icon svg{width:34px;height:34px}
+  .reg-main{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .app-name{font-weight:700;font-size:var(--type-lead);color:var(--strong);line-height:1.3;text-decoration:none}
+  .app-name:hover{text-decoration:underline;text-underline-offset:3px}
+  .app-tag{color:var(--muted);font-size:15px}
+  .reg-state{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-2);text-align:right}
+  .reg-count{color:var(--muted);font-size:var(--type-sm)}
+  .reg-open{flex:0 0 auto;display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;
+    border:1px solid var(--line);border-radius:var(--radius-md);background:var(--card);
+    color:var(--primary);text-decoration:none;font-weight:700;font-size:15px;white-space:nowrap}
+  .reg-open:hover{border-color:var(--primary)}
+  .reg-after{margin-top:var(--space-4);color:var(--muted);font-size:var(--type-sm)}
+  @media(max-width:720px){
+    .reg-row{flex-wrap:wrap;gap:var(--space-3)}
+    .reg-state,.reg-open{width:100%;align-items:flex-start;text-align:left}
+    .reg-state{padding-left:68px}
+    .reg-open{justify-content:center}
+  }
 
-  /* Platforms band */
-  .platforms{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .plat-row{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:52px}
-  .plat{display:flex;flex-direction:column;align-items:center;gap:10px;width:118px;padding:20px 10px;border:1px solid var(--line);border-radius:14px;background:var(--card-2)}
-  .plat svg{width:30px;height:30px;fill:none;stroke:var(--strong);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-  .plat span{font-size:14px;font-weight:600;color:var(--text)}
-  .values{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:26px;max-width:900px;margin:0 auto}
-  .value{text-align:center;padding:0 6px}
-  .value .v-ico{width:52px;height:52px;margin:0 auto 14px;border-radius:14px;display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(135deg,rgba(46,111,242,.14),rgba(23,195,162,.14));color:var(--primary)}
-  .value .v-ico svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-  .value h3{font-size:18px;color:var(--strong);font-weight:700;margin-bottom:6px}
-  .value p{color:var(--muted);font-size:15.5px}
+  /* ── THE PLEDGE ──────────────────────────────────────────────────────────
+     🔴 THIS IS WHAT STANDS WHERE TESTIMONIALS WOULD GO. There are no users to
+     quote and no logos to show, and inventing either is the one thing a
+     one-person studio cannot survive being caught at. What it can offer instead
+     is an ITEMISED, CHECKABLE commitment: each row says what is promised and
+     what would prove it broken. Anything unverifiable stayed out. */
+  .pledge{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+  .pledge li{border-bottom:1px solid var(--line);padding:var(--space-5) var(--space-2);
+    display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--space-3) var(--space-6);align-items:baseline}
+  .pledge h3{font-size:16.5px;font-weight:700;color:var(--strong);line-height:1.4}
+  .pledge p{color:var(--muted);font-size:15px}
+  .pledge .test{color:var(--muted);font-size:var(--type-sm)}
+  .pledge .test b{color:var(--strong);font-weight:700;display:block;font-size:var(--type-xs);
+    letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+  @media(max-width:720px){ .pledge li{grid-template-columns:1fr;gap:var(--space-3)} }
 
-  /* Developer */
-  .dev-in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:32px;flex-wrap:wrap;justify-content:center;text-align:left}
-  .dev-photo{width:150px;height:192px;border-radius:18px;object-fit:cover;flex:none;border:3px solid var(--card);box-shadow:0 8px 26px rgba(11,18,32,.18)}
-  .dev-copy{flex:1;min-width:260px}
-  .dev-copy h2{text-align:left}
-  .dev-copy p{color:var(--muted);font-size:16.5px;margin-top:14px}
-  .dev-link{display:inline-block;margin-top:18px;color:var(--primary);text-decoration:none;font-weight:600;border-bottom:1px solid rgba(46,111,242,.35)}
-  .dev-link:hover{border-color:var(--primary)}
+  /* ── PLATFORMS ───────────────────────────────────────────────────────────── */
+  .plat-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+  .plat{display:flex;align-items:center;gap:var(--space-2);padding:10px 16px;border:1px solid var(--line);
+    border-radius:var(--radius-pill);background:var(--card);min-height:44px}
+  .plat svg{width:19px;height:19px;fill:none;stroke:var(--muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .plat span{font-size:14.5px;font-weight:600;color:var(--text)}
 
-  /* Notify band */
-  .notify{background:linear-gradient(180deg,#0E1830 0%,#0B1220 100%);color:#fff;text-align:center}
-  .notify h2{color:#fff}
-  .notify .section-sub{color:#A9B7CE}
-  .notify-form{display:flex;gap:10px;max-width:480px;margin:0 auto;flex-wrap:wrap;justify-content:center}
-  .notify-form input[type="email"]{flex:1;min-width:220px;padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.16);
-    background:rgba(255,255,255,.06);color:#fff;font-size:16px}
-  .notify-form input[type="email"]::placeholder{color:#8296B4}
-  .notify-form input[type="email"]:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:transparent}
-  .notify-form button{background:linear-gradient(90deg,var(--primary),var(--teal));color:var(--on-accent);border:0;font-weight:700;
-    font-size:16px;padding:14px 28px;border-radius:12px;cursor:pointer}
+  /* ── FOUNDER ─────────────────────────────────────────────────────────────── */
+  .founder{display:flex;gap:var(--space-6);flex-wrap:wrap;align-items:flex-start}
+  .founder img{width:132px;height:169px;border-radius:var(--radius-md);object-fit:cover;flex:none;border:1px solid var(--line)}
+  .founder-copy{flex:1 1 320px;min-width:0}
+  .founder-copy p{color:var(--muted);font-size:16.5px;margin-bottom:var(--space-3);max-width:66ch}
+  .founder-copy p b{color:var(--strong)}
+
+  /* ── SIGN-UP BAND ────────────────────────────────────────────────────────
+     Demoted out of the hero on purpose. An email box is the first thing a
+     visitor sees only on a site with nothing to show them; this one has a
+     product, and the product goes first. */
+  .band{background:var(--band);color:#fff}
+  .band h2{color:#fff}
+  .band .sec-head{border-bottom-color:var(--band-line)}
+  .band p{color:var(--band-text);max-width:60ch}
+  .notify-form{display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-5);max-width:520px}
+  .notify-form input[type="email"]{flex:1 1 240px;min-width:0;padding:13px 16px;border-radius:var(--radius-md);
+    border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;font-size:16px}
+  .notify-form input[type="email"]::placeholder{color:var(--band-quiet)}
+  .notify-form button{background:var(--primary);color:var(--on-accent);border:0;font-weight:700;font-size:15.5px;
+    padding:13px 26px;border-radius:var(--radius-md);cursor:pointer}
   .notify-form button:hover{filter:brightness(1.08)}
-  .notify-form button:disabled{opacity:.6;cursor:default}
+  .notify-form button:disabled{opacity:.65;cursor:default}
   .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
-  .notify-note{margin-top:16px;color:#7F92B1;font-size:13px}
-  .notify-msg{margin-top:14px;font-size:14.5px;font-weight:600;min-height:1.2em}
-  .notify-msg.ok{color:#25E0BC}
-  .notify-msg.err{color:#FF9BA6}
+  .notify-note{margin-top:var(--space-4);color:var(--band-quiet);font-size:var(--type-sm)}
+  .notify-msg{margin-top:var(--space-3);font-size:15px;font-weight:600;min-height:1.3em}
+  .notify-msg.ok{color:#7BEAD2}
+  .notify-msg.err{color:#FFB3BC}
 
-  /* Footer */
   /* CHROME:a11y-css */
   :focus-visible{outline:var(--focus-ring,3px) solid var(--primary,#2563EB);outline-offset:var(--focus-offset,3px);border-radius:6px}
   .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:var(--on-accent,#fff);
@@ -228,57 +281,7 @@
   footer a:hover{color:#fff}
   /* /CHROME:footer-css */
 
-  @media(max-width:720px){
-    .nav-toggle{display:flex}
-    .nav-links{position:absolute;top:64px;left:0;right:0;flex-direction:column;gap:0;background:rgba(11,18,32,.98);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.08);max-height:0;overflow:hidden;transition:max-height .28s ease}
-    .nav-links.open{max-height:240px}
-    .nav-links a{padding:15px 24px;font-size:16px;border-top:1px solid rgba(255,255,255,.06)}
-    .dev-in{text-align:center}
-    .dev-copy h2{text-align:center}
-  }
   @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important;animation:none!important}}
-
-  /* ---- Hero aurora glow (GPU-friendly transform/opacity; disabled for reduced-motion) ---- */
-  header{position:relative;overflow:hidden}
-  header .wrap{position:relative;z-index:1}
-  .aurora{position:absolute;inset:-25% -10% 0;z-index:0;pointer-events:none;filter:blur(72px);opacity:.5}
-  .aurora::before,.aurora::after{content:"";position:absolute;width:48%;height:72%;border-radius:50%}
-  .aurora::before{left:5%;top:-4%;background:radial-gradient(circle,#2E6FF2,transparent 68%);animation:drift1 20s ease-in-out infinite alternate}
-  .aurora::after{right:3%;top:10%;background:radial-gradient(circle,#17C3A2,transparent 68%);animation:drift2 24s ease-in-out infinite alternate}
-  @keyframes drift1{from{transform:translate3d(-5%,-3%,0) scale(1)}to{transform:translate3d(9%,7%,0) scale(1.18)}}
-  @keyframes drift2{from{transform:translate3d(5%,2%,0) scale(1.12)}to{transform:translate3d(-9%,-6%,0) scale(1)}}
-
-  /* ---- Hero inline email capture ---- */
-  .hero-form{margin:30px auto 0}
-  .cta-alt{margin-top:16px}
-  .hero-note{margin:14px auto 0;max-width:480px;color:#8FA0BC;font-size:13.5px}
-  .hero-msg{max-width:480px;margin-left:auto;margin-right:auto}
-
-  /* ---- Bento layout for "What we're building" ---- */
-  .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
-  .bento>.card{margin:0}
-  .b-a{grid-column:span 4}
-  .b-b{grid-column:span 2}
-  .b-c{grid-column:span 6}
-  .card.wide{flex-direction:row;align-items:flex-start;gap:22px}
-  .card.wide .card-body{display:flex;flex-direction:column;gap:10px}
-  @media(max-width:860px){
-    .bento{grid-template-columns:1fr}
-    .bento>.card{grid-column:auto}
-    .card.wide{flex-direction:column;gap:14px}
-  }
-
-  /* ---- Card hover accent bar + brand-tinted lift ---- */
-  .card{position:relative;overflow:hidden}
-  .card::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;
-    background:linear-gradient(90deg,var(--primary),var(--teal));opacity:0;transition:opacity .25s ease}
-  .card:hover::after{opacity:1}
-  .card:hover{box-shadow:0 16px 40px rgba(46,111,242,.14);transform:translateY(-3px);border-color:rgba(46,111,242,.35)}
-
-  /* ---- Scroll reveal (class added by JS, so no-JS users still see everything) ---- */
-  .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
-  .reveal.in{opacity:1;transform:none}
-  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
 </style>
 <script type="application/ld+json">
 {
@@ -320,11 +323,10 @@
 <!-- CHROME:skiplink -->
 <a class="skip-link" href="#main">Skip to content</a>
 <!-- /CHROME:skiplink -->
-<a class="skip" href="#main">Skip to content</a>
 
 <nav>
   <div class="wrap nav-in">
-    <a class="brand" href="#top" aria-label="Nikatru home">
+    <a class="brand" href="/" aria-label="Nikatru home">
       <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs><linearGradient id="nm" x1="0" y1="1" x2="1" y2="0">
           <stop offset="0" stop-color="#2E6FF2"/><stop offset="0.55" stop-color="#2AA0D8"/><stop offset="1" stop-color="#17C3A2"/>
@@ -335,52 +337,46 @@
       </svg>
       <span>Nikatru</span>
     </a>
-    <div class="nav-right">
-      <div class="nav-links" id="navLinks">
-        <a href="#apps">What we're building</a>
-        <a href="#platforms">Platforms</a>
-        <a href="#developer">Developer</a>
-      </div>
-      <a class="nav-cta" href="#notify">Notify me</a>
-      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
-        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
-      </button>
+    <div class="nav-links">
+      <a href="#apps">What we ship</a>
+      <a href="#pledge">The pledge</a>
+      <a href="#founder">Who builds it</a>
+      <a href="/support">Support</a>
+      <a href="#updates">Get updates</a>
     </div>
   </div>
 </nav>
 
 <header id="top">
-  <div class="aurora" aria-hidden="true"></div>
   <div class="wrap">
-    <p class="eyebrow">Nikatru&trade;</p>
-    <h1>Apps for <span class="grad">every screen</span>.</h1>
-    <p class="sub">Nikatru is an independent app studio in Chennai, India &mdash; building polished,
-    privacy-first apps for iOS, Android, Windows, macOS, Linux and the web. Nikatru Subscription Tracker, our subscription
-    tracker, is live on the web &mdash; the other platforms are on the way.</p>
-    <p class="trust">
-      Est. 2021 <span class="sep" aria-hidden="true">&middot;</span>
-      Registered MSME <span class="sep" aria-hidden="true">&middot;</span>
-      Built for 6 platforms <span class="sep" aria-hidden="true">&middot;</span>
-      Privacy-first
-    </p>
-    <form id="hero-form" class="notify-form hero-form" action="/api/subscribe" method="POST" novalidate>
-      <label class="sr-only" for="hero-email">Email address</label>
-      <input id="hero-email" name="email" type="email" required autocomplete="email"
-             inputmode="email" placeholder="you@example.com">
-      <input type="text" name="company" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <button type="submit">Get early access</button>
-    </form>
-    <p class="hero-note">Join the launch list &mdash; be first when our apps ship in 2026. No spam, unsubscribe anytime.</p>
-    <p class="notify-msg hero-msg" role="status" aria-live="polite"></p>
-    <p class="cta-alt"><a class="cta-2" href="#developer">Meet the developer &rarr;</a></p>
-    <div class="chips" aria-label="Supported platforms">
-      <span class="chip"><span class="dot"></span>iOS</span>
-      <span class="chip"><span class="dot"></span>Android</span>
-      <span class="chip"><span class="dot"></span>Windows</span>
-      <span class="chip"><span class="dot"></span>macOS</span>
-      <span class="chip"><span class="dot"></span>Linux</span>
-      <span class="chip"><span class="dot"></span>Web</span>
+    <p class="eyebrow">Independent app studio &middot; Chennai, India</p>
+    <h1>Apps for every screen.</h1>
+    <div class="rule" aria-hidden="true"></div>
+    <p class="sub">Nikatru builds privacy-first software and publishes the whole record of it &mdash;
+    what ships, where you can get it, what changed, and what we will not do. One product is live
+    today. The rest of this page is what we are prepared to be held to.</p>
+    <div class="cta-row">
+      <a class="cta" href="#apps">See what we ship</a>
+      <a class="cta-2" href="#pledge">Read the pledge &rarr;</a>
     </div>
+    <dl class="facts">
+      <div>
+        <dt>Founded</dt>
+        <dd class="fig">2021</dd>
+      </div>
+      <div>
+        <dt>Registered</dt>
+        <dd class="fig">UDYAM-TN-02-0487004</dd>
+      </div>
+      <div>
+        <dt>Based in</dt>
+        <dd>Chennai, Tamil Nadu, India</dd>
+      </div>
+      <div>
+        <dt>Trackers and ads</dt>
+        <dd class="fig">0</dd>
+      </div>
+    </dl>
   </div>
 </header>
 
@@ -388,91 +384,166 @@
 
 <section id="apps">
   <div class="wrap">
-    <h2>What we're building</h2>
-    <p class="section-sub">Real products, in the open. Here's the honest picture of what ships today and what is still being built.</p>
+    <div class="sec-head">
+      <h2>What we ship</h2>
+      <p class="sec-note">Every released product, with the channels it is actually on.</p>
+    </div>
     <!-- 🔴 GENERATED. The block between the sentinels is written by
-         tooling/sites/generate-discovery.mjs from sites/_shared/_data/apps.json.
-         It used to be built in the browser from a hand-maintained JavaScript
-         array, which meant a crawler that does not run JS saw the pre-launch
-         placeholder cards and no product at all. Do not hand-edit; re-run the
-         generator. -->
+         tooling/sites/generate-discovery.mjs from sites/_shared/_data/apps.json
+         and tooling/channel-register.json. It used to be built in the browser
+         from a hand-maintained JavaScript array, which meant a crawler that does
+         not run JS saw the pre-launch placeholder cards and no product at all.
+         The channel marks and the "N of M channels live" count beside each row
+         are the LENGTH OF A LIST, never a typed number, so a second product and
+         a seventh channel both render with no edit here. Do not hand-edit;
+         re-run the generator. -->
     <!-- APPS-GRID -->
-    <div class="grid">
-      <div class="card">
-        <div class="app-head">
-          <div class="app-icon">
-            <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <ul class="reg">
+      <li class="reg-row">
+        <span class="reg-icon" aria-hidden="true">
+          <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
             <defs><linearGradient id="am" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="0.55" stop-color="#2A8FB8"/><stop offset="1" stop-color="#0F766E"/></linearGradient></defs>
             <path d="M 292 720 L 292 304 L 656 720 L 656 304 M 580 380 L 656 304 L 732 380" fill="none" stroke="url(#am)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          </div>
-          <div><div class="app-name">Nikatru Subscription Tracker</div></div>
-        </div>
-        <div class="app-tag">Track every subscription in one place</div>
-        <div class="badges"><a class="badge" target="_blank" rel="noopener" href="https://nikatru.com/subscriptiontracker">Web App</a></div>
-        <div class="app-more"><a href="/apps/subscriptiontracker">More about Nikatru Subscription Tracker &rarr;</a></div>
-      </div>
-    </div>
+        </span>
+        <span class="reg-main">
+          <a class="app-name" href="/apps/subscriptiontracker">Nikatru Subscription Tracker</a>
+          <span class="app-tag">Track every subscription in one place</span>
+        </span>
+        <span class="reg-state">
+          <span class="marks" aria-hidden="true"><span class="mark mark-served"></span><span class="mark mark-soon"></span><span class="mark mark-soon"></span><span class="mark mark-soon"></span><span class="mark mark-soon"></span><span class="mark mark-soon"></span></span>
+          <span class="reg-count fig">1 of 6 channels live</span>
+        </span>
+          <a class="reg-open" href="https://nikatru.com/subscriptiontracker">Open<span class="sr-only"> Nikatru Subscription Tracker</span> &rarr;</a>
+      </li>
+    </ul>
 <!-- /APPS-GRID -->
+    <p class="reg-after">A hollow mark is a channel the app is not on yet. We do not list a store
+    until you can actually download it there &mdash; the row above is generated from the release
+    register, so it cannot say more than the register does.</p>
   </div>
 </section>
 
-<section id="platforms" class="platforms">
+<section id="pledge">
   <div class="wrap">
-    <h2>One craft, every platform</h2>
-    <p class="section-sub">The same care goes into every version, so Nikatru apps feel at home wherever you run them.</p>
+    <div class="sec-head">
+      <h2>The pledge</h2>
+      <p class="sec-note">Six commitments, each with the thing that would prove it broken.</p>
+    </div>
+    <p class="lede">We have no users to quote and no logos to show you, and we are not going to
+    invent either. This is the alternative: specific promises, in writing, that you can check
+    yourself.</p>
+    <ul class="pledge">
+      <li>
+        <div>
+          <h3>No advertising, and no third-party tracking, in any Nikatru app</h3>
+          <p>No ad SDK, no analytics broker, no data sold or brokered to anyone, ever.</p>
+        </div>
+        <p class="test"><b>Check it</b> The privacy policy lists every category of data each app
+        collects and why. Any ad identifier in a shipped build breaks this.</p>
+      </li>
+      <li>
+        <div>
+          <h3>Your data can be deleted, by you, without asking us</h3>
+          <p>Account deletion is a page on this site, not an email you have to send and chase.</p>
+        </div>
+        <p class="test"><b>Check it</b> <a href="/delete-account">Delete your account</a> works
+        today, for the live product, whether or not you ever paid us.</p>
+      </li>
+      <li>
+        <div>
+          <h3>We do not claim a platform we are not on</h3>
+          <p>The channel marks above are generated from the release register. Nothing on this
+          site can advertise a store the product has not shipped to.</p>
+        </div>
+        <p class="test"><b>Check it</b> Every store name on this site is checked against the
+        published listings on every build. A false badge fails the build, not a review.</p>
+      </li>
+      <li>
+        <div>
+          <h3>Prices are shown before checkout, with the renewal terms beside them</h3>
+          <p>What it costs, what it renews at, and when &mdash; on the same screen as the button.</p>
+        </div>
+        <p class="test"><b>Check it</b> <a href="/pricing">Pricing</a> and the
+        <a href="/refund">refund policy</a> are public and dated. Paid checkout is not open yet;
+        nothing here can be bought today.</p>
+      </li>
+      <li>
+        <div>
+          <h3>Support is answered by the person who wrote the code</h3>
+          <p>One developer, one inbox. No ticket deflection, no chatbot in front of it.</p>
+        </div>
+        <p class="test"><b>Check it</b> <a href="/support">Support</a> and
+        <a href="/contact">contact</a> both reach the same address, published in full.</p>
+      </li>
+      <li>
+        <div>
+          <h3>Every policy change is kept, dated, and readable after the fact</h3>
+          <p>The version you agreed to stays available; it is not quietly overwritten.</p>
+        </div>
+        <p class="test"><b>Check it</b> <a href="/privacy">Privacy</a> and
+        <a href="/terms">terms</a> carry an effective date, and earlier versions are archived
+        rather than replaced.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="platforms">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>One craft, every platform</h2>
+      <p class="sec-note">The same codebase, tuned per platform &mdash; not a watered-down port.</p>
+    </div>
+    <p class="lede">Nikatru apps are built once and shipped native. The register above is the
+    honest state of that today: the web build is live, and the rest are built and waiting on
+    store review queues rather than on code.</p>
     <div class="plat-row" aria-label="Platforms we build for">
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"/></svg><span>iOS</span></div>
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="10" y1="5" x2="14" y2="5"/></svg><span>Android</span></div>
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="12" y1="9.5" x2="12" y2="19"/></svg><span>Windows</span></div>
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><line x1="2" y1="20" x2="22" y2="20"/></svg><span>macOS</span></div>
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="12" y1="15" x2="16.5" y2="15"/></svg><span>Linux</span></div>
-      <div class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>Web</span></div>
-    </div>
-    <div class="values">
-      <div class="value">
-        <div class="v-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></div>
-        <h3>Native</h3>
-        <p>Each build is tuned to its platform, so it looks and feels right at home.</p>
-      </div>
-      <div class="value">
-        <div class="v-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
-        <h3>Private</h3>
-        <p>No trackers or ads. Your data stays on your device and in your hands.</p>
-      </div>
-      <div class="value">
-        <div class="v-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.4L20 10l-5.8 1.6L12 17l-2.2-5.4L4 10l5.8-1.6z"/></svg></div>
-        <h3>Polished</h3>
-        <p>Thoughtful details and regular updates, from the first release onward.</p>
-      </div>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"/></svg><span>iOS</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="10" y1="5" x2="14" y2="5"/></svg><span>Android</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="12" y1="9.5" x2="12" y2="19"/></svg><span>Windows</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><line x1="2" y1="20" x2="22" y2="20"/></svg><span>macOS</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="12" y1="15" x2="16.5" y2="15"/></svg><span>Linux</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>Web</span></span>
     </div>
   </div>
 </section>
 
-<section id="developer">
+<section id="founder">
   <div class="wrap">
-    <div class="dev-in">
+    <div class="sec-head">
+      <h2>Who builds it</h2>
+      <p class="sec-note">One person, named, with an address you can write to.</p>
+    </div>
+    <div class="founder">
       <picture>
         <source srcset="/founder-v4.webp" type="image/webp">
-        <img class="dev-photo" src="/founder-v4.jpg" width="150" height="192" loading="lazy"
+        <img src="/founder-v4.jpg" width="132" height="169" loading="lazy" decoding="async"
              alt="Rajasekar Selvam, founder of Nikatru">
       </picture>
-      <div class="dev-copy">
-        <h2>The person behind Nikatru</h2>
-        <p>Nikatru is the studio of <a href="https://rajasekarselvam.com" target="_blank" rel="noopener"><b>Rajasekar Selvam</b></a>, a Chennai-based developer with 11+ years in software. It started in 2021
-        with a simple goal: make well-crafted, privacy-respecting apps that work on every screen &mdash; and
-        stand behind them for the long haul.</p>
-        <a class="dev-link" href="/contact">Get in touch &rarr;</a>
+      <div class="founder-copy">
+        <p>Nikatru is the studio of <b>Rajasekar Selvam</b>, a Chennai-based developer with
+        eleven years in software. It started in 2021 with one goal: make well-crafted,
+        privacy-respecting apps that work on every screen &mdash; and stand behind them
+        afterwards, which is the part most software skips.</p>
+        <p>It is registered as an MSME in Tamil Nadu under UDYAM-TN-02-0487004. That number is
+        on every page of this site because a company you can look up is a company you can hold
+        to something. If an app of ours costs you money or loses your data, there is exactly one
+        person to answer for it, and he is on this page.</p>
+        <p><a href="https://rajasekarselvam.com" target="_blank" rel="noopener">rajasekarselvam.com</a>
+        &middot; <a href="/contact">Get in touch</a></p>
       </div>
     </div>
   </div>
 </section>
 
-<section id="notify" class="notify">
+<section id="updates" class="band">
   <div class="wrap">
-    <h2>Get notified at launch</h2>
-    <p class="section-sub">Be the first to know when our first apps ship. Occasional launch news only &mdash;
-    no spam, and you can unsubscribe anytime.</p>
+    <div class="sec-head">
+      <h2>Get updates</h2>
+    </div>
+    <p>One email when something ships. Not a newsletter, and not a drip sequence &mdash; we do
+    not have anything to drip. Unsubscribe from any of them.</p>
     <form id="notify-form" class="notify-form" action="/api/subscribe" method="POST" novalidate>
       <label class="sr-only" for="notify-email">Email address</label>
       <input id="notify-email" name="email" type="email" required autocomplete="email"
@@ -480,7 +551,7 @@
       <input type="text" name="company" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
       <button type="submit" id="notify-btn">Notify me</button>
     </form>
-    <p class="notify-note">We store your email address and the time you signed up, and nothing else. Unsubscribe anytime.</p>
+    <p class="notify-note">We store your email address and the time you signed up, and nothing else. The form posts to our own endpoint and works with JavaScript turned off.</p>
     <p id="notify-msg" class="notify-msg" role="status" aria-live="polite"></p>
   </div>
 </section>
@@ -497,69 +568,43 @@
 <!-- /CHROME:footer -->
 
 <script>
-/* ---- Mobile nav toggle ---- */
+/* ---- Sign-up form, progressive only ----
+   The form carries a real action and method, so it submits and works with this
+   script absent or blocked. All this adds is staying on the page. There is no
+   other script on this document: the nav needs none since it stopped hiding its
+   own links below 720px, and the scroll-reveal observer was deleted — it existed
+   to fade in content that was already there, which is latency spent on nothing
+   and a blank page for anyone whose IntersectionObserver never fires. */
 (function(){
-  const btn = document.getElementById("navToggle");
-  const menu = document.getElementById("navLinks");
-  if (!btn || !menu) return;
-  const setOpen = (open) => {
-    menu.classList.toggle("open", open);
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-    btn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
-  };
-  btn.addEventListener("click", () => setOpen(!menu.classList.contains("open")));
-  menu.querySelectorAll("a").forEach(a => a.addEventListener("click", () => setOpen(false)));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
-})();
-
-/* ---- Notify forms (hero + footer capture, same endpoint) ---- */
-(function(){
-  const forms = document.querySelectorAll("form.notify-form");
+  const form = document.getElementById("notify-form");
+  if (!form) return;
+  const btn = document.getElementById("notify-btn");
+  const input = document.getElementById("notify-email");
+  const msg = document.getElementById("notify-msg");
   const valid = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254;
-  forms.forEach((form) => {
-    const btn = form.querySelector("button[type=submit]") || form.querySelector("button");
-    const input = form.querySelector("input[type=email]");
-    const wrap = form.closest(".wrap") || form.parentElement;
-    const msg = wrap ? wrap.querySelector(".notify-msg") : null;
-    if (!btn || !input) return;
-    const show = (t, kind) => { if (msg) { msg.textContent = t; msg.className = "notify-msg " + kind; } };
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = (input.value || "").trim();
-      if (!valid(email)) { show("Please enter a valid email address.", "err"); input.focus(); return; }
-      const original = btn.textContent;
-      btn.disabled = true; btn.textContent = "Sending...";
-      try {
-        const res = await fetch("/api/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email, company: (form.company ? form.company.value : "") })
-        });
-        let data = {};
-        try { data = await res.json(); } catch (_) {}
-        if (res.ok && data.ok) { form.reset(); show("You're on the list. We'll email you at launch.", "ok"); }
-        else { show((data && data.error) || "Something went wrong. Please try again.", "err"); }
-      } catch (_) {
-        show("Network error. Please try again.", "err");
-      } finally {
-        btn.disabled = false; btn.textContent = original;
-      }
-    });
+  const show = (t, kind) => { if (msg) { msg.textContent = t; msg.className = "notify-msg " + kind; } };
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (input.value || "").trim();
+    if (!valid(email)) { show("Please enter a valid email address.", "err"); input.focus(); return; }
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = "Sending...";
+    try {
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, company: (form.company ? form.company.value : "") })
+      });
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+      if (res.ok && data.ok) { form.reset(); show("You're on the list. We'll email you when something ships.", "ok"); }
+      else { show((data && data.error) || "Something went wrong. Please try again.", "err"); }
+    } catch (_) {
+      show("Network error. Please try again.", "err");
+    } finally {
+      btn.disabled = false; btn.textContent = original;
+    }
   });
-})();
-
-/* ---- Scroll reveal (progressive enhancement; no-JS users see everything) ---- */
-(function(){
-  if (!("IntersectionObserver" in window)) return;
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const els = document.querySelectorAll(".card, .value, .plat, .dev-in");
-  if (!els.length) return;
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((en) => {
-      if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
-    });
-  }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
-  els.forEach((el) => { el.classList.add("reveal"); io.observe(el); });
 })();
 </script>
 </body>

@@ -141,7 +141,15 @@ describe('chrome.mjs · applyChrome', () => {
     // site has ONE spacing/type/radius language the way it already has one
     // palette. Listed by name here on purpose — this is the assertion that makes
     // adding a region a deliberate act rather than a side effect.
-    assert.deepEqual([...REGIONS.keys()].sort(), ['a11y-css', 'footer', 'footer-css', 'scale-css', 'skiplink']);
+    // `marks-css` joined with it: the status mark (a filled teal square for live,
+    // a dashed outline for coming soon) renders at two densities — labelled in an
+    // availability tile, bare in the homepage register row — and two rule sets for
+    // one mark would drift with nothing able to see it, because a CSS rule is not
+    // a custom property. See MARK_CSS in tooling/sites/availability.mjs.
+    assert.deepEqual(
+      [...REGIONS.keys()].sort(),
+      ['a11y-css', 'footer', 'footer-css', 'marks-css', 'scale-css', 'skiplink'],
+    );
     for (const produce of REGIONS.values()) assert.equal(typeof produce(), 'string');
   });
 });

@@ -706,6 +706,7 @@ const chromed = (body) =>
   // a page `applyChrome` correctly refuses, because a region that silently does
   // nothing is the failure the whole splice exists to prevent.
   '  :root{\n  /* CHROME:scale-css */\n  /* /CHROME:scale-css */\n  }\n' +
+  '  /* CHROME:marks-css */\n  /* /CHROME:marks-css */\n' +
   '  /* CHROME:footer-css */\n  /* /CHROME:footer-css */\n' +
   '</style></head><body>\n' +
   '<!-- CHROME:skiplink -->\n<a class="skip-link" href="#main">Skip</a>\n<!-- /CHROME:skiplink -->\n' +
@@ -981,7 +982,31 @@ describe('the generator', () => {
     assert.match(html, /\$4\.99 <small>\/ month<\/small>/);
     assert.match(html, /data-offering="pro_yearly"/);
     assert.match(html, /\$19\.99 <small>\/ year<\/small>/);
+    // 🔴 NO TRIAL BADGE, BECAUSE `paywall.enabled` IS FALSE IN THIS FIXTURE.
+    // Changed 2026-09-09: the badge used to render regardless, so this page
+    // printed "30-DAY FREE TRIAL" in its loudest type three paragraphs above its
+    // own sentence "Paid checkout is not open yet … nothing can be bought
+    // today". A price is a fact that stays true while the till is shut; a trial
+    // is an OFFER the reader is invited to start by clicking, and printing one
+    // over a closed checkout is a promise with nothing behind it.
+    assert.doesNotMatch(html, /FREE TRIAL/);
+    assert.equal(guard(root).code, 0);
+  });
+
+  test('🔴 the trial badge RETURNS the moment the paywall is switched on — gated, not deleted', () => {
+    // The positive control for the gate above. Without it, "no trial badge" is
+    // equally consistent with a generator that lost the ability to render one,
+    // and `trial_days` in the rail config would be a field nothing reads.
+    const root = tree([SUBLY], {
+      rail: rail({ subly: { features: {}, paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }),
+      pricingPage: true,
+    });
+    assert.equal(generate(root).code, 0);
+    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
     assert.match(html, /30-DAY FREE TRIAL/);
+    // And the "nothing can be bought today" note is correspondingly gone, so the
+    // page never carries the badge and the disclaimer at the same time.
+    assert.doesNotMatch(html, /nothing can be bought today/);
     assert.equal(guard(root).code, 0);
   });
 
@@ -1487,7 +1512,11 @@ describe('the real repository', () => {
     const live = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8')).filter((r) => r.status === 'live');
     assert.ok(live.length > 0, 'the catalogue lists no live app, so this case would assert nothing');
     for (const row of live) {
-      assert.ok(grid.includes(`>${row.name}</div>`), `the generated grid does not name ${row.name}`);
+      // Element-agnostic: the row wraps the name in whatever element the design
+      // uses, and pinning that element made this case a test of markup rather than
+      // of agreement. It was `</div>` until 2026-09-09 and went stale the moment
+      // the card became a register row.
+      assert.ok(grid.includes(`>${row.name}<`), `the generated grid does not name ${row.name}`);
       assert.ok(grid.includes(row.url), `the generated grid does not carry ${row.url}`);
     }
 

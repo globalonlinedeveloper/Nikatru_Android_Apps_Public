@@ -238,13 +238,51 @@ export const AVAILABILITY_CSS = `
   .avail-top{display:flex;align-items:center;gap:9px}
   .avail-name{font-family:var(--font-display,inherit);font-weight:600;color:var(--strong);line-height:1.25}
   .avail-tile.is-soon .avail-name{color:var(--muted)}
-  .avail-meta{display:flex;flex-direction:column;gap:2px;font-size:13.5px;color:var(--muted);padding-left:18px}
-  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px}
-  .mark-served{background:var(--teal)}
-  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .avail-meta{display:flex;flex-direction:column;gap:2px;font-size:var(--type-sm,13.5px);color:var(--muted);padding-left:18px}
+  /* The mark rules (.mark, .mark-served, .mark-soon) are NOT declared here. That is the
+     STATUS MARK - the design one status device - and it appears in two
+     densities: labelled, inside these tiles, and bare, in the homepage register
+     row beside "1 of 6 channels live". Two densities of one mark must not be two
+     rule sets: they would drift by a pixel and by a colour, and no guard could
+     see it, because a CSS rule is not a custom property and the palette guard
+     compares only custom properties. So the mark is MARK_CSS below, emitted once
+     as the shared marks-css chrome region onto every page. */
   /* The generator's column count is a DESKTOP answer; below the collapse points
      the viewport decides instead, and the cap is released so a tile fills the
      width rather than leaving a 252px column against a 358px screen. */
   @media (max-width:860px){ .avail-tiles{grid-template-columns:repeat(2,1fr);max-width:none} }
   @media (max-width:520px){ .avail-tiles{grid-template-columns:1fr} }
 `;
+
+/**
+ * THE STATUS MARK, and it is deliberately not in `AVAILABILITY_CSS`.
+ *
+ * A filled teal square means LIVE; a dashed muted outline means COMING SOON.
+ * That is the whole visual state device this design uses in place of a row of
+ * coloured store badges — and it appears at two densities: labelled, inside an
+ * availability tile on an app landing, and bare, in the homepage register row
+ * beside the sentence "1 of 6 channels live".
+ *
+ * 🔴 TWO DENSITIES OF ONE MARK MUST NOT BE TWO RULE SETS. If the homepage
+ * declared its own `.mark`, the two would drift — by a pixel, by a radius, by a
+ * colour — and NOTHING in this repository could see it: `assert-palette-
+ * consistent.mjs` compares CSS CUSTOM PROPERTIES, and `width:9px` is not one.
+ * That is the same blind spot that let nine different corner radii accumulate
+ * across the served pages. So the mark is emitted ONCE, as the shared
+ * `marks-css` chrome region, onto every page — the identical mechanism that
+ * replaced six hand-maintained footers.
+ *
+ * ⚠️ EVERY VALUE IS A TOKEN OR A LITERAL THAT IS SCHEME-INDEPENDENT. `--teal`
+ * and `--muted` both fork under `prefers-color-scheme`, so the mark follows the
+ * scheme without this string knowing anything about schemes. A hex here would be
+ * the light-mode-hex-in-dark defect the design canvas was corrected for.
+ *
+ * ⚠️ AND THE MARK NEVER CARRIES THE MEANING ALONE. WCAG 1.4.1: on a tile the
+ * word "Coming soon" sits beside it, and in the compact homepage row the marks
+ * are `aria-hidden` and the count sentence carries the fact in words. A reader
+ * who cannot distinguish a filled square from a dashed one loses nothing.
+ */
+export const MARK_CSS = `  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}`;
