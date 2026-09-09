@@ -51,7 +51,16 @@
     // WIDENED BEFORE THE MOVE [ADR 075] -- see the longer note in
     // services/platform/wrangler.jsonc. Apex first; the subdomain is held only
     // until the 301 lands, then removed.
-    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev",
+    // WIDENED AGAIN 2026-09-09 FOR THE PAGES-PROJECT MOVE, AND BOTH PREVIEW
+    // ORIGINS ARE HELD ON PURPOSE. The slug rename re-points deploy-web at a new
+    // Direct Upload project (`subscriptiontracker`, subdomain read back from the
+    // API as `subscriptiontracker-7qg.pages.dev`), so for the length of the
+    // cutover there are two preview origins that can serve this app: the one the
+    // old project still holds and the one the new project starts holding. An
+    // exact allowlist fails CLOSED and silently, so the old one is dropped in a
+    // SEPARATE, LATER change -- widen, cut over, then narrow, the same order the
+    // subdomain removal used. See services/platform/wrangler.jsonc.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev",
     // [5]M-12 — this deploy's money world. The RevenueCat webhook ignores
     // events from the other world and /v1/entitlements grants nothing from it.
     // Absent/unrecognised ⇒ 503 on both (fail closed, src/lib/money.ts).

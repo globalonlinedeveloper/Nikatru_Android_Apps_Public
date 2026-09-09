@@ -110,8 +110,27 @@ hosts:
   # *.pages.dev sits OUTSIDE the nikatru.com zone, so the Redirect Rule that
   # 301s the retired subdomain cannot match the router's own proxy subrequest.
   #
-  # MEASURED, not assumed -- see the deploy-web run cited in the pull request.
-  pagesOrigin: subly-9cp.pages.dev
+  # 🔴 THIS MOVES WITH THE SLUG, BECAUSE THE DEPLOY TARGET DOES.
+  # deploy-web.yml deploys with `--project-name=${{ matrix.app }}`, and the
+  # matrix is the workspace app set -- the DIRECTORY name. Renaming
+  # `apps/subly` to `apps/subscriptiontracker` therefore re-points the deploy at
+  # a Pages project called `subscriptiontracker`, and leaving this line on the
+  # old project would make the router proxy bytes nothing deploys to any more.
+  # That failure is a WHITE PAGE, not an error: the old project's index.html
+  # still answers 200 with `<base href="/subly/">`, every asset resolves to a
+  # path the router no longer claims, and the app never boots.
+  #
+  # MEASURED 2026-09-09, READ BACK FROM THE API AND NOT ASSUMED:
+  #   POST /accounts/{a}/pages/projects {"name":"subscriptiontracker"}
+  #     -> result.subdomain = subscriptiontracker-7qg.pages.dev
+  # The `-7qg` suffix is Cloudflare's, appended because the bare name was taken:
+  # `subscriptiontracker.pages.dev` answers HTTP 200 and belongs to a THIRD
+  # PARTY (a different Supabase backend). So `<id>.pages.dev` is not merely
+  # underived here, it is somebody else's origin, and guessing it would have
+  # proxied this app's address to a stranger's app. Red control on the same run:
+  # `subscriptiontracker-7qg.pages.dev` answered 522 until the first deployment
+  # existed, which is what proves the suffix was newly minted for this account.
+  pagesOrigin: subscriptiontracker-7qg.pages.dev
   api: api.nikatru.com
 
 platforms:

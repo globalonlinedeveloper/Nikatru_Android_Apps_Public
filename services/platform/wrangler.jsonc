@@ -99,7 +99,17 @@
     // then narrow. The subdomain's line out of here is the LAST step of the
     // migration, and it is justified in assert-cors-allowlist.mjs EXTRAS until
     // then -- not left unexplained.
-    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,http://localhost:3000",
+    // WIDENED AGAIN 2026-09-09, FOR THE PAGES-PROJECT MOVE THIS TIME, and the
+    // order is the same safety property as above: widen, cut over, then narrow.
+    // deploy-web.yml deploys with `--project-name=${{ matrix.app }}` and the
+    // matrix is the DIRECTORY name, so renaming `apps/subly` moves this app's
+    // Direct Upload project to `subscriptiontracker`. Its *.pages.dev subdomain
+    // was READ BACK from the create call rather than guessed --
+    // `subscriptiontracker-7qg.pages.dev` -- because the bare name is taken by a
+    // THIRD PARTY (subscriptiontracker.pages.dev answers 200 and is not ours).
+    // Both preview origins are held for the length of the cutover; the old one
+    // leaves in its own later change, when nothing can be served from it.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev,http://localhost:3000",
     // WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `<appId>=<https origin>`.
     //
     // 🔴 DELETE /v1/account IS THE PORTFOLIO'S ERASURE ENTRY POINT AND THIS
