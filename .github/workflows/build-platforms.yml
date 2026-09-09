@@ -448,11 +448,18 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: |
           set -euo pipefail
+          # 🔴 THE `[sdk=iphoneos*]` FORM IS NOT OPTIONAL, AND OMITTING IT IS A
+          # SILENT AD-HOC BUILD. The Flutter iOS template sets
+          # `CODE_SIGN_IDENTITY[sdk=iphoneos*] = "iPhone Developer"` in the
+          # .pbxproj, and a CONDITIONAL build setting outranks the unqualified
+          # one wherever it is defined — so a plain `CODE_SIGN_IDENTITY` here is
+          # simply not consulted for a device build. Both spellings are written.
           {
             echo ""
             echo "CODE_SIGN_STYLE = Manual"
             echo "DEVELOPMENT_TEAM = ${APPLE_TEAM_ID}"
             echo "CODE_SIGN_IDENTITY = ${APPLE_DIST_IDENTITY}"
+            echo "CODE_SIGN_IDENTITY[sdk=iphoneos*] = ${APPLE_DIST_IDENTITY}"
             echo "PROVISIONING_PROFILE_SPECIFIER = ${APPLE_IOS_PROFILE_NAME}"
           } >> ios/Flutter/Release.xcconfig
           {
