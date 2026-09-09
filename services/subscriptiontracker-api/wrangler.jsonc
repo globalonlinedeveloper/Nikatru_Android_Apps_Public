@@ -14,7 +14,29 @@
   //   wrangler secret put SUPABASE_JWT_SECRET       # optional HS256 legacy fallback
   //   wrangler secret put REVENUECAT_WEBHOOK_SECRET  # RevenueCat webhook auth
   // ───────────────────────────────────────────────────────────────────────────
-  "name": "subscriptiontracker-api",
+  // 🔴 THE DEPLOYED NAME DELIBERATELY DID NOT MOVE WITH THE SLUG, AND THIS IS
+  // THE ONE PLACE IN THIS FILE THAT STILL SPELLS THE RETIRED ID. The directory
+  // is `services/subscriptiontracker-api` and every repo-side derivation moved
+  // with it (assert-cors-allowlist.mjs maps `services/<slug>-api` by DIRECTORY,
+  // and check-migrations.mjs's REQUIRED_COVERAGE names the directory too).
+  //
+  // WHAT A NAME CHANGE HERE WOULD ACTUALLY DO, and the evidence is nine lines
+  // below rather than in an argument: `wrangler deploy` addresses a Worker BY
+  // NAME, so a new name is a NEW WORKER, not a rename. The old one keeps
+  // `api.nikatru.com`, which is a CUSTOM DOMAIN and is attached to exactly one
+  // Worker at a time. The 2026-08-03 read-back below was written precisely
+  // because "custom_domain: true would have fought the existing binding on the
+  // next deploy" — and a rename creates that fight by construction. Best case
+  // the deploy fails loudly and the live API goes on being served by the Worker
+  // that still holds the domain; worst case the domain moves to a Worker whose
+  // first deploy has not finished.
+  //
+  // ⚠️ OWED, AS ITS OWN SEQUENCED CHANGE, alongside the `subly_db` rename: move
+  // the custom domain, then the name, with the account read back at each step.
+  // It is the same class as the Cloudflare Pages project migration — a LIVE
+  // resource, not a declaration — and bundling two of those into one commit is
+  // how a rollback stops being possible.
+  "name": "subly-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
   "observability": { "enabled": true },
@@ -73,7 +95,9 @@
   // ✅ DECLARING IT IS IDEMPOTENT, AND THAT WAS VERIFIED BEFORE WRITING IT rather
   // than assumed. Read back from the live account 2026-08-03 via
   // GET /accounts/:id/workers/domains: `api.nikatru.com` is already a CUSTOM
-  // DOMAIN attached to `subscriptiontracker-api`, and GET /zones/:id/workers/routes for
+  // DOMAIN attached to `subly-api` (the name the account returned on that date, and
+  // the name this Worker still deploys under — see the block at `name` above), and
+  // GET /zones/:id/workers/routes for
   // nikatru.com returns an EMPTY list. So this declares exactly what is already
   // there. Had it been a pattern-based Route instead, `custom_domain: true`
   // would have fought the existing binding on the next deploy — which is why the

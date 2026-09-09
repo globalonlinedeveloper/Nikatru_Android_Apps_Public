@@ -243,7 +243,9 @@ _Harness _harness(int count, {Locale? locale}) {
       subscriptionRepositoryProvider.overrideWithValue(
         _FixedRepository(_subs(count)),
       ),
-      subscriptiontrackerNotificationServiceProvider.overrideWithValue(notifier),
+      subscriptiontrackerNotificationServiceProvider.overrideWithValue(
+        notifier,
+      ),
     ],
   );
   addTearDown(container.dispose);

@@ -320,7 +320,9 @@ void main() {
           analyticsConsentProvider.overrideWithValue(core.ConsentStatus.denied),
           secureStoreProvider.overrideWithValue(secure),
           notificationServiceProvider.overrideWithValue(chassis),
-          subscriptiontrackerNotificationServiceProvider.overrideWithValue(fork),
+          subscriptiontrackerNotificationServiceProvider.overrideWithValue(
+            fork,
+          ),
         ],
       );
       addTearDown(container.dispose);

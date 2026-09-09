@@ -82,6 +82,20 @@ name: Nikatru Subscription Tracker
 shortName: Subscriptions
 tagline: Track every subscription in one place
 category: Productivity
+# 🔴 `live` THROUGHOUT THE SLUG MIGRATION, AND `preview` WAS TRIED AND REJECTED.
+# assert-catalog-reachable.mjs probes every `live` row and offers `preview` as the
+# way to stop advertising an address that does not answer yet. Taking that offer
+# was measured on 2026-09-09 and it is WRONG FOR AN APP THAT IS ALREADY SHIPPED:
+# with 0 live rows the discovery generator drops the app from the sitemap, from
+# llms.txt and from the apps hub, check-site-integrity.mjs then refuses the
+# hand-maintained homepage APPS array for naming an app the registry does not
+# call live, and discovery-surface.test.mjs's homepage case loses its subject and
+# reports COVERAGE LOST. `preview` here means "never been live"; it is not a
+# transitional state, and using it would take a working app off the public site
+# for the length of a migration.
+#
+# The address is made to answer BEFORE this lands instead — see `_redirects` in
+# sites/nikatru, and the pull request for the sequencing.
 status: live
 
 # No DNS record is needed for either host: [ADR 006] locked a proxied wildcard

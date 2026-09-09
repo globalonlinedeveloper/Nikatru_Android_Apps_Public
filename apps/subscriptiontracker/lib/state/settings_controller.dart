@@ -136,7 +136,9 @@ class SettingsController extends Notifier<SettingsState> {
     //
     // Off is never an ask: turning a feature OFF cannot be a reason to prompt.
     if (on && _reminderBearing.contains(key)) {
-      await ref.read(subscriptiontrackerNotificationServiceProvider).requestPermissions();
+      await ref
+          .read(subscriptiontrackerNotificationServiceProvider)
+          .requestPermissions();
     }
   }
 

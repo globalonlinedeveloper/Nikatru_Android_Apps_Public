@@ -73,11 +73,21 @@
 // NON-EMPTY BODY, in a file the app's own test lane runs; each row also carries
 // the `file:symbol` of the effect it asserts, so a hollow test left behind after
 // the implementation is deleted still goes red; and the mutation record is DATED
-// and expires against the implementation's own last commit. That is what turns
-// "proven once in a terminal" into a state.
+// and expires against the last commit that changed the implementation's CODE.
+// That is what turns "proven once in a terminal" into a state.
+//
+// 🔄 UPDATED 2026-09-09 — "the implementation's own last commit" is what this
+// paragraph used to say, and what `lastCommitDay` used to measure. It counted a
+// COMMENT-ONLY edit as a change to proven behaviour: the slug rename ab8a84db
+// reworded doc-comment path citations in four brick files and expired five
+// mutation rows in a record whose code had not moved a byte. The clause now
+// reads `lastCodeChangeDay`, which walks the path's history past commits whose
+// whole effect on that file was comment prose. It is the same definition of
+// "code" the effect anchor two limbs above has always used. The full argument,
+// the measurement, and the stated limits live on that function.
 //
 // ⚠️ SHALLOW CLONES ARE COVERAGE LOST, NOT A SKIP. The mutation-staleness check
-// compares each row's date against `git log -1` for the implementation file. On a
+// compares each row's date against the file's own git history. On a
 // `fetch-depth: 1` checkout there is exactly one commit, dated at checkout time,
 // so every row would read as stale — or, if the failure were softened to a print,
 // the check would silently stop checking. The lane must check out with
@@ -128,7 +138,11 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 //
 //   2. FIVE EXPIRED MUTATION ROWS. Each row's date against `git log -1
 //      --format=%cI <effect file>`, normalised to UTC exactly as `lastCommitDay`
-//      does below:
+//      does below — which is how the clause was MEASURED ON 2026-08-12 and is no
+//      longer how it is computed: since 2026-09-09 it reads `lastCodeChangeDay`,
+//      so a comment-only commit no longer appears in this column at all. The
+//      instruction below to re-measure at the moment of the flip covers this:
+//      these five readings are a snapshot, never a property:
 //        · sign in             2026-08-10 · lib/features/auth/login_screen.dart        2026-08-12
 //        · sign out            2026-08-10 · lib/core/router.dart                       2026-08-11
 //        · edit profile        2026-08-10 · lib/features/settings/settings_screen.dart 2026-08-11
@@ -638,6 +652,114 @@ function lastCommitDay(relPath) {
   return Number.isNaN(asUtc.getTime()) ? t.slice(0, 10) : asUtc.toISOString().slice(0, 10);
 }
 
+/** ⏱ ADDED 2026-09-09. The last commit that changed the file's CODE — ISO date,
+ *  UTC-normalised exactly as `lastCommitDay` — skipping commits whose entire
+ *  effect on this one file was COMMENT PROSE. Null when git knows nothing about
+ *  the path, identically to `lastCommitDay`, so the caller's brick-source
+ *  fallback and its `unverifiable` branch are unchanged.
+ *
+ * 🔴 WHY THE MUTATION CLAUSE STOPPED USING `lastCommitDay`, AND WHY THIS IS NOT
+ * A WEAKENING OF IT.
+ *
+ * The measured event: the app-slug rename (`subly` -> `subscriptiontracker`,
+ * ab8a84db) swept path CITATIONS inside doc comments in four brick files, and
+ * expired FIVE mutation rows — sign in, sign out, edit profile, consent prompt,
+ * dark mode — twice over, once under `{{app_id}}` and once under the stamped
+ * `probe` that falls back to the same brick source. Not one byte of Dart moved.
+ * `git diff ab8a84db~1 ab8a84db` on each of those four files is doc-comment
+ * lines and nothing else, and re-measured with the walk below every one of the
+ * five rows lands on EXACTLY the day the record already carries (2026-09-06 for
+ * three, 2026-09-07 for two). The rows were already proven against the code
+ * that is in the tree; only the prose beside it moved.
+ *
+ * `mut.date < lastCommitDay(file)` was a PROXY for "the code this proof ranges
+ * over has moved", and a commit touching the file is not that. The narrowing
+ * cannot forgive a real change: whitespace outside comments, a string literal's
+ * own spacing, indentation, a moved brace — every one of them survives
+ * `stripDartComments` and still expires the row. What it forgives is exactly
+ * the set of edits a mutation proof cannot notice, because Dart comments do not
+ * compile and `flutter test` cannot see them.
+ *
+ * ⚠️ THIS FILE ALREADY DEFINED "CODE" THIS WAY, ONE LIMB EARLIER. The effect
+ * anchor above reads `stripDartComments(read(effRel))` before asking whether the
+ * symbol is still there, precisely so a symbol surviving only inside a comment
+ * does not count. Limb 3 disagreed with limb 2 about what a Dart file's code is.
+ * They now agree, and they share the one stripper rather than growing a second.
+ *
+ * ⚠️ RE-DATING WITHOUT RE-RUNNING WAS THE ONLY OTHER WAY OUT, AND IT IS THE ONE
+ * THIS GUARD EXISTS TO FORBID. Left as it was, every mechanical sweep over
+ * comment prose expires every row in the record at once; the cheap response is
+ * to move six dates, which converts six proofs into six claims and teaches the
+ * next reader that the date is a field you edit to get green. A guard that is
+ * red for a reason nobody can act on honestly is a guard somebody switches off.
+ *
+ * ⚠️ STATED LIMITS, so nobody reads this as more than it is:
+ *   · A `// ignore:` / `// ignore_for_file:` line is a comment here, so adding or
+ *     removing one no longer expires a row. It changes what `flutter analyze`
+ *     says, never whether the named test goes red under the mutation, which is
+ *     the only thing the row claims.
+ *   · A BLOCK comment (slash-star … star-slash — not written literally here,
+ *     because it would close this one) changed in the MIDDLE of a code line
+ *     leaves interior whitespace behind and reads as significant. That is a
+ *     false expiry, in the safe direction, and this tree does not write them.
+ *   · Only `.dart` paths are walked; anything else answers exactly as
+ *     `lastCommitDay` did. The humanReview staleness print below still calls
+ *     `lastCommitDay` on a DIRECTORY, and is unchanged.
+ *   · The stronger design is a content hash of the stripped implementation
+ *     recorded in the row itself — no git, no history walk, and it works on the
+ *     shallow clone this guard currently calls COVERAGE LOST. It needs a schema
+ *     field and six honestly re-run mutations to populate, so it is named here
+ *     rather than half-built.
+ *
+ * Shallow clones cannot reach this: `isShallow` is COVERAGE LOST below, so the
+ * walk is never asked to reason about a truncated history. */
+function lastCodeChangeDay(relPath) {
+  const log = spawnSync('git', ['-C', ROOT, 'log', '--format=%H%x09%cI', '--', relPath], { encoding: 'utf8' });
+  if (log.status !== 0) return null;
+  const versions = log.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l !== '')
+    .map((l) => {
+      const [sha, iso] = l.split('\t');
+      const asUtc = new Date(iso);
+      return { sha, day: Number.isNaN(asUtc.getTime()) ? iso.slice(0, 10) : asUtc.toISOString().slice(0, 10) };
+    });
+  if (versions.length === 0) return null;
+  if (!relPath.endsWith('.dart')) return versions[0].day;
+
+  /** The file's code at one commit, with comment prose gone. `stripDartComments`
+   *  is length-preserving, so a blanked `//` comment becomes trailing spaces and
+   *  a blanked doc-comment line becomes a blank line — hence the rtrim and the
+   *  empty-line drop, and NOTHING else is collapsed. Whitespace inside a string
+   *  literal is untouched, so `'a  b'` -> `'a b'` is still a change. */
+  const codeAt = (sha) => {
+    const blob = spawnSync('git', ['-C', ROOT, 'show', `${sha}:${relPath}`], {
+      encoding: 'utf8',
+      maxBuffer: 1 << 28,
+    });
+    // Added here, renamed into place, or unreadable: all three are a change, and
+    // returning null makes the walk stop rather than step over something unseen.
+    if (blob.status !== 0) return null;
+    return stripDartComments(blob.stdout)
+      .split('\n')
+      .map((l) => l.replace(/\s+$/, ''))
+      .filter((l) => l !== '')
+      .join('\n');
+  };
+
+  let newer = codeAt(versions[0].sha);
+  if (newer === null) return versions[0].day;
+  for (let k = 1; k < versions.length; k++) {
+    const older = codeAt(versions[k].sha);
+    if (older === null || older !== newer) return versions[k - 1].day;
+    newer = older;
+  }
+  // Every version this history holds has the same code: the file's own first
+  // commit is the last time its code changed.
+  return versions[versions.length - 1].day;
+}
+
 /** Every Dart file under the app's own test trees — the files its test lane runs. */
 function testFilesOf(appDir) {
   const out = [];
@@ -867,17 +989,24 @@ for (const appDir of domain) {
       // A freshly stamped app is UNTRACKED, so git knows nothing about its files.
       // Its implementation IS the brick source it was rendered from, which is
       // tracked — so the clause runs against the probe instead of going quiet.
+      //
+      // ⏱ 2026-09-09 — `lastCodeChangeDay`, NOT `lastCommitDay`. A commit that
+      // only reworded comment prose beside this code is not a change to the
+      // behaviour the mutation proved. See the long note on that function for
+      // the measurement that forced it and for why the narrowing forgives
+      // nothing a mutation proof could have noticed.
       let subject = effRel;
-      let day = lastCommitDay(effRel);
+      let day = lastCodeChangeDay(effRel);
       if (day === null) {
         subject = `${BRICK_APP}/${effFile}`;
-        day = lastCommitDay(subject);
+        day = lastCodeChangeDay(subject);
       }
       if (day === null) {
         unverifiable.push(`${at}: neither ${effRel} nor its brick source has any commit history, so the mutation record's freshness could not be established.`);
       } else if (mut.date < day) {
         fail(
-          `${at}: the mutation was recorded ${mut.date} and ${subject} was last changed ${day}. ` +
+          `${at}: the mutation was recorded ${mut.date} and the CODE in ${subject} last changed ${day} ` +
+            '(comment prose is ignored; every other byte counts). ' +
             'The record now describes code that is no longer there — re-run the mutation against what is ' +
             'in the tree today and re-date the row. This is what turns "proven once in a terminal" into a ' +
             'state rather than an event.',
@@ -1022,6 +1151,7 @@ console.log(
     `(${appMembers.length - stampedApps.length} exempt by name); ${items.length} register item(s), ${mechanical} ` +
     `mechanical and each resolved to a run: step in a push-triggered job inside ${AGGREGATOR}'s needs, ` +
     `${humanItems} human; ${featureRows} feature row(s) resolved to a declared, non-empty test plus an ` +
-    `implementation anchor and a mutation record no older than the code it probed; ${claimingDone} app(s) ` +
+    'implementation anchor and a mutation record no older than the last change to the CODE it probed ' +
+    `(comment prose does not expire a proof); ${claimingDone} app(s) ` +
     'claiming done (the human-verdict and selection clauses have no real instance until one does)',
 );

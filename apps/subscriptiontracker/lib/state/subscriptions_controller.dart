@@ -200,7 +200,9 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
       if (ReminderPlan.from(
         ref.read(settingsControllerProvider).prefs,
       ).syncRenewals) {
-        await ref.read(subscriptiontrackerNotificationServiceProvider).requestPermissions();
+        await ref
+            .read(subscriptiontrackerNotificationServiceProvider)
+            .requestPermissions();
       }
     }
   }

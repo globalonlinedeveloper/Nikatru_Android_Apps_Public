@@ -80,7 +80,8 @@ class FakeNotifications implements core.NotificationService {
 /// Subly's frozen fork, recording. Subclassed through `forTesting()` — the same
 /// route `settings_wiring_test.dart` takes, because the production object is a
 /// singleton that cannot be replaced.
-class RecordingSublyNotifications extends subscriptiontracker.NotificationService {
+class RecordingSublyNotifications
+    extends subscriptiontracker.NotificationService {
   RecordingSublyNotifications() : super.forTesting();
 
   int cancelAllCalls = 0;

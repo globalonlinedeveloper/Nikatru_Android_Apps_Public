@@ -16,12 +16,13 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-no-clone-tells.mjs');
 
 let TMP;
@@ -30,12 +31,48 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 
 let seq = 0;
 
-/** apps/subscriptiontracker + 12 clean shared files (the floor is 10), plus whatever `extra`
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE APP NAME IS DERIVED FROM THE DECLARATION, IN EVERY CASING THE GUARD
+// LOOKS FOR — it is never typed into a fixture and never typed into an
+// assertion.
+//
+// The guard derives the names it hunts for from the DIRECTORY NAMES under
+// `apps/`. This file used to write `apps/subly` into its fixture tree and then
+// spell `Subly`, `_SublyMigration` and `[Ss]ubly` into the bodies and the
+// expected messages. Two literals, moved by hand, in lockstep — which means a
+// global find-and-replace rewrote BOTH and every case went on passing while
+// proving nothing about the rename.
+//
+// Then the `subly → subscriptiontracker` sweep hit the lowercase spellings and
+// could not hit the CamelCase ones (`SublyThing`, `_SublyMigration`), and four
+// cases went red: the fixture named one app and the tree declared another. That
+// divergence is the whole reason for deriving. `APP` is read off
+// `catalog/apps.json` — the published declaration — and `CAP` is the same value
+// in the casing Dart spells a class in, so a rename cannot reach either by hand.
+// ─────────────────────────────────────────────────────────────────────────────
+const APP = (() => {
+  const rows = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8'));
+  const slugs = (Array.isArray(rows) ? rows : [])
+    .map((r) => r?.slug)
+    .filter((s) => typeof s === 'string' && s !== '');
+  assert.ok(slugs.length > 0, 'catalog/apps.json declares no slug — this test can derive nothing');
+  return slugs[0];
+})();
+/** The app name as a Dart class is spelled. The guard generates exactly this
+ *  variant (`w.charAt(0).toUpperCase() + w.slice(1)`), so the fixtures below
+ *  exercise the camelCase half of the pattern rather than asserting it exists. */
+const CAP = APP.charAt(0).toUpperCase() + APP.slice(1);
+/** Escape a derived value for use inside `new RegExp`. */
+const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The message the guard prints, in whichever casing the fixture used. */
+const NAMES_THE_APP = new RegExp(`shared code names the app "(${rx(APP)}|${rx(CAP)})"`);
+
+/** apps/<APP> + 12 clean shared files (the floor is 10), plus whatever `extra`
  *  the case needs. `nouns` overrides the domain list. */
 function tree({ extra = {}, nouns = ['subscription', 'renewal'], omitTells = false } = {}) {
   const root = join(TMP, `r${seq++}`);
   const files = {};
-  mkdirSync(join(root, 'apps', 'subscriptiontracker'), { recursive: true });
+  mkdirSync(join(root, 'apps', APP), { recursive: true });
   for (let i = 0; i < 12; i++) files[join(root, `packages/core/lib/clean${i}.dart`)] = 'class A {}\n';
 
   const reg = { consumerRoots: [], capabilities: [] };
@@ -65,18 +102,18 @@ describe('the passing path', () => {
 
 describe('limb 1 — the app name', () => {
   test('fails on an app name in shared CODE', () => {
-    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': "const k = 'subscriptiontracker';\n" } }));
+    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': `const k = '${APP}';\n` } }));
     assert.equal(code, 1);
-    assert.match(out, /shared code names the app "subscriptiontracker"/i);
+    assert.match(out, NAMES_THE_APP);
   });
 
   test('fails on an app name in the BRICK TEMPLATE too', () => {
-    const { code } = run(tree({ extra: { 'tooling/bricks/app/__brick__/x.dart': 'class SublyThing {}\n' } }));
+    const { code } = run(tree({ extra: { 'tooling/bricks/app/__brick__/x.dart': `class ${CAP}Thing {}\n` } }));
     assert.equal(code, 1);
   });
 
   test('a string literal counts as code — a hardcoded config key was a real defect', () => {
-    const { code } = run(tree({ extra: { 'packages/core/lib/x.dart': "final m = {'subscriptiontracker': 1};\n" } }));
+    const { code } = run(tree({ extra: { 'packages/core/lib/x.dart': `final m = {'${APP}': 1};\n` } }));
     assert.equal(code, 1);
   });
 
@@ -89,22 +126,24 @@ describe('limb 1 — the app name', () => {
   // the public `subscriptiontrackerLegacyLimit` was caught. Restoring the leading `\b` turns
   // both of these red.
   for (const [shape, body] of [
-    ['a private lowerCamel constant', 'const int _subscriptiontrackerLegacyLimit = 5;\n'],
-    ['a private class', 'class _SublyMigration {}\n'],
-    ['a private field', 'class A { final int _subscriptiontrackerRetries = 1; }\n'],
+    ['a private lowerCamel constant', `const int _${APP}LegacyLimit = 5;\n`],
+    ['a private class', `class _${CAP}Migration {}\n`],
+    ['a private field', `class A { final int _${APP}Retries = 1; }\n`],
   ]) {
     test(`fails on the app name inside ${shape}`, () => {
       const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': body } }));
       assert.equal(code, 1, `underscore-prefixed identifiers are code too: ${body.trim()}`);
-      assert.match(out, /shared code names the app "[Ss]ubly"/);
+      assert.match(out, NAMES_THE_APP);
     });
   }
 
   // The false-alarm side: widening the left edge to "not a letter or digit" must
-  // not start matching longer, unrelated words.
+  // not start matching longer, unrelated words. Both near-misses are built from
+  // the SAME derived name the cases above use, so they cannot drift into being
+  // unrelated words for a reason other than the one under test.
   test('a longer unrelated word still does NOT fire', () => {
     const { code, out } = run(tree({
-      extra: { 'packages/core/lib/x.dart': 'const a = 1; // ok\nclass Sublyx {}\nconst mysubscriptiontracker = 2;\n' },
+      extra: { 'packages/core/lib/x.dart': `const a = 1; // ok\nclass ${CAP}x {}\nconst my${APP} = 2;\n` },
     }));
     assert.equal(code, 0, out);
   });
@@ -149,19 +188,19 @@ describe('limb 2 — domain vocabulary', () => {
 
 describe('🔴 comments are exempt — the choice the guard lives or dies by', () => {
   test('a line comment naming the app does NOT fire', () => {
-    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': '// Mirrors subscriptiontracker\'s proven config.\nclass A {}\n' } }));
+    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': `// Mirrors ${APP}'s proven config.\nclass A {}\n` } }));
     assert.equal(code, 0, out);
   });
 
   test('a block comment naming the app does NOT fire', () => {
-    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': '/* subscription handling lived in subscriptiontracker */\nclass A {}\n' } }));
+    const { code, out } = run(tree({ extra: { 'packages/core/lib/x.dart': `/* subscription handling lived in ${APP} */\nclass A {}\n` } }));
     assert.equal(code, 0, out);
   });
 
   test('a trailing comment does NOT fire, but code on the same line DOES', () => {
-    const clean = run(tree({ extra: { 'packages/core/lib/x.dart': 'class A {} // was subscriptiontracker-specific\n' } }));
+    const clean = run(tree({ extra: { 'packages/core/lib/x.dart': `class A {} // was ${APP}-specific\n` } }));
     assert.equal(clean.code, 0, clean.out);
-    const dirty = run(tree({ extra: { 'packages/core/lib/x.dart': "const k = 'subscriptiontracker'; // note\n" } }));
+    const dirty = run(tree({ extra: { 'packages/core/lib/x.dart': `const k = '${APP}'; // note\n` } }));
     assert.equal(dirty.code, 1);
   });
 });
@@ -208,17 +247,17 @@ describe('the stripper is a tokenizer — a comment cannot hide a tell', () => {
       extra: {
         'packages/core/lib/x.dart':
           '// generated files live under services/*/src/ — see the runbook\n' +
-          "const k = 'subscriptiontracker';\n" +
+          `const k = '${APP}';\n` +
           "const doc = 'the span above would close here */';\n",
       },
     }));
     assert.equal(code, 1, out);
-    assert.match(out, /shared code names the app "subscriptiontracker"/i);
+    assert.match(out, NAMES_THE_APP);
   });
 
   test('a tell inside a REAL comment is still exempt — the repair is not collateral damage', () => {
     const { code, out } = run(tree({
-      extra: { 'packages/core/lib/x.dart': '// subscriptiontracker used to do this\n/* and subscription too */\nclass A {}\n' },
+      extra: { 'packages/core/lib/x.dart': `// ${APP} used to do this\n/* and subscription too */\nclass A {}\n` },
     }));
     assert.equal(code, 0, out);
   });
@@ -334,10 +373,10 @@ describe('[ADR 070] generated from a contract that names the noun', () => {
 
   test('🔴 an APP NAME in a perfectly generated file is NEVER exempt', () => {
     const { code, out } = run(
-      tree({ extra: generated({ body: "const r = 'subscription_expired';\nconst app = 'subscriptiontracker';\n" }) }),
+      tree({ extra: generated({ body: `const r = 'subscription_expired';\nconst app = '${APP}';\n` }) }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /shared code names the app "subscriptiontracker"/i);
+    assert.match(out, NAMES_THE_APP);
   });
 
   test('the rule is scoped to packages/*/lib — the brick cannot claim it', () => {

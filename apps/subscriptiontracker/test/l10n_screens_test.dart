@@ -176,8 +176,14 @@ void main() {
         final AppLocalizations l10n = await _load(code);
         await _pump(tester, Locale(code), const OnboardingScreen());
 
-        expect(find.text(l10n.subscriptiontrackerOnboarding1Title), findsOneWidget);
-        expect(find.text(l10n.subscriptiontrackerOnboarding1Body), findsOneWidget);
+        expect(
+          find.text(l10n.subscriptiontrackerOnboarding1Title),
+          findsOneWidget,
+        );
+        expect(
+          find.text(l10n.subscriptiontrackerOnboarding1Body),
+          findsOneWidget,
+        );
         expect(find.text(l10n.onboardingSkip), findsOneWidget);
         expect(
           find.text(l10n.onboardingNext),
@@ -235,8 +241,14 @@ void main() {
       // Subly's pitch been written into it, every app the factory produces
       // would introduce itself with Subly's words.
       expect(en.onboarding1Title, 'Welcome');
-      expect(en.subscriptiontrackerOnboarding1Title, isNot(en.onboarding1Title));
-      expect(ta.subscriptiontrackerOnboarding1Title, isNot(ta.onboarding1Title));
+      expect(
+        en.subscriptiontrackerOnboarding1Title,
+        isNot(en.onboarding1Title),
+      );
+      expect(
+        ta.subscriptiontrackerOnboarding1Title,
+        isNot(ta.onboarding1Title),
+      );
     });
   });
 

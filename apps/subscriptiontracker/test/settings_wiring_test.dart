@@ -72,7 +72,9 @@ ProviderContainer _container(
   final ProviderContainer c = ProviderContainer(
     overrides: <Override>[
       keyValueStoreProvider.overrideWith((ref) async => store),
-      subscriptiontrackerNotificationServiceProvider.overrideWithValue(notifier),
+      subscriptiontrackerNotificationServiceProvider.overrideWithValue(
+        notifier,
+      ),
     ],
   );
   addTearDown(c.dispose);

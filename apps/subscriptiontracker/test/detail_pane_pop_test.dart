@@ -127,7 +127,9 @@ Future<ProviderContainer> _pumpRouter(WidgetTester tester) async {
       analyticsConsentProvider.overrideWithValue(core.ConsentStatus.denied),
       secureStoreProvider.overrideWithValue(MemSecureStore()),
       notificationServiceProvider.overrideWithValue(FakeNotifications()),
-      subscriptiontrackerNotificationServiceProvider.overrideWithValue(SilentNotifications()),
+      subscriptiontrackerNotificationServiceProvider.overrideWithValue(
+        SilentNotifications(),
+      ),
     ],
   );
   addTearDown(container.dispose);

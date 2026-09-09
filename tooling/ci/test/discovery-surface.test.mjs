@@ -891,10 +891,18 @@ describe('the generator', () => {
 
   test('rewriteLlms replaces the ## Apps section and leaves the owner prose alone', () => {
     const before = '# N\n\n## About\n- Studio: N\n\n## Apps\n- Old — stale — https://old.example (web)\n\n## Key pages\n- Home: /\n';
-    const out = rewriteLlms(before, [
-      { name: 'Subly', tagline: 'Track every subscription in one place', url: 'https://subly.nikatru.com', platforms: ['web'] },
-    ]);
-    assert.match(out, /## Apps\n- Subly — Track every subscription in one place — https:\/\/subscriptiontracker\.nikatru\.com \(web\)\n\n## Key pages/);
+    // 🔴 THE ROW IS THE FIXTURE, AND THE EXPECTED LINE IS DERIVED FROM IT.
+    // This test used to hand rewriteLlms an inline row and then re-spell that
+    // row's url inside the assertion's regex. On 2026-09-09 the slug rename
+    // rewrote the ESCAPED copy in the regex and left the plain copy in the
+    // subject alone, so subject and assertion disagreed about which host the
+    // app lives on — a shape where the reverse (both rewritten together) would
+    // have left a green test asserting nothing about the rename at all.
+    // Deriving both sides from ONE declaration is what makes a global
+    // find-and-replace unable to disarm this: there is no second spelling.
+    const out = rewriteLlms(before, [SUBLY]);
+    const line = `- ${SUBLY.name} — ${SUBLY.tagline} — ${SUBLY.url} (${SUBLY.platforms.join(', ')})`;
+    assert.ok(out.includes(`## Apps\n${line}\n\n## Key pages`), out);
     assert.doesNotMatch(out, /Old — stale/);
     assert.match(out, /## About\n- Studio: N/);
   });

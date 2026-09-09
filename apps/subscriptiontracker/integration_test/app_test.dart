@@ -41,7 +41,8 @@ import 'package:subscriptiontracker/features/settings/settings_screen.dart';
 import 'package:subscriptiontracker/features/shell/app_shell.dart';
 import 'package:subscriptiontracker/l10n/app_localizations.dart';
 import 'package:subscriptiontracker/main.dart' as app;
-import 'package:subscriptiontracker/state/analytics_providers.dart' show kInstallIdKey;
+import 'package:subscriptiontracker/state/analytics_providers.dart'
+    show kInstallIdKey;
 
 void main() {
   final IntegrationTestWidgetsFlutterBinding binding =

@@ -107,7 +107,8 @@
         "because \"a declaration counted as a call\" is this repo’s most repeated defect and a register that",
         "hid it would be the seventh place it happened."
       ],
-      "name": "subscriptiontracker-api",
+      "name": "subly-api",
+      "_nameWhy": "THE DEPLOYED WORKER NAME, WHICH IS NOT THE DIRECTORY NAME AND IS NOT THE SLUG. assert-platform-register.mjs compares this field against `name` in the config below, and it caught the split the moment they diverged — which is what this field is for. The slug moved to `subscriptiontracker` on 2026-09-09 and the directory moved with it; the DEPLOYED name did not, because `wrangler deploy` addresses a Worker BY NAME, so a new name is a NEW WORKER rather than a rename — and `api.nikatru.com` is a CUSTOM DOMAIN, bound to exactly one Worker at a time. Moving it is a live-resource migration owed as its own sequenced change, the same class as the `subly_db` rename and the Cloudflare Pages project. The full reasoning is at `name` in services/subscriptiontracker-api/wrangler.jsonc.",
       "entrypoint": "services/subscriptiontracker-api/src/index.ts",
       "config": "services/subscriptiontracker-api/wrangler.jsonc",
       "hosts": [

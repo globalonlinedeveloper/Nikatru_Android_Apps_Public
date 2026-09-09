@@ -54,7 +54,8 @@ import 'package:subscriptiontracker/features/notifications/notifications_screen.
 import 'package:subscriptiontracker/features/shell/app_shell.dart';
 import 'package:subscriptiontracker/l10n/app_localizations.dart';
 import 'package:subscriptiontracker/state/providers.dart';
-import 'package:subscriptiontracker/state/settings_controller.dart' show currencyProvider;
+import 'package:subscriptiontracker/state/settings_controller.dart'
+    show currencyProvider;
 
 import 'support/width_harness.dart';
 

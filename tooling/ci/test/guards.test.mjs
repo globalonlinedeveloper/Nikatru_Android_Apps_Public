@@ -412,9 +412,23 @@ describe('assert-cors-allowlist', () => {
   // config the guard must red, as an unjustified standing grant on a host that
   // serves nothing but a redirect.
   const APEX = 'https://nikatru.com';
-  const PLATFORM = [APEX, 'https://subly-9cp.pages.dev', 'http://localhost:3000'];
+  /** 🔴 THE OLD PAGES PROJECT ORIGIN, DECLARED ONCE AND NEVER RE-SPELLED.
+   *
+   *  `subly-9cp.pages.dev` is a LIVE Cloudflare Pages origin — the app's real
+   *  deployment target until the project itself is migrated — so it did not move
+   *  with the app slug and must not be renamed here. It stopped being written
+   *  twice on 2026-09-09 because the two assertions below had been re-spelling
+   *  it as an escaped regex: the `subly` -> `subscriptiontracker` rename rewrote
+   *  those ESCAPED copies and left the plain ones in the fixture lists alone, so
+   *  both controls were demanding a hostname that exists nowhere. Had the
+   *  replace caught both sides, the pair would have agreed with each other about
+   *  an origin the guard never prints and stayed green while checking nothing.
+   *  One declaration, derived on both sides, cannot be split that way. */
+  const PAGES = 'https://subly-9cp.pages.dev';
+  const PAGES_HOST = new URL(PAGES).host;
+  const PLATFORM = [APEX, PAGES, 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = [APEX, 'https://subly-9cp.pages.dev'];
+  const SUBLY = [APEX, PAGES];
 
   const config = (origins, { appId = null } = {}) =>
     `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
@@ -459,7 +473,7 @@ describe('assert-cors-allowlist', () => {
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /services\/subscriptiontracker-api/);
-    assert.match(out, /subscriptiontracker-9cp\.pages\.dev/);
+    assert.ok(out.includes(PAGES_HOST), out);
   });
 
   test('FAILS on an empty PLATFORM allowlist', () => {
@@ -487,12 +501,12 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('is STRUCTURAL — an origin mentioned only in a comment does not satisfy it', () => {
-    const subscriptiontracker = `{\n  // https://subly-9cp.pages.dev used to be here\n  "vars": { "ALLOWED_ORIGINS": "https://subly.nikatru.com" }\n}\n`;
+    const subscriptiontracker = `{\n  // ${PAGES} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${RETIRING}" }\n}\n`;
     const { code, out } = run('assert-cors-allowlist.mjs', {
       cwd: build('cors-comment', { subscriptiontracker }),
     });
     assert.equal(code, 1);
-    assert.match(out, /subscriptiontracker-9cp\.pages\.dev/);
+    assert.ok(out.includes(PAGES_HOST), out);
   });
 
   test('FAILS on a Worker it was never TAUGHT about — a new service is untaught scope, not out of scope', () => {

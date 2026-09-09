@@ -39,12 +39,13 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-release-lane-generic.mjs');
 
 let TMP;
@@ -52,6 +53,44 @@ before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-lane-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
 
 let seq = 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE APP ID IS READ OFF THE DECLARATION, NEVER SPELLED INTO A FIXTURE.
+//
+// Every case in this file writes an app id into a synthetic workspace and then
+// asserts that the guard NAMED that id. When both halves were literals they moved
+// together under a global find-and-replace — which is what made the sweep of
+// 2026-09-09 safe by accident, and what would have made a HALF-done sweep silent.
+//
+// It did not stay safe. `https://subly.nikatru.com` in the limb-D hostname case is
+// a REAL retired host (a live DNS label with a zone Redirect Rule 301ing it), so
+// the sweep could not touch it — while the assertion beside it was rewritten. The
+// fixture then said one id and the assertion demanded another, and a control that
+// exists to prove "the app id in a URL still counts" was asserting nothing about
+// the id the tree actually carries.
+//
+// So the id is DERIVED, once, from `catalog/apps.json` — the published declaration
+// — and every fixture body, every workspace entry and every expected message is
+// built from it. A rename now moves all of them at once and can reach none of them
+// by hand.
+// ─────────────────────────────────────────────────────────────────────────────
+const APP = (() => {
+  const rows = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8'));
+  const slugs = (Array.isArray(rows) ? rows : [])
+    .map((r) => r?.slug)
+    .filter((t) => typeof t === 'string' && t !== '');
+  assert.ok(slugs.length > 0, 'catalog/apps.json declares no slug — this test can derive nothing');
+  return slugs[0];
+})();
+/** The workspace path the id lives at — `apps/<id>`, the shape limb A grades. */
+const APP_PATH = `apps/${APP}`;
+/** Escape a derived value for use inside `new RegExp`. */
+const rx = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Limb D's finding, for one workflow field. Built from the SAME `APP` the
+ *  fixture writes, so the two can never be swept apart again. */
+const literally = (field) =>
+  new RegExp(`names the app id "${rx(APP)}" literally in \`${rx(field)}\``);
+
 
 const GATE_STUB = "const GATE = 'ci-gate';\n";
 
@@ -99,7 +138,7 @@ jobs:
  *  imports are NOT copied — the guard is run from its own location, so its
  *  imports resolve against the real tree while the ROOT it grades is the
  *  fixture. */
-function fixture({ workspace = ['apps/subscriptiontracker'], workflows = {}, guards = {} } = {}) {
+function fixture({ workspace = [APP_PATH], workflows = {}, guards = {} } = {}) {
   const root = join(TMP, `f${seq++}`);
   mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
   mkdirSync(join(root, 'tooling', 'ci'), { recursive: true });
@@ -140,11 +179,11 @@ const literalLane = (app) => `      - name: Build web
         run: flutter build web --release
 `;
 
-const E2E = platforms(literalLane('apps/subscriptiontracker')).replace('Build all 6 platforms', 'E2E (live)');
+const E2E = platforms(literalLane(APP_PATH)).replace('Build all 6 platforms', 'E2E (live)');
 
 describe('assert-release-lane-generic.mjs — limb A (the lanes cover the workspace)', () => {
   test('one app, both R-1 lanes name it: ok', () => {
-    const r = run(fixture({ workflows: { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E } }));
+    const r = run(fixture({ workflows: { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E } }));
     assert.equal(r.code, 0, r.out);
     // The owner tag is part of the line on purpose: three lanes are graded and
     // two stages own them, so a report that cannot say which requirement a lane
@@ -157,12 +196,12 @@ describe('assert-release-lane-generic.mjs — limb A (the lanes cover the worksp
   test('THE RECORDED FAILING CASE — a second workspace app no lane covers', () => {
     const r = run(
       fixture({
-        workspace: ['apps/subscriptiontracker', 'apps/second'],
-        workflows: { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E },
+        workspace: [APP_PATH, 'apps/second'],
+        workflows: { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E },
       }),
     );
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /build-platforms\.yml covers \{apps\/subscriptiontracker\}.*MISSING apps\/second/s);
+    assert.match(r.out, new RegExp(`build-platforms\\.yml covers \\{${rx(APP_PATH)}\\}.*MISSING apps/second`, 's'));
     assert.match(r.out, /e2e\.yml covers .*MISSING apps\/second/s);
   });
 
@@ -174,7 +213,7 @@ describe('assert-release-lane-generic.mjs — limb A (the lanes cover the worksp
 on:
   workflow_dispatch:
 env:
-  APP: apps/subscriptiontracker
+  APP: ${APP_PATH}
 jobs:
   linux_web_android:
     runs-on: ubuntu-24.04
@@ -185,13 +224,18 @@ jobs:
 `;
     const okRun = run(fixture({ workflows: { 'build-platforms.yml': hoisted, 'e2e.yml': E2E } }));
     assert.equal(okRun.code, 0, okRun.out);
-    assert.match(okRun.out, /build-platforms\.yml \(\[pipeline 9\]R-1\) — covers exactly the workspace app set \{apps\/subscriptiontracker\}/);
+    assert.match(
+      okRun.out,
+      new RegExp(
+        `build-platforms\\.yml \\(\\[pipeline 9\\]R-1\\) — covers exactly the workspace app set \\{${rx(APP_PATH)}\\}`,
+      ),
+    );
 
     const badRun = run(
-      fixture({ workspace: ['apps/subscriptiontracker', 'apps/second'], workflows: { 'build-platforms.yml': hoisted, 'e2e.yml': E2E } }),
+      fixture({ workspace: [APP_PATH, 'apps/second'], workflows: { 'build-platforms.yml': hoisted, 'e2e.yml': E2E } }),
     );
     assert.equal(badRun.code, 1, badRun.out);
-    assert.match(badRun.out, /build-platforms\.yml covers \{apps\/subscriptiontracker\}/);
+    assert.match(badRun.out, new RegExp(`build-platforms\\.yml covers \\{${rx(APP_PATH)}\\}`));
   });
 
   test('a matrix over both apps is the CORRECT generic shape and passes', () => {
@@ -203,7 +247,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        app: [subscriptiontracker, second]
+        app: [${APP}, second]
     steps:
       - name: Build web
         working-directory: apps/\${{ matrix.app }}
@@ -211,12 +255,15 @@ jobs:
 `;
     const r = run(
       fixture({
-        workspace: ['apps/subscriptiontracker', 'apps/second'],
+        workspace: [APP_PATH, 'apps/second'],
         workflows: { 'build-platforms.yml': matrixed, 'e2e.yml': matrixed },
       }),
     );
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /covers exactly the workspace app set \{apps\/second, apps\/subscriptiontracker\}/);
+    assert.match(
+      r.out,
+      new RegExp(`covers exactly the workspace app set \\{apps/second, ${rx(APP_PATH)}\\}`),
+    );
   });
 
   test('a run-time parameterised app path is a lane that serves any app', () => {
@@ -233,7 +280,7 @@ jobs:
       - working-directory: apps/\${{ inputs.app }}
         run: flutter build web --release
 `;
-    const r = run(fixture({ workspace: ['apps/subscriptiontracker', 'apps/second'], workflows: { 'build-platforms.yml': called, 'e2e.yml': called } }));
+    const r = run(fixture({ workspace: [APP_PATH, 'apps/second'], workflows: { 'build-platforms.yml': called, 'e2e.yml': called } }));
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /the app segment of its paths is a run-time parameter/);
   });
@@ -243,9 +290,9 @@ jobs:
     // in prose. A raw text match would read a lane's own explanation as its
     // behaviour — the defect this repo has shipped twice.
     const commented = platforms(`      # also builds apps/second one day
-${literalLane('apps/subscriptiontracker')}`);
+${literalLane(APP_PATH)}`);
     const r = run(
-      fixture({ workspace: ['apps/subscriptiontracker', 'apps/second'], workflows: { 'build-platforms.yml': commented, 'e2e.yml': E2E } }),
+      fixture({ workspace: [APP_PATH, 'apps/second'], workflows: { 'build-platforms.yml': commented, 'e2e.yml': E2E } }),
     );
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /MISSING apps\/second/);
@@ -254,7 +301,7 @@ ${literalLane('apps/subscriptiontracker')}`);
   test('a workflow no stage owns fails rather than being silently ungraded', () => {
     const r = run(
       fixture({
-        workflows: { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E, 'mystery.yml': E2E },
+        workflows: { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E, 'mystery.yml': E2E },
       }),
     );
     assert.equal(r.code, 1, r.out);
@@ -262,7 +309,7 @@ ${literalLane('apps/subscriptiontracker')}`);
   });
 
   test('COVERAGE LOST when the workspace holds no app at all', () => {
-    const r = run(fixture({ workspace: ['packages/core'], workflows: { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E } }));
+    const r = run(fixture({ workspace: ['packages/core'], workflows: { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E } }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST.*no `workspace:` entry under apps\//s);
   });
@@ -302,7 +349,7 @@ jobs:
   test('a matrix whose value is a run-time expression passes — the KEY is what must exist', () => {
     const r = run(
       fixture({
-        workspace: ['apps/subscriptiontracker', 'apps/second'],
+        workspace: [APP_PATH, 'apps/second'],
         workflows: { 'build-platforms.yml': dynamicMatrix, 'e2e.yml': dynamicMatrix },
       }),
     );
@@ -316,7 +363,7 @@ jobs:
     // most generic lane in the tree.
     const bare = dynamicMatrix.replace(/    strategy:\n      matrix:\n        app: [^\n]*\n/, '');
     const r = run(
-      fixture({ workspace: ['apps/subscriptiontracker', 'apps/second'], workflows: { 'build-platforms.yml': bare, 'e2e.yml': dynamicMatrix } }),
+      fixture({ workspace: [APP_PATH, 'apps/second'], workflows: { 'build-platforms.yml': bare, 'e2e.yml': dynamicMatrix } }),
     );
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /build-platforms\.yml addresses its apps as .*but declares no `app:` key/);
@@ -325,19 +372,19 @@ jobs:
   test('MIXED — one literal path beside the matrix is not a generic lane', () => {
     const mixed = dynamicMatrix.replace(
       '        run: flutter build web --release\n',
-      '        run: flutter build web --release\n      - name: Package\n        working-directory: apps/subscriptiontracker\n        run: dart run msix:create\n',
+      `        run: flutter build web --release\n      - name: Package\n        working-directory: ${APP_PATH}\n        run: dart run msix:create\n`,
     );
     const r = run(
-      fixture({ workspace: ['apps/subscriptiontracker', 'apps/second'], workflows: { 'build-platforms.yml': mixed, 'e2e.yml': dynamicMatrix } }),
+      fixture({ workspace: [APP_PATH, 'apps/second'], workflows: { 'build-platforms.yml': mixed, 'e2e.yml': dynamicMatrix } }),
     );
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /build-platforms\.yml is MIXED.*apps\/subscriptiontracker/s);
+    assert.match(r.out, new RegExp(`build-platforms\\.yml is MIXED.*${rx(APP_PATH)}`, 's'));
   });
 
   test('--emit-apps prints the workspace app IDS, which is what a matrix iterates', () => {
-    const r = emit(fixture({ workspace: ['packages/core', 'apps/subscriptiontracker', 'apps/second'] }));
+    const r = emit(fixture({ workspace: ['packages/core', APP_PATH, 'apps/second'] }));
     assert.equal(r.code, 0, r.out);
-    assert.deepEqual(JSON.parse(r.stdout), ['subscriptiontracker', 'second']);
+    assert.deepEqual(JSON.parse(r.stdout), [APP, 'second']);
   });
 
   test('--emit-apps REFUSES an empty set rather than emitting `[]`', () => {
@@ -350,7 +397,7 @@ jobs:
 
   test('the emitter and the grader read ONE workspace — the ids round-trip to the paths limb A expects', () => {
     const root = fixture({
-      workspace: ['apps/subscriptiontracker', 'apps/second'],
+      workspace: [APP_PATH, 'apps/second'],
       workflows: { 'build-platforms.yml': dynamicMatrix, 'e2e.yml': dynamicMatrix },
     });
     const ids = JSON.parse(emit(root).stdout);
@@ -360,7 +407,7 @@ jobs:
 });
 
 describe('assert-release-lane-generic.mjs — limb D (no literal app id on the deploy path)', () => {
-  const R1 = { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E };
+  const R1 = { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E };
   const deployWeb = (field) => DEPLOY_WEB.replace('- run: flutter build web --release', field);
 
   test('the generic deploy lane passes and the report says how much it read', () => {
@@ -370,49 +417,75 @@ describe('assert-release-lane-generic.mjs — limb D (no literal app id on the d
   });
 
   test('THE RECORDED FAILING CASE — a literal app id in `working-directory`', () => {
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': DEPLOY_WEB.replace('apps/${{ matrix.app }}', 'apps/subscriptiontracker') } }));
+    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': DEPLOY_WEB.replace('apps/${{ matrix.app }}', APP_PATH) } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /\[pipeline 10\]D-2b · deploy-web\.yml:\d+ names the app id "subscriptiontracker" literally in `working-directory`/);
+    assert.match(
+      r.out,
+      new RegExp(`\\[pipeline 10\\]D-2b · deploy-web\\.yml:\\d+ ${literally('working-directory').source}`),
+    );
   });
 
   test('…in a step `run:` — the field limbs A/A′ are blind to', () => {
-    // `record-deployment.mjs subscriptiontracker-web` carries no `apps/` prefix at all, so
+    // `record-deployment.mjs <id>-web` carries no `apps/` prefix at all, so
     // the app-path limbs resolve it to NOTHING and report the lane generic.
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': deployWeb('- run: node tooling/ci/record-deployment.mjs subscriptiontracker-web') } }));
+    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': deployWeb(`- run: node tooling/ci/record-deployment.mjs ${APP}-web`) } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /names the app id "subscriptiontracker" literally in `run`/);
+    assert.match(r.out, literally('run'));
   });
 
-  test('…in a `with:` value — `--project-name=subscriptiontracker`', () => {
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': DEPLOY_WEB.replace('--project-name=${{ matrix.app }}', '--project-name=subscriptiontracker') } }));
+  test('…in a `with:` value — `--project-name=<id>`', () => {
+    const r = run(
+      fixture({
+        workflows: {
+          ...R1,
+          'deploy-web.yml': DEPLOY_WEB.replace('--project-name=${{ matrix.app }}', `--project-name=${APP}`),
+        },
+      }),
+    );
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /names the app id "subscriptiontracker" literally in `with\.command`/);
+    assert.match(r.out, literally('with.command'));
   });
 
   test('…and in the `paths:` filter, which is the one field a matrix cannot reach', () => {
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': DEPLOY_WEB.replace("- 'apps/**'", "- 'apps/subscriptiontracker/**'") } }));
+    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': DEPLOY_WEB.replace("- 'apps/**'", `- '${APP_PATH}/**'`) } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /names the app id "subscriptiontracker" literally in `paths`/);
+    assert.match(r.out, literally('paths'));
   });
 
-  test('the hostname counts — `https://subly.nikatru.com` is the app id in a URL', () => {
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': deployWeb('- run: node smoke.mjs --url https://subly.nikatru.com/version.json') } }));
+  test('the hostname counts — the app id in a URL is still the app id', () => {
+    // ⚠️ THE HOST IS BUILT FROM `APP`, NOT SPELLED. It used to read
+    // `https://subly.nikatru.com` — which is a REAL retired host, so the rename
+    // sweep correctly left it alone and incorrectly rewrote the assertion beside
+    // it. What this case is about is a HYPOTHETICAL url that happens to carry the
+    // CURRENT app id as a DNS label, so the label is derived like everything else.
+    const r = run(
+      fixture({
+        workflows: {
+          ...R1,
+          'deploy-web.yml': deployWeb(`- run: node smoke.mjs --url https://${APP}.nikatru.com/version.json`),
+        },
+      }),
+    );
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /names the app id "subscriptiontracker" literally in `run`/);
+    assert.match(r.out, literally('run'));
   });
 
   test('the `env:` hoist does not launder it either', () => {
     const hoisted = DEPLOY_WEB.replace(
       'jobs:',
-      'env:\n  APP: subscriptiontracker\njobs:',
+      `env:\n  APP: ${APP}\njobs:`,
     ).replace('- run: flutter build web --release', '- run: node deploy.mjs --project ${{ env.APP }}');
     const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': hoisted } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /names the app id "subscriptiontracker" literally in `run`/);
+    assert.match(r.out, literally('run'));
   });
 
-  test('a SUBSTRING of an app id is not the app id — no false red on `resubscriptiontracker`', () => {
-    const r = run(fixture({ workflows: { ...R1, 'deploy-web.yml': deployWeb('- run: node tool.mjs --flag resubscriptiontrackerx') } }));
+  test('a SUBSTRING of an app id is not the app id — no false red on `re<id>x`', () => {
+    const r = run(
+      fixture({
+        workflows: { ...R1, 'deploy-web.yml': deployWeb(`- run: node tool.mjs --flag re${APP}x`) },
+      }),
+    );
     assert.equal(r.code, 0, r.out);
   });
 
@@ -426,7 +499,7 @@ describe('assert-release-lane-generic.mjs — limb D (no literal app id on the d
 });
 
 describe('assert-release-lane-generic.mjs — limb B (no guard hides a lane)', () => {
-  const lanes = { 'build-platforms.yml': platforms(literalLane('apps/subscriptiontracker')), 'e2e.yml': E2E };
+  const lanes = { 'build-platforms.yml': platforms(literalLane(APP_PATH)), 'e2e.yml': E2E };
 
   test('a guard binding ONE lane with no declaration fails', () => {
     const r = run(fixture({ workflows: lanes, guards: { 'assert-thing.mjs': "const DEPLOY = 'e2e.yml';\n" } }));

@@ -50,9 +50,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// longer or shorter, and at text scale 2.0 it fights the wrap the layout
   /// already does correctly. The value is now one line and the `Text` wraps it.
   List<List<String>> _slides(AppLocalizations l10n) => <List<String>>[
-    <String>[l10n.subscriptiontrackerOnboarding1Title, l10n.subscriptiontrackerOnboarding1Body],
-    <String>[l10n.subscriptiontrackerOnboarding2Title, l10n.subscriptiontrackerOnboarding2Body],
-    <String>[l10n.subscriptiontrackerOnboarding3Title, l10n.subscriptiontrackerOnboarding3Body],
+    <String>[
+      l10n.subscriptiontrackerOnboarding1Title,
+      l10n.subscriptiontrackerOnboarding1Body,
+    ],
+    <String>[
+      l10n.subscriptiontrackerOnboarding2Title,
+      l10n.subscriptiontrackerOnboarding2Body,
+    ],
+    <String>[
+      l10n.subscriptiontrackerOnboarding3Title,
+      l10n.subscriptiontrackerOnboarding3Body,
+    ],
   ];
 
   static const List<String> _tiles = <String>[

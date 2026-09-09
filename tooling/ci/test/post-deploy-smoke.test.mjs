@@ -66,7 +66,29 @@ function run(responses, args) {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-const WEB = ['--url', 'https://subly.nikatru.com/version.json', '--field', 'build_number', '--expect', '482'];
+/** 🔴 THE SMOKED URL IS DECLARED ONCE, AND EVERY ASSERTION ABOUT IT IS DERIVED.
+ *
+ *  The host here is deliberately the RETIRED `subly.nikatru.com` subdomain: this
+ *  suite's job is to prove the smoke behaves the same on a ROOT-based web
+ *  channel as on the path-based apex one ([ADR 075], `PATH_URL` further down),
+ *  and the retired subdomain is the only real root-based example there is.
+ *
+ *  It stopped being spelled twice on 2026-09-09. The tests below used to re-type
+ *  this host inside their `assert.match` regexes, and the `subly` ->
+ *  `subscriptiontracker` rename rewrote the ESCAPED copies in those regexes
+ *  while leaving the plain copy here alone — so two controls started asserting a
+ *  hostname nothing in this repository serves. The reverse is worse and quieter:
+ *  a replace that caught BOTH sides would leave the pair agreeing with each
+ *  other about a URL the script never prints, and the tests would stay green
+ *  while checking nothing. Deriving the expectation from the argv the script is
+ *  actually handed is what makes a find-and-replace unable to do either. */
+const WEB_URL = 'https://subly.nikatru.com/version.json';
+/** A URL the web smoke reaches, resolved against the one it is pointed at. */
+const webUrl = (path) => new URL(path, WEB_URL).href;
+/** A literal string as a regex — so a derived URL can be matched against output
+ *  without hand-escaping its dots and slashes. */
+const asRx = (s) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+const WEB = ['--url', WEB_URL, '--field', 'build_number', '--expect', '482'];
 const API = ['--url', 'https://api.nikatru.com/v1/health', '--field', 'build', '--expect', 'abc123', '--require-ok'];
 
 describe('post-deploy-smoke — the decision', () => {
@@ -424,7 +446,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/main.dart.js'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/subscriptiontracker\.nikatru\.com\/main\.dart\.js/);
+    assert.match(r.out, asRx(`EDGE CACHE POLICY FAILED for ${webUrl('/main.dart.js')}`));
     assert.match(r.out, /max-age=14400/);
     assert.match(r.out, /kill-switch cannot see/);
   });
@@ -450,7 +472,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/version.json'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /FAILED for https:\/\/subscriptiontracker\.nikatru\.com\/version\.json/);
+    assert.match(r.out, asRx(`FAILED for ${WEB_URL}`));
   });
 
   test('a Worker deploy is NOT failed by a policy that does not govern it', () => {
@@ -1240,13 +1262,25 @@ const MANIFEST_TEXT = [
 // with each other and with nothing else in the world.
 //
 // So this number does not come from node. MEASURED 2026-08-27 over the exact 319
-// bytes of MANIFEST_TEXT by THREE independent implementations:
+// bytes MANIFEST_TEXT then had, by THREE independent implementations:
 //   node  createHash('sha256')            -> 6e616f1d…46c4
 //   certutil -hashfile … SHA256 (Windows) -> 6e616f1d…46c4
 //   sha256sum (coreutils, MSYS)           -> 6e616f1d…46c4
-// The test immediately below re-derives it with node and asserts it against this
-// literal, so if either side of the pair ever drifts, THIS FILE says so.
-const MANIFEST_DIGEST = '6e616f1d255c08440a0d1fa21c2d63810bf61d4f51521f4f78958f7f2b7a46c4';
+//
+// ⏱ RE-ANCHORED 2026-09-09, AND RE-MEASURED RATHER THAN REPASTED. The slug
+// rename `subly` -> `subscriptiontracker` lengthened both asset NAMES inside
+// MANIFEST_TEXT by 14 characters each, so the fixture became 347 bytes and the
+// old digest stopped describing it. The rule above still held: node's new
+// answer was NOT pasted here. The 347 bytes were written to a file with
+// `printf`, proved LF-only and single-trailing-newline with `od -c`, and hashed
+// by the same three implementations, which agreed:
+//   sha256sum (coreutils, MSYS)           -> 6bc4b8bb…5b04
+//   certutil -hashfile … SHA256 (Windows) -> 6bc4b8bb…5b04
+//   node  createHash('sha256')            -> 6bc4b8bb…5b04
+// Byte length 347 confirmed independently by `wc -c` and by .NET
+// `(Get-Item …).Length`. If a future rename moves these names again, redo THAT
+// — do not repaste whatever node says.
+const MANIFEST_DIGEST = '6bc4b8bb4b5ff2aee60c6be20b6a37561ba15cbff51b637e0aa649a6b3145b04';
 /** MANIFEST_TEXT with every LF turned into CRLF — the bytes a Windows checkout
  *  with `core.autocrlf=true` would hand the probe. */
 const MANIFEST_TEXT_CRLF = MANIFEST_TEXT.replace(/\n/g, '\r\n');
@@ -1314,7 +1348,7 @@ describe('post-deploy-smoke — the release asset decision [14]O-7', () => {
     // comment on MANIFEST_DIGEST.
     const f = writeManifest();
     const bytes = readFileSync(f);
-    assert.equal(bytes.length, 319, 'the fixture manifest is no longer the 319 bytes that were hashed externally');
+    assert.equal(bytes.length, 347, 'the fixture manifest is no longer the 347 bytes that were hashed externally');
     assert.equal(
       createHash('sha256').update(bytes).digest('hex'),
       MANIFEST_DIGEST,

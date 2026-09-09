@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 // `?raw` rather than node:fs — a Workers tsconfig has no node types on purpose.
 import raw from '../wrangler.jsonc?raw';
+// The DECLARATIONS, not a second spelling of them. `?raw` keeps this inside the
+// Workers tsconfig, which has no node types on purpose.
+import catalogueRaw from '../../../catalog/apps.json?raw';
+import appYamlRaw from '../../../apps/subscriptiontracker/app.yaml?raw';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The DEPLOYED half of this Worker's configuration.
@@ -76,10 +80,79 @@ const cfg = parseJsonc(raw) as {
   d1_databases?: D1Entry[];
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE IDENTITY UNDER TEST IS DERIVED, NEVER SPELT.
+//
+// This block replaces three string literals — the Worker name, and the two
+// origins below. A literal here is DISARMED by a whole-tree rename: the replace
+// rewrites `wrangler.jsonc` and this assertion in the same pass, so the test
+// goes on passing while proving nothing. Measured on the 2026-09-09
+// `subly` → `subscriptiontracker` rename, which is exactly what happened.
+//
+// The declarations are independent of the config being asserted:
+//   · `catalog/apps.json`   — the slug, from which `<slug>-api` follows
+//   · `apps/<slug>/app.yaml` — `hosts.pagesOrigin`, which is NOT derivable
+//                              (Cloudflare assigns the *.pages.dev subdomain at
+//                              project creation) and so must be read, not guessed
+// A half-done rename now shows up here as a real mismatch.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The one slug `catalog/apps.json` declares. */
+const SLUG: string = (() => {
+  const rows = JSON.parse(catalogueRaw) as Array<{ slug?: string }>;
+  const slugs = rows.map((r) => r.slug).filter((s): s is string => !!s);
+  // COVERAGE LOST, never a silent pass: with more or fewer than one app there is
+  // no unambiguous subject and this file must say so rather than pick one.
+  if (slugs.length !== 1) {
+    throw new Error(
+      `catalog/apps.json must declare exactly one app for wrangler-config.test.ts ` +
+        `to have a subject; it declares ${slugs.length}.`,
+    );
+  }
+  return slugs[0];
+})();
+
+/** The app's PUBLIC ADDRESS, from the catalogue row. Since [ADR 075] this is a
+ *  path on the apex (`https://nikatru.com/<id>`), so its ORIGIN is what a browser
+ *  tab actually sends and is what the allowlist has to carry. Derived here so the
+ *  day the public address moves again, this assertion moves with it. */
+function catalogueUrl(): string {
+  const rows = JSON.parse(catalogueRaw) as Array<{ slug?: string; url?: string }>;
+  const row = rows.find((r) => r.slug === SLUG);
+  if (!row || typeof row.url !== 'string') {
+    throw new Error(`catalog/apps.json row "${SLUG}" carries no \`url\` — COVERAGE LOST.`);
+  }
+  return row.url;
+}
+
+/** A scalar under `hosts:` in app.yaml, read without a YAML parser (the Workers
+ *  tsconfig carries no dependency for one, and the shape here is two levels of
+ *  plain `key: value`). */
+function hostsField(name: string): string {
+  const hosts = appYamlRaw.split(/^hosts:\s*$/m)[1];
+  if (hosts === undefined) throw new Error('app.yaml declares no `hosts:` block.');
+  for (const line of hosts.split(/\r?\n/)) {
+    if (/^\S/.test(line) && line.trim() !== '') break; // left the block
+    const m = /^\s+([A-Za-z]+):\s*(\S+)\s*$/.exec(line);
+    if (m && m[1] === name) return m[2];
+  }
+  throw new Error(`app.yaml's hosts block declares no \`${name}\` — COVERAGE LOST.`);
+}
+
 describe('the parse itself reached the config', () => {
   it('self-check — every assertion below would pass vacuously over an empty parse', () => {
     expect(raw).toContain('ALLOWED_ORIGINS');
-    expect(cfg.name).toBe('subscriptiontracker-api');
+    // ⚠️ DELIBERATELY A LITERAL, like `database_name` below. The DIRECTORY is
+    // `${SLUG}-api`, but the DEPLOYED Worker name did not move with the slug:
+    // `wrangler deploy` addresses a Worker by name, so changing it provisions a
+    // second Worker and makes it fight `api.nikatru.com`, which is a custom
+    // domain bound to one Worker at a time. wrangler.jsonc's `name` block
+    // carries the reasoning. Deriving it here would assert a Worker that does
+    // not exist in the account.
+    expect(cfg.name).toBe('subly-api');
+    // ...and the DIRECTORY, which did move, is still bound to the catalogue:
+    // this is what a half-done rename trips on.
+    expect(new URL('.', import.meta.url).pathname).toContain(`${SLUG}-api`);
     expect(Object.keys(cfg.vars ?? {}).length).toBeGreaterThanOrEqual(4);
     expect((cfg.d1_databases ?? []).length).toBe(2);
   });
@@ -111,11 +184,15 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
 
   it('lists the live web origin and the Pages preview origin', () => {
     // The live web origin is the APEX since [ADR 075]: the app is published at
-    // https://nikatru.com/<id>, so that -- not the old subdomain -- is what a
-    // browser tab sends. `https://subly.nikatru.com` was removed on 2026-09-09
-    // when the zone Redirect Rule started 301ing it, so nothing is served there
-    // and nothing sends that Origin.
-    for (const origin of ['https://nikatru.com', 'https://subly-9cp.pages.dev']) {
+    // https://nikatru.com/<id>, so that — not the old subdomain — is what a
+    // browser tab sends. The retired subdomain left this list on 2026-09-09 (#569)
+    // when the zone Redirect Rule started 301ing it; the case below keeps it out.
+    //
+    // 🔴 DERIVED, NOT SPELT. The apex comes from the catalogue row's own `url`
+    // and the Pages origin from app.yaml's `hosts.pagesOrigin` — the field that
+    // moves when the Pages project is migrated, so this assertion moves with it
+    // and a config left behind fails here instead of agreeing with a stale copy.
+    for (const origin of [new URL(catalogueUrl()).origin, `https://${hostsField('pagesOrigin')}`]) {
       expect(listed, `missing ${origin}`).toContain(origin);
     }
   });
@@ -148,6 +225,11 @@ describe('the clone contract this Worker is the template for', () => {
   it('binds the PER-APP database with its own migrations dir', () => {
     const app = byBinding.get('APP_DB');
     expect(app).toBeDefined();
+    // ⚠️ DELIBERATELY A LITERAL, and the one place in this file that should be.
+    // The D1 database NAME did not move with the slug: a database is bound by
+    // `database_id`, so the name is display only and renaming it is a
+    // create-and-migrate, not a declaration edit. Deriving `${SLUG}_db` here
+    // would assert a name that does not exist in the account.
     expect(app!.database_name).toBe('subly_db');
     expect(app!.migrations_dir).toBe('migrations');
   });

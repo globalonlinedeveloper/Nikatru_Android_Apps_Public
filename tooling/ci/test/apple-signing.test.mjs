@@ -1020,10 +1020,37 @@ describe('apple-signing — unzip and ZIP64', () => {
     // corrupt central directory — is fixed here, over a real profile bundle and
     // over every truncation of it, so that widening the reader cannot quietly
     // narrow it.
+    // 🔴 THESE TWO MEMBER NAMES ARE PINNED BYTES, NOT AN APP IDENTITY, AND THEY
+    // DO NOT MOVE WITH THE SLUG. The member name is written twice into the
+    // archive (local header and central directory), so renaming it changes the
+    // archive's LENGTH — and the two constants at the bottom of this test are
+    // measurements over that exact length: `answers.length` is the archive size
+    // divided by the smear stride, and the digest is over every answer unzip()
+    // gives across it. The `subly` -> `subscriptiontracker` rename on 2026-09-09
+    // grew the archive by 84 bytes and took both of them red.
+    //
+    // Restoring the names is the fix rather than repasting node's new numbers,
+    // because the digest's whole claim is HISTORICAL: it is what this function
+    // answered BEFORE ZIP64 support was added to it, and that comparison exists
+    // only against these bytes. Re-baselining it over a renamed fixture would
+    // leave a constant that looks identical and proves nothing — the pre-ZIP64
+    // reader can no longer be run to re-derive it. A profile bundle's member
+    // names are arbitrary strings chosen by whoever zipped it; nothing about the
+    // app's published identity is asserted here, and nothing downstream reads
+    // them.
+    // The same applies to the BUNDLE ID: `fakeProfile`'s default is the app's
+    // real one, so leaving it defaulted let the store-identifier change of the
+    // same day into these bytes too. This test therefore states every field it
+    // depends on instead of inheriting one, which is what makes the pin immune
+    // to the next identity change rather than merely repaired after this one.
+    const PINNED_IOS_MEMBER = 'subly-ios.mobileprovision';
+    const PINNED_MACOS_MEMBER = 'subly-macos.provisionprofile';
+    const PINNED_BUNDLE_ID = 'com.nikatru.subly';
     const zip = makeZip([
-      { name: 'subscriptiontracker-ios.mobileprovision', bytes: fakeProfile({ name: 'Subly iOS' }), method: 0 },
-      { name: 'subscriptiontracker-macos.provisionprofile', bytes: fakeProfile({ name: 'Subly macOS' }), method: 8 },
+      { name: PINNED_IOS_MEMBER, bytes: fakeProfile({ name: 'Subly iOS', bundleId: PINNED_BUNDLE_ID }), method: 0 },
+      { name: PINNED_MACOS_MEMBER, bytes: fakeProfile({ name: 'Subly macOS', bundleId: PINNED_BUNDLE_ID }), method: 8 },
     ]);
+    assert.equal(zip.length, 1888, 'the pinned fixture is no longer the 1888-byte archive the two constants below were measured over');
     assert.equal(zip.readUInt32LE(eocdOf(zip) + 16) === 0xffffffff, false, 'the fixture must not be ZIP64');
     const full = unzip(zip);
     assert.equal(full.length, 2);

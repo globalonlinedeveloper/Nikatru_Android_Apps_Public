@@ -110,7 +110,9 @@ const Size kWide = Size(1920, 1080);
 /// assertion that cannot fail.
 List<Override> defaultWidthOverrides() => <Override>[
   keyValueStoreProvider.overrideWith((_) async => MemStore()),
-  subscriptiontrackerNotificationServiceProvider.overrideWithValue(SilentNotifications()),
+  subscriptiontrackerNotificationServiceProvider.overrideWithValue(
+    SilentNotifications(),
+  ),
 ];
 
 /// Pins the surface to [size] and hosts [screen] on its own `MaterialApp`.

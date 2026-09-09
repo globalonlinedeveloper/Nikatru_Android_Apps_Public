@@ -66,8 +66,10 @@ final Provider<core.NotificationService> notificationServiceProvider =
 ///
 /// Consumers re-pointed with this rename (7 call sites, 5 files) are listed in
 /// MANIFEST.md §4. De-forking is [pipeline 2]C-3's work item, not this merge's.
-final Provider<NotificationService> subscriptiontrackerNotificationServiceProvider =
-    Provider<NotificationService>((ref) => NotificationService.instance);
+final Provider<NotificationService>
+subscriptiontrackerNotificationServiceProvider = Provider<NotificationService>(
+  (ref) => NotificationService.instance,
+);
 
 const String _remindersKey = 'nikatru.reminders_enabled';
 

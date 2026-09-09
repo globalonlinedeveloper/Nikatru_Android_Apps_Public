@@ -63,7 +63,8 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:subscriptiontracker/data/models/subscription.dart';
 import 'package:subscriptiontracker/data/subscriptions/subscription_repository.dart';
 import 'package:subscriptiontracker/features/calendar/calendar_screen.dart';
-import 'package:subscriptiontracker/features/shared/widgets.dart' show SectionHeader;
+import 'package:subscriptiontracker/features/shared/widgets.dart'
+    show SectionHeader;
 import 'package:subscriptiontracker/state/providers.dart';
 
 import 'support/width_harness.dart';

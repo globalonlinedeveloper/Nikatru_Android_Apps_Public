@@ -54,37 +54,35 @@
 # new app would put a redirect in front of the router again.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 🔴 TRANSITIONAL, AND IT IS DELETED BY THE VERY NEXT CHANGE. Added 2026-09-09
-# to unblock the `subly` → `subscriptiontracker` slug rename, which cannot
-# otherwise be landed at all. It is NOT a per-app line of the kind the paragraph
-# above forbids: `/subscriptiontracker` is a path the apex router does not claim
-# on this branch, and by the time it does, these two lines are gone.
+# THE RETIRED SLUG. Added 2026-09-09 with the `subly` → `subscriptiontracker`
+# rename (owner decision: one identifier family, no special cases).
 #
-# THE DEADLOCK THIS BREAKS, stated so the next reader does not re-derive it:
-#   · `assert-catalog-reachable.mjs` refuses a catalogue that advertises a `live`
-#     row whose URL does not answer. After the rename that URL is
-#     `https://nikatru.com/subscriptiontracker`.
-#   · That address can only answer once the APEX ROUTER learns the new path, and
-#     the router is the `nikatru` Pages project, which is GIT-CONNECTED TO main.
-#     So it cannot answer until the rename has already merged.
-#   · CI on the rename branch therefore fails, `ci-gate` stays red, and
-#     `deploy-web.yml`'s `assert-gate-passed.mjs` step refuses to run — which is
-#     what would have created the new Cloudflare Pages project. Nothing moves.
+# 🔴 WHY THIS IS NOT THE THING THE PARAGRAPH ABOVE FORBIDS. That warning is
+# about putting a redirect on a prefix the apex router CLAIMS — `_redirects` is
+# evaluated BEFORE Functions on this project, so a rule on a live app's path
+# wins over the router and the app stops loading. This rule is the exact
+# opposite: `/subly` is a prefix the router has STOPPED claiming. After the
+# rename `catalog/apps.json` declares one slug, `app-routes.json` carries one
+# row, and that row is `/subscriptiontracker`. Nothing routes `/subly` any more,
+# so without these two lines it would fall through to the marketing 404.
 #
-# `preview` is what that guard suggests instead, and it was TRIED AND REJECTED on
-# the same day: with zero live rows the discovery generator drops the app from
-# the sitemap, llms.txt and the apps hub, and check-site-integrity.mjs then
-# refuses the hand-maintained homepage array. `preview` means "never been live",
-# not "moving house" — taking it would have pulled a working app off the public
-# site for the length of a migration.
+# WHAT WOULD BREAK WITHOUT IT, and it is live traffic, not a hypothetical:
+#   · `https://nikatru.com/subly/` was serving the app (HTTP 200, build 310,
+#     `<base href="/subly/">`) up to the moment this landed. Bookmarks, the
+#     GlitchTip release URLs and every link published while that was the address
+#     point at it.
+#   · `subly.nikatru.com` is a real DNS label carrying a zone Redirect Rule that
+#     301s to this path form ([ADR 075] / #562). Its target is `/subly`. That
+#     rule is ACCOUNT-SIDE and cannot be edited from this repository — so the
+#     only place the second hop can be repaired is here. Without these lines the
+#     retired subdomain 301s into a 404.
 #
-# 302, NOT 301: this must never be cached by a browser. The direction reverses
-# within the hour — the rename commit deletes these two lines and adds the
-# opposite pair (`/subly` → `/subscriptiontracker`, 308 permanent) in the SAME
-# commit, so the two rules never coexist and no loop is possible.
+# 308, not 301: the method and body must survive the hop, and 308 is the
+# permanent form that guarantees it. `:splat` carries the deep link, so
+# `/subly/#/sub/abc` reaches the same screen at the new address.
 #
-# ⚠️ IF YOU ARE READING THIS AND `catalog/apps.json` ALREADY SAYS
-# `subscriptiontracker`, THESE LINES ARE STALE AND ARE 302-ING THE LIVE APP TO A
-# DEAD PATH. Delete them.
-/subscriptiontracker     /subly          302
-/subscriptiontracker/*   /subly/:splat   302
+# ⚠️ THIS IS A ONE-OFF FOR A RETIRED NAME, NOT A PATTERN. A SECOND app never
+# gets a line here — it gets a row in `app-routes.json` and is served by the
+# router. The day the old address stops being requested, delete these two lines.
+/subly     /subscriptiontracker        308
+/subly/*   /subscriptiontracker/:splat 308

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:subscriptiontracker/core/app_config.dart';
@@ -19,7 +22,12 @@ void main() {
   group('bundled default mirrors the server DEFAULT_CONFIGS', () {
     test('kSublyDefaultConfig equals the server contract values', () {
       const core.AppConfig d = kSublyDefaultConfig;
-      expect(d.appId, 'subscriptiontracker');
+      // DERIVED, NEVER SPELT. This was `expect(d.appId, '<literal>')`, and a
+      // literal here is disarmed by any rename that rewrites the whole tree at
+      // once: the replace edits the subject and the assertion together, so the
+      // test cannot fail. The catalogue is the app id's DECLARATION and is not
+      // this file, so a half-done rename now shows up as a real mismatch.
+      expect(d.appId, _catalogueSlug());
       expect(d.apiBaseUrl, 'https://api.nikatru.com/v1');
       expect(d.features, <String, bool>{
         'renewals': true,
@@ -64,4 +72,37 @@ void main() {
       },
     );
   });
+}
+
+/// The one app id declared in `catalog/apps.json`, read at test time.
+///
+/// The catalogue is what `services/platform/src/config.ts` builds its served
+/// registry from (`buildRegistry`, filtered by APP_ID_PATTERN), so this is the
+/// same string the server will answer `/config/<id>` for. Reading it here binds
+/// the compiled-in client default to the declaration rather than to a second
+/// copy of it.
+String _catalogueSlug() {
+  final Directory dir = Directory.current;
+  for (Directory d = dir; ; d = d.parent) {
+    final File f = File('${d.path}/catalog/apps.json');
+    if (f.existsSync()) {
+      final List<dynamic> rows =
+          jsonDecode(f.readAsStringSync()) as List<dynamic>;
+      final List<String> slugs = rows
+          .map((dynamic r) => (r as Map<String, dynamic>)['slug'] as String)
+          .toList();
+      // COVERAGE LOST, never a silent pass: if the catalogue stops declaring
+      // exactly one app this assertion has no unambiguous subject and must say
+      // so rather than pick one.
+      expect(
+        slugs.length,
+        1,
+        reason: 'catalog/apps.json must declare exactly one app for this '
+            'assertion to have a subject; it declares ${slugs.length}.',
+      );
+      return slugs.single;
+    }
+    if (d.path == d.parent.path) break;
+  }
+  fail('catalog/apps.json was not found above ${dir.path} — COVERAGE LOST.');
 }
