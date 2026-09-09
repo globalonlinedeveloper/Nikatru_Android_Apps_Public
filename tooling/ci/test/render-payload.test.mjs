@@ -67,7 +67,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -114,36 +114,72 @@ function tree(overrides = {}) {
   return root;
 }
 
-/** The transitive closure a copied guard needs to run: itself, the publisher it
- *  imports, the renderer the publisher imports, and that renderer's two local
- *  modules. Copying the EXECUTABLES rather than pointing the real ones at a
- *  fixture root is what moves `import.meta.url` with them — the same reason
- *  assert-guards-refuse-empty.mjs copies its subjects instead of arguing with
- *  them (twenty guards sailed past an empty root and re-scanned the real
- *  repository when it did not). */
-const TOOLING_CLOSURE = [
+/**
+ * The transitive closure a copied guard needs to run: the entry points below and
+ * every LOCAL module they reach, directly or indirectly.
+ *
+ * 🔴 DERIVED, NOT LISTED — changed 2026-09-09, and the list it replaces recorded
+ * its own reason. It was hand-maintained, and its comment noted that it had
+ * already fallen behind TWICE: once when the shared-chrome splice added
+ * `chrome.mjs`, once when [ADR 075] added `apex.mjs`. Both times the mutation
+ * cases went red with ERR_MODULE_NOT_FOUND instead of the finding they exist to
+ * prove. It fell behind a THIRD time on the change that brought this comment in,
+ * when generate-discovery.mjs began importing `availability.mjs` to render the
+ * register row — and a note saying "this list is hand-maintained and it DID fall
+ * behind" is a description of a defect, not a defence against it.
+ *
+ * A closure IS computable from the source, so it is computed. The walk follows
+ * only RELATIVE specifiers: a bare specifier is a package, which the fixture root
+ * resolves through the real node_modules, and 'node:' builtins need no copy. The
+ * hand-written list held 6 files; the derived one holds 12, so half the closure
+ * was missing and only did not bite because nothing had yet imported through the
+ * gap in a way these cases exercise.
+ *
+ * ⚠️ IT REFUSES ON A MISSING FILE rather than skipping it. A specifier that does
+ * not resolve means the walk has stopped early, and a closure that quietly stops
+ * early is exactly the failure this replaces — the fixture would be built, the
+ * mutation applied, and the case would report a module-resolution error while
+ * appearing to test a smaller tree.
+ *
+ * Copying the EXECUTABLES rather than pointing the real ones at a fixture root is
+ * what moves `import.meta.url` with them — the same reason
+ * assert-guards-refuse-empty.mjs copies its subjects instead of arguing with them
+ * (twenty guards sailed past an empty root and re-scanned the real repository
+ * when it did not).
+ */
+const CLOSURE_ENTRIES = [
   'tooling/ci/assert-render-payload.mjs',
-  'tooling/ci/tree-walk.mjs',
   'tooling/sites/generate-landing-payload.mjs',
   'tooling/sites/generate-discovery.mjs',
-  'tooling/sites/lastmod.mjs',
-  // Added 2026-08-21 with the shared-chrome splice: generate-discovery.mjs now
-  // imports it, so a tree without it cannot load the publisher at all. This list
-  // is hand-maintained and it DID fall behind on the commit that introduced the
-  // import — the two mutation cases below went red with a module-resolution
-  // error instead of the finding they exist to prove, which is the closure
-  // working: an incomplete one fails loudly rather than testing a smaller tree.
-  'tooling/sites/chrome.mjs',
-  // Added 2026-09-09 with [ADR 075]: the apex is now declared exactly once in
-  // `apex.mjs` and generate-discovery.mjs RE-EXPORTS it as `ORIGIN` instead of
-  // holding the literal, so a tree without this file cannot load the publisher.
-  // The closure fell behind exactly as the note above predicted it would — the
-  // two mutation cases went red with ERR_MODULE_NOT_FOUND instead of the finding
-  // they exist to prove. That is the closure working, and it is the second time
-  // it has caught its own staleness, so the note is kept and extended rather
-  // than replaced.
-  'tooling/sites/apex.mjs',
 ];
+
+/** Every relative `from '…'` specifier in one module's source. */
+const LOCAL_IMPORT = /(?:^|\n)\s*(?:import|export)[^'"]*from\s*['"](\.[^'"]+)['"]/g;
+
+function toolingClosure(entries) {
+  const seen = new Set();
+  const visit = (rel) => {
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    const abs = join(REPO, ...rel.split('/'));
+    if (!existsSync(abs)) {
+      throw new Error(
+        `the tooling closure reaches ${rel}, which does not exist. The walk has stopped early, so any ` +
+          'fixture built from it would be missing modules and every mutation case would report a ' +
+          'module-resolution error instead of the finding it exists to prove.',
+      );
+    }
+    const src = readFileSync(abs, 'utf8');
+    LOCAL_IMPORT.lastIndex = 0;
+    for (const m of src.matchAll(LOCAL_IMPORT)) {
+      visit(relative(REPO, resolve(dirname(abs), m[1])).split(sep).join('/'));
+    }
+  };
+  for (const e of entries) visit(e);
+  return [...seen].sort();
+}
+
+const TOOLING_CLOSURE = toolingClosure(CLOSURE_ENTRIES);
 
 /**
  * 🔴 A TREE WHERE THE TOOLING ITSELF IS MUTATED, NOT THE DATA.
@@ -156,8 +192,9 @@ const TOOLING_CLOSURE = [
  */
 function brokenToolingTree(mutate) {
   const root = mkdtempSync(join(tmpdir(), 'brokentooling-'));
-  mkdirSync(join(root, 'tooling', 'ci'), { recursive: true });
-  mkdirSync(join(root, 'tooling', 'sites'), { recursive: true });
+  // Derived from the closure, not listed: a new module in a new directory is
+  // copied without anybody remembering to add its `mkdir` here.
+  for (const rel of TOOLING_CLOSURE) mkdirSync(join(root, dirname(rel)), { recursive: true });
   mkdirSync(join(root, 'catalog'), { recursive: true });
   mkdirSync(join(root, 'services', 'platform', 'src'), { recursive: true });
   mkdirSync(join(root, 'apps', 'subscriptiontracker', 'store', 'android-play'), { recursive: true });
