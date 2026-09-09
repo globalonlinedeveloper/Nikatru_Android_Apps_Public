@@ -1022,6 +1022,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-chassis"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-mutation-proofs.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "D-3",
       "D-5"
@@ -2138,6 +2148,14 @@
     "invokedBy": [],
     "kind": "guard",
     "ref": "tooling/ci/d1-sql-inventory.mjs",
+    "references": [],
+    "state": "LIBRARY"
+  },
+  {
+    "claims": [],
+    "invokedBy": [],
+    "kind": "guard",
+    "ref": "tooling/ci/dart-source.mjs",
     "references": [],
     "state": "LIBRARY"
   },
