@@ -1,4 +1,46 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 🔴 UNTIL 2026-09-09 THIS FILE DECLARED NO PERMISSION AT ALL, and the two
+         below are the whole of what a local-reminder app needs. Both have to be
+         HERE rather than merged in: flutter_local_notifications 17.2.4's own
+         plugin manifest is four lines long and contributes only VIBRATE and
+         POST_NOTIFICATIONS, which is why the merged set measured off run 53's
+         .aab carries neither of these.
+
+         ⚠️ POST_NOTIFICATIONS IS DELIBERATELY NOT ADDED. It is ALREADY in the
+         merged manifest — measured, not assumed: store/android-play/
+         data-safety.json androidPermissions.merged carries it, read off the
+         built .aab and cross-checked with `aapt2 dump permissions`. The runtime
+         prompt resolves against the MERGED manifest, the only one that exists on
+         a device, so `requestNotificationsPermission()` already works. Declaring
+         it a second time would also make androidPermissions.merged._why's
+         sentence — "not one of these permissions is declared in this
+         repository" — false, and assert-play-declarations.mjs fails on exactly
+         that. One fact, one place. -->
+
+    <!-- Lets ScheduledNotificationBootReceiver below hear ACTION_BOOT_COMPLETED.
+         Android drops EVERY pending AlarmManager alarm across a reboot, so
+         without this a phone that restarts loses every renewal reminder it was
+         holding — silently, permanently, and discovered only if the user happens
+         to open the app again. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- 🔴 SCHEDULE_EXACT_ALARM, NOT `USE_EXACT_ALARM`, AND THAT IS A POLICY
+         DECISION RATHER THAN A PREFERENCE. `USE_EXACT_ALARM` needs no user
+         prompt, which is exactly what makes it tempting; its two permitted use
+         cases are an alarm-or-timer app and a calendar app that shows event
+         notifications. A subscription tracker is neither, so declaring it is a
+         violation that review catches after upload rather than before.
+
+         ⚠️ AND IT IS NOT LOAD-BEARING. It is NOT pre-granted on a fresh install
+         from Android 13, and Android 14 revokes it outright after a
+         backup-and-restore, so a permanent population of installs will not have
+         it. `lib/services/notifications/notification_service.dart` therefore
+         gates every schedule behind `canScheduleExactAlarms()` and degrades to
+         `AndroidScheduleMode.inexactAllowWhileIdle` when it is absent — a
+         renewal reminder tolerates a ten-minute window, and a missing reminder
+         does not. This permission buys PRECISION for the users who grant it,
+         and nothing else depends on it. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
         android:label="Subscriptions"
         android:name="${applicationName}"
@@ -30,6 +72,47 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- 🔴 WITHOUT THE FIRST RECEIVER NO SCHEDULED NOTIFICATION IS
+             DELIVERABLE AT ALL — exact or inexact — and nothing anywhere said
+             so. Read in flutter_local_notifications 17.2.4:
+             `FlutterLocalNotificationsPlugin.java` builds every alarm as
+             `new Intent(context, ScheduledNotificationReceiver.class)` handed to
+             `PendingIntent.getBroadcast` (lines 556, 579, 605, 683, 1770, 1793),
+             and since plugin v16 the package's own AndroidManifest.xml declares
+             ONLY two `<uses-permission>` elements and no `<application>` block at
+             all. So the class was in nobody's merged manifest: the alarm is set
+             successfully, and when it fires the broadcast reaches no receiver.
+             No exception, no log line in the app, nothing to see.
+
+             The plugin's OWN receivers are used rather than a hand-rolled pair —
+             they are what the plugin's PendingIntents name, and a local class
+             would have to reimplement `rescheduleNotifications` against private
+             state. The shape below is the plugin README's, verbatim.
+
+             ⚠️ `ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` IS
+             DELIBERATELY NOT REGISTERED, and that is a correction rather than an
+             omission: 17.2.4's ScheduledNotificationBootReceiver handles
+             BOOT_COMPLETED, MY_PACKAGE_REPLACED and the two QUICKBOOT actions and
+             NOTHING ELSE — its `onReceive` is a four-arm `if`. An intent-filter
+             for that action would wake a receiver that does nothing, which is a
+             registration that looks like coverage and is not. What actually
+             re-arms after a permission change is the app's own path: `syncAll`
+             re-reads `canScheduleExactAlarms()` on every sync and re-schedules in
+             whichever mode the OS now allows. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
