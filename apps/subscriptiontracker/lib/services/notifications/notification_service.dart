@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
         immutable,
         kIsWeb,
         visibleForTesting;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -164,6 +165,170 @@ class NotificationService {
     return ios ?? macos ?? android ?? true;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXACT ALARMS — the permission this app does not have, and must not need
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // 🔴 EVERY `zonedSchedule` BELOW USED TO PASS `exactAllowWhileIdle`
+  // UNCONDITIONALLY, AND THE ANDROID MANIFEST DECLARES NO PERMISSION AT ALL.
+  // Measured, not inferred: `apps/subscriptiontracker/android/app/src/main/
+  // AndroidManifest.xml` carries zero `<uses-permission>` elements, and
+  // flutter_local_notifications 17.2.4's own plugin manifest contributes only
+  // VIBRATE and POST_NOTIFICATIONS. So SCHEDULE_EXACT_ALARM is not in the
+  // merged manifest, `AlarmManager.canScheduleExactAlarms()` is false on every
+  // Android 12+ device, and the plugin's Java side
+  // (`FlutterLocalNotificationsPlugin.setupAllowWhileIdleAlarm` →
+  // `checkCanScheduleExactAlarms`) throws `ExactAlarmPermissionException`.
+  //
+  // ⚠️ WHAT THAT COSTS IS NOT ONE REMINDER, IT IS ALL OF THEM. That exception
+  // reaches Dart as `PlatformException('exact_alarms_not_permitted')` out of
+  // `zonedSchedule`, nothing in this file or its callers catches it, and
+  // [syncAll] schedules in a `for` loop — so the FIRST subscription throws and
+  // the loop never reaches the second. An account with forty subscriptions gets
+  // zero reminders, from one uncaught throw, on a code path no test exercised.
+  //
+  // ── WHY DEGRADING IS THE FIX AND NOT A CONSOLATION ─────────────────────────
+  // SCHEDULE_EXACT_ALARM is NOT pre-granted on a fresh install from Android 13
+  // onwards, and Android 14 revokes it outright after a backup-and-restore. So
+  // "declare it and prompt" leaves a real, permanent population of users with
+  // the permission refused, and a renewal reminder that only works for the users
+  // who said yes to a dialog is a feature that silently is not there for the
+  // rest. `setAndAllowWhileIdle` still fires while the device is dozing; it just
+  // lets the OS batch the wake-up. A reminder that a charge lands in two days
+  // tolerates a ten-minute window. A missing reminder does not.
+  //
+  // ── AND `USE_EXACT_ALARM` IS DELIBERATELY NOT USED ────────────────────────
+  // It needs no prompt, which is exactly why it is tempting. Its two permitted
+  // use cases are an alarm/timer app and a calendar app that shows event
+  // notifications. A subscription tracker is neither, so declaring it is a
+  // policy violation dressed as a convenience, and the review that catches it
+  // catches it after upload.
+  //
+  // ── RECONCILED WITH THE CHASSIS ADAPTER, WHICH WAS ALREADY RIGHT ──────────
+  // `packages/notifications/lib/src/local_notification_service_io.dart:334`
+  // schedules its DAILY nudge with `inexactAllowWhileIdle` unconditionally and
+  // needs no permission at all. That is correct there and stays untouched: a
+  // daily nudge has no instant it must land on. This fork schedules a renewal
+  // reminder at 09:00 on a named day, so it takes exact precision WHEN THE OS
+  // WILL GIVE IT and the chassis's behaviour when it will not — strictly better
+  // than either extreme, and the only difference between the two files is now a
+  // reason rather than an oversight.
+
+  /// Whether the OS will honour an EXACT alarm from this app right now.
+  ///
+  /// Asked FRESH every time it matters, never cached: the user can revoke
+  /// "Alarms & reminders" from system settings at any moment, and a cached
+  /// `true` is how an app goes on scheduling alarms the OS is refusing.
+  ///
+  /// `true` on every non-Android platform, and that is an accurate answer
+  /// rather than a lenient one: `androidScheduleMode` is inert everywhere else
+  /// (the Darwin and Linux `zonedSchedule` overloads do not take it), so there
+  /// is no precision to lose.
+  Future<bool> canScheduleExactAlarms() async {
+    if (kIsWeb || !_ready) return false;
+    final AndroidFlutterLocalNotificationsPlugin? android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return true; // not Android — nothing to permit
+    try {
+      return (await android.canScheduleExactNotifications()) ?? false;
+    } on PlatformException {
+      // An older host that does not implement the method must read as "no", not
+      // as a crash: "no" degrades to a reminder that still fires.
+      return false;
+    }
+  }
+
+  /// Sends the user to Android's "Alarms & reminders" screen for this app.
+  ///
+  /// 🔴 CALL THIS ONLY AFTER AN IN-APP EXPLANATION, AND ONLY FROM A USER
+  /// GESTURE. It is `ACTION_REQUEST_SCHEDULE_EXACT_ALARM` — not a dialog but a
+  /// full trip out to Settings, and an app that throws the user there with no
+  /// sentence explaining why gets a back-press. Unlike the notification
+  /// permission there is no "denied twice is permanent" cliff here, but there is
+  /// also no second chance at a first impression.
+  ///
+  /// ⚠️ IT IS NEVER REQUIRED. Reminders work without it — see the block above.
+  /// This buys precision, so the explanation must offer precision and must not
+  /// imply that saying no turns reminders off.
+  ///
+  /// Returns the OS's answer where the host gives one; `false` otherwise. The
+  /// honest read is [canScheduleExactAlarms] on the next resume, because the
+  /// user grants this in Settings and comes back.
+  Future<bool> requestExactAlarmPermission() async {
+    if (kIsWeb || !_ready) return false;
+    final AndroidFlutterLocalNotificationsPlugin? android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return true; // not Android — nothing to request
+    try {
+      return (await android.requestExactAlarmsPermission()) ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// The schedule mode a device that [permitted] (or refused) exact alarms gets.
+  ///
+  /// A named pure function so the DEGRADATION itself is assertable without a
+  /// platform channel — the mapping is the whole decision, and a test that can
+  /// only reach it through `zonedSchedule` cannot say what it is.
+  @visibleForTesting
+  static AndroidScheduleMode scheduleModeFor({required bool permitted}) =>
+      permitted
+      ? AndroidScheduleMode.exactAllowWhileIdle
+      : AndroidScheduleMode.inexactAllowWhileIdle;
+
+  /// [scheduleModeFor] over a live reading of the OS.
+  ///
+  /// ONE reading per batch, not one per subscription: [syncAll] resolves it once
+  /// and passes it down. Eighty subscriptions must not become eighty platform
+  /// round-trips for an answer that cannot change inside one loop.
+  Future<AndroidScheduleMode> _resolveScheduleMode() async =>
+      scheduleModeFor(permitted: await canScheduleExactAlarms());
+
+  /// `zonedSchedule`, with the exact-alarm race closed.
+  ///
+  /// 🔴 THE CHECK AND THE SCHEDULE ARE TWO SEPARATE IPC CALLS, so the user can
+  /// revoke "Alarms & reminders" between them. That window is small and the
+  /// consequence is not: an uncaught `exact_alarms_not_permitted` out of the
+  /// first subscription ends [syncAll]'s loop and costs the whole reminder set.
+  /// Caught HERE rather than around the loop so the retry is per-notification
+  /// and the ones already scheduled stand.
+  Future<void> _schedule({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime when,
+    required NotificationDetails details,
+    required AndroidScheduleMode mode,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    Future<void> post(AndroidScheduleMode m) => _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      when,
+      details,
+      androidScheduleMode: m,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: matchDateTimeComponents,
+    );
+    try {
+      await post(mode);
+    } on PlatformException catch (e) {
+      // The plugin's own code for it, from FlutterLocalNotificationsPlugin.java
+      // (`EXACT_ALARMS_PERMISSION_ERROR_CODE`). Anything else is a real failure
+      // and must keep travelling — swallowing every PlatformException here is
+      // how "no reminders" becomes indistinguishable from "all fine".
+      if (e.code != 'exact_alarms_not_permitted') rethrow;
+      await post(AndroidScheduleMode.inexactAllowWhileIdle);
+    }
+  }
+
   /// 👤 `channelDescription` IS STILL ENGLISH, DELIBERATELY. It is the second
   /// line under the channel name in Android's app-notification settings, so it
   /// is as user-visible as the name above it — but there is no .arb key for it
@@ -233,24 +398,27 @@ class NotificationService {
   /// lib/src/flutter_local_notifications_plugin.dart:377), so Linux and Windows
   /// reach no implementation at all. Recorded, not fixed here: this increment
   /// bounds the reminder set, and the desktop gap is a separate change.
+  ///
+  /// [mode] is the exact-vs-inexact decision, resolved ONCE by [syncAll] for a
+  /// whole batch. `null` means "this is a single call, read the OS yourself" —
+  /// see the exact-alarms block above for why the answer is never cached.
   Future<void> scheduleRenewalReminder(
     Subscription sub, {
     required ReminderCopy copy,
     int daysBefore = 2,
+    AndroidScheduleMode? mode,
   }) async {
     if (!_ready) return;
     final tz.TZDateTime? when = _whenFor(sub, daysBefore);
     if (when == null) return;
 
-    await _plugin.zonedSchedule(
-      _idFor(sub.id),
-      copy.reminderTitle,
-      copy.reminderBody(sub.name, sub.nextRenewal),
-      when,
-      _detailsFor(copy),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _schedule(
+      id: _idFor(sub.id),
+      title: copy.reminderTitle,
+      body: copy.reminderBody(sub.name, sub.nextRenewal),
+      when: when,
+      details: _detailsFor(copy),
+      mode: mode ?? await _resolveScheduleMode(),
     );
   }
 
@@ -284,15 +452,13 @@ class NotificationService {
     while (when.weekday != DateTime.sunday || !when.isAfter(now)) {
       when = when.add(const Duration(days: 1));
     }
-    await _plugin.zonedSchedule(
-      _digestId,
-      copy.digestTitle,
-      copy.digestBody(count, formattedTotal),
-      when,
-      _detailsFor(copy),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _schedule(
+      id: _digestId,
+      title: copy.digestTitle,
+      body: copy.digestBody(count, formattedTotal),
+      when: when,
+      details: _detailsFor(copy),
+      mode: await _resolveScheduleMode(),
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
   }
@@ -411,8 +577,17 @@ class NotificationService {
       daysBefore: daysBefore,
     );
     _droppedByBudget = subs.length - planned.length;
+    // ONE reading of the exact-alarm permission for the whole batch. It cannot
+    // change inside this loop in any way the user would notice, and eighty
+    // subscriptions must not mean eighty extra platform round-trips.
+    final AndroidScheduleMode mode = await _resolveScheduleMode();
     for (final Subscription s in planned) {
-      await scheduleRenewalReminder(s, copy: copy, daysBefore: daysBefore);
+      await scheduleRenewalReminder(
+        s,
+        copy: copy,
+        daysBefore: daysBefore,
+        mode: mode,
+      );
     }
   }
 
