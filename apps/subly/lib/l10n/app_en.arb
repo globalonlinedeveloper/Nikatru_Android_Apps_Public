@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "Subly — Subscription Tracker",
+  "appTitle": "Nikatru Subscription Tracker",
   "@appTitle": {
     "description": "The application title shown in the OS task switcher."
   },
@@ -607,7 +607,7 @@
     "placeholders": {
       "appName": {
         "type": "String",
-        "example": "Subly"
+        "example": "Subscriptions"
       },
       "version": {
         "type": "String",
@@ -1038,7 +1038,7 @@
     "placeholders": {
       "app": {
         "type": "String",
-        "example": "Subly"
+        "example": "Subscriptions"
       },
       "company": {
         "type": "String",
@@ -1242,7 +1242,7 @@
   "@sublyOnboarding3Title": {
     "description": "Consumed by onboarding/onboarding_screen.dart:32. See sublyOnboarding1Title. Typographic apostrophe (U+2019), matching the live literal."
   },
-  "sublyOnboarding3Body": "Mark a plan unused and Subly totals up what cancelling would save.",
+  "sublyOnboarding3Body": "Mark a plan unused and Subscriptions totals up what cancelling would save.",
   "@sublyOnboarding3Body": {
     "description": "Consumed by onboarding/onboarding_screen.dart:33. See sublyOnboarding1Title."
   },

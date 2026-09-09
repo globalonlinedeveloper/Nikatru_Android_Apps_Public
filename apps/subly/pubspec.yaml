@@ -1,5 +1,5 @@
 name: subly
-description: "Subly — a cross-platform subscription tracker. App #1 and the reusable template for the Cross Platform Apps portfolio."
+description: "Nikatru Subscription Tracker — a cross-platform subscription tracker. App #1 and the reusable template for the Cross Platform Apps portfolio."
 publish_to: "none"
 resolution: workspace
 
@@ -344,7 +344,7 @@ flutter_launcher_icons:
 #   flutter build windows --release
 #   dart run msix:create
 msix_config:
-  display_name: Subly
+  display_name: Subscriptions
   publisher_display_name: PARTNER-CENTER-PENDING
   identity_name: PARTNER-CENTER-PENDING
   publisher: CN=PARTNER-CENTER-PENDING

@@ -293,6 +293,8 @@ jobs:
         run: node tooling/ci/assert-store-metadata.mjs
       - name: The app declaration is valid and everything rendered from it is fresh
         run: node tooling/ci/assert-app-yaml.mjs
+      - name: Both of an app's names are shippable — the store title and the icon label
+        run: node tooling/ci/assert-app-naming.mjs
       # why: OFFLINE. It reads apps/<app>/name-clearance.json and never dials out —
       # the networked probe that WRITES that record takes ~14 s and is a routine, not
       # a gate. docs/name-clearance.md carries the measurement and the split.

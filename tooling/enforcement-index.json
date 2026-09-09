@@ -158,6 +158,18 @@
   },
   {
     "claims": [
+      "ADR 074"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-store"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-app-naming.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "D-2b",
       "R-2",
       "S-3"

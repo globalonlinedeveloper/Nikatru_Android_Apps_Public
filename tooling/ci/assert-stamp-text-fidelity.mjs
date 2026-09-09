@@ -124,6 +124,7 @@ try {
 const appId = String(vars.app_id ?? '');
 const displayName = String(vars.display_name ?? '').trim();
 const description = String(vars.description ?? '').trim();
+const iconLabel = String(vars.icon_label ?? '').trim();
 const needsBackend = vars.needs_backend === true;
 
 if (!appId) lost(`${varsPath} names no app_id.`);
@@ -137,6 +138,33 @@ if (!ESCAPABLE.test(displayName)) {
 if (!ESCAPABLE.test(description)) {
   lost(
     `${varsPath} description ("${description}") contains none of & < > " ' / — see display_name above.`,
+  );
+}
+// ── the ICON LABEL is a SECOND name, and the fixture has to prove it ─────────
+// `short_name` in the PWA manifest used to be stamped from `display_name`, so
+// this guard asserted the two were equal — an assertion that was true by
+// construction and could not fail. It is now stamped from `icon_label`, which is
+// a different field with a different cap and a different reader (see
+// tooling/bricks/app/brick.yaml). A probe whose icon_label EQUALS its display
+// name would restore exactly the tautology, so the fixture is audited for the
+// difference before anything is compared.
+if (!iconLabel) {
+  lost(
+    `${varsPath} names no icon_label. It is what a home screen prints under the mark and what the PWA ` +
+      'manifest `short_name` is stamped from; without one this lane cannot tell the two names apart.',
+  );
+}
+if (iconLabel === displayName) {
+  lost(
+    `${varsPath} icon_label and display_name are the same string ("${iconLabel}"). The check below would ` +
+      'then pass against a brick that had stamped either one, which is the tautology this fixture audit exists ' +
+      'to refuse. Give the probe two different names.',
+  );
+}
+if (!ESCAPABLE.test(iconLabel)) {
+  lost(
+    `${varsPath} icon_label ("${iconLabel}") contains none of & < > " ' / — so the escaping half of the icon ` +
+      'label path is never exercised and a double-stached template would still read ok here.',
   );
 }
 // The derive path is the one `pre_gen` steers users onto, and it is the one that
@@ -165,7 +193,7 @@ if (!/\S-\S/.test(leadingSegment)) {
       'separator from a hyphen, which is exactly how "E-Book Reader" reached the public catalogue as "E".',
   );
 }
-ok(`probe spec can trigger every check (escape set present; ${blankSub ? 'subdomain' : 'api_domain'} left blank to derive; "${leadingSegment}" holds an intra-word hyphen)`);
+ok(`probe spec can trigger every check (escape set present; ${blankSub ? 'subdomain' : 'api_domain'} left blank to derive; "${leadingSegment}" holds an intra-word hyphen; icon_label "${iconLabel}" differs from the display name)`);
 
 const appDir = join(ROOT, 'apps', appId);
 if (!existsSync(appDir)) lost(`apps/${appId} was not stamped, so there is no output to check.`);
@@ -219,7 +247,11 @@ else if (manifest.error) fail(`apps/${appId}/web/manifest.json is not valid JSON
 else {
   for (const [key, expected] of [
     ['name', displayName],
-    ['short_name', displayName],
+    // NOT displayName: the icon label is the OS-level name and the manifest
+    // `short_name` is its web surface. tooling/app-yaml/render.mjs renders the
+    // same value into CFBundleDisplayName, android:label, the .desktop `Name=`
+    // and msix_config.display_name from the stamped app.yaml's `shortName:`.
+    ['short_name', iconLabel],
     ['description', description],
   ]) {
     if (manifest.value[key] !== expected) {

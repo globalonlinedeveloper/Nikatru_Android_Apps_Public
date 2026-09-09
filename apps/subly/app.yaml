@@ -23,8 +23,18 @@
 #     Reviewed prose about what Subly actually does. Yours to sharpen.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 🔴 `id` IS NOT THE BRAND AND IS DELIBERATELY NOT RENAMED. It is the DNS label
+# in subly.nikatru.com, the Dart package, the Linux binary, the snap name, the
+# analytics `app_id` column that keys every historical row and the stem of
+# com.nikatru.subly. pre_gen.dart states the rule this follows: "the one name
+# every other name derives from — and two of those derivations are IRREVERSIBLE
+# … a rename is not a rename; it is an orphaning." The brand moved; the
+# identifiers did not, and nothing a user sees reads either of them.
 id: subly
-name: Subly
+name: Nikatru Subscription Tracker
+# The ICON label. Shares the token `Subscription(s)` with `name` per Apple
+# QA1892, and is what a home screen has room for — see the schema.
+shortName: Subscriptions
 tagline: Track every subscription in one place
 category: Productivity
 status: live

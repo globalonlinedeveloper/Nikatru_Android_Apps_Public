@@ -93,7 +93,8 @@ let BASE;      // the throwaway workspace
 let PUB;       // <BASE>/Projects/Fixture_Public   — the MAIN checkout
 let WT;        // <BASE>/Projects/Fixturewt_Public — the linked worktree
 let PRIV;      // <BASE>/Projects/Fixture_Private  — the corpus
-let ENV_SEEN;  // where the assert-public-citations stub records what it was handed
+let ENV_SEEN;
+let GITDIR_SEEN;  // where the assert-public-citations stub records what it was handed
 
 const git = (where, ...args) => {
   const r = spawnSync('git', ['-C', where, ...args], { encoding: 'utf8' });
@@ -131,6 +132,7 @@ process.exit(0);
  *  rather than on the runner's own printed summary. */
 const ENV_STUB = `import { writeFileSync } from 'node:fs';
 writeFileSync(process.env.FIXTURE_ENV_SEEN, String(process.env.NIKATRU_PRIVATE_ROOT ?? ''), 'utf8');
+writeFileSync(process.env.FIXTURE_GITDIR_SEEN, String(process.env.GIT_DIR ?? ''), 'utf8');
 process.exit(0);
 `;
 
@@ -149,16 +151,22 @@ function buildCorpus() {
 /** Run the runner from `where`, with a copy of the environment that cannot smuggle
  *  the answer in: the machine running this suite has a real corpus and may well have
  *  `NIKATRU_PRIVATE_ROOT` set, and git exports `GIT_DIR` into hooks. */
-function runRunner(where, file = 'spec-guards.mjs') {
-  const env = { ...process.env, FIXTURE_ENV_SEEN: ENV_SEEN };
+function runRunner(where, file = 'spec-guards.mjs', { gitDir = null } = {}) {
+  const env = { ...process.env, FIXTURE_ENV_SEEN: ENV_SEEN, FIXTURE_GITDIR_SEEN: GITDIR_SEEN };
   delete env.NIKATRU_PRIVATE_ROOT;
   for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) delete env[k];
+  // `gitDir` is git's own export, put back DELIBERATELY: a pre-commit hook always
+  // has it, so a suite that only ever deletes it tests the one environment the
+  // runner is never in.
+  if (gitDir) env.GIT_DIR = gitDir;
   rmSync(ENV_SEEN, { force: true });
+  rmSync(GITDIR_SEEN, { force: true });
   const r = spawnSync(process.execPath, [join(where, 'tooling', 'scripts', file), '--fast'], { cwd: where, env, encoding: 'utf8' });
   return {
     code: r.status,
     out: `${r.stdout ?? ''}${r.stderr ?? ''}`,
     envSeen: existsSync(ENV_SEEN) ? readFileSync(ENV_SEEN, 'utf8') : null,
+    gitDirSeen: existsSync(GITDIR_SEEN) ? readFileSync(GITDIR_SEEN, 'utf8') : null,
   };
 }
 
@@ -184,6 +192,7 @@ before(() => {
   WT = join(PRODUCTS, 'Fixturewt_Public');
   PRIV = join(PRODUCTS, 'Fixture_Private');
   ENV_SEEN = join(BASE, 'env-seen.txt');
+  GITDIR_SEEN = join(BASE, 'gitdir-seen.txt');
 
   // The workspace anchor: `Projects/` and `nikatru/` side by side.
   write(join(BASE, 'nikatru', 'README.md'), 'the shared business brain, fixture\n');
@@ -308,4 +317,44 @@ test('the MAIN checkout is unchanged by all of this: no worktree mode, no overri
 
 test('the fixture runner is the committed one, byte for byte', () => {
   assert.equal(readFileSync(join(WT, 'tooling', 'scripts', 'spec-guards.mjs'), 'utf8'), SOURCE, 'the copy under test has drifted from the runner in the tree');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SECOND WORKTREE DEFECT, 2026-09-09: the runner resolved the corpus and then
+// handed its guards an environment that pointed them somewhere else.
+//
+// Git exports `GIT_DIR` into every hook process and it BEATS both `-C` and a
+// child's cwd. `CHILD_ENV` was a bare `{ ...process.env }`, so the two `--index`
+// guards — whose subject is the PRIVATE corpus's staged index — read the index of
+// whichever repository the commit was being made in. From the main checkout that
+// is the same repository twice and nothing looks wrong; from a WORKTREE it is not.
+//
+// It surfaced as `check-agent-docs` exiting 2 on `docsScanned 2 < 3` while printing
+// `check-agent-docs - Nikatru_Platform_Private` above 2065 tracked files and 2
+// instruction docs — the private repo's NAME over the public worktree's NUMBERS.
+// Two is what the public tree has. Reproduced exactly by exporting one variable:
+//   cd <private> && node …/check-agent-docs.mjs --index                  → EXIT 0
+//   cd <private> && GIT_DIR=<public wt>/.git node …/check-agent-docs.mjs → EXIT 2
+//
+// ⚠️ AND IT PRESENTED AS A FLOOR SET TOO HIGH, which is the trap worth recording:
+// the obvious "fix" is to lower the floor to 2, which would make every worktree
+// commit green over the wrong repository, permanently.
+// ─────────────────────────────────────────────────────────────────────────────
+test("git's exported GIT_DIR does not reach the guards — the child environment is scrubbed", () => {
+  const decoy = join(PUB, '.git');
+  const r = runRunner(WT, 'spec-guards.mjs', { gitDir: decoy });
+  assert.equal(r.code, 0, `the runner must still run with GIT_DIR exported, as a hook always has it: ${r.out}`);
+  assert.equal(r.gitDirSeen, '', `a guard was handed GIT_DIR=${r.gitDirSeen}; -C and cwd do not beat it, so its subject was the wrong repository`);
+  assert.match(r.out, /Redirecting GIT_\* variables removed from the child environment: GIT_DIR/);
+});
+
+test('MUTANT — CHILD_ENV back to a bare copy of process.env: GIT_DIR reaches the guards', () => {
+  writeMutant('spec-guards-envleak.mjs', 'const CHILD_ENV = cleanGitEnv().env;', 'const CHILD_ENV = { ...process.env };');
+  const decoy = join(PUB, '.git');
+  const r = runRunner(WT, 'spec-guards-envleak.mjs', { gitDir: decoy });
+  assert.equal(
+    r.gitDirSeen,
+    decoy,
+    'the mutant did NOT leak GIT_DIR, so the case above is passing for some other reason and proves nothing about the scrub',
+  );
 });

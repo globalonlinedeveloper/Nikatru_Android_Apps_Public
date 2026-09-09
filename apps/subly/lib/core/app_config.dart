@@ -34,22 +34,28 @@ class AppConfig {
 
   /// The SHORT name, and the one the UI uses everywhere.
   ///
-  /// 🔴 DELIBERATELY NOT THE STORE DISPLAY NAME. The stamp writes
-  /// `'Subly — Subscription Tracker'` here, and every live call site reads badly
-  /// with it: `'$appName by $companyName'` (shared/widgets.dart) becomes
-  /// "Subly — Subscription Tracker by Nikatru", the consent prompt asks "Help
-  /// improve Subly — Subscription Tracker?", and `AboutListTile`'s
-  /// applicationName gets an em-dash subtitle. It is the same call the web shell
-  /// already makes twice — `overrides.md` §5/§6 re-assert the short `"Subly"`
-  /// for `apple-mobile-web-app-title` and for the manifest's `short_name`,
-  /// because an em-dash subtitle under a home-screen icon is truncated by every
-  /// launcher. The full name has ONE correct home and it is [displayName].
-  static const String appName = 'Subly';
+  /// 🔴 DELIBERATELY NOT THE STORE DISPLAY NAME, and the argument is older than
+  /// the current name. The stamp writes the long form here, and every live call
+  /// site reads badly with it: `'$appName by $companyName'` (shared/widgets.dart)
+  /// became "Subly — Subscription Tracker by Nikatru", the consent prompt asked
+  /// "Help improve Subly — Subscription Tracker?", and `AboutListTile`'s
+  /// applicationName got an em-dash subtitle. It is the same call the web shell
+  /// makes twice for `apple-mobile-web-app-title` and the manifest's
+  /// `short_name`, because a long name under a home-screen icon is truncated by
+  /// every launcher. The full name has ONE correct home and it is [displayName].
+  ///
+  /// ⏱ 2026-09-09 — the pair became `Subscriptions` / `Nikatru Subscription
+  /// Tracker`; it was `Subly` / `Subly — Subscription Tracker`. This constant is
+  /// now the app declaration's `shortName` and [displayName] its `name`, and
+  /// `tooling/app-yaml/render.mjs` renders that same `shortName` into the six
+  /// OS-level label fields — so the sentence above is no longer a convention
+  /// this file keeps on its own.
+  static const String appName = 'Subscriptions';
 
   /// The STORE / BROWSER-TITLE name. Byte-identical to `<title>` in
   /// `web/index.html` and to the stamp's `display_name` var — the one place the
   /// long form belongs.
-  static const String displayName = 'Subly — Subscription Tracker';
+  static const String displayName = 'Nikatru Subscription Tracker';
 
   /// The store category this app lists under (chassis field, arrives with the
   /// stamp). Not read by app code today; the listing register is the consumer.

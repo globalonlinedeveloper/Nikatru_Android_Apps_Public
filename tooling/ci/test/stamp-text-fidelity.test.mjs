@@ -58,6 +58,10 @@ after(() => {
 // exits COVERAGE LOST rather than pretending it checked.
 const NAME = "Probe's E-Book & Co — 24/7 Smoke";
 const DESC = 'A "smoke" probe & nothing more.';
+// The ICON label — a SECOND name, deliberately unlike the display name. The
+// guard's own fixture audit refuses a probe whose two names are equal, because
+// the manifest check would then pass against a brick that stamped either one.
+const ICON = 'E-Book & Co';
 
 /** The name the catalogue must publish: everything before the first dash that is
  *  SURROUNDED BY WHITESPACE. Spelled out here rather than imported so the test
@@ -95,6 +99,7 @@ function tree({
   app = 'probe',
   backend = false,
   name = NAME,
+  icon = ICON,
   desc = DESC,
   vars: varsOverride = {},
   mutate = null,
@@ -117,6 +122,7 @@ function tree({
       {
         app_id: app,
         display_name: name,
+        icon_label: icon,
         subdomain: backend ? '' : `${app}.nikatru.com`,
         api_domain: '',
         seed_hex: '6459F5',
@@ -151,7 +157,10 @@ function tree({
   }
   write(
     `apps/${app}/web/manifest.json`,
-    `{\n  "name": "${j(name)}",\n  "short_name": "${j(name)}",\n  "description": "${j(desc)}"\n}\n`,
+    // short_name is the ICON label, not the display name — see
+    // ICON_LABEL_TARGETS in tooling/app-yaml/render.mjs. Stamping the display
+    // name here is the defect one of the cases below records.
+    `{\n  "name": "${j(name)}",\n  "short_name": "${j(icon)}",\n  "description": "${j(desc)}"\n}\n`,
   );
   // The one file where mason's escaping is CORRECT, present so the exclusion is
   // exercised rather than merely asserted in a comment.
@@ -545,5 +554,74 @@ describe('assert-stamp-text-fidelity', () => {
     });
     assert.equal(r.status, 1);
     assert.match(`${r.stdout}${r.stderr}`, /COVERAGE LOST/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5 · THE ICON LABEL IS A SECOND NAME, AND THE MANIFEST MUST CARRY *IT*
+//
+// `web/manifest.json`'s `short_name` used to be stamped from `display_name`, and
+// this guard asserted the two were equal — an assertion true by construction,
+// which is the same defect as no assertion at all. It is now stamped from
+// `icon_label`, so the check can fail: a brick that reverted to the display name
+// goes red below.
+//
+// The three COVERAGE LOST cases guard the guard. Each is a probe spec under
+// which the check above could not fail no matter what the brick did, and each
+// must refuse rather than print ok — the same rule the escape-set and
+// blank-host fixture audits already hold.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('assert-stamp-text-fidelity — the icon label', () => {
+  test('a manifest short_name stamped from the DISPLAY name fails', () => {
+    const r = run(
+      tree({
+        mutate: ({ write, app }) =>
+          write(
+            `apps/${app}/web/manifest.json`,
+            // JSON.stringify, never a hand-rolled `.replace(/"/g, …)` — that
+            // escapes the quote and NOT the backslash, so a value ending in one
+            // closes the string it was meant to stay inside. CodeQL
+            // js/incomplete-sanitization flagged exactly that here.
+            `{\n  "name": ${JSON.stringify(NAME)},\n  "short_name": ${JSON.stringify(NAME)},\n  "description": ${JSON.stringify(DESC)}\n}\n`,
+          ),
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /manifest\.json short_name is/);
+  });
+
+  test('a manifest short_name that is HTML-escaped fails on the icon-label path too', () => {
+    const r = run(
+      tree({
+        mutate: ({ write, app }) =>
+          write(
+            `apps/${app}/web/manifest.json`,
+            `{\n  "name": ${JSON.stringify(NAME)},\n  "short_name": "E-Book &amp; Co",\n  "description": ${JSON.stringify(DESC)}\n}\n`,
+          ),
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /short_name is "E-Book &amp; Co"/);
+  });
+
+  test('COVERAGE LOST when the probe declares no icon_label at all', () => {
+    const r = run(tree({ vars: { icon_label: '' } }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST/);
+    assert.match(r.out, /names no icon_label/);
+  });
+
+  test('COVERAGE LOST when icon_label EQUALS display_name — the check would be a tautology', () => {
+    const r = run(tree({ icon: NAME }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST/);
+    assert.match(r.out, /same string/);
+  });
+
+  test('COVERAGE LOST when icon_label holds none of & < > " \' /', () => {
+    const r = run(tree({ icon: 'EBook Co' }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST/);
+    assert.match(r.out, /icon_label \("EBook Co"\)/);
   });
 });
