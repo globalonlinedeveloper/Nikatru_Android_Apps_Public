@@ -70,7 +70,7 @@ const SERVER_TYPES = 'services/platform/src/types.ts';
  * 🔴 RESOLVED PER APP, NOT READ OFF ONE OBJECT. An app with no entry of its own
  * is served `defaults`, so the domain is `defaults` ∪ every per-app entry — the
  * same union the Worker's `buildRegistry` produces. Reading only `defaults`
- * would report zero offerings while subly sells two, and "0 of 0" reads exactly
+ * would report zero offerings while subscriptiontracker sells two, and "0 of 0" reads exactly
  * like a compliant portfolio, which is the ambiguity T-11 was deferred over.
  */
 function railFromData(json) {
@@ -1380,7 +1380,7 @@ const flat = (v) =>
 // app and its rail, so the CHANNEL decides which rail a build opens. Landing the
 // facade moved NOT ONE CALLER: `purchaseRailProvider` — the single place every
 // stamped app gets its rail — still calls `HostedCheckoutRail(...)` directly, in
-// `apps/subly` and in the brick template both, with `capabilities` left to the
+// `apps/subscriptiontracker` and in the brick template both, with `capabilities` left to the
 // platform-restrictive `forPlatform` default.
 //
 // 🔴 SO THE FACADE HAS ZERO CONSUMERS AND NOTHING GRADED THAT. §G limb (e)
@@ -1393,13 +1393,13 @@ const flat = (v) =>
 //
 // THE SHAPE IS A DECLARED SET HELD IN BOTH DIRECTIONS, because a plain refusal
 // is not available today — the two hand-wired call sites are real, they are
-// owned by other units (`apps/subly/lib/**` and the brick are outside this
+// owned by other units (`apps/subscriptiontracker/lib/**` and the brick are outside this
 // unit's ownedPaths), and deleting the check until they move is how a defect
 // becomes permanent:
 //   · a construction site this list does not name → FAIL. The widening cannot
 //     happen quietly, and it cannot be argued away as "the pattern already
 //     existed".
-//   · a named site that is GONE → FAIL. When the brick and subly move to
+//   · a named site that is GONE → FAIL. When the brick and subscriptiontracker move to
 //     `ChassisBilling.railFor`, this declaration is stale IN THE SAME COMMIT and
 //     says so, instead of preserving a fiction about who calls what.
 //   · zero sites anywhere → COVERAGE LOST. The facade constructs one itself, so
@@ -1421,8 +1421,8 @@ const flat = (v) =>
       why: 'the facade itself — the ONE site that is SUPPOSED to construct the hosted rail, because railFor is what decides that a Paddle channel gets it',
     },
     {
-      file: 'apps/subly/lib/state/money_providers.dart',
-      why: "R10 — `purchaseRailProvider` predates the facade and still hand-builds the rail. Repair belongs to the unit that owns apps/subly/lib/**, and needs the app's CHANNEL declared because ChassisBilling.railFor refuses to guess it",
+      file: 'apps/subscriptiontracker/lib/state/money_providers.dart',
+      why: "R10 — `purchaseRailProvider` predates the facade and still hand-builds the rail. Repair belongs to the unit that owns apps/subscriptiontracker/lib/**, and needs the app's CHANNEL declared because ChassisBilling.railFor refuses to guess it",
     },
     {
       file: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/money_providers.dart',

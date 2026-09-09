@@ -62,7 +62,7 @@
 
 /** The route whose EFFECT this file audits — the in-app "Delete account" tap
  *  reaches the shared platform Worker's `DELETE /v1/account`, which sweeps
- *  platform_db, relays to subly-api's own `/v1/account` for subly_db, and
+ *  platform_db, relays to subscriptiontracker-api's own `/v1/account` for subly_db, and
  *  deletes the identity last. Named as a value rather than in prose because
  *  tooling/ci/assert-e2e-legs.mjs reads this harness COMMENT-STRIPPED: a
  *  sentence describing the step is exactly what a nightly that does not run it

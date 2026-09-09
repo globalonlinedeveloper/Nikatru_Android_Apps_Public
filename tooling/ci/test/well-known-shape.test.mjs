@@ -158,7 +158,7 @@ describe('assert-well-known-shape — the real tree', () => {
       // must not. Strip line comments and block comments before looking.
       const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       assert.equal(/['"`][^'"`]*nikatru\.com/.test(code), false, `${abs} spells the apex in code instead of importing it from apex.mjs`);
-      assert.equal(/['"`]subly['"`]/.test(code), false, `${abs} names one app in code; the set comes from the catalogue`);
+      assert.equal(/['"`]subscriptiontracker['"`]/.test(code), false, `${abs} names one app in code; the set comes from the catalogue`);
     }
   });
 });

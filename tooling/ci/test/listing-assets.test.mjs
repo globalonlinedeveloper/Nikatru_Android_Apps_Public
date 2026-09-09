@@ -210,9 +210,9 @@ function fixture(mutate = () => {}) {
     },
   };
   const files = {
-    'apps/subly/store/android-play/feature-graphic.png': png({ width: 1024, height: 500, colourType: 2 }),
-    'apps/subly/store/android-play/store-icon-512.png': png({ width: 512, height: 512, colourType: 6 }),
-    'apps/subly/store/android-play/screenshots/README.md': Buffer.from('# slot\n'),
+    'apps/subscriptiontracker/store/android-play/feature-graphic.png': png({ width: 1024, height: 500, colourType: 2 }),
+    'apps/subscriptiontracker/store/android-play/store-icon-512.png': png({ width: 512, height: 512, colourType: 6 }),
+    'apps/subscriptiontracker/store/android-play/screenshots/README.md': Buffer.from('# slot\n'),
     // 🔴 THE TWO FILES THE 2026-08-04 PIXEL LIMBS READ, AND THEY ARE NOT
     // OPTIONAL FIXTURE FURNITURE. Both are the subject of a COVERAGE LOST:
     //
@@ -229,12 +229,12 @@ function fixture(mutate = () => {}) {
     // it next. Same correction the launcher-icons fixture needed for `linux/`.
     'packages/design_system/lib/src/tokens/app_colors.dart':
       Buffer.from('class AppColors {\n  static const Color warn = Color(0xFFF59E0B);\n}\n'),
-    'apps/subly/lib/app.dart':
+    'apps/subscriptiontracker/lib/app.dart':
       Buffer.from('Widget build() => MaterialApp.router(\n  debugShowCheckedModeBanner: false,\n);\n'),
   };
   const state = { register, files };
   mutate(state);
-  write(root, 'catalog/apps.json', Buffer.from(JSON.stringify([{ slug: 'subly' }])));
+  write(root, 'catalog/apps.json', Buffer.from(JSON.stringify([{ slug: 'subscriptiontracker' }])));
   write(root, 'tooling/channel-register.json', Buffer.from(JSON.stringify(state.register)));
   // The guard imports ./tree-walk.mjs relative to ITSELF, so the fixture only
   // needs the data tree, not a copy of tooling/ci.
@@ -279,14 +279,14 @@ describe('assert-listing-assets.mjs — the passing path', () => {
 
 describe('assert-listing-assets.mjs — the fixed-size assets', () => {
   test('a missing feature graphic fails', () => {
-    const r = run(build((s) => delete s.files['apps/subly/store/android-play/feature-graphic.png']));
+    const r = run(build((s) => delete s.files['apps/subscriptiontracker/store/android-play/feature-graphic.png']));
     assert.equal(r.code, 1);
     assert.match(r.out, /feature-graphic\.png is MISSING/);
   });
 
   test('wrong dimensions fail with the exact requirement', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 512, colourType: 2 });
+      s.files['apps/subscriptiontracker/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 512, colourType: 2 });
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /is 1024x512 and Play requires exactly 1024x500/);
@@ -294,7 +294,7 @@ describe('assert-listing-assets.mjs — the fixed-size assets', () => {
 
   test('a feature graphic WITH alpha fails — Play requires 24-bit no alpha', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 500, colourType: 6 });
+      s.files['apps/subscriptiontracker/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 500, colourType: 6 });
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /HAS an alpha channel.*24-bit PNG \(no alpha\)/s);
@@ -302,7 +302,7 @@ describe('assert-listing-assets.mjs — the fixed-size assets', () => {
 
   test('an icon WITHOUT alpha fails — Play requires 32-bit with alpha', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/store-icon-512.png'] = png({ width: 512, height: 512, colourType: 2 });
+      s.files['apps/subscriptiontracker/store/android-play/store-icon-512.png'] = png({ width: 512, height: 512, colourType: 2 });
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /has NO alpha channel.*32-bit PNG \(with alpha\)/s);
@@ -312,7 +312,7 @@ describe('assert-listing-assets.mjs — the fixed-size assets', () => {
     // The shape Android's stock ic_launcher.png actually is: a palette/greyscale
     // image transparent through tRNS alone. A colour-type-only check passes it.
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 500, colourType: 2, tRNS: true });
+      s.files['apps/subscriptiontracker/store/android-play/feature-graphic.png'] = png({ width: 1024, height: 500, colourType: 2, tRNS: true });
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /HAS an alpha channel/);
@@ -320,7 +320,7 @@ describe('assert-listing-assets.mjs — the fixed-size assets', () => {
 
   test('a truncated file fails — present is not the same as valid', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/feature-graphic.png'] = Buffer.from('not a png at all');
+      s.files['apps/subscriptiontracker/store/android-play/feature-graphic.png'] = Buffer.from('not a png at all');
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /is not a readable PNG/);
@@ -329,7 +329,7 @@ describe('assert-listing-assets.mjs — the fixed-size assets', () => {
   test('an oversized icon fails against the sourced 1024KB ceiling', () => {
     const r = run(build((s) => {
       const base = png({ width: 512, height: 512, colourType: 6 });
-      s.files['apps/subly/store/android-play/store-icon-512.png'] = Buffer.concat([base, Buffer.alloc(1048577)]);
+      s.files['apps/subscriptiontracker/store/android-play/store-icon-512.png'] = Buffer.concat([base, Buffer.alloc(1048577)]);
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /Play's maximum is 1048576/);
@@ -378,10 +378,10 @@ describe('assert-listing-assets.mjs — the cross-reference to the metadata cont
 const twoShots = (s, opts = {}) => {
   const w = opts.width ?? 1080;
   const h = opts.height ?? 1920;
-  s.files['apps/subly/store/android-play/screenshots/01.png'] = shotAt(w, h);
-  s.files['apps/subly/store/android-play/screenshots/02.png'] = shotAt(w, h, opts.banner === true);
+  s.files['apps/subscriptiontracker/store/android-play/screenshots/01.png'] = shotAt(w, h);
+  s.files['apps/subscriptiontracker/store/android-play/screenshots/02.png'] = shotAt(w, h, opts.banner === true);
   if (opts.posture !== null) {
-    s.files['apps/subly/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(
+    s.files['apps/subscriptiontracker/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(
       JSON.stringify({ posture: opts.posture ?? 'live', ...(opts.record ?? {}) }),
     );
   }
@@ -427,8 +427,8 @@ describe('assert-listing-assets.mjs — screenshots and their provenance', () =>
 
   test('one screenshot is below Play\'s publish minimum', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/store/android-play/screenshots/01.png'] = shotAt(1080, 1920);
-      s.files['apps/subly/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(JSON.stringify({ posture: 'live' }));
+      s.files['apps/subscriptiontracker/store/android-play/screenshots/01.png'] = shotAt(1080, 1920);
+      s.files['apps/subscriptiontracker/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(JSON.stringify({ posture: 'live' }));
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /requires at least 2/);
@@ -437,16 +437,16 @@ describe('assert-listing-assets.mjs — screenshots and their provenance', () =>
   test('nine screenshots exceed the per-device-type ceiling', () => {
     const r = run(build((s) => {
       for (let i = 1; i <= 9; i++) {
-        s.files[`apps/subly/store/android-play/screenshots/0${i}.png`] = png({ width: 1080, height: 1920, colourType: 2 });
+        s.files[`apps/subscriptiontracker/store/android-play/screenshots/0${i}.png`] = png({ width: 1080, height: 1920, colourType: 2 });
       }
-      s.files['apps/subly/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(JSON.stringify({ posture: 'live' }));
+      s.files['apps/subscriptiontracker/store/android-play/screenshots/CAPTURE.json'] = Buffer.from(JSON.stringify({ posture: 'live' }));
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /at most 8 per device type/);
   });
 
   test('a deleted screenshots directory fails — the slot is the contract', () => {
-    const r = run(build((s) => delete s.files['apps/subly/store/android-play/screenshots/README.md']));
+    const r = run(build((s) => delete s.files['apps/subscriptiontracker/store/android-play/screenshots/README.md']));
     assert.equal(r.code, 1);
     assert.match(r.out, /screenshots does not exist/);
   });
@@ -460,7 +460,7 @@ describe('assert-listing-assets.mjs — screenshots and their provenance', () =>
   });
 
   // ── THE PIXELS: the demo banner, measured rather than claimed ─────────────
-  // 🔴 REAL-TREE MUTATIONS FIRST, 2026-08-04, on apps/subly. The listing
+  // 🔴 REAL-TREE MUTATIONS FIRST, 2026-08-04, on apps/subscriptiontracker. The listing
   // directory holds no screenshots yet, so these were run by writing real
   // 1080x1920 PNGs INTO the actual directory, observing, and removing them:
   //   · a clean frame + a frame with a full-width #f59e0b band across the top,
@@ -476,7 +476,7 @@ describe('assert-listing-assets.mjs — screenshots and their provenance', () =>
   //   · BANNER_ROW_FRACTION set to 1.1 in the REAL guard
   //       ⇒ COVERAGE LOST "FAILED ITS OWN SELF-TEST … banded frame measured
   //         0.969 (needs >= 1.1)"
-  //   · `debugShowCheckedModeBanner: false` deleted from apps/subly/lib/app.dart
+  //   · `debugShowCheckedModeBanner: false` deleted from apps/subscriptiontracker/lib/app.dart
   //       ⇒ FAIL "builds a MaterialApp and does not set …", and `dart analyze`
   //         on the mutated file reported "No issues found!" — so the guard caught
   //         a REAL defect and not a compile error, which this repo has mistaken
@@ -563,7 +563,7 @@ describe('assert-listing-assets.mjs — the banner detector cannot go dark', () 
 describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
   test('an app that does not disable the checked-mode banner fails', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/lib/app.dart'] = Buffer.from('Widget build() => MaterialApp.router();\n');
+      s.files['apps/subscriptiontracker/lib/app.dart'] = Buffer.from('Widget build() => MaterialApp.router();\n');
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /does not set `debugShowCheckedModeBanner: false`/);
@@ -573,7 +573,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
   // satisfying a structural check is the trap this repo has been caught by twice.
   test('the flag in a COMMENT does not satisfy it', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+      s.files['apps/subscriptiontracker/lib/app.dart'] = Buffer.from(
         '// debugShowCheckedModeBanner: false, <- only in a comment\nWidget build() => MaterialApp.router();\n',
       );
     }));
@@ -594,7 +594,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
   // is the exact shape this guard's neighbours have been bitten by.
   test('D1 · GREEN CONTROL — the flag is found in the chassis file the app delegates to', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+      s.files['apps/subscriptiontracker/lib/app.dart'] = Buffer.from(
         "import 'package:nikatru_chassis_screens/shell/app_shell.dart';\n" +
           'Widget build() => const NikatruApp();\n',
       );
@@ -610,7 +610,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
 
   test('D2 · FAILS when the chassis shell does not set the flag either', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+      s.files['apps/subscriptiontracker/lib/app.dart'] = Buffer.from(
         "import 'package:nikatru_chassis_screens/shell/app_shell.dart';\n" +
           'Widget build() => const NikatruApp();\n',
       );
@@ -625,18 +625,18 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
 
   test('D3 · a delegation that cannot be followed is a problem, never a quiet skip', () => {
     const r = run(build((s) => {
-      s.files['apps/subly/lib/app.dart'] = Buffer.from(
+      s.files['apps/subscriptiontracker/lib/app.dart'] = Buffer.from(
         "import 'package:nikatru_chassis_screens/shell/gone.dart';\n" +
           'Widget build() => const NikatruApp();\n',
       );
     }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /COVERAGE LOST — apps\/subly\/lib\/app\.dart/);
+    assert.match(r.out, /COVERAGE LOST — apps\/subscriptiontracker\/lib\/app\.dart/);
   });
 
   test('COVERAGE LOST when no app builds a MaterialApp at all', () => {
     const r = run(build((s) => {
-      delete s.files['apps/subly/lib/app.dart'];
+      delete s.files['apps/subscriptiontracker/lib/app.dart'];
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /not one app under apps\/ was found building a MaterialApp/);
@@ -661,7 +661,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('capture-play-screenshots.mjs — the posture gate', () => {
   const CAPTURE = join(REPO, 'tooling', 'store', 'capture-play-screenshots.mjs');
-  const LISTING = join(REPO, 'apps', 'subly', 'store', 'android-play', 'screenshots');
+  const LISTING = join(REPO, 'apps', 'subscriptiontracker', 'store', 'android-play', 'screenshots');
 
   /** Every variable the live path keys off, explicitly absent. */
   const scrubbed = () => {
@@ -705,13 +705,13 @@ describe('capture-play-screenshots.mjs — the posture gate', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // THE CAPTURE ITSELF — WHOSE ACCOUNT ENDS UP ON THE LISTING.
 //
-// 🔴 REAL-TREE MUTATIONS FIRST, 2026-08-05, on apps/subly. Predictions written
+// 🔴 REAL-TREE MUTATIONS FIRST, 2026-08-05, on apps/subscriptiontracker. Predictions written
 // before each run; every one restored afterwards (`git status` clean).
 //
 //   A  the `05-settings` frame re-added to the real suite, WITH its import so
 //      the file is valid Dart
 //        ⇒ FAIL "the capture of \"05-settings\" photographs `SettingsScreen`,
-//          and apps/subly/lib/features/settings/settings_screen.dart READS THE
+//          and apps/subscriptiontracker/lib/features/settings/settings_screen.dart READS THE
 //          SIGNED-IN ACCOUNT'S ADDRESS". `flutter analyze` on the mutated tree
 //          reported the SAME 21 pre-existing infos and nothing in either changed
 //          file — so the guard caught a real defect and not a compile error,
@@ -770,7 +770,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
     );
 
   /** The refusal, reduced to the three things the scan requires of it. Its
-   *  BEHAVIOUR is proven in apps/subly/test/store_capture_guard_test.dart, in a
+   *  BEHAVIOUR is proven in apps/subscriptiontracker/test/store_capture_guard_test.dart, in a
    *  real widget tree; what is checked here is that the suite still routes
    *  through it and that it still contains its own two limbs. */
   const guardLib = Buffer.from(
@@ -804,13 +804,13 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
 
   /** A tree that captures two clean frames through the guarded shutter. */
   const withCapture = (s, mutate = () => {}) => {
-    s.files['apps/subly/integration_test/store_capture_guard.dart'] = guardLib;
-    s.files['apps/subly/integration_test/store_screenshots_test.dart'] = suite([
+    s.files['apps/subscriptiontracker/integration_test/store_capture_guard.dart'] = guardLib;
+    s.files['apps/subscriptiontracker/integration_test/store_screenshots_test.dart'] = suite([
       ['01-home', 'HomeScreen'],
       ['02-settings', 'SettingsScreen'],
     ]);
-    s.files['apps/subly/lib/features/home/home_screen.dart'] = cleanScreen('HomeScreen');
-    s.files['apps/subly/lib/features/settings/settings_screen.dart'] = cleanScreen('SettingsScreen');
+    s.files['apps/subscriptiontracker/lib/features/home/home_screen.dart'] = cleanScreen('HomeScreen');
+    s.files['apps/subscriptiontracker/lib/features/settings/settings_screen.dart'] = cleanScreen('SettingsScreen');
     mutate(s);
   };
 
@@ -824,7 +824,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a frame of a screen that reads the account address FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/lib/features/settings/settings_screen.dart'] = leakingScreen('SettingsScreen');
+        t.files['apps/subscriptiontracker/lib/features/settings/settings_screen.dart'] = leakingScreen('SettingsScreen');
       }),
     ));
     assert.equal(r.code, 1);
@@ -841,7 +841,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('the word `email` in a comment or a label is not a read of the session', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/lib/features/settings/settings_screen.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/lib/features/settings/settings_screen.dart'] = Buffer.from(
           'class SettingsScreen extends ConsumerWidget {\n' +
             '  // The account row used to read user?.email here.\n' +
             "  Widget build(_, __) => const Text('Email preferences');\n}\n",
@@ -855,7 +855,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a direct takeScreenshot( call bypasses the refusal and FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_screenshots_test.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_screenshots_test.dart'] = Buffer.from(
           [
             'void main() {',
             '  expect(find.byType(HomeScreen), findsWidgets);',
@@ -874,7 +874,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a capture that names no screen FAILS rather than being skipped', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_screenshots_test.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_screenshots_test.dart'] = Buffer.from(
           [
             'void main() {',
             '  expect(find.byType(HomeScreen), findsWidgets);',
@@ -892,17 +892,17 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a captured screen whose class is nowhere in lib/ FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        delete t.files['apps/subly/lib/features/settings/settings_screen.dart'];
+        delete t.files['apps/subscriptiontracker/lib/features/settings/settings_screen.dart'];
       }),
     ));
     assert.equal(r.code, 1);
-    assert.match(r.out, /no file under apps\/subly\/lib declares `class SettingsScreen`/);
+    assert.match(r.out, /no file under apps\/subscriptiontracker\/lib declares `class SettingsScreen`/);
   });
 
   test('a missing refusal library FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        delete t.files['apps/subly/integration_test/store_capture_guard.dart'];
+        delete t.files['apps/subscriptiontracker/integration_test/store_capture_guard.dart'];
       }),
     ));
     assert.equal(r.code, 1);
@@ -914,7 +914,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a refusal that stopped reading the widget tree FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_capture_guard.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_capture_guard.dart'] = Buffer.from(
           [
             'Future<void> captureFrame({',
             '  required Future<void> Function(String frame) take,',
@@ -935,7 +935,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a refusal that no longer refuses an EMPTY needle set FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_capture_guard.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_capture_guard.dart'] = Buffer.from(
           [
             'Future<void> captureFrame({',
             '  required Future<void> Function(String frame) take,',
@@ -959,7 +959,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a suite that captures nothing at all FAILS', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_screenshots_test.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_screenshots_test.dart'] = Buffer.from(
           'void main() {\n  expect(find.byType(HomeScreen), findsWidgets);\n}\n',
         );
       }),
@@ -974,7 +974,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
   test('a commented-out capture is not counted as a frame', () => {
     const r = run(build((s) =>
       withCapture(s, (t) => {
-        t.files['apps/subly/integration_test/store_screenshots_test.dart'] = Buffer.from(
+        t.files['apps/subscriptiontracker/integration_test/store_screenshots_test.dart'] = Buffer.from(
           [
             'void main() {',
             '  expect(find.byType(HomeScreen), findsWidgets);',
@@ -991,7 +991,7 @@ describe('assert-listing-assets.mjs — the capture cannot photograph the accoun
 
   // The fixture roots below carry no capture suite at all, which is why every
   // other test in this file is unaffected by this limb. On the REAL repository
-  // that same silence is COVERAGE LOST — mutation G above — because subly's
+  // that same silence is COVERAGE LOST — mutation G above — because subscriptiontracker's
   // suite is what the register names as `capturedBy`.
   test('a fixture with no capture suite is not treated as a failure', () => {
     const r = run(build());

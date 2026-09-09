@@ -36,7 +36,7 @@ class NavTab {
   /// The LABEL is user-visible copy and this package deliberately supplies no
   /// default for it — the label arrives already localised, resolved by the app
   /// from its own arb. `tooling/ci/assert-no-hardcoded-strings.mjs` scans
-  /// exactly two roots (the brick template and `apps/subly/lib`, :119-131) and
+  /// exactly two roots (the brick template and `apps/subscriptiontracker/lib`, :119-131) and
   /// NOT `packages/`, so an English sentence defaulted in here would be a
   /// shipped literal that escaped the guard by moving house.
   final AppDestination destination;

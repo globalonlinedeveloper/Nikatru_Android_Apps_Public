@@ -420,7 +420,7 @@ if (SUBMIT) {
   // which is the precise opposite of what ADR 031 asked for.
   //
   // ⚠️ MEASURED, NOT ASSUMED. On 2026-08-09 this repository's three existing
-  // environments — `platform`, `subly-api`, `subly-web`, all auto-created by
+  // environments — `platform`, `subscriptiontracker-api`, `subscriptiontracker-web`, all auto-created by
   // deploy lanes — each returned `"protection_rules": []`. That is the fail-open
   // state, observed, in this repo.
   //
@@ -804,7 +804,7 @@ if (gradleText === null) {
 // 🔴 THE READER IS SHARED WITH tooling/ci/assert-store-identity.mjs since
 // 2026-08-03 (tooling/ci/read-identity.mjs). It used to be a private regex
 // here, which made this script the ONLY thing that ever read the Android
-// package name — and only when somebody ran it with `--app subly`. A second
+// package name — and only when somebody ran it with `--app subscriptiontracker`. A second
 // implementation inherits none of the other's tests, and the failure mode of a
 // duplicated identity reader is that it reports agreement between two things it
 // read wrongly.

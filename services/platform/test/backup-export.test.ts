@@ -60,7 +60,7 @@ function envWith(bucket: FakeBucket | undefined, db = realPlatformDb()) {
     env: {
       PLATFORM_DB: db as unknown as D1Database,
       SUBLY_DB: db as unknown as D1Database,
-      CONFIG_KV: new FakeKv({ 'config:subly': '{"flags":{}}' }) as unknown as KVNamespace,
+      CONFIG_KV: new FakeKv({ 'config:subscriptiontracker': '{"flags":{}}' }) as unknown as KVNamespace,
       JWKS_CACHE: new FakeKv({ jwks: '{"keys":[]}' }) as unknown as KVNamespace,
       SIGNUPS: new FakeKv({}) as unknown as KVNamespace,
       BACKUPS_R2: bucket as unknown as R2Bucket | undefined,
@@ -88,7 +88,7 @@ describe('the nightly export writes something a restore can actually use', () =>
       "INSERT INTO cron_heartbeat (job, target, ok, detail, ran_at) VALUES " +
         "('supabase_keepalive','a',1,'x','2026-09-05T06:00:00Z')," +
         "('supabase_keepalive','b',1,'y','2026-09-05T06:00:00Z')," +
-        "('renewals','subly',0,'z','2026-09-05T06:00:00Z')",
+        "('renewals','subscriptiontracker',0,'z','2026-09-05T06:00:00Z')",
     );
     const before = db.count('cron_heartbeat');
     expect(before).toBe(3);
@@ -156,7 +156,7 @@ describe('the nightly export writes something a restore can actually use', () =>
       await gunzip(bucket.objects.get(`kv/platform-config/${backupDate(NOW)}.json.gz`)!.body),
     ) as { entries: { key: string; value: string }[] };
     expect(doc.entries).toHaveLength(1);
-    expect(doc.entries[0].key).toBe('config:subly');
+    expect(doc.entries[0].key).toBe('config:subscriptiontracker');
     expect(doc.entries[0].value).toBe('{"flags":{}}');
   });
 });

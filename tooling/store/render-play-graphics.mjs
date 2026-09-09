@@ -8,7 +8,7 @@
 //                 and diffed, and is never hand-typed into a store console as
 //                 the only copy."
 //
-// D-5 has always exempted graphics — apps/subly/store/*/screenshots/README.md
+// D-5 has always exempted graphics — apps/subscriptiontracker/store/*/screenshots/README.md
 // says "screenshots are the one listing field that cannot be derived from a spec
 // var". That is true of SCREENSHOTS. It was never true of the FEATURE GRAPHIC or
 // the STORE ICON, and treating all three as one category is why Play's two
@@ -35,7 +35,7 @@
 //
 // ── DERIVED FROM THE BRAND, PARSED NOT RETYPED ──────────────────────────────
 // 🔴 THE GRADIENT STOPS AND THE MARK GEOMETRY ARE READ OUT OF THE COMMITTED
-// BRAND SVGs, never copied into this file. `apps/subly/assets/icon/
+// BRAND SVGs, never copied into this file. `apps/subscriptiontracker/assets/icon/
 // app_icon_foreground.svg` and `app_icon_background.svg` are the same files
 // `flutter_launcher_icons` builds every launcher icon from, so the feature
 // graphic and the app's icon cannot drift apart: re-colour the brand and the
@@ -52,7 +52,7 @@
 //
 // ── ⬜ NO WORDMARK, AND THAT IS A RECORDED GAP RATHER THAN A DESIGN CHOICE ───
 // The brand wordmark is Montserrat ExtraBold (SIL OFL). THE FACE IS NOT IN THIS
-// REPOSITORY — measured 2026-08-04, `apps/subly/pubspec.yaml` bundles no fonts
+// REPOSITORY — measured 2026-08-04, `apps/subscriptiontracker/pubspec.yaml` bundles no fonts
 // at all (the `fonts:` block is commented out) and no .ttf/.otf exists anywhere
 // in the tree. Three options were considered and two were rejected:
 //
@@ -80,7 +80,7 @@
 // brand; "does this make somebody install the app" is a human call, and the
 // guard says so rather than implying green means approved.
 //
-// Usage:  node tooling/store/render-play-graphics.mjs [--app subly] [--check]
+// Usage:  node tooling/store/render-play-graphics.mjs [--app subscriptiontracker] [--check]
 //         --check renders to a temp dir and DIFFS against the committed files
 //         instead of overwriting them, so CI can prove they are still the
 //         output of this script rather than something somebody dropped in.
@@ -99,7 +99,7 @@ const argv = process.argv.slice(2);
 const CHECK = argv.includes('--check');
 const app = (() => {
   const i = argv.indexOf('--app');
-  return i !== -1 && argv[i + 1] ? argv[i + 1] : 'subly';
+  return i !== -1 && argv[i + 1] ? argv[i + 1] : 'subscriptiontracker';
 })();
 
 /** Play's numbers. Each one carries the page it came from and the day it was

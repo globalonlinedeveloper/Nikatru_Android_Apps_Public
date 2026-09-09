@@ -6,7 +6,7 @@
 // a broken version (`assert-seams-wired.mjs`, whose caller check matched the
 // function's own declaration): a fixture you write encodes the same
 // misunderstanding as the guard you write. The copy below carries the real
-// services/platform, the real services/subly-api and the real register, so every
+// services/platform, the real services/subscriptiontracker-api and the real register, so every
 // mutation here is a mutation somebody could actually make in a diff.
 //
 // The mutations are the ones this change is about: put the erasure route back
@@ -39,7 +39,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-erasure-reach.mjs');
 
 const REGISTER = 'tooling/legal/data-inventory.json';
-const SUBLY = 'services/subly-api';
+const SUBLY = 'services/subscriptiontracker-api';
 const PLATFORM = 'services/platform';
 const SUBLY_INDEX = `${SUBLY}/src/index.ts`;
 const SUBLY_ROUTE = `${SUBLY}/src/routes/account.ts`;
@@ -138,9 +138,9 @@ describe('the real tree', () => {
       () => {},
       () => {
         const index = readFileSync(join(REPO, SUBLY_INDEX), 'utf8');
-        assert.ok(index.includes('erasureAuth'), 'subly-api must really mount the strict boundary');
+        assert.ok(index.includes('erasureAuth'), 'subscriptiontracker-api must really mount the strict boundary');
         const auth = readFileSync(join(REPO, SUBLY_AUTH), 'utf8');
-        assert.ok(auth.includes('SUPABASE_JWT_SECRET'), 'subly-api must really still carry the fallback');
+        assert.ok(auth.includes('SUPABASE_JWT_SECRET'), 'subscriptiontracker-api must really still carry the fallback');
         const route = readFileSync(join(REPO, SUBLY_ROUTE), 'utf8');
         assert.ok(route.includes('tokenAssurance'), 'the route must really carry its own refusal');
       },
@@ -384,14 +384,14 @@ describe('LIMB 4 — the ONE erasure call the client makes must reach every app'
       (root) => edit(root, PLATFORM_WRANGLER, (s) => s.replace(/"APP_ERASURE_ENDPOINTS": "[^"]*"/, '"UNUSED": "x"')),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /APP_ERASURE_ENDPOINTS does not name "subly"/);
+        assert.match(r.stderr, /APP_ERASURE_ENDPOINTS does not name "subscriptiontracker"/);
       },
     );
   });
 
   test('FAILS on a non-https endpoint — the relay forwards a live bearer token', () => {
     withTree(
-      (root) => edit(root, PLATFORM_WRANGLER, (s) => s.replace('subly=https://', 'subly=http://')),
+      (root) => edit(root, PLATFORM_WRANGLER, (s) => s.replace('subscriptiontracker=https://', 'subscriptiontracker=http://')),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /is not a bare https origin/);
@@ -401,7 +401,7 @@ describe('LIMB 4 — the ONE erasure call the client makes must reach every app'
 
   test('FAILS when the list names an app no Worker declares — the other direction', () => {
     withTree(
-      (root) => edit(root, PLATFORM_WRANGLER, (s) => s.replace('subly=https://', 'ghost=https://')),
+      (root) => edit(root, PLATFORM_WRANGLER, (s) => s.replace('subscriptiontracker=https://', 'ghost=https://')),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /and no services\/\* Worker with an erasure route declares that APP_ID/);
@@ -463,7 +463,7 @@ describe('the template root', () => {
 
   test('T1 FAILS when the starter schema grows a user-owned table the route does not reach', () => {
     // 🔴 THE DRIFT BOTH SHIPPED ROUTES DOCUMENT AND NOTHING ENFORCED. The brick's
-    // route carries `const appTables = ['records'];` where platform and subly-api
+    // route carries `const appTables = ['records'];` where platform and subscriptiontracker-api
     // derive the set from `sqlite_master`. A table added to the starter migration
     // without the same diff editing that list is orphaned PII in every stamped
     // app, and the route still answers `{ ok: true }`.

@@ -176,7 +176,7 @@
       },
       {
         "ceiling": "r2.storageFree",
-        "where": "Cloudflare dashboard → R2 object storage → select the bucket → Metrics tab. Read the STORED bytes for the account, not one bucket: the allowance is per account and `nikatru-backups` is one of three (`ratel-media` holds ~130 MB, `subly-exports` is empty and unbound). ⚠️ MONTHLY, so a mid-month reading is not the month's figure.",
+        "where": "Cloudflare dashboard → R2 object storage → select the bucket → Metrics tab. Read the STORED bytes for the account, not one bucket: the allowance is per account and `nikatru-backups` is one of three (`ratel-media` holds ~130 MB, `subscriptiontracker-exports` is empty and unbound). ⚠️ MONTHLY, so a mid-month reading is not the month's figure.",
         "url": "https://developers.cloudflare.com/r2/platform/metrics-analytics/",
         "reads": "stored bytes, summed across every bucket on the account"
       },
@@ -527,12 +527,12 @@
         "note": "One INSERT per well-formed event. This is the call site the 100 → 50 correction was about."
       },
       {
-        "file": "services/subly-api/src/routes/budget.ts",
+        "file": "services/subscriptiontracker-api/src/routes/budget.ts",
         "boundedBy": "MAX_CATEGORIES",
         "note": "One DELETE plus one INSERT per category, deliberately in ONE batch so the replace is atomic. The bound is MAX_CATEGORIES + 1, and it currently exceeds the ceiling — see the `@ceiling-exceeds` declaration at the constant."
       },
       {
-        "file": "services/subly-api/src/routes/webhooks.ts",
+        "file": "services/subscriptiontracker-api/src/routes/webhooks.ts",
         "boundedBy": "MAX_ENTITLEMENT_IDS",
         "note": "One UPSERT per entitlement id on a validated RevenueCat event."
       },

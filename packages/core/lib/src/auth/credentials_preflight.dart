@@ -3,7 +3,7 @@
 /// PURE, IN `core`, for the same reason `password_policy.dart` is: a rule
 /// checked on several surfaces and copied to each of them is several rules that
 /// will disagree. These two were hand-written inside
-/// `apps/subly/lib/features/auth/login_screen.dart` and existed **nowhere** in
+/// `apps/subscriptiontracker/lib/features/auth/login_screen.dart` and existed **nowhere** in
 /// the app brick — measured 2026-09-04:
 /// `grep -c "contains('@')" tooling/bricks/.../features/auth/sign_in_screen.dart`
 /// → 0. Every app the factory stamps therefore posted whatever was in the boxes

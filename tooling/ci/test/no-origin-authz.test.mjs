@@ -16,9 +16,9 @@
 //        "43 .ts file(s) … 2 Origin read(s)/CORS import(s), all 2 inside the 2
 //         declared CORS module(s), each still CORS-only; 0 elsewhere."
 //   R1 `if (c.req.header('origin') === 'https://nikatru.com') { return … }`
-//      inserted into the REAL `services/subly-api/src/routes/budget.ts` GET
+//      inserted into the REAL `services/subscriptiontracker-api/src/routes/budget.ts` GET
 //      handler                                                  -> EXIT 1,
-//        naming `services/subly-api/src/routes/budget.ts:162`.
+//        naming `services/subscriptiontracker-api/src/routes/budget.ts:162`.
 //        Reverted with `git checkout --` on that ONE file; `git hash-object`
 //        e18389dc… before and after.
 //   R2 `c.set('trustedOrigin', allowed)` added to the REAL
@@ -33,7 +33,7 @@
 //   C3 CORS_MODULES pointed at `…/cors-moved.ts`                -> EXIT 2,
 //        `✗ COVERAGE LOST [ALLOWLIST-PATHS]`.
 //   C4 BOTH real CORS middlewares rewritten so the matcher sees nothing in
-//      them (platform reading a computed header key, subly importing a local
+//      them (platform reading a computed header key, subscriptiontracker importing a local
 //      wrapper instead of `hono/cors`)                          -> EXIT 2,
 //        `✗ COVERAGE LOST [ORIGIN-SIGHTING] — not one Origin read or hono/cors
 //         import was found in ANY declared CORS module.` Both reverted; hashes
@@ -180,7 +180,7 @@ describe('assert-no-origin-authz', () => {
   test('FAILS on an Origin-dependent grant in a route handler', () => {
     const root = tree({
       extra: {
-        'services/subly-api/src/routes/admin.ts':
+        'services/subscriptiontracker-api/src/routes/admin.ts':
           "export const handler = (c) => {\n" +
           "  if (c.req.header('origin') === 'https://nikatru.com') return c.json({ admin: true });\n" +
           '  return c.json({ admin: false });\n' +
@@ -189,7 +189,7 @@ describe('assert-no-origin-authz', () => {
     });
     const { code, out } = run(root);
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api\/src\/routes\/admin\.ts:2 — reads the request/);
+    assert.match(out, /services\/subscriptiontracker-api\/src\/routes\/admin\.ts:2 — reads the request/);
     assert.match(out, /every app shares ONE browser origin/);
     assert.match(out, /it fails by GRANTING/);
   });
@@ -304,12 +304,12 @@ describe('assert-no-origin-authz', () => {
   // If BOTH known-positive controls stop matching, every clean result over the
   // rest of the tree is an artefact of the scan rather than a fact about it.
   test('COVERAGE LOST [ORIGIN-SIGHTING] when no declared CORS module matches', () => {
-    const [platform, subly] = [...CORS_MODULES.keys()];
+    const [platform, subscriptiontracker] = [...CORS_MODULES.keys()];
     const { code, out } = run(
       tree({
         corsBody: {
           [platform]: "export const m = (c) => c.header('Access-Control-Allow-Origin', '*');\n",
-          [subly]: "export const m = (c) => c.header('Access-Control-Allow-Origin', '*');\n",
+          [subscriptiontracker]: "export const m = (c) => c.header('Access-Control-Allow-Origin', '*');\n",
         },
       }),
     );

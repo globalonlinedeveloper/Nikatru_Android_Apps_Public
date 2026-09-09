@@ -1,15 +1,15 @@
 [
   {
-    "slug": "subly",
+    "slug": "subscriptiontracker",
     "name": "Nikatru Subscription Tracker",
     "tagline": "Track every subscription in one place",
-    "url": "https://nikatru.com/subly",
-    "origin": "https://subly-9cp.pages.dev",
+    "url": "https://nikatru.com/subscriptiontracker",
+    "origin": "https://subscriptiontracker-7qg.pages.dev",
     "api": "https://api.nikatru.com",
     "platforms": ["web"],
     "status": "live",
     "listings": {
-      "web": "https://nikatru.com/subly",
+      "web": "https://nikatru.com/subscriptiontracker",
       "play": null,
       "appstore": null,
       "mac": null,

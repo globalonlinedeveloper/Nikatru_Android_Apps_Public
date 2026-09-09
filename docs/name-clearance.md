@@ -23,7 +23,7 @@ that exact name — one of them in **Finance**, the same category:
 + 27 near-miss listings containing the word
 ```
 
-`subly.app` also resolves to a live commercial site selling a same-category
+`subscriptiontracker.app` also resolves to a live commercial site selling a same-category
 product on Windows, macOS and Linux.
 
 Reserving the name would have committed half the platforms to a name the other
@@ -137,11 +137,11 @@ build.
      "state": "open",
      "closedOn": null,
      "severity": "red",
-     "what": "Rule on the Subly name. MEASURED 2026-09-09 by tooling/store/name-clearance.mjs: two live iOS listings carry the exact name (one in Finance, the same category) and App Store names are globally unique, so iOS and macOS can never ship under it; subly.app resolves to a live commercial site selling a same-category product on Windows/macOS/Linux. Software cannot clear a trademark — this needs a dated owner ruling.",
+     "what": "Rule on the Subly name. MEASURED 2026-09-09 by tooling/store/name-clearance.mjs: two live iOS listings carry the exact name (one in Finance, the same category) and App Store names are globally unique, so iOS and macOS can never ship under it; subscriptiontracker.app resolves to a live commercial site selling a same-category product on Windows/macOS/Linux. Software cannot clear a trademark — this needs a dated owner ruling.",
      "blocks": "reserving the name on any store, and the first iOS/macOS submission",
      "due": "2026-10-09",
-     "closes": "apps/subly/name-clearance.json carries trademark.ruling PROCEED or DO-NOT-PROCEED with ruledBy and ruledOn set",
-     "source": "docs/name-clearance.md; the clearance record apps/subly/name-clearance.json",
+     "closes": "apps/subscriptiontracker/name-clearance.json carries trademark.ruling PROCEED or DO-NOT-PROCEED with ruledBy and ruledOn set",
+     "source": "docs/name-clearance.md; the clearance record apps/subscriptiontracker/name-clearance.json",
      "note": "tooling/ci/assert-name-clearance.mjs PRINTS this as FAILING on every run and lifts the block only until trademark.gatedUntil (2026-10-09), after which the build fails."
    }
    ```

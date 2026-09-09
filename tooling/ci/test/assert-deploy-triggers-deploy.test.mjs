@@ -33,9 +33,9 @@ import {
 // a test that imported one would reintroduce the lane binding that
 // assert-release-lane-generic.mjs limb B exists to reject.
 const SELF = '.github/workflows/example-deploy.yml';
-const OK_TRIGGERS = ['services/subly-api/**', 'services/platform/**', SELF];
+const OK_TRIGGERS = ['services/subscriptiontracker-api/**', 'services/platform/**', SELF];
 const OK_FILTERS = {
-  subly_api: ['services/subly-api/**', SELF],
+  subscriptiontracker_api: ['services/subscriptiontracker-api/**', SELF],
   platform: ['services/platform/**', SELF],
 };
 
@@ -50,7 +50,7 @@ describe('assert-deploy-triggers-deploy — the decision', () => {
     // jobs and reported SUCCESS.
     const problems = judge(
       OK_TRIGGERS,
-      { subly_api: ['services/subly-api/**'], platform: ['services/platform/**'] },
+      { subscriptiontracker_api: ['services/subscriptiontracker-api/**'], platform: ['services/platform/**'] },
       SELF,
     );
     assert.ok(problems.length >= 1, 'the pre-fix state must not pass');
@@ -63,7 +63,7 @@ describe('assert-deploy-triggers-deploy — the decision', () => {
   test('🔴 FAILS when only ONE filter includes the workflow — half a proof is not a proof', () => {
     const problems = judge(
       OK_TRIGGERS,
-      { subly_api: ['services/subly-api/**', SELF], platform: ['services/platform/**'] },
+      { subscriptiontracker_api: ['services/subscriptiontracker-api/**', SELF], platform: ['services/platform/**'] },
       SELF,
     );
     assert.ok(problems.some((p) => p.includes('filter `platform` does not include')));

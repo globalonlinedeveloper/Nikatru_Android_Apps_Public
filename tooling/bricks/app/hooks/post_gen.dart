@@ -153,7 +153,7 @@ void run(HookContext context) {
         'copy. Editorial fields (long-description, keywords, search terms) are '
         'yours to sharpen. Replace the generated art only if you have real art.',
       )
-      // 🔴 THE STEP THAT WAS MISSING, AND ITS ABSENCE COST apps/subly FOUR
+      // 🔴 THE STEP THAT WAS MISSING, AND ITS ABSENCE COST apps/subscriptiontracker FOUR
       // PLATFORMS — 29 icon files byte-identical to `flutter create`, measured
       // 2026-08-04. Nothing in the old checklist mentioned icons afterwards, so
       // the owner ran the command that writes Flutter's default logo and had no
@@ -248,7 +248,7 @@ void run(HookContext context) {
       // ⚠️ NAME NO OTHER APP HERE. This string is executable shared code, and
       // [C-10] (tooling/ci/assert-no-clone-tells.mjs) fails the build on shared
       // code that knows which app it is in — it caught the first draft of this
-      // line, which said "copy the `subly-api` job". Every stamped app would
+      // line, which said "copy the `subscriptiontracker-api` job". Every stamped app would
       // have inherited an instruction naming a product it is not.
       ..info(
         '  6. REQUIRED before this Worker deploys: add a `$id-api` job to '
@@ -291,7 +291,7 @@ void run(HookContext context) {
         'copy. Editorial fields (long-description, keywords, search terms) are '
         'yours to sharpen. Replace the generated art only if you have real art.',
       )
-      // 🔴 THE STEP THAT WAS MISSING, AND ITS ABSENCE COST apps/subly FOUR
+      // 🔴 THE STEP THAT WAS MISSING, AND ITS ABSENCE COST apps/subscriptiontracker FOUR
       // PLATFORMS — 29 icon files byte-identical to `flutter create`, measured
       // 2026-08-04. Nothing in the old checklist mentioned icons afterwards, so
       // the owner ran the command that writes Flutter's default logo and had no
@@ -364,7 +364,7 @@ void run(HookContext context) {
 /// [pipeline S-4] Add the stamped app to the root `workspace:` list.
 ///
 /// 🔴 WITHOUT THIS, `melos run gate` SKIPS THE NEW APP ENTIRELY. The workspace
-/// list is what the gate iterates, `apps/subly` is on it because a human typed
+/// list is what the gate iterates, `apps/subscriptiontracker` is on it because a human typed
 /// it there, and the stamper added nothing — so the newest and least-tested app
 /// in the repository was the one thing the one-command check did not check. It
 /// failed in the direction that looks fine: green tick, nothing examined.
@@ -618,7 +618,7 @@ void _writeBrandAssets(
   // 🔴 THE NATIVE HALF, AND IT IS THE HALF THAT WAS MISSING. The brick stamps
   // `web/` only; the owner adds android/ios/macos/windows/linux with
   // `flutter create . --platforms=…`, which WRITES FLUTTER'S DEFAULT ICONS. That
-  // is exactly how apps/subly ended up shipping the stock logo on four platforms
+  // is exactly how apps/subscriptiontracker ended up shipping the stock logo on four platforms
   // at once (measured 2026-08-04, 29 byte-identical files) while its web icons
   // were correct. Without these sources the stamped `flutter_launcher_icons:`
   // block would point at art nobody generated and fail on first use — and its

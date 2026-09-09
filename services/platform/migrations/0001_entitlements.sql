@@ -4,7 +4,7 @@
 -- Owned + applied by services/platform (the SOLE platform_db migrations applier):
 --   wrangler d1 migrations apply PLATFORM_DB --local    (or --remote)
 --
--- Relocated from services/subly-api/migrations/0002_entitlements.sql to fix the
+-- Relocated from services/subscriptiontracker-api/migrations/0002_entitlements.sql to fix the
 -- footgun where a platform_db migration lived in an APP_DB migrations dir.
 -- Idempotent (IF NOT EXISTS) so applying against the already-live platform_db is
 -- a safe no-op. One row per (user, app, entitlement); RevenueCat webhook upserts,

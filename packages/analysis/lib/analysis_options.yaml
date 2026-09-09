@@ -1,5 +1,5 @@
 # Nikatru portfolio baseline lints.
-# Mirrors apps/subly/analysis_options.yaml — the proven Subly config (strict-casts on;
+# Mirrors apps/subscriptiontracker/analysis_options.yaml — the proven Subly config (strict-casts on;
 # prefer_const_constructors intentionally off, see the Subly template note).
 #
 # Usage from any package/app:

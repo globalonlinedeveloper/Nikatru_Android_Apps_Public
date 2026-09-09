@@ -15,7 +15,7 @@ run-name: "CodeQL (${{ github.event_name }})"
 # All four ask "is something we imported known-bad?" or "is a file shaped
 # wrongly?". None of them can answer "does attacker-controlled input reach a
 # dangerous sink in code we wrote", which is the question that matters for
-# services/platform and services/subly-api — Workers that take unauthenticated
+# services/platform and services/subscriptiontracker-api — Workers that take unauthenticated
 # HTTP, hold a D1 binding and sit in front of the identity stack.
 #
 # Measured on the day this landed (2026-09-06): 583 tracked .ts/.js/.mjs files —

@@ -4,7 +4,7 @@
 //
 // [ADR 067] decision 2 gives the Worker chassis one home. `health.ts` and
 // `error-sink.ts` used to exist three times — `services/platform`,
-// `services/subly-api` and the brick's Worker template — at 333/333/334 and
+// `services/subscriptiontracker-api` and the brick's Worker template — at 333/333/334 and
 // 200/196 lines with different hashes. Each carrier is now a five-line
 // re-export, and the property a path-pinned guard used to read at
 // `services/<w>/src/lib/<m>.ts` moved with the body.

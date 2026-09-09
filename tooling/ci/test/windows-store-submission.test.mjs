@@ -22,7 +22,7 @@
 // have been replaced by sourced facts, not deleted.
 //
 // The real end-to-end proof is recorded and is not in this file: on 2026-08-01
-// the dry run validated a REAL 14.8 MiB subly.msix produced by
+// the dry run validated a REAL 14.8 MiB subscriptiontracker.msix produced by
 // `flutter build windows --release` + `dart run msix:create`. Fixtures cannot
 // prove that; only running it could.
 //
@@ -107,7 +107,7 @@ function tree({
   if (mutateRegister) mutateRegister(register);
 
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
 
   const cfg = {
     display_name: 'Subly',
@@ -117,19 +117,19 @@ function tree({
     store: 'true',
     build_windows: 'false',
     output_path: 'build/windows/msix',
-    output_name: 'subly',
+    output_name: 'subscriptiontracker',
     ...pubspecOver,
   };
   write(
-    'apps/subly/pubspec.yaml',
-    noMsixConfig ? 'name: subly\n' : ['name: subly', '', 'msix_config:', ...Object.entries(cfg).map(([k, v]) => `  ${k}: ${v}`), ''].join('\n'),
+    'apps/subscriptiontracker/pubspec.yaml',
+    noMsixConfig ? 'name: subscriptiontracker\n' : ['name: subscriptiontracker', '', 'msix_config:', ...Object.entries(cfg).map(([k, v]) => `  ${k}: ${v}`), ''].join('\n'),
   );
 
   for (const [rel, body] of Object.entries(FILES)) {
     if (omitFiles.includes(rel)) continue;
-    write(`apps/subly/store/windows-store/${rel}`, fields[rel] ?? body);
+    write(`apps/subscriptiontracker/store/windows-store/${rel}`, fields[rel] ?? body);
   }
-  if (withArtifact) write('apps/subly/build/windows/msix/subly.msix', 'x'.repeat(artifactBytes));
+  if (withArtifact) write('apps/subscriptiontracker/build/windows/msix/subscriptiontracker.msix', 'x'.repeat(artifactBytes));
   return root;
 }
 
@@ -144,10 +144,10 @@ function run(root, args, env = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('submit-windows-store — the submission path is walkable, and --submit fails closed', () => {
   test('--dry-run PASSES over a complete tree and a real artifact, and sends nothing', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run', '--app', 'subly']);
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run', '--app', 'subscriptiontracker']);
     assert.equal(code, 0, out);
     assert.match(out, /DRY RUN OK — nothing was sent to Microsoft/);
-    assert.match(out, /artifact apps\/subly\/build\/windows\/msix\/subly\.msix/);
+    assert.match(out, /artifact apps\/subscriptiontracker\/build\/windows\/msix\/subscriptiontracker\.msix/);
   });
 
   // ── THE FOUR PREFLIGHTS OF THE REAL --submit PATH ─────────────────────────
@@ -170,27 +170,27 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   };
 
   test('--submit FAILS CLOSED with no credentials, NAMING the empty secrets', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE']);
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE']);
     assert.equal(code, 1, out);
     assert.match(out, /5 of 5 Microsoft Store credential\(s\) are EMPTY: MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET, MS_STORE_PRODUCT_ID, MS_STORE_SELLER_ID/);
     assert.match(out, /green tick over a store that received nothing/);
   });
 
   test('--submit REFUSES without the typed confirm phrase', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly'], CREDS);
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker'], CREDS);
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
     assert.doesNotMatch(out, /the-actual-secret/);
   });
 
   test('--submit REFUSES on a WRONG confirm phrase — a near miss is not a confirmation', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STOR'], CREDS);
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STOR'], CREDS);
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
   });
 
   test('--submit FAILS CLOSED with no GITHUB_TOKEN — PG-6 cannot read the approval gate', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
@@ -202,7 +202,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   });
 
   test('--submit prints the sourced-citation tally before it touches anything remote', () => {
-    const { out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+    const { out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
@@ -241,7 +241,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     writeFileSync(controlPath, source);
     const control = spawnSync(
       process.execPath,
-      [controlPath, '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
+      [controlPath, '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
       { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
     );
     const controlOut = `${control.stdout ?? ''}${control.stderr ?? ''}`;
@@ -249,7 +249,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
 
     const r = spawnSync(
       process.execPath,
-      [mutated, '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
+      [mutated, '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
       { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
     );
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
@@ -304,7 +304,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   test('FAILS when the .msix is absent and --allow-missing-artifact was NOT passed', () => {
     const { code, out } = run(tree(), ['--dry-run']);
     assert.equal(code, 1, out);
-    assert.match(out, /subly\.msix does not exist/);
+    assert.match(out, /subscriptiontracker\.msix does not exist/);
   });
 
   test('PASSES with --allow-missing-artifact, and SAYS the package was not validated', () => {

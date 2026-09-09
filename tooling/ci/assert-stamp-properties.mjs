@@ -66,7 +66,7 @@
 // the root `pubspec.yaml` `workspace:` list — the same domain assert-app-dod.mjs
 // uses, and for the same reason: a directory listing differs between this box and
 // CI, while the workspace block is a maintained field the stamper itself writes.
-// `apps/subly` is exempt by name (39-CHASSIS §4 cut 1 — it predates the brick and
+// `apps/subscriptiontracker` is exempt by name (39-CHASSIS §4 cut 1 — it predates the brick and
 // was never stamped, so it has no inherited property test to keep).
 //
 // SOURCE ANCHORS ARE APP-RELATIVE UNLESS THEY NAME A SHARED TREE. A path starting
@@ -114,16 +114,16 @@ const MONEY_PROVIDERS = 'lib/state/money_providers.dart';
 const SHARED_PREFIX = /^(packages|services|tooling)\//;
 // ── PHASE 5 · MEASURED 2026-08-12 · WHAT THIS EXEMPTION IS ACTUALLY HOLDING
 //    BACK. Read off the tree, not re-derived from the header. (RE-MEASURED
-//    2026-08-12 on main @ 981481c with the method below: brick 0, apps/subly
+//    2026-08-12 on main @ 981481c with the method below: brick 0, apps/subscriptiontracker
 //    3 groups + 10 anchors = 13, REQUIRED_COVERAGE 26. Unchanged from the
 //    2026-08-11 reading even though commits since then touched THIS guard and
-//    apps/subly/lib. RE-DERIVE IT; do not trust the date on this line.)
+//    apps/subscriptiontracker/lib. RE-DERIVE IT; do not trust the date on this line.)
 //
 // METHOD, so it can be redone rather than believed: every REQUIRED_COVERAGE
-// anchor below was resolved against `apps/subly` using this file's own
+// anchor below was resolved against `apps/subscriptiontracker` using this file's own
 // `resolveSource` rule (SHARED_PREFIX = repo-absolute, everything else re-rooted)
 // and tested. The BRICK came back with ZERO problems, which is what validates the
-// method. `apps/subly` came back with THIRTEEN — 3 missing property GROUPS and 10
+// method. `apps/subscriptiontracker` came back with THIRTEEN — 3 missing property GROUPS and 10
 // failing source ANCHORS — in three classes, and the CLASS is the whole finding,
 // because only one of the three is a missing behaviour.
 //
@@ -133,8 +133,8 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 //
 // 🔴 BUT 13 IS NOT WHAT RUNNING THE GUARD PRINTS, AND THIS COMMENT USED TO SAY
 // "Reproducing this must give 3 + 10 = 13". It does not. MEASURED 2026-08-13 by
-// dropping `apps/subly` from EXEMPT_APPS and running the real guard: it prints
-// **NINE** `FAIL apps/subly` lines — 3 groups NOT ASSERTED + 6 properties whose
+// dropping `apps/subscriptiontracker` from EXEMPT_APPS and running the real guard: it prints
+// **NINE** `FAIL apps/subscriptiontracker` lines — 3 groups NOT ASSERTED + 6 properties whose
 // IMPLEMENTATION is gone — because the anchor loop `break`s on the FIRST failing
 // anchor of a property, so one line is emitted per property, not per anchor.
 // 13 is the count of failing ANCHORS, which is only obtainable from an
@@ -143,10 +143,10 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 // count different things; the reproduction instruction quoted the one you cannot
 // reproduce, so a maintainer who did the repo-mandated thing — run the real
 // thing — would get 9 and conclude the comment had drifted.
-// REPRODUCE LIKE THIS: drop `apps/subly` from EXEMPT_APPS (line ~195), run
+// REPRODUCE LIKE THIS: drop `apps/subscriptiontracker` from EXEMPT_APPS (line ~195), run
 // `node tooling/ci/assert-stamp-properties.mjs`, expect **9** FAIL lines for
-// apps/subly and **0** for the brick; a brick count other than 0 means the
-// extraction drifted, and that is fixed BEFORE the subly number is read as
+// apps/subscriptiontracker and **0** for the brick; a brick count other than 0 means the
+// extraction drifted, and that is fixed BEFORE the subscriptiontracker number is read as
 // anything at all. Restore the exemption afterwards.
 //
 // 🔴 THE EXPECTED NUMBER IS NOW **TEN**, AND THE 2026-08-13 RECORD ABOVE IS LEFT
@@ -155,12 +155,12 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 // with the anchor read RAW (as it was until today) — **9**; with the anchor read
 // COMMENT-STRIPPED (as it is now, see the read at the top of the anchor loop) —
 // **10**. The tenth is `content-pack-consumed`, whose first anchor was matching
-// a `///` line in `apps/subly/lib/state/providers.dart:158` while that app's
+// a `///` line in `apps/subscriptiontracker/lib/state/providers.dart:158` while that app's
 // real config reads `contentPack: null` on :172. It is CLASS D below. So a
 // maintainer reproducing this against today's guard should expect 10, and
 // getting 9 now means the comment-stripping has been undone.
 //
-// A · THREE PROPERTY GROUPS ARE ABSENT from apps/subly/test/chassis_properties_test.dart
+// A · THREE PROPERTY GROUPS ARE ABSENT from apps/subscriptiontracker/test/chassis_properties_test.dart
 //     (it declares 23 `group('property: …')` markers; the brick declares 26):
 //       · password-recovery-routes
 //       · notification-tap-observed
@@ -214,7 +214,7 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 //     (Added 2026-08-21 with the comment-stripping fix; it is the whole reason
 //     the reproduction number moved from 9 to 10.)
 //       · content-pack-consumed / PROVIDERS  `/contentPack:\s*'https:\/\//` —
-//         the ONLY match in `apps/subly/lib/state/providers.dart` is :158, a
+//         the ONLY match in `apps/subscriptiontracker/lib/state/providers.dart` is :158, a
 //         `///` line reading "The chassis template's `features: {}` +
 //         `contentPack: 'https://packs…/latest'` would put the client and the
 //         server into disagreement". The app's real config is `contentPack:
@@ -225,16 +225,16 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 //     so the correct outcome is the FAIL, and widening anything would be the
 //     silencing this file exists to prevent. Recorded as its own class so nobody
 //     later reads "10 anchor problems" as "10 regexes to relax".
-//     It stayed invisible because it needed BOTH holes at once: `apps/subly` is
+//     It stayed invisible because it needed BOTH holes at once: `apps/subscriptiontracker` is
 //     exempt, AND the anchor read was raw. Closing the read is what makes the
 //     exemption the only thing still hiding it.
 //
 // 🔴 AND THE FIXTURE IS THE OTHER HALF OF THE ACT. `tooling/ci/test/guards.test.mjs`
 // builds EVERY assert-stamp-properties case over a workspace that LISTS
-// `apps/subly` while creating only its `lib/main.dart` and one notifications file.
+// `apps/subscriptiontracker` while creating only its `lib/main.dart` and one notifications file.
 // Emptying this Set therefore reddens roughly fifty currently-passing cases at
-// once with `apps/subly/test/chassis_properties_test.dart is MISSING`, and the
-// case named 'does NOT demand a property test from the frozen apps/subly' asserts
+// once with `apps/subscriptiontracker/test/chassis_properties_test.dart is MISSING`, and the
+// case named 'does NOT demand a property test from the frozen apps/subscriptiontracker' asserts
 // the exact opposite of the new behaviour. Guard and fixture move together, or
 // neither moves. (`bootRoots` below deliberately ignores this Set, so the [13]T-4
 // walk already covers Subly and is untouched by any of the above.)
@@ -273,12 +273,12 @@ const SHARED_PREFIX = /^(packages|services|tooling)\//;
 // reproduction, so there is nothing left to run by hand.
 const EXEMPT_APPS = new Map([
   [
-    'apps/subly',
+    'apps/subscriptiontracker',
     {
       why: '39-CHASSIS \u00a74 cut 1 \u2014 it predates the brick and was never stamped, so it carries no inherited property test to keep.',
       // MEASURED 2026-08-25 by this very limb, on main @57e6e10 with the anchor read
       // COMMENT-STRIPPED: ten FAIL lines - 3 property groups absent from
-      // apps/subly/test/chassis_properties_test.dart and 7 source anchors whose
+      // apps/subscriptiontracker/test/chassis_properties_test.dart and 7 source anchors whose
       // implementation this file classes A/B/C/D in the prose above. It agrees with
       // the 2026-08-21 hand measurement to the line, which is what makes it a
       // reproduction rather than a new claim.
@@ -921,7 +921,7 @@ const REQUIRED_COVERAGE = [
     // 🔴 THE SHAPE THIS REPLACES. K-9's own acceptance was "fail if any shipped
     // app declares the content-pack chassis live while its resolved config has
     // no consumer" — an antecedent NO app could satisfy, because `contentPack`
-    // was the literal `null` in the brick and in apps/subly both. Empty
+    // was the literal `null` in the brick and in apps/subscriptiontracker both. Empty
     // antecedent, vacuously true, and it got greener the less was built. The
     // replacement is red for a reason nobody can remove by declining to act:
     // the brick now names a pack, and something has to serve it.
@@ -985,7 +985,7 @@ const REQUIRED_COVERAGE = [
       { file: PROVIDERS, re: /onUnauthorized:\s*\(\)\s*=>\s*\n?\s*signOutOnlyIfSessionIsGone\(/, what: 'a 401 must go through signOutOnlyIfSessionIsGone — signing out on ANY 401 turns a routine expired token into a forced logout' },
       { file: PROVIDERS, re: /await auth\.currentAccessToken\(\) == null/, what: 'that decision must ASK the seam for a token first — without the check the function is an unconditional sign-out under a reassuring name' },
     ],
-    why: 'the auth seam had no home: the only implementations lived inside apps/subly, and the brick wired no auth and no tokenProvider',
+    why: 'the auth seam had no home: the only implementations lived inside apps/subscriptiontracker, and the brick wired no auth and no tokenProvider',
   },
   {
     key: 'auth-redirect-follows-session',
@@ -1189,7 +1189,7 @@ const REQUIRED_COVERAGE = [
   {
     // ── [13]T-9 · THE TAP LOOP, IN THE TEMPLATE ─────────────────────────────
     //
-    // 🔴 THE MEASURED GAP. The tap loop was wired into `apps/subly` and stopped
+    // 🔴 THE MEASURED GAP. The tap loop was wired into `apps/subscriptiontracker` and stopped
     // there. The brick carried the whole OUTBOUND rail — `notificationService
     // Provider`, `applyReminderChoice`, `resyncOnStart`, the platform matrix,
     // the settings toggle — and had NO subscriber to `notificationTaps()`
@@ -1198,7 +1198,7 @@ const REQUIRED_COVERAGE = [
     // emitters in every app but one.
     //
     // ⚠️ AND `assert-capability-register.mjs` COULD NOT SAY SO: its `emitter`
-    // for this surface is pinned to `apps/subly/lib/state/analytics_funnel.dart`
+    // for this surface is pinned to `apps/subscriptiontracker/lib/state/analytics_funnel.dart`
     // (a real file, a real caller), so the register stayed green about a
     // capability the template did not have. A guard pointed at one app cannot
     // answer a question about the factory — which is why this anchor set is
@@ -1312,7 +1312,7 @@ const REQUIRED_COVERAGE = [
     // 🔴 THE DEFECT THIS CLOSES. `analytics-on-switch-mounted` above asserts
     // `contains('app_open')` — and `app_open` was the ONLY lifecycle event a
     // stamped app could ever emit, because `first_launch` and `return_visit`
-    // lived in `apps/subly/lib/state/analytics_funnel.dart`, a file the brick
+    // lived in `apps/subscriptiontracker/lib/state/analytics_funnel.dart`, a file the brick
     // does not carry. So "the lifecycle events fire" ranged over the one event
     // that existed and a stamp that would never emit the other two passed the
     // lane. 1 of 3, reported as green.
@@ -1366,7 +1366,7 @@ const REQUIRED_COVERAGE = [
       { file: PAYWALL, re: /funnel\.onPurchaseSuccess\(/, what: 'the SERVER-confirmed unlock must be emitted — this is the numerator, and it is the one event that must never fire on the checkout’s return' },
       { file: PAYWALL, re: /funnel\.onPurchaseFailed\(/, what: 'both refusal paths must be emitted, or a rail that refuses every buyer looks identical to one nobody tried' },
       // …and the NAMES, in the shared package. An app-local funnel is the fork
-      // [5]M-16 moved this class out of apps/subly to prevent.
+      // [5]M-16 moved this class out of apps/subscriptiontracker to prevent.
       { file: MONEY_FUNNEL, re: /_log\(\s*'paywall_viewed'/, what: "the shared funnel must emit 'paywall_viewed' — a renamed event is a silently empty column, not an error" },
       { file: MONEY_FUNNEL, re: /_log\(\s*'checkout_started'/, what: "the shared funnel must emit 'checkout_started'" },
       { file: MONEY_FUNNEL, re: /_log\(\s*'purchase_success'/, what: "the shared funnel must emit 'purchase_success'" },
@@ -1416,7 +1416,7 @@ const REQUIRED_COVERAGE = [
       // into on ANY install — every install owes an acceptance, because nobody
       // has a clickwrap record yet. Anchored on the ternary rather than on the
       // gate existing: the gate existed the whole time the app was unusable.
-      // `signedIn|loggedIn`: the template calls it `signedIn` and apps/subly
+      // `signedIn|loggedIn`: the template calls it `signedIn` and apps/subscriptiontracker
       // calls it `loggedIn`. Spelling only — and EXEMPT_APPS means only the
       // brick is scanned today, so pinning the template's spelling alone would
       // quietly stop asserting the moment Phase 5 drops Subly's exemption.
@@ -1906,12 +1906,12 @@ function stripDartComments(src, { blankStrings = false } = {}) {
 // 2026-08-21: `lib/l10n/app_ta.arb` comes back byte-identical). HTML is the one
 // type with a comment form it cannot see, and that is not hypothetical here:
 //
-// 🔴 MEASURED 2026-08-21 — `apps/subly/web/index.html:11` reproduces the exact
+// 🔴 MEASURED 2026-08-21 — `apps/subscriptiontracker/web/index.html:11` reproduces the exact
 // `<meta name="viewport" … content="…width=device-width…"` shape INSIDE an
 // `<!-- -->` block, while explaining the tag. So `ui-invariants-inherited`'s
 // viewport anchor — the one whose own comment says "Matched on the TAG, never on
 // prose" — is satisfiable by prose in a real file in this tree. It is latent
-// rather than live twice over: `apps/subly` is in `EXEMPT_APPS`, and the real
+// rather than live twice over: `apps/subscriptiontracker` is in `EXEMPT_APPS`, and the real
 // tag is on :20 anyway, so deleting the tag is what this would have hidden. The
 // brick's own shell is clean — its :27 prose says "with no viewport meta", which
 // the tag-shaped anchor does not match — which is why nothing was red.
@@ -1937,7 +1937,7 @@ function stripAnchorComments(path, src) {
 // here. The RUNTIME observation is the brick's own property test: mount, settle
 // the first frame, assert `notes.requestPermissionCalls == 0`
 // (`test/chassis_properties_test.dart`). That is the real measurement — and it
-// covers the TEMPLATE only. `apps/subly` is `EXEMPT_APPS` below (39-CHASSIS §4
+// covers the TEMPLATE only. `apps/subscriptiontracker` is `EXEMPT_APPS` below (39-CHASSIS §4
 // cut 1: it predates the brick, was never stamped, and carries no inherited
 // property test), so the ONE BINARY THAT ACTUALLY SHIPS had no limb at all —
 // and it was the one violating the rule: `main.dart` → `NotificationService
@@ -1965,7 +1965,7 @@ function stripAnchorComments(path, src) {
 //   C. 🔴 THE ENABLE PATH ASKS AT ALL. Added 2026-08-07. Limbs A and B and the
 //      brick's runtime `requestPermissionCalls == 0` are ALL absence assertions
 //      pointing the same way, so DELETING every call site made this property
-//      report greener than the real tree: 2 → 0 asks in apps/subly, every limb
+//      report greener than the real tree: 2 → 0 asks in apps/subscriptiontracker, every limb
 //      still ok, CI still green — and the app is then a notification channel
 //      that can never be turned on, because nothing ever asks. That is the
 //      *other* half of the same defect and it had no limb at all.
@@ -2245,7 +2245,7 @@ const resolveSource = (root, file) => (SHARED_PREFIX.test(file) ? file : `${root
  * it names, and for a providers spine, the spine.
  *
  * 🔴 ADDED 2026-09-04, AND IT IS THE DIFFERENCE BETWEEN "THE PROPERTY IS GONE"
- * AND "THE FILE IS BIGGER THAN ONE FILE". `apps/subly`'s spine was split behind
+ * AND "THE FILE IS BIGGER THAN ONE FILE". `apps/subscriptiontracker`'s spine was split behind
  * a barrel: `lib/state/providers.dart` now re-exports `lib/state/providers/*.dart`,
  * one file per capability, with every declaration and every doc comment carried
  * verbatim. Read as a single file, NINE properties this app really does
@@ -2265,7 +2265,7 @@ const resolveSource = (root, file) => (SHARED_PREFIX.test(file) ? file : `${root
  * path separator immediately before `providers.dart`.
  *
  * 🔴 WIDENED AGAIN 2026-09-04 (P1b) FOR THE ROUTER, AND FOR THE SAME REASON.
- * `apps/subly`'s `lib/core/router.dart` is now a barrel over `lib/core/router/`
+ * `apps/subscriptiontracker`'s `lib/core/router.dart` is now a barrel over `lib/core/router/`
  * — the ORDERED gate chain, the route table, the shell wiring, the navigator key
  * and the `GoRouter` those assemble into. Three ROUTER anchors this app really
  * does satisfy are evaluated for it today (the `refreshListenable` join, the
@@ -2275,7 +2275,7 @@ const resolveSource = (root, file) => (SHARED_PREFIX.test(file) ? file : `${root
  * the ten witnesses are the SAME ten properties as before.
  *
  * ⚠️ THE WIDENING DOES NOT WEAKEN THE ANCHORS THAT ARE MEANT TO FAIL. The one
- * ROUTER anchor `apps/subly` misses — `matchedLocation == '/reaccept-terms'`,
+ * ROUTER anchor `apps/subscriptiontracker` misses — `matchedLocation == '/reaccept-terms'`,
  * which this app spells through a hoisted local — still misses across the whole
  * spine, and it is one of the ten. A widened domain that turned a recorded gap
  * green would be the ratchet failing in the CAUGHT-UP direction, which is a FAIL
@@ -2413,20 +2413,20 @@ function auditPropertyRoot(root, sink) {
         // MEASURED by running EVERY anchor of EVERY property over both roots
         // raw and stripped and diffing the two — 116 anchors resolve per root,
         // 232 comparisons (re-derive it; do not trust this line): exactly ONE
-        // anchor result flips, and it is in apps/subly, not the brick (the
+        // anchor result flips, and it is in apps/subscriptiontracker, not the brick (the
         // brick flips ZERO, which is what validates the method rather than the
         // finding). It is `content-pack-consumed` anchor 1,
         // `/contentPack:\s*'https:\/\//`, in
-        // `apps/subly/lib/state/providers.dart`, whose only match in the whole
+        // `apps/subscriptiontracker/lib/state/providers.dart`, whose only match in the whole
         // file is :158, a `///` line reading "The chassis template's
         // `features: {}` + `contentPack: 'https://packs…/latest'` would put the
-        // client and the server into disagreement". apps/subly's real config is
+        // client and the server into disagreement". apps/subscriptiontracker's real config is
         // `contentPack: null` (:172), so the implementation is genuinely ABSENT
         // and the anchor was green on a sentence ABOUT the file that has it.
         // Not re-anchored, therefore: there is nothing to re-anchor to.
         //
         // ⚠️ AND IT CHANGES NOTHING TODAY'S RUN LOOKS AT — say it rather than
-        // let the fix imply a save. `apps/subly` is in `EXEMPT_APPS`, so `roots`
+        // let the fix imply a save. `apps/subscriptiontracker` is in `EXEMPT_APPS`, so `roots`
         // is the brick alone and the brick's match is real code at :49. This
         // closes a LATENT hole, which is the only kind [N-4 clause 7] leaves:
         // that clause exists so the NEXT stamped app is audited, and the first
@@ -2434,7 +2434,7 @@ function auditPropertyRoot(root, sink) {
         // have inherited a green anchor for it.
         //
         // ⚠️ `blankStrings` STAYS OFF, and that is measured too: turning it on
-        // breaks NINETEEN of the brick's 116 anchors (and 16 of apps/subly's,
+        // breaks NINETEEN of the brick's 116 anchors (and 16 of apps/subscriptiontracker's,
         // counted the same way) — route paths (`path: '/check-inbox'`),
         // analytics event names (`'app_open'`), the ARB `"@@locale": "ta"`, the
         // viewport meta — because those anchors match STRING LITERALS. The
@@ -2531,9 +2531,9 @@ for (const [app, ex] of EXEMPT_APPS) {
     audited: () => {},
     gap: () => {},
   });
-  // IS THIS THE PACKAGE THE FLOOR WAS MEASURED OVER? A tree can NAME `apps/subly`
+  // IS THIS THE PACKAGE THE FLOOR WAS MEASURED OVER? A tree can NAME `apps/subscriptiontracker`
   // on its workspace list without being the app — every fixture that exercises
-  // this guard does exactly that, seeding two files under `apps/subly/lib` so the
+  // this guard does exactly that, seeding two files under `apps/subscriptiontracker/lib` so the
   // [13]T-4 boot walk has something to walk. Comparing a recorded count of a real
   // 56-file app against a two-file stub would fail those trees for being fixtures.
   //
@@ -2590,11 +2590,11 @@ for (const [app, ex] of EXEMPT_APPS) {
 // MEASURED 2026-08-21 by running this limb (re-derive it, do not trust this
 // line): 0 of 159 Dart files under the 10 shipped lib trees call it, and the two
 // files in the whole tree that DO are both the brick template's. The four
-// `extension<AppThemeX>` hits in `apps/subly/lib` are doc comments arguing that
+// `extension<AppThemeX>` hits in `apps/subscriptiontracker/lib` are doc comments arguing that
 // the code deliberately does NOT read it — comments, so `stripDartComments`
 // removes them and they do not count. The stamped chassis is the opposite case:
 // the brick's `home_screen.dart` DOES read it, so every STAMPED app has the
-// whole chain and only the un-stamped `apps/subly` and the packages do not.
+// whole chain and only the un-stamped `apps/subscriptiontracker` and the packages do not.
 //
 // ⚠️ WHY THIS PRINTS INSTEAD OF FAILING, AND IT IS NOT SOFTNESS. The repair is
 // not mechanical; it is a judgement about WHAT SUBLY'S INDIGO IS, and both
@@ -2638,7 +2638,7 @@ const SHIP_TREES = ['apps', 'packages'];
 
 /** Files under `libDir` that actually CALL the brand-token read.
  *
- *  `blankStrings: true` on purpose: a mention is not a read. `apps/subly/lib`
+ *  `blankStrings: true` on purpose: a mention is not a read. `apps/subscriptiontracker/lib`
  *  holds four mentions and zero calls, and a scan that could not tell them apart
  *  would report this property healthy on the strength of comments explaining
  *  that it is not. */
@@ -2762,7 +2762,7 @@ checkBrandSeedReachesPaint();
 // MEASURED 2026-08-21 (re-derive it, do not trust this line): `grep -rn
 // contentPackProvider --include=*.dart` returns ELEVEN hits, and the split is
 // the finding — TWO declarations (the brick's `lib/state/providers.dart:201`
-// and apps/subly's :336), THREE mentions inside comments, and SIX reads through
+// and apps/subscriptiontracker's :336), THREE mentions inside comments, and SIX reads through
 // a ref, EVERY ONE of them inside a `chassis_properties_test.dart`. Zero
 // non-test readers anywhere in the tree. `assert-seams-wired.mjs`'s
 // `pack_verifier` row records the same thing from the seam side, and says in as

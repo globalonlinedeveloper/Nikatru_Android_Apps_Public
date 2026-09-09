@@ -296,7 +296,7 @@ export const isShellVariableEnvironment = (raw) => /\$(?!\{\{)/.test(String(raw 
 
 /**
  * A matrix-parameterised environment, expanded over the app set: with
- * `appSlugs = ['subly']`, `${{ matrix.app }}-web` → `['subly-web']`. Anything
+ * `appSlugs = ['subscriptiontracker']`, `${{ matrix.app }}-web` → `['subscriptiontracker-web']`. Anything
  * else is returned unchanged, so a literal environment costs nothing.
  *
  * ⚠️ IT DOES NOT CHECK THE MATRIX KEY IS DECLARED. GitHub expands an undeclared

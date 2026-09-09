@@ -14,7 +14,7 @@
 //   · `PaywallGate` SHIPPED in the design system and was referenced by
 //     nothing for months — that dead-on-arrival stretch is the defect this
 //     bullet remembers. It is CONSUMED today: `class _GatedInsights` in
-//     `apps/subly/lib/core/router.dart` (the `/insights` route builder)
+//     `apps/subscriptiontracker/lib/core/router.dart` (the `/insights` route builder)
 //     constructs it, and so does `child: PaywallGate(` in the app brick's
 //     `lib/features/home/home_screen.dart`
 //   · the account-deletion dialog's confirm button called

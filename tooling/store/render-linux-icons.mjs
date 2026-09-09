@@ -82,8 +82,8 @@
 // has not adopted the field.
 //
 // Usage:
-//   node tooling/store/render-linux-icons.mjs --app subly            # write
-//   node tooling/store/render-linux-icons.mjs --app subly --check    # verify
+//   node tooling/store/render-linux-icons.mjs --app subscriptiontracker            # write
+//   node tooling/store/render-linux-icons.mjs --app subscriptiontracker --check    # verify
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -346,7 +346,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const i = argv.indexOf(n);
     return i !== -1 && argv[i + 1] ? argv[i + 1] : d;
   };
-  const app = at('--app', 'subly');
+  const app = at('--app', 'subscriptiontracker');
   const check = argv.includes('--check');
   const appDir = join(ROOT, 'apps', app);
 

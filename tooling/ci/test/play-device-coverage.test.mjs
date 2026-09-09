@@ -139,7 +139,7 @@ function tree(
   { shots = ['01-home.png', '02-calendar.png'], phonePng = png(1080, 1920), extra = {}, omitSetDirs = [], brick = null } = {},
 ) {
   const dir = join(TMP, `r${seq++}`);
-  const store = join(dir, 'apps', 'subly', 'store', 'android-play');
+  const store = join(dir, 'apps', 'subscriptiontracker', 'store', 'android-play');
   mkdirSync(join(dir, 'tooling'), { recursive: true });
   mkdirSync(join(dir, 'catalog'), { recursive: true });
   mkdirSync(join(store, 'screenshots'), { recursive: true });
@@ -147,7 +147,7 @@ function tree(
   const reg = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
   mutate(reg, { dir, store });
   writeFileSync(join(dir, 'tooling', 'channel-register.json'), JSON.stringify(reg, null, 2));
-  writeFileSync(join(dir, 'catalog', 'apps.json'), JSON.stringify([{ slug: 'subly' }], null, 2));
+  writeFileSync(join(dir, 'catalog', 'apps.json'), JSON.stringify([{ slug: 'subscriptiontracker' }], null, 2));
 
   // `?.` because several mutations below delete the coverage block outright, and
   // a fixture builder that throws turns a COVERAGE-LOST test into a crash.
@@ -226,7 +226,7 @@ describe('assert-play-device-coverage', () => {
   test('M2 the SAME tree with --for-submission FAILS', () => {
     const { code, out } = run(tree(), ['--for-submission']);
     assert.equal(code, 1, 'the submission lane must refuse what the shared lane only prints');
-    assert.match(out, /SUBMITTING and app "subly"/);
+    assert.match(out, /SUBMITTING and app "subscriptiontracker"/);
     assert.match(out, /assert-play-device-coverage: FAILED/);
   });
 
@@ -683,7 +683,7 @@ describe('assert-play-device-coverage', () => {
   // ══ ROOT 2 — THE FACTORY (2026-09-05) ═════════════════════════════════════
   //
   // 🔴 EVERY TEST ABOVE GRADES ONE HAND-FIXED APP. Measured on `main` @ a9b04696:
-  // `catalog/apps.json` holds exactly one entry, `subly`, whose tablet frames a
+  // `catalog/apps.json` holds exactly one entry, `subscriptiontracker`, whose tablet frames a
   // human captured on 2026-08-27 — and
   // `tooling/bricks/app/__brick__/apps/{{app_id}}/store/android-play/` carried
   // `screenshots/` AND NO `screenshots-tablet/`. So every app stamped after the
@@ -763,7 +763,7 @@ describe('assert-play-device-coverage', () => {
   });
 
   test('B7 a green factory does not excuse an uncovered registered app — the two roots are independent', () => {
-    const dir = tree(() => {}, { brick: {} }); // brick perfect, subly has NO tablet pixels
+    const dir = tree(() => {}, { brick: {} }); // brick perfect, subscriptiontracker has NO tablet pixels
     const plain = run(dir);
     assert.equal(plain.code, 0, plain.out);
     assert.match(plain.out, /DEVICE-TYPE SHORTFALL/);

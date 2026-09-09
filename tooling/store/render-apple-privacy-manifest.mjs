@@ -54,8 +54,8 @@
 // declaration, the guard owns the relation to the tree.
 //
 // Usage:
-//   node tooling/store/render-apple-privacy-manifest.mjs --app subly           # write
-//   node tooling/store/render-apple-privacy-manifest.mjs --app subly --check   # verify
+//   node tooling/store/render-apple-privacy-manifest.mjs --app subscriptiontracker           # write
+//   node tooling/store/render-apple-privacy-manifest.mjs --app subscriptiontracker --check   # verify
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';

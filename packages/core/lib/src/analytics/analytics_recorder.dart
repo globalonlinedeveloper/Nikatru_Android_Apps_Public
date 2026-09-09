@@ -20,7 +20,7 @@ const int kFlushBatchSize = 20;
 /// `return_visit`) and an ordinary session adds a handful more — nothing reaches
 /// 20 — so the queue was persisted on every [log] and POSTed never. Measured on
 /// subly.nikatru.com: three real browsers granted analytics consent and ZERO
-/// events were ever delivered. `apps/subly`'s app root carries no lifecycle
+/// events were ever delivered. `apps/subscriptiontracker`'s app root carries no lifecycle
 /// observer at all, so it had no second path even in principle; the brick's does,
 /// and a page unload still beats a fire-and-forget POST launched from it.
 ///

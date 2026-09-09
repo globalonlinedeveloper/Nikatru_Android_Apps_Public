@@ -32,7 +32,7 @@
 //
 // ── WHAT IT EMITS TODAY: NOTHING. MEASURED, NOT ASSUMED ──────────────────────
 // Measured on this tree 2026-09-09:
-//   · `catalog/apps.json` holds ONE row — `subly`, `platforms: ["web"]`, and
+//   · `catalog/apps.json` holds ONE row — `subscriptiontracker`, `platforms: ["web"]`, and
 //     every `listings.*` key but `web` is null;
 //   · `tooling/channel-register.json` has `served: true` on the `web` row ALONE
 //     (11 of 12 rows are `served: false`, both mobile rows among them);
@@ -111,7 +111,7 @@
 // ⚠️ THE BARE `/<slug>` IS DELIBERATELY NOT CLAIMED, and it is a real gap rather
 // than an oversight. `/<slug>/*` does not match `/<slug>`; the apex 301s the bare
 // form to the slashed one, and a redirect does not re-enter universal-link
-// matching, so a link to `nikatru.com/subly` opens in the browser. Claiming both
+// matching, so a link to `nikatru.com/subscriptiontracker` opens in the browser. Claiming both
 // would mean two components per app and a guard that cannot state a clean set
 // equality. Whoever ships the first iOS app decides that trade with a real device
 // in hand; this file will not pre-empt it silently.

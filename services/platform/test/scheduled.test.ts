@@ -325,7 +325,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
 
     expect(platform.count('cron_heartbeat', 'job = ?', RENEWALS_JOB)).toBe(1);
     const [row] = platform.rows('SELECT target, ok, detail FROM cron_heartbeat WHERE job = ?', RENEWALS_JOB);
-    expect(row.target).toBe('subly');
+    expect(row.target).toBe('subscriptiontracker');
     expect(row.ok).toBe(1);
     // "nothing due" is a SUCCESS with its own detail — a quiet night and a
     // thrown query must not produce the same row.

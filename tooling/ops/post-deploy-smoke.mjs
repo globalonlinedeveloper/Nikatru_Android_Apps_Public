@@ -65,7 +65,7 @@
 //
 // 🔴 THIS IS THE HALF OF THE RESPONSE THAT WAS MISSING, AND ITS ABSENCE IS THE
 // WHOLE POINT. `tooling/ci/assert-web-cache-policy.mjs` reads the DECLARED
-// policy in `apps/subly/web/_headers` on every push and cannot fetch: CI holds
+// policy in `apps/subscriptiontracker/web/_headers` on every push and cannot fetch: CI holds
 // no Cloudflare credential, a fetching guard could not fail offline or on a
 // fork, and it would turn a deploy-time property into a network dependency of
 // every build. That guard says so in its own header and names this file as
@@ -342,7 +342,7 @@ export function judgeCacheControl({ status, contentType, cacheControl, expectTyp
       ok: false,
       retry: false,
       reason:
-        'the edge returned NO Cache-Control at all — the entry point is riding on whatever the platform happens to default to, which is the exact state apps/subly/web/_headers was written to end',
+        'the edge returned NO Cache-Control at all — the entry point is riding on whatever the platform happens to default to, which is the exact state apps/subscriptiontracker/web/_headers was written to end',
     };
   }
   const directives = raw
@@ -517,7 +517,7 @@ export async function assertEdgeCachePolicy({ url, smokedHeaders, get, canned })
 // designed: the browser hands the 401 to the app and the app sends the user to
 // sign in. An auth refusal WITHOUT the header is the browser DISCARDING the
 // response before a single line of app code sees it, so the app cannot even tell
-// the user why; and services/subly-api/src/middleware/cors.ts fails CLOSED — an
+// the user why; and services/subscriptiontracker-api/src/middleware/cors.ts fails CLOSED — an
 // origin that is not on ALLOWED_ORIGINS gets no header at all rather than an
 // error anybody would notice. That is why a missing header is a failure here and
 // not a warning: it is the exact fault this address migration can introduce, it
@@ -548,7 +548,7 @@ export const INVALID_BEARER = 'invalid-by-design-not-a-token.post-deploy-smoke';
 /** The route the probe uses. It has to be one that REQUIRES auth — an
  *  unauthenticated route answers 200 and the limb would assert nothing about
  *  authentication at all. `/v1/subscriptions` is mounted behind `supabaseAuth`
- *  in services/subly-api/src/index.ts, which answers `401 {"error":
+ *  in services/subscriptiontracker-api/src/index.ts, which answers `401 {"error":
  *  "unauthorized"}` on every failure path. Overridable with --api-path so a
  *  second app with a different shape does not have to edit this file. */
 export const API_AUTH_PROBE_PATH = '/v1/subscriptions';
@@ -576,7 +576,7 @@ export function judgeApiCors({ status, headers, origin }) {
         `CORS REJECTION, NOT an auth rejection: the API answered HTTP ${status} and carried NO ` +
         `Access-Control-Allow-Origin at all. A browser on ${origin} discards this response before one line of app ` +
         'code sees it, so the app cannot render, cannot sign the user in and cannot say why. ' +
-        'services/subly-api/src/middleware/cors.ts fails CLOSED — an origin that is not on ALLOWED_ORIGINS gets no ' +
+        'services/subscriptiontracker-api/src/middleware/cors.ts fails CLOSED — an origin that is not on ALLOWED_ORIGINS gets no ' +
         `header rather than an error — so this is exactly what ${origin} being absent from that allowlist looks ` +
         'like from outside, and it is the fault this address migration can introduce.',
     };
@@ -588,7 +588,7 @@ export function judgeApiCors({ status, headers, origin }) {
       reason:
         'the API answered `Access-Control-Allow-Origin: *` on a Bearer-gated user-data route. The declared policy is ' +
         'an EXACT allowlist that fails closed; a wildcard means that allowlist stopped being applied, which is the ' +
-        'state services/subly-api/src/middleware/cors.ts and its guard both exist to prevent.',
+        'state services/subscriptiontracker-api/src/middleware/cors.ts and its guard both exist to prevent.',
     };
   }
   if (allow !== origin) {
@@ -1031,7 +1031,7 @@ export async function smokePlayTrack({ packageName, expected, canned }) {
 // too, because the release would then serve a file nothing checksummed.
 //
 // ⚠️ NOT THE SNAP ANSWER, AND THE DIFFERENCE WAS MEASURED RATHER THAN INHERITED.
-// tooling/ops/register.json exempts `subly-linux-snap` on three grounds and says
+// tooling/ops/register.json exempts `subscriptiontracker-linux-snap` on three grounds and says
 // each one closing retires the entry: no machine-readable join key, no honest
 // negative read (a store review queue makes "not there yet" a documented state
 // of a GOOD upload), and no transport that is not `snapcraft` itself. A GitHub
@@ -1455,7 +1455,7 @@ async function main() {
         console.error('    on this channel: a client holding a stale flutter_bootstrap.js runs the old');
         console.error('    build and reports the old version honestly — the one client the force-update');
         console.error('    kill-switch cannot see. Check the zone Browser Cache TTL and any Cache Rule');
-        console.error('    before touching apps/subly/web/_headers: the 2026-08-04 divergence came from');
+        console.error('    before touching apps/subscriptiontracker/web/_headers: the 2026-08-04 divergence came from');
         console.error('    the ZONE stamping over a correct origin header, not from the file.');
         // ⚠️ `process.exitCode`, NOT `process.exit(1)`. Calling exit() here races
         // the keep-alive sockets the probes just opened: on Windows it aborts

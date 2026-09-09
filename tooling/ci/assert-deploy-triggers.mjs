@@ -4,7 +4,7 @@
 // changes what it ships.
 //
 // 🔴 THE FAILURE IS A DEPLOY THAT DOES NOT HAPPEN, and nothing anywhere goes
-// red. deploy-web.yml's `paths:` named `apps/subly/**` and `packages/**` — the
+// red. deploy-web.yml's `paths:` named `apps/subscriptiontracker/**` and `packages/**` — the
 // SOURCE — and stopped there (2026-08-01 full-corpus review, #30). Its build
 // step is `flutter pub get --enforce-lockfile` inside a Melos 8 workspace, so
 // the root `pubspec.yaml` (the `workspace:` list) and the single root

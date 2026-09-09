@@ -104,7 +104,7 @@ jobs:
       # which lives only on the auth box. While `vars.TURNSTILE_SITE_KEY` is
       # unset the define arrives EMPTY, TurnstileGate renders SizedBox.shrink()
       # and the deployed app behaves byte-for-byte as it does today
-      # (apps/subly/lib/features/auth/turnstile_gate.dart). Setting the variable
+      # (apps/subscriptiontracker/lib/features/auth/turnstile_gate.dart). Setting the variable
       # is then the whole of the app-side cutover work FOR THIS CHANNEL: no
       # workflow edit inside the Phase 5 window, which is the window that has to
       # carry three acts already. Safe to ship ahead of the cutover because
@@ -127,7 +127,7 @@ jobs:
       # runbooks/auth-cutover.md:556 records `web` as the ONLY channel with
       # served: true — "and it stops being true at first store release".
       # The durable fix is NOT twelve more define lines: it is declaring the key
-      # in apps/subly/lib/core/app_config.dart with an isTurnstileConfigured
+      # in apps/subscriptiontracker/lib/core/app_config.dart with an isTurnstileConfigured
       # getter beside isRevenueCatConfigured, so the set
       # assert-store-build-config.mjs:127-158 DERIVES grows a named place and the
       # guard names all twelve lanes itself. That file is the app-shell unit's

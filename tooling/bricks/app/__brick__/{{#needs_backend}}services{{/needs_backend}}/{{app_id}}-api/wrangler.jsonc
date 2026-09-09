@@ -127,7 +127,7 @@
   // `*.nikatru.com` has existed since 2026-07-27. Read back from the live account
   // on 2026-08-03 via GET /accounts/:id/workers/domains — THREE Custom Domains
   // exist under that wildcarded zone (config + platform → `platform`,
-  // api.nikatru.com → `subly-api`) and the zone's Routes list is EMPTY. So a
+  // api.nikatru.com → `subscriptiontracker-api`) and the zone's Routes list is EMPTY. So a
   // specific subdomain provisions fine alongside the wildcard.
   //
   // ⚠️ The WEB host `{{app_id}}.nikatru.com` is stage 9/10's and stays out.

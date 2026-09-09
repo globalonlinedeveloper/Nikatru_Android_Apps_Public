@@ -17,7 +17,7 @@
 //   half            → FAIL, always. See the note on reachability below.
 //
 // 🔴 THE RELEASE-LANE FAILURE IS SCOPED BY THE REGISTER, NOT BY THE TAG ALONE.
-// Measured 2026-08-09, before any tag had ever been pushed: a `subly-v*` tag
+// Measured 2026-08-09, before any tag had ever been pushed: a `subscriptiontracker-v*` tag
 // killed this step, and therefore build-platforms.yml's `linux_web_android` job,
 // while `windows-signing.mjs` killed `windows` and `apple-signing.mjs` killed
 // `apple` for the identical reason. The `release` job `needs:` all three, so the

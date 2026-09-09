@@ -6,7 +6,7 @@
 // broken version (`assert-seams-wired.mjs`, whose caller check matched the
 // function's own declaration): a fixture you write encodes the same
 // misunderstanding as the guard you write. The copy below carries the real
-// channel register, the real apps/subly declarations and the real brick
+// channel register, the real apps/subscriptiontracker declarations and the real brick
 // templates, so a mutation here is the mutation a person would actually make —
 // and the WHOLESALE case is the actual stamped template, extracted from the
 // re-stamp patch rather than typed.
@@ -29,13 +29,13 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-sworn-store-files.mjs');
 
 const BRICK_STORE = 'tooling/bricks/app/__brick__/apps/{{app_id}}/store/android-play';
-const SUBLY_STORE = 'apps/subly/store/android-play';
+const SUBLY_STORE = 'apps/subscriptiontracker/store/android-play';
 /** The FOURTH sworn declaration (2026-08-31, [G-49]) — the Apple privacy
  *  manifest audit. It is the first one that is not a Play form and the first on
  *  a second channel, which is why the tree below copies a whole second store
  *  directory rather than another file. */
 const BRICK_IOS = 'tooling/bricks/app/__brick__/apps/{{app_id}}/store/ios-appstore';
-const SUBLY_IOS = 'apps/subly/store/ios-appstore';
+const SUBLY_IOS = 'apps/subscriptiontracker/store/ios-appstore';
 const PM = `${SUBLY_IOS}/privacy-manifest.json`;
 const PM_TMPL = `${BRICK_IOS}/privacy-manifest.json`;
 const DS = `${SUBLY_STORE}/data-safety.json`;
@@ -44,7 +44,7 @@ const CR = `${SUBLY_STORE}/content-rating.json`;
  *  in the derived set below for the same reason as the other two: it cites code,
  *  so limb 5 resolves its paths and the fixture has to carry them. */
 const ADS = `${SUBLY_STORE}/ads-declaration.json`;
-const SETTINGS = 'apps/subly/lib/features/settings/settings_screen.dart';
+const SETTINGS = 'apps/subscriptiontracker/lib/features/settings/settings_screen.dart';
 const REGISTER = 'tooling/channel-register.json';
 /** Limb 9's subject. `put(SUBLY_STORE)` already copies it (the whole channel
  *  directory goes in), so it needs no separate seed — but the files IT cites do,
@@ -56,7 +56,7 @@ const README = `${SUBLY_STORE}/README.md`;
  * guard's own matcher rather than listed here.
  *
  * 🔬 THE HAND-LISTED VERSION WAS WRITTEN FIRST AND WAS WRONG WITHIN A MINUTE:
- * it named `apps/subly/lib` and missed `apps/subly/pubspec.yaml`, so the
+ * it named `apps/subscriptiontracker/lib` and missed `apps/subscriptiontracker/pubspec.yaml`, so the
  * BASELINE case failed and read exactly like a broken guard. Copying whole
  * trees instead fixed the correctness and made the suite time out — 21 cases ×
  * a ~100 MB copy. Deriving the set gives 43 files, and it cannot go stale:
@@ -139,7 +139,7 @@ function realTree() {
   // which the declarations do not CITE — the derived set above cannot know
   // about it, so it is seeded explicitly, beside the reduction library the
   // guard imports for the code half.
-  put('apps/subly/lib/l10n/app_en.arb');
+  put('apps/subscriptiontracker/lib/l10n/app_en.arb');
   // …and the CHASSIS arb, for the same reason one level out. [ADR 067]
   // decision 2 moved the 149 shared keys — `exportDataCsv` among them — into
   // `packages/design_system`, so an anchor's copy half resolves the app arb
@@ -154,17 +154,17 @@ function realTree() {
   // every case in this file fail with "only 1 of 4 line citation(s) were
   // evaluated" — the guard reporting, correctly, that the harness had starved it.
   // 🔴 THE FIRST TWO MOVED 2026-09-04 and the paths are LOAD-BEARING here, not
-  // decorative. `apps/subly`'s spine was split behind a barrel, so the two
+  // decorative. `apps/subscriptiontracker`'s spine was split behind a barrel, so the two
   // anchors limb 8 checks — `InMemoryAuthRepository()` and `SeedApiClient()` —
   // now live in capability files under `lib/state/providers/`. Seeding the
   // barrel alone reproduces the starved-harness failure this comment already
   // records, in its OTHER shape: "…/providers/auth.dart does not exist, so the
   // citation checks nothing" on every case in this file.
   for (const rel of [
-    'apps/subly/lib/state/providers/auth.dart',
-    'apps/subly/lib/state/providers/subscriptions.dart',
-    'apps/subly/lib/state/analytics_providers.dart',
-    'apps/subly/lib/app.dart',
+    'apps/subscriptiontracker/lib/state/providers/auth.dart',
+    'apps/subscriptiontracker/lib/state/providers/subscriptions.dart',
+    'apps/subscriptiontracker/lib/state/analytics_providers.dart',
+    'apps/subscriptiontracker/lib/app.dart',
   ]) {
     put(rel);
   }
@@ -583,7 +583,7 @@ describe('limb 5 — a declaration may not cite code that is gone', () => {
       (root) => rmSync(join(root, SETTINGS)),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /cites apps\/subly\/lib\/features\/settings\/settings_screen\.dart, which does not exist/);
+        assert.match(r.stderr, /cites apps\/subscriptiontracker\/lib\/features\/settings\/settings_screen\.dart, which does not exist/);
       },
     );
   });
@@ -602,13 +602,13 @@ describe('limb 9 — the channel README may not cite code that is gone either', 
     withTree(
       (root) =>
         editText(root, README, (s) =>
-          s.replace('apps/subly/lib/core/app_config.dart', 'apps/subly/lib/core/config/app_config.dart'),
+          s.replace('apps/subscriptiontracker/lib/core/app_config.dart', 'apps/subscriptiontracker/lib/core/config/app_config.dart'),
         ),
       (r) => {
         assert.equal(r.status, 1, r.stdout);
         assert.match(
           r.stderr,
-          /README\.md:\d+ cites apps\/subly\/lib\/core\/config\/app_config\.dart, which does not exist/,
+          /README\.md:\d+ cites apps\/subscriptiontracker\/lib\/core\/config\/app_config\.dart, which does not exist/,
         );
       },
     );
@@ -682,7 +682,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
     // the export row the declaration describes.
     withTree(
       (root) =>
-        editDoc(root, 'apps/subly/lib/l10n/app_en.arb', (j) => {
+        editDoc(root, 'apps/subscriptiontracker/lib/l10n/app_en.arb', (j) => {
           j.exportDataCsv = 'Share a screenshot';
         }),
       (r) => {
@@ -709,7 +709,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
 
   // ── 2026-09-06 · THE ONE-LEVEL RESOLVE ([ADR 067] decision 2) ─────────────
   // `exportDataCsv` moved into the chassis arb with the other 148 shared keys.
-  // `apps/subly` does NOT adopt (ADR 065), so its own arb still declares it and
+  // `apps/subscriptiontracker` does NOT adopt (ADR 065), so its own arb still declares it and
   // the app half of the resolve is what answers here — but a FRESHLY STAMPED app
   // has an arb holding only the twelve keys it owns, and its settings screen
   // reads the shared key. Before the fallback, that shape failed the copy half
@@ -729,7 +729,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
   // declares), and until then these three cases are its only inputs.
   const moveKeyToChassis = (root) => {
     let copy = 'Export data (CSV)';
-    editDoc(root, 'apps/subly/lib/l10n/app_en.arb', (j) => {
+    editDoc(root, 'apps/subscriptiontracker/lib/l10n/app_en.arb', (j) => {
       copy = j.exportDataCsv;
       delete j.exportDataCsv;
       delete j['@exportDataCsv'];
@@ -757,7 +757,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
       (r) => {
         assert.equal(r.status, 1, 'the fallback resolved to an empty string and called it copy');
         assert.match(r.stderr, /rests on screen copy that is GONE/);
-        assert.match(r.stderr, /in any of apps\/subly\/lib\/l10n\/app_en\.arb or packages\/design_system/);
+        assert.match(r.stderr, /in any of apps\/subscriptiontracker\/lib\/l10n\/app_en\.arb or packages\/design_system/);
       },
     );
   });
@@ -765,7 +765,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
   test('🔴 DECLARED IN NEITHER ARB IS A FAILURE, NOT A SKIP', () => {
     withTree(
       (root) => {
-        for (const rel of ['apps/subly/lib/l10n/app_en.arb', CHASSIS_ARB]) {
+        for (const rel of ['apps/subscriptiontracker/lib/l10n/app_en.arb', CHASSIS_ARB]) {
           editDoc(root, rel, (j) => {
             delete j.exportDataCsv;
             delete j['@exportDataCsv'];
@@ -786,7 +786,7 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
         editDoc(root, DS, (j) => {
           const a = j.answers.find((x) => x.type === 'Files and docs');
           a.basis = 'No storage permission, no file-picker and no share package, so the app performs no file I/O.';
-          j.dataSecurity.deletionRequestSupported.inAppControl = 'apps/subly/lib/app.dart';
+          j.dataSecurity.deletionRequestSupported.inAppControl = 'apps/subscriptiontracker/lib/app.dart';
         }),
       (r) => {
         assert.equal(r.status, 1);
@@ -805,7 +805,7 @@ describe('limb 8 — a `file.dart:NNN` citation still points at what it describe
     // lines reproduce it exactly.
     withTree(
       (root) => {
-        const p = join(root, 'apps/subly/lib/app.dart');
+        const p = join(root, 'apps/subscriptiontracker/lib/app.dart');
         writeFileSync(p, `${'// pad\n'.repeat(10)}${readFileSync(p, 'utf8')}`);
       },
       (r) => {
@@ -822,7 +822,7 @@ describe('limb 8 — a `file.dart:NNN` citation still points at what it describe
     // guard has to say which one it is or the fix is a guess.
     withTree(
       (root) => {
-        const p = join(root, 'apps/subly/lib/state/analytics_providers.dart');
+        const p = join(root, 'apps/subscriptiontracker/lib/state/analytics_providers.dart');
         writeFileSync(p, readFileSync(p, 'utf8').replaceAll('core.NoOpAnalytics()', 'core.SilentAnalytics()'));
       },
       (r) => {

@@ -4,10 +4,10 @@
 // [pipeline 5]M-11 — a displayed price comes from the rail, never from app code.
 //
 // 🔴 THE DEFECT THIS GUARD IS NAMED AFTER WAS LIVE FOR MONTHS.
-// `apps/subly/lib/services/purchases/purchases_service.dart` returned `$2.99`
+// `apps/subscriptiontracker/lib/services/purchases/purchases_service.dart` returned `$2.99`
 // and `$24.99`; the owner decided $4.99/mo and $19.99/yr on 2026-07-27. Nothing
 // went red, because a hardcoded price is consistent with itself forever — and
-// the obvious guard, `assert-no-hardcoded-strings.mjs`, excludes `apps/subly`
+// the obvious guard, `assert-no-hardcoded-strings.mjs`, excludes `apps/subscriptiontracker`
 // wholesale, i.e. excludes the evidence file.
 //
 // ⚠️ REAL-TREE MUTATIONS FIRST (2026-08-01, four, on a scratch COPY):

@@ -14,7 +14,7 @@
 //      host-side by integration_test's `responseDataCallback`. A JSON FIELD:
 //      structured, unambiguous, and it cannot be produced by prose.
 //   2. the tee'd `flutter drive` log — the `E2E_CONSENT_ANON_ID=` token
-//      apps/subly/test_driver/integration_test.dart prints. This is the hedge
+//      apps/subscriptiontracker/test_driver/integration_test.dart prints. This is the hedge
 //      for the case where the response file was never written at all (the
 //      driver never obtained a response, the working directory moved).
 //
@@ -30,11 +30,11 @@ import { readFileSync } from 'node:fs';
 
 /** The token the DRIVER prints on the host. The app prints the same string into
  *  the browser console, where nothing reads it — see the note in
- *  apps/subly/integration_test/app_test.dart. */
+ *  apps/subscriptiontracker/integration_test/app_test.dart. */
 export const ANON_ID_TOKEN = 'E2E_CONSENT_ANON_ID';
 
 /** The shape `installIdProvider` mints: 16 bytes of `Random.secure()`, lower-case
- *  hex (apps/subly/lib/state/analytics_providers.dart).
+ *  hex (apps/subscriptiontracker/lib/state/analytics_providers.dart).
  *
  *  🔴 A VALUE OF ANY OTHER SHAPE IS REFUSED RATHER THAN USED, AND THAT MATTERS
  *  MOST TO THE TEARDOWN. The id resolved here is interpolated into nothing, but

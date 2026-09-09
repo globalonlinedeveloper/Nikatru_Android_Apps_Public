@@ -19,7 +19,7 @@
 // `registry.ts` on Lemon Squeezy's deliberate absence was already correct and is
 // left exactly as it stands.
 //
-// 🔴 WHY THE VOCABULARY IS NOT RevenueCat's. services/subly-api's webhook route
+// 🔴 WHY THE VOCABULARY IS NOT RevenueCat's. services/subscriptiontracker-api's webhook route
 // already speaks INITIAL_PURCHASE / CANCELLATION / BILLING_ISSUE / EXPIRATION.
 // Carrying that across would encode one deferred provider's subscription model
 // into the portfolio's shared table, and the shared table outlives every
@@ -29,7 +29,7 @@
 // 🔴 EVERY DECISION IN THIS FILE FAILS CLOSED. Undecidable ⇒ DENY, on both ends,
 // with no exception and no "probably fine" branch. That is not a style
 // preference: this session already had to fix the money boundary failing OPEN on
-// both the server (`services/subly-api/src/routes/entitlements.ts` read an
+// both the server (`services/subscriptiontracker-api/src/routes/entitlements.ts` read an
 // unparseable expiry as `is_pro: true`) and the client
 // (`packages/core/lib/src/models/entitlement.dart` read one as a LIFETIME
 // grant). The shape that produced both was a parse that returned "no value" and
@@ -274,7 +274,7 @@ export function normalizeInstant(v: unknown): { ok: true; iso: string | null } |
  * Turn a normalised subscription into an entitlement decision.
  *
  * ⚠️ ACCESS IS DERIVED FROM STATE AND DATES, NEVER FROM THE EVENT NAME. The
- * lesson is already recorded in services/subly-api/src/routes/webhooks.ts:40-71
+ * lesson is already recorded in services/subscriptiontracker-api/src/routes/webhooks.ts:40-71
  * and it cost a real bug: one event name can carry two opposite access outcomes,
  * distinguishable only by the paid-through date. Deriving from the entity's own
  * status also means this rail does not depend on knowing the complete list of a
@@ -308,7 +308,7 @@ export function decideSubscription(
     case 'granted':
     case 'trialing':
       // Access is on. `expires_at` mirrors the paid-through date so the LEGACY
-      // read path (services/subly-api/src/routes/entitlements.ts, which knows
+      // read path (services/subscriptiontracker-api/src/routes/entitlements.ts, which knows
       // only is_active + expires_at) reaches the same answer as the new columns.
       // Two readers of one row that can disagree is a defect waiting for a
       // deploy-order accident.

@@ -9,7 +9,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 /// and so did this suite: every case below constructed the widget with no copy
 /// at all and then asserted on `'Update required'` — the default. So the tests
 /// passed, the widget worked, and BOTH production call sites in the portfolio
-/// (`apps/subly/lib/app.dart` and the brick's `app.dart`) also passed no copy,
+/// (`apps/subscriptiontracker/lib/app.dart` and the brick's `app.dart`) also passed no copy,
 /// which meant the one screen that REPLACES THE WHOLE APP shipped English to
 /// every locale. No arb key for it had ever existed, in either tree, in either
 /// language.

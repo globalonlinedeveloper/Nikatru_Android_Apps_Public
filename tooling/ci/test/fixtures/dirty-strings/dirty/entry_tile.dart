@@ -5,7 +5,7 @@
 // between the two matcher families is visible at a glance rather than buried in
 // one blob.
 //
-// 🔴 WHY A SECOND FAMILY IS NOT OPTIONAL. The old canary (apps/subly/lib)
+// 🔴 WHY A SECOND FAMILY IS NOT OPTIONAL. The old canary (apps/subscriptiontracker/lib)
 // measures 58 `Text(…)` hits against 13 labelling hits, so DELETING THE
 // LABELLING MATCHER OUTRIGHT still cleared any total floor by more than 2× and
 // printed "matchers verified". A total count cannot see half a guard die. Each

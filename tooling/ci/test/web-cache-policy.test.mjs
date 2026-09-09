@@ -4,7 +4,7 @@
 // 🔴 THE REAL-TREE RUN CAME FIRST. Eight mutations against a full COPY of this
 // repository, 2026-08-03, all eight caught and restored byte-identically:
 //
-//   1. apps/subly/web/_headers deleted ⇒ exit 1.
+//   1. apps/subscriptiontracker/web/_headers deleted ⇒ exit 1.
 //   2. `/flutter_bootstrap.js` given `max-age=3600, must-revalidate` ⇒ exit 1.
 //      This is the case the requirement is named after, and the message says
 //      why `must-revalidate` beside a long max-age is not a revalidation.
@@ -38,9 +38,9 @@
 // SECOND REAL-TREE RUN, 2026-08-04 — six mutations on a COPY of this repo, each
 // caught, each restored byte-identically:
 //
-//   9.  apps/subly/web/_headers `/icons/*` returned to
+//   9.  apps/subscriptiontracker/web/_headers `/icons/*` returned to
 //       `max-age=31536000, immutable` ⇒ exit 1, naming
-//       apps/subly/web/icons/Icon-192.png. This is the shipped-file limb, and
+//       apps/subscriptiontracker/web/icons/Icon-192.png. This is the shipped-file limb, and
 //       the defect it was written for.
 //   10. the `/favicon.png` rule deleted ⇒ exit 1 ("no rule covering
 //       /favicon.png"). It had never been declared; it was correct only by
@@ -97,7 +97,7 @@
 // 🔴 AND ONE OF THE FOUR IS WIDER THAN "these read the real file" SUGGESTS.
 // `🔴 the REAL repository leaves NO stable name declared immutable` runs the
 // guard over `REPO`, the WHOLE repository, so it goes red for ANY
-// assert-web-cache-policy failure on ANY scanned root — apps/subly/web, the
+// assert-web-cache-policy failure on ANY scanned root — apps/subscriptiontracker/web, the
 // brick template, sites/nikatru — not only for a rajasekarselvam drift, and it
 // duplicates that guard's own CI step's signal. That is deliberate; it is just
 // not what the sentence above says.
@@ -107,7 +107,7 @@
 // constant against a regex and no repository state could fail it; deleting it
 // left the suite at 40 pass / 0 fail). The two mutations above re-run, plus two
 // the rewrite makes reachable for the first time — all four on a copy in the
-// scratchpad holding tooling/ci, tooling/bricks, sites/ and apps/subly/web,
+// scratchpad holding tooling/ci, tooling/bricks, sites/ and apps/subscriptiontracker/web,
 // which are the only trees this guard reads (the copy reproduces the tree's own
 // 40 pass / 0 fail before any mutation is applied):
 //   15'. `/*.png` returned to `max-age=31536000, immutable` ⇒ 37 pass / 3 FAIL.
@@ -136,7 +136,7 @@
 //     · the .png set equality — 16' ⇒ 39/1 and 17' ⇒ 39/1; switched off, both
 //       ⇒ 40/0. Neither assertion covers the other's mutation.
 //   `🔴 the REAL repository leaves NO stable name declared immutable`
-//     · `assert.equal(code, 0, out)` — apps/subly/web/_headers DELETED ⇒ 39/1
+//     · `assert.equal(code, 0, out)` — apps/subscriptiontracker/web/_headers DELETED ⇒ 39/1
 //       with THIS test the only red one, on `1 !== 0`. That is the whole-repo
 //       coupling flagged above, measured rather than argued.
 //     · `doesNotMatch(/STABLE NAMES…/)` — 15' ⇒ red (one of that mutation's 3).
@@ -215,7 +215,7 @@ const GOOD_SITE = `# security headers carry no Cache-Control, so nothing overlap
 
 /**
  * @param {object} o
- * @param {string|null} o.app      apps/subly/web/_headers contents (null = absent)
+ * @param {string|null} o.app      apps/subscriptiontracker/web/_headers contents (null = absent)
  * @param {string|null} o.brick    the brick template's _headers
  * @param {Record<string,string|null>|null} o.sites  site name → _headers
  * @param {Record<string,string>} o.appFiles  extra files shipped under web/
@@ -223,14 +223,14 @@ const GOOD_SITE = `# security headers carry no Cache-Control, so nothing overlap
  */
 function fixture({ app = GOOD, brick = GOOD, sites = null, appFiles = {}, siteFiles = {} } = {}) {
   const root = join(TMP, `f${seq++}`);
-  mkdirSync(join(root, 'apps', 'subly', 'web'), { recursive: true });
+  mkdirSync(join(root, 'apps', 'subscriptiontracker', 'web'), { recursive: true });
   mkdirSync(join(root, BRICK_WEB), { recursive: true });
-  writeFileSync(join(root, 'apps', 'subly', 'web', 'index.html'), '<html></html>');
+  writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', 'index.html'), '<html></html>');
   writeFileSync(join(root, BRICK_WEB, 'index.html'), '<html></html>');
-  if (app !== null) writeFileSync(join(root, 'apps', 'subly', 'web', '_headers'), app);
+  if (app !== null) writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', '_headers'), app);
   if (brick !== null) writeFileSync(join(root, BRICK_WEB, '_headers'), brick);
   for (const [rel, body] of Object.entries(appFiles)) {
-    const abs = join(root, 'apps', 'subly', 'web', ...rel.split('/'));
+    const abs = join(root, 'apps', 'subscriptiontracker', 'web', ...rel.split('/'));
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, body);
   }
@@ -270,7 +270,7 @@ describe('assert-web-cache-policy', () => {
   test('FAILS when an app web directory has no _headers at all', () => {
     const { code, out } = run(fixture({ app: null }));
     assert.equal(code, 1);
-    assert.match(out, /apps\/subly\/web\/_headers does not exist/);
+    assert.match(out, /apps\/subscriptiontracker\/web\/_headers does not exist/);
     assert.match(out, /NOTHING in this repository chooses a cache policy/);
   });
 
@@ -557,7 +557,7 @@ describe('assert-web-cache-policy', () => {
     // test it scoped itself to. Repaired in place rather than annotated, because
     // a false absolute left standing under a note about it is the defect twice.
     // Re-measured 2026-08-24 on a scratch mirror holding tooling/ci,
-    // tooling/bricks, sites/ and apps/subly/web — the only trees this guard
+    // tooling/bricks, sites/ and apps/subscriptiontracker/web — the only trees this guard
     // reads, and the mirror reproduces the tree's own EXIT 0, 40 pass / 0 fail
     // before any mutation. Replacing it with `.map(() => 'X')` leaves the
     // unmutated tree at EXIT 0, 40 pass / 0 fail, AND still goes red under
@@ -802,8 +802,8 @@ describe('assert-web-cache-policy', () => {
 
   test('COVERAGE LOST when the brick template is not in the scan', () => {
     const root = join(TMP, `nobrick${seq++}`);
-    mkdirSync(join(root, 'apps', 'subly', 'web'), { recursive: true });
-    writeFileSync(join(root, 'apps', 'subly', 'web', '_headers'), GOOD);
+    mkdirSync(join(root, 'apps', 'subscriptiontracker', 'web'), { recursive: true });
+    writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', '_headers'), GOOD);
     const { code, out } = run(root);
     assert.equal(code, 1);
     assert.match(out, /is not in the scan/);
@@ -823,9 +823,9 @@ describe('assert-web-cache-policy', () => {
     // A web/ directory holding only _headers: the limb that catches a
     // stable-named asset frozen as immutable has nothing left to range over.
     const root = join(TMP, `noship${seq++}`);
-    mkdirSync(join(root, 'apps', 'subly', 'web'), { recursive: true });
+    mkdirSync(join(root, 'apps', 'subscriptiontracker', 'web'), { recursive: true });
     mkdirSync(join(root, BRICK_WEB), { recursive: true });
-    writeFileSync(join(root, 'apps', 'subly', 'web', '_headers'), GOOD);
+    writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', '_headers'), GOOD);
     writeFileSync(join(root, BRICK_WEB, '_headers'), GOOD);
     const { code, out } = run(root);
     assert.equal(code, 1);

@@ -23,7 +23,7 @@
 // 🔴 THE RELEASE-LANE FAILURE IS SCOPED BY THE REGISTER, NOT BY THE TAG ALONE,
 // AND THAT CORRECTION WAS MEASURED. Until 2026-08-09 the middle ending read
 // "UNLESS this is a release lane" full stop, and the consequence was that a
-// `subly-v*` tag killed this job — while `apple-signing.mjs` killed the `apple`
+// `subscriptiontracker-v*` tag killed this job — while `apple-signing.mjs` killed the `apple`
 // job and `appimage-signing.mjs` killed `linux_web_android` for the same reason.
 // build-platforms.yml's `release` job `needs:` all three, so the FIRST GitHub
 // Release this repository would ever publish was unreachable, blocked on a

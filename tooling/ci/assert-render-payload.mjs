@@ -90,7 +90,7 @@ const REQUIRED_COVERAGE = [PAYLOAD, CATALOGUE, RAIL_CONFIG];
  *
  *  Adding an app here is a decision about that app being sold; removing one
  *  requires saying so out loud, which is the intended cost. */
-const REQUIRED_PRICED_ROWS = ['subly'];
+const REQUIRED_PRICED_ROWS = ['subscriptiontracker'];
 
 /** This guard's OWN currency table — deliberately not imported. See the header:
  *  a comparison whose two sides share a formatter agrees with itself about a

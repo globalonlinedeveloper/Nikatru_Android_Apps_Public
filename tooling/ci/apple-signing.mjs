@@ -43,7 +43,7 @@
 // 🔴 THE RELEASE-LANE FAILURE IS SCOPED BY THE REGISTER, NOT BY THE TAG ALONE,
 // AND THAT CORRECTION WAS MEASURED. Until 2026-08-09 the middle ending read
 // "UNLESS this is a release lane" full stop, and the consequence was that a
-// `subly-v*` tag killed the `apple` job — while `windows-signing.mjs` killed
+// `subscriptiontracker-v*` tag killed the `apple` job — while `windows-signing.mjs` killed
 // `windows` and `appimage-signing.mjs` killed `linux_web_android` for the same
 // reason. build-platforms.yml's `release` job `needs:` all three, so the FIRST
 // GitHub Release this repository would ever publish was unreachable, blocked on
@@ -163,7 +163,7 @@ export const UNSIGNED_PROOF = 'unsigned-build-proof';
  * `APPLE_INSTALLER_CERT_P12_BASE64` — to the macos-appstore row ALONE, and the
  * comparison had no way to say "this row, not that one", so it read a correct
  * declaration as drift. Measured on a clean tree 2026-08-21:
- * `node tooling/ci/apple-signing.mjs --app subly` → EXIT 1, "FAIL COVERAGE LOST
+ * `node tooling/ci/apple-signing.mjs --app subscriptiontracker` → EXIT 1, "FAIL COVERAGE LOST
  * — …macos-appstore row and this script disagree… declared in the register and
  * unknown here: APPLE_INSTALLER_CERT_P12_BASE64". The `apple` job's only
  * invocation of this script — search `build-platforms.yml` for the line
@@ -955,7 +955,7 @@ function zip64ExtraFields(buffer, extraStart, extraLen, whichPresent) {
     // content and is routinely LARGER than the whole archive. That is what
     // compression is.
     //
-    // MEASURED 2026-08-25 on the real subly.msix (build-platforms 32823633046,
+    // MEASURED 2026-08-25 on the real subscriptiontracker.msix (build-platforms 32823633046,
     // the first run to keep the package after the guard refused it): entry [2]
     // `flutter_windows.dll` declares an uncompressed size of 21,284,864 bytes
     // inside a 16,585,733-byte archive — 1.28x the file that contains it, and

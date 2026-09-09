@@ -223,15 +223,15 @@ if (WRAPPED.size < MIN_WRAPPED) {
 // unrelated change until that refactor landed, which is how a guard gets
 // switched off. Anything NEW fails immediately.
 const KNOWN_BYPASSES = {
-  'apps/subly|flutter_local_notifications':
-    '2026-07-28 · Subly rolled its own NotificationService before any adapter existed and still owns every SCHEDULING call — `lib/services/notifications/notification_service.dart` is the file importing the plugin directly. ⚠️ CORRECTED 2026-08-11: this entry read "does not depend on nikatru_notifications at all", and [13]T-9 had already made that false. The adapter IS declared (apps/subly/pubspec.yaml) and imported by four lib files — main.dart, state/providers.dart, features/home/home_screen.dart, features/settings/settings_screen.dart — for the tap callback the fork never had. So the bypass is HALF of what it was written as: the inbound half goes through the seam, the scheduling half is still the fork. A waiver that overstates its own scope is the same defect as one that no longer applies.',
-  'apps/subly|timezone':
+  'apps/subscriptiontracker|flutter_local_notifications':
+    '2026-07-28 · Subly rolled its own NotificationService before any adapter existed and still owns every SCHEDULING call — `lib/services/notifications/notification_service.dart` is the file importing the plugin directly. ⚠️ CORRECTED 2026-08-11: this entry read "does not depend on nikatru_notifications at all", and [13]T-9 had already made that false. The adapter IS declared (apps/subscriptiontracker/pubspec.yaml) and imported by four lib files — main.dart, state/providers.dart, features/home/home_screen.dart, features/settings/settings_screen.dart — for the tap callback the fork never had. So the bypass is HALF of what it was written as: the inbound half goes through the seam, the scheduling half is still the fork. A waiver that overstates its own scope is the same defect as one that no longer applies.',
+  'apps/subscriptiontracker|timezone':
     '2026-07-28 · same NotificationService; timezone arrives with flutter_local_notifications and leaves with it.',
-  // 🪦 `apps/subly|supabase_flutter` LIVED HERE AND IS RESOLVED, NOT MOVED.
+  // 🪦 `apps/subscriptiontracker|supabase_flutter` LIVED HERE AND IS RESOLVED, NOT MOVED.
   // Its own text said the entry appearing "IS the guard working: build the
   // shared home, and the app copy becomes visible as a bypass the same hour" —
   // and it named the blocker, 39-CHASSIS cut 1. The owner reversed that cut on
-  // 2026-08-09, `apps/subly/lib/data/auth/supabase_auth_repository.dart` was
+  // 2026-08-09, `apps/subscriptiontracker/lib/data/auth/supabase_auth_repository.dart` was
   // deleted, and with it the last direct `package:supabase_flutter` import in
   // the app. The entry is DELETED rather than annotated, because the stale-list
   // check below is the whole reason this dictionary can be trusted: a bypass
@@ -239,7 +239,7 @@ const KNOWN_BYPASSES = {
   // really a standing permit to re-introduce it. The guard failed on exactly
   // that the hour the fork went, which is what a self-checking exemption list
   // is for.
-  'apps/subly|dio':
+  'apps/subscriptiontracker|dio':
     '2026-07-28 · Subly DOES depend on nikatru_api_client (it imports ApiException from it) but supplies its own DioApiClient transport. Narrower than the other two: the seam types are used, the transport is duplicated.',
   // 🔴 THE `supabase_flutter` SHAPE, EXACTLY, AND A SECOND TIME. These are not
   // new bypasses: `url_launcher` has been imported directly by the brick and by
@@ -259,7 +259,7 @@ const KNOWN_BYPASSES = {
   // The honest reading is that GENERAL external-URL opening has no shared home —
   // the same [2]C-15-shaped gap auth had before `packages/auth_supabase` existed.
   // Recorded here so it is visible on every CI run instead of being argued away.
-  'apps/subly|url_launcher':
+  'apps/subscriptiontracker|url_launcher':
     '2026-08-01 · NOT A NEW BYPASS — reclassified when [5]M-13 created `packages/purchases`, which declares url_launcher for `CheckoutLauncher` (https-only, checkout pages). Subly opens legal pages and a support mailto:, which that seam is not for and would reject. General external-URL opening has no shared home; giving it one is a [2]C-3-shaped work item, and Subly is frozen by 39-CHASSIS cut 1 either way.',
   'brick|url_launcher':
     "2026-08-01 · same reclassification, same reason: the template opens `AppConfig.privacyUrl`, `AppConfig.termsUrl` and a support `mailto:`. `CheckoutLauncher` refuses non-https by design, so it cannot serve them. THIS ONE IS THE REAL WORK ITEM — it is the chassis, so every stamped app inherits it: the gap is a shared `ExternalLinkLauncher` seam, not a change to the money rail.",

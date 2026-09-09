@@ -41,7 +41,7 @@ import {
 // accepted a second copy of a column and the schema had diverged from the file.
 //
 // ⚠️ SCOPE, stated so it is not mistaken for more than it is. This covers
-// services/platform's set only. services/subly-api/migrations/0002_schema_debt.sql
+// services/platform's set only. services/subscriptiontracker-api/migrations/0002_schema_debt.sql
 // contains two bare `ALTER TABLE … ADD COLUMN` and does NOT replay
 // (`duplicate column name: id`); baselining it and deriving the covered set from
 // every `migrations_dir` in the tree is [4] increment 4's work, and editing 0002

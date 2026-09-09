@@ -8,7 +8,7 @@
 // stopped matching. Something has to be dirty for the clean result to mean
 // anything, and it has to be a tree nobody will ever tidy.
 //
-// Until 2026-08-08 that tree was `apps/subly/lib`, and the coverage claim was
+// Until 2026-08-08 that tree was `apps/subscriptiontracker/lib`, and the coverage claim was
 // therefore hostage to a PRODUCT decision: the moment Subly's l10n retrofit
 // lands, the guard goes red BY IMPROVEMENT and the rational response is to
 // weaken it. A fixture owned by the guard cannot be cleaned by product work.

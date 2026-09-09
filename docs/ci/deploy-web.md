@@ -15,7 +15,7 @@ project (Direct Upload) via wrangler.
 
 ── [10]D-2b · THE WEB DELIVERY PATH TAKES ANY APP ID FROM THE SPEC ──────────
 🔴 UNTIL 2026-08-07 THIS FILE NAMED ONE APP SIX TIMES ON THE EXECUTABLE PATH:
-the `paths:` filter, `defaults.run.working-directory`, `--emit apps/subly`,
+the `paths:` filter, `defaults.run.working-directory`, `--emit apps/subscriptiontracker`,
 the launch smoke's bundle path, wrangler's `workingDirectory` and
 `--project-name=`, the post-deploy smoke's URL and the deployment record's
 environment. Shipping app #2's web build therefore meant COPYING THIS FILE and
@@ -219,7 +219,7 @@ can be done and undone in seconds.
 
 **AND IT IS INERT UNTIL THEN, BY CONSTRUCTION.** `vars.TURNSTILE_SITE_KEY` is
 unset today, so the define arrives EMPTY;
-`apps/subly/lib/features/auth/turnstile_gate.dart` reads it as a
+`apps/subscriptiontracker/lib/features/auth/turnstile_gate.dart` reads it as a
 `String.fromEnvironment` with an empty default, `isConfigured` is false, the gate
 renders `SizedBox.shrink()` and every caller's token stays null — byte-for-byte
 today's deployed behaviour.
@@ -426,7 +426,7 @@ never fail for the harness's own reasons.
 🔴 WHAT THIS PAIR OF STEPS BUYS, MEASURED 2026-09-03 AND NOT INFERRED.
 `GET /api/0/organizations/nikatru/releases/{version}/files/` answered 200
 with a ZERO-LENGTH list for ALL TWELVE releases GlitchTip holds for
-`subly`, and `dsyms` was `[]`. Nothing had ever been uploaded, and
+`subscriptiontracker`, and `dsyms` was `[]`. Nothing had ever been uploaded, and
 nothing could have been: `flutter build web --release` emits no source
 maps at all. Two OPEN, UNRESOLVED production issues are the bill —
 `minified:a0X: GoError: There is nothing to pop` (4 occurrences, level
@@ -555,7 +555,7 @@ with a completely reworded message still passes.
 
 🔴 WHERE 8000002 COMES FROM, AND WHY IT IS THE ONLY CODE HERE.
 SOURCE: observed run 32962146010, job "Build & deploy web to Cloudflare
-Pages (subly)", THIS step's log —
+Pages (subscriptiontracker)", THIS step's log —
     A project with this name already exists. Choose a different project
     name. [code: 8000002]
 That run is the ONLY source. Cloudflare publishes no error-code table

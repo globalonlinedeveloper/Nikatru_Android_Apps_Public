@@ -22,8 +22,8 @@
 #     wsl -e bash /mnt/c/.../tooling/wsl-setup.sh
 #
 # Verify afterwards (from the repo root, inside WSL):
-#     cd apps/subly && flutter build linux --release
-#     cd apps/subly && flutter build apk --debug
+#     cd apps/subscriptiontracker && flutter build linux --release
+#     cd apps/subscriptiontracker && flutter build apk --debug
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -124,8 +124,8 @@ JAVA
 
 log "Done. Open a NEW shell (or: source ~/.bashrc), then from the repo root:"
 echo "    flutter pub get                       # workspace resolves at the ROOT"
-echo "    cd apps/subly && flutter build linux --release"
-echo "    cd apps/subly && flutter build apk --debug"
+echo "    cd apps/subscriptiontracker && flutter build linux --release"
+echo "    cd apps/subscriptiontracker && flutter build apk --debug"
 echo
 echo "NOTE: android/gradle.properties caps the heap at -Xmx4G on purpose."
 echo "A 16 GB host gives WSL ~7 GB, and an 8 GB heap CRASHED the VM"

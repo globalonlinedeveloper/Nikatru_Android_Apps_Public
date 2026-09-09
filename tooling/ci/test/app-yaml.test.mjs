@@ -19,7 +19,7 @@
 // and store trees, copied file by file. So the POSITIVE CONTROL below is the
 // strongest statement available: the bytes a human wrote by hand into
 // `catalog/apps.json` and into twenty-five listing files are EXACTLY what
-// `apps/subly/app.yaml` renders to. If that ever stops holding, the declaration
+// `apps/subscriptiontracker/app.yaml` renders to. If that ever stops holding, the declaration
 // and the tree have parted company and every negative case below is about a
 // tree nobody ships.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,10 +38,10 @@ const REPO = resolve(HERE, '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-app-yaml.mjs');
 const RENDER = join(REPO, 'tooling', 'app-yaml', 'render.mjs');
 
-const APP_YAML = 'apps/subly/app.yaml';
-const PRIVACY_YAML = 'apps/subly/privacy.yaml';
+const APP_YAML = 'apps/subscriptiontracker/app.yaml';
+const PRIVACY_YAML = 'apps/subscriptiontracker/privacy.yaml';
 const CATALOGUE = 'catalog/apps.json';
-const TITLE = 'apps/subly/store/windows-store/title.txt';
+const TITLE = 'apps/subscriptiontracker/store/windows-store/title.txt';
 
 /* Never through a pipe, and never `$?` beside a command substitution: this
    corpus has had a failing command read as exit 0 three times that way. */
@@ -61,12 +61,12 @@ const spawn = (script, args) => {
 function tree() {
   const root = mkdtempSync(join(tmpdir(), 'app-yaml-'));
   for (const rel of [
-    'apps/subly/app.yaml',
-    'apps/subly/privacy.yaml',
+    'apps/subscriptiontracker/app.yaml',
+    'apps/subscriptiontracker/privacy.yaml',
     'catalog/apps.json',
     'tooling/channel-register.json',
     'tooling/legal/provider-register.json',
-    'sites/nikatru/subly/privacy.html',
+    'sites/nikatru/subscriptiontracker/privacy.html',
     'extensions/Extension/Full_Screen_Shot/publish/privacy.yaml',
     'extensions/Extension/Full_Screen_Shot/publish/STORE-LISTING.md',
     'extensions/templates/tool/publish/STORE-LISTING.md',
@@ -75,23 +75,23 @@ function tree() {
     // a COVERAGE LOST refusal in the renderer, so a fixture missing these would
     // exercise that refusal on every case below instead of the case's own
     // mutation. They are exactly the files ICON_LABEL_TARGETS names.
-    'apps/subly/web/manifest.json',
-    'apps/subly/android/app/src/main/AndroidManifest.xml',
-    'apps/subly/ios/Runner/Info.plist',
-    'apps/subly/macos/Runner/Info.plist',
-    'apps/subly/pubspec.yaml',
+    'apps/subscriptiontracker/web/manifest.json',
+    'apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml',
+    'apps/subscriptiontracker/ios/Runner/Info.plist',
+    'apps/subscriptiontracker/macos/Runner/Info.plist',
+    'apps/subscriptiontracker/pubspec.yaml',
   ]) {
     mkdirSync(join(root, dirname(rel)), { recursive: true });
     cpSync(join(REPO, rel), join(root, rel));
   }
-  cpSync(join(REPO, 'apps/subly/store'), join(root, 'apps/subly/store'), { recursive: true });
+  cpSync(join(REPO, 'apps/subscriptiontracker/store'), join(root, 'apps/subscriptiontracker/store'), { recursive: true });
   return root;
 }
 
 const PRIVACY_RENDER = join(REPO, 'tooling', 'app-yaml', 'render-privacy.mjs');
-const PLAY_SWORN = 'apps/subly/store/android-play/data-safety.json';
-const APPLE_SWORN = 'apps/subly/store/ios-appstore/privacy-manifest.json';
-const SITE_NOTICE = 'sites/nikatru/subly/privacy.html';
+const PLAY_SWORN = 'apps/subscriptiontracker/store/android-play/data-safety.json';
+const APPLE_SWORN = 'apps/subscriptiontracker/store/ios-appstore/privacy-manifest.json';
+const SITE_NOTICE = 'sites/nikatru/subscriptiontracker/privacy.html';
 const EXT_LISTING = 'extensions/Extension/Full_Screen_Shot/publish/STORE-LISTING.md';
 
 const readJson = (root, rel) => JSON.parse(get(root, rel));
@@ -112,7 +112,7 @@ const EXTRA_COLLECTS_ROW = [
   '      A row that is schema-valid in every respect and appears in neither sworn',
   '      store declaration. This is the whole point of the case: the declaration',
   '      alone cannot decide what the app collects.',
-  '    source: apps/subly/store/android-play/data-safety.json',
+  '    source: apps/subscriptiontracker/store/android-play/data-safety.json',
   '    asOf: "2026-09-06"',
   '',
 ].join('\n');
@@ -297,7 +297,7 @@ describe('assert-app-yaml — the declaration and its renderings', () => {
   test('COVERAGE LOST: a declaration that renders ZERO listing files exits 2', () => {
     const root = tree();
     try {
-      rmSync(join(root, 'apps/subly/store'), { recursive: true });
+      rmSync(join(root, 'apps/subscriptiontracker/store'), { recursive: true });
       const { code, out } = spawn(GUARD, [root]);
       assert.equal(code, 2, out);
       assert.match(out, /ZERO listing files/);
@@ -329,13 +329,13 @@ describe('assert-app-yaml — the declaration and its renderings', () => {
     // assert-sworn-store-files.mjs limb 7 is the tripwire this respects:
     // "a template that carries answers makes app #2 swear to app #1's code".
     const untouchable = [
-      'apps/subly/store/android-play/data-safety.json',
-      'apps/subly/store/android-play/content-rating.json',
-      'apps/subly/store/android-play/ads-declaration.json',
-      'apps/subly/store/ios-appstore/privacy-manifest.json',
-      'apps/subly/store/android-play/long-description.txt',
-      'apps/subly/store/ios-appstore/keywords.txt',
-      'apps/subly/store/windows-store/search-terms.txt',
+      'apps/subscriptiontracker/store/android-play/data-safety.json',
+      'apps/subscriptiontracker/store/android-play/content-rating.json',
+      'apps/subscriptiontracker/store/android-play/ads-declaration.json',
+      'apps/subscriptiontracker/store/ios-appstore/privacy-manifest.json',
+      'apps/subscriptiontracker/store/android-play/long-description.txt',
+      'apps/subscriptiontracker/store/ios-appstore/keywords.txt',
+      'apps/subscriptiontracker/store/windows-store/search-terms.txt',
     ];
     const root = tree();
     try {
@@ -353,9 +353,9 @@ describe('assert-app-yaml — the declaration and its renderings', () => {
     // that print into a commitment nobody made.
     const root = tree();
     try {
-      rmSync(join(root, 'apps/subly/store/linux-snap'), { recursive: true });
+      rmSync(join(root, 'apps/subscriptiontracker/store/linux-snap'), { recursive: true });
       assert.equal(spawn(RENDER, [root]).code, 0);
-      assert.equal(existsSync(join(root, 'apps/subly/store/linux-snap')), false);
+      assert.equal(existsSync(join(root, 'apps/subscriptiontracker/store/linux-snap')), false);
     } finally { kill(root); }
   });
 });
@@ -598,7 +598,7 @@ describe('limb 5 — the notice surfaces are what the declaration renders to', (
       put(root, SITE_NOTICE, get(root, SITE_NOTICE).replace('<h2>4. Who else touches it</h2>', '<h2>4. Nobody else touches it</h2>'));
       const { code, out } = spawn(PRIVACY_RENDER, [root, '--check']);
       assert.equal(code, 1, out);
-      assert.match(out, /sites\/nikatru\/subly\/privacy\.html/);
+      assert.match(out, /sites\/nikatru\/subscriptiontracker\/privacy\.html/);
     } finally { kill(root); }
   });
 
@@ -666,17 +666,17 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
     '\nbilling:\n  mobileIap:\n    provider: revenuecat\n    entitlementId: pro\n' +
     '    revenuecatAppIds:\n      android: fixture_android_app\n      ios: fixture_ios_app\n';
 
-  /** apps/subly has a pubspec; the fixture tree does not copy it, so cases that
+  /** apps/subscriptiontracker has a pubspec; the fixture tree does not copy it, so cases that
    *  are ABOUT the dependency have to supply one. Written rather than copied so
    *  each case states exactly the dependency set it is testing. */
   const pubspec = (deps) =>
-    'name: subly\nenvironment:\n  sdk: ">=3.5.0 <4.0.0"\ndependencies:\n' +
+    'name: subscriptiontracker\nenvironment:\n  sdk: ">=3.5.0 <4.0.0"\ndependencies:\n' +
     deps.map((d) => `  ${d}:\n    path: ../../packages/x\n`).join('');
 
   test('POSITIVE CONTROL — no declaration and no dependency is the shipped tree', () => {
     const root = tree();
     try {
-      put(root, 'apps/subly/pubspec.yaml', pubspec(['nikatru_purchases']));
+      put(root, 'apps/subscriptiontracker/pubspec.yaml', pubspec(['nikatru_purchases']));
       const { code, out } = spawn(GUARD, [root]);
       assert.equal(code, 0, `expected a clean tree, got ${code}:\n${out}`);
       // The empty forward domain is PRINTED, never resolved to an ok line — an
@@ -688,7 +688,7 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
   test('declared WITHOUT the bridge dependency fails', () => {
     const root = tree();
     try {
-      put(root, 'apps/subly/pubspec.yaml', pubspec(['nikatru_purchases']));
+      put(root, 'apps/subscriptiontracker/pubspec.yaml', pubspec(['nikatru_purchases']));
       put(root, APP_YAML, get(root, APP_YAML) + IAP_BLOCK);
       const { code, out } = spawn(GUARD, [root]);
       assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
@@ -704,7 +704,7 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
     try {
       put(
         root,
-        'apps/subly/pubspec.yaml',
+        'apps/subscriptiontracker/pubspec.yaml',
         pubspec(['nikatru_purchases', 'nikatru_billing_revenuecat']),
       );
       const { code, out } = spawn(GUARD, [root]);
@@ -714,14 +714,14 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
   });
 
   test('a RevenueCat TOMBSTONE comment is not a dependency', () => {
-    // apps/subly's real pubspec carries a comment recording why no billing
+    // apps/subscriptiontracker's real pubspec carries a comment recording why no billing
     // aggregator is present. A substring search over the file reports the
     // dependency this limb exists to detect; comments are stripped first.
     const root = tree();
     try {
       put(
         root,
-        'apps/subly/pubspec.yaml',
+        'apps/subscriptiontracker/pubspec.yaml',
         pubspec(['nikatru_purchases']) +
           '  # nikatru_billing_revenuecat: deliberately absent — see ADR 026.\n',
       );
@@ -735,16 +735,16 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
     try {
       put(
         root,
-        'apps/subly/pubspec.yaml',
+        'apps/subscriptiontracker/pubspec.yaml',
         pubspec(['nikatru_purchases', 'nikatru_billing_revenuecat']),
       );
       put(root, APP_YAML, get(root, APP_YAML) + IAP_BLOCK);
-      const ds = JSON.parse(get(root, 'apps/subly/store/android-play/data-safety.json'));
+      const ds = JSON.parse(get(root, 'apps/subscriptiontracker/store/android-play/data-safety.json'));
       const posture = ds.buildPosture.current;
       for (const a of ds.answers) {
         if (a.type === 'Purchase history') a.collected[posture] = false;
       }
-      putJson(root, 'apps/subly/store/android-play/data-safety.json', ds);
+      putJson(root, 'apps/subscriptiontracker/store/android-play/data-safety.json', ds);
       const { code, out } = spawn(GUARD, [root]);
       assert.equal(code, 1, `expected a finding, got ${code}:\n${out}`);
       assert.match(out, /does not swear "Purchase history"/);
@@ -756,11 +756,11 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
     try {
       put(
         root,
-        'apps/subly/pubspec.yaml',
+        'apps/subscriptiontracker/pubspec.yaml',
         pubspec(['nikatru_purchases', 'nikatru_billing_revenuecat']),
       );
       put(root, APP_YAML, get(root, APP_YAML) + IAP_BLOCK);
-      const rel = 'apps/subly/store/ios-appstore/privacy-manifest.json';
+      const rel = 'apps/subscriptiontracker/store/ios-appstore/privacy-manifest.json';
       const apple = get(root, rel)
         .replace(/purchases_flutter/g, 'some_other_package')
         .replace(/RevenueCat/gi, 'SomeOtherVendor');
@@ -820,11 +820,11 @@ describe('limb 6 — the mobile-IAP opt-in and the bridge dependency travel toge
 // ─────────────────────────────────────────────────────────────────────────────
 const LABEL = 'Subly Label';
 const LABEL_TARGETS = [
-  ['apps/subly/web/manifest.json', (t) => JSON.parse(t).short_name],
-  ['apps/subly/android/app/src/main/AndroidManifest.xml', (t) => t.match(/android:label="([^"]*)"/)?.[1]],
-  ['apps/subly/ios/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
-  ['apps/subly/macos/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
-  ['apps/subly/pubspec.yaml', (t) => t.match(/^msix_config:[\s\S]*?^ {2}display_name: (.*)$/m)?.[1]],
+  ['apps/subscriptiontracker/web/manifest.json', (t) => JSON.parse(t).short_name],
+  ['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml', (t) => t.match(/android:label="([^"]*)"/)?.[1]],
+  ['apps/subscriptiontracker/ios/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
+  ['apps/subscriptiontracker/macos/Runner/Info.plist', (t) => t.match(/<key>CFBundleDisplayName<\/key>\s*<string>([^<]*)<\/string>/)?.[1]],
+  ['apps/subscriptiontracker/pubspec.yaml', (t) => t.match(/^msix_config:[\s\S]*?^ {2}display_name: (.*)$/m)?.[1]],
 ];
 
 /** Set (or replace) `shortName:` in the fixture's declaration. */
@@ -838,10 +838,10 @@ function declareShortName(root, value) {
 }
 
 const stripMsix = (root) => {
-  const text = get(root, 'apps/subly/pubspec.yaml');
+  const text = get(root, 'apps/subscriptiontracker/pubspec.yaml');
   const at = text.indexOf('\nmsix_config:');
   assert.notEqual(at, -1, 'the fixture pubspec must still carry an msix_config block');
-  put(root, 'apps/subly/pubspec.yaml', `${text.slice(0, at)}\n`);
+  put(root, 'apps/subscriptiontracker/pubspec.yaml', `${text.slice(0, at)}\n`);
 };
 
 describe('the icon label reaches the five OS-level name fields this renderer owns', () => {
@@ -888,7 +888,7 @@ describe('the icon label reaches the five OS-level name fields this renderer own
     try {
       declareShortName(root, LABEL);
       assert.equal(spawn(RENDER, [root]).code, 0);
-      const rel = 'apps/subly/android/app/src/main/AndroidManifest.xml';
+      const rel = 'apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml';
       put(root, rel, get(root, rel).replace(/android:label="[^"]*"/, 'android:label="Subly Legacy"'));
       const { code, out } = spawn(RENDER, [root, '--check']);
       assert.equal(code, 1, out);
@@ -901,7 +901,7 @@ describe('the icon label reaches the five OS-level name fields this renderer own
     const root = tree();
     try {
       declareShortName(root, LABEL);
-      const rel = 'apps/subly/ios/Runner/Info.plist';
+      const rel = 'apps/subscriptiontracker/ios/Runner/Info.plist';
       const text = get(root, rel);
       const stripped = text.replace(/[ \t]*<key>CFBundleDisplayName<\/key>\s*<string>[^<]*<\/string>\n/, '');
       assert.notEqual(stripped, text, 'the fixture plist must carry the key this case removes');
@@ -916,7 +916,7 @@ describe('the icon label reaches the five OS-level name fields this renderer own
     const root = tree();
     try {
       declareShortName(root, LABEL);
-      rmSync(join(root, 'apps/subly/macos'), { recursive: true, force: true });
+      rmSync(join(root, 'apps/subscriptiontracker/macos'), { recursive: true, force: true });
       assert.equal(spawn(RENDER, [root]).code, 0);
       const { code, out } = spawn(RENDER, [root, '--check']);
       assert.equal(code, 0, `an absent platform directory is not a defect:\n${out}`);
@@ -938,7 +938,7 @@ describe('the icon label reaches the five OS-level name fields this renderer own
     try {
       declareShortName(root, LABEL);
       for (const dir of ['web', 'android', 'ios', 'macos']) {
-        rmSync(join(root, 'apps/subly', dir), { recursive: true, force: true });
+        rmSync(join(root, 'apps/subscriptiontracker', dir), { recursive: true, force: true });
       }
       stripMsix(root);
       const { code, out } = spawn(RENDER, [root, '--check']);

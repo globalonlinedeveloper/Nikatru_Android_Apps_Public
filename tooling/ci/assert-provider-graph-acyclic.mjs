@@ -45,7 +45,7 @@
 //
 // 🔴 COMMENTS AND STRING LITERALS ARE STRIPPED BEFORE ANYTHING IS MATCHED, and
 // that is load-bearing rather than tidy. The doc comments in
-// apps/subly/lib/state/providers.dart SPELL THE CYCLE OUT IN PROSE — ":561",
+// apps/subscriptiontracker/lib/state/providers.dart SPELL THE CYCLE OUT IN PROSE — ":561",
 // ":570-575" and ":747" all contain `ref.watch(authRepositoryProvider)` and
 // `ref.read(...)` as the thing being warned against — so a scanner reading raw
 // text would report the fixed tree as broken and stay red forever. Same shape as
@@ -69,7 +69,7 @@
 // 🔴 A `ref.watch` INSIDE A LAZILY-INVOKED CLOSURE COUNTS AS AN EDGE HERE, AND
 // RIVERPOD ONLY REGISTERS IT WHEN THE CLOSURE RUNS. That difference is the whole
 // reason this guard earns its place beside the runtime witnesses in
-// apps/subly/test/providers_test.dart. Measured 2026-08-09: with
+// apps/subscriptiontracker/test/providers_test.dart. Measured 2026-08-09: with
 // `authTokenProvider`'s inner `ref.read` flipped to `ref.watch`, EVERY runtime
 // test stayed green — the token closure had simply not been called yet, so no
 // dependency existed to be circular — while this guard failed and named the
@@ -80,7 +80,7 @@
 // class of this defect a test cannot reach.
 //
 // ── ITS RECORDED FAILING CASES (F-10), ALL FOUR MEASURED ON THE REAL TREE ─────
-// Mutation-tested 2026-08-09 against apps/subly, `dart analyze` clean between
+// Mutation-tested 2026-08-09 against apps/subscriptiontracker, `dart analyze` clean between
 // each so a red result is a CAUGHT MUTATION and not a compile error:
 //   1. revert #258 — `platformRestClientProvider`'s tokenProvider back to
 //      `ref.watch(authRepositoryProvider).currentAccessToken`  → FAIL, chain
@@ -399,7 +399,7 @@ function ancestorPath(watch, t, r) {
 // ── run ─────────────────────────────────────────────────────────────────────
 const trees = discoverTrees();
 
-// COVERAGE SELF-CHECK, limb 1 — the tree set. Two trees exist today (apps/subly
+// COVERAGE SELF-CHECK, limb 1 — the tree set. Two trees exist today (apps/subscriptiontracker
 // and the brick) and the brick is the one that matters most: it is the shape
 // every future app is born with. A scan that reached one of them, or none, would
 // pass every provider by finding nothing to contradict it.

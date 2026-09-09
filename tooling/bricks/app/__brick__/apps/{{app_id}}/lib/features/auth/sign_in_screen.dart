@@ -15,7 +15,7 @@ import '../../state/providers.dart';
 /// ⛔ THE `caps.oauthRedirect && providers.any` GATE.
 /// `tooling/ci/assert-no-seam-forks.mjs`'s parity limb derives C from the
 /// `caps.<field>` reads on the chassis side of this pair and requires C ⊆ F
-/// against `apps/subly/lib/features/auth/login_screen.dart`. It reads the
+/// against `apps/subscriptiontracker/lib/features/auth/login_screen.dart`. It reads the
 /// adapter UNIONED with the file it delegates to — and its zero-caps refusal
 /// still NAMES THE ADAPTER, so the read stays where the guard points. It is
 /// also the honest home: `AuthCapabilities` is the auth SEAM, and a package the

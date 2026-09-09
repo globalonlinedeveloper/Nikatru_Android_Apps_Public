@@ -33,7 +33,7 @@ const ENV = {
   APP_ID: 'platform',
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-key',
-  APP_ERASURE_ENDPOINTS: 'subly=https://api.nikatru.com',
+  APP_ERASURE_ENDPOINTS: 'subscriptiontracker=https://api.nikatru.com',
 };
 
 /** Drive the REAL route. The relay to each app and the identity delete are the
@@ -99,7 +99,7 @@ describe('the delete set is derived from the real platform schema', () => {
     const db = realPlatformDb();
     db.db.exec(
       `INSERT INTO entitlements (user_id, app_id, entitlement, is_active)
-         VALUES ('u-derive','subly','pro',1), ('u-other','subly','pro',1)`,
+         VALUES ('u-derive','subscriptiontracker','pro',1), ('u-other','subscriptiontracker','pro',1)`,
     );
     const { status } = await erase(db);
     expect(status).toBe(200);

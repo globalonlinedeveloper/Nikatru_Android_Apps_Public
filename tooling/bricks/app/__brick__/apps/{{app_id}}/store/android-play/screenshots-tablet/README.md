@@ -9,7 +9,7 @@ frames this app is not publishable at all, however many phone shots it carries.
 
 🔴 **THIS DIRECTORY DID NOT EXIST IN THE BRICK UNTIL 2026-09-05, AND THAT IS THE
 DEFECT IT WAS ADDED FOR.** `tooling/channel-register.json` has required the
-tablet set since 2026-08-21 and `apps/subly/store/android-play/screenshots-tablet`
+tablet set since 2026-08-21 and `apps/subscriptiontracker/store/android-play/screenshots-tablet`
 has carried it since 2026-08-27, but the template every future app is stamped
 from emitted only `screenshots/`. So every app stamped between those dates was
 born one device type short — structurally unpublishable — and nothing said so,

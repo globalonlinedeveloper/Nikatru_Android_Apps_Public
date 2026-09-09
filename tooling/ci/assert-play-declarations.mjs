@@ -106,8 +106,8 @@
 // ── THE DOMAIN, AND WHY THE BRICK IS A ROOT OF A DIFFERENT KIND ─────────────
 //
 // 🔴 UNTIL 2026-09-05 THIS GUARD CHECKED ONE APP, AND THE APP WAS A STRING
-// LITERAL. `row.storeMetadataDir.replace('{app}', 'subly')` and
-// `const APP_DIR = 'apps/subly'` meant the Data safety form, the permission
+// LITERAL. `row.storeMetadataDir.replace('{app}', 'subscriptiontracker')` and
+// `const APP_DIR = 'apps/subscriptiontracker'` meant the Data safety form, the permission
 // equality and the content-rating questionnaire were compared to the code of
 // exactly one app, by name. Stamp app #2 and its sworn declarations sit outside
 // every limb in this file while it goes on printing `ok` — and the penalty
@@ -154,7 +154,7 @@
 // of the rule here would be a rival scanner, not coverage.
 //
 // So the brick is a root with a DIFFERENT CONTRACT — the same split
-// assert-store-metadata.mjs already makes between the hand-made apps/subly/store
+// assert-store-metadata.mjs already makes between the hand-made apps/subscriptiontracker/store
 // and THE FACTORY. What this file asserts over it:
 //   · ITS DECLARATIONS EXIST AND PARSE. Absence is COVERAGE LOST, so the root
 //     cannot go quietly missing — the failure mode every root added "for
@@ -164,7 +164,7 @@
 //     rather than starting to grade a template as an app.
 //   · THE FACTORY DEPENDENCY SWEEP, WHICH IS NEW AND IS THE TEETH. Every Dart
 //     package any answered declaration names as a tell is looked for in the
-//     TEMPLATE's own pubspec. `geolocator` added to apps/subly makes one label
+//     TEMPLATE's own pubspec. `geolocator` added to apps/subscriptiontracker makes one label
 //     false and limb 5 catches it; `geolocator` added to the template makes
 //     every future stamped app collect location while the declaration stamped
 //     beside it answers `null` for that type — and nothing in this repository
@@ -196,7 +196,7 @@
 //   #    mutation                                                     pre  post
 //   ───  ──────────────────────────────────────────────────────────   ───  ────
 //   G0   CONTROL — unmutated tree                                       0    0
-//   M1   root pubspec: apps/subly dropped from the `workspace:` list    0    1
+//   M1   root pubspec: apps/subscriptiontracker dropped from the `workspace:` list    0    1
 //   M2   root pubspec: the `workspace:` block renamed away              0    1
 //   M3   the brick app template directory renamed                      0    1
 //   M4   brick store/android-play/data-safety.json deleted             0    1
@@ -206,9 +206,9 @@
 //   M8   a template AndroidManifest declaring ACCESS_FINE_LOCATION     0    1
 //   M9   brick data-safety.json grew an `answers` array                0    1
 //   M10  brick content-rating.json `unresolved` list emptied           0    1
-//   M11  apps/subly pubspec: `geolocator` added (the app-side limb)    1    1
-//   M12  apps/subly data-safety.json deleted                          1    1
-//   M13  apps/subly `answers` cut from 38 to 15 — the per-root floor   1    1
+//   M11  apps/subscriptiontracker pubspec: `geolocator` added (the app-side limb)    1    1
+//   M12  apps/subscriptiontracker data-safety.json deleted                          1    1
+//   M13  apps/subscriptiontracker `answers` cut from 38 to 15 — the per-root floor   1    1
 //
 // M11-M13 are the rows that prove the widening did not COST anything: the
 // limbs that already bit still bite, now through a loop. And the pass line is
@@ -395,15 +395,15 @@ const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
 /** The floors. Every number is a measurement of THIS repository on 2026-09-05,
  *  recorded beside the thing it was measured on, and every one is applied PER
  *  ROOT. A single floor over the union of the roots is not a floor: with
- *  `apps/subly` contributing 38 answers and 118 tells, a combined floor of any
- *  size this tree satisfies would still be satisfied by apps/subly alone after
+ *  `apps/subscriptiontracker` contributing 38 answers and 118 tells, a combined floor of any
+ *  size this tree satisfies would still be satisfied by apps/subscriptiontracker alone after
  *  a second app had lost its declaration entirely. That is not hypothetical —
  *  assert-workspace-coverage.mjs:130-136 records a union floor staying green
  *  over an emptied `apps/`, and assert-no-tls-pinning.mjs:75-93 records the
  *  same failure with the measurement that proved it. */
 const REQUIRED_COVERAGE = {
   app: {
-    // apps/subly, measured 2026-09-05: 38 answers, 118 tells, 3 manifests,
+    // apps/subscriptiontracker, measured 2026-09-05: 38 answers, 118 tells, 3 manifests,
     // 21 direct dependencies. The floors sit well under every one of those so
     // ordinary editing never trips them, and well over a stub so a declaration
     // collapsing to three rows is COVERAGE LOST rather than a quiet `ok`.
@@ -774,7 +774,7 @@ function checkApp(app) {
   // today and that is correct — no native Apple capability is used, iOS/macOS are
   // CI-only here, and nothing has shipped to either store. Meanwhile the
   // declaration carries 17 distinct iOS usage-description keys across 18 tell
-  // entries (measured on apps/subly; this block runs PER APP now, and the count
+  // entries (measured on apps/subscriptiontracker; this block runs PER APP now, and the count
   // it prints is that app's own), every one of which is therefore comparing
   // against an empty Set and can only ever answer "absent". The permission
   // haystack and the dependency haystack are both floored above; this one was
@@ -2020,7 +2020,7 @@ CURRENT_ROOT = null;
 // The forward direction is what bites. It is stated as: declared ⇒ the row is
 // sworn `collected: true` under the CURRENT posture. The reverse (a sworn
 // Purchase-history row with no IAP declaration) is deliberately NOT a failure —
-// apps/subly swears that row today for the first-party entitlement rail, with a
+// apps/subscriptiontracker swears that row today for the first-party entitlement rail, with a
 // sourced `basis`, and no IAP anywhere. Over-swearing is not the accuracy
 // failure Play punishes; under-swearing is.
 {
@@ -2138,7 +2138,7 @@ for (const s of summaries) {
 // to prevent, multiplied by every app the factory will ever stamp.
 //
 // 🔴 WHAT IT IS: the one place a data-collection dependency can arrive for all
-// fifty apps at once. `geolocator` added to apps/subly makes ONE label false and
+// fifty apps at once. `geolocator` added to apps/subscriptiontracker makes ONE label false and
 // limb 5 above catches it. `geolocator` added HERE makes every future stamped
 // app collect location while the declaration stamped beside it still answers
 // `null` — nothing in this repository looked at that until 2026-09-05.
@@ -2329,7 +2329,7 @@ console.log('     🔴 The sentry-ANDROID half of this line said the same thing 
 console.log('     so it has moved OUT of this list; only the cocoa half above is still unseen. The source, read');
 console.log("     that day: `api 'io.sentry:sentry-android:8.51.0'` at android/build.gradle:65 inside the pinned");
 console.log('     sentry_flutter-9.26.0 pub-cache directory, reached through the pub-WORKSPACE');
-console.log('     .dart_tool/package_config.json at the REPO ROOT (there is none under apps/subly — Melos 8');
+console.log('     .dart_tool/package_config.json at the REPO ROOT (there is none under apps/subscriptiontracker — Melos 8');
 console.log('     resolves the whole tree once). Reading it settles the VERSION and nothing further: whether the');
 console.log('     sentry-android AAR itself declares INTERNET was NOT read here — the AAR is not on this host (no');
 console.log("     gradle cache; Android builds in WSL) — and sentry_flutter's own android/src/main/");

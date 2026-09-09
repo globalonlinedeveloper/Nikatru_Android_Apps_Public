@@ -22,7 +22,7 @@ dependencies:
     path: ../core
   # Local notifications (show + daily zonedSchedule) on Android/iOS/macOS/Linux.
   # No web support (callers fall back to NoOp) and no repeat-schedule on Windows.
-  # Pinned to 17.x to share ONE workspace resolution with apps/subly (its
+  # Pinned to 17.x to share ONE workspace resolution with apps/subscriptiontracker (its
   # existing renewal-reminder service targets the 17.x API); the concrete
   # zonedSchedule call below matches that major.
   flutter_local_notifications: ^17.2.0

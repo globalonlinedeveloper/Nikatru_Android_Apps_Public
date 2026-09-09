@@ -39,7 +39,7 @@
 //
 // State A is COVERAGE LOST and still exits 1. State B is not: read N-9's
 // sentence — *"No app enters the factory without passing the three selection
-// gates."* Its subject is an app ENTERING. `apps/subly` predates the gates,
+// gates."* Its subject is an app ENTERING. `apps/subscriptiontracker` predates the gates,
 // which is exactly why it is exempt by name; nothing has entered since. An empty
 // non-exempt set is the requirement being SATISFIED, and failing the build on it
 // would redden CI on a state that is correct — the one thing that reliably gets
@@ -156,7 +156,7 @@ const COMPANY = resolve(
 /** Apps that predate the selection gates, exempt BY NAME. Every name here must
  *  still be a real workspace member — see `coverageLost` below for why a stale
  *  exemption is the most dangerous thing in this file. */
-const EXEMPT = new Set(['apps/subly']);
+const EXEMPT = new Set(['apps/subscriptiontracker']);
 const problems = [];
 const notes = [];
 const prints = [];
@@ -188,9 +188,9 @@ const apps = listed.filter((a) => !EXEMPT.has(a));
 // Both halves are RELATIONSHIPS between two independently maintained things,
 // not counts. Neither can be satisfied by lowering a number.
 
-// (1) An exemption that no longer names a real app. `apps/subly` is exempt
+// (1) An exemption that no longer names a real app. `apps/subscriptiontracker` is exempt
 //     because it predates the gates; if it is renamed and this name is not, the
-//     set silently stops excluding anything — or worse, a future `apps/subly`
+//     set silently stops excluding anything — or worse, a future `apps/subscriptiontracker`
 //     inherits an exemption written for a different app.
 {
   const inWorkspace = new Set(listed);

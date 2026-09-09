@@ -39,7 +39,7 @@
 //     CANNOT-SEE list below.
 //
 // (2) THE DECLARATION ITSELF WAS WRONG, AND THIS GUARD WAS THE REASON NOBODY
-//     NOTICED. `apps/subly/web/_headers` declared `/assets/*`, `/canvaskit/*`
+//     NOTICED. `apps/subscriptiontracker/web/_headers` declared `/assets/*`, `/canvaskit/*`
 //     and `/icons/*` as `immutable, max-age=31536000` under the comment
 //     "content-addressed output: the name changes when the bytes do". Measured
 //     against the live bundle, NOTHING a Flutter web build emits is
@@ -624,7 +624,7 @@ if (kinds['static-site'] > 0 && classProbes === 0) {
 // ⚠️ HASHING THE REPOSITORY'S BYTES IS CORRECT, and that is measured rather than
 // assumed: `flutter build web` substitutes only `$FLUTTER_BASE_HREF` in the <base>
 // tag, which is outside every <script> element. Confirmed 2026-09-09 — the value
-// computed from `apps/subly/web/index.html` was byte-identical to the hash a
+// computed from `apps/subscriptiontracker/web/index.html` was byte-identical to the hash a
 // browser reported for the DEPLOYED page.
 //
 // ⚠️ AN INLINE EVENT HANDLER CANNOT BE HASHED AT ALL. `onclick=` and

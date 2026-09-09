@@ -223,7 +223,7 @@ void main() {
       // ancestor's is a property of Flutter's fragment compiler, not of this
       // widget. It went red here on a control that announces perfectly. The
       // same reasoning is written out at length in
-      // `apps/subly/test/a11y_semantics_test.dart`; the walk below is what a
+      // `apps/subscriptiontracker/test/a11y_semantics_test.dart`; the walk below is what a
       // screen reader actually traverses.
       final List<SemanticsNode> nodes = <SemanticsNode>[];
       void visit(SemanticsNode n) {
@@ -271,7 +271,7 @@ void main() {
       //   · `Semantics + IconButton` under `MergeSemantics` announced the
       //     close control correctly AND left IconButton's own node nested
       //     inside it with an empty name — a NAKED CONTROL by
-      //     `apps/subly/test/a11y_semantics_test.dart`'s definition, hiding
+      //     `apps/subscriptiontracker/test/a11y_semantics_test.dart`'s definition, hiding
       //     inside a control that reads perfectly.
       //   · `Semantics + InkResponse` without the merge put the label and the
       //     tap on the CARD's text node, so the entire 420×172 card became one

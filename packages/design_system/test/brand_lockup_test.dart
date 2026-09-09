@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
 /// [BrandWordmark] / [BrandFooter] — the two brand widgets lifted out of
-/// `apps/subly` by backlog P-3, measured HERE rather than in the app.
+/// `apps/subscriptiontracker` by backlog P-3, measured HERE rather than in the app.
 ///
 /// The app keeps its own `brand_footer_parity_test.dart`, and the two are
 /// different assertions on purpose. That one says "nothing moved on screen in

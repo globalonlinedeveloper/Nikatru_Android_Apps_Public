@@ -51,7 +51,7 @@ after(() => {
 });
 
 let seq = 0;
-const ARTIFACT = 'apps/subly/build/linux/snap/subly.snap';
+const ARTIFACT = 'apps/subscriptiontracker/build/linux/snap/subscriptiontracker.snap';
 
 const FILES = {
   'README.md': 'derivation map\n',
@@ -62,7 +62,7 @@ const FILES = {
   'privacy-policy-url.txt': 'https://nikatru.com/privacy.html\n',
   'support-url.txt': 'https://nikatru.com/contact.html\n',
   'screenshots/README.md': 'slot\n',
-  'snap-name.txt': 'subly\n',
+  'snap-name.txt': 'subscriptiontracker\n',
   'license.txt': 'proprietary\n',
 };
 
@@ -114,16 +114,16 @@ function tree({
   if (mutateRegister) mutateRegister(register);
 
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
 
   if (!omitTree) {
     for (const [rel, body] of Object.entries(FILES)) {
       if (omitFiles.includes(rel)) continue;
-      write(`apps/subly/store/linux-snap/${rel}`, fields[rel] ?? body);
+      write(`apps/subscriptiontracker/store/linux-snap/${rel}`, fields[rel] ?? body);
     }
   }
   if (withArtifact) write(ARTIFACT, 'x'.repeat(artifactBytes));
-  if (withRecipe) write('apps/subly/snap/snapcraft.yaml', 'name: subly\n');
+  if (withRecipe) write('apps/subscriptiontracker/snap/snapcraft.yaml', 'name: subscriptiontracker\n');
   if (withRecipeScript) write('tooling/release/generate-snapcraft.mjs', '// stand-in for the generator\n');
   return root;
 }
@@ -157,7 +157,7 @@ function run(root, args, env = {}) {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-const dry = (root, extra = []) => run(root, ['--dry-run', '--app', 'subly', ...extra]);
+const dry = (root, extra = []) => run(root, ['--dry-run', '--app', 'subscriptiontracker', ...extra]);
 
 /** A crash is not a catch. */
 const assertComplained = (out) => {
@@ -171,7 +171,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
     const { code, out } = dry(tree({ withArtifact: true }));
     assert.equal(code, 0, out);
     assert.match(out, /DRY RUN OK — nothing was sent to the Snap Store/);
-    assert.match(out, /artifact apps\/subly\/build\/linux\/snap\/subly\.snap/);
+    assert.match(out, /artifact apps\/subscriptiontracker\/build\/linux\/snap\/subscriptiontracker\.snap/);
   });
 
   // 🔴 THESE TWO REPLACE THE BLANKET `UNVERIFIED` REFUSAL, THEY DO NOT DELETE IT.
@@ -182,7 +182,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
   // changed. The stake the old case protected (a wrong revision reaching real
   // machines silently) is now PG-3's, and is asserted there with its citations.
   test('PG-1 · --submit REFUSES without the confirm token, before any validation', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly']);
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker']);
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-SNAP-STORE/);
     // The gate is FIRST: nothing was validated on the way to refusing.
@@ -191,7 +191,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
 
   test('PG-3 · the stable risk is refused, and the refusal cites why it is class A', () => {
     const { code, out } = run(tree({ withArtifact: true }), [
-      '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', 'latest/stable',
+      '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', 'latest/stable',
     ]);
     assert.equal(code, 1, out);
     assert.match(out, /refuses the "stable" risk/);
@@ -206,14 +206,14 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
 
   test('PG-3 · refuses stable on ANY track, not only latest', () => {
     const { code } = run(tree({ withArtifact: true }), [
-      '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', '2.x/stable',
+      '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', '2.x/stable',
     ]);
     assert.equal(code, 1);
   });
 
   test('PG-2 · --submit refuses --allow-missing-artifact, which is a dry-run flag', () => {
     const { code, out } = run(tree({ withArtifact: true }), [
-      '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--allow-missing-artifact',
+      '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--allow-missing-artifact',
     ]);
     assert.equal(code, 1, out);
     assert.match(out, /is a DRY-RUN flag and --submit refuses it/);
@@ -221,7 +221,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
 
   test('PG-4 · --submit refuses outside GitHub Actions, where the reviewer gate lives', () => {
     const { code, out } = run(tree({ withArtifact: true }), [
-      '--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', 'latest/edge',
+      '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-SNAP-STORE', '--channel', 'latest/edge',
     ]);
     assert.equal(code, 1, out);
     assert.match(out, /runs only inside GitHub Actions/);
@@ -257,7 +257,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
   test('FAILS when the whole metadata tree is gone', () => {
     const { code, out } = dry(tree({ withArtifact: true, omitTree: true }));
     assert.equal(code, 1, out);
-    assert.match(out, /the store metadata tree apps\/subly\/store\/linux-snap does not exist/);
+    assert.match(out, /the store metadata tree apps\/subscriptiontracker\/store\/linux-snap does not exist/);
   });
 
   test('FAILS when a URL field is not an absolute https URL', () => {
@@ -286,20 +286,20 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
   });
 
   test('FAILS on a leading hyphen', () => {
-    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': '-subly\n' } }));
+    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': '-subscriptiontracker\n' } }));
     assert.equal(code, 1, out);
     assert.match(out, /is not the shape a snap name takes/);
   });
 
   test('FAILS when two candidate names are listed — nobody decided', () => {
-    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': 'subly\nsubly-app\n' } }));
+    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': 'subscriptiontracker\nsubscriptiontracker-app\n' } }));
     assert.equal(code, 1, out);
     assertComplained(out);
     assert.match(out, /contains more than one line/);
   });
 
   test('ACCEPTS an internal hyphen, which is the common real shape', () => {
-    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': 'subly-app\n' } }));
+    const { code, out } = dry(tree({ withArtifact: true, fields: { 'snap-name.txt': 'subscriptiontracker-app\n' } }));
     assert.equal(code, 0, out);
   });
 
@@ -307,7 +307,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
     const { code, out } = dry(tree({ withArtifact: true }));
     assert.equal(code, 0, out);
     assert.match(out, /SNAP NAME REGISTRATION IS UNVERIFIABLE FROM HERE/);
-    assert.match(out, /snapcraft register subly/);
+    assert.match(out, /snapcraft register subscriptiontracker/);
     assert.match(out, /OWNER_QUEUE A-6/);
   });
 
@@ -324,7 +324,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
     const { code, out } = dry(tree({ withArtifact: true, withRecipe: true }));
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /NO SNAPCRAFT RECIPE/);
-    assert.match(out, /snapcraft recipe apps\/subly\/snap\/snapcraft\.yaml/);
+    assert.match(out, /snapcraft recipe apps\/subscriptiontracker\/snap\/snapcraft\.yaml/);
   });
 
   // 🔴 THE ARRANGEMENT THE REAL REGISTER USES, and the case whose absence made
@@ -361,7 +361,7 @@ describe('submit-snap — the submission path is walkable, and --submit refuses'
     const { code, out } = dry(tree());
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /subly\.snap does not exist/);
+    assert.match(out, /subscriptiontracker\.snap does not exist/);
   });
 
   test('PASSES with --allow-missing-artifact, and SAYS the package was not validated', () => {

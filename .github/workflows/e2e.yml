@@ -299,7 +299,7 @@ jobs:
           # http://localhost:<RANDOM port>, and every Worker call the suite makes
           # is therefore cross-origin. api.nikatru.com tolerates that: its CORS
           # middleware carries an explicit localhost-any-port exception
-          # (services/subly-api/src/middleware/cors.ts:38) added as the INC13 fix,
+          # (services/subscriptiontracker-api/src/middleware/cors.ts:38) added as the INC13 fix,
           # which is why legs 1-2 have always passed.
           #
           # The SHARED platform Worker deliberately does NOT carry that exception

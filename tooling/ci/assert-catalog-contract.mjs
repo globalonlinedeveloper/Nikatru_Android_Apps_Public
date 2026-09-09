@@ -83,7 +83,7 @@
 //
 // ── WHAT IS DELIBERATELY *NOT* REQUIRED ──────────────────────────────────────
 // `markets` and `audience`: post_gen writes both on every stamp, but the one
-// row in the catalogue today (subly) predates them and carries neither.
+// row in the catalogue today (subscriptiontracker) predates them and carries neither.
 // Requiring them would fail the real repository on day one — an assertion whose
 // only effect is to be switched off. They are printed in the summary instead,
 // so their absence is visible without being fatal.

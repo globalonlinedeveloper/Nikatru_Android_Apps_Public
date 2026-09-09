@@ -19,7 +19,7 @@
 // metadata is GENERATED from the spec and lives in the repo" — and its own
 // header then records what was measured: "STAMP A FRESH APP AND YOU GET NO
 // `store/` TREE … this guard exited 0 reporting 5 present and complete — because
-// every subject it had was `apps/subly/store/`, which a human wrote by hand.
+// every subject it had was `apps/subscriptiontracker/store/`, which a human wrote by hand.
 // Real guard, running, green, pointed one artifact away from the behaviour the
 // requirement names." The listing text agreed with the catalogue because two
 // people had typed the same words, and nothing anywhere could tell that apart
@@ -164,7 +164,7 @@ if (lost.length) coverageLost(lost);
 // fires and reports COVERAGE LOST, which is a true statement about this run and
 // a MISLEADING diagnosis of the tree: the finding is the broken declaration, and
 // the repair the message must point at is that file. Measured: with `id:`
-// deleted from apps/subly/app.yaml this guard exited 2 naming the privacy limb.
+// deleted from apps/subscriptiontracker/app.yaml this guard exited 2 naming the privacy limb.
 if (authoring.length) {
   console.error('');
   for (const p of authoring) console.error(`✗ ${p}`);
@@ -485,7 +485,7 @@ const problemsBeforeIap = problems.length;
 for (const { id, doc } of declarations) {
   const pubspecRel = `${APPS_DIR}/${id}/pubspec.yaml`;
   const pubspecAbs = join(ROOT, pubspecRel);
-  // 🔴 COMMENTS STRIPPED BEFORE THE DEPENDENCY IS LOOKED FOR. apps/subly's
+  // 🔴 COMMENTS STRIPPED BEFORE THE DEPENDENCY IS LOOKED FOR. apps/subscriptiontracker's
   // pubspec carries a RevenueCat TOMBSTONE — a comment recording why no billing
   // aggregator is present — and a raw substring search over that file reports
   // the dependency this limb exists to detect. Measured on the real tree: the

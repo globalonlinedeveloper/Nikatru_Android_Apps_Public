@@ -17,7 +17,7 @@
 //       widened to accept it (tsc clean)               one bucket"
 //   ME3 `--var RELEASE:` deleted from the          -> caught: "the Worker reads a
 //       platform deploy job                            variable no deploy sets"
-//   ME4 `server_name` deleted from subly-api's     -> caught: "payload carries no
+//   ME4 `server_name` deleted from subscriptiontracker-api's     -> caught: "payload carries no
 //       envelope (tsc clean)                           `server_name`"
 //   ME5 the `platform` deploy job renamed          -> caught: COVERAGE LOST
 //   None crashed; every one exited 1 with the intended message.
@@ -34,7 +34,7 @@
 // ⚠️ WHAT THIS FILE DOES **NOT** COVER, on purpose: the envelope's contents, its
 //   privacy invariants and its fail-open paths. Those are asserted by
 //   services/platform/test/error-sink.test.ts and
-//   services/subly-api/test/error-sink.test.ts, which drive the REAL onError
+//   services/subscriptiontracker-api/test/error-sink.test.ts, which drive the REAL onError
 //   through the REAL app (17 cases each). A source scan can say the wire is
 //   connected and can never say what travels down it.
 //
@@ -111,9 +111,9 @@ function makeRepo(edit = (f) => f) {
   const files = edit({
     'services/platform/src/index.ts': INDEX('platform'),
     'services/platform/src/lib/error-sink.ts': SINK,
-    'services/subly-api/src/index.ts': INDEX('subly-api'),
-    'services/subly-api/src/lib/error-sink.ts': SINK,
-    '.github/workflows/deploy-workers.yml': DEPLOY(DEPLOY_JOB('platform'), DEPLOY_JOB('subly-api')),
+    'services/subscriptiontracker-api/src/index.ts': INDEX('subscriptiontracker-api'),
+    'services/subscriptiontracker-api/src/lib/error-sink.ts': SINK,
+    '.github/workflows/deploy-workers.yml': DEPLOY(DEPLOY_JOB('platform'), DEPLOY_JOB('subscriptiontracker-api')),
   });
   for (const [rel, body] of Object.entries(files)) {
     if (body === null) continue;
@@ -148,7 +148,7 @@ describe('assert-worker-error-sink — the wire is connected', () => {
   test('FAILS when onError logs but calls no sink — the original defect', () => {
     const r = run(makeRepo((f) => ({
       ...f,
-      'services/subly-api/src/index.ts': f['services/subly-api/src/index.ts'].replace(
+      'services/subscriptiontracker-api/src/index.ts': f['services/subscriptiontracker-api/src/index.ts'].replace(
         /app\.onError\([\s\S]*?\n\}\);\n/,
         "app.onError((err, c) => {\n  console.error('[unhandled]', err);\n  return c.json({ error: 'internal_error' }, 500);\n});\n",
       ),
@@ -172,7 +172,7 @@ describe('assert-worker-error-sink — the wire is connected', () => {
   });
 
   test('FAILS when the sink module is gone', () => {
-    const r = run(makeRepo((f) => ({ ...f, 'services/subly-api/src/lib/error-sink.ts': null })));
+    const r = run(makeRepo((f) => ({ ...f, 'services/subscriptiontracker-api/src/lib/error-sink.ts': null })));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /error-sink\.ts does not exist/);
   });
@@ -194,7 +194,7 @@ describe('assert-worker-error-sink — the report can be acted on', () => {
   test('FAILS when the envelope cannot say which Worker produced it', () => {
     const r = run(makeRepo((f) => ({
       ...f,
-      'services/subly-api/src/lib/error-sink.ts': f['services/subly-api/src/lib/error-sink.ts'].replace(
+      'services/subscriptiontracker-api/src/lib/error-sink.ts': f['services/subscriptiontracker-api/src/lib/error-sink.ts'].replace(
         'server_name: ctx.service, ',
         '',
       ),
@@ -242,7 +242,7 @@ describe('assert-worker-error-sink — the deploy end of the pipe', () => {
     const r = run(makeRepo((f) => ({
       ...f,
       // `String.replace` with a string pattern hits the FIRST occurrence, which
-      // is the `platform` job — so subly-api's stays intact and the assertion
+      // is the `platform` job — so subscriptiontracker-api's stays intact and the assertion
       // below can tell the two apart.
       '.github/workflows/deploy-workers.yml': f['.github/workflows/deploy-workers.yml'].replace(
         ' --var GLITCHTIP_DSN:${{ secrets.GLITCHTIP_DSN }}',
@@ -251,7 +251,7 @@ describe('assert-worker-error-sink — the deploy end of the pipe', () => {
     })));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /job `platform` does not pass `--var GLITCHTIP_DSN:`/);
-    assert.doesNotMatch(r.out, /job `subly-api` does not pass `--var GLITCHTIP_DSN:`/);
+    assert.doesNotMatch(r.out, /job `subscriptiontracker-api` does not pass `--var GLITCHTIP_DSN:`/);
   });
 
   test('FAILS when a deploy stops supplying the release', () => {
@@ -280,23 +280,23 @@ describe('assert-worker-error-sink — the deploy end of the pipe', () => {
 
   test("the OTHER Worker's vars do not satisfy this one — the check is per job", () => {
     // The whole-file form would pass here: the workflow still contains both
-    // vars, in subly-api's job.
+    // vars, in subscriptiontracker-api's job.
     const r = run(makeRepo((f) => ({
       ...f,
       '.github/workflows/deploy-workers.yml': DEPLOY(
         `  platform:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: wrangler deploy\n`,
-        DEPLOY_JOB('subly-api'),
+        DEPLOY_JOB('subscriptiontracker-api'),
       ),
     })));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /job `platform` does not pass `--var GLITCHTIP_DSN:`/);
-    assert.doesNotMatch(r.out, /job `subly-api` does not pass/);
+    assert.doesNotMatch(r.out, /job `subscriptiontracker-api` does not pass/);
   });
 });
 
 describe('assert-worker-error-sink — coverage self-checks', () => {
   test('COVERAGE LOST when fewer Workers are found than exist today', () => {
-    const r = run(makeRepo((f) => ({ ...f, 'services/subly-api/src/index.ts': null })));
+    const r = run(makeRepo((f) => ({ ...f, 'services/subscriptiontracker-api/src/index.ts': null })));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST — 1 Worker entrypoint\(s\) found/);
   });

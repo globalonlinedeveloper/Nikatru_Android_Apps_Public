@@ -6,7 +6,7 @@
 // hand-written toy catalogue and not a hand-written toy config: the subjects are
 // `catalog/apps.json`, `catalog/apps-landing.json`,
 // `services/platform/src/app-config-data.json` and
-// `apps/subly/store/android-play/long-description.txt` exactly as they are on
+// `apps/subscriptiontracker/store/android-play/long-description.txt` exactly as they are on
 // disk. `assert-seams-wired.mjs` shipped with its caller check matching the
 // function's own declaration and ALL SIX of its hand-written fixtures passed
 // against the broken version; only breaking the real repository exposed it. A
@@ -80,7 +80,7 @@ const REL = {
   catalogue: 'catalog/apps.json',
   payload: 'catalog/apps-landing.json',
   rail: 'services/platform/src/app-config-data.json',
-  lede: 'apps/subly/store/android-play/long-description.txt',
+  lede: 'apps/subscriptiontracker/store/android-play/long-description.txt',
 };
 
 /** The real bytes. Read once, per subject, so every fixture below starts from
@@ -105,7 +105,7 @@ function tree(overrides = {}) {
   const root = mkdtempSync(join(tmpdir(), 'renderpayload-'));
   mkdirSync(join(root, 'catalog'), { recursive: true });
   mkdirSync(join(root, 'services', 'platform', 'src'), { recursive: true });
-  mkdirSync(join(root, 'apps', 'subly', 'store', 'android-play'), { recursive: true });
+  mkdirSync(join(root, 'apps', 'subscriptiontracker', 'store', 'android-play'), { recursive: true });
   for (const [key, rel] of Object.entries(REL)) {
     const value = Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : real(rel);
     if (value === null) continue;
@@ -160,7 +160,7 @@ function brokenToolingTree(mutate) {
   mkdirSync(join(root, 'tooling', 'sites'), { recursive: true });
   mkdirSync(join(root, 'catalog'), { recursive: true });
   mkdirSync(join(root, 'services', 'platform', 'src'), { recursive: true });
-  mkdirSync(join(root, 'apps', 'subly', 'store', 'android-play'), { recursive: true });
+  mkdirSync(join(root, 'apps', 'subscriptiontracker', 'store', 'android-play'), { recursive: true });
   for (const rel of [REL.catalogue, REL.rail, REL.lede]) {
     writeFileSync(join(root, ...rel.split('/')), real(rel));
   }
@@ -242,7 +242,7 @@ describe('assert-render-payload — the published projection', () => {
   });
 
   test('an OBJECT MAP keyed by slug is refused — the storefront rejects it at the door', () => {
-    const root = tree({ payload: `${JSON.stringify({ subly: payloadRows()[0] }, null, 2)}\n` });
+    const root = tree({ payload: `${JSON.stringify({ subscriptiontracker: payloadRows()[0] }, null, 2)}\n` });
     try {
       refuses(guard(root), 'must be a JSON ARRAY', 'an object map');
     } finally { rmSync(root, { recursive: true, force: true }); }
@@ -304,7 +304,7 @@ describe('assert-render-payload — the published projection', () => {
     // in the config, copy it into the payload, and the guard must object without
     // ever having heard of it.
     const rail = JSON.parse(real(REL.rail));
-    rail.apps.subly.paywall.settlement_account = 'acct_live_x';
+    rail.apps.subscriptiontracker.paywall.settlement_account = 'acct_live_x';
     const root = tree({
       rail: `${JSON.stringify(rail, null, 2)}\n`,
       payload: withRow((row) => { row.settlement_account = 'acct_live_x'; }),
@@ -326,7 +326,7 @@ describe('assert-render-payload — the published projection', () => {
     // over the empty list exactly as it passes over a correct one. Only the
     // anchor to a literal — REQUIRED_PRICED_ROWS — can refuse this.
     const rail = JSON.parse(real(REL.rail));
-    rail.apps.subly.paywall.offerings = [];
+    rail.apps.subscriptiontracker.paywall.offerings = [];
     const root = tree({
       rail: `${JSON.stringify(rail, null, 2)}\n`,
       payload: withRow((row) => { delete row.offerings; delete row.currencies; delete row.zeroAmount; }),
@@ -384,7 +384,7 @@ describe('assert-render-payload — the published projection', () => {
     const root = tree({ payload: withRow((row) => { row.slug = 'nope'; }) });
     try {
       const r = guard(root);
-      refuses(r, 'carries no row for subly', 'a payload row that stopped matching the catalogue');
+      refuses(r, 'carries no row for subscriptiontracker', 'a payload row that stopped matching the catalogue');
       assert.ok(r.out.includes('nope'), `the extra row must be named too:\n${r.out}`);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
@@ -454,7 +454,7 @@ describe('assert-render-payload — the published projection', () => {
   });
 
   test('an unparseable rail config is COVERAGE LOST, never a quiet skip', () => {
-    const root = tree({ rail: '{ "apps": { "subly": ' });
+    const root = tree({ rail: '{ "apps": { "subscriptiontracker": ' });
     try {
       refuses(guard(root), 'COVERAGE LOST', 'the price source becoming unreadable');
     } finally { rmSync(root, { recursive: true, force: true }); }
@@ -572,7 +572,7 @@ describe('generate-landing-payload — the publisher', () => {
     // readRailConfig() answers null for a missing file BY DESIGN, which is right
     // for a renderer and wrong for the publisher OF the price projection. This
     // is the exact silent degradation the payload exists to close: measured
-    // 2026-08-18, the renderer in a tree without this file produces subly.html
+    // 2026-08-18, the renderer in a tree without this file produces subscriptiontracker.html
     // at 7,782 bytes against 9,789 committed, with `problems: []`.
     const root = tree({ payload: null, rail: null });
     try {
@@ -599,7 +599,7 @@ describe('generate-landing-payload — the publisher', () => {
   });
 
   test('a MALFORMED catalogue refuses — no partial payload', () => {
-    const root = tree({ payload: null, catalogue: '[ { "slug": "subly", ' });
+    const root = tree({ payload: null, catalogue: '[ { "slug": "subscriptiontracker", ' });
     try {
       refuses(publish(root), 'not valid JSON', 'an unparseable catalogue');
     } finally { rmSync(root, { recursive: true, force: true }); }
@@ -636,7 +636,7 @@ describe('generate-landing-payload — the publisher', () => {
 
   test('an UNNAMED feature flag refuses rather than title-casing a switch onto a page', () => {
     const rail = JSON.parse(real(REL.rail));
-    rail.apps.subly.features.reminders_v2 = true;
+    rail.apps.subscriptiontracker.features.reminders_v2 = true;
     const root = tree({ payload: null, rail: `${JSON.stringify(rail, null, 2)}\n` });
     try {
       refuses(publish(root), 'reminders_v2', 'a flag with no reader-facing name');
@@ -645,7 +645,7 @@ describe('generate-landing-payload — the publisher', () => {
 
   test('an offering with no currency refuses — there is no best-effort branch for a price', () => {
     const rail = JSON.parse(real(REL.rail));
-    delete rail.apps.subly.paywall.offerings[0].currency_code;
+    delete rail.apps.subscriptiontracker.paywall.offerings[0].currency_code;
     const root = tree({ payload: null, rail: `${JSON.stringify(rail, null, 2)}\n` });
     try {
       refuses(publish(root), 'will not put a price on', 'an offering the factory cannot price');

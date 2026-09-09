@@ -8,7 +8,7 @@
 # The guard's per-family evidence check iterates over SHOWN_TO_A_PERSON, so it
 # can catch a family whose regex has STOPPED MATCHING — but it is structurally
 # blind to a family DELETED from the list, because the loop then never asks
-# about it. The total floor is blind too (58 of apps/subly's 71 hits are
+# about it. The total floor is blind too (58 of apps/subscriptiontracker's 71 hits are
 # `Text(…)`, so losing the labelling family outright still clears 20 by a wide
 # margin). Deleting a matcher was therefore invisible to both limbs.
 #

@@ -25,13 +25,13 @@ permissions:
   contents: read
 
 jobs:
-  worker-subly-api:
-    name: subly-api Worker (typecheck + test + dry-run)
+  worker-subscriptiontracker-api:
+    name: subscriptiontracker-api Worker (typecheck + test + dry-run)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: services/subly-api
+        working-directory: services/subscriptiontracker-api
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -333,15 +333,15 @@ jobs:
       - name: The advertising declarations still describe the shipped tree
         run: node tooling/ci/assert-ads-declarations.mjs
       - name: The Microsoft Store submission path still walks (dry run)
-        run: node tooling/release/submit-windows-store.mjs --dry-run --app subly --allow-missing-artifact
+        run: node tooling/release/submit-windows-store.mjs --dry-run --app subscriptiontracker --allow-missing-artifact
       - name: The App Store submission path still walks — iOS (dry run)
-        run: node tooling/release/submit-appstore.mjs --dry-run --channel ios-appstore --app subly --allow-missing-artifact
+        run: node tooling/release/submit-appstore.mjs --dry-run --channel ios-appstore --app subscriptiontracker --allow-missing-artifact
       - name: The App Store submission path still walks — macOS (dry run)
-        run: node tooling/release/submit-appstore.mjs --dry-run --channel macos-appstore --app subly --allow-missing-artifact
+        run: node tooling/release/submit-appstore.mjs --dry-run --channel macos-appstore --app subscriptiontracker --allow-missing-artifact
       - name: The Snap Store submission path still walks (dry run)
-        run: node tooling/release/submit-snap.mjs --dry-run --app subly --allow-missing-artifact
+        run: node tooling/release/submit-snap.mjs --dry-run --app subscriptiontracker --allow-missing-artifact
       - name: The Google Play submission path still walks (dry run)
-        run: node tooling/release/submit-play.mjs --dry-run --app subly --allow-missing-artifact
+        run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker --allow-missing-artifact
       - name: No release build from an ungated commit, no publish unrecorded
         run: node tooling/ci/assert-release-provenance.mjs
       - name: No release lane finishes with the artifact stuck inside the run
@@ -861,7 +861,7 @@ jobs:
       - name: gen-l10n overwrote no TRACKED source file under the package
         run: git diff --exit-code -- packages/design_system/lib
       - name: The shipping app is dart format-clean
-        run: dart format --output=none --set-exit-if-changed apps/subly
+        run: dart format --output=none --set-exit-if-changed apps/subscriptiontracker
       - name: The Apple privacy manifests still describe the binaries that ship
         working-directory: ${{ github.workspace }}
         run: node tooling/ci/assert-apple-privacy-manifest.mjs
@@ -891,7 +891,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs:
-      - worker-subly-api
+      - worker-subscriptiontracker-api
       - worker-platform
       - guard-meta
       - guards-platform
@@ -909,7 +909,7 @@ jobs:
     steps:
       - name: Require all lanes green
         run: |
-          echo "worker-subly-api=${{ needs.worker-subly-api.result }}"
+          echo "worker-subscriptiontracker-api=${{ needs.worker-subscriptiontracker-api.result }}"
           echo "worker-platform=${{ needs.worker-platform.result }}"
           echo "guard-meta=${{ needs.guard-meta.result }}"
           echo "guards-platform=${{ needs.guards-platform.result }}"

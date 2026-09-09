@@ -325,7 +325,7 @@ for (const [id, s] of shipped) {
 // ── the reverse direction, and WHICH MODE MAY ASSERT IT ─────────────────────
 // 🔴 A SINGLE APP'S BUNDLE CANNOT WITNESS THE WHOLE WORKSPACE, and the first CI
 // run of the bundle step proved it: the lane walks apps/probe (a throwaway stamp
-// with no brand assets) and the guard reported all three of apps/subly's brand
+// with no brand assets) and the guard reported all three of apps/subscriptiontracker's brand
 // rows as "no such asset is shipped". They ARE shipped — by a different app.
 //
 // So the row-with-no-asset direction belongs to DECLARED mode, which reads every

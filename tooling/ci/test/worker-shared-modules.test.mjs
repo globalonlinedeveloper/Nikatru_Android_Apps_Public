@@ -175,7 +175,7 @@ describe('worker-shared-modules — against the real tree', () => {
     // The green control that would go red if the tree stopped matching the rule
     // this module encodes — the same reason chassis-delegation.test.mjs keeps
     // one live case beside its fixtures.
-    for (const worker of ['platform', 'subly-api']) {
+    for (const worker of ['platform', 'subscriptiontracker-api']) {
       for (const module of ['error-sink.ts', 'health.ts']) {
         const rel = `services/${worker}/src/lib/${module}`;
         const answer = sharedHomeOf(REPO, rel);
@@ -194,7 +194,7 @@ describe('worker-shared-modules — against the real tree', () => {
     // bare import. If this ever starts answering `{ target }`, a Worker's auth
     // boundary was emptied and the guards that read it must be re-pointed with
     // the same care.
-    for (const worker of ['platform', 'subly-api']) {
+    for (const worker of ['platform', 'subscriptiontracker-api']) {
       assert.equal(sharedHomeOf(REPO, `services/${worker}/src/middleware/auth.ts`), null);
     }
   });

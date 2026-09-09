@@ -93,7 +93,7 @@ function okCreate(
     origin: 'api',
     custom_data:
       over.customData === undefined
-        ? { [PADDLE_CUSTOM_DATA_USER_ID]: USER, [PADDLE_CUSTOM_DATA_APP_ID]: 'subly' }
+        ? { [PADDLE_CUSTOM_DATA_USER_ID]: USER, [PADDLE_CUSTOM_DATA_APP_ID]: 'subscriptiontracker' }
         : over.customData,
     checkout: {
       url:
@@ -217,7 +217,7 @@ function harness({
   };
 }
 
-const BUY = { app_id: 'subly', offering_id: 'pro_monthly' };
+const BUY = { app_id: 'subscriptiontracker', offering_id: 'pro_monthly' };
 
 // ═════════════════════════════════════════════════════════════════════════════
 describe('🔴 status:"billed" is STRUCTURALLY IMPOSSIBLE on the create path', () => {
@@ -235,7 +235,7 @@ describe('🔴 status:"billed" is STRUCTURALLY IMPOSSIBLE on the create path', (
     // errors with "Unused '@ts-expect-error' directive". Mutation-verified.
     const smuggled = {
       items: [{ price_id: 'pri_01kzew6dqmtv3jg33dy9m23g31', quantity: 1 }],
-      custom_data: { [PADDLE_CUSTOM_DATA_USER_ID]: USER, [PADDLE_CUSTOM_DATA_APP_ID]: 'subly' },
+      custom_data: { [PADDLE_CUSTOM_DATA_USER_ID]: USER, [PADDLE_CUSTOM_DATA_APP_ID]: 'subscriptiontracker' },
       status: 'billed',
     };
     // @ts-expect-error — `status?: never` admits only `undefined`. [ADR 044] §4.
@@ -266,7 +266,7 @@ describe('🔴 status:"billed" is STRUCTURALLY IMPOSSIBLE on the create path', (
   });
 
   it('the RUNTIME half refuses EVERY forbidden key, not only `status`', () => {
-    const base = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subly' });
+    const base = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subscriptiontracker' });
     expect(FORBIDDEN_CREATE_KEYS.length).toBeGreaterThan(0); // an empty set proves nothing
     for (const key of FORBIDDEN_CREATE_KEYS) {
       const tampered = { ...base, [key]: 'anything' } as unknown as PaddleCreateTransactionBody;
@@ -275,7 +275,7 @@ describe('🔴 status:"billed" is STRUCTURALLY IMPOSSIBLE on the create path', (
   });
 
   it('the constructor produces the SAFE SHAPE and nothing else — items + custom_data', () => {
-    const body = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subly' });
+    const body = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subscriptiontracker' });
     // Parsed structure, not a substring of the serialised text.
     expect(Object.keys(JSON.parse(serializeCreateTransactionBody(body)) as object).sort()).toEqual([
       'custom_data',
@@ -294,7 +294,7 @@ describe('the wire request — what actually leaves the Worker', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       provider: 'paddle',
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       offering_id: 'pro_monthly',
       transaction_id: 'txn_01kzs3qcvryq785t7shpq5d7wj',
       checkout_url: 'https://nikatru.com/pricing.html?_ptxn=txn_01kzs3qcvryq785t7shpq5d7wj',
@@ -338,7 +338,7 @@ describe('the wire request — what actually leaves the Worker', () => {
     );
     const sent = paddleCalls[0].body as { custom_data: Record<string, string> };
     expect(sent.custom_data[PADDLE_CUSTOM_DATA_USER_ID]).toBe(USER);
-    expect(sent.custom_data[PADDLE_CUSTOM_DATA_APP_ID]).toBe('subly');
+    expect(sent.custom_data[PADDLE_CUSTOM_DATA_APP_ID]).toBe('subscriptiontracker');
   });
 });
 
@@ -348,7 +348,7 @@ describe('[ADR 044] §6 — the attribution this endpoint exists for', () => {
     // The defect on file is a notification nobody could attribute. The two ends
     // are two files, so agreement is proven by running one through the other
     // rather than by two string literals that happen to match today.
-    const body = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subly' });
+    const body = buildCreateTransactionBody({ priceId: 'pri_x', userId: USER, appId: 'subscriptiontracker' });
 
     const parsed = paddleVerifier.parse(
       JSON.stringify({
@@ -371,7 +371,7 @@ describe('[ADR 044] §6 — the attribution this endpoint exists for', () => {
     expect(parsed.notification.subject.kind).toBe('subscription');
     if (parsed.notification.subject.kind !== 'subscription') return;
     expect(parsed.notification.subject.accountUserId).toBe(USER);
-    expect(parsed.notification.subject.accountAppId).toBe('subly');
+    expect(parsed.notification.subject.accountAppId).toBe('subscriptiontracker');
   });
 
   it('a transaction that comes back WITHOUT our custom_data is REFUSED, not returned', async () => {
@@ -392,7 +392,7 @@ describe('[ADR 044] §6 — the attribution this endpoint exists for', () => {
       okCreate({
         customData: {
           [PADDLE_CUSTOM_DATA_USER_ID]: '99999999-9999-4999-8999-999999999999',
-          [PADDLE_CUSTOM_DATA_APP_ID]: 'subly',
+          [PADDLE_CUSTOM_DATA_APP_ID]: 'subscriptiontracker',
         },
       });
 

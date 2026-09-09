@@ -11,7 +11,7 @@
 // A real ES256 key pair is generated per run and the JWKS document is served by
 // a STUBBED `fetch`, so:
 //   · the primary (and only) verification path is the one under assertion —
-//     services/subly-api's suite has to disable the network and fall through to
+//     services/subscriptiontracker-api's suite has to disable the network and fall through to
 //     HS256 to test anything, and this Worker HAS no HS256 path to fall through
 //     to, which is the whole point;
 //   · no test depends on Supabase's uptime;
@@ -19,7 +19,7 @@
 //     a DIFFERENT real key being refused — not by a mock returning false.
 //
 // 🔴 THE THIRD TOKEN CASE IS THE RECORDED FAILING INPUT FOR THE FALLBACK
-// REMOVAL. `services/subly-api/src/middleware/auth.ts` accepts a token signed
+// REMOVAL. `services/subscriptiontracker-api/src/middleware/auth.ts` accepts a token signed
 // with a shared HS256 secret when the asymmetric path fails. Carrying that here
 // would mean the portfolio's one auth boundary — guarding account deletion for
 // every app — accepts a symmetric secret. The "legacy HS256 token is refused"
@@ -60,7 +60,7 @@ let identityStatus = 204;
  *  same reason: "the app's rows were erased" is a claim about a REQUEST THIS
  *  WORKER MADE, and the response body cannot be evidence for it. */
 const APP_ORIGIN = 'https://api.test';
-const APP_ENDPOINTS = `subly=${APP_ORIGIN}`;
+const APP_ENDPOINTS = `subscriptiontracker=${APP_ORIGIN}`;
 let appCalls: Array<{ url: string; method: string; authorization: string | null }> = [];
 let appStatus = 200;
 /** When set, the relay fetch THROWS — an app Worker that cannot be reached at
@@ -178,7 +178,7 @@ async function token(
  *  argument is swallowed by the parameter default and the test then asserts the
  *  CONFIGURED path while claiming to assert the unconfigured one — which is
  *  exactly what happened here on the first run, and is the same trap
- *  services/subly-api/test/auth.test.ts records against its own secret. */
+ *  services/subscriptiontracker-api/test/auth.test.ts records against its own secret. */
 function harness({
   serviceRoleKey = 'service-role-key' as string | null,
   db = realPlatformDb(),
@@ -238,7 +238,7 @@ function harness({
 }
 
 /** Entitlement rows are the only user-owned rows platform_db has today. */
-function seedEntitlement(db: RealDb, userId: string, appId = 'subly') {
+function seedEntitlement(db: RealDb, userId: string, appId = 'subscriptiontracker') {
   db.db
     .prepare(
       `INSERT INTO entitlements (user_id, app_id, entitlement, product_id, store, is_active, expires_at, updated_at)
@@ -411,7 +411,7 @@ describe('platformAuth ACCEPTS only a real ES256 token from THIS project', () =>
   });
 
   it('401s a token signed with the LEGACY HS256 SECRET — there is no fallback', async () => {
-    // 🔴 THE RECORDED FAILING INPUT FOR THE FALLBACK REMOVAL. services/subly-api
+    // 🔴 THE RECORDED FAILING INPUT FOR THE FALLBACK REMOVAL. services/subscriptiontracker-api
     // ACCEPTS this exact token when SUPABASE_JWT_SECRET is configured. Re-adding
     // that path here — by porting the sibling file wholesale, which is precisely
     // how it would happen — turns this test red.
@@ -592,7 +592,7 @@ describe('DELETE /v1/account — three limbs, executed against a real engine', (
       .prepare(
         `INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES (?,?,?,?,?)`,
       )
-      .run('e1', 'subly', 'anon-1', 'first_launch', '2026-08-01T00:00:00Z');
+      .run('e1', 'subscriptiontracker', 'anon-1', 'first_launch', '2026-08-01T00:00:00Z');
     await h.del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
     expect(h.db.count('events')).toBe(1);
     expect(h.db.sql.some((s) => /DELETE FROM events\b/.test(s))).toBe(false);
@@ -646,7 +646,7 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
   it('calls each app\'s DELETE /v1/account, forwarding the CALLER\'S OWN token', async () => {
     // Forwarded rather than re-minted, and asserted as such: this Worker holds no
     // key that could sign a token for this user, and it must not — the app route
-    // (services/subly-api) refuses anything that is not asymmetrically verified,
+    // (services/subscriptiontracker-api) refuses anything that is not asymmetrically verified,
     // which is the property that let an erasure route exist on that Worker at all.
     const h = harness();
     const authz = `Bearer ${await token({ sub: 'user-a' })}`;
@@ -657,7 +657,7 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
     expect(appCalls[0].url).toBe(`${APP_ORIGIN}/v1/account`);
     expect(appCalls[0].authorization).toBe(authz);
     expect(((await res.json()) as { apps: Record<string, string> }).apps).toEqual({
-      subly: 'deleted',
+      subscriptiontracker: 'deleted',
     });
   });
 
@@ -677,7 +677,7 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
     appStatus = 403; // e.g. the app route refusing a non-asymmetric proof
     const res = await h.del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'app_data_delete_failed', app: 'subly' });
+    expect(await res.json()).toEqual({ error: 'app_data_delete_failed', app: 'subscriptiontracker' });
     expect(identityCalls).toHaveLength(0);
   });
 
@@ -718,7 +718,7 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
   });
 
   it('refuses 501 on a NON-https endpoint rather than putting a live token on the wire', async () => {
-    const h = harness({ appEndpoints: 'subly=http://api.test' });
+    const h = harness({ appEndpoints: 'subscriptiontracker=http://api.test' });
     seedEntitlement(h.db, 'user-a');
     const res = await h.del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
     expect(res.status).toBe(501);
@@ -729,7 +729,7 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
   it('refuses 501 on a malformed entry rather than silently skipping that app', async () => {
     // A dropped entry is an app whose rows quietly stop being erased, which looks
     // exactly like success. Throwing is what turns it into a refusal.
-    for (const bad of ['subly', '=https://api.test', 'subly=notaurl']) {
+    for (const bad of ['subscriptiontracker', '=https://api.test', 'subscriptiontracker=notaurl']) {
       const h = harness({ appEndpoints: bad });
       const res = await h.del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
       expect(res.status, bad).toBe(501);
@@ -740,12 +740,12 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
   it('relays to EVERY declared app, not just the first', async () => {
     // The loop is what makes app #2 covered by adding one entry. A route that
     // erased only `endpoints[0]` passes every other test in this file.
-    const h = harness({ appEndpoints: `subly=${APP_ORIGIN},other=${APP_ORIGIN}` });
+    const h = harness({ appEndpoints: `subscriptiontracker=${APP_ORIGIN},other=${APP_ORIGIN}` });
     const res = await h.del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
     expect(res.status).toBe(200);
     expect(appCalls).toHaveLength(2);
     expect(((await res.json()) as { apps: Record<string, string> }).apps).toEqual({
-      subly: 'deleted',
+      subscriptiontracker: 'deleted',
       other: 'deleted',
     });
   });
@@ -753,8 +753,8 @@ describe("LIMB 3 — every app's OWN database, through that app's OWN route", ()
 
 describe('parseErasureEndpoints', () => {
   it('parses, trims and strips a trailing slash', () => {
-    expect(parseErasureEndpoints(' subly=https://api.test/ , other=https://b.test ')).toEqual([
-      { appId: 'subly', origin: 'https://api.test' },
+    expect(parseErasureEndpoints(' subscriptiontracker=https://api.test/ , other=https://b.test ')).toEqual([
+      { appId: 'subscriptiontracker', origin: 'https://api.test' },
       { appId: 'other', origin: 'https://b.test' },
     ]);
   });
@@ -768,10 +768,10 @@ describe('parseErasureEndpoints', () => {
 
   it('throws on a path, a query string or a non-https scheme', () => {
     for (const bad of [
-      'subly=https://api.test/v1',
-      'subly=https://api.test?x=1',
-      'subly=http://api.test',
-      'subly=api.test',
+      'subscriptiontracker=https://api.test/v1',
+      'subscriptiontracker=https://api.test?x=1',
+      'subscriptiontracker=http://api.test',
+      'subscriptiontracker=api.test',
     ]) {
       expect(() => parseErasureEndpoints(bad), bad).toThrow(RangeError);
     }

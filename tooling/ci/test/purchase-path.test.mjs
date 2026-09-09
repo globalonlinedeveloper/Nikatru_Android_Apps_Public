@@ -318,7 +318,7 @@ const Duration kEntitlementStalenessCeiling = Duration(days: 7);
 `;
 
 // [pipeline 4]B-2 — THE RAIL CONFIG IS DATA NOW, AND SO IS THIS FIXTURE. It was
-// a TypeScript literal (`export const DEFAULT_CONFIGS = { subly: { paywall: … } }`)
+// a TypeScript literal (`export const DEFAULT_CONFIGS = { subscriptiontracker: { paywall: … } }`)
 // that the guard regexed. B-2 moved the served values into
 // `services/platform/src/app-config-data.json` so onboarding an app needs no
 // Worker source edit; the guard `JSON.parse`s it and reads structure.
@@ -341,7 +341,7 @@ const railData = ({ enabled = false, offerings = OFFERINGS, paywallExtra = {} } 
       // is `defaults` ∪ every per-app entry. Empty here on purpose: a portfolio
       // default that sold something would make every stamped app a seller.
       defaults: { paywall: { enabled: false, offerings: [] }, update_url: null },
-      apps: { subly: { paywall: { enabled, offerings, ...paywallExtra } } },
+      apps: { subscriptiontracker: { paywall: { enabled, offerings, ...paywallExtra } } },
     },
     null,
     2,
@@ -452,7 +452,7 @@ function run(o = {}) {
   // §H's census: the three declared construction sites, plus the hook a case
   // uses to add a fourth or to move one of them onto the facade.
   if (o.facadeCtor !== null) write(root, 'packages/purchases/lib/src/chassis_billing.dart', o.facadeCtor ?? FACADE_CTOR);
-  if (o.sublyMoney !== null) write(root, 'apps/subly/lib/state/money_providers.dart', o.sublyMoney ?? MONEY_PROVIDERS);
+  if (o.subscriptiontrackerMoney !== null) write(root, 'apps/subscriptiontracker/lib/state/money_providers.dart', o.subscriptiontrackerMoney ?? MONEY_PROVIDERS);
   if (o.brickMoney !== null) write(root, `${BRICK}/lib/state/money_providers.dart`, o.brickMoney ?? MONEY_PROVIDERS);
   if (o.extraCtorSite) write(root, o.extraCtorSite.file, o.extraCtorSite.body);
   if (o.morPaddle !== null) write(root, 'services/platform/src/lib/mor/paddle.ts', o.morPaddle ?? 'export const paddle = {};\n');
@@ -1414,7 +1414,7 @@ describe('assert-purchase-path §H — who still builds the hosted rail by hand'
   });
 
   test('COVERAGE LOST when nothing constructs the rail anywhere, not even the facade', () => {
-    const r = run({ facadeCtor: FACADE_ONLY, sublyMoney: VIA_FACADE, brickMoney: VIA_FACADE });
+    const r = run({ facadeCtor: FACADE_ONLY, subscriptiontrackerMoney: VIA_FACADE, brickMoney: VIA_FACADE });
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST — §H read \d+ Dart file\(s\) and found no direct/);
   });

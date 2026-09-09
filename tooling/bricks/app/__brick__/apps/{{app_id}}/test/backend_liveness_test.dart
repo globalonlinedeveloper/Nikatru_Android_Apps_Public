@@ -6,7 +6,7 @@
 // it is true, `providers.dart` hands out the real auth repository and the real
 // REST client only when it is true, and `remoteConfigEnabled` is `it && !skip`.
 // On the `needs_backend` branch it also required `apiBaseUrl != _phApiBase` —
-// a clause copied from `apps/subly`, where `_phApiBase` is a self-describing
+// a clause copied from `apps/subscriptiontracker`, where `_phApiBase` is a self-describing
 // fake no build ever passes. In a STAMPED app it is not: `hooks/pre_gen.dart`
 // derives it to `https://api-<app_id>.nikatru.com`, the app's own Worker binds
 // exactly that hostname as a custom domain, and the stamped README tells the
@@ -29,7 +29,7 @@
 // because "the branch that was right" is exactly the one that rots unwatched.
 //
 // IF YOU EVER MAKE `_phApiBase` A REAL PLACEHOLDER (a string no deployed build
-// can pass, as subly has), the FIRST test below goes red — it asserts the
+// can pass, as subscriptiontracker has), the FIRST test below goes red — it asserts the
 // premise, not just the shape. Fix the premise test in the same change that
 // changes the premise, and only then is an API-host clause defensible again.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ void main() {
 
       // 2 · It is a real nikatru host, not a placeholder. This is what makes an
       //     `apiBaseUrl != _phApiBase` liveness clause a production defect here
-      //     while it is correct in apps/subly.
+      //     while it is correct in apps/subscriptiontracker.
       expect(
         stamped,
         matches(RegExp(r'^https://[a-z0-9][a-z0-9.-]*\.nikatru\.com(/v1)?$')),

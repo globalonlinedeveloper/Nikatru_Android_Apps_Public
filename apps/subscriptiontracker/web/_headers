@@ -1,0 +1,180 @@
+# Cloudflare Pages headers for the Flutter web build.
+# https://developers.cloudflare.com/pages/configuration/headers/
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔴 THE APP'S CONTENT-SECURITY-POLICY — ADDED 2026-09-09, [ADR 075].
+#
+# Until today this app shipped with NO CSP at all. `web/index.html` says so in
+# its own comment ("MEASURED 2026-08-21 — apps/subscriptiontracker/web/_headers declares NO
+# Content-Security-Policy at all … Do not read the absence of a CSP as
+# permission"). That was survivable while the app owned a whole origin. It is
+# not survivable now: the app is published at `nikatru.com/<id>`, which is the
+# SAME ORIGIN as the marketing site, the pricing page, `/checkout-return` and
+# the frozen consent archive — and the Supabase bearer token lives in that
+# origin's web storage. An XSS here would reach all of it.
+#
+# 🔴 THIS FILE IS WHERE IT BELONGS, AND THAT IS THE POINT OF THE WHOLE ROUTING
+# DESIGN. MEASURED 2026-09-09 on a throwaway Pages project: `_headers` is
+# applied by the ASSET-serving stage, so `sites/nikatru/_headers` does NOT reach
+# a response the apex router returns from a proxy fetch, while THIS file's rules
+# travel with the app's bytes and do. A per-app policy is possible only because
+# the router proxies rather than merging every app into one project — where a
+# single `_headers` would have to hold the union, and the weakest policy would
+# apply to everything.
+#
+# ── EVERY SOURCE BELOW WAS MEASURED, NOT GUESSED ─────────────────────────────
+# Verified 2026-09-09 by serving THIS EXACT BUILD through a proxy carrying this
+# exact policy and reading the browser console: the app booted to the onboarding
+# screen with ZERO CSP violations. Each unobvious entry, and why it is there:
+#
+#   · `'wasm-unsafe-eval'` — CanvasKit/skwasm. NOT `'unsafe-eval'`: the narrow
+#     keyword permits WebAssembly compilation and nothing else.
+#   · `'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM='` — the ONE inline
+#     <script> in web/index.html, the boot loader. The hash was computed from the
+#     repository's own bytes and CONFIRMED IDENTICAL to the value the browser
+#     reported for the deployed page, which is the proof that `$FLUTTER_BASE_HREF`
+#     substitution does not disturb it. assert-web-cache-policy.mjs recomputes it
+#     on every run, so an edit to that script that forgets this line goes RED
+#     instead of silently disabling the loader.
+#   · 🔴 `https://www.gstatic.com`, `https://fonts.gstatic.com`,
+#     `https://browser.sentry-cdn.com` — THREE THIRD-PARTY CDNs ON THIS APP'S BOOT
+#     PATH, discovered by this measurement and invisible before it, because
+#     without a CSP nothing reports them. The engine fetches CanvasKit and the
+#     Roboto fallback from Google's CDN, and the telemetry SDK loads its bundle
+#     from Sentry's. `web/index.html` states the opposite about itself ("no CDN
+#     font, script or stylesheet … no third party on the boot path") — true of the
+#     markup it was written about, false of the running page.
+#     They are listed here because a policy that does not describe the running app
+#     is worse than none. REMOVING them is a separate, owed change, not a header
+#     edit: `flutter build web --no-web-resources-cdn` serves CanvasKit and the
+#     font from `/canvaskit/*` (already in this bundle — measured 200 today, and
+#     already declared below), and the telemetry loader needs its own decision.
+#   · `worker-src`/`child-src blob:` — the engine spawns its wasm workers from
+#     blob URLs.
+#   · `challenges.cloudflare.com` — Turnstile, in script-src AND frame-src. It is
+#     declared BEFORE `vars.TURNSTILE_SITE_KEY` is ever set, so the gate cannot
+#     fail closed on the day it is switched on. ⚠️ The widget's own configured
+#     domain list is a SEPARATE console setting and still names the old subdomain.
+#   · `connect-src` names the four first-party hosts the app calls. It does NOT
+#     name the apex, because `'self'` IS the apex once the app is served there.
+#
+# ⚠️ `frame-ancestors 'none'` and `X-Frame-Options: DENY` are both set: the app
+# must not be framed, including by another path on its own origin, because
+# same-origin framing is otherwise unrestricted between app paths on one apex.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM=' https://www.gstatic.com https://browser.sentry-cdn.com https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co https://api.nikatru.com https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com https://www.gstatic.com https://fonts.gstatic.com; upgrade-insecure-requests
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 🔴 WHY THIS FILE EXISTS — [pipeline 9]R-9, the cache limb.
+#
+# deploy-web.yml builds with `--pwa-strategy=none` ([ADR 023], LOCKED
+# 2026-07-31: the service worker was rejected deliberately, it is not an
+# oversight). So there is NO service worker and no client-side update
+# machinery on the ONLY channel this factory serves. That leaves the HTTP
+# cache as the entire update mechanism, and until this file existed nothing in
+# the repository CHOSE a policy for it — `flutter build web` emits no
+# `_headers` and the deploy ships `build/web` straight to Pages, so whatever
+# the platform defaults to was what a returning visitor got.
+#
+# The failure that produces is not a slow update. It is a client running the
+# PREVIOUS build with no way to know: the force-update gate (CFG-1) compares
+# the version the app REPORTS, and a stale `flutter_bootstrap.js` reports the
+# old one honestly. The kill-switch cannot see a client the cache is hiding
+# from it.
+#
+# Flutter copies `web/` verbatim into `build/web`, so this file is deployed as
+# a sibling of index.html and Pages reads it from the deployed directory.
+#
+# ⚠️ THE SPLIT IS BY WHETHER THE NAME CARRIES A HASH, not by file type. A
+# STABLE name with CHANGING content must be revalidated every build; a name
+# that changes when its bytes change can be cached forever, because a new
+# build simply asks for a different name.
+#
+# `must-revalidate` with `max-age=0` is a conditional request, not a full
+# download: the browser asks, the edge answers 304 when nothing moved. The
+# cost of correctness here is one round trip.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔴 2026-08-04 — THE RULE ABOVE WAS RIGHT AND THIS FILE WAS APPLYING IT TO THE
+#    WRONG SET. `/assets/*`, `/canvaskit/*` and `/icons/*` were declared
+#    `immutable, max-age=31536000` under the comment "content-addressed output:
+#    the name changes when the bytes do". THAT IS NOT TRUE OF THIS BUNDLE, and
+#    it was never verified — it was inherited from how a webpack-style build
+#    behaves.
+#
+# MEASURED against the live channel (https://subly.nikatru.com), not reasoned:
+#
+#   · `flutter_bootstrap.js` names its dependencies `main.dart.js`,
+#     `canvaskit.js` and `canvaskit.wasm` — plain, unhashed. A scan of the
+#     whole bootstrap for a hash-shaped token returned NONE.
+#   · The only `?v=` in the bootstrap is on `flutter_service_worker.js`, a file
+#     `--pwa-strategy=none` never emits. So no asset request carries a
+#     cache-busting query either.
+#   · The real files under `/assets/` are `AssetManifest.bin.json`,
+#     `FontManifest.json`, `NOTICES` and `fonts/MaterialIcons-Regular.otf` —
+#     fixed names whose CONTENT changes whenever the app's asset list does.
+#   · `/icons/Icon-192.png` and friends are copied verbatim from `web/icons/`
+#     in this repository. PR #149 changed exactly those bytes.
+#
+# NOTHING IN THIS BUNDLE IS CONTENT-ADDRESSED. So `immutable` — which tells a
+# browser not to revalidate even on an explicit reload — meant a returning
+# visitor kept the previous launcher icon, font and asset manifest for up to a
+# YEAR. The same failure this file was written to prevent, one directory down,
+# behind a green guard: `assert-web-cache-policy.mjs` only ever asked about the
+# three entry points, and its own test suite asserted that "hashed output under
+# assets/ staying immutable does NOT fire".
+#
+# The guard now derives the question from the tree instead: every file this
+# repository ships under `web/` keeps its name through `flutter build web`, so
+# the rule governing its URL must revalidate. `/favicon.png` below is there for
+# the same reason — it was undeclared and correct only by inheriting the
+# platform default, which is the state this whole file exists to end.
+#
+# ⚠️ IF A FUTURE FLUTTER EMITS CONTENT-HASHED NAMES, THIS FLIPS BACK — for those
+# names only, and the evidence for the flip is a fresh look at what
+# `flutter_bootstrap.js` actually asks for, not this comment.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ⚠️ ONE RULE PER PATH, DELIBERATELY. Cloudflare Pages documents that "an
+# incoming request which matches multiple rules' URL patterns will inherit all
+# rules' headers", and that a header set twice is JOINED WITH A COMMA. Two
+# rules that both match one path therefore produce
+# `Cache-Control: public, max-age=0, must-revalidate, public, max-age=31536000,
+# immutable` — a single self-contradicting header, not an override. The rules
+# below are written as disjoint classes so that never arises.
+
+# The stable-named entry points. A new deploy MUST be visible immediately.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/flutter_bootstrap.js
+  Cache-Control: public, max-age=0, must-revalidate
+/version.json
+  Cache-Control: public, max-age=0, must-revalidate
+/manifest.json
+  Cache-Control: public, max-age=0, must-revalidate
+
+# main.dart.js is emitted under a STABLE name by `flutter build web`, so it is
+# an entry point by the rule above even though it is compiled output.
+/main.dart.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Shipped verbatim from web/ and named in index.html. Stable name, changing
+# content — the launcher icon and favicon are the exact bytes PR #149 replaced.
+/favicon.png
+  Cache-Control: public, max-age=0, must-revalidate
+/icons/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Build output under a FIXED name: the asset and font manifests, NOTICES, the
+# bundled fonts, and the CanvasKit engine (whose bytes track the Flutter SDK).
+# None of these carry a hash, so none of them may be immutable.
+/assets/*
+  Cache-Control: public, max-age=0, must-revalidate
+/canvaskit/*
+  Cache-Control: public, max-age=0, must-revalidate

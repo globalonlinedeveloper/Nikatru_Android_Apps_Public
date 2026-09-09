@@ -12,10 +12,10 @@
 // no node APIs).
 //
 // 🔴 THIS GUARD USED TO READ ONE FILE. `const WRANGLER =
-// 'services/platform/wrangler.jsonc'` — hardcoded, with services/subly-api never
+// 'services/platform/wrangler.jsonc'` — hardcoded, with services/subscriptiontracker-api never
 // opened, while tooling/capability-register.json claimed ALLOWED_ORIGINS was
 // "guarded by assert-cors-allowlist.mjs" as if that covered the var generally.
-// Mutation-proven 2026-08-01: emptying services/subly-api/wrangler.jsonc's
+// Mutation-proven 2026-08-01: emptying services/subscriptiontracker-api/wrangler.jsonc's
 // ALLOWED_ORIGINS produced BYTE-IDENTICAL output and exit 0.
 //
 // 🔴 AND THEN IT HARDCODED THE ORIGINS. The fix above iterated every Worker but
@@ -78,17 +78,25 @@ const EXTRAS = {
   platform: [
     {
       origin: 'https://subly-9cp.pages.dev',
-      why: 'Subly’s Cloudflare Pages preview domain. Not in apps.json — the catalogue advertises production URLs to the public and a preview host has no business there.',
+      why: 'Subly’s Cloudflare Pages preview domain. Not in apps.json — the catalogue advertises production URLs to the public and a preview host has no business there. HELD ONLY FOR THE CUTOVER: the slug rename moved the Direct Upload project to `subscriptiontracker`, and this entry leaves in the NARROW step, once nothing can be served from the retired project.',
+    },
+    {
+      origin: 'https://subscriptiontracker-7qg.pages.dev',
+      why: 'the app’s Cloudflare Pages preview domain AFTER the slug rename. deploy-web.yml deploys with --project-name=<directory>, so `apps/subscriptiontracker` deploys to a new project; its subdomain was read back from the Pages API (the bare `subscriptiontracker.pages.dev` is a third party’s). Same reason as the row above: a preview host has no business in the public catalogue.',
     },
     {
       origin: 'http://localhost:3000',
       why: 'the local Subly web dev server (.claude/launch.json). It fetches config.nikatru.com cross-origin from the browser, and this Worker has NO localhost regex, so the origin must be listed explicitly.',
     },
   ],
-  'subly-api': [
+  'subscriptiontracker-api': [
     {
       origin: 'https://subly-9cp.pages.dev',
-      why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform.',
+      why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform. Held only for the cutover; it leaves in the NARROW step.',
+    },
+    {
+      origin: 'https://subscriptiontracker-7qg.pages.dev',
+      why: 'the post-rename Cloudflare Pages preview domain — mirrors services/platform, and read back from the Pages API rather than derived from the id.',
     },
     // NOTE: no localhost entry. This per-app Worker allows localhost by regex
     // (a recorded trade — the `flutter drive -d web-server` harness picks a
@@ -131,8 +139,8 @@ function parseJsonc(path) {
 // and exits 0 forever — an assertion that cannot fail, which this repo treats
 // as worse than none. [10]D-8 limb (c) printed `0 comparison(s)`; an iOS
 // usage-key haystack held 0 keys while 18 tells compared against it.
-const MIN_SERVICES = 2; // platform + subly-api
-const MIN_CATALOGUE_ORIGINS = 1; // apps.json declares subly today
+const MIN_SERVICES = 2; // platform + subscriptiontracker-api
+const MIN_CATALOGUE_ORIGINS = 1; // apps.json declares subscriptiontracker today
 const MIN_PER_APP_WORKERS = 1; // the `<slug>-api` derivation must be LIVE, not theoretical
 
 if (!existsSync(SERVICES)) {
@@ -259,7 +267,7 @@ let perAppWorkers = 0;
 
 for (const { service, path, where } of configs) {
   const declared = SERVICE_POLICY[service];
-  // The `<slug>-api` derivation: app `subly` owns `services/subly-api`.
+  // The `<slug>-api` derivation: app `subscriptiontracker` owns `services/subscriptiontracker-api`.
   const owner = apps.find((a) => `${a.slug}-api` === service);
 
   let required;

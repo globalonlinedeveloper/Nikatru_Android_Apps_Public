@@ -38,7 +38,7 @@ final core.AppConfig kAppDefaultConfig = core.AppConfig(
   features: const <String, bool>{},
   paywall: const core.PaywallConfig(enabled: false),
   // 🔴 NON-NULL, AND THAT IS THE WHOLE POINT ([pipeline 7]P-9, [8]K-9). This
-  // read `null` in the brick AND in apps/subly, so `contentPackProvider` below
+  // read `null` in the brick AND in apps/subscriptiontracker, so `contentPackProvider` below
   // had an empty antecedent everywhere and the entire pack rail was green by
   // inaction — the self-disabling shape K-16 was diagnosed for. A pack that
   // cannot be fetched yet still has to be ASKED for, or nothing ever exercises
@@ -419,7 +419,7 @@ final Provider<core.EntitlementCache> entitlementCacheProvider =
 // WHY THIS IS IN THE BRICK. Stage 11's charter is to answer is-it-working /
 // is-it-converting / is-it-broken with NO per-app instrumentation work. That
 // only holds if a stamped app is born with the rail. It was not: the whole rail
-// existed only in apps/subly, so app #2 onwards measured nothing until somebody
+// existed only in apps/subscriptiontracker, so app #2 onwards measured nothing until somebody
 // hand-rebuilt it — which is precisely the copy-per-app failure the chassis is
 // for.
 //
@@ -1160,7 +1160,7 @@ class PasswordResetArrivalController
   core.PasswordResetArrivalReport build() {
     // `core.` PREFIX: the brick imports nikatru_core AS `core`, so a bare
     // `AuthRepository` is `Error: 'AuthRepository' isn't a type` in every
-    // stamped app. `apps/subly` imports the same symbol unprefixed, which is
+    // stamped app. `apps/subscriptiontracker` imports the same symbol unprefixed, which is
     // why this survived being copied across — the two roots are near-identical
     // and their IMPORTS are not. Invisible to `dart analyze` here, because the
     // template is mustache; caught only by stamping the probe.
@@ -1479,9 +1479,9 @@ final Provider<AuthRefreshNotifier> authRefreshProvider =
 /// **Measured, not assumed.** Until 2026-09-04 the stamped settings screen
 /// posted the result to the `ScaffoldMessenger` of the very screen the sign-out
 /// was tearing down (`features/settings/settings_screen.dart:650-657`), so the
-/// message could be destroyed before it was read. `apps/subly` hit the same wall
+/// message could be destroyed before it was read. `apps/subscriptiontracker` hit the same wall
 /// from the other side and recorded the measurement in
-/// `apps/subly/lib/state/providers/auth.dart:568-574`: its first version
+/// `apps/subscriptiontracker/lib/state/providers/auth.dart:568-574`: its first version
 /// rendered the result inside the dialog, and the router-driven test found ZERO
 /// widgets carrying the result key once the redirect settled — so *the message
 /// that matters most (502: your data is gone and your login still works) was the
@@ -2562,7 +2562,7 @@ final Provider<Listenable> routerRefreshProvider = Provider<Listenable>((ref) {
   // in this scope` — a HARD COMPILE FAILURE of every stamped app. It cannot be
   // seen by analyzing this template, because the template is mustache and not
   // valid Dart; it was found by stamping. Same trap as the [pipeline C-16] note
-  // on the `Locale, ThemeMode` import above, and `apps/subly` writes the single
+  // on the `Locale, ThemeMode` import above, and `apps/subscriptiontracker` writes the single
   // `_` legitimately because it resolves higher.
   final _Bump recovery = _Bump();
   ref.listen<bool>(

@@ -110,7 +110,7 @@ describe('POST /v1/events — ingest', () => {
     // OR IGNORE also swallows NOT NULL / CHECK / FK violations, which would make
     // genuine corruption indistinguishable from a duplicate retry.
     const { db, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
     const sql = db.sql.join('\n');
     expect(sql).toContain('ON CONFLICT(event_id) DO NOTHING');
     expect(sql).not.toContain('OR IGNORE');
@@ -118,7 +118,7 @@ describe('POST /v1/events — ingest', () => {
 
   it('NEVER stores an IP, and takes geo from the cf object instead', async () => {
     const { db, post } = harness();
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] }, {
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, {
       country: 'IN',
       region: 'Tamil Nadu',
       city: 'Chennai',
@@ -136,7 +136,7 @@ describe('POST /v1/events — ingest', () => {
   it('stamps its own server_ts and keeps the client ts as untrusted data', async () => {
     const { db, post } = harness();
     await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [ev({ ts: '1999-01-01T00:00:00.000Z' })],
     });
     const row = db.bound[0] as string[];
@@ -149,7 +149,7 @@ describe('POST /v1/events — ingest', () => {
   it('skips malformed events but still ingests the valid ones', async () => {
     const { db, post } = harness();
     const res = await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [ev(), { anon_id: 'x' }, ev({ event_id: 'b'.repeat(9), event: '' })],
     });
     expect(await res.json()).toEqual({ ok: true, received: 1 });
@@ -165,7 +165,7 @@ describe('POST /v1/events — ingest', () => {
     const { db, post } = harness();
     const params: Record<string, number> = {};
     for (let i = 0; i < 200; i++) params[`k${i}`] = i;
-    await post('/v1/events', { app_id: 'subly', events: [ev({ params })] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev({ params })] });
     const stored = JSON.parse((db.bound[0] as string[])[7]) as Record<string, number>;
     expect(Object.keys(stored)).toHaveLength(MAX_PARAM_COUNT);
     // The FIRST 12 are kept, so a client whose params are ordered by importance
@@ -185,7 +185,7 @@ describe('POST /v1/events — ingest', () => {
     // 20 droppable entries first (nested objects), then 12 good ones.
     for (let i = 0; i < 20; i++) params[`drop${i}`] = { nested: true };
     for (let i = 0; i < MAX_PARAM_COUNT; i++) params[`keep${i}`] = i;
-    await post('/v1/events', { app_id: 'subly', events: [ev({ params })] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev({ params })] });
     const stored = JSON.parse((db.bound[0] as string[])[7]) as Record<string, number>;
     expect(Object.keys(stored)).toHaveLength(MAX_PARAM_COUNT);
     expect(stored.keep0).toBe(0);
@@ -195,7 +195,7 @@ describe('POST /v1/events — ingest', () => {
   it('drops free text and nested values from params', async () => {
     const { db, post } = harness();
     await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [
         ev({
           params: {
@@ -215,20 +215,20 @@ describe('POST /v1/events — ingest', () => {
   it('rejects a missing app_id and an oversized batch', async () => {
     const { post } = harness();
     expect((await post('/v1/events', { events: [ev()] })).status).toBe(400);
-    const big = { app_id: 'subly', events: Array.from({ length: 101 }, () => ev()) };
+    const big = { app_id: 'subscriptiontracker', events: Array.from({ length: 101 }, () => ev()) };
     expect((await post('/v1/events', big)).status).toBe(413);
   });
 
   it('an empty batch is a no-op success, not an error', async () => {
     const { db, post } = harness();
-    const res = await post('/v1/events', { app_id: 'subly', events: [] });
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [] });
     expect(res.status).toBe(200);
     expect(db.batched).toBe(0);
   });
 
   it('the circuit breaker sheds load with 429', async () => {
     const { db, post } = harness({ allowRate: false });
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] });
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
     expect(res.status).toBe(429);
     expect(db.batched).toBe(0);
   });
@@ -238,7 +238,7 @@ describe('POST /v1/events — ingest', () => {
     const db = realPlatformDb();
     db.throwOnWrite = true;
     const { post } = harness({ db });
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] });
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
     expect(res.status).toBe(503);
     // NEW, and only sayable now: the 503 is honest. Nothing landed, so the
     // client's retry cannot double-count. Against FakeDb this line could not be
@@ -275,13 +275,13 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
 
   it('checks TWO distinct keys per request, only one of which is client-chosen', async () => {
     const { fairness, ceiling, post } = harness();
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] }, cf);
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, cf);
     expect(res.status).toBe(200);
     expect(ceiling.keys).toHaveLength(1);
     expect(fairness.keys).toHaveLength(1);
     expect(ceiling.keys[0]).not.toBe(fairness.keys[0]);
     // The fairness bucket is still per (app, install) — that half is unchanged.
-    expect(fairness.keys[0]).toBe('subly:install-1');
+    expect(fairness.keys[0]).toBe('subscriptiontracker:install-1');
   });
 
   it('the ceiling key contains NO body-supplied value at all', async () => {
@@ -316,7 +316,7 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
     for (let i = 0; i < 3; i++) {
       await post(
         '/v1/events',
-        { app_id: 'subly', events: [ev({ anon_id: `rotating-${i}` })] },
+        { app_id: 'subscriptiontracker', events: [ev({ anon_id: `rotating-${i}` })] },
         cf,
       );
     }
@@ -326,15 +326,15 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
 
   it('a different edge PoP or network IS a different bucket (it is not one global key)', async () => {
     const { ceiling, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] }, { colo: 'MAA', asn: 24560 });
-    await post('/v1/events', { app_id: 'subly', events: [ev()] }, { colo: 'SIN', asn: 24560 });
-    await post('/v1/events', { app_id: 'subly', events: [ev()] }, { colo: 'MAA', asn: 9999 });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, { colo: 'MAA', asn: 24560 });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, { colo: 'SIN', asn: 24560 });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, { colo: 'MAA', asn: 9999 });
     expect(ceiling.keys).toEqual(['edge:MAA:24560', 'edge:SIN:24560', 'edge:MAA:9999']);
   });
 
   it('the ceiling alone can shed the request even when the fairness bucket allows it', async () => {
     const { db, fairness, post } = harness({ allowCeiling: false });
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] }, cf);
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, cf);
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ ok: false, error: 'rate_limited', received: 0 });
     expect(db.batched).toBe(0);
@@ -345,7 +345,7 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
 
   it('BOTH halves must pass — the fairness bucket still shed independently', async () => {
     const { db, ceiling, post } = harness({ allowRate: false });
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] }, cf);
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, cf);
     expect(res.status).toBe(429);
     expect(db.batched).toBe(0);
     expect(ceiling.keys).toHaveLength(1); // it was consulted, and it allowed
@@ -355,7 +355,7 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
     // The harness always sends 203.0.113.9. The privacy invariant is that the
     // header is never read — including as a rate-limit dimension.
     const { fairness, ceiling, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] }, cf);
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, cf);
     expect([...ceiling.keys, ...fairness.keys].join('|')).not.toContain('203.0.113.9');
   });
 
@@ -365,7 +365,7 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
       '/v1/consent',
       {
         consent_id: '22222222-2222-4222-8222-222222222222',
-        app_id: 'subly',
+        app_id: 'subscriptiontracker',
         anon_id: 'install-1',
         purpose: 'analytics',
         granted: true,
@@ -374,22 +374,22 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
       cf,
     );
     expect(ceiling.keys).toEqual(['edge:MAA:24560']);
-    expect(fairness.keys).toEqual(['consent:subly:install-1']);
+    expect(fairness.keys).toEqual(['consent:subscriptiontracker:install-1']);
   });
 
   it('a missing cf object degrades to one bounded bucket, never to unbounded', async () => {
     // `request.cf` is populated unconditionally by the runtime, so this is the
     // local/dev shape. It must still produce a stable key, not a per-request one.
     const { ceiling, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] });
-    await post('/v1/events', { app_id: 'subly', events: [ev({ anon_id: 'other' })] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev({ anon_id: 'other' })] });
     expect(new Set(ceiling.keys).size).toBe(1);
     expect(ceiling.keys[0]).toBe('edge:-:-');
   });
 
   it('a hostile cf object cannot inject an unbounded key either', async () => {
     const { ceiling, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] }, {
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, {
       colo: 'x'.repeat(200), // over the length cap
       asn: { toString: () => 'nope' }, // neither number nor string
     });
@@ -406,7 +406,7 @@ describe('the /v1/events cost circuit breaker is keyed on server-derived values'
       ['EVENTS_LIMITER', 'EVENTS_CEILING_LIMITER'],
     ] as const) {
       const { post } = harness({ allowRate: false, allowCeiling: false, omit: [...omit] });
-      const res = await post('/v1/events', { app_id: 'subly', events: [ev()] }, cf);
+      const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] }, cf);
       expect(res.status, omit.join('+')).toBe(omit.length === 2 ? 200 : 429);
     }
   });
@@ -517,7 +517,7 @@ describe('POST /v1/events bounds the body before parsing it', () => {
     for (const value of ['abc', '-1', '1.5']) {
       const res = await postRaw('/v1/events', {
         headers: { 'Content-Type': 'application/json', 'Content-Length': value },
-        body: JSON.stringify({ app_id: 'subly', events: [ev()] }),
+        body: JSON.stringify({ app_id: 'subscriptiontracker', events: [ev()] }),
       });
       expect(res.status, value).toBe(400);
       expect(await res.json(), value).toEqual({ error: 'bad_content_length' });
@@ -539,7 +539,7 @@ describe('POST /v1/events bounds the body before parsing it', () => {
     const params: Record<string, string> = {};
     for (let i = 0; i < 12; i++) params[`k${i}`] = 'v'.repeat(64);
     const big = {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: Array.from({ length: MAX_EVENTS_PER_BATCH }, (_, i) =>
         ev({ event_id: `id-${i}`, params }),
       ),
@@ -564,7 +564,7 @@ describe('POST /v1/events bounds the body before parsing it', () => {
     const { db, post } = harness();
     const before = db.count('events');
     const res = await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: Array.from({ length: MAX_EVENTS_PER_BATCH + 1 }, (_, i) =>
         ev({ event_id: `over-${i}` }),
       ),
@@ -595,7 +595,7 @@ describe('POST /v1/events bounds the body before parsing it', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         consent_id: '2'.repeat(16),
-        app_id: 'subly',
+        app_id: 'subscriptiontracker',
         anon_id: 'install-1',
         purpose: 'analytics',
         policy_version: '2026-07-25',
@@ -617,7 +617,7 @@ describe('anon_id is required, never invented and never borrowed', () => {
     // literally 'unknown' into a NOT NULL column meant to identify an install.
     const { db, fairness, ceiling, post } = harness();
     const res = await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [ev({ anon_id: undefined })],
     });
     expect(res.status).toBe(400);
@@ -639,7 +639,7 @@ describe('anon_id is required, never invented and never borrowed', () => {
 
   it('never writes the literal `unknown` as an install id', async () => {
     const { db, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev({ anon_id: '' })] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev({ anon_id: '' })] });
     expect(JSON.stringify(db.bound)).not.toContain('unknown');
   });
 
@@ -648,7 +648,7 @@ describe('anon_id is required, never invented and never borrowed', () => {
     // different install's row — silent mis-attribution in the analytics table.
     const { db, post } = harness();
     const res = await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [
         ev({ anon_id: 'install-A' }),
         ev({ event_id: '33333333-3333-4333-8333-333333333333', anon_id: undefined }),
@@ -663,7 +663,7 @@ describe('anon_id is required, never invented and never borrowed', () => {
 describe('POST /v1/consent — the DPDP artifact', () => {
   const artifact = (over: Record<string, unknown> = {}) => ({
     consent_id: '22222222-2222-4222-8222-222222222222',
-    app_id: 'subly',
+    app_id: 'subscriptiontracker',
     anon_id: 'install-1',
     purpose: 'analytics',
     granted: true,
@@ -728,13 +728,13 @@ describe('the route is executed against platform_db, not asserted about', () => 
     // green against a Worker that could not write a single row to the real
     // database. `tsc --noEmit` cannot see it either; SQL is a string.
     const { db, post } = harness();
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] });
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
     expect(res.status).toBe(200);
     const rows = db.rows('SELECT * FROM events');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       event_id: '11111111-1111-4111-8111-111111111111',
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       anon_id: 'install-1',
       event: 'first_launch',
       client_ts: '2026-07-25T10:00:00.000Z',
@@ -747,8 +747,8 @@ describe('the route is executed against platform_db, not asserted about', () => 
     // depends on is dropped from 0002_analytics.sql, which is the only thing that
     // makes the clause mean anything. Two sends, one row, by query.
     const { db, post } = harness();
-    await post('/v1/events', { app_id: 'subly', events: [ev()] });
-    await post('/v1/events', { app_id: 'subly', events: [ev({ event: 'second_send' })] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
+    await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev({ event: 'second_send' })] });
     expect(db.count('events')).toBe(1);
     // …and it is the FIRST write that survives — DO NOTHING, not DO UPDATE.
     expect(db.rows('SELECT event FROM events')[0].event).toBe('first_launch');
@@ -758,7 +758,7 @@ describe('the route is executed against platform_db, not asserted about', () => 
     // D1's `batch()` is transactional and the route depends on that: it returns
     // 503 so the client keeps and retries the batch, which is only safe if the
     // batch is all-or-nothing. Against FakeDb, `batch()` incremented a counter.
-    // A DB-level abort the route cannot pre-empt, as subly-api's harness does it.
+    // A DB-level abort the route cannot pre-empt, as subscriptiontracker-api's harness does it.
     const db = realPlatformDb([
       `CREATE TRIGGER reject_boom BEFORE INSERT ON events
          WHEN NEW.event = 'boom'
@@ -766,7 +766,7 @@ describe('the route is executed against platform_db, not asserted about', () => 
     ]);
     const { post } = harness({ db });
     const res = await post('/v1/events', {
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       events: [
         ev({ event_id: 'good-1' }),
         ev({ event_id: 'bad-1', event: 'boom' }),
@@ -785,8 +785,8 @@ describe('the route is executed against platform_db, not asserted about', () => 
     const { db, post } = harness();
     for (const body of [
       { events: [ev()] }, // no app_id           → 400
-      { app_id: 'subly', events: [ev({ anon_id: undefined })] }, // → 400
-      { app_id: 'subly', events: Array.from({ length: 101 }, () => ev()) }, // → 413
+      { app_id: 'subscriptiontracker', events: [ev({ anon_id: undefined })] }, // → 400
+      { app_id: 'subscriptiontracker', events: Array.from({ length: 101 }, () => ev()) }, // → 413
     ]) {
       const res = await post('/v1/events', body);
       expect(res.status).not.toBe(200);
@@ -827,9 +827,9 @@ describe('the route is executed against platform_db, not asserted about', () => 
     // unregistered app AND the real one, which passes the test above while
     // taking the analytics rail off the air for every shipped app.
     const { db, post } = harness();
-    const res = await post('/v1/events', { app_id: 'subly', events: [ev()] });
+    const res = await post('/v1/events', { app_id: 'subscriptiontracker', events: [ev()] });
     expect(res.status).toBe(200);
-    expect(db.count('events', 'app_id = ?', 'subly')).toBe(1);
+    expect(db.count('events', 'app_id = ?', 'subscriptiontracker')).toBe(1);
   });
 
   it('[4]B-4a · an unregistered app posting ZERO events is refused, not told ok', async () => {
@@ -863,7 +863,7 @@ describe('the route is executed against platform_db, not asserted about', () => 
     const { db, post } = harness();
     const artifact = {
       consent_id: '22222222-2222-4222-8222-222222222222',
-      app_id: 'subly',
+      app_id: 'subscriptiontracker',
       anon_id: 'install-1',
       purpose: 'analytics',
       granted: true,

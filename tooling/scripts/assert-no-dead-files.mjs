@@ -49,8 +49,8 @@
 //     design — a README naming a script is a real consumer — so mention-masking
 //     is merely relocated inside the public tree, not eliminated. It was
 //     measured on 2026-08-17, in the file this guard was written to protect:
-//     `services/subly-api/src/lib/d1.ts` resolved on ONE source, a comment in
-//     `services/subly-api/src/lib/error-sink.ts` reading "same reason
+//     `services/subscriptiontracker-api/src/lib/d1.ts` resolved on ONE source, a comment in
+//     `services/subscriptiontracker-api/src/lib/error-sink.ts` reading "same reason
 //     `lib/d1.ts` is duplicated", while all SEVEN of its real importers
 //     contributed nothing — five write `../lib/d1`, `src/index.ts` writes
 //     `./lib/d1`, `test/renewals.test.ts` writes `../src/lib/d1`, and every one
@@ -87,10 +87,10 @@
 //     pins it to a NAMED importer so it cannot silently stop resolving.
 //
 //     ⚠️ IT INHERITS (2)'s AMBIGUITY RATHER THAN SOLVING IT. `services/platform`
-//     and `services/subly-api` are twinned Workers each carrying their own
+//     and `services/subscriptiontracker-api` are twinned Workers each carrying their own
 //     `lib/d1.ts`, so the suffix `lib/d1.ts` belongs to TWO tracked paths and a
-//     specifier in either twin reaches both. Measured 2026-08-17 for subly-api's
-//     copy: 13 sources — 7 in `services/subly-api/`, which are exactly its real
+//     specifier in either twin reaches both. Measured 2026-08-17 for subscriptiontracker-api's
+//     copy: 13 sources — 7 in `services/subscriptiontracker-api/`, which are exactly its real
 //     importers, 5 in `services/platform/`, which import the OTHER twin, and 1
 //     in the mason brick template. So the COUNT overstates by ~2x here.
 //     `path-reference` already behaved exactly this way on the same suffix; this
@@ -134,12 +134,12 @@
 // `defaults.example.json` from the working-tree bodies of the FOUR tracked files
 // that write it, stage nothing, and the index still holds all 1212 paths — the
 // COMMIT is clean — while this guard exits 1 with
-// `apps/subly/config/defaults.example.json — no resolver reaches it`. That is a
+// `apps/subscriptiontracker/config/defaults.example.json — no resolver reaches it`. That is a
 // red gate over uncommitted work-in-progress, which is the cry-wolf failure that
 // gets a hook bypassed with `--no-verify`; and a bypassed hook leaves its subject
 // worse off than no hook, because the belief that something is being checked
 // survives. (The scoping brief put that number at two sources. It is four:
-// apps/subly/README.md, apps/subly/lib/core/app_config.dart,
+// apps/subscriptiontracker/README.md, apps/subscriptiontracker/lib/core/app_config.dart,
 // tooling/ci/assert-stamp-text-fidelity.mjs and its test.) A CI checkout is clean
 // by construction, so in CI the drift is always 0 and this hazard cannot arise.
 //
@@ -337,7 +337,7 @@ const EXEMPTIONS = [
     since: '2026-08-17',
     why:
       'a developer copies it to `.dev.vars` (gitignored) before `wrangler dev`; wrangler reads the COPY and ' +
-      'never this file. Its twin services/subly-api/.dev.vars.example is reached only because that ' +
+      'never this file. Its twin services/subscriptiontracker-api/.dev.vars.example is reached only because that ' +
       "service's README happens to name it — an asymmetry between two READMEs, not a difference in how the " +
       'two files are used, so waiving this one is the honest treatment rather than a hint that it is dead.',
   },
@@ -513,37 +513,37 @@ const CANARIES = [
     note: '.github/workflows/ci.yml runs it as `node tooling/ci/assert-app-dod.mjs` — the ordinary case',
   },
   {
-    path: 'services/subly-api/src/lib/d1.ts',
+    path: 'services/subscriptiontracker-api/src/lib/d1.ts',
     by: 'module-import',
-    from: 'services/subly-api/src/routes/budget.ts',
+    from: 'services/subscriptiontracker-api/src/routes/budget.ts',
     note:
       'the TypeScript import graph, which was INVISIBLE to this guard until 2026-08-17 — finding (3) in the ' +
       "header. budget.ts:7 carries `import { allRows, firstRow, nowIso, uuid } from '../lib/d1'`, and six " +
       'more tracked files import the same module (four more under src/routes/, src/index.ts, and ' +
       'test/renewals.test.ts). Before the module-import resolver, d1.ts resolved on exactly ONE source and ' +
       'it was not any of the seven: a comment in ' +
-      'services/subly-api/src/lib/error-sink.ts reading "same reason `lib/d1.ts` is duplicated". `from` is ' +
+      'services/subscriptiontracker-api/src/lib/error-sink.ts reading "same reason `lib/d1.ts` is duplicated". `from` is ' +
       'pinned here rather than `by` alone precisely because that comment would satisfy a `by`-only row while ' +
       'the resolver resolved nothing.',
   },
   {
-    path: 'apps/subly/windows/runner/utils.h',
+    path: 'apps/subscriptiontracker/windows/runner/utils.h',
     by: 'sibling-name',
     note:
       'utils.cpp in the same directory carries `#include "utils.h"`. This is the exact file the scoping ' +
       "pass's first scanner called dead, because its reader used an extension allowlist with no `.cpp` in it",
   },
   {
-    path: 'apps/subly/assets/icon/app_icon_foreground.svg',
+    path: 'apps/subscriptiontracker/assets/icon/app_icon_foreground.svg',
     by: 'unique-name',
     note:
       'tooling/store/render-play-graphics.mjs:124 builds the path with `join(BRAND_DIR, ' +
       "'app_icon_foreground.svg')` — a composed path, so only the bare basename is ever written",
   },
   {
-    path: 'apps/subly/assets/brand/nikatru-logo.png',
+    path: 'apps/subscriptiontracker/assets/brand/nikatru-logo.png',
     by: 'flutter-asset',
-    note: 'apps/subly/pubspec.yaml declares the DIRECTORY `assets/brand/`, never the file',
+    note: 'apps/subscriptiontracker/pubspec.yaml declares the DIRECTORY `assets/brand/`, never the file',
   },
   {
     path: 'packages/analysis/lib/nikatru_lints.dart',
@@ -784,7 +784,7 @@ const RE_NAMEISH = new RegExp(SEG, 'g');
 //
 // The cost is stated rather than hidden: this is GENEROUS, and it is the whole
 // house style of this guard (see the design constraint at the top). A prose
-// mention of the DIRECTORY `services/subly-api/src/lib` now also reaches
+// mention of the DIRECTORY `services/subscriptiontracker-api/src/lib` now also reaches
 // `…/lib/index.ts` if such a file exists. That is why the result lands in its
 // OWN resolver instead of being folded into `path-reference`: `--why` and
 // `--list` show which of the two reached a path, floor F2 fails if this limb
@@ -869,7 +869,7 @@ function othersFor(index, key, self) {
 //
 // A DIRECTORY entry (`- assets/brand/`) bundles every member — declared by its
 // directory, never by its name. That is why this resolver has to exist at all:
-// `apps/subly/lib/features/shared/widgets.dart` names only the two wordmark
+// `apps/subscriptiontracker/lib/features/shared/widgets.dart` names only the two wordmark
 // lockups, so without it every other member of a declared directory would read
 // as dead.
 //
@@ -877,7 +877,7 @@ function othersFor(index, key, self) {
 // EXAMPLE — "ships in all six platform builds with no code anywhere loading it".
 // It was true, and it was the whole problem: on 2026-08-17 that file was deleted
 // as a byte-identical duplicate of the launcher master
-// `apps/subly/assets/icon/app_icon_1024.png` (same sha256, 261,948 bytes), which
+// `apps/subscriptiontracker/assets/icon/app_icon_1024.png` (same sha256, 261,948 bytes), which
 // is NOT under a declared `assets:` entry and so never shipped. 256 KB rode into
 // six bundles on the strength of a directory entry. The mechanism below is
 // unchanged; only its illustration is, and it is recorded rather than swapped

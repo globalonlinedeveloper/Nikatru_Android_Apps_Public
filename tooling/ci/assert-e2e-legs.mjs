@@ -10,7 +10,7 @@
 // the golden path, and on 2026-07-29 it demonstrably did not: N-6 names a
 // SIX-LEG path — anonymous → sign in → purchase (sandbox) → entitlement flips →
 // feature unlocks → account delete purges — and the only implementation of it in
-// the tree, apps/subly/integration_test/app_test.dart, declares two tests and
+// the tree, apps/subscriptiontracker/integration_test/app_test.dart, declares two tests and
 // proves two legs. A green, non-skipped, FRESH run still would not mean what N-6
 // says. So freshness and coverage are two guards, because they are two claims.
 //
@@ -50,7 +50,7 @@
 // the suite has been promoted in the register — because the only signal for that
 // would be anchors written for tests nobody has written, and an anchor guessed in
 // advance is satisfied or missed by coincidence. The blocker predicates are what
-// close that direction instead: they are tied to the RAIL, so the day apps/subly
+// close that direction instead: they are tied to the RAIL, so the day apps/subscriptiontracker
 // ships a paywall or a delete-account call site, the excuse dies and this guard
 // demands the leg be covered or restated. An assertion that could only pass by
 // luck would inflate apparent coverage, which this repo deletes on sight.
@@ -91,7 +91,7 @@ const REQUIRED_LEGS = [
  *
  *  Each reads COMMENT-STRIPPED source, for the reason in this file's header. */
 const BLOCKERS_STILL_REAL = {
-  // apps/subly declares `PaywallConfig(enabled: false)` — the app sells nothing,
+  // apps/subscriptiontracker declares `PaywallConfig(enabled: false)` — the app sells nothing,
   // so there is nothing to purchase, no entitlement to flip and no feature to
   // unlock. Three legs share this one blocker because they share one cause.
   //
@@ -99,18 +99,18 @@ const BLOCKERS_STILL_REAL = {
   // "no paywall widget appears anywhere" is satisfied by a typo, whereas this
   // line has to be edited to `true` by somebody switching the rail on — and on
   // that day all three legs stop being excusable in the same run.
-  '[5] apps/subly sells nothing': (src) => /PaywallConfig\(\s*enabled:\s*false/.test(src.subly),
+  '[5] apps/subscriptiontracker sells nothing': (src) => /PaywallConfig\(\s*enabled:\s*false/.test(src.subscriptiontracker),
 
   // 🔄 RESTATED 2026-08-04, AND THIS IS THE SECOND TIME THIS GUARD HAS KILLED ITS
   // OWN EXCUSE — which is the whole design working twice.
   //
-  //   · v1 read "[6] apps/subly has no delete-account call site", predicate
-  //     `!src.subly.includes('.deleteAccount(')`. [ADR 027] shipped the control,
+  //   · v1 read "[6] apps/subscriptiontracker has no delete-account call site", predicate
+  //     `!src.subscriptiontracker.includes('.deleteAccount(')`. [ADR 027] shipped the control,
   //     the predicate went false, the build failed, and it was replaced.
-  //   · v2 read "[6] no deployed route erases apps/subly own database",
-  //     predicate `no account route under services/subly-api/src/routes AND the
+  //   · v2 read "[6] no deployed route erases apps/subscriptiontracker own database",
+  //     predicate `no account route under services/subscriptiontracker-api/src/routes AND the
   //     platform route touches only PLATFORM_DB`. BOTH HALVES ARE NOW FALSE:
-  //     services/subly-api ships DELETE /v1/account (behind an asymmetric-only
+  //     services/subscriptiontracker-api ships DELETE /v1/account (behind an asymmetric-only
   //     boundary — the HS256 fallback that blocked it is refused by
   //     `erasureAuth` and by the route's own `tokenAssurance` check), and the
   //     shared route relays to it before deleting the identity. The four
@@ -237,7 +237,7 @@ if (!workflow.includes(testRel.split('/').slice(-2).join('/'))) {
 
 // ── the blocker predicates' inputs ──────────────────────────────────────────
 // Read once, comment-stripped once, and handed to every predicate.
-const APP_DIR = reg.e2e?.app ?? 'apps/subly';
+const APP_DIR = reg.e2e?.app ?? 'apps/subscriptiontracker';
 const readDartTree = (dir) => {
   const out = [];
   const walk = (d) => {
@@ -256,7 +256,7 @@ const readDartTree = (dir) => {
  *  named integration suite plus the whole nightly harness under tooling/e2e/.
  *
  *  🔴 IT REPLACED A SERVER-SIDE PAIR (`no account route under
- *  services/subly-api/src/routes` AND `the platform route touches only
+ *  services/subscriptiontracker-api/src/routes` AND `the platform route touches only
  *  PLATFORM_DB`) WHEN BOTH WENT FALSE ON 2026-08-04. Those reads are gone rather
  *  than kept: an input no predicate consults is a COVERAGE LOST that guards
  *  nothing, and this repository deletes assertions that cannot fail on sight. The
@@ -292,10 +292,10 @@ const e2eSurface = [
 ].join('\n');
 
 const sources = {
-  subly: readDartTree(join(APP_DIR, 'lib')),
+  subscriptiontracker: readDartTree(join(APP_DIR, 'lib')),
   e2eSurface,
 };
-if (sources.subly.trim().length === 0) {
+if (sources.subscriptiontracker.trim().length === 0) {
   coverageLost([
     `no Dart source was read under ${APP_DIR}/lib.`,
     'Every blocker predicate below reads that tree, and a predicate over an empty string answers',

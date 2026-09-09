@@ -22,7 +22,7 @@
 //   6. SCOPE pointed at directories that do not exist ⇒ COVERAGE LOST. An
 //      ABSENCE assertion over an empty set is true of every tree, including one
 //      where the scan is broken — there is no weaker failure than this one.
-//   7. `adapter.onHttpClientCreate = …` in apps/subly/lib/main.dart ⇒ exit 1.
+//   7. `adapter.onHttpClientCreate = …` in apps/subscriptiontracker/lib/main.dart ⇒ exit 1.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ bool get hasPinnedKey => kContentPackPublicKeys.isNotEmpty;
 const base = (extra = {}) => ({
   'packages/api_client/lib/src/rest_client.dart': CLEAN_CLIENT,
   'packages/core/lib/src/content/pack_verifier.dart': PACK_VERIFIER,
-  'apps/subly/lib/main.dart': 'Future<void> main() async {}\n',
+  'apps/subscriptiontracker/lib/main.dart': 'Future<void> main() async {}\n',
   'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/app.dart': 'class App {}\n',
   ...extra,
 });
@@ -139,7 +139,7 @@ describe('assert-no-tls-pinning', () => {
 
   test('FAILS on onHttpClientCreate', () => {
     const { code, out } = run(
-      fixture(base({ 'apps/subly/lib/main.dart': 'void wire(dynamic a) { a.onHttpClientCreate = (c) => c; }\nFuture<void> main() async {}\n' })),
+      fixture(base({ 'apps/subscriptiontracker/lib/main.dart': 'void wire(dynamic a) { a.onHttpClientCreate = (c) => c; }\nFuture<void> main() async {}\n' })),
     );
     assert.equal(code, 1);
     assert.match(out, /onHttpClientCreate/);
@@ -195,7 +195,7 @@ describe('assert-no-tls-pinning', () => {
 
   test('build/ output is not scanned — an unfiltered grep here matches compiled snapshots', () => {
     const { code, out } = run(
-      fixture(base({ 'apps/subly/build/web/snapshot.dart': 'x.badCertificateCallback = (a, b, c) => true;\n' })),
+      fixture(base({ 'apps/subscriptiontracker/build/web/snapshot.dart': 'x.badCertificateCallback = (a, b, c) => true;\n' })),
     );
     assert.equal(code, 0, out);
   });

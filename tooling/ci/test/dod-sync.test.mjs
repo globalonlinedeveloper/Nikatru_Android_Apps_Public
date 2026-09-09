@@ -230,7 +230,7 @@ describe('check-selection-record', () => {
   }, null, 2);
 
   const tree = ({ record = dod(), companyFile = null, companyDecoy = false } = {}) => fixture({
-    'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subly\n  - apps/probe\n',
+    'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subscriptiontracker\n  - apps/probe\n',
     'apps/probe/dod.json': record,
     /* FLATTENED 2026-08-15. The guard resolves a link as
          join(COMPANY, link.replace(/^company\//, ''))
@@ -289,14 +289,14 @@ describe('check-selection-record', () => {
     // .github/workflows/*.yml` returned no hit, so N-9's sha256 half was
     // enforced by nothing at all. Read the requirement's sentence — "no app
     // ENTERS the factory without passing the three selection gates". Its subject
-    // is an app entering; `apps/subly` predates the gates and is exempt by name;
+    // is an app entering; `apps/subscriptiontracker` predates the gates and is exempt by name;
     // nothing has entered since. An empty non-exempt set is the requirement
     // SATISFIED, and failing on it is what got the guard left unwired.
     //
     // What must not happen is the empty set being taken on trust, and it is not:
     // the two cases below are the floors that make the emptiness checkable, and
     // both are still exit 1.
-    const dir = fixture({ 'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subly\n' });
+    const dir = fixture({ 'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subscriptiontracker\n' });
     const { code, out } = run(SELECTION, dir);
     assert.equal(code, 0, out);
     assert.match(out, /NO APP HAS ENTERED THE FACTORY SINCE THE GATES EXISTED/);
@@ -312,7 +312,7 @@ describe('check-selection-record', () => {
 
   test('🔴 …and so is an app on disk the workspace does not list', () => {
     const dir = fixture({
-      'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subly\n',
+      'pubspec.yaml': 'name: fixture\nworkspace:\n  - apps/subscriptiontracker\n',
       'apps/ghost/pubspec.yaml': 'name: ghost\n',
     });
     const { code, out } = run(SELECTION, dir);

@@ -114,8 +114,8 @@
 //       🔵 WIDENED AGAIN 2026-08-06 — B-14's LAST OPEN CLAUSE. An `elsewhere`
 //       pointer must now also declare a `clientHalf` that RESOLVES INSIDE THE
 //       BRICK'S TEST TREE. The config route pointed at
-//       `apps/subly/test/config_default_test.dart`: the pointer resolved, the
-//       marker was found, and the route printed `pinned` — while `apps/subly` is
+//       `apps/subscriptiontracker/test/config_default_test.dart`: the pointer resolved, the
+//       marker was found, and the route printed `pinned` — while `apps/subscriptiontracker` is
 //       ONE stamped app, so the property "a change to the config route's shape
 //       turns the client red" held for Subly and for nothing the factory stamps
 //       next. Every new app was born outside the one contract stage 4 had built.
@@ -199,7 +199,7 @@ const CLIENT_SOURCES = [
     what: 'the batch wire literal',
   },
   {
-    file: join('apps', 'subly', 'lib', 'state', 'analytics_providers.dart'),
+    file: join('apps', 'subscriptiontracker', 'lib', 'state', 'analytics_providers.dart'),
     marker: 'envelope: <String, Object?>',
     what: "the flagship app's per-batch envelope",
   },
@@ -231,7 +231,7 @@ const ERROR_ENVELOPE_KEY = 'error';
  *
  *  🔴 [4]B-14's residual open clause, and the reason it stayed open at BUILT:
  *  *"the client half of each pair must live where a stamped app inherits it —
- *  the brick's test tree — not in `apps/subly`."* `apps/subly` is ONE stamped
+ *  the brick's test tree — not in `apps/subscriptiontracker`."* `apps/subscriptiontracker` is ONE stamped
  *  app. A pin there says the config route's shape is protected for Subly and
  *  says NOTHING about app #2, which is the entire subject of an app factory —
  *  and it says nothing in the way that reads as done, because the pointer
@@ -289,7 +289,7 @@ const WIRE_CONTRACTS = [
     // which is exactly the failure that is easiest to miss.
     servers: [
       { file: 'services/platform/src/index.ts', marker: "'/v1/health'" },
-      { file: 'services/subly-api/src/index.ts', marker: "'/v1/health'" },
+      { file: 'services/subscriptiontracker-api/src/index.ts', marker: "'/v1/health'" },
     ],
     // 🔴 THE CONSUMER IS FOUND, NOT NAMED. This read `.github/workflows/deploy-workers.yml`
     // until 2026-08-06, and naming one workflow had two costs. It tripped
@@ -315,7 +315,7 @@ const WIRE_CONTRACTS = [
       // Subly's own bundled-default pin. STILL REAL and still checked — it pins
       // Subly's VALUES against the server's — but it is no longer what satisfies
       // this route: see `clientHalf` below for why one stamped app cannot.
-      { file: 'apps/subly/test/config_default_test.dart', marker: 'kSublyDefaultConfig equals the server contract values' },
+      { file: 'apps/subscriptiontracker/test/config_default_test.dart', marker: 'kSublyDefaultConfig equals the server contract values' },
     ],
     clientHalf: CONFIG_CLIENT_HALF,
   },
@@ -334,12 +334,12 @@ const WIRE_CONTRACTS = [
   {
     id: 'account',
     kind: 'status',
-    // Two servers, one released client. apps/subly points its deletion at
-    // services/subly-api and the brick's stamped backend answers the same
+    // Two servers, one released client. apps/subscriptiontracker points its deletion at
+    // services/subscriptiontracker-api and the brick's stamped backend answers the same
     // contract, so a status either of them invents lands on the same Dart enum.
     servers: [
       'services/platform/src/routes/account.ts',
-      'services/subly-api/src/routes/account.ts',
+      'services/subscriptiontracker-api/src/routes/account.ts',
     ],
     client: {
       file: 'packages/core/lib/src/auth/account_deletion.dart',
@@ -1055,9 +1055,9 @@ function clientHalfOf(contract) {
   if (!rel.startsWith(`${BRICK_TEST_ROOT}/`)) {
     coverageLost(
       `${contract.id}: its client half is declared at ${rel}, which is not under ${BRICK_TEST_ROOT}/. ` +
-        'apps/subly is ONE stamped app: a pin there protects Subly and says nothing about the next app the brick ' +
+        'apps/subscriptiontracker is ONE stamped app: a pin there protects Subly and says nothing about the next app the brick ' +
         'stamps, which is the whole point of an app factory. B-14: "the client half of each pair must live where a ' +
-        'stamped app inherits it — the brick\'s test tree — not in apps/subly".',
+        'stamped app inherits it — the brick\'s test tree — not in apps/subscriptiontracker".',
     );
   }
   if (!has(half.file)) {

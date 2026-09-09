@@ -18,7 +18,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 /// had to grow a typed-in case. Repeating the mistake at the primitive would
 /// give the portfolio a green test for the wrong state.
 ///
-/// `apps/subly/test/a11y_semantics_test.dart` measures the CRITERION on the real
+/// `apps/subscriptiontracker/test/a11y_semantics_test.dart` measures the CRITERION on the real
 /// screens. This file measures the PROPERTY on the widget those screens are
 /// built out of, which is the assertion that survives a screen being rewritten.
 void main() {
@@ -137,7 +137,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pump(tester, field());
-      // 🔴 `apps/subly/test/login_chassis_parity_test.dart:425` does exactly
+      // 🔴 `apps/subscriptiontracker/test/login_chassis_parity_test.dart:425` does exactly
       // this cast to read autofill and keyboard properties off the framework
       // widget. Keying the wrapper instead would make that lookup THROW rather
       // than fail an assertion, and the E2E legs driving `E2EKeys.login*`
@@ -221,7 +221,7 @@ void main() {
           ),
         ),
       );
-      // `apps/subly` is the frozen legacy rail-prover the owner eyeballs, so a
+      // `apps/subscriptiontracker` is the frozen legacy rail-prover the owner eyeballs, so a
       // "tidy-up" to `scheme.surface` in the light arm would repaint the login
       // screen while every scheme-to-scheme assertion kept passing. These
       // equalities are what make that edit go red.

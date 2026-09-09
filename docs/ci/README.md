@@ -49,7 +49,7 @@ a bare `true` back and nothing in the tree goes red.
 
 | job | what it is | in `ci-gate`'s `needs` |
 |---|---|---|
-| `worker-subly-api` | the subly-api Worker: `npm ci`, `tsc --noEmit`, `npm test`, `wrangler deploy --dry-run` | yes |
+| `worker-subscriptiontracker-api` | the subscriptiontracker-api Worker: `npm ci`, `tsc --noEmit`, `npm test`, `wrangler deploy --dry-run` | yes |
 | `worker-platform` | the platform Worker, the same four steps | yes |
 | `guard-meta` | the guards' own mutation suite plus the guards-about-guards | yes |
 | `guards-platform` | platform, data, ops and registry assertions | yes |
@@ -431,7 +431,7 @@ Three things about these that are easy to get wrong:
 Flutter code and CodeQL ships no Dart support, so `apps/` and `packages/` are
 outside that lane by construction — not by an omission anyone can close by adding
 a language to the matrix. Dart is covered by `melos run analyze` and the
-`apps/subly` format gate in `workspace-gate`.
+`apps/subscriptiontracker` format gate in `workspace-gate`.
 
 ### 7.4 A pull request opened with `GITHUB_TOKEN` starts no checks, so it cannot self-merge
 

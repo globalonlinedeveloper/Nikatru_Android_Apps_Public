@@ -2,7 +2,7 @@
 ///
 /// App code depends only on `TelemetryConfig` and `TelemetryBootstrap`: it
 /// builds one `TelemetryConfig` and hands it to `TelemetryBootstrap.init`, and
-/// that is the whole surface. `apps/subly/lib/main.dart` and the app brick's
+/// that is the whole surface. `apps/subscriptiontracker/lib/main.dart` and the app brick's
 /// `main.dart` name no other symbol from this barrel, and both discard the
 /// value `init` returns.
 ///

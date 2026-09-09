@@ -68,9 +68,9 @@ function seeded(): RealDb {
   const db = realPlatformDb();
   db.db.exec(
     `INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES
-       ('old-1', 'subly', 'a1', 'app_launch', '2020-01-01T00:00:00.000Z'),
-       ('old-2', 'subly', 'a1', 'app_launch', '2026-07-01T00:00:00.000Z'),
-       ('new-1', 'subly', 'a1', 'app_launch', '2026-08-10T00:00:00.000Z')`,
+       ('old-1', 'subscriptiontracker', 'a1', 'app_launch', '2020-01-01T00:00:00.000Z'),
+       ('old-2', 'subscriptiontracker', 'a1', 'app_launch', '2026-07-01T00:00:00.000Z'),
+       ('new-1', 'subscriptiontracker', 'a1', 'app_launch', '2026-08-10T00:00:00.000Z')`,
   );
   // 🔴 `derived_at` IS SET ON EVERY ROW HERE, AND THAT IS LOAD-BEARING.
   // The sweep refuses to delete a payment notification that never derived
@@ -257,8 +257,8 @@ describe('ACTIVATED — one value turns the same job into a bounded deletion', (
     const db = realPlatformDb();
     db.db.exec(
       `INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES
-         ('at-cutoff', 'subly', 'a1', 'app_launch', '${CUTOFF_30D}'),
-         ('one-ms-before', 'subly', 'a1', 'app_launch', '2026-07-11T23:59:59.999Z')`,
+         ('at-cutoff', 'subscriptiontracker', 'a1', 'app_launch', '${CUTOFF_30D}'),
+         ('one-ms-before', 'subscriptiontracker', 'a1', 'app_launch', '2026-07-11T23:59:59.999Z')`,
     );
     caughtUp(db);
     await retentionSweep(envOf(db), THIRTY, NOW);
@@ -329,12 +329,12 @@ describe('BOUNDED — the sweep is a catch-up job, never one unbounded DELETE', 
     const overflow = MAX_ROWS_PER_SWEEP + 5;
     db.db.exec(
       `INSERT INTO events (event_id, app_id, anon_id, event, server_ts)
-       SELECT 'bulk-' || n, 'subly', 'a1', 'app_launch', '2020-01-01T00:00:00.000Z'
+       SELECT 'bulk-' || n, 'subscriptiontracker', 'a1', 'app_launch', '2020-01-01T00:00:00.000Z'
        FROM (WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < ${overflow}) SELECT n FROM c)`,
     );
     db.db.exec(
       `INSERT INTO events (event_id, app_id, anon_id, event, server_ts)
-       VALUES ('keep-me', 'subly', 'a1', 'app_launch', '2026-08-10T00:00:00.000Z')`,
+       VALUES ('keep-me', 'subscriptiontracker', 'a1', 'app_launch', '2026-08-10T00:00:00.000Z')`,
     );
     expect(db.count('events')).toBe(overflow + 1);
     caughtUp(db);

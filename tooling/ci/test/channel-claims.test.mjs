@@ -99,7 +99,7 @@ function tree({
     }
   }
   if (redirectsBody !== null) write('sites/nikatru/_redirects', redirectsBody);
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', platforms, status: 'live' }]));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', platforms, status: 'live' }]));
   write(`tooling/ci/check-site-integrity.mjs`, `const ${siblingConst} = ${minSites};\n`);
   if (!omitRegister) {
     write('tooling/channel-register.json', JSON.stringify({ channels, disqualified }, null, 2));
@@ -190,13 +190,13 @@ describe('assert-channel-claims — [D-1] an affordance is a promise only if rea
   });
 
   test('FAILS on an .apk offered for download', () => {
-    const { code, out } = run(tree({ rajaBody: '<a href="/dl/subly-1.0.75.apk">Get the APK</a>' }));
+    const { code, out } = run(tree({ rajaBody: '<a href="/dl/subscriptiontracker-1.0.75.apk">Get the APK</a>' }));
     assert.equal(code, 1, out);
     assert.match(out, /a \.apk artifact \(register: android-play\)/);
   });
 
   test('FAILS on a snapcraft.io link while no app claims linux', () => {
-    const { code, out } = run(tree({ rajaBody: '<a href="https://snapcraft.io/subly">Linux</a>' }));
+    const { code, out } = run(tree({ rajaBody: '<a href="https://snapcraft.io/subscriptiontracker">Linux</a>' }));
     assert.equal(code, 1, out);
     assert.match(out, /a Snap Store link/);
   });
@@ -242,7 +242,7 @@ describe('assert-channel-claims — [D-1] an affordance is a promise only if rea
   });
 
   test("FAILS on a REAL dl.nikatru.com link — the guard's own prescribed remedy is a promise too", () => {
-    const { code, out } = run(tree({ rajaBody: '<a href="https://dl.nikatru.com/subly/latest">Get it</a>' }));
+    const { code, out } = run(tree({ rajaBody: '<a href="https://dl.nikatru.com/subscriptiontracker/latest">Get it</a>' }));
     assert.equal(code, 1, out);
     assert.match(out, /dl\.nikatru\.com download link/);
   });
@@ -323,7 +323,7 @@ describe('assert-channel-claims — the walk reaches every public surface', () =
 
   test('FAILS on a _redirects line 302-ing to a real store URL', () => {
     const { code, out } = run(
-      tree({ redirectsBody: '/android https://play.google.com/store/apps/details?id=com.nikatru.subly 302\n' }),
+      tree({ redirectsBody: '/android https://play.google.com/store/apps/details?id=com.nikatru.subscriptiontracker 302\n' }),
     );
     assert.equal(code, 1, out);
     assert.match(out, /_redirects:1 offers a Google Play link/);
@@ -331,7 +331,7 @@ describe('assert-channel-claims — the walk reaches every public surface', () =
 
   test('FAILS on a flathub <loc> inside sitemap.xml', () => {
     const { code, out } = run(
-      tree({ sitemapExtra: '<url><loc>https://flathub.org/apps/com.nikatru.subly</loc></url>' }),
+      tree({ sitemapExtra: '<url><loc>https://flathub.org/apps/com.nikatru.subscriptiontracker</loc></url>' }),
     );
     assert.equal(code, 1, out);
     assert.match(out, /sitemap\.xml:1 advertises "flathub"/);
@@ -393,7 +393,7 @@ describe('assert-channel-claims — the Apple domain fronts TWO stores (all-of)'
 
   test('PASSES dl.nikatru.com with only windows claimed — ANY-OF is preserved where it is honest', () => {
     const { code, out } = run(
-      tree({ rajaBody: '<a href="https://dl.nikatru.com/subly/latest">Get it</a>', platforms: ['web', 'windows'] }),
+      tree({ rajaBody: '<a href="https://dl.nikatru.com/subscriptiontracker/latest">Get it</a>', platforms: ['web', 'windows'] }),
     );
     assert.equal(code, 0, out);
   });
@@ -415,7 +415,7 @@ describe('assert-channel-claims — every exemption is printed, every cue anchor
 
   test('FAILS a com.your-apps Play package — YOUR- inside a package name is not a slot', () => {
     const { code, out } = run(
-      tree({ nikatruBody: '<a href="https://play.google.com/store/apps/details?id=com.your-apps.subly">Get</a>' }),
+      tree({ nikatruBody: '<a href="https://play.google.com/store/apps/details?id=com.your-apps.subscriptiontracker">Get</a>' }),
     );
     assert.equal(code, 1, out);
     assert.match(out, /offers a Google Play link/);

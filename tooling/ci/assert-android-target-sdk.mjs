@@ -5,7 +5,7 @@
 //
 // 🔴 WHY THIS EXISTS — the state it was written against, 2026-08-04.
 //
-// `apps/subly/android/app/build.gradle.kts` read:
+// `apps/subscriptiontracker/android/app/build.gradle.kts` read:
 //
 //     targetSdk = flutter.targetSdkVersion
 //
@@ -106,7 +106,7 @@ const scanningRealRepo = process.argv[2] === undefined;
 /** Named literally, because "0 problems over 0 files" and "0 problems over the
  *  file that matters" print identically. */
 const REQUIRED_COVERAGE = [
-  { path: 'apps/subly/android/app/build.gradle.kts', label: 'the flagship app — the only Android module that exists today' },
+  { path: 'apps/subscriptiontracker/android/app/build.gradle.kts', label: 'the flagship app — the only Android module that exists today' },
 ];
 
 const problems = [];

@@ -91,7 +91,7 @@ const PLATFORM_WRANGLER = `{
   }
 }`;
 
-const SUBLY_WRANGLER = '{ "name": "subly-api", "vars": { "APP_ID": "subly" } }';
+const SUBLY_WRANGLER = '{ "name": "subscriptiontracker-api", "vars": { "APP_ID": "subscriptiontracker" } }';
 
 const REGISTRY_TS = `
 import { paddleVerifier } from './paddle';
@@ -135,7 +135,7 @@ describe('[5]M-12', () => {
 // measured that day, the registry match, the adapter's sole PATTERN match
 // (services/platform/src/lib/mor/paddle.ts:422 — the bare token occurs five times
 // in services/, it is the guard's `secretEnvVar: '…'` pattern that is unique) and
-// the `proven` block sets (8 on platform, 2 on subly-api) were IDENTICAL raw and
+// the `proven` block sets (8 on platform, 2 on subscriptiontracker-api) were IDENTICAL raw and
 // stripped, and neither deployed config carries a sandbox shape in any reading.
 // So these fixtures are not a regression net around a defect that fired; they are
 // the CONSTRUCTED input that shows why the raw reads had to go. Each one is EXIT 0
@@ -229,7 +229,7 @@ function write(root, rel, body) {
   writeFileSync(p, body);
 }
 
-/** A second money DOOR, in subly-api's shape: the fail-closed refusal without
+/** A second money DOOR, in subscriptiontracker-api's shape: the fail-closed refusal without
  *  the MoR resolver — limb 1/5 derive from the marker, limb 4 stays platform's. */
 const SUBLY_DOOR_TS = `
 import { isMoneyEnvironment } from '../lib/money';
@@ -281,14 +281,14 @@ function run(o = {}) {
   if (o.brickWrangler !== null) write(root, `${BRICK_DIR}/wrangler.jsonc`, o.brickWrangler ?? BRICK_WRANGLER);
   write(root, `${BRICK_DIR}/src/routes/account.ts`, o.brickSrc ?? BRICK_ACCOUNT_TS);
   write(root, 'services/platform/wrangler.jsonc', o.platformWrangler ?? PLATFORM_WRANGLER);
-  if (o.sublyWrangler !== null) write(root, 'services/subly-api/wrangler.jsonc', o.sublyWrangler ?? SUBLY_WRANGLER);
+  if (o.subscriptiontrackerWrangler !== null) write(root, 'services/subscriptiontracker-api/wrangler.jsonc', o.subscriptiontrackerWrangler ?? SUBLY_WRANGLER);
   write(root, 'services/platform/src/lib/mor/registry.ts', o.registry ?? REGISTRY_TS);
   write(root, 'services/platform/src/lib/mor/paddle.ts', o.paddle ?? PADDLE_TS);
   if (o.second) write(root, 'services/platform/src/lib/mor/second.ts', o.second);
   if (o.route !== null) write(root, 'services/platform/src/routes/money.ts', o.route ?? ROUTE_TS);
   write(root, 'services/platform/test/money.test.ts', o.moneyTest ?? MONEY_TEST_TS);
-  if (o.sublySrc) write(root, 'services/subly-api/src/routes/webhooks.ts', o.sublySrc);
-  if (o.sublyTest) write(root, 'services/subly-api/test/webhooks.test.ts', o.sublyTest);
+  if (o.subscriptiontrackerSrc) write(root, 'services/subscriptiontracker-api/src/routes/webhooks.ts', o.subscriptiontrackerSrc);
+  if (o.subscriptiontrackerTest) write(root, 'services/subscriptiontracker-api/test/webhooks.test.ts', o.subscriptiontrackerTest);
   const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
@@ -321,34 +321,34 @@ describe('assert-money-config — sandbox money cannot grant a production unlock
   });
 
   test('FAILS when a Worker declares the money environment WITHOUT carrying a door', () => {
-    const r = run({ sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "live" } }' });
+    const r = run({ subscriptiontrackerWrangler: '{ "name": "subscriptiontracker-api", "vars": { "MONEY_ENVIRONMENT": "live" } }' });
     assert.equal(r.code, 1);
-    assert.match(r.out, /subly-api\/wrangler\.jsonc declares MONEY_ENVIRONMENT but no file under its own src\/ refuses/);
+    assert.match(r.out, /subscriptiontracker-api\/wrangler\.jsonc declares MONEY_ENVIRONMENT but no file under its own src\/ refuses/);
   });
 
   test('FAILS when a Worker carries a money door WITHOUT declaring its environment', () => {
-    const r = run({ sublySrc: SUBLY_DOOR_TS, sublyTest: SUBLY_MONEY_TEST_TS });
+    const r = run({ subscriptiontrackerSrc: SUBLY_DOOR_TS, subscriptiontrackerTest: SUBLY_MONEY_TEST_TS });
     assert.equal(r.code, 1);
-    assert.match(r.out, /subly-api\/wrangler\.jsonc names a Worker that carries a money door .* declares no MONEY_ENVIRONMENT/);
+    assert.match(r.out, /subscriptiontracker-api\/wrangler\.jsonc names a Worker that carries a money door .* declares no MONEY_ENVIRONMENT/);
   });
 
   test('PASSES on the decided two-door tree — MoR rail plus the RevenueCat fan-in', () => {
     // The real tree since [ADR 039] D5's hardening chip: both Workers carry the
     // fail-closed door, both declare "live", both exercise their own 503.
     const r = run({
-      sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
-      sublySrc: SUBLY_DOOR_TS,
-      sublyTest: SUBLY_MONEY_TEST_TS,
+      subscriptiontrackerWrangler: '{ "name": "subscriptiontracker-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
+      subscriptiontrackerSrc: SUBLY_DOOR_TS,
+      subscriptiontrackerTest: SUBLY_MONEY_TEST_TS,
     });
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /\{platform, subly-api\}/);
+    assert.match(r.out, /\{platform, subscriptiontracker-api\}/);
   });
 
   test('FAILS when the second door declares the sandbox world', () => {
     const r = run({
-      sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "sandbox" } }',
-      sublySrc: SUBLY_DOOR_TS,
-      sublyTest: SUBLY_MONEY_TEST_TS,
+      subscriptiontrackerWrangler: '{ "name": "subscriptiontracker-api", "vars": { "MONEY_ENVIRONMENT": "sandbox" } }',
+      subscriptiontrackerSrc: SUBLY_DOOR_TS,
+      subscriptiontrackerTest: SUBLY_MONEY_TEST_TS,
     });
     assert.equal(r.code, 1);
     assert.match(r.out, /declares MONEY_ENVIRONMENT = "sandbox"/);
@@ -356,22 +356,22 @@ describe('assert-money-config — sandbox money cannot grant a production unlock
 
   test("FAILS when the second door's own tests never fire its 503 — platform's suite does not vouch for it", () => {
     const r = run({
-      sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
-      sublySrc: SUBLY_DOOR_TS,
-      // no sublyTest: services/subly-api/test does not exist in this fixture
+      subscriptiontrackerWrangler: '{ "name": "subscriptiontracker-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
+      subscriptiontrackerSrc: SUBLY_DOOR_TS,
+      // no subscriptiontrackerTest: services/subscriptiontracker-api/test does not exist in this fixture
     });
     assert.equal(r.code, 1);
-    assert.match(r.out, /COVERAGE LOST — no test files under services\/subly-api\/test/);
+    assert.match(r.out, /COVERAGE LOST — no test files under services\/subscriptiontracker-api\/test/);
   });
 
-  test('a door whose 503 evidence is only a SKIPPED subly test still fails', () => {
+  test('a door whose 503 evidence is only a SKIPPED subscriptiontracker test still fails', () => {
     const r = run({
-      sublyWrangler: '{ "name": "subly-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
-      sublySrc: SUBLY_DOOR_TS,
-      sublyTest: SUBLY_MONEY_TEST_TS.replace("it('503s", "it.skip('503s"),
+      subscriptiontrackerWrangler: '{ "name": "subscriptiontracker-api", "vars": { "MONEY_ENVIRONMENT": "live" } }',
+      subscriptiontrackerSrc: SUBLY_DOOR_TS,
+      subscriptiontrackerTest: SUBLY_MONEY_TEST_TS.replace("it('503s", "it.skip('503s"),
     });
     assert.equal(r.code, 1);
-    assert.match(r.out, /yields 503 under services\/subly-api\/test/);
+    assert.match(r.out, /yields 503 under services\/subscriptiontracker-api\/test/);
   });
 
   test('FAILS on a Paddle SANDBOX base URL in a deployed config', () => {
@@ -508,7 +508,7 @@ describe('assert-money-config — sandbox money cannot grant a production unlock
     // template-coverage refusal and this case would be passing for the wrong reason.
     write(root, `${BRICK_DIR}/wrangler.jsonc`, BRICK_WRANGLER);
     write(root, `${BRICK_DIR}/src/routes/account.ts`, BRICK_ACCOUNT_TS);
-    write(root, 'services/subly-api/wrangler.jsonc', SUBLY_WRANGLER);
+    write(root, 'services/subscriptiontracker-api/wrangler.jsonc', SUBLY_WRANGLER);
     const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
     assert.equal(r.status, 1);
     assert.match(`${r.stdout}${r.stderr}`, /COVERAGE LOST — no deployed config for services\/platform/);

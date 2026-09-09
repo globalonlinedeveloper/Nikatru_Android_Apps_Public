@@ -155,7 +155,7 @@ to stderr, because a diagnostic on stdout becomes a package name.
 
 ### before step **Resolve the workspace**
 
-apps/subly is a pub WORKSPACE member: resolution happens at the repo
+apps/subscriptiontracker is a pub WORKSPACE member: resolution happens at the repo
 root, not in the app directory.
 
 ### before step **Derive the release line from pubspec**
@@ -234,7 +234,7 @@ ingesting a `source:` that points OUTSIDE the project directory, and
 repository could have seen, because every check compared the recipe to THE
 TREE and none knew a rule of the snap FORMAT:
   · `cannot validate license "proprietary": unknown license: proprietary`
-  · `Icon 'com.nikatru.subly' … not found in prime directory`
+  · `Icon 'com.nikatru.subscriptiontracker' … not found in prime directory`
 Both are fixed at their source in tooling/release/generate-snapcraft.mjs
 (the `license:` key is omitted, and the launcher moved to `snap/gui/` with
 an absolute `${SNAP}/meta/gui/…` icon path), and BOTH ARE NOW ASSERTED by
@@ -266,7 +266,7 @@ beside nothing.
 
 🔴 THE JOB WHOSE ABSENCE WAS THE REFUSAL. Measured 2026-08-20, before this
 job existed: `GITHUB_ACTIONS=true GITHUB_REPOSITORY=... submit-snap.mjs
---submit --app subly --confirm SUBMIT-TO-SNAP-STORE` exited 1 with
+--submit --app subscriptiontracker --confirm SUBMIT-TO-SNAP-STORE` exited 1 with
     FAIL no job in .github/workflows/submit-snap.yml invokes
          `submit-snap.mjs --submit`.
 The script requires this workflow to DECLARE the job that submits. So the
@@ -332,7 +332,7 @@ mention from a call, so do not write one.
 
 ### before step **Resolve the workspace**
 
-apps/subly is a pub WORKSPACE member: resolution happens at the repo
+apps/subscriptiontracker is a pub WORKSPACE member: resolution happens at the repo
 root, not in the app directory.
 
 ### before step **Derive the release line from pubspec**
@@ -411,7 +411,7 @@ ingesting a `source:` that points OUTSIDE the project directory, and
 repository could have seen, because every check compared the recipe to THE
 TREE and none knew a rule of the snap FORMAT:
   · `cannot validate license "proprietary": unknown license: proprietary`
-  · `Icon 'com.nikatru.subly' … not found in prime directory`
+  · `Icon 'com.nikatru.subscriptiontracker' … not found in prime directory`
 Both are fixed at their source in tooling/release/generate-snapcraft.mjs
 (the `license:` key is omitted, and the launcher moved to `snap/gui/` with
 an absolute `${SNAP}/meta/gui/…` icon path), and BOTH ARE NOW ASSERTED by
@@ -479,7 +479,7 @@ records, plus the runs cancelled or failed AFTER Canonical accepted the
 snap. An upload cannot be un-sent, so a leg that ends after it must still
 say what it sent. deploy-web run 144 (2026-08-08) is the recorded case.
 
-### in step **Record the submission in the [10]D-9 ledger**, above `run: node tooling/ci/record-deployment.mjs subly-linux-snap --state in_review --listing…`
+### in step **Record the submission in the [10]D-9 ledger**, above `run: node tooling/ci/record-deployment.mjs subscriptiontracker-linux-snap --state in_review --listing…`
 
 ONE LINE, NOT A `run: >` FOLD, AND THAT IS NOT STYLE. The flat half of
 assert-publish-records.mjs's accounting identity matches PHYSICAL lines;

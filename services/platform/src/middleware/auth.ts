@@ -19,7 +19,7 @@
 // `c.get('userId')`. Keep this file the single seam.
 //
 // ── 🔴 WHY THERE IS NO HS256 FALLBACK, AND WHY THAT IS A DELIBERATE DIVERGENCE ─
-// `services/subly-api/src/middleware/auth.ts` — the file this is ported from —
+// `services/subscriptiontracker-api/src/middleware/auth.ts` — the file this is ported from —
 // falls back to verifying with a shared secret (`SUPABASE_JWT_SECRET`) when the
 // asymmetric path fails. That fallback is NOT carried across, on purpose:
 //
@@ -116,7 +116,7 @@ function jwks(supabaseUrl: string): JWTVerifyGetKey {
  * signature is the shape the whole portfolio's erasure boundaries rest on and
  * writing it differently here is how the two would drift. The cached JWKS is a
  * PUBLIC document, so caching it adds no secret to this scope. (Converged with
- * `services/subly-api` on 2026-09-06; this file previously took `Env` and
+ * `services/subscriptiontracker-api` on 2026-09-06; this file previously took `Env` and
  * reached `env.JWKS_CACHE`, which is the same value by a weaker route.)
  *
  * The parse and the empty-key-set refusal live in

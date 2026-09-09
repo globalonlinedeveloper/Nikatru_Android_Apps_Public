@@ -27,7 +27,7 @@ const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-policy-archive.mjs');
 
 const LIVE = join('sites', 'nikatru', 'privacy.html');
-const DART_SUBLY = join('apps', 'subly', 'lib', 'state', 'analytics_providers.dart');
+const DART_SUBLY = join('apps', 'subscriptiontracker', 'lib', 'state', 'analytics_providers.dart');
 const DART_BRICK = join('tooling', 'bricks', 'app', '__brick__', 'apps', '{{app_id}}', 'lib', 'state', 'providers.dart');
 /** The brick's ARB directory — the app's own locale list, and the domain of the
  *  [pipeline K-14] notice-per-locale limb. */

@@ -10,13 +10,13 @@
 // Until 2026-08-07 the registry was an object literal here:
 //
 //     export const DEFAULT_CONFIGS: Readonly<Record<string, AppConfig>> = {
-//       subly: { app_id: 'subly', api_base_url: 'https://api.nikatru.com/v1', … },
+//       subscriptiontracker: { app_id: 'subscriptiontracker', api_base_url: 'https://api.nikatru.com/v1', … },
 //     };
 //
 // so the set of apps this Worker serves was a SOURCE EDIT away from changing.
 // Measured live 2026-08-06:
 //
-//     GET https://config.nikatru.com/config/subly  → 200
+//     GET https://config.nikatru.com/config/subscriptiontracker  → 200
 //     GET https://config.nikatru.com/config/lingo  → 404 {"error":"unknown_app"}
 //
 // `lingo` is a real content pack in this repo (tooling/content_pipeline/examples/
@@ -173,7 +173,7 @@ function apiBaseUrl(row: CatalogueRow, shared: string): string {
   const api = typeof row.api === 'string' ? row.api.trim() : '';
   // `/v1` is appended rather than stored: the catalogue's `api` is a HOST (it is
   // rendered as a link on the public site), and the API VERSION is this Worker's
-  // contract, not the catalogue's. subly's row carries `https://api.nikatru.com`
+  // contract, not the catalogue's. subscriptiontracker's row carries `https://api.nikatru.com`
   // and is served `https://api.nikatru.com/v1` — byte-identical to the literal
   // this file held before B-2, which is the property that makes this a refactor.
   return api === '' ? shared : `${api.replace(/\/+$/, '')}/v1`;
@@ -209,7 +209,7 @@ export function buildRegistry(catalogue: unknown, data: ConfigData): Record<stri
     const merged = deepMerge(defaults, isPlainObject(override) ? override : {});
     // `app_id` and `api_base_url` FIRST so the served key order is unchanged
     // from the literal this replaced — the response bytes a client caches are
-    // the same bytes, which is what "preserve subly exactly" has to mean.
+    // the same bytes, which is what "preserve subscriptiontracker exactly" has to mean.
     out[slug] = { app_id: slug, api_base_url: apiBaseUrl(row, shared), ...merged } as unknown as AppConfig;
   }
   return out;

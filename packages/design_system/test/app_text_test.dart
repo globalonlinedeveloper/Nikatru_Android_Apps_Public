@@ -9,7 +9,7 @@
 // touching the 107 const call sites.
 //
 // 🔴 THIS FILE IS A PAIR AND BOTH HALVES ARE LOAD-BEARING IN OPPOSITE
-// DIRECTIONS — the same shape as `apps/subly/test/dark_card_surface_test.dart`:
+// DIRECTIONS — the same shape as `apps/subscriptiontracker/test/dark_card_surface_test.dart`:
 //
 //   · The LIGHT half is a PIN, not a feature test. It asserts `identical`
 //     against the const objects AND asserts the LITERAL tokens those consts
@@ -66,7 +66,7 @@ Future<AppTextStyles> _pump(WidgetTester tester, ThemeData theme) async {
 void main() {
   // ───────────────────────────────────────────────────────────────────────────
   group('the const styles are untouched — the 107 call-site pin', () {
-    // 105 references in apps/subly/lib + 2 in the app brick read these consts
+    // 105 references in apps/subscriptiontracker/lib + 2 in the app brick read these consts
     // directly and are NOT migrating. If someone "fixes dark" by re-pointing a
     // const at a scheme slot, every one of those sites repaints in LIGHT and
     // this is what says so.
@@ -127,7 +127,7 @@ void main() {
     testWidgets('the PINNED legacy AppTheme.light() path resolves light too', (
       WidgetTester tester,
     ) async {
-      // apps/subly is on the chassis path today, but `AppTheme.light()` is still
+      // apps/subscriptiontracker is on the chassis path today, but `AppTheme.light()` is still
       // the documented legacy façade. The seam must not care which one it is
       // under — it reads brightness, nothing else.
       final AppTextStyles s = await _pump(tester, AppTheme.light());

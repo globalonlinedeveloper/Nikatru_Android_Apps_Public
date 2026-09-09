@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// exclusive: a control is a button or it is a link, and `Semantics` treats
 /// them as different node kinds. The distinction is the one a person wants
 /// BEFORE activating something — "link" warns you that you are about to leave
-/// the app — and `apps/subly`'s legal footer already made that call by hand.
+/// the app — and `apps/subscriptiontracker`'s legal footer already made that call by hand.
 enum TapRole {
   /// Does something here. `Semantics(button: true)`.
   button,
@@ -20,7 +20,7 @@ enum TapRole {
 ///
 /// ── WHY THIS EXISTS, MEASURED ───────────────────────────────────────────────
 /// `tooling/dod-register.json`'s `insideTheClaim` row records SC 2.1.1 Keyboard
-/// (Level A) as MEASURED AND FAILING on `apps/subly`, and the measurement points
+/// (Level A) as MEASURED AND FAILING on `apps/subscriptiontracker`, and the measurement points
 /// at ONE cause rather than 25: every keyboard-dead control in that app is a
 /// hand-rolled `Semantics(button: true)` wrapped round a `GestureDetector`.
 /// `Semantics(button: true)` tells a SCREEN READER what a thing is. It creates
@@ -97,7 +97,7 @@ class FocusableTap extends StatefulWidget {
   /// The action, for pointer AND keyboard alike.
   ///
   /// 🔴 `null` MEANS INERT, AND INERT MEANS UNFOCUSABLE. `_LinkRow` in
-  /// `apps/subly` renders rows that are deliberately dead until their feature is
+  /// `apps/subscriptiontracker` renders rows that are deliberately dead until their feature is
   /// wired ("Connected accounts", "Export data (CSV)"), and its own comment
   /// records why `button:` is conditional there: announcing a role for a row
   /// that does nothing sends somebody tapping at a dead surface and blaming
@@ -111,7 +111,7 @@ class FocusableTap extends StatefulWidget {
   /// What a screen reader calls this control, when the control's own painted
   /// content is not its name (an icon, an account initial, a bare switch).
   /// `null` leaves the merged descendant text to speak for itself, which is what
-  /// every prose control in `apps/subly` already relies on.
+  /// every prose control in `apps/subscriptiontracker` already relies on.
   final String? label;
 
   /// `Semantics(toggled:)` — for a control that is a switch.

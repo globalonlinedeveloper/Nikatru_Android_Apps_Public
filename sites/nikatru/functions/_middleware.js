@@ -2,13 +2,13 @@
 // THE APEX ROUTER — `nikatru.com/<id>/*` serves the app; everything else is the
 // static marketing/legal site, untouched.
 //
-//   browser → nikatru.com/subly/…
+//   browser → nikatru.com/subscriptiontracker/…
 //                │
 //                ├─ first path segment in app-routes.json?
 //                │     no  → next()                    → sites/nikatru asset
 //                │     yes → fetch(row.origin + rest)  → that app's own Pages project
 //                │
-//                └─ /apps/subly, /pricing, /privacy, /legal/**  served as before
+//                └─ /apps/subscriptiontracker, /pricing, /privacy, /legal/**  served as before
 //
 // ── WHY THIS EXISTS [ADR 075] ────────────────────────────────────────────────
 // Paddle approves a DOMAIN and says of a subdomain "you will need to have that
@@ -26,7 +26,7 @@
 //     its OWN deployment history. Rolling one app back is
 //     `POST /accounts/{a}/pages/projects/{app}/deployments/{id}/rollback`.
 //     MEASURED on two throwaway projects: rolling app B back flipped
-//     `/appb/version.json` from V2 to V1 while `/subly/version.json` and the
+//     `/appb/version.json` from V2 to V1 while `/subscriptiontracker/version.json` and the
 //     ROUTER'S OWN DEPLOYMENT ID were both unchanged. Blast radius: one app.
 //   · A router Worker has ONE version history for the whole script
 //     (`/workers/scripts/{name}/versions` is script-scoped; there is no
@@ -129,7 +129,7 @@ const routes = (() => {
  *
  *  The CSP below is therefore a FLOOR for an app that declares none — deliberately
  *  strict, so that an app arriving without a policy fails loudly in its own
- *  console rather than silently inheriting nothing. `apps/subly/web/_headers`
+ *  console rather than silently inheriting nothing. `apps/subscriptiontracker/web/_headers`
  *  declares the real one, verified live against the running app on 2026-09-09. */
 const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff',
@@ -153,7 +153,7 @@ export async function onRequest(context) {
     const row = routes.find((r) => r.path === segment);
     if (!row) return next();
 
-    // `/subly` → `/subly/`. The build is compiled with `--base-href /<id>/`, so
+    // `/subscriptiontracker` → `/subscriptiontracker/`. The build is compiled with `--base-href /<id>/`, so
     // every asset URL in the document is relative to the TRAILING SLASH. Serving
     // the document at the bare path would resolve `main.dart.js` against `/`
     // and 404 every asset — silently, as a blank page. A 301 (not 302): the

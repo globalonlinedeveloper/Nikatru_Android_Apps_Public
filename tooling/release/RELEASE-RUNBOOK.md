@@ -28,14 +28,14 @@ this file to release from it.
 
 `<unit>` is the **app slug** — the directory name under `apps/`, which is also the
 entry in the root `pubspec.yaml`'s `workspace:` list and the `slug` in
-`catalog/apps.json`. Today there is exactly one: `subly`.
+`catalog/apps.json`. Today there is exactly one: `subscriptiontracker`.
 
 | Example | Verdict |
 | --- | --- |
-| `subly-v1.0.0` | ✅ triggers the lane |
-| `subly-v1.0.0-rc.1` | ✅ matches the glob (`*-v*`); the Release is created with that literal name |
+| `subscriptiontracker-v1.0.0` | ✅ triggers the lane |
+| `subscriptiontracker-v1.0.0-rc.1` | ✅ matches the glob (`*-v*`); the Release is created with that literal name |
 | `v1.0.0` | ❌ **no `<unit>-` prefix → matches nothing → NOTHING HAPPENS, and there is no error.** A tag that matches no filter is simply not a trigger. |
-| `subly-1.0.0` | ❌ no `-v`, same silent nothing |
+| `subscriptiontracker-1.0.0` | ❌ no `-v`, same silent nothing |
 
 The trigger glob is `push: tags: ['*-v*']` (`build-platforms.yml`). It names **no app**,
 which is what keeps the lane generic over the factory — adding an app adds matrix legs,
@@ -111,9 +111,9 @@ the extensions that only ever travel *inside* a bundle (a bare `.exe` is not a d
 Measured 2026-08-09 against a fixture download tree:
 
 ```
-staged  subly-v1.0.0-app-release.aab
-staged  subly-v1.0.0-app-release.apk
-staged  subly-v1.0.0-subly.msix
+staged  subscriptiontracker-v1.0.0-app-release.aab
+staged  subscriptiontracker-v1.0.0-app-release.apk
+staged  subscriptiontracker-v1.0.0-subscriptiontracker.msix
 ok  3 installable artifact(s) staged
 ```
 
@@ -121,7 +121,7 @@ ok  3 installable artifact(s) staged
 | --- | --- | --- |
 | `<tag>-app-release.aab` | `linux_web_android` | `android-play` (a Play upload format; the Release is the archive, not the store) |
 | `<tag>-app-release.apk` | `linux_web_android` | none — the only sideloadable Android build, kept on purpose |
-| `<tag>-subly.msix` | `windows` | `windows-store` / `windows-direct` |
+| `<tag>-subscriptiontracker.msix` | `windows` | `windows-store` / `windows-direct` |
 
 ### 3b. Everything else, archived whole
 
@@ -153,14 +153,14 @@ knows how to check. Measured 2026-08-09:
 
 ```
 # NIKATRU release manifest — verify with:  sha256sum -c SHA256SUMS
-# app: subly
-# tag: subly-v1.0.0
+# app: subscriptiontracker
+# tag: subscriptiontracker-v1.0.0
 # commit: 4e814270000000000000000000000000000000aa
 # built-by: https://github.com/.../actions/runs/1
 # assets: 3
-38760eab…  subly-v1.0.0-app-release.aab
-dd37c2d7…  subly-v1.0.0-app-release.apk
-a1788eec…  subly-v1.0.0-subly.msix
+38760eab…  subscriptiontracker-v1.0.0-app-release.aab
+dd37c2d7…  subscriptiontracker-v1.0.0-app-release.apk
+a1788eec…  subscriptiontracker-v1.0.0-subscriptiontracker.msix
 ```
 
 `--emit-assets` puts `SHA256SUMS` **first** and refuses an empty set, so a Release
@@ -174,7 +174,7 @@ nothing is hardcoded, so an AppImage lane joins by being given a register row.
 Measured 2026-08-09, `--emit-environments` over the fixture `dist/`:
 
 ```
-subly-windows-direct
+subscriptiontracker-windows-direct
 ```
 
 ---
@@ -216,13 +216,13 @@ Run these from the repo root, on a **`main` checkout whose HEAD has already gone
 on `ci-gate`** (see §1).
 
 ```bash
-git tag -a subly-v1.0.0 -m "subly v1.0.0"
-git push origin subly-v1.0.0
+git tag -a subscriptiontracker-v1.0.0 -m "subscriptiontracker v1.0.0"
+git push origin subscriptiontracker-v1.0.0
 ```
 
 That is the whole release. Nothing else is typed by hand: the tag is the trigger, the
 workflow does the rest, and the Release appears at
-`https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/releases/tag/subly-v1.0.0`.
+`https://github.com/globalonlinedeveloper/Nikatru_Platform_Public/releases/tag/subscriptiontracker-v1.0.0`.
 *(Repointed 2026-08-19 — the repo was `Project_Cross_Platform_Apps` until the renames landed. The
 old URL still resolves through GitHub's rename redirect, which is exactly why it is not left
 standing: a rename FREES the old name, so the redirect dies the moment anything re-claims it.)*
@@ -262,7 +262,7 @@ They are **deliberately left standing** — a dated record naming the name it re
 rewriting one falsifies it. 19 is the whole population, not a sample: if you grep and find those
 hits, there is nothing to fix.)*
 
-**Bump `1.0.0` to whatever `apps/subly/pubspec.yaml` declares** — the workflow derives its
+**Bump `1.0.0` to whatever `apps/subscriptiontracker/pubspec.yaml` declares** — the workflow derives its
 build name from pubspec, and a tag that disagrees with it is two release lines.
 
 ### Watch it, and what "good" looks like
@@ -285,9 +285,9 @@ Expect, in the log:
 A Release is public the moment it is created. There is no undo that un-downloads it.
 
 ```bash
-gh release delete subly-v1.0.0 --yes     # removes the Release and its assets
-git push origin :refs/tags/subly-v1.0.0  # removes the tag
-git tag -d subly-v1.0.0                  # and the local copy
+gh release delete subscriptiontracker-v1.0.0 --yes     # removes the Release and its assets
+git push origin :refs/tags/subscriptiontracker-v1.0.0  # removes the tag
+git tag -d subscriptiontracker-v1.0.0                  # and the local copy
 ```
 
 Deleting and re-pushing the **same** tag is worse than moving on to `v1.0.1`: anyone who

@@ -422,7 +422,7 @@ const REQUIRED_COVERAGE = [
         // provider, and never otherwise. MEASURED 2026-08-21 (re-derive it, do
         // not trust this line): `contentPackProvider` has ZERO readers in any
         // shipped `lib/` anywhere in this tree; its only readers are
-        // `chassis_properties_test.dart` in the brick and in apps/subly. Every
+        // `chassis_properties_test.dart` in the brick and in apps/subscriptiontracker. Every
         // other occurrence of the whole pack rail sits inside the one
         // `state/providers.dart` that declares it.
         //
@@ -684,7 +684,7 @@ const EXCLUSIVE_TRIGGERS = [
     // (review_prompter.dart), the NoOp override and the concrete @override all
     // contain the bare name.
     re: /\.requestReview\(/,
-    // apps/subly joined 2026-08-08 with productization P2.6a ([ADR 037]): the
+    // apps/subscriptiontracker joined 2026-08-08 with productization P2.6a ([ADR 037]): the
     // re-stamp lands the SAME spine file in the first in-repo stamped app, so
     // the singleton becomes one-per-tree — the brick's copy and each stamped
     // app's copy of that exact file. Any OTHER file calling it is still the
@@ -692,7 +692,7 @@ const EXCLUSIVE_TRIGGERS = [
     // repeats this line; a call site outside a providers spine never gets one.
     allowed: [
       `${BRICK_APP}/lib/state/providers.dart`,
-      'apps/subly/lib/state/providers/review.dart',
+      'apps/subscriptiontracker/lib/state/providers/review.dart',
     ],
     why:
       'ReviewPromptController.maybeAsk is the only thing allowed to ask, because the decision belongs to ' +
@@ -726,7 +726,7 @@ const EXCLUSIVE_TRIGGERS = [
     // `signOutAndForgetUser` (every user-facing control).
     allowed: [
       `${BRICK_APP}/lib/state/providers.dart`,
-      'apps/subly/lib/state/providers/auth.dart',
+      'apps/subscriptiontracker/lib/state/providers/auth.dart',
     ],
     why:
       'A session-ending control that calls signOut() directly skips `signOutAndForgetUser`, so the entitlement ' +
@@ -853,7 +853,7 @@ try {
 // MEASURED 2026-08-21 by running this limb (re-derive it, do not trust this
 // line): 0 of 600 shipped non-test Dart files read `contentPackProvider`. The
 // only readers in the whole tree are `chassis_properties_test.dart` in the brick
-// and in apps/subly; every other mention of the rail is inside the single
+// and in apps/subscriptiontracker; every other mention of the rail is inside the single
 // `state/providers.dart` that declares it. "A seam whose only caller is a test is
 // a dead capability" is this file's own sentence, printed at every other seam.
 //
@@ -1095,7 +1095,7 @@ const POLICY_HTML = 'sites/nikatru/privacy.html';
 // a policy its users were never shown. A false compliance record is worse than
 // none. Add a file here the moment it declares the constant.
 const POLICY_CONSTS = [
-  'apps/subly/lib/state/analytics_providers.dart',
+  'apps/subscriptiontracker/lib/state/analytics_providers.dart',
   'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart',
 ];
 try {
@@ -1185,7 +1185,7 @@ function jobBody(yaml, jobName) {
 // lane, rather than when somebody remembers this file exists.
 {
   const REGISTER = join(repo, 'tooling', 'channel-register.json');
-  const entry = join(repo, 'apps', 'subly', 'lib', 'main.dart');
+  const entry = join(repo, 'apps', 'subscriptiontracker', 'lib', 'main.dart');
   /** Rows with a lane today. A DERIVED subject set can shrink to nothing — the
    *  register losing its `lane` keys would leave this loop iterating zero jobs
    *  and printing nothing at all — so the count is floored by what exists.
@@ -1200,7 +1200,7 @@ function jobBody(yaml, jobName) {
   try {
     const register = JSON.parse(readFileSync(REGISTER, 'utf8'));
     // 🔴 `--dart-define` IS A FLUTTER FLAG, SO THE DOMAIN IS THE FLUTTER
-    // SURFACE. This check's other half is `apps/subly/lib/main.dart` reading
+    // SURFACE. This check's other half is `apps/subscriptiontracker/lib/main.dart` reading
     // `String.fromEnvironment('GLITCHTIP_DSN')` — a Dart consumer — and the
     // failure it exists to catch is a Flutter build initialising the NoOp
     // client. On 2026-09-05 the register acquired three `surface: "extension"`
@@ -1240,7 +1240,7 @@ function jobBody(yaml, jobName) {
         'The crash-sink check quantifies over that set; a shrunken one certifies the remaining lanes and says nothing about the rest.',
     );
   } else if (!existsSync(entry)) {
-    fail('COVERAGE LOST — apps/subly/lib/main.dart is gone; the consumer half of the crash-sink check cannot be verified.');
+    fail('COVERAGE LOST — apps/subscriptiontracker/lib/main.dart is gone; the consumer half of the crash-sink check cannot be verified.');
   } else {
     // BOTH ENDS are asserted on purpose. Checking only the workflow would keep
     // passing if main.dart stopped reading the value, and checking only
@@ -1248,7 +1248,7 @@ function jobBody(yaml, jobName) {
     // half alone is a check watching one end of a pipe.
     const consumed = /String\.fromEnvironment\(\s*'GLITCHTIP_DSN'/.test(readFileSync(entry, 'utf8'));
     if (!consumed) {
-      fail("apps/subly/lib/main.dart no longer reads String.fromEnvironment('GLITCHTIP_DSN') — the lanes would be supplying a value nothing consumes.");
+      fail("apps/subscriptiontracker/lib/main.dart no longer reads String.fromEnvironment('GLITCHTIP_DSN') — the lanes would be supplying a value nothing consumes.");
     }
     let wired = 0;
     for (const lane of lanes) {

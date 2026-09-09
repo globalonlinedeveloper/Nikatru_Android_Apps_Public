@@ -7,7 +7,7 @@
     "covers it, wired into a named workflow.",
     "",
     "THE DEFECT THIS FILE EXISTS FOR. Measured 2026-07-29 and re-measured 2026-08-02: the only",
-    "implementation of that path in the tree, apps/subly/integration_test/app_test.dart, declares TWO",
+    "implementation of that path in the tree, apps/subscriptiontracker/integration_test/app_test.dart, declares TWO",
     "tests and proves TWO of the six legs. There is no purchase, no entitlement flip, no feature unlock",
     "and no account delete in it. So a green, non-skipped, fresh nightly still does not mean what N-6",
     "says it means — and until this register existed, nothing anywhere wrote that number down. A",
@@ -33,7 +33,7 @@
     "🔴 A BLOCKED LEG'S EXCUSE IS ITSELF CHECKED. Every `blocked` leg names a `blockedBy` that",
     "assert-e2e-legs.mjs re-evaluates against the real tree on every run (the BLOCKERS_STILL_REAL",
     "pattern from assert-screen-set.mjs). If the blocker has shipped, the build FAILS — so 'blocked by",
-    "the money rail' cannot outlive the money rail, and the day apps/subly starts selling something the",
+    "the money rail' cannot outlive the money rail, and the day apps/subscriptiontracker starts selling something the",
     "three legs below stop being excusable in the same run. Blocked legs also PRINT on every run; a gap",
     "that is silent is a gap nobody closes.",
     "",
@@ -55,8 +55,8 @@
     "E2E that exists, and says so rather than implying a matrix."
   ],
   "e2e": {
-    "app": "apps/subly",
-    "test": "apps/subly/integration_test/app_test.dart",
+    "app": "apps/subscriptiontracker",
+    "test": "apps/subscriptiontracker/integration_test/app_test.dart",
     "workflow": ".github/workflows/e2e.yml",
     "platform": "web",
     "declaredOn": "2026-08-02"
@@ -79,7 +79,7 @@
       "_targetAxis": [
         "APPENDED 2026-09-07 (ADR 067 · cutover-blockers). e2e.yml now carries an auth_target axis",
         "(hosted | boxa), and `asserted` above is a HOSTED fact. Under auth_target=boxa the suite",
-        "returns early at apps/subly/integration_test/app_test.dart into expectOneIssuerRefusal, whose",
+        "returns early at apps/subscriptiontracker/integration_test/app_test.dart into expectOneIssuerRefusal, whose",
         "own expectation is that find.text('Go to dashboard') findsNothing — the anchors listed below",
         "are still IN the file, which is what assert-e2e-legs greps for and why it still prints",
         "'3 of 6 ... equality holds', but under boxa they are not REACHED. What a boxa run proves is",
@@ -98,21 +98,21 @@
       "id": "purchase-sandbox",
       "asks": "a sandbox purchase completes from inside the app",
       "status": "blocked",
-      "blockedBy": "[5] apps/subly sells nothing",
+      "blockedBy": "[5] apps/subscriptiontracker sells nothing",
       "declaredOn": "2026-08-02"
     },
     {
       "id": "entitlement-flip",
       "asks": "the entitlement the purchase bought is read back and flips to active",
       "status": "blocked",
-      "blockedBy": "[5] apps/subly sells nothing",
+      "blockedBy": "[5] apps/subscriptiontracker sells nothing",
       "declaredOn": "2026-08-02"
     },
     {
       "id": "feature-unlock",
       "asks": "a feature that was gated before the purchase is usable after it",
       "status": "blocked",
-      "blockedBy": "[5] apps/subly sells nothing",
+      "blockedBy": "[5] apps/subscriptiontracker sells nothing",
       "declaredOn": "2026-08-02"
     },
     {
@@ -131,9 +131,9 @@
       ],
       "_why": [
         "PROMOTED 2026-08-08, and the excuse it replaced is the THIRD this leg has killed — which is the",
-        "design working three times. v1 'apps/subly has no delete-account call site' died when [ADR 027]",
-        "shipped the control. v2 'no deployed route erases apps/subly own database' died when",
-        "services/subly-api shipped DELETE /v1/account and the shared route began relaying to it. v3 'no",
+        "design working three times. v1 'apps/subscriptiontracker has no delete-account call site' died when [ADR 027]",
+        "shipped the control. v2 'no deployed route erases apps/subscriptiontracker own database' died when",
+        "services/subscriptiontracker-api shipped DELETE /v1/account and the shared route began relaying to it. v3 'no",
         "e2e step exercises the erasure route against the deployed API' dies here, because there is now a",
         "step: integration_test/app_test.dart's third test signs in as a SECOND throwaway user, writes a",
         "subscription through the live Worker, deletes the account from inside the running app, and lands",

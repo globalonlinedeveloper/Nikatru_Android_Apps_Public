@@ -41,7 +41,7 @@
 //       The pre-existing per-kind floor. Kept below as a regression lock: it is
 //       the check the apps floor was modelled on, and it must not be traded away
 //       when someone next simplifies this discovery block.
-//   M4  workspace · apps/ emptied AND `- apps/subly` dropped from `workspace:`
+//   M4  workspace · apps/ emptied AND `- apps/subscriptiontracker` dropped from `workspace:`
 //                                            BEFORE EXIT 0   AFTER exit 1
 //       🔴 BEFORE printed: `ok  workspace coverage — 9 dart package(s) on disk,
 //       all gated`. Section 4's two directions are both RELATIONSHIPS between

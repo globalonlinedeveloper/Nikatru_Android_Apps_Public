@@ -49,7 +49,7 @@
 // TEST DOUBLES ARE ALSO EXCLUDED, and by path rather than by cleverness: an
 // `implements HttpClientAdapter` fake under `test/` is how a network client is
 // tested without a network. Two exist in this tree today
-// (`apps/subly/test/api_client_test.dart`, `packages/api_client/test/
+// (`apps/subscriptiontracker/test/api_client_test.dart`, `packages/api_client/test/
 // rest_client_test.dart`). They ship to nobody.
 //
 // Scope is `apps/**`, `packages/**` and `tooling/bricks/**` — the code that

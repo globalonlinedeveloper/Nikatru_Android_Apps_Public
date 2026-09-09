@@ -7,9 +7,9 @@
 // `deploy-workers.yml` had two independent path lists that nobody had ever
 // compared:
 //
-//   on.push.paths            services/subly-api/**, services/platform/**,
+//   on.push.paths            services/subscriptiontracker-api/**, services/platform/**,
 //                            .github/workflows/deploy-workers.yml
-//   dorny/paths-filter       services/subly-api/**, services/platform/**
+//   dorny/paths-filter       services/subscriptiontracker-api/**, services/platform/**
 //
 // So a change to the WORKFLOW ITSELF triggered a run whose `detect` job set both
 // outputs to `false`, skipped both deploy jobs, and reported **success**.
@@ -57,7 +57,7 @@
 //      resolved file must be claimed by that same filter AND by
 //      `on.push.paths`. So `contracts/entitlement/contract.js` is required of
 //      the `platform` filter because `src/lib/mor/contract.ts` imports it, and
-//      is NOT required of `subly_api`, which imports nothing from contracts/ —
+//      is NOT required of `subscriptiontracker_api`, which imports nothing from contracts/ —
 //      the asymmetry the file's own prose argues for, now derived from the
 //      imports instead of asserted in a comment.
 //

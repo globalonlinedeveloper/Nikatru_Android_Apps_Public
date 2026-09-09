@@ -12,7 +12,7 @@
 //
 // 🔬 THE BASELINE CASE IS ITSELF A MEASUREMENT. Before the brick's settings
 // screen gained a withdrawal row, this guard failed on the BRICK and passed on
-// apps/subly — that asymmetry is what it was written to report, and it is
+// apps/subscriptiontracker — that asymmetry is what it was written to report, and it is
 // recorded in the first case below so a future reader can tell a fixed defect
 // from a defect that was never there.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-consent-withdrawal-surface.mjs');
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
-const SUBLY = 'apps/subly';
+const SUBLY = 'apps/subscriptiontracker';
 const BRICK_SETTINGS = `${BRICK}/lib/features/settings/settings_screen.dart`;
 const SUBLY_SETTINGS = `${SUBLY}/lib/features/settings/settings_screen.dart`;
 const SUBLY_RAIL = `${SUBLY}/lib/state/analytics_providers.dart`;
@@ -109,7 +109,7 @@ describe('the real tree', () => {
       (r) => {
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /2 of 2 root\(s\) carry an analytics rail/);
-        assert.match(r.stdout, /apps\/subly/);
+        assert.match(r.stdout, /apps\/subscriptiontracker/);
       },
     );
   });
@@ -152,7 +152,7 @@ describe('the row itself — limb 1', () => {
       (root) => edit(root, SUBLY_SETTINGS, (s) => s.replaceAll('recordAnalyticsConsent(', '_noopConsent(')),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: NO call to recordAnalyticsConsent\(/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: NO call to recordAnalyticsConsent\(/);
         assert.match(r.stderr, /assert-seams-wired\.mjs stays GREEN on this exact tree/);
       },
     );
@@ -424,7 +424,7 @@ describe('the stop-offers row — the promo twin of all three limbs', () => {
       (root) => edit(root, SUBLY_SETTINGS, (s) => s.replaceAll('recordPromoObjection(', '_noopObjection(')),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: declares recordPromoObjection and there is NO call to it/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: declares recordPromoObjection and there is NO call to it/);
         assert.match(r.stderr, /the card can never be the way back/);
       },
     );
@@ -704,7 +704,7 @@ class _UpgradePromoCard extends ConsumerWidget {
   });
 
   test('a NON-promo `.decide(` is not classified — ReviewGate and CatchUpNudge are not this guard\'s', () => {
-    // `apps/subly/lib/features/home/home_screen.dart` really does call
+    // `apps/subscriptiontracker/lib/features/home/home_screen.dart` really does call
     // `const core.CatchUpNudge().decide(` — if the classifier keyed on the
     // METHOD NAME this guard would fail an unrelated seam. The home screen also
     // carries a real promo decision, so this is the discriminating case: two
@@ -761,7 +761,7 @@ describe('what this guard does NOT assert, said out loud', () => {
     // yes — but it is assert-seams-wired.mjs's defect, and duplicating it here
     // would be the redundant assertion this repo deletes.
     //
-    // ⚠️ THIS CASE USED TO `rmSync(apps/subly/lib/features/consent)`, WHICH HAS
+    // ⚠️ THIS CASE USED TO `rmSync(apps/subscriptiontracker/lib/features/consent)`, WHICH HAS
     // NOT EXISTED SINCE 2026-08-10. With `force: true` that is a silent no-op,
     // so the case was asserting exit 0 on an UNMUTATED tree — an assertion that
     // cannot fail, which this repo treats as worse than none because it inflates
@@ -844,14 +844,14 @@ describe('what this guard does NOT assert, said out loud', () => {
       () => {},
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /👤 OWNER apps\/subly — consentReadPolicy/);
+        assert.match(r.stdout, /👤 OWNER apps\/subscriptiontracker — consentReadPolicy/);
       },
     );
     withTree(
       (root) => edit(root, SUBLY_APP, (s) => s.replace('l10n.consentPrivacy', 'l10n.consentReadPolicy + l10n.consentPrivacy')),
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.doesNotMatch(r.stdout, /👤 OWNER apps\/subly — consentReadPolicy/);
+        assert.doesNotMatch(r.stdout, /👤 OWNER apps\/subscriptiontracker — consentReadPolicy/);
       },
     );
   });
@@ -870,7 +870,7 @@ describe('what this guard does NOT assert, said out loud', () => {
 // 🔴 AND THE EXTENSION SHIPPED WITH NO TEST AT ALL. On 2026-09-05 this guard
 // gained the resolver and this file gained nothing, and an independent review
 // then measured what that cost, on the real tree, in three steps:
-//   1. `recordAnalyticsConsent(` deleted from apps/subly's settings screen
+//   1. `recordAnalyticsConsent(` deleted from apps/subscriptiontracker's settings screen
 //      → EXIT 1, "NO call to recordAnalyticsConsent( in lib/features/settings.
 //        There is nowhere in this app for a user to turn analytics back OFF."
 //   2. ONE line added — an import of a chassis file NOTHING in the adapter
@@ -895,7 +895,7 @@ describe('a withdrawal control that moved into the chassis package', () => {
       : '    return;\n') +
     '  }\n}\n';
 
-  /** Delete every withdrawal call from apps/subly's settings screen, and
+  /** Delete every withdrawal call from apps/subscriptiontracker's settings screen, and
    *  optionally hand the behaviour to a chassis file. `used` decides whether the
    *  adapter actually references what it imports — which is the whole question. */
   const moved = ({ inPackage = true, used = true, onDisk = true } = {}) => (root) => {
@@ -932,7 +932,7 @@ describe('a withdrawal control that moved into the chassis package', () => {
   test('DW1 · the control moves into the package and the app is still compliant', () => {
     withTree(moved({ inPackage: true }), (r) => {
       assert.equal(r.status, 0, r.stderr);
-      assert.match(r.stdout, /apps\/subly — 1 withdrawal call site\(s\)/);
+      assert.match(r.stdout, /apps\/subscriptiontracker — 1 withdrawal call site\(s\)/);
     });
   });
 

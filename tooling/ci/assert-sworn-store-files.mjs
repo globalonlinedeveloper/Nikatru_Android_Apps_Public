@@ -42,7 +42,7 @@
 // 🔬 AND THE SAME MEASUREMENT FOR THE FOURTH DECLARATION — THE APPLE PRIVACY
 // MANIFEST AUDIT (2026-08-31, [G-49], `ios-appstore/privacy-manifest.json`).
 // Same method: a real-tree copy carrying the real register, the real audit, the
-// real brick template and apps/subly/{ios,macos}; one real partial regression
+// real brick template and apps/subscriptiontracker/{ios,macos}; one real partial regression
 // each; both guards run; exit code captured ON ITS OWN LINE. The `apple` column
 // is assert-apple-privacy-manifest.mjs — the sibling that re-renders both
 // `PrivacyInfo.xcprivacy` files from this audit, validates the Apple
@@ -148,7 +148,7 @@
 //
 //     🔴 THIS LIMB CAUGHT A LIVE ONE BEFORE IT WAS EVEN COMMITTED. Run against
 //     the working tree mid-P2.5b (the app_config de-duplication, ADR 037), it
-//     failed on three references to `apps/subly/lib/core/config/app_config.dart`
+//     failed on three references to `apps/subscriptiontracker/lib/core/config/app_config.dart`
 //     — a file that increment DELETES in favour of `lib/core/app_config.dart`.
 //     One of the three is `buildPosture.gateFile`, the declaration's own pointer
 //     at the compile-time gate every posture answer depends on, and
@@ -510,7 +510,7 @@ const UI_ANCHORS = [
     //
     // ⚠️ AND `exportDataCsv` IS NOT ONE OF THEM — MEASURED, NOT ASSUMED. On this
     // tree it is a Subly-ONLY key: `grep -rn exportDataCsv apps tooling/bricks
-    // packages` (2026-09-06) finds it in `apps/subly` alone, never in the brick,
+    // packages` (2026-09-06) finds it in `apps/subscriptiontracker` alone, never in the brick,
     // so the app half still answers and this fallback has NO live input today.
     // It is written now because the shape that needs it is one wave away: a
     // stamped app whose settings screen reads a SHARED key its own arb no longer
@@ -1132,8 +1132,8 @@ for (const app of apps) {
         // third sworn declaration (2026-08-09). ads-declaration.json's format
         // scan anchors on a widget in the BRICK — which is where a promo surface
         // arrives for all fifty apps at once — and substituting `{{app_id}}` →
-        // `subly` turned a citation of a file that exists into
-        // `…/__brick__/apps/subly/…`, which never will. The repair accepts
+        // `subscriptiontracker` turned a citation of a file that exists into
+        // `…/__brick__/apps/subscriptiontracker/…`, which never will. The repair accepts
         // either reading rather than guessing which one was meant; both name a
         // file that is really there, which is all this limb claims.
         const candidates = [cited.replace('{{app_id}}', appId).replace('{app}', appId), cited];

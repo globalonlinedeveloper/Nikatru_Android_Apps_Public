@@ -7,7 +7,7 @@
 //
 //   · delete the "Record the deployed SHA" step from .github/workflows/
 //     deploy-web.yml  ⇒  exit 1, "the web channel is SERVED and … never records
-//     subly-web".
+//     subscriptiontracker-web".
 //   · change submit-play.yml's `--dry-run` to `--submit`  ⇒  exit 1, "can
 //     perform a REAL submission … and no later step records it".
 //
@@ -65,7 +65,7 @@ function fixture({ channels, workflows }) {
   writeFileSync(join(root, 'tooling/channel-register.json'), JSON.stringify({ channels }, null, 2));
   writeFileSync(
     join(root, 'catalog/apps.json'),
-    JSON.stringify([{ slug: 'subly', platforms: ['web', 'android'], status: 'live' }], null, 2),
+    JSON.stringify([{ slug: 'subscriptiontracker', platforms: ['web', 'android'], status: 'live' }], null, 2),
   );
   for (const [name, body] of Object.entries(workflows)) {
     writeFileSync(join(root, '.github/workflows', name), body);
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Record the deployed SHA
-        run: node tooling/ci/record-deployment.mjs subly-web https://subly.nikatru.com
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-web https://subly.nikatru.com
 `;
 
 /** A store row whose submission workflow is written by the test. */
@@ -120,7 +120,7 @@ jobs:
   dry-run:
     runs-on: ubuntu-24.04
     steps:
-      - run: node tooling/release/submit-play.mjs --dry-run --app subly
+      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker
 `;
 
 const submitWorkflow = (steps) => `name: play
@@ -150,7 +150,7 @@ describe('assert-publish-records — the SERVED lane must record what it shipped
     const wf = DEPLOY_WEB_OK.replace(/      - name.*\n.*\n/, '      - run: echo deployed\n');
     const { code, out } = run(served({ 'deploy-web.yml': wf }));
     assert.equal(code, 1, out);
-    assert.match(out, /is SERVED and .* never records "subly-web"/);
+    assert.match(out, /is SERVED and .* never records "subscriptiontracker-web"/);
   });
 
   test('a record step with continue-on-error fails — a green job with no record', () => {
@@ -186,11 +186,11 @@ jobs:
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
-          command: pages deploy build/web --project-name=subly
+          command: pages deploy build/web --project-name=subscriptiontracker
       - name: Smoke — the live site serves THIS build
         run: node tooling/ops/post-deploy-smoke.mjs --url https://subly.nikatru.com/version.json
       - name: Record the deployed SHA
-${condition === null ? '' : `        if: ${condition}\n`}        run: node tooling/ci/record-deployment.mjs subly-web https://subly.nikatru.com
+${condition === null ? '' : `        if: ${condition}\n`}        run: node tooling/ci/record-deployment.mjs subscriptiontracker-web https://subly.nikatru.com
 `;
 
   test('THE MUTANT THE OLD FIXTURE COULD NOT CATCH: a narrowing `if:` on a record step that is LAST fails', () => {
@@ -267,7 +267,7 @@ jobs:
           id: deploy
       - name: Record the deployed SHA
         if: always() && steps.deploy.outcome == 'success'
-        run: node tooling/ci/record-deployment.mjs subly-web https://subly.nikatru.com
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-web https://subly.nikatru.com
 `;
     const { code, out } = run(served({ 'deploy-web.yml': wf }));
     assert.equal(code, 1, out);
@@ -279,7 +279,7 @@ jobs:
     writeFileSync(
       join(root, 'catalog/apps.json'),
       JSON.stringify([
-        { slug: 'subly', platforms: ['web'], status: 'live' },
+        { slug: 'subscriptiontracker', platforms: ['web'], status: 'live' },
         { slug: 'drift', platforms: ['web'], status: 'live' },
       ]),
     );
@@ -307,7 +307,7 @@ describe('assert-publish-records — rule 6b, a dangling step reference anywhere
   const workersLane = (id, condition) => `name: workers
 on: [push]
 jobs:
-  subly-api:
+  subscriptiontracker-api:
     runs-on: ubuntu-24.04
     steps:
       - name: Migrations
@@ -319,7 +319,7 @@ jobs:
         run: node tooling/ops/post-deploy-smoke.mjs --url https://api.nikatru.com/v1/health
       - name: Record the deployed SHA
         if: ${condition}
-        run: node tooling/ci/record-deployment.mjs subly-api https://api.nikatru.com
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-api https://api.nikatru.com
 `;
 
   // The register in these fixtures declares deploy-web.yml as the only lane, so
@@ -340,7 +340,7 @@ jobs:
     const { code, out } = run(tree(workersLane('deployy', "always() && steps.deploy.outcome == 'success'")));
     assert.equal(code, 1, out);
     assert.match(out, /workers\.yml/);
-    assert.match(out, /NO EARLIER step in job "subly-api" declares/);
+    assert.match(out, /NO EARLIER step in job "subscriptiontracker-api" declares/);
     assert.match(out, /earlier ids: `deployy`/);
     // …and rule 6 was green on the same tree: it graded only the lane's step.
     assert.match(out, /RULE 6 .* graded 1 record step\(s\)/);
@@ -349,7 +349,7 @@ jobs:
   test('a `conclusion` reference is checked too — the same null resolves either way', () => {
     const { code, out } = run(tree(workersLane('deployy', "always() && steps.deploy.conclusion == 'success'")));
     assert.equal(code, 1, out);
-    assert.match(out, /NO EARLIER step in job "subly-api" declares/);
+    assert.match(out, /NO EARLIER step in job "subscriptiontracker-api" declares/);
   });
 
   test('6b holds NO policy — a non-lane workflow may condition however it likes', () => {
@@ -369,7 +369,7 @@ jobs:
 });
 
 describe('assert-publish-records — a real submission must write a record', () => {
-  const REAL_SUBMIT = submitWorkflow('      - run: node tooling/release/submit-play.mjs --submit --app subly');
+  const REAL_SUBMIT = submitWorkflow('      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker');
 
   test('a rehearsal (`--dry-run`) needs no record and passes', () => {
     const { code, out } = run(
@@ -377,7 +377,7 @@ describe('assert-publish-records — a real submission must write a record', () 
         channels: [WEB_ROW, storeRow()],
         workflows: {
           'deploy-web.yml': DEPLOY_WEB_OK,
-          'submit-play.yml': submitWorkflow('      - run: node tooling/release/submit-play.mjs --dry-run --app subly'),
+          'submit-play.yml': submitWorkflow('      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker'),
         },
       }),
     );
@@ -397,7 +397,7 @@ describe('assert-publish-records — a real submission must write a record', () 
   });
 
   test('FAIL-CLOSED: a `--dry-run` assembled from an expression is NOT a rehearsal', () => {
-    const wf = submitWorkflow('      - run: node tooling/release/submit-play.mjs ${{ inputs.mode }} --dry-run --app subly');
+    const wf = submitWorkflow('      - run: node tooling/release/submit-play.mjs ${{ inputs.mode }} --dry-run --app subscriptiontracker');
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
     );
@@ -407,9 +407,9 @@ describe('assert-publish-records — a real submission must write a record', () 
 
   test('a REAL submission followed by a proper in_review record PASSES', () => {
     const wf = submitWorkflow(
-      '      - run: node tooling/release/submit-play.mjs --submit --app subly\n' +
+      '      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker\n' +
         '      - name: Record the submission\n' +
-        '        run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url https://play.google.com/store/apps/details?id=com.nikatru.subly',
+        '        run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url https://play.google.com/store/apps/details?id=com.nikatru.subscriptiontracker',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -421,8 +421,8 @@ describe('assert-publish-records — a real submission must write a record', () 
   test('a record written BEFORE the submit step does not count', () => {
     const wf = submitWorkflow(
       '      - name: Record the submission\n' +
-        '        run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url https://play.google.com/x\n' +
-        '      - run: node tooling/release/submit-play.mjs --submit --app subly',
+        '        run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url https://play.google.com/x\n' +
+        '      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -433,8 +433,8 @@ describe('assert-publish-records — a real submission must write a record', () 
 
   test('a rehearsal job that writes a record anyway fails — a fiction in the ledger', () => {
     const wf = submitWorkflow(
-      '      - run: node tooling/release/submit-play.mjs --dry-run --app subly\n' +
-        '      - run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url https://play.google.com/x',
+      '      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker\n' +
+        '      - run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url https://play.google.com/x',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -447,8 +447,8 @@ describe('assert-publish-records — a real submission must write a record', () 
 describe('assert-publish-records — SUBMITTED is not LIVE', () => {
   const withState = (state, extra = '--listing-url https://play.google.com/x') =>
     submitWorkflow(
-      '      - run: node tooling/release/submit-play.mjs --submit --app subly\n' +
-        `      - run: node tooling/ci/record-deployment.mjs subly-android-play --state ${state} ${extra}`,
+      '      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker\n' +
+        `      - run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state ${state} ${extra}`,
     );
 
   for (const state of ['live', 'rejected', 'pulled']) {
@@ -463,8 +463,8 @@ describe('assert-publish-records — SUBMITTED is not LIVE', () => {
 
   test('a store record with no --state fails — no default may decide this', () => {
     const wf = submitWorkflow(
-      '      - run: node tooling/release/submit-play.mjs --submit --app subly\n' +
-        '      - run: node tooling/ci/record-deployment.mjs subly-android-play --listing-url https://play.google.com/x',
+      '      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker\n' +
+        '      - run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --listing-url https://play.google.com/x',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -484,7 +484,7 @@ describe('assert-publish-records — SUBMITTED is not LIVE', () => {
 
 describe('assert-publish-records — the floor cannot range over zero', () => {
   test('COVERAGE LOST when the register declares no served channel', () => {
-    const { code, out } = run(fixture({ channels: [storeRow()], workflows: { 'submit-play.yml': submitWorkflow('      - run: node tooling/release/submit-play.mjs --dry-run --app subly') } }));
+    const { code, out } = run(fixture({ channels: [storeRow()], workflows: { 'submit-play.yml': submitWorkflow('      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker') } }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /REQUIRED_COVERAGE\.servedRows is 0/);
@@ -510,7 +510,7 @@ describe('assert-publish-records — the floor cannot range over zero', () => {
 
   test('COVERAGE LOST when no app declares the served channel\'s platforms', () => {
     const root = served({ 'deploy-web.yml': DEPLOY_WEB_OK });
-    writeFileSync(join(root, 'catalog/apps.json'), JSON.stringify([{ slug: 'subly', platforms: ['ios'] }]));
+    writeFileSync(join(root, 'catalog/apps.json'), JSON.stringify([{ slug: 'subscriptiontracker', platforms: ['ios'] }]));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, /REQUIRED_COVERAGE\.requiredEnvironments is 0/);
@@ -571,7 +571,7 @@ jobs:
   dry-run:
     runs-on: ubuntu-24.04
     steps:
-      - run: node tooling/release/submit-play.mjs --dry-run --app subly
+      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker
   submit:
     runs-on: ubuntu-24.04
     environment: store-publish
@@ -580,7 +580,7 @@ ${submitSteps}
 `;
 
   test('THE MUTANT THE ONE-JOB CENSUS COULD NOT CATCH: an undeclared `submit` job with no record fails', () => {
-    const wf = twoJobWorkflow('      - run: node tooling/release/submit-play.mjs --submit --app subly');
+    const wf = twoJobWorkflow('      - run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker');
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
     );
@@ -593,10 +593,10 @@ ${submitSteps}
     const wf = twoJobWorkflow(
       '      - name: Upload\n' +
         '        id: upload\n' +
-        '        run: node tooling/release/submit-play.mjs --submit --app subly\n' +
+        '        run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker\n' +
         '      - name: Record the submission\n' +
         "        if: always() && steps.upload.outcome == 'success'\n" +
-        '        run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url https://play.google.com/x',
+        '        run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url https://play.google.com/x',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -610,8 +610,8 @@ ${submitSteps}
     const wf = twoJobWorkflow(
       '      - name: Upload\n' +
         '        id: upload\n' +
-        '        run: node tooling/release/submit-play.mjs --submit --app subly\n' +
-        '      - run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url https://play.google.com/x',
+        '        run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker\n' +
+        '      - run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url https://play.google.com/x',
     );
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -650,13 +650,13 @@ jobs:
   dry-run:
     runs-on: ubuntu-24.04
     steps:
-      - run: node tooling/release/submit-play.mjs --dry-run --app subly
+      - run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker
   submit:
     runs-on: ubuntu-24.04
     steps:
       - uses: some/shell-action@v1
         with:
-          command: node tooling/release/submit-play.mjs --submit --app subly
+          command: node tooling/release/submit-play.mjs --submit --app subscriptiontracker
 `;
     const { code, out } = run(
       fixture({ channels: [WEB_ROW, storeRow()], workflows: { 'deploy-web.yml': DEPLOY_WEB_OK, 'submit-play.yml': wf } }),
@@ -733,8 +733,8 @@ describe('assert-publish-records — against the REAL repository', () => {
         encoding: 'utf8',
       }).stdout;
     for (const [rel, environment] of [
-      ['.github/workflows/submit-play.yml', 'subly-android-play'],
-      ['.github/workflows/submit-snap.yml', 'subly-linux-snap'],
+      ['.github/workflows/submit-play.yml', 'subscriptiontracker-android-play'],
+      ['.github/workflows/submit-snap.yml', 'subscriptiontracker-linux-snap'],
     ]) {
       const body = read(rel);
       assert.ok(

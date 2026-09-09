@@ -1,10 +1,10 @@
 import 'package:nikatru_core/nikatru_core.dart';
 import 'package:test/test.dart';
 
-/// The exact JSON the platform Worker serves for `GET /config/subly`
-/// (mirrors `services/platform/src/config.ts` DEFAULT_CONFIGS.subly).
-Map<String, Object?> sublyServerJson() => <String, Object?>{
-      'app_id': 'subly',
+/// The exact JSON the platform Worker serves for `GET /config/subscriptiontracker`
+/// (mirrors `services/platform/src/config.ts` DEFAULT_CONFIGS.subscriptiontracker).
+Map<String, Object?> subscriptiontrackerServerJson() => <String, Object?>{
+      'app_id': 'subscriptiontracker',
       'api_base_url': 'https://api.nikatru.com/v1',
       'features': <String, Object?>{
         'renewals': true,
@@ -54,9 +54,9 @@ class FakeTransport implements ConfigTransport {
 /// Subly's `kSublyDefaultConfig`) — so they still exercise the real
 /// network -> last-good -> bundled-default ladder, just wired honestly.
 AppConfig seededDefault(String appId) =>
-    AppConfig.fromJson(sublyServerJson()).copyWith(appId: appId);
+    AppConfig.fromJson(subscriptiontrackerServerJson()).copyWith(appId: appId);
 
-ConfigLoader seededLoader(ConfigTransport t, {String appId = 'subly'}) =>
+ConfigLoader seededLoader(ConfigTransport t, {String appId = 'subscriptiontracker'}) =>
     ConfigLoader(
       transport: t,
       cache: ConfigCache(
@@ -67,8 +67,8 @@ ConfigLoader seededLoader(ConfigTransport t, {String appId = 'subly'}) =>
 void main() {
   group('AppConfig.fromJson (CFG-1 contract shape)', () {
     test('parses the server config into typed fields', () {
-      final AppConfig c = AppConfig.fromJson(sublyServerJson());
-      expect(c.appId, 'subly');
+      final AppConfig c = AppConfig.fromJson(subscriptiontrackerServerJson());
+      expect(c.appId, 'subscriptiontracker');
       expect(c.apiBaseUrl, 'https://api.nikatru.com/v1');
       expect(c.feature('renewals'), isTrue);
       expect(c.feature('budgets'), isTrue);
@@ -82,7 +82,7 @@ void main() {
 
     test('round-trips through toJson with snake_case keys', () {
       final Map<String, Object?> j =
-          AppConfig.fromJson(sublyServerJson()).toJson();
+          AppConfig.fromJson(subscriptiontrackerServerJson()).toJson();
       expect(j.containsKey('api_base_url'), isTrue);
       expect(j.containsKey('min_supported_version'), isTrue);
       final AppConfig again = AppConfig.fromJson(j);
@@ -92,7 +92,7 @@ void main() {
     });
 
     test('preserves unknown paywall keys (forward-compatible)', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['paywall'] = <String, Object?>{'enabled': true, 'plan': 'pro'};
       final AppConfig c = AppConfig.fromJson(j);
       expect(c.paywall.enabled, isTrue);
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('throws FormatException when api_base_url is missing', () {
-      final Map<String, Object?> j = sublyServerJson()..remove('api_base_url');
+      final Map<String, Object?> j = subscriptiontrackerServerJson()..remove('api_base_url');
       expect(() => AppConfig.fromJson(j), throwsFormatException);
     });
 
@@ -109,13 +109,13 @@ void main() {
         () {
       // A non-string content_pack must not throw a TypeError — only app_id,
       // api_base_url and min_supported_version are strict.
-      final Map<String, Object?> j = sublyServerJson()..['content_pack'] = 123;
+      final Map<String, Object?> j = subscriptiontrackerServerJson()..['content_pack'] = 123;
       final AppConfig c = AppConfig.fromJson(j);
       expect(c.contentPack, isNull);
     });
 
     test('parses flags (percentage rollout); toJson omits them when empty', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['flags'] = <String, Object?>{'new_home': 25, 'beta_search': 100};
       final AppConfig c = AppConfig.fromJson(j);
       expect(c.rolloutPercent('new_home'), 25);
@@ -125,21 +125,21 @@ void main() {
       expect(AppConfig.fromJson(c.toJson()).rolloutPercent('new_home'), 25);
       // a config with no flags does not emit the key (drift-safe)
       expect(
-          AppConfig.fromJson(sublyServerJson()).toJson().containsKey('flags'),
+          AppConfig.fromJson(subscriptiontrackerServerJson()).toJson().containsKey('flags'),
           isFalse);
       // lenient/fail-safe: a wrong-typed value drops to 0 (off), a non-map
       // flags block parses to empty — a garbled percent can never ship a flag.
       expect(
           AppConfig.fromJson(
-                  sublyServerJson()..['flags'] = <String, Object?>{'x': '50'})
+                  subscriptiontrackerServerJson()..['flags'] = <String, Object?>{'x': '50'})
               .rolloutPercent('x'),
           0);
-      expect(AppConfig.fromJson(sublyServerJson()..['flags'] = 'nope').flags,
+      expect(AppConfig.fromJson(subscriptiontrackerServerJson()..['flags'] = 'nope').flags,
           isEmpty);
     });
 
     test('feature() honors its fallback', () {
-      final AppConfig c = AppConfig.fromJson(sublyServerJson());
+      final AppConfig c = AppConfig.fromJson(subscriptiontrackerServerJson());
       expect(c.feature('nope'), isFalse);
       expect(c.feature('nope', orElse: true), isTrue);
     });
@@ -157,32 +157,32 @@ void main() {
   // when nobody is watching.
   group('[13]T-6 max_promos_per_week is read, and its absence means ZERO', () {
     test('parses the value the server sends', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['max_promos_per_week'] = 2;
       expect(AppConfig.fromJson(j).maxPromosPerWeek, 2);
     });
 
     test('an ABSENT key is zero, not unlimited and not null', () {
-      // sublyServerJson() deliberately does not carry the key: an older cached
+      // subscriptiontrackerServerJson() deliberately does not carry the key: an older cached
       // body, or an offline fall back to a bundled default, looks exactly like
       // this — and must not be a way to lift the cap.
-      expect(AppConfig.fromJson(sublyServerJson()).maxPromosPerWeek, 0);
+      expect(AppConfig.fromJson(subscriptiontrackerServerJson()).maxPromosPerWeek, 0);
     });
 
     test('a WRONG-TYPED value is zero, and does not throw', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['max_promos_per_week'] = 'lots';
       expect(AppConfig.fromJson(j).maxPromosPerWeek, 0);
     });
 
     test('a NEGATIVE value cannot make the cap smaller than off', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['max_promos_per_week'] = -5;
       expect(AppConfig.fromJson(j).maxPromosPerWeek, 0);
     });
 
     test('the key survives a toJson round trip, so a cache cannot drop it', () {
-      final Map<String, Object?> j = sublyServerJson()
+      final Map<String, Object?> j = subscriptiontrackerServerJson()
         ..['max_promos_per_week'] = 3;
       final Map<String, Object?> out = AppConfig.fromJson(j).toJson();
       expect(out['max_promos_per_week'], 3);
@@ -191,7 +191,7 @@ void main() {
 
     test('copyWith carries it, so a merge cannot silently reset it', () {
       final AppConfig c = AppConfig.fromJson(
-        sublyServerJson()..['max_promos_per_week'] = 4,
+        subscriptiontrackerServerJson()..['max_promos_per_week'] = 4,
       );
       expect(c.copyWith(appId: 'other').maxPromosPerWeek, 4);
       expect(c.copyWith(maxPromosPerWeek: 0).maxPromosPerWeek, 0);
@@ -199,10 +199,10 @@ void main() {
   });
 
   group('bundled defaults carry NO app-specific values', () {
-    // [pipeline C-10] This group used to pin the hardcoded `'subly'` entry that
+    // [pipeline C-10] This group used to pin the hardcoded `'subscriptiontracker'` entry that
     // lived in core's kDefaultConfigs — an app name in shared code, exported from
     // the barrel every stamped app imports. The values AND the contract test that
-    // pins them against the server moved to `apps/subly/test/config_default_test.dart`;
+    // pins them against the server moved to `apps/subscriptiontracker/test/config_default_test.dart`;
     // what is asserted here now is that core stayed generic.
     test('core knows the name of NO app', () {
       expect(
@@ -213,16 +213,16 @@ void main() {
     });
 
     test('any app id returns null — each app seeds its own default', () {
-      expect(defaultConfigFor('subly'), isNull);
+      expect(defaultConfigFor('subscriptiontracker'), isNull);
       expect(defaultConfigFor('ghost'), isNull);
     });
   });
 
   group('ConfigLoader (network → cache → bundled default)', () {
     test('returns the server config on a successful fetch', () async {
-      final FakeTransport t = FakeTransport.ok(sublyServerJson());
+      final FakeTransport t = FakeTransport.ok(subscriptiontrackerServerJson());
       final ConfigLoader loader = ConfigLoader(transport: t);
-      final Result<AppConfig> r = await loader.load('subly');
+      final Result<AppConfig> r = await loader.load('subscriptiontracker');
       expect(r.isOk, isTrue);
       expect(r.fold((AppConfig c) => c.apiBaseUrl, (_) => 'err'),
           'https://api.nikatru.com/v1');
@@ -233,25 +233,25 @@ void main() {
         () async {
       final FakeTransport t = FakeTransport.offline();
       final ConfigLoader loader = seededLoader(t);
-      final Result<AppConfig> r = await loader.load('subly');
+      final Result<AppConfig> r = await loader.load('subscriptiontracker');
       expect(r.isOk, isTrue);
       expect(r.fold((AppConfig c) => c.apiBaseUrl, (_) => 'err'),
           'https://api.nikatru.com/v1');
     });
 
     test('prefers the last-good cache over the bundled default', () async {
-      final Map<String, Object?> override = sublyServerJson()
+      final Map<String, Object?> override = subscriptiontrackerServerJson()
         ..['api_base_url'] = 'https://api-canary.nikatru.com/v1'
         ..['paywall'] = <String, Object?>{'enabled': true};
       final FakeTransport t = FakeTransport.ok(override);
       final ConfigLoader loader = ConfigLoader(transport: t);
 
-      final Result<AppConfig> first = await loader.load('subly');
+      final Result<AppConfig> first = await loader.load('subscriptiontracker');
       expect(first.fold((AppConfig c) => c.apiBaseUrl, (_) => 'err'),
           'https://api-canary.nikatru.com/v1');
 
       t.failWith(); // network drops
-      final Result<AppConfig> second = await loader.load('subly');
+      final Result<AppConfig> second = await loader.load('subscriptiontracker');
       expect(second.isOk, isTrue);
       expect(second.fold((AppConfig c) => c.apiBaseUrl, (_) => 'err'),
           'https://api-canary.nikatru.com/v1');
@@ -263,7 +263,7 @@ void main() {
       final FakeTransport t =
           FakeTransport.ok(<String, Object?>{'nonsense': 1});
       final ConfigLoader loader = seededLoader(t);
-      final Result<AppConfig> r = await loader.load('subly');
+      final Result<AppConfig> r = await loader.load('subscriptiontracker');
       expect(r.isOk, isTrue);
       expect(r.fold((AppConfig c) => c.apiBaseUrl, (_) => 'err'),
           'https://api.nikatru.com/v1');
@@ -279,7 +279,7 @@ void main() {
     test('peek returns the bundled default without any network call', () async {
       final FakeTransport t = FakeTransport.offline();
       final ConfigLoader loader = seededLoader(t);
-      expect(loader.peek('subly')?.apiBaseUrl, 'https://api.nikatru.com/v1');
+      expect(loader.peek('subscriptiontracker')?.apiBaseUrl, 'https://api.nikatru.com/v1');
       expect(loader.peek('ghost'), isNull);
       expect(t.calls, 0);
     });

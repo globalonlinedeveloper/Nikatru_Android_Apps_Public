@@ -4,20 +4,20 @@
 // "A displayed price comes from the rail, never from app code."
 //
 // 🔴 THE DEFECT THIS IS NAMED AFTER WAS LIVE FOR MONTHS AND NOTHING COULD SEE IT.
-// `apps/subly/lib/services/purchases/purchases_service.dart` returned the
+// `apps/subscriptiontracker/lib/services/purchases/purchases_service.dart` returned the
 // literals `$2.99` and `$24.99`. The owner decided $4.99/mo and $19.99/yr on
 // 2026-07-27. Nothing went red — a hardcoded price is consistent with itself
 // forever, and the obvious guard (`assert-no-hardcoded-strings.mjs`) excludes
-// `apps/subly` wholesale, i.e. excludes the evidence file.
+// `apps/subscriptiontracker` wholesale, i.e. excludes the evidence file.
 //
-// ⚠️ `apps/subly` IS NOT EXCLUDABLE HERE, and the distinction was the point: the
+// ⚠️ `apps/subscriptiontracker` IS NOT EXCLUDABLE HERE, and the distinction was the point: the
 // `assert-no-hardcoded-strings.mjs` freeze covered the l10n retrofit — an
 // enormous, scheduled, cosmetic body of work. It never covered a price literal
 // that contradicts a decided one, which is a money defect wearing the same
 // clothes.
 //
 // 🔄 THAT FREEZE ENDED 2026-08-11: `assert-no-hardcoded-strings.mjs` now ENFORCES
-// on `apps/subly/lib`. This guard is not thereby redundant — a price is not a
+// on `apps/subscriptiontracker/lib`. This guard is not thereby redundant — a price is not a
 // `Text(…)` or a labelling parameter, it is a value inside a service, and the
 // two guards look at different positions in different files. Two limbs of the
 // same rule would be; these are two rules.
@@ -55,7 +55,7 @@ const PRICE = new RegExp(
 /**
  * 🔴 THE MATCHER IS PROVEN AGAINST KNOWN-DIRTY INPUT BEFORE IT IS TRUSTED.
  *
- * `assert-no-hardcoded-strings.mjs` uses `apps/subly` as its canary — a tree
+ * `assert-no-hardcoded-strings.mjs` uses `apps/subscriptiontracker` as its canary — a tree
  * known to be full of the thing it looks for. This guard cannot: the whole point
  * of the increment that introduced it is that the last price literals in the
  * repo were DELETED. A canary that has been cleaned is a canary that proves the

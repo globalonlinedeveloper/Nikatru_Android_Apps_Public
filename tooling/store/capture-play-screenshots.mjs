@@ -139,7 +139,7 @@
 // Usage:
 //   node tooling/store/capture-play-screenshots.mjs            # live → listing
 //   node tooling/store/capture-play-screenshots.mjs --proof    # demo → temp
-//   node tooling/store/capture-play-screenshots.mjs --app subly --out BASE
+//   node tooling/store/capture-play-screenshots.mjs --app subscriptiontracker --out BASE
 //
 // ⚠️ `--out` NAMES THE CHANNEL DIRECTORY, NOT A SCREENSHOT DIRECTORY, and that
 // changed on 2026-08-21 when the second viewport arrived. Each device type is
@@ -165,7 +165,7 @@ const arg = (name, dflt) => {
   const i = argv.indexOf(name);
   return i !== -1 && argv[i + 1] ? argv[i + 1] : dflt;
 };
-const app = arg('--app', 'subly');
+const app = arg('--app', 'subscriptiontracker');
 
 /** The channel whose listing this captures. The register's contract is keyed by
  *  it, and so is the set map every directory below is read from. */
@@ -330,7 +330,7 @@ if (!existsSync(join(appDir, 'integration_test', 'store_screenshots_test.dart'))
 // 2026-08-05: this script produced five frames and the fifth, `05-settings.png`,
 // rendered the signed-in account at the top of the settings card in large
 // legible type. The live lane signs in as a throwaway end-to-end account, so the
-// frame read `subly-e2e+…@nikatru.com` — an internal test address on a Play
+// frame read `subscriptiontracker-e2e+…@nikatru.com` — an internal test address on a Play
 // marketing asset. It was pulled from the published set by hand, and THAT FIXED
 // NOTHING: the address is not baked into the PNG, it is whoever signed in, so
 // every re-run reproduced it. Worse, the leak was never bounded by the CI
@@ -552,7 +552,7 @@ try {
     // themselves), that filter emits:
     //
     //   flutter drive … --driver-port=4444 --dart-define --dart-define
-    //   --dart-define --dart-define E2E_EMAIL=subly-e2e+7@nikatru.com
+    //   --dart-define --dart-define E2E_EMAIL=subscriptiontracker-e2e+7@nikatru.com
     //   --dart-define E2E_PASSWORD=<the password, in clear>
     //
     // TWO defects in one line, and the second is the serious one:

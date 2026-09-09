@@ -27,7 +27,7 @@
 // makes the flow work at all — and it is why the app has to learn "this is a
 // recovery" from the EVENT rather than from the URL.
 //
-// The `/subly/` in these fixtures is DATA, not a contract: `app.yaml`'s `id`
+// The `/subscriptiontracker/` in these fixtures is DATA, not a contract: `app.yaml`'s `id`
 // today, renamed once already. The last case in the first group proves nothing
 // in the composition knows it.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,9 +50,9 @@ void main() {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly/#/settings'),
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/#/settings'),
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
       );
     });
 
@@ -64,19 +64,19 @@ void main() {
     test('the BASE PATH is never dropped for the bare origin', () {
       final String? sent = passwordResetRedirectUrl(
         isWeb: true,
-        base: Uri.parse('https://nikatru.com/subly/#/settings'),
+        base: Uri.parse('https://nikatru.com/subscriptiontracker/#/settings'),
       );
       expect(sent, isNotNull);
       expect(
         sent,
-        startsWith('https://nikatru.com/subly/'),
+        startsWith('https://nikatru.com/subscriptiontracker/'),
         reason: 'composed from the origin alone this would be '
             'https://nikatru.com/?nk_auth=reset#/reset-password — the apex, '
             'which is a different document that will never exchange the code',
       );
       expect(
         Uri.parse(sent!).path,
-        '/subly/',
+        '/subscriptiontracker/',
         reason: 'the path IS the app on a shared origin; an empty one is the '
             'marketing site',
       );
@@ -89,22 +89,22 @@ void main() {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly/index.html'),
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/index.html'),
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
       );
     });
 
     // The window between a link written without the trailing slash and the
-    // server's directory redirect. Treating `/subly` as a file and stripping it
+    // server's directory redirect. Treating `/subscriptiontracker` as a file and stripping it
     // would be the dropped-base-path bug wearing a different hat.
     test('a base path with no trailing slash is still the base path', () {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly'),
+          base: Uri.parse('https://nikatru.com/subscriptiontracker'),
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
       );
     });
 
@@ -116,10 +116,10 @@ void main() {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly/settings/notifications'),
-          baseHref: '/subly/',
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/settings/notifications'),
+          baseHref: '/subscriptiontracker/',
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
         reason: 'a path-strategy deep link would otherwise send the reset mail '
             'to the screen the user happened to be standing on',
       );
@@ -133,18 +133,18 @@ void main() {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly/#/settings'),
-          baseHref: 'https://nikatru.com/subly/',
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/#/settings'),
+          baseHref: 'https://nikatru.com/subscriptiontracker/',
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
       );
       expect(
         passwordResetRedirectUrl(
           isWeb: true,
-          base: Uri.parse('https://nikatru.com/subly/#/settings'),
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/#/settings'),
           baseHref: '',
         ),
-        'https://nikatru.com/subly/?nk_auth=reset#/reset-password',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password',
         reason: 'an empty base href is no information, not a reason to lose '
             'the path the running URL already carries',
       );
@@ -194,7 +194,7 @@ void main() {
     test('what it sends is what the arrival parser recognises', () {
       final String sent = passwordResetRedirectUrl(
         isWeb: true,
-        base: Uri.parse('https://nikatru.com/subly/'),
+        base: Uri.parse('https://nikatru.com/subscriptiontracker/'),
       )!;
       expect(
         passwordResetArrivalOf(Uri.parse(sent)).arrival,
@@ -212,7 +212,7 @@ void main() {
       expect(
         passwordResetRedirectUrl(
           isWeb: false,
-          base: Uri.parse('https://nikatru.com/subly/'),
+          base: Uri.parse('https://nikatru.com/subscriptiontracker/'),
         ),
         isNull,
         reason: 'isWeb wins over the URI — a web build still reports a host '
@@ -241,7 +241,7 @@ void main() {
         passwordResetRedirectUrl(
           isWeb: true,
           base: Uri.parse('file:///C:/src/app/'),
-          baseHref: '/subly/',
+          baseHref: '/subscriptiontracker/',
         ),
         isNull,
         reason: 'a base href is a PATH — resolved against a file: URI it is '
@@ -265,7 +265,7 @@ void main() {
     test('an EXPIRED link is unusable, and typed as expired', () {
       final report = passwordResetArrivalOf(
         Uri.parse(
-          'https://nikatru.com/subly/?nk_auth=reset'
+          'https://nikatru.com/subscriptiontracker/?nk_auth=reset'
           '#error=access_denied&error_code=otp_expired'
           '&error_description=Email+link+is+invalid+or+has+expired&sb=',
         ),
@@ -285,7 +285,7 @@ void main() {
       expect(
         passwordResetArrivalOf(
           Uri.parse(
-            'https://nikatru.com/subly/?nk_auth=reset&code=abc123'
+            'https://nikatru.com/subscriptiontracker/?nk_auth=reset&code=abc123'
             '#/reset-password',
           ),
         ).arrival,
@@ -301,7 +301,7 @@ void main() {
       // user off the screen they are standing on.
       expect(
         passwordResetArrivalOf(
-          Uri.parse('https://nikatru.com/subly/?nk_auth=reset#/reset-password'),
+          Uri.parse('https://nikatru.com/subscriptiontracker/?nk_auth=reset#/reset-password'),
         ).arrival,
         PasswordResetArrival.pending,
       );
@@ -314,7 +314,7 @@ void main() {
     // write: the same build serves preview deployments at the origin root.
     test('the base path is not part of the contract the parser reads', () {
       for (final String url in <String>[
-        'https://nikatru.com/subly/?nk_auth=reset&code=abc123',
+        'https://nikatru.com/subscriptiontracker/?nk_auth=reset&code=abc123',
         'https://nikatru.com/some-other-app/?nk_auth=reset&code=abc123',
         'https://subly-9cp.pages.dev/?nk_auth=reset&code=abc123',
         'http://localhost:8080/?nk_auth=reset&code=abc123',
@@ -335,14 +335,14 @@ void main() {
     test('an OAuth callback with a code is NOT a reset arrival', () {
       expect(
         passwordResetArrivalOf(
-          Uri.parse('https://nikatru.com/subly/?code=oauth-code-here'),
+          Uri.parse('https://nikatru.com/subscriptiontracker/?code=oauth-code-here'),
         ).arrival,
         PasswordResetArrival.none,
       );
       expect(
         passwordResetArrivalOf(
           Uri.parse(
-            'https://nikatru.com/subly/'
+            'https://nikatru.com/subscriptiontracker/'
             '#error=access_denied&error_code=otp_expired',
           ),
         ).arrival,
@@ -357,13 +357,13 @@ void main() {
         () {
       expect(
         passwordResetArrivalOf(
-          Uri.parse('https://nikatru.com/subly/'),
+          Uri.parse('https://nikatru.com/subscriptiontracker/'),
         ).arrival,
         PasswordResetArrival.none,
       );
       expect(
         passwordResetArrivalOf(
-          Uri.parse('https://nikatru.com/subly/#/budget'),
+          Uri.parse('https://nikatru.com/subscriptiontracker/#/budget'),
         ).arrival,
         PasswordResetArrival.none,
         reason:
@@ -376,7 +376,7 @@ void main() {
     test('a wrong marker VALUE is not a reset arrival', () {
       expect(
         passwordResetArrivalOf(
-          Uri.parse('https://nikatru.com/subly/?nk_auth=signup&code=x'),
+          Uri.parse('https://nikatru.com/subscriptiontracker/?nk_auth=signup&code=x'),
         ).arrival,
         PasswordResetArrival.none,
         reason:

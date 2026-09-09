@@ -21,7 +21,7 @@ import 'support/width_harness.dart';
 /// 🔴 ONE STATE IS PINNED RATHER THAN SWEPT, AND THE PIN IS THE POINT.
 /// `PaywallPhase.refused` renders an explanation and NO control at all
 /// (`paywall_screen.dart` `_body`, the `refused` arm), so the tap-target family
-/// is handed zero subjects there. [ADR 048] records the same shape on two subly
+/// is handed zero subjects there. [ADR 048] records the same shape on two subscriptiontracker
 /// surfaces and the same remedy: pin the zero, so that a vacuous pass is
 /// impossible and the day a control lands there the pin fails and asks for the
 /// sweep.

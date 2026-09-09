@@ -64,7 +64,7 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 let seq = 0;
 
 /** The domain is `git ls-files`, deliberately — a filesystem walk would fail the
- *  build on generated files nobody wrote (apps/subly/.dart_tool/dartpad/
+ *  build on generated files nobody wrote (apps/subscriptiontracker/.dart_tool/dartpad/
  *  web_plugin_registrant.dart carries `ignore_for_file: type=lint`). So a fixture
  *  that is not a git repository would give this guard nothing to scan. */
 function fixture(files, { untracked = {} } = {}) {
@@ -111,8 +111,8 @@ const base = (over = {}, opts = {}) => fixture({
   [`${BRICK}/lib/app.dart`]: CLEAN_DART,
   [`${BRICK}/test/smoke_test.dart`]: CLEAN_TEST,
   [`${BRICK}/analysis_options.yaml`]: CLEAN_OPTIONS,
-  'apps/subly/lib/main.dart': CLEAN_DART,
-  'apps/subly/analysis_options.yaml': CLEAN_OPTIONS,
+  'apps/subscriptiontracker/lib/main.dart': CLEAN_DART,
+  'apps/subscriptiontracker/analysis_options.yaml': CLEAN_OPTIONS,
   'packages/core/lib/nikatru_core.dart': CLEAN_DART,
   'packages/core/analysis_options.yaml': CLEAN_OPTIONS,
   ...over,
@@ -161,7 +161,7 @@ describe('assert-no-gate-weakening', () => {
   // ── the generated-file case the drafted scope would have failed on ────────
   test('a GENERATED, untracked file carrying type=lint is not the app\'s doing', () => {
     const { code, out } = run(base({}, {
-      untracked: { 'apps/subly/.dart_tool/dartpad/web_plugin_registrant.dart': '// ignore_for_file: type=lint\n' },
+      untracked: { 'apps/subscriptiontracker/.dart_tool/dartpad/web_plugin_registrant.dart': '// ignore_for_file: type=lint\n' },
     }));
     assert.equal(code, 0, 'a guard that fails on a file nobody wrote is a guard somebody switches off');
     assert.match(out, /ok {2}no gate weakening/);
@@ -240,8 +240,8 @@ describe('assert-no-gate-weakening', () => {
 
   test('COVERAGE LOST when the brick tree is not reached — the template is where one edit hits fifty apps', () => {
     const { code, out } = run(fixture({
-      'apps/subly/lib/main.dart': CLEAN_DART,
-      'apps/subly/analysis_options.yaml': CLEAN_OPTIONS,
+      'apps/subscriptiontracker/lib/main.dart': CLEAN_DART,
+      'apps/subscriptiontracker/analysis_options.yaml': CLEAN_OPTIONS,
     }));
     assert.equal(code, 1);
     assert.match(out, /the scan reached no file under/);
@@ -250,14 +250,14 @@ describe('assert-no-gate-weakening', () => {
   // The trees an app owns. `live_probe/` is on the list because the drafted
   // scope did not reach it and BOTH of the repo's real suppressions live there.
   test('scans live_probe/, which the drafted scope missed', () => {
-    const { code, out } = run(base({ 'apps/subly/live_probe/probe.dart': `// ignore: avoid_print\n${CLEAN_DART}` }));
+    const { code, out } = run(base({ 'apps/subscriptiontracker/live_probe/probe.dart': `// ignore: avoid_print\n${CLEAN_DART}` }));
     assert.equal(code, 1, 'both of the tree\'s two real suppressions live in live_probe/');
     assert.match(out, /live_probe\/probe\.dart:1 suppresses `avoid_print`/);
   });
 
   test('scans integration_test/ and test_driver/ too', () => {
     for (const tree of ['integration_test', 'test_driver']) {
-      const { code, out } = run(base({ [`apps/subly/${tree}/x.dart`]: `// ignore: avoid_print\n${CLEAN_DART}` }));
+      const { code, out } = run(base({ [`apps/subscriptiontracker/${tree}/x.dart`]: `// ignore: avoid_print\n${CLEAN_DART}` }));
       assert.equal(code, 1, tree);
       assert.match(out, new RegExp(`${tree}/x\\.dart:1 suppresses`));
     }
@@ -312,8 +312,8 @@ describe('assert-no-gate-weakening', () => {
     const { code, out } = run(fixture({
       [`${BRICK}/lib/main.dart`]: CLEAN_DART,
       [`${BRICK}/analysis_options.yaml`]: CLEAN_OPTIONS,
-      'apps/subly/lib/main.dart': CLEAN_DART,
-      'apps/subly/analysis_options.yaml': CLEAN_OPTIONS,
+      'apps/subscriptiontracker/lib/main.dart': CLEAN_DART,
+      'apps/subscriptiontracker/analysis_options.yaml': CLEAN_OPTIONS,
     }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/, out);
@@ -337,7 +337,7 @@ describe('assert-no-gate-weakening', () => {
   // at all — without that scoping every fixture above would fail, and with it
   // alone the check could quietly never run anywhere. So one case proves the
   // scope is real and the other proves it still fires.
-  const ALLOWLISTED = 'apps/subly/live_probe/c6_consent_live_probe.dart';
+  const ALLOWLISTED = 'apps/subscriptiontracker/live_probe/c6_consent_live_probe.dart';
 
   test('the stale-entry check FIRES when the allowlisted file is present and the suppression is gone', () => {
     const { code, out } = run(base({ [ALLOWLISTED]: `${CLEAN_DART}\nvoid log(String s) { print(s); }\n` }));

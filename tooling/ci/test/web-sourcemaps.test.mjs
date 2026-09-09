@@ -51,7 +51,7 @@ const REPO = resolve(CI_DIR, '..', '..');
 const SCRIPT = join(REPO, 'tooling/ops/upload-web-sourcemaps.mjs');
 
 const ORG = 'nikatru';
-const PROJECT = 'subly';
+const PROJECT = 'subscriptiontracker';
 const RELEASE = 'subly@1.0.75+e509a26';
 const DEBUG_ID = '7f3d2b16-4e5a-4c8f-9a21-0d6b8e1f4c33';
 

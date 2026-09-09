@@ -11,7 +11,7 @@
 // The listing TEXT has had a guard on every field for months. The two sworn
 // declarations got theirs on 2026-08-04. The GRAPHICS — which Google requires to
 // publish AT ALL — had neither an artefact nor a requirement:
-// `apps/subly/store/android-play/screenshots/README.md` carried a six-row table
+// `apps/subscriptiontracker/store/android-play/screenshots/README.md` carried a six-row table
 // in which every row read "⚠️ UNVERIFIED", under the honest instruction "do not
 // fill a number in from memory". That instruction was right and it had been
 // obeyed for weeks, which is the problem: an UNVERIFIED table is a placeholder
@@ -108,14 +108,14 @@
 //     board would all pass.
 //   · ANY TEXT AT ALL, IN ANY FRAME. This is not a gap to close later, and the
 //     day it mattered is recorded: on 2026-08-05 `05-settings.png` carried the
-//     end-to-end account's address, `subly-e2e+…@nikatru.com`, and every check
+//     end-to-end account's address, `subscriptiontracker-e2e+…@nikatru.com`, and every check
 //     here passed it — right size, right format, live posture, top band 0.009.
 //     A human found it by opening the file. Glyphs are not a band of one colour,
 //     and a text detector that reads some fonts and not others would report
 //     "clean" for the frames it cannot read, which is worse than saying this.
 //     🔴 SO THE QUESTION IS ANSWERED UPSTREAM OF THE PIXELS INSTEAD — see THE
 //     CAPTURE limb near the end of this file, which reads the capture suite
-//     rather than its output, and `apps/subly/integration_test/
+//     rather than its output, and `apps/subscriptiontracker/integration_test/
 //     store_capture_guard.dart`, which refuses the shutter while the session's
 //     own identity is anywhere in the widget tree.
 //   · WHETHER THE COMMITTED GRAPHIC IS STILL WHAT ITS GENERATOR RENDERS. That
@@ -332,7 +332,7 @@ function maxBandRowFraction(img, rgb) {
  * 🔴 THE DETECTOR PROVES ITSELF ON EVERY RUN, and this is the only reason the
  * limb above is worth anything today.
  *
- * `apps/subly/store/android-play/screenshots/` currently holds no PNGs — the set
+ * `apps/subscriptiontracker/store/android-play/screenshots/` currently holds no PNGs — the set
  * lives in an expiring CI artifact, which is the gap the `store-screenshots`
  * workflow now closes by opening a pull request. Until those bytes land, the
  * banner limb ranges over ZERO images and prints ok, which is EXACTLY the shape
@@ -717,7 +717,7 @@ for (const row of withGraphics) {
     // and the flag went with it, because it is a property of the app SHELL and
     // not of any one app. Read at the adapter alone a stamped app no longer
     // matches `\bMaterialApp\b`, so it would be SKIPPED — silently, by the
-    // `continue` below — and this limb would be judging apps/subly alone while
+    // `continue` below — and this limb would be judging apps/subscriptiontracker alone while
     // reporting a healthy count. That is not the loud failure the COVERAGE LOST
     // beneath it catches: `debugBannerAppsChecked` would still be 1.
     //
@@ -772,7 +772,7 @@ for (const row of withGraphics) {
 // not see arrived. The capture produced five frames and the fifth,
 // `05-settings.png`, rendered the signed-in account at the top of the settings
 // card in large legible type. CI captures signed in as the throwaway end-to-end
-// account, so the frame read `subly-e2e+…@nikatru.com` — an internal test
+// account, so the frame read `subscriptiontracker-e2e+…@nikatru.com` — an internal test
 // address on a public marketing asset. EVERY CHECK ABOVE PASSED IT: it is
 // 1080x1920, colour type 2, aspect 1.78, provenance "live", worst top-band row
 // 0.009. It was caught by a human opening the image.
@@ -787,7 +787,7 @@ for (const row of withGraphics) {
 //   · every frame goes through the guarded shutter in store_capture_guard.dart,
 //     which reads the live widget tree one instruction before the capture and
 //     refuses a frame carrying the session's identity (unit-tested in both
-//     directions by apps/subly/test/store_capture_guard_test.dart);
+//     directions by apps/subscriptiontracker/test/store_capture_guard_test.dart);
 //   · every frame resolves to the SCREEN SOURCE it photographs, and that source
 //     must not read `.email` off the session.
 //

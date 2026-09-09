@@ -4,7 +4,7 @@
 //
 // ── ⚠️ THIS FILE USED TO BE TWO FILES ────────────────────────────────────────
 // Until [ADR 067] `services/platform/src/lib/error-sink.ts` (200 lines,
-// 6d905986ab73) and `services/subly-api/src/lib/error-sink.ts` (196 lines,
+// 6d905986ab73) and `services/subscriptiontracker-api/src/lib/error-sink.ts` (196 lines,
 // bc2a03e2a6f3) were separate copies, held equal declaration-by-declaration by
 // `services/platform/test/twinned-worker-modules.test.ts` and by nothing else.
 // Both carriers now RE-EXPORT this file, and that test asserts that they do.
@@ -12,14 +12,14 @@
 // 🔴 THE TWO DECLARED DIVERGENCES ARE NOW ONE OPTIONAL FIELD, AND THE
 // BEHAVIOUR IS UNCHANGED. The divergence was `SinkContext.appId` and the
 // `...(ctx.appId ? { app_id: ctx.appId } : {})` tag it feeds — [pipeline B-16],
-// present in the platform copy and absent from subly-api's. Both lines are
+// present in the platform copy and absent from subscriptiontracker-api's. Both lines are
 // here, and the field is OPTIONAL: platform passes `c.get('appId')` and gets
-// the tag; subly-api passes nothing, `ctx.appId` is `undefined`, and the spread
-// contributes nothing — byte for byte the envelope subly-api built before. The
+// the tag; subscriptiontracker-api passes nothing, `ctx.appId` is `undefined`, and the spread
+// contributes nothing — byte for byte the envelope subscriptiontracker-api built before. The
 // asymmetry that justified the exemption is still real and still stated:
 // platform is the ONE Worker every stamped app posts to, so a report there has
-// to say WHOSE app broke; subly-api serves exactly one app, so
-// `service: "subly-api"` already answers that question.
+// to say WHOSE app broke; subscriptiontracker-api serves exactly one app, so
+// `service: "subscriptiontracker-api"` already answers that question.
 //
 // ⚠️ AN ABSENT TAG IS HONEST; A PLACEHOLDER TAG IS A SECOND APP CALLED
 // "unknown" WITH ITS OWN ERROR TREND. That is why the spread is conditional

@@ -83,7 +83,7 @@ function tree({ shared = SHARED_OK, overrides = {}, dropPubspec = [] } = {}) {
     'packages/analysis/analysis_options.yaml': '# Self-apply\ninclude: lib/analysis_options.yaml\n',
   };
   const members = [
-    'apps/subly',
+    'apps/subscriptiontracker',
     'packages/api_client',
     'packages/core',
     'packages/design_system',
@@ -126,7 +126,7 @@ describe('assert-lint-inheritance', () => {
   });
 
   describe('every file inherits the set', () => {
-    // THE ORIGINAL DEFECT. The brick shipped one line while apps/subly carried
+    // THE ORIGINAL DEFECT. The brick shipped one line while apps/subscriptiontracker carried
     // strict-casts, prefer_final_locals and avoid_print — so every stamped app
     // was born with LESS checking than the only app that existed.
     test('FAILS when the brick keeps its own weaker config', () => {
@@ -248,7 +248,7 @@ describe('assert-lint-inheritance', () => {
 
   test('FAILS rather than reporting clean when the scan finds almost nothing', () => {
     const root = tree();
-    for (const m of ['apps/subly', 'packages/api_client', 'packages/core']) {
+    for (const m of ['apps/subscriptiontracker', 'packages/api_client', 'packages/core']) {
       rmSync(join(root, m, 'analysis_options.yaml'));
     }
     spawnSync('git', ['add', '-A'], { cwd: root });

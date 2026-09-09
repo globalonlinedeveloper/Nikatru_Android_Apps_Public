@@ -71,7 +71,7 @@ function tree({
   dsImports = "import 'package:flutter/material.dart';\n",
   apiClientDeps = '  dio: ^5.4.0\n  nikatru_core:\n    path: ../core\n',
   authDeps = '  flutter:\n    sdk: flutter\n  nikatru_core:\n    path: ../core\n  supabase_flutter: ^2.16.0\n',
-  sublyImports = null,
+  subscriptiontrackerImports = null,
   brickImports = "import 'package:flutter/material.dart';\n",
   extra = {},
 } = {}) {
@@ -116,24 +116,24 @@ function tree({
   files[join(root, 'packages/analysis/pubspec.yaml')] = spec('nikatru_analysis', '  flutter_lints: ^6.0.0\n');
 
   // Subly, carrying the three real grandfathered bypasses.
-  files[join(root, 'apps/subly/lib/services/notifications/notification_service.dart')] =
-    sublyImports ??
+  files[join(root, 'apps/subscriptiontracker/lib/services/notifications/notification_service.dart')] =
+    subscriptiontrackerImports ??
     "import 'package:flutter_local_notifications/flutter_local_notifications.dart';\nimport 'package:timezone/timezone.dart' as tz;\n";
-  // 🪦 `apps/subly/lib/data/auth/supabase_auth_repository.dart` STOOD HERE and
+  // 🪦 `apps/subscriptiontracker/lib/data/auth/supabase_auth_repository.dart` STOOD HERE and
   // is gone with the thing it modelled. The cut-1 reversal (owner 2026-08-09)
   // deleted that file from the real tree, `KNOWN_BYPASSES` lost its
-  // `apps/subly|supabase_flutter` row in the same change, and leaving the
+  // `apps/subscriptiontracker|supabase_flutter` row in the same change, and leaving the
   // fixture behind would make this "shaped like the real repository" tree carry
   // an UNDECLARED bypass — the guard would fail on the fixture for a reason the
   // real tree no longer has. A fixture that outlives its subject is the same
   // defect as a waiver that outlives its violation.
-  files[join(root, 'apps/subly/lib/data/api/dio_api_client.dart')] =
+  files[join(root, 'apps/subscriptiontracker/lib/data/api/dio_api_client.dart')] =
     "import 'package:dio/dio.dart';\nimport 'package:nikatru_api_client/nikatru_api_client.dart';\n";
   // …and the FOURTH, added 2026-08-01: `packages/purchases` declares
   // url_launcher for its checkout launcher, which reclassified Subly's
   // long-standing direct import as a bypass. It has to be here, or the guard's
   // stale-entry check fires on a KNOWN_BYPASSES row whose import is absent.
-  files[join(root, 'apps/subly/lib/features/shared/widgets.dart')] =
+  files[join(root, 'apps/subscriptiontracker/lib/features/shared/widgets.dart')] =
     "import 'package:url_launcher/url_launcher.dart';\n";
 
   files[join(root, 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/app.dart')] = brickImports;
@@ -164,9 +164,9 @@ describe('assert-package-boundaries', () => {
     // The real debt is printed, every run.
     //
     // 🔻 6 → 5 ON 2026-08-10, and the number moving DOWN is the point. The
-    // cut-1 reversal deleted `apps/subly`'s forked Supabase repository, which
+    // cut-1 reversal deleted `apps/subscriptiontracker`'s forked Supabase repository, which
     // took the last direct `package:supabase_flutter` import in an app with it;
-    // the `apps/subly|supabase_flutter` grandfather row went in the same change
+    // the `apps/subscriptiontracker|supabase_flutter` grandfather row went in the same change
     // (its own text had predicted this: "build the shared home, and the app copy
     // becomes visible as a bypass the same hour"). A count pinned here rather
     // than derived is deliberate — debt that shrinks silently is debt nobody is
@@ -313,9 +313,9 @@ describe('assert-package-boundaries', () => {
     // Debt that has been paid must leave the list, or the list stops meaning
     // anything — the same discipline as a stale coverage claim.
     test('FAILS on a stale grandfather entry once the bypass is fixed', () => {
-      const { code, out } = run(tree({ sublyImports: "import 'package:timezone/timezone.dart' as tz;\n" }));
+      const { code, out } = run(tree({ subscriptiontrackerImports: "import 'package:timezone/timezone.dart' as tz;\n" }));
       assert.equal(code, 1);
-      assert.match(out, /KNOWN_BYPASSES still lists `apps\/subly\|flutter_local_notifications`/);
+      assert.match(out, /KNOWN_BYPASSES still lists `apps\/subscriptiontracker\|flutter_local_notifications`/);
       assert.match(out, /It was fixed — delete the entry/);
     });
 

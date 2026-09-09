@@ -100,7 +100,7 @@ export const CORS_MODULES = new Map([
       'behind it is Bearer-gated, and [ADR 020] records the allowlist as hygiene.',
   ],
   [
-    'services/subly-api/src/middleware/cors.ts',
+    'services/subscriptiontracker-api/src/middleware/cors.ts',
     'the per-app Worker\'s CORS middleware. Same job, delegated to `hono/cors` with an `origin` ' +
       'callback (plus the recorded localhost exception for the `flutter drive -d web-server` ' +
       'harness, whose port cannot be named in advance). It, too, decides only which CORS response ' +

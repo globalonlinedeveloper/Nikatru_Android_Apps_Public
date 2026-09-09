@@ -25,7 +25,7 @@
   "permanent. Each names why it is not yet fixed and what would unblock it."
  ],
  "consumerRoots": [
-  "apps/subly",
+  "apps/subscriptiontracker",
   "tooling/bricks/app/__brick__/apps/{{app_id}}",
   "packages/purchases"
  ],
@@ -121,7 +121,7 @@
    "ownTheRecord": "YES — D1 IS our record. The risk here is not losing the record to a vendor, it is the SQLite dialect and the KV semantics.",
    "exportPath": {
     "path": "services/platform/migrations",
-    "detail": "PUBLIC, CHECKABLE EVIDENCE: the D1 schema is plain SQL migrations in this repo — that IS the export shape, and it is why a D1 export lands in any SQLite or Postgres. R2 is S3-compatible so rclone moves it. KV has no bulk export primitive; the mitigation is that KV holds only last-good config and a JWKS cache, both regenerable, so nothing in KV is a record of record. ✅ CLOSED 2026-08-01: the FINDING of 2026-07-28 — the subly-api `EXPORTS` R2 binding declared in types.ts and referenced NOWHERE in the code, a bound bucket with no writer, the same fail-closed-with-no-open-path shape [2]C-6 exists to catch — was routed to stage 4 and executed there. The binding and its type declaration are gone ([4]B-18), and tooling/ci/assert-platform-register.mjs now fails on ANY binding in ANY wrangler config in the repo (brick template included) with no resolved reader, so this cannot recur silently. ⚠️ The BUCKET is still in the account: deleting it is destructive and is the owner's. There is therefore NO R2 surface in this list today, which is correct — the rule is ONE portfolio bucket bound in services/platform when object storage is genuinely needed, addressed by an `<app_id>/` prefix."
+    "detail": "PUBLIC, CHECKABLE EVIDENCE: the D1 schema is plain SQL migrations in this repo — that IS the export shape, and it is why a D1 export lands in any SQLite or Postgres. R2 is S3-compatible so rclone moves it. KV has no bulk export primitive; the mitigation is that KV holds only last-good config and a JWKS cache, both regenerable, so nothing in KV is a record of record. ✅ CLOSED 2026-08-01: the FINDING of 2026-07-28 — the subscriptiontracker-api `EXPORTS` R2 binding declared in types.ts and referenced NOWHERE in the code, a bound bucket with no writer, the same fail-closed-with-no-open-path shape [2]C-6 exists to catch — was routed to stage 4 and executed there. The binding and its type declaration are gone ([4]B-18), and tooling/ci/assert-platform-register.mjs now fails on ANY binding in ANY wrangler config in the repo (brick template included) with no resolved reader, so this cannot recur silently. ⚠️ The BUCKET is still in the account: deleting it is destructive and is the owner's. There is therefore NO R2 surface in this list today, which is correct — the rule is ONE portfolio bucket bound in services/platform when object storage is genuinely needed, addressed by an `<app_id>/` prefix."
    },
    "exitPlan": {
     "alternative": "Postgres/Neon + S3 + any Node host behind the same Worker handlers",
@@ -136,7 +136,7 @@
    ],
    "openProtocol": "NO — the widget script, the token format and the siteverify endpoint are all proprietary to Cloudflare. That sounds worse than it is: hCaptcha and reCAPTCHA expose the SAME shape (embed a script keyed by a public site key, receive an opaque token, POST it to the vendor's verify endpoint), so the interface is de-facto uniform across the alternatives even though no standard names it.",
    "seam": {
-    "file": "apps/subly/lib/features/auth/turnstile_gate.dart",
+    "file": "apps/subscriptiontracker/lib/features/auth/turnstile_gate.dart",
     "symbol": "TurnstileGate"
    },
    "configKeyed": {
@@ -266,14 +266,14 @@
    "A surface here may still carry a VIOLATION -- see UPDATE_URL, which is a decided fix, not a",
    "judgement call."
   ],
-  "API_BASE_URL": "our own subly-api Worker",
-  "E2E_AUTH_TARGET": "OUR OWN test-harness switch, and no external system is behind it: the literal string `hosted` or `boxa`, naming which of OUR TWO auth stacks the live E2E run was pointed at — the hosted Supabase project, or the self-hosted GoTrue on Box A. Both are ours; the only third party either of them involves is Cloudflare Turnstile, which has its own vendor row above. It is resolved by `.github/workflows/e2e.yml`'s preflight, reaches only the `flutter drive` DEBUG build served to a headless Chrome on the runner, and selects which of two POSITIVE expectations `apps/subly/integration_test/app_test.dart` asserts — hosted answers a wrong password with the invalid-credentials copy; Box A refuses it at the captcha first, and the Workers refuse a Box A-minted session with 401 because they trust exactly one issuer. It reaches no shipping binary: no store lane, no `deploy-web.yml` build and no release build passes it, and with the define absent the suite defaults to `hosted`. Added 2026-09-07 ([ADR 067] decision 6, cutover-blockers).",
+  "API_BASE_URL": "our own subscriptiontracker-api Worker",
+  "E2E_AUTH_TARGET": "OUR OWN test-harness switch, and no external system is behind it: the literal string `hosted` or `boxa`, naming which of OUR TWO auth stacks the live E2E run was pointed at — the hosted Supabase project, or the self-hosted GoTrue on Box A. Both are ours; the only third party either of them involves is Cloudflare Turnstile, which has its own vendor row above. It is resolved by `.github/workflows/e2e.yml`'s preflight, reaches only the `flutter drive` DEBUG build served to a headless Chrome on the runner, and selects which of two POSITIVE expectations `apps/subscriptiontracker/integration_test/app_test.dart` asserts — hosted answers a wrong password with the invalid-credentials copy; Box A refuses it at the captcha first, and the Workers refuse a Box A-minted session with 401 because they trust exactly one issuer. It reaches no shipping binary: no store lane, no `deploy-web.yml` build and no release build passes it, and with the define absent the suite defaults to `hosted`. Added 2026-09-07 ([ADR 067] decision 6, cutover-blockers).",
   "CONFIG_BASE_URL": "our own config service (CFG-1)",
   "PLATFORM_BASE_URL": "our own shared platform Worker",
   "APP_ERASURE_ENDPOINTS": "OUR OWN app Workers, listed as `<appId>=<https origin>` so the shared erasure route can reach each app's own database. No external system is behind it: every origin in the list is a Worker in this repository. It exists because a route reads the databases it reads, not the ones its Worker binds — services/platform sweeps platform_db and BINDS subly_db, so before this list the only app in the field was the one app account deletion did not reach, and every subscription, budget and payment survived behind an account that no longer existed. DELETE /v1/account now relays the caller's own bearer token to each named app's own DELETE /v1/account, after the service-role precondition and before the identity is deleted; a missing or malformed list is a 501 refusal rather than a silent skip. `https://` is required and checked at runtime, because the relay forwards a live session token. tooling/ci/assert-erasure-reach.mjs holds the both-directions relation between this list and the app Workers that own a database. Added 2026-08-04.",
   "ALLOWED_ORIGINS": "our own domains — the CORS allowlist, guarded by assert-cors-allowlist.mjs",
   "APP_ENV": "build metadata",
-  "STORE_CAPTURE_ALLOW_DEMO": "OUR OWN test-harness switch, and it exists to make a mistake LOUD rather than to enable a feature. No external system is behind it. apps/subly/integration_test/store_screenshots_test.dart refuses to run against a DEMO build unless this define is set, because a demo build is a different app on screen — app_shell.dart paints 'Demo data - sample subscriptions, not your account' over every screen and demo_data.dart seeds twelve third-party trademarks, both confirmed by capturing one on 2026-08-04 — and a screenshot of that must never reach a Play listing. It is passed ONLY by `tooling/store/capture-play-screenshots.mjs --proof`, which sends its output to a throwaway directory and refuses to point at the listing directory at all; the live lane never sets it. It reaches no shipping binary: the suite is under integration_test/, which `flutter build` does not compile. Read once, at the top of the capture suite, as a bool.fromEnvironment that defaults false — so the fail-closed direction is the default and setting it is the deliberate act. Added 2026-08-04.",
+  "STORE_CAPTURE_ALLOW_DEMO": "OUR OWN test-harness switch, and it exists to make a mistake LOUD rather than to enable a feature. No external system is behind it. apps/subscriptiontracker/integration_test/store_screenshots_test.dart refuses to run against a DEMO build unless this define is set, because a demo build is a different app on screen — app_shell.dart paints 'Demo data - sample subscriptions, not your account' over every screen and demo_data.dart seeds twelve third-party trademarks, both confirmed by capturing one on 2026-08-04 — and a screenshot of that must never reach a Play listing. It is passed ONLY by `tooling/store/capture-play-screenshots.mjs --proof`, which sends its output to a throwaway directory and refuses to point at the listing directory at all; the live lane never sets it. It reaches no shipping binary: the suite is under integration_test/, which `flutter build` does not compile. Read once, at the top of the capture suite, as a bool.fromEnvironment that defaults false — so the fail-closed direction is the default and setting it is the deliberate act. Added 2026-08-04.",
   "APP_VERSION": "build metadata — injected at build time, deliberately not read from package_info_plus",
   "RELEASE": "build metadata — the commit a WORKER was deployed from, supplied as `--var RELEASE:<sha>` by deploy-workers.yml and used as the release id on the crash reports services/*/src/lib/error-sink.ts sends ([pipeline 11]E-8). No external system is behind it: it is OUR OWN git SHA. It exists as a separate surface rather than reusing `API_VERSION` because that var is the literal \"v1\" in both Workers and has never changed, so using it as a release id would group every error this factory ever reports into one bucket named after a URL prefix. [9]R-2 replaces it with a real release id. Added 2026-08-02.",
   "RELEASE_CHANNEL": "OUR OWN id for the distribution channel a binary was built for — a row id in tooling/channel-register.json, e.g. `web`. No external system is behind it: it is a fact ABOUT the artifact, in the same class as APP_VERSION and RELEASE above. Compile-time on purpose, and deliberately the OPPOSITE of UPDATE_URL below: an update DESTINATION baked into a binary makes the force-update wall circular (owner decision #19), while the CHANNEL is what distinguishes two artifacts built from ONE commit for two channels — a value fetched at runtime could not tell them apart at all. A typo is the one failure mode a free-text define has, so assert-channel-register.mjs fails the build on any value that does not resolve to a register row. Added 2026-08-03, [pipeline 9]R-10 limb 3.",
@@ -388,7 +388,7 @@
    "evidence": {
     "dependency": "url_launcher"
    },
-   "detail": "A hosted checkout is an external URL, and opening one is a per-platform native call with real gaps -- which is why PurchaseCapabilities exists. It also has to be a package rather than app code for three requirements to be enforceable at all: assert-adapter-capabilities.mjs derives its domain from packages/ with a third-party dep, assert-no-seam-forks.mjs forbids a registered seam under apps/, and assert-no-price-literals.mjs needs the price to live behind a model. Leaving the adapter in apps/subly satisfied none of them while appearing to satisfy M-15 -- see [ADR 026]."
+   "detail": "A hosted checkout is an external URL, and opening one is a per-platform native call with real gaps -- which is why PurchaseCapabilities exists. It also has to be a package rather than app code for three requirements to be enforceable at all: assert-adapter-capabilities.mjs derives its domain from packages/ with a third-party dep, assert-no-seam-forks.mjs forbids a registered seam under apps/, and assert-no-price-literals.mjs needs the price to live behind a model. Leaving the adapter in apps/subscriptiontracker satisfied none of them while appearing to satisfy M-15 -- see [ADR 026]."
   },
   "packages/chassis_screens": {
    "reason": "chassis",
@@ -409,7 +409,7 @@
    "WHY THE DECLARATION LIVES HERE AND NOT IN THE BRICK'S `vars`. Both surfaces were considered and",
    "the full reasoning is written at the head of the [13]T-12 section of",
    "tooling/ci/assert-capability-register.mjs, beside the guard the choice has to serve. In short: a",
-   "brick var is consumed at STAMP time and leaves nothing on disk to quantify over, and apps/subly",
+   "brick var is consumed at STAMP time and leaves nothing on disk to quantify over, and apps/subscriptiontracker",
    "was never stamped by this brick at all -- so a brick-var domain would exclude the only shipped",
    "app. `consumerRoots` at the top of this file is already the machine-readable set of apps, each",
    "verified against a real pubspec.",
@@ -531,7 +531,7 @@
     }
    ],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ]
   },
@@ -547,10 +547,10 @@
     "EventTransport"
    ],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ],
-   "note": "Gained its first real consumers at 5f3466b when [2]C-3 moved all three dio transports here out of apps/subly and the brick.",
+   "note": "Gained its first real consumers at 5f3466b when [2]C-3 moved all three dio transports here out of apps/subscriptiontracker and the brick.",
    "capabilityMatrix": {
     "file": "packages/api_client/lib/src/http_capabilities.dart",
     "symbol": "HttpCapabilities",
@@ -570,25 +570,25 @@
    ],
    "consumers": [
     "tooling/bricks/app/__brick__/apps/{{app_id}}",
-    "apps/subly"
+    "apps/subscriptiontracker"
    ],
-   "note": "[2]C-15, 2026-07-28. Before this the ONLY implementations lived inside apps/subly, so the brick wired no auth and no tokenProvider — every stamped app was born unable to authenticate. Ships SupabaseAuthRepository, a REAL InMemoryAuthRepository (wired, not mocked — a stub returning null from everything is the fail-closed shape [2]C-6 exists to catch), SecureSessionStorage (G-43: the SDK defaults to plaintext shared_preferences for the access AND refresh tokens), and AuthCapabilities, the declared six-platform matrix with Linux SUPPORTED — the contrary claim was checked against pub.dev and is false. 2026-08-01: `initNikatruAuth` — the function that passes SecureSessionStorage, and the ONLY reason apps/subly is now a consumer — had ZERO callers tree-wide, so the brick initialised the SDK nowhere (a backend-live stamp died at launch on `Supabase.instance`) and the one shipping app called `Supabase.initialize` bare, persisting its refresh token in plaintext. Both call sites now exist and assert-seams-wired counts the seam. `DELETE /v1/account` is stamped by the brick and its client hook is wired; the route refuses with 501 unless it can delete the IDENTITY record too, so a deletion is never reported that leaves the login working.",
+   "note": "[2]C-15, 2026-07-28. Before this the ONLY implementations lived inside apps/subscriptiontracker, so the brick wired no auth and no tokenProvider — every stamped app was born unable to authenticate. Ships SupabaseAuthRepository, a REAL InMemoryAuthRepository (wired, not mocked — a stub returning null from everything is the fail-closed shape [2]C-6 exists to catch), SecureSessionStorage (G-43: the SDK defaults to plaintext shared_preferences for the access AND refresh tokens), and AuthCapabilities, the declared six-platform matrix with Linux SUPPORTED — the contrary claim was checked against pub.dev and is false. 2026-08-01: `initNikatruAuth` — the function that passes SecureSessionStorage, and the ONLY reason apps/subscriptiontracker is now a consumer — had ZERO callers tree-wide, so the brick initialised the SDK nowhere (a backend-live stamp died at launch on `Supabase.instance`) and the one shipping app called `Supabase.initialize` bare, persisting its refresh token in plaintext. Both call sites now exist and assert-seams-wired counts the seam. `DELETE /v1/account` is stamped by the brick and its client hook is wired; the route refuses with 501 unless it can delete the IDENTITY record too, so a deletion is never reported that leaves the login working.",
    "resolved": [
     {
-     "path": "apps/subly/lib/data/auth/supabase_auth_repository.dart",
+     "path": "apps/subscriptiontracker/lib/data/auth/supabase_auth_repository.dart",
      "wasKind": "seam-implemented-in-app",
      "declaredOn": "2026-07-28",
      "resolvedOn": "2026-08-10",
-     "detail": "CUT-1 REVERSAL (owner approval 2026-08-09: 'Cut-1 reversal APPROVED — supabase auth repository moves into the chassis'). The file is DELETED and apps/subly now constructs the chassis SupabaseAuthRepository from packages/auth_supabase. The violation entry is REMOVED rather than annotated, because a declared exception whose file no longer exists is an exemption over nothing: assert-no-seam-forks only prints a waiver when a matching suspect is found, so a stale path sat silent and dead while reading like a known-and-managed fork. That gap is now itself a guard limb (the stale-declaration self-check in assert-no-seam-forks.mjs), and removing this entry is what negative-tested it. What the fork cost while it stood: no expiry-driven token refresh, no single-flight refresh, and no kIsWeb OAuth launch-mode arm — three chassis fixes that never reached the one shipping app.",
+     "detail": "CUT-1 REVERSAL (owner approval 2026-08-09: 'Cut-1 reversal APPROVED — supabase auth repository moves into the chassis'). The file is DELETED and apps/subscriptiontracker now constructs the chassis SupabaseAuthRepository from packages/auth_supabase. The violation entry is REMOVED rather than annotated, because a declared exception whose file no longer exists is an exemption over nothing: assert-no-seam-forks only prints a waiver when a matching suspect is found, so a stale path sat silent and dead while reading like a known-and-managed fork. That gap is now itself a guard limb (the stale-declaration self-check in assert-no-seam-forks.mjs), and removing this entry is what negative-tested it. What the fork cost while it stood: no expiry-driven token refresh, no single-flight refresh, and no kIsWeb OAuth launch-mode arm — three chassis fixes that never reached the one shipping app.",
      "movedTo": "packages/auth_supabase/lib/src/supabase_auth_repository.dart"
     },
     {
-     "path": "apps/subly/lib/data/auth/mock_auth_repository.dart",
+     "path": "apps/subscriptiontracker/lib/data/auth/mock_auth_repository.dart",
      "wasKind": "seam-implemented-in-app",
      "declaredOn": "2026-07-28",
      "resolvedOn": "2026-08-12",
-     "detail": "RESOLVED BY RELOCATION, NOT BY RETIREMENT — and the distinction is the whole point. This was never a live fork: it is a TEST DOUBLE that sat under lib/, and its ONLY importer tree-wide was already apps/subly/test/delete_account_test.dart (re-measured 2026-08-12: one hit, `rg -n mock_auth_repository --glob '*.dart'`). The app resolves the chassis InMemoryAuthRepository from packages/auth_supabase in every non-live posture including `--proof`. 02-STAGE-2-LOCKED.md:24 already states the rule it broke — 'fakes belong in tests' — and BOTH guards encode that rule, which is why moving the file ends the violation honestly rather than waiving it: assert-capability-register scans apps/*/lib only, and assert-no-seam-forks' EXEMPT_DIR exempts test/. Nothing about the class changed; the two shim imports became package: imports. WHAT THIS DOES NOT DO: it does not discharge the chassis work the old blockedBy described. delete_account_test.dart still drives the ADR-027 501-vs-502 outcomes through this double, and re-pointing it at InMemoryAuthRepository still needs that class to produce both refusals. That work is real and remains unowned — it is the subject of OWNER_QUEUE D-8. The waiver blocked DELETING the class; it never blocked putting a fake where fakes live, and for four and a half months nobody separated the two.",
-     "movedTo": "apps/subly/test/support/mock_auth_repository.dart"
+     "detail": "RESOLVED BY RELOCATION, NOT BY RETIREMENT — and the distinction is the whole point. This was never a live fork: it is a TEST DOUBLE that sat under lib/, and its ONLY importer tree-wide was already apps/subscriptiontracker/test/delete_account_test.dart (re-measured 2026-08-12: one hit, `rg -n mock_auth_repository --glob '*.dart'`). The app resolves the chassis InMemoryAuthRepository from packages/auth_supabase in every non-live posture including `--proof`. 02-STAGE-2-LOCKED.md:24 already states the rule it broke — 'fakes belong in tests' — and BOTH guards encode that rule, which is why moving the file ends the violation honestly rather than waiving it: assert-capability-register scans apps/*/lib only, and assert-no-seam-forks' EXEMPT_DIR exempts test/. Nothing about the class changed; the two shim imports became package: imports. WHAT THIS DOES NOT DO: it does not discharge the chassis work the old blockedBy described. delete_account_test.dart still drives the ADR-027 501-vs-502 outcomes through this double, and re-pointing it at InMemoryAuthRepository still needs that class to produce both refusals. That work is real and remains unowned — it is the subject of OWNER_QUEUE D-8. The waiver blocked DELETING the class; it never blocked putting a fake where fakes live, and for four and a half months nobody separated the two.",
+     "movedTo": "apps/subscriptiontracker/test/support/mock_auth_repository.dart"
     }
    ],
    "violations": [],
@@ -607,7 +607,7 @@
    "package": "nikatru_design_system",
    "seams": [],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ],
    "noSeamReason": "A widget library, not a contract — callers use the widgets directly. The one decision that COULD have become a seam (what to lock) is deliberately left with the caller so this package never learns domain vocabulary: that is [2]C-5's boundary, and PaywallGate is the example."
@@ -621,7 +621,7 @@
    "consumers": [
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ],
-   "noSeamReason": "A widget library, not a contract — the adapter constructs the widget directly. Every DECISION stays with the caller by construction: this package can see nikatru_core (which is why the call site shrinks at all) but it can see no provider container, no router and no plugin, so there is nothing here for a seam to abstract. apps/subly is NOT a consumer and will not be one: it is a frozen rail-prover ([ADR 065])."
+   "noSeamReason": "A widget library, not a contract — the adapter constructs the widget directly. Every DECISION stays with the caller by construction: this package can see nikatru_core (which is why the call site shrinks at all) but it can see no provider container, no router and no plugin, so there is nothing here for a seam to abstract. apps/subscriptiontracker is NOT a consumer and will not be one: it is a frozen rail-prover ([ADR 065])."
   },
   {
    "id": "platform_storage",
@@ -634,7 +634,7 @@
     "KeyValueStore"
    ],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ],
    "capabilityMatrix": {
@@ -678,7 +678,7 @@
     }
    ],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}"
    ],
    "note": "Wired into Subly at 5f3466b. Until then the only app in production had NO crash reporting: the package existed, passed 8 tests, and shipped to nobody.",
@@ -706,18 +706,18 @@
    ],
    "consumers": [
     "tooling/bricks/app/__brick__/apps/{{app_id}}",
-    "apps/subly"
+    "apps/subscriptiontracker"
    ],
-   "note": "The FLN 17.x pin stays because 39-CHASSIS cut 1 froze apps/subly as a legacy rail-prover. ⚠️ DATED DECLARED EXCEPTION (2026-08-07, [13]T-9) to that cut, the third one and the same shape as the two already standing (nikatru_telemetry per [pipeline C-2], nikatru_auth_supabase per [G-43]): apps/subly now consumes this package for the INBOUND half only. This adapter is the one place in the tree that registers `onDidReceiveNotificationResponse`, so without it a tapped Subly renewal reminder opens nothing and `notification_opened` stays unemittable. Subly's frozen fork keeps every scheduling call it has and gains no chassis feature; `FlutterLocalNotificationsPlugin()` is a process singleton, so the two wrap ONE plugin and there is ONE registration -- see the ordering note in apps/subly/lib/main.dart. [2]C-3's de-forking removes the duplication.",
+   "note": "The FLN 17.x pin stays because 39-CHASSIS cut 1 froze apps/subscriptiontracker as a legacy rail-prover. ⚠️ DATED DECLARED EXCEPTION (2026-08-07, [13]T-9) to that cut, the third one and the same shape as the two already standing (nikatru_telemetry per [pipeline C-2], nikatru_auth_supabase per [G-43]): apps/subscriptiontracker now consumes this package for the INBOUND half only. This adapter is the one place in the tree that registers `onDidReceiveNotificationResponse`, so without it a tapped Subly renewal reminder opens nothing and `notification_opened` stays unemittable. Subly's frozen fork keeps every scheduling call it has and gains no chassis feature; `FlutterLocalNotificationsPlugin()` is a process singleton, so the two wrap ONE plugin and there is ONE registration -- see the ordering note in apps/subscriptiontracker/lib/main.dart. [2]C-3's de-forking removes the duplication.",
    "violations": [
     {
-     "path": "apps/subly/lib/services/notifications/notification_service.dart",
+     "path": "apps/subscriptiontracker/lib/services/notifications/notification_service.dart",
      "kind": "seam-implemented-in-app",
      "symbol": "NotificationService",
-     "detail": "A third, independent implementation: its own `class NotificationService` singleton calling flutter_local_notifications 17.x directly, and importing Subly's own Subscription model. This is the exact fork [2]C-1's audit note cites as the reason the register exists. ⚠️ MEASURED 2026-08-12 — 'FORK' IS ACCURATE FOR THE GUARD AND MISLEADING FOR THE READER, so here is the surface. Seam (packages/core/lib/src/notifications/notification_service.dart:70-100): init · requestPermission · showNow · scheduleDaily · cancel · cancelAll · notificationTaps. This class: init · requestPermissions · scheduleRenewalReminder · scheduleWeeklyDigest · cancelWeeklyDigest · cancelForSubscription · cancelAll · syncAll. ONLY `init` and `cancelAll` overlap even by NAME. This is a DOMAIN reminder scheduler over Subly's Subscription model, not a copy of the seam — what actually trips check 5 is the NAME COLLISION on `class NotificationService`, plus a second wrap of the same process-singleton plugin. 🔴 CONSEQUENCE FOR WHOEVER TAKES THIS: a rename alone (e.g. SublyReminderScheduler) WOULD GO GREEN AND FIX NOTHING — the duplicate plugin wrap would remain. Both providers coexist on purpose today: providers/notifications.dart:53 notificationServiceProvider = the chassis seam, :69 sublyNotificationServiceProvider = this class.",
+     "detail": "A third, independent implementation: its own `class NotificationService` singleton calling flutter_local_notifications 17.x directly, and importing Subly's own Subscription model. This is the exact fork [2]C-1's audit note cites as the reason the register exists. ⚠️ MEASURED 2026-08-12 — 'FORK' IS ACCURATE FOR THE GUARD AND MISLEADING FOR THE READER, so here is the surface. Seam (packages/core/lib/src/notifications/notification_service.dart:70-100): init · requestPermission · showNow · scheduleDaily · cancel · cancelAll · notificationTaps. This class: init · requestPermissions · scheduleRenewalReminder · scheduleWeeklyDigest · cancelWeeklyDigest · cancelForSubscription · cancelAll · syncAll. ONLY `init` and `cancelAll` overlap even by NAME. This is a DOMAIN reminder scheduler over Subly's Subscription model, not a copy of the seam — what actually trips check 5 is the NAME COLLISION on `class NotificationService`, plus a second wrap of the same process-singleton plugin. 🔴 CONSEQUENCE FOR WHOEVER TAKES THIS: a rename alone (e.g. SublyReminderScheduler) WOULD GO GREEN AND FIX NOTHING — the duplicate plugin wrap would remain. Both providers coexist on purpose today: providers/notifications.dart:53 notificationServiceProvider = the chassis seam, :69 subscriptiontrackerNotificationServiceProvider = this class.",
      "declaredOn": "2026-07-28",
      "fixOwner": "OWNER_QUEUE D-8 — define or retire [2]C-3's de-forking increment",
-     "blockedBy": "🔄 RE-MEASURED 2026-08-12, AND THE PREVIOUS REASON HAD BEEN VOID FOR FOUR DAYS. It read: '39-CHASSIS cut 1 froze apps/subly as a legacy rail-prover. Deleting this fork reverses an agreed cut, which the standing authorization does not cover — owner decided 2026-07-28 to declare it rather than move it.' [ADR 036] (2026-08-08, OWNER-ORDERED, Private/decisions/036-subly-freeze-dissolved-by-owner-order.md:61 — cited under the old `knowledge/decisions/` prefix until the 2026-08-15 flatten merged `knowledge/` into `Private/`; the :61 anchor is unmoved) DISSOLVED that freeze: 'Cut 1's freeze on apps/subly is DISSOLVED.' So the stated block had no subject, and the waiver went on reading as managed. Nothing re-measures a waiver's REASON — assert-no-seam-forks.mjs:273-284 says exactly that of itself, and it is why this sat. WHAT ACTUALLY BLOCKS IT, measured the same day: 'de-fork' is the WRONG VERB, so there is no mechanical move to perform. The surfaces barely overlap (see detail), which leaves a genuine DESIGN choice nobody has made — either the chassis seam grows a schedule-many / cancel-by-key surface able to carry renewal reminders and a weekly digest, or this class is renamed and re-based onto the seam. Second, [ADR 037] Phase 3 currently KEEPS it BY DESIGN: Private/pre-minimal-2026-09-08:plans/subly-restamp-execution.md:44-47 (same flatten) rules the pubspec merge a UNION and says 'Do NOT drop bypassed deps yet ... dep-removal + bypass-entry-removal = one commit each, Phase 3', and Phase 3 is unwritten. So removing this fork is a dependency of a phase that does not exist yet. Owner decision queued as OWNER_QUEUE D-8."
+     "blockedBy": "🔄 RE-MEASURED 2026-08-12, AND THE PREVIOUS REASON HAD BEEN VOID FOR FOUR DAYS. It read: '39-CHASSIS cut 1 froze apps/subscriptiontracker as a legacy rail-prover. Deleting this fork reverses an agreed cut, which the standing authorization does not cover — owner decided 2026-07-28 to declare it rather than move it.' [ADR 036] (2026-08-08, OWNER-ORDERED, Private/decisions/036-subly-freeze-dissolved-by-owner-order.md:61 — cited under the old `knowledge/decisions/` prefix until the 2026-08-15 flatten merged `knowledge/` into `Private/`; the :61 anchor is unmoved) DISSOLVED that freeze: 'Cut 1's freeze on apps/subscriptiontracker is DISSOLVED.' So the stated block had no subject, and the waiver went on reading as managed. Nothing re-measures a waiver's REASON — assert-no-seam-forks.mjs:273-284 says exactly that of itself, and it is why this sat. WHAT ACTUALLY BLOCKS IT, measured the same day: 'de-fork' is the WRONG VERB, so there is no mechanical move to perform. The surfaces barely overlap (see detail), which leaves a genuine DESIGN choice nobody has made — either the chassis seam grows a schedule-many / cancel-by-key surface able to carry renewal reminders and a weekly digest, or this class is renamed and re-based onto the seam. Second, [ADR 037] Phase 3 currently KEEPS it BY DESIGN: Private/pre-minimal-2026-09-08:plans/subly-restamp-execution.md:44-47 (same flatten) rules the pubspec merge a UNION and says 'Do NOT drop bypassed deps yet ... dep-removal + bypass-entry-removal = one commit each, Phase 3', and Phase 3 is unwritten. So removing this fork is a dependency of a phase that does not exist yet. Owner decision queued as OWNER_QUEUE D-8."
     }
    ],
    "capabilityMatrix": {
@@ -763,9 +763,9 @@
    ],
    "consumers": [
     "tooling/bricks/app/__brick__/apps/{{app_id}}",
-    "apps/subly"
+    "apps/subscriptiontracker"
    ],
-   "note": "⬜ THE RAIL IS BUILT AND CANNOT YET TAKE MONEY, and the gap is one signup. `RailConfig.checkoutUrlTemplate` is ABSENT because the merchant of record's hosted-checkout URL shape is an UNVERIFIED vendor fact and no seller account exists to check it against (OWNER_QUEUE A-1, PENDING). With it absent `canCheckout` is false and the paywall says purchases are unavailable, which is true. apps/subly became a consumer 2026-08-08 with productization P2.4b ([ADR 037]; the [ADR 036] freeze dissolution retired the sentence that used to stand here — 'deliberately NOT given to apps/subly, which 39-CHASSIS cut 1 froze'). Zero call sites until the chassis money surfaces land (P2.6a); [ADR 026]'s reasoning for deleting the RevenueCat stub rather than moving it is unchanged.",
+   "note": "⬜ THE RAIL IS BUILT AND CANNOT YET TAKE MONEY, and the gap is one signup. `RailConfig.checkoutUrlTemplate` is ABSENT because the merchant of record's hosted-checkout URL shape is an UNVERIFIED vendor fact and no seller account exists to check it against (OWNER_QUEUE A-1, PENDING). With it absent `canCheckout` is false and the paywall says purchases are unavailable, which is true. apps/subscriptiontracker became a consumer 2026-08-08 with productization P2.4b ([ADR 037]; the [ADR 036] freeze dissolution retired the sentence that used to stand here — 'deliberately NOT given to apps/subscriptiontracker, which 39-CHASSIS cut 1 froze'). Zero call sites until the chassis money surfaces land (P2.6a); [ADR 026]'s reasoning for deleting the RevenueCat stub rather than moving it is unchanged.",
    "capabilityMatrix": {
     "file": "packages/purchases/lib/src/purchase_capabilities.dart",
     "symbol": "PurchaseCapabilities",
@@ -781,19 +781,19 @@
    "package": "nikatru_core",
    "seams": [],
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "packages/purchases"
    ],
    "violations": [
     {
-     "path": "apps/subly/lib/state/analytics_funnel.dart",
+     "path": "apps/subscriptiontracker/lib/state/analytics_funnel.dart",
      "kind": "capability-implemented-in-app",
      "symbol": "AnalyticsFunnel",
-     "detail": "Lives inside an app despite being app-neutral, so no other app or stamped brick can emit the funnel. [5]M-16 already records that four of its methods (onPaywallViewed, onCheckoutStarted, onPurchaseSuccess, onPurchaseFailed) have ZERO callers — the analytics rail emits everything except the money. ⚠️ UPDATED 2026-08-01: the four money methods now have real callers, but NOT these four -- [5]M-16 was satisfied by moving the money half into `packages/purchases/lib/src/money_funnel.dart` (MoneyFunnel), which the brick calls, so every stamped app is born measuring its own conversion. THIS declaration is still stranded inside apps/subly; [2]C-3 now has less to move. ✅ SHRUNK 2026-08-12 — the four dead money methods were DELETED from this class (they had zero callers from the day MoneyFunnel took over; verified by resolving each call site, not by name-matching). apps/subly full suite 541 passed before and after, and assert-pseudonymity-firewall stayed green because it resolves the four events BY SYMBOL and excludes declaring files, so it was counting the live MoneyFunnel callers all along. What is left to relocate is now exactly TWO methods: onActivation and onNotificationOpened.",
+     "detail": "Lives inside an app despite being app-neutral, so no other app or stamped brick can emit the funnel. [5]M-16 already records that four of its methods (onPaywallViewed, onCheckoutStarted, onPurchaseSuccess, onPurchaseFailed) have ZERO callers — the analytics rail emits everything except the money. ⚠️ UPDATED 2026-08-01: the four money methods now have real callers, but NOT these four -- [5]M-16 was satisfied by moving the money half into `packages/purchases/lib/src/money_funnel.dart` (MoneyFunnel), which the brick calls, so every stamped app is born measuring its own conversion. THIS declaration is still stranded inside apps/subscriptiontracker; [2]C-3 now has less to move. ✅ SHRUNK 2026-08-12 — the four dead money methods were DELETED from this class (they had zero callers from the day MoneyFunnel took over; verified by resolving each call site, not by name-matching). apps/subscriptiontracker full suite 541 passed before and after, and assert-pseudonymity-firewall stayed green because it resolves the four events BY SYMBOL and excludes declaring files, so it was counting the live MoneyFunnel callers all along. What is left to relocate is now exactly TWO methods: onActivation and onNotificationOpened.",
      "declaredOn": "2026-07-28",
      "fixOwner": "OWNER_QUEUE D-8 — define or retire [2]C-3's de-forking increment",
      "owningPackageAlreadyAssigned": "packages/core, beside the Analytics seam it wraps — 00-RECONCILIATION-DECISIONS.md PART 2.2 item 15 ('C-1 assigns an owning package'). Recorded separately from fixOwner because the two were conflated: the PACKAGE is settled, and what has no owner is the INCREMENT that performs the move. ⚠️ TWO OWNERS ARE NAMED FOR ONE MOVE — 11-measurement.md:94 routes the same relocation to 'stage 2 · C-1/C-3'; reconcile when D-8 is answered.",
-     "blockedBy": "🔄 RE-MEASURED 2026-08-12, AND THE PREVIOUS REASON HAD BEEN VOID FOR FOUR DAYS. It read: 'Moving it edits apps/subly, frozen by 39-CHASSIS cut 1. Owner decided 2026-07-28 to declare the assignment now and move it in [2]C-3's increment.' [ADR 036] (2026-08-08, OWNER-ORDERED) DISSOLVED that freeze, so editing apps/subly is no longer blocked at all and the stated reason has no subject. WHAT REMAINS, measured 2026-08-12 by resolving every call site rather than trusting the method names: the four money methods (onPaywallViewed, onCheckoutStarted, onPurchaseSuccess, onPurchaseFailed) had ZERO callers — the two apparent hits in apps/subly/lib/features/monetization/paywall_screen.dart:70,:77 resolve to `final MoneyFunnel funnel`, i.e. packages/purchases, not this class, and the only other mentions repo-wide were prose in comments. onLaunch had already left for packages/core/lib/src/analytics/analytics_lifecycle.dart. ✅ THE FOUR DEAD METHODS WERE DELETED 2026-08-12 (that half needed no decision, so it was not left for the owner): apps/subly 541 tests passed before and after, and assert-pseudonymity-firewall stayed green, since it resolves those four events by symbol across apps/packages/bricks and excludes declaring files — the callers it counts are MoneyFunnel's, and always were. So exactly TWO live methods remain to be re-homed: onActivation (1 caller, state/subscriptions_controller.dart:186) and onNotificationOpened (1 caller, state/notification_tap_observer.dart:42). WHAT STILL NEEDS A DECISION IS WHERE `activation` LIVES: it is a locked-taxonomy event name carrying an app-specific kind ('first_subscription_added'), so moving it to core means core gains an event whose payload only the app can supply — a taxonomy call, not agent judgement. For the tap half the chassis has already answered: the brick's NotificationTapObserver (tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/notification_tap_observer.dart:23-28) logs notification_opened straight through core.Analytics with NO funnel object at all. Owner decision queued as OWNER_QUEUE D-8."
+     "blockedBy": "🔄 RE-MEASURED 2026-08-12, AND THE PREVIOUS REASON HAD BEEN VOID FOR FOUR DAYS. It read: 'Moving it edits apps/subscriptiontracker, frozen by 39-CHASSIS cut 1. Owner decided 2026-07-28 to declare the assignment now and move it in [2]C-3's increment.' [ADR 036] (2026-08-08, OWNER-ORDERED) DISSOLVED that freeze, so editing apps/subscriptiontracker is no longer blocked at all and the stated reason has no subject. WHAT REMAINS, measured 2026-08-12 by resolving every call site rather than trusting the method names: the four money methods (onPaywallViewed, onCheckoutStarted, onPurchaseSuccess, onPurchaseFailed) had ZERO callers — the two apparent hits in apps/subscriptiontracker/lib/features/monetization/paywall_screen.dart:70,:77 resolve to `final MoneyFunnel funnel`, i.e. packages/purchases, not this class, and the only other mentions repo-wide were prose in comments. onLaunch had already left for packages/core/lib/src/analytics/analytics_lifecycle.dart. ✅ THE FOUR DEAD METHODS WERE DELETED 2026-08-12 (that half needed no decision, so it was not left for the owner): apps/subscriptiontracker 541 tests passed before and after, and assert-pseudonymity-firewall stayed green, since it resolves those four events by symbol across apps/packages/bricks and excludes declaring files — the callers it counts are MoneyFunnel's, and always were. So exactly TWO live methods remain to be re-homed: onActivation (1 caller, state/subscriptions_controller.dart:186) and onNotificationOpened (1 caller, state/notification_tap_observer.dart:42). WHAT STILL NEEDS A DECISION IS WHERE `activation` LIVES: it is a locked-taxonomy event name carrying an app-specific kind ('first_subscription_added'), so moving it to core means core gains an event whose payload only the app can supply — a taxonomy call, not agent judgement. For the tap half the chassis has already answered: the brick's NotificationTapObserver (tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/notification_tap_observer.dart:23-28) logs notification_opened straight through core.Analytics with NO funnel object at all. Owner decision queued as OWNER_QUEUE D-8."
     }
    ],
    "noSeamReason": "A concrete funnel over the Analytics seam that core already declares; it adds no contract of its own. Callers use it directly."
@@ -806,7 +806,7 @@
    "seams": [],
    "seam": "packages/analysis/lib/analysis_options.yaml",
    "consumers": [
-    "apps/subly",
+    "apps/subscriptiontracker",
     "tooling/bricks/app/__brick__/apps/{{app_id}}",
     "packages/purchases"
    ],

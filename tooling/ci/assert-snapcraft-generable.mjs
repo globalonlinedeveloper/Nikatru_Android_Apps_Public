@@ -60,7 +60,7 @@
 //      — a listing value in that map must produce NO `license:` key at all, and a
 //      value outside it must be emitted verbatim. Asserting it here against a
 //      RETYPED list would agree with a generator that had drifted.
-//   9. THE LAUNCHER RESOLVES INSIDE THE SNAP. `Icon 'com.nikatru.subly' … not
+//   9. THE LAUNCHER RESOLVES INSIDE THE SNAP. `Icon 'com.nikatru.subscriptiontracker' … not
 //      found in prime directory` — the bundle's entry names a freedesktop THEME
 //      NAME, and snapcraft searches the prime directory rather than an icon theme
 //      in it. So the recipe must carry no `apps.<name>.desktop`, and the project
@@ -144,7 +144,7 @@ const opt = (name, fallback = null) => {
 };
 /** The repo root, as `[repoRoot]` positionally the way every other guard here
  *  takes it. A value that FOLLOWS a `--flag` is that flag's argument and is not
- *  a candidate, which is what keeps `--app subly` from being read as a root. */
+ *  a candidate, which is what keeps `--app subscriptiontracker` from being read as a root. */
 let positional = null;
 for (let k = 0; k < argv.length; k++) {
   if (argv[k].startsWith('--')) {
@@ -812,7 +812,7 @@ try {
       // 🔴 IT NOW STAGES AN ICON, and it has to. Until 2026-08-09 this fixture
       // carried only the binary and the desktop entry, so every CI run graded the
       // NO-ICON branch while the lane ran the icon one — the passing path was the
-      // one nobody was checking, which is how `Icon 'com.nikatru.subly' … not
+      // one nobody was checking, which is how `Icon 'com.nikatru.subscriptiontracker' … not
       // found in prime directory` reached a real pack. The largest hicolor size
       // is used because that is the one the generator picks.
       const bundle = join(tmpRoot, app, 'bundle');

@@ -52,7 +52,7 @@ workflow ran successfully (run 30922349590), produced the five 1080x1920
 frames, and left them in an artifact that EXPIRES 2026-11-02. Nothing in the
 repository carried a single pixel of it. So the only copy of the assets that
 would go on the store lived in a bucket with a 90-day timer, no human had
-looked at them, and `apps/subly/store/android-play/screenshots/` held one
+looked at them, and `apps/subscriptiontracker/store/android-play/screenshots/` held one
 README explaining why it was empty. "Do not publish unreviewed" had quietly
 become "do not review".
 

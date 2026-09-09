@@ -31,7 +31,7 @@
 // The stage doc specifies the exact set of `file:line:rule` triples present when
 // the guard lands. That is a stale floor wearing a disguise, and it is not
 // speculation — it is measured. Across five days the same single suppression read
-// `apps/subly/lib/main.dart:21`, then `:41`, then vanished entirely; the doc's
+// `apps/subscriptiontracker/lib/main.dart:21`, then `:41`, then vanished entirely; the doc's
 // own three-entry baseline was already wrong on the day it was written and wrong
 // again when this was built. A line-pinned allowlist turns every unrelated
 // refactor into a red build on somebody else's branch, and a guard people have to
@@ -55,12 +55,12 @@
 // reason, or it fails. Strictly stronger, and one scanner instead of two.
 //
 // ── SCOPE: TRACKED FILES, THREE ROOT KINDS, FIVE TREES ───────────────────────
-// `git ls-files`, never a filesystem walk. `apps/subly/.dart_tool/dartpad/
+// `git ls-files`, never a filesystem walk. `apps/subscriptiontracker/.dart_tool/dartpad/
 // web_plugin_registrant.dart` carries `ignore_for_file: type=lint` and is
 // GENERATED — a walk would fail the build on a file nobody wrote. The trees
 // scanned inside each root are `lib/`, `test/`, `integration_test/`,
 // `test_driver/` and `live_probe/`; the drafted scope missed the last of those,
-// which is where BOTH of apps/subly's real suppressions live.
+// which is where BOTH of apps/subscriptiontracker's real suppressions live.
 //
 // The ROOTS are of three kinds, and each carries its own floor because each can
 // collapse without the others noticing:
@@ -108,7 +108,7 @@
 // against this tree and restored (`git checkout -- packages` after each; the
 // working tree was verified clean between rows). Baseline exit 0, printing
 //   `ok  no gate weakening — 354 tracked Dart file(s) [apps=148/floor 40 in 1
-//    real root(s): apps/subly; packages=180/floor 60 in 9 package root(s);
+//    real root(s): apps/subscriptiontracker; packages=180/floor 60 in 9 package root(s);
 //    brick=26/floor 10], 12 analysis_options.yaml, … 6/6 allowlist entr(ies)`
 // against 174 / 2 analysis_options / 1 allowlist entry before the change.
 //
@@ -153,7 +153,7 @@
 // runners and fresh checkouts — but the local-workflow note in versions.json
 // needs its count widened, and that file is not this one to edit.
 //
-// `apps/subly` is IN SCOPE here, and that is deliberate rather than a breach of
+// `apps/subscriptiontracker` is IN SCOPE here, and that is deliberate rather than a breach of
 // the freeze. 39-CHASSIS §4 cut 1 says Subly is never retrofitted — this guard
 // changes nothing about Subly; it records what is already there and refuses
 // anything NEW. Excluding it would leave the guard with an empty domain and an
@@ -175,7 +175,7 @@ const BRICK_APP = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
 const APP_RE = /^(apps\/[^/]+)\//;
 const PACKAGE_RE = /^(packages\/[^/]+)\//;
 /** The Dart trees scanned inside each root. `live_probe/` is on this list because
- *  it is where apps/subly's whole baseline lives and the drafted scope did not
+ *  it is where apps/subscriptiontracker's whole baseline lives and the drafted scope did not
  *  reach it. `tool/` is NOT: `packages/core/tool/` is a dev script that ships to
  *  nobody, and a floor over code that does not ship measures the wrong thing. */
 const OWNED = ['lib', 'test', 'integration_test', 'test_driver', 'live_probe'];
@@ -186,12 +186,12 @@ const TEST_TREES = new Set(['test', 'integration_test', 'test_driver']);
  *  so this list cannot outlive what it excuses. */
 const ALLOWLIST = [
   {
-    file: 'apps/subly/live_probe/c6_consent_live_probe.dart',
+    file: 'apps/subscriptiontracker/live_probe/c6_consent_live_probe.dart',
     rule: 'avoid_print',
     date: '2026-08-01',
     reason:
       'the C-6 consent LIVE PROBE is a stdout script run by hand against production, not app code — ' +
-      'printing IS its output. apps/subly is the frozen rail-prover (39-CHASSIS §4 cut 1), so this is ' +
+      'printing IS its output. apps/subscriptiontracker is the frozen rail-prover (39-CHASSIS §4 cut 1), so this is ' +
       'recorded rather than fixed. If the probe is retired, delete this entry with it.',
   },
 
@@ -340,7 +340,7 @@ const ls = spawnSync('git', ['-C', ROOT, 'ls-files', '--', 'apps', 'packages', B
 if (ls.status !== 0) {
   coverageLost([
     '`git ls-files -- apps packages <brick app>` failed, so the tracked-file domain is unreadable.',
-    'A filesystem walk is NOT the fallback: the generated apps/subly/.dart_tool/dartpad/',
+    'A filesystem walk is NOT the fallback: the generated apps/subscriptiontracker/.dart_tool/dartpad/',
     'web_plugin_registrant.dart carries `ignore_for_file: type=lint`, and failing the build on a file',
     'nobody wrote is how a guard gets switched off.',
   ]);
@@ -647,7 +647,7 @@ for (const f of testConfigFiles) {
 // An entry nobody can find is either a suppression that was fixed (delete the
 // entry) or a scan that no longer reaches the file (much worse). It cannot tell
 // which, so it says both — and this is also what proves the scan still reaches
-// apps/subly/live_probe, where the entire real baseline lives.
+// apps/subscriptiontracker/live_probe, where the entire real baseline lives.
 //
 // ⚠️ AND IT IS SCOPED TO THE TREE THE ALLOWLIST DESCRIBES, derived rather than
 // flagged. The entries name THIS repository's paths, so a fixture root — which

@@ -175,7 +175,7 @@ const record = (app, over = {}) => JSON.stringify({
   ...over,
 }, null, 2);
 
-const build = ({ register = REGISTER, ci = CI_YML, workspace = ['packages/core', 'apps/subly'], brickRecord = record('{{app_id}}'), apps = {}, catalogue = null, guards = ['assert-screen-set.mjs'] } = {}) => {
+const build = ({ register = REGISTER, ci = CI_YML, workspace = ['packages/core', 'apps/subscriptiontracker'], brickRecord = record('{{app_id}}'), apps = {}, catalogue = null, guards = ['assert-screen-set.mjs'] } = {}) => {
   const files = {
     'pubspec.yaml': `name: fixture\nworkspace:\n${workspace.map((m) => `  - ${m}\n`).join('')}`,
     'tooling/dod-register.json': JSON.stringify(register, null, 2),
@@ -215,9 +215,9 @@ describe('assert-app-dod', () => {
     assert.match(out, /invoked with --require-stamped and the workspace lists no non-exempt app member/);
   });
 
-  test('audits a stamped app the workspace lists, and apps/subly is exempt by name', () => {
+  test('audits a stamped app the workspace lists, and apps/subscriptiontracker is exempt by name', () => {
     const { code, out } = run(
-      build({ workspace: ['apps/subly', 'apps/probe'], apps: { 'apps/probe': {} } }),
+      build({ workspace: ['apps/subscriptiontracker', 'apps/probe'], apps: { 'apps/probe': {} } }),
       ['--require-stamped'],
     );
     assert.equal(code, 0, out);
@@ -226,7 +226,7 @@ describe('assert-app-dod', () => {
   });
 
   test('FAILS naming the app when a stamped app has no done-record', () => {
-    const dir = build({ workspace: ['apps/subly', 'apps/probe'], apps: { 'apps/probe': {} } });
+    const dir = build({ workspace: ['apps/subscriptiontracker', 'apps/probe'], apps: { 'apps/probe': {} } });
     rmSync(join(dir, 'apps/probe/dod.json'));
     const { code, out } = run(dir);
     assert.equal(code, 1);

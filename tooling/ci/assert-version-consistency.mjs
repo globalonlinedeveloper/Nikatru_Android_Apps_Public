@@ -136,7 +136,7 @@ export function collectTargets(repoRoot) {
   // 🔴 REQUIRED, NEVER existsSync-GATED — and this is the BRICK_PKG lesson below
   // being paid for a second time. Both of these landed `if (existsSync)` on
   // 2026-08-17 and the hole was mutation-proven the same day: HIDING
-  // apps/subly/android/app/build.gradle.kts made this guard print
+  // apps/subscriptiontracker/android/app/build.gradle.kts made this guard print
   // `ok  version consistency — 85 reference(s) across 14 file(s)` and exit 0,
   // against 88/15 with the file present. It passed having checked LESS, which is
   // the one outcome a coverage guard may never produce.
@@ -187,7 +187,7 @@ export function collectTargets(repoRoot) {
   for (const f of ['tooling/wsl-setup.sh']) {
     if (existsSync(join(repoRoot, f))) TARGETS.push(f);
   }
-  // Every app's Android module, found by SHAPE rather than by name — `apps/subly`
+  // Every app's Android module, found by SHAPE rather than by name — `apps/subscriptiontracker`
   // is app #1 of a factory, so hardcoding it would leave app #2 unchecked on the
   // day it is stamped. Discovery is what makes the REQUIRED_YIELD entry below a
   // standing rule rather than a fact about one directory.

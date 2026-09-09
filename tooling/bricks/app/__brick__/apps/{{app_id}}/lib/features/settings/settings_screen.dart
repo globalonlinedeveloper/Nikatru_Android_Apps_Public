@@ -383,7 +383,7 @@ class SettingsScreen extends ConsumerWidget {
     // read BEFORE it for a sharper reason: a `StateError` from THEM would escape
     // past `return outcome`, and the dialog — which does not catch — would stay
     // busy for ever while the sign-in surface was handed no outcome at all.
-    // `apps/subly/lib/features/settings/settings_screen.dart:1214-1223` records
+    // `apps/subscriptiontracker/lib/features/settings/settings_screen.dart:1214-1223` records
     // that exact shape as a live E2E flake.
     final StateController<core.AccountDeletionOutcome?> outcomeSink = ref.read(
       lastAccountDeletionOutcomeProvider.notifier,
@@ -483,8 +483,8 @@ class SettingsScreen extends ConsumerWidget {
 /// `deleteAccountReauthFailed` with values byte-identical to `plainMessage`,
 /// give them their own arms below, and `_report` calls this instead. Until then
 /// the result sentence is honest and English, which is the right way round —
-/// `apps/subly` made the same trade on the same surface, and records it at
-/// `apps/subly/lib/features/settings/settings_screen.dart:1465-1475`.
+/// `apps/subscriptiontracker` made the same trade on the same surface, and records it at
+/// `apps/subscriptiontracker/lib/features/settings/settings_screen.dart:1465-1475`.
 ///
 /// ⚠️ NO TURNAROUND TIME, RETENTION PERIOD OR LEGAL STATEMENT appears in any of
 /// these strings, because `sites/nikatru/delete-account.html` publishes none —
@@ -576,7 +576,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
   /// whose sentence does not say the two facts that matter after a refused
   /// password: nothing was sent, and you are still signed in.
   /// `core.AccountDeletionOutcome.plainMessage` says both, for every value, and
-  /// no app can invent a kinder one. `apps/subly` renders the same source on the
+  /// no app can invent a kinder one. `apps/subscriptiontracker` renders the same source on the
   /// same surface for the same reason.
   ///
   /// ⚠️ THE COST IS STATED RATHER THAN HIDDEN: `plainMessage` is English only,

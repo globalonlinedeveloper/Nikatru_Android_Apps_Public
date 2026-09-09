@@ -31,7 +31,7 @@
 //      overlays `flutter_template_images` and REFUSES an empty stock asset.
 //
 //   M3 THE SAME HOLE IN THE SIBLING GUARD, proven by counterfactual. Copied the
-//      REAL stock `Icon-maskable-512.png` over `apps/subly`'s:
+//      REAL stock `Icon-maskable-512.png` over `apps/subscriptiontracker`'s:
 //        · assert-stamp-brand-assets.mjs AT HEAD  -> `ok … 5 stock asset(s)
 //          compared`, exit 0, while the app shipped Flutter's actual icon;
 //        · the repaired version                   -> BYTE-IDENTICAL, exit 1.
@@ -464,20 +464,20 @@ describe('assert-launcher-icons', () => {
   // icons must be exactly what the app's own master derives. "Not Flutter's" is
   // satisfied by a blank square; "is the derivation" is not.
   //
-  // 🔬 REAL-TREE MUTATIONS, 2026-08-04, on apps/subly rather than on a fixture —
+  // 🔬 REAL-TREE MUTATIONS, 2026-08-04, on apps/subscriptiontracker rather than on a fixture —
   // because a fixture written by whoever wrote the guard encodes the same
   // misunderstanding as the guard, which is this repo's own recorded rule:
-  //   · deleted hicolor/256x256/apps/com.nikatru.subly.png  ⇒ "— MISSING."
+  //   · deleted hicolor/256x256/apps/com.nikatru.subscriptiontracker.png  ⇒ "— MISSING."
   //   · flipped ONE byte of ONE pixel in the 128 icon       ⇒ "is NOT what
   //     assets/icon/app_icon_1024.png derives at 128px"
   //   · copied the real 512 png into the 256x256 directory  ⇒ "is 512x512 but
   //     sits in the 256x256 theme directory"
-  //   · edited Icon= in the real .desktop to `subly`        ⇒ both the derivation
+  //   · edited Icon= in the real .desktop to `subscriptiontracker`        ⇒ both the derivation
   //     mismatch and the APPLICATION_ID mismatch
   //   · deleted the install(DIRECTORY …/icons …) rule       ⇒ "never reaches the
   //     bundle"
   //   · deleted the gtk_window_set_icon_name call           ⇒ "never calls"
-  //   · moved apps/subly/linux/ away entirely               ⇒ COVERAGE LOST
+  //   · moved apps/subscriptiontracker/linux/ away entirely               ⇒ COVERAGE LOST
   // Every one restored; the guard returned to OK after each.
   test('passes when the Linux packaging is exactly what the master derives', () => {
     const { code, out } = run(world());
@@ -734,8 +734,8 @@ describe('the desktop entry Name is the icon label', () => {
     );
   });
 
-  test('the real tree: apps/subly ships its declared shortName, not its store title', () => {
-    const appDir = join(REPO, 'apps', 'subly');
+  test('the real tree: apps/subscriptiontracker ships its declared shortName, not its store title', () => {
+    const appDir = join(REPO, 'apps', 'subscriptiontracker');
     const name = deriveDesktopEntry(appDir).match(/^Name=(.*)$/m)[1];
     const declared = readFileSync(join(appDir, 'app.yaml'), 'utf8').match(/^shortName: (.*)$/m)[1].trim();
     const title = readFileSync(join(appDir, 'store', 'linux-snap', 'title.txt'), 'utf8').trim();

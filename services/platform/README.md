@@ -77,7 +77,7 @@ because a caller can get them wrong in ways the others do not offer.)
    - **renewals fan-out** — for each app in `appTargets(env)`, rolls past-due
      `next_renewal` forward one cycle and records a `payment_history` row per
      crossed charge, over that app's bound `APP_DB`. Relocated here from
-     subly-api's per-app cron. Add an app by binding its DB + a target entry.
+     subscriptiontracker-api's per-app cron. Add an app by binding its DB + a target entry.
 
 `GET /v1/health` is the deploy-verification endpoint (no auth).
 
@@ -85,15 +85,18 @@ because a caller can get them wrong in ways the others do not offer.)
 
 - **`platform_db`** (binding `PLATFORM_DB`, `migrations_dir: migrations`) — the
   SHARED portfolio database, and it is no longer only entitlements. **platform is
-  the SOLE applier** of its migrations, which is why `subly-api` binds
+  the SOLE applier** of its migrations, which is why `subscriptiontracker-api` binds
   `PLATFORM_DB` with no `migrations_dir` at all. `migrations/` holds
-  `0001_entitlements.sql` (relocated from subly-api to fix the footgun of a
+  `0001_entitlements.sql` (relocated from subscriptiontracker-api to fix the footgun of a
   platform_db migration living in an APP_DB dir), then `0002_analytics`,
   `0003_cron_heartbeat`, `0004_money_rail`, `0005_cancellation_requests`,
-  `0006_erasure_reach` and `0007_events_rollup`. Additive-only, enforced by
-  `tooling/ci/check-migrations.mjs`.
+  `0006_erasure_reach`, `0007_events_rollup` and
+  `services/platform/migrations/0008_app_id_slug_rename.sql` (the 2026-09-09 `subly` -> `subscriptiontracker`
+  slug move: a WHERE-scoped backfill of every `app_id` column EXCEPT
+  `consent_artifacts`, which is append-only and keeps the identifier it was
+  granted against). Additive-only, enforced by `tooling/ci/check-migrations.mjs`.
 - **`subly_db`** (binding `SUBLY_DB`) — bound read/write for the renewals fan-out
-  only; subly-api owns its own migrations.
+  only; subscriptiontracker-api owns its own migrations.
 
 ```bash
 npm install
@@ -111,7 +114,7 @@ npm run deploy             # wrangler deploy
 Store a partial JSON override; it deep-merges over the defaults:
 
 ```bash
-wrangler kv key put --binding=CONFIG_KV "config:subly" \
+wrangler kv key put --binding=CONFIG_KV "config:subscriptiontracker" \
   '{"paywall":{"enabled":true},"min_supported_version":"1.1.0"}'
 ```
 

@@ -13,11 +13,11 @@
 //          the defect: the origins were a hardcoded POLICY literal inside the
 //          guard, i.e. still a hand-edited list, merely relocated.
 //        · against THIS guard -> exit 1, naming https://drift.nikatru.com.
-//   N2 `https://evil.example.com` appended to the REAL services/subly-api
+//   N2 `https://evil.example.com` appended to the REAL services/subscriptiontracker-api
 //      ALLOWED_ORIGINS -> exit 1, "NOTHING justifies it".
 //   N3 the REAL apps.json emptied to `[]` -> COVERAGE LOST, exit 1.
 //   Each mutation was reverted with `git checkout --` and proven byte-identical
-//   by `git hash-object` (4c5f555b… for apps.json, b3d38665… for subly-api).
+//   by `git hash-object` (4c5f555b… for apps.json, b3d38665… for subscriptiontracker-api).
 //   `node --check` passes on the guard, so every catch above is an assertion
 //   firing and not a parse error.
 //
@@ -51,7 +51,7 @@
 // both live configs and justified in the guard's EXTRAS for the length of the
 // cutover; the note here said "it leaves with the 301". The 301 landed -- measured:
 // subly.nikatru.com/, /x, /version.json and a deep path with a query all 301 in one
-// hop to a 200 on nikatru.com/subly/ -- so nothing is served there and no browser
+// hop to a 200 on nikatru.com/subscriptiontracker/ -- so nothing is served there and no browser
 // sends that Origin. Config and EXTRAS left together, which is what the case below
 // ("dropped from a config but not from EXTRAS") exists to force.
 //
@@ -84,30 +84,47 @@ after(() => {
 const APEX = new URL(APEX_ORIGIN).origin;
 
 const PAGES = 'https://subly-9cp.pages.dev';
+/** The Pages project the app deploys to AFTER the slug rename, and both are in
+ *  the baseline because both are in the live configs. deploy-web.yml deploys with
+ *  `--project-name=<workspace directory>`, so renaming `apps/subly` moved the
+ *  Direct Upload project; Cloudflare minted this subdomain at creation and it was
+ *  READ BACK from the API rather than derived, because `<id>.pages.dev` is a
+ *  third party's live host here, not a free one. The retired origin leaves in a
+ *  separate later change -- an exact allowlist fails CLOSED and silently, so the
+ *  order is widen, cut over, then narrow. */
+const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
 const LOCAL = 'http://localhost:3000';
 /** The RETIRED app subdomain. It is no longer in either config and no longer in
  *  EXTRAS -- it is kept here only as the input for the two cases that must still
  *  be able to fail: an unjustified origin, and the coupled removal below. */
 const SUBDOMAIN = 'https://subly.nikatru.com';
 
+/** Quote a derived string for use inside `new RegExp`. 🔴 EVERY assertion in
+ *  this file that names a host builds its pattern through this, and that is not
+ *  style: until 2026-09-09 two of them re-spelt the host as an escaped literal,
+ *  the slug rename rewrote those escaped copies and left `SUBDOMAIN` alone, and
+ *  both controls sat demanding a hostname that exists nowhere. A control that
+ *  cannot fail is worse than no control, because it reports clean. */
+const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** The live catalogue row's shape. `origin` is carried by the real apps.json and
  *  is NOT what the guard derives from — the browser origin comes from `url`, i.e.
  *  from the app's PUBLIC ADDRESS, which is now a path on the apex. */
 const SUBLY = {
-  slug: 'subly',
+  slug: 'subscriptiontracker',
   name: 'Nikatru Subscription Tracker',
-  url: `${APEX}/subly`,
+  url: `${APEX}/subscriptiontracker`,
   origin: PAGES,
   status: 'live',
 };
 
 /** The allowlists the real repo carries today (services/platform/wrangler.jsonc
- *  and services/subly-api/wrangler.jsonc, read 2026-09-09), so the baseline
+ *  and services/subscriptiontracker-api/wrangler.jsonc, read 2026-09-09), so the baseline
  *  fixture is the live config rather than a convenient invention. The subdomain
  *  left both on 2026-09-09 with the 301. */
 const REAL = {
-  platform: `${APEX},${PAGES},${LOCAL}`,
-  'subly-api': `${APEX},${PAGES}`,
+  platform: `${APEX},${PAGES},${PAGES_NEW},${LOCAL}`,
+  'subscriptiontracker-api': `${APEX},${PAGES},${PAGES_NEW}`,
 };
 
 /**
@@ -169,7 +186,7 @@ describe('assert-cors-allowlist', () => {
     // blended tally is how a hand-maintained list creeps back unnoticed. The
     // EXTRAS count is FIVE, not three, and the two it grew by are the retiring
     // subdomain in each config — the number rising is the cutover being visible.
-    assert.match(out, /2 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
+    assert.match(out, /2 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -202,7 +219,7 @@ describe('assert-cors-allowlist', () => {
     );
     // The shared Worker still carries one derived requirement PER APP — they
     // just happen to be the same string now, which is exactly the point.
-    assert.match(ok.out, /3 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
+    assert.match(ok.out, /3 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
 
     // (b) the floor that survived: drop the apex from the shared Worker and
     //     every app in the catalogue is named, not just the newest one.
@@ -211,14 +228,14 @@ describe('assert-cors-allowlist', () => {
     assert.equal(code, 1);
     assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
     assert.match(out, /apps\.json declares "drift"/);
-    assert.match(out, /apps\.json declares "subly"/);
+    assert.match(out, /apps\.json declares "subscriptiontracker"/);
     assert.match(out, /refused at runtime with nothing logged server side/);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
   // ⏱ REWRITTEN [ADR 075]. THIS USED TO BE "FAILS when a per-app Worker drops
   // its own app origin" — services/<slug>-api had to list THAT ONE APP'S origin,
-  // and the input that redded it was subly-api carrying everything except
+  // and the input that redded it was subscriptiontracker-api carrying everything except
   // `https://subly.nikatru.com`.
   //
   // UNTESTABLE FOR THE SAME REASON as the case above: "its own app origin" and
@@ -234,10 +251,10 @@ describe('assert-cors-allowlist', () => {
   // string every app in the portfolio sends. THAT has an input that reds it.
   // ─────────────────────────────────────────────────────────────────────────
   test('FAILS when a per-app Worker declares no vars.APP_ID', () => {
-    const workers = { ...REAL, 'subly-api': { allowed: REAL['subly-api'], appId: null } };
+    const workers = { ...REAL, 'subscriptiontracker-api': { allowed: REAL['subscriptiontracker-api'], appId: null } };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api\/wrangler\.jsonc — vars\.APP_ID is missing on a PER-APP Worker/);
+    assert.match(out, /services\/subscriptiontracker-api\/wrangler\.jsonc — vars\.APP_ID is missing on a PER-APP Worker/);
     assert.match(out, /authorises on a string every app in the portfolio sends/);
     // The shared Worker is exempt from this limb by design — it is every app's
     // Worker, so there is no single APP_ID it could carry. If this ever starts
@@ -256,20 +273,20 @@ describe('assert-cors-allowlist', () => {
     const { code, out } = run(tree({ apps: [relapsed] }));
     assert.equal(code, 1);
     // ⚠️ ANCHORED TO THE SENTENCE, NOT LEFT AS A BARE HOST PATTERN. An unanchored
-    // /https:\/\/subly\.nikatru\.com/ over text that contains URLs is the
+    // an unanchored pattern for that host over text that contains URLs is the
     // missing-regexp-anchor shape (CodeQL js/regex/missing-regexp-anchor): it
     // matches inside `https://subly.nikatru.com.evil.example` too, so it would go
     // on passing while the guard named a host nobody meant. Each assertion below
     // pins the host to what must surround it — a line end, or a comma/quote —
     // so the match cannot drift onto a longer name.
     assert.match(out, /1 catalogue origin\(s\) are not the apex "https:\/\/nikatru\.com"/);
-    assert.match(out, /"https:\/\/subly\.nikatru\.com"/);
+    assert.match(out, new RegExp(`"${rx(SUBDOMAIN)}"`));
     assert.match(out, /publishes every app at a PATH on the apex/);
   });
 
   // The other direction: the catalogue is also a CEILING, not just a floor.
   test('FAILS on a hand-added origin the catalogue does not justify', () => {
-    const workers = { ...REAL, 'subly-api': `${REAL['subly-api']},https://evil.example.com` };
+    const workers = { ...REAL, 'subscriptiontracker-api': `${REAL['subscriptiontracker-api']},https://evil.example.com` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, /"https:\/\/evil\.example\.com" is listed but NOTHING justifies it/);
@@ -317,10 +334,10 @@ describe('assert-cors-allowlist', () => {
   // putting the subdomain back into a config, with nothing in EXTRAS justifying it,
   // is an unreviewed standing CORS grant for a host that serves only a 301.
   test('FAILS when the retired subdomain is put back into a config', () => {
-    const workers = { ...REAL, 'subly-api': `${APEX},${PAGES},${SUBDOMAIN}` };
+    const workers = { ...REAL, 'subscriptiontracker-api': `${APEX},${PAGES},${SUBDOMAIN}` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
-    assert.match(out, /"https:\/\/subly\.nikatru\.com" is listed but NOTHING justifies it/);
+    assert.match(out, new RegExp(`"${rx(SUBDOMAIN)}" is listed but NOTHING justifies it`));
     assert.match(out, /standing CORS grant nobody reviewed/);
   });
 
@@ -364,7 +381,7 @@ describe('assert-cors-allowlist', () => {
 
   // ── untaught scope ────────────────────────────────────────────────────────
   test('FAILS on a Worker it has never been taught about', () => {
-    const { code, out } = run(tree({ workers: { ...REAL, 'mystery-worker': REAL['subly-api'] } }));
+    const { code, out } = run(tree({ workers: { ...REAL, 'mystery-worker': REAL['subscriptiontracker-api'] } }));
     assert.equal(code, 1);
     assert.match(out, /never been taught about services\/mystery-worker/);
     assert.match(out, /Name it services\/<slug>-api/);

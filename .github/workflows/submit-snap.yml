@@ -63,9 +63,9 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Derive the release line from pubspec
         id: ver
-        run: node tooling/ci/assert-app-versioning.mjs --emit apps/subly >> "$GITHUB_OUTPUT"
+        run: node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker >> "$GITHUB_OUTPUT"
       - name: Build linux
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build linux --release
           --obfuscate --split-debug-info=build/symbols/linux
@@ -91,8 +91,8 @@ jobs:
       # tooling/ci/assert-obfuscation-coupled.mjs refuses the build without it.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-linux-snap-dry-run
-          path: apps/subly/build/symbols/linux
+          name: symbols-subscriptiontracker-linux-snap-dry-run
+          path: apps/subscriptiontracker/build/symbols/linux
           retention-days: 7
           if-no-files-found: error
       # why: pinned by version AND by digest, byte-identical to the step
@@ -131,28 +131,28 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
-          --dir apps/subly/build/symbols/linux
+          --dir apps/subscriptiontracker/build/symbols/linux
           --org nikatru --project subscriptiontracker
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
-          --app subly
-          --bundle apps/subly/build/linux/x64/release/bundle
-          --out "$RUNNER_TEMP/snapcraft-subly"
+          --app subscriptiontracker
+          --bundle apps/subscriptiontracker/build/linux/x64/release/bundle
+          --out "$RUNNER_TEMP/snapcraft-subscriptiontracker"
           --version ${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
       - name: The generated recipe is complete, still derived, and packable here
         run: >
           node tooling/ci/assert-snapcraft-generable.mjs
-          --emitted "$RUNNER_TEMP/snapcraft-subly/snap/snapcraft.yaml"
-          --app subly
+          --emitted "$RUNNER_TEMP/snapcraft-subscriptiontracker/snap/snapcraft.yaml"
+          --app subscriptiontracker
           --pack-runner ubuntu-24.04
       - name: Install snapcraft
         run: sudo snap install snapcraft --classic
       - name: Pack the snap
         run: |
           set -euo pipefail
-          project="${RUNNER_TEMP}/snapcraft-subly"
-          collected="${GITHUB_WORKSPACE}/apps/subly/build/linux/snap/subly.snap"
+          project="${RUNNER_TEMP}/snapcraft-subscriptiontracker"
+          collected="${GITHUB_WORKSPACE}/apps/subscriptiontracker/build/linux/snap/subscriptiontracker.snap"
           cd "$project"
           sudo snapcraft pack --destructive-mode
           count="$(find "$project" -maxdepth 1 -type f -name '*.snap' | wc -l)"
@@ -177,11 +177,11 @@ jobs:
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
           SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS_EXPIRES }}
-        run: node tooling/release/submit-snap.mjs --dry-run --app subly
+        run: node tooling/release/submit-snap.mjs --dry-run --app subscriptiontracker
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-linux-snap
-          path: apps/subly/build/linux/snap/subly.snap
+          name: subscriptiontracker-linux-snap
+          path: apps/subscriptiontracker/build/linux/snap/subscriptiontracker.snap
           retention-days: 7
           if-no-files-found: error
 
@@ -243,9 +243,9 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Derive the release line from pubspec
         id: ver
-        run: node tooling/ci/assert-app-versioning.mjs --emit apps/subly >> "$GITHUB_OUTPUT"
+        run: node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker >> "$GITHUB_OUTPUT"
       - name: Build linux
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build linux --release
           --obfuscate --split-debug-info=build/symbols/linux
@@ -269,8 +269,8 @@ jobs:
       # 7: this snap ships.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-linux-snap
-          path: apps/subly/build/symbols/linux
+          name: symbols-subscriptiontracker-linux-snap
+          path: apps/subscriptiontracker/build/symbols/linux
           retention-days: 90
           if-no-files-found: error
       # why: pinned by version AND by digest, byte-identical to the step
@@ -310,28 +310,28 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
-          --dir apps/subly/build/symbols/linux
+          --dir apps/subscriptiontracker/build/symbols/linux
           --org nikatru --project subscriptiontracker
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
-          --app subly
-          --bundle apps/subly/build/linux/x64/release/bundle
-          --out "$RUNNER_TEMP/snapcraft-subly"
+          --app subscriptiontracker
+          --bundle apps/subscriptiontracker/build/linux/x64/release/bundle
+          --out "$RUNNER_TEMP/snapcraft-subscriptiontracker"
           --version ${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
       - name: The generated recipe is complete, still derived, and packable here
         run: >
           node tooling/ci/assert-snapcraft-generable.mjs
-          --emitted "$RUNNER_TEMP/snapcraft-subly/snap/snapcraft.yaml"
-          --app subly
+          --emitted "$RUNNER_TEMP/snapcraft-subscriptiontracker/snap/snapcraft.yaml"
+          --app subscriptiontracker
           --pack-runner ubuntu-24.04
       - name: Install snapcraft
         run: sudo snap install snapcraft --classic
       - name: Pack the snap
         run: |
           set -euo pipefail
-          project="${RUNNER_TEMP}/snapcraft-subly"
-          collected="${GITHUB_WORKSPACE}/apps/subly/build/linux/snap/subly.snap"
+          project="${RUNNER_TEMP}/snapcraft-subscriptiontracker"
+          collected="${GITHUB_WORKSPACE}/apps/subscriptiontracker/build/linux/snap/subscriptiontracker.snap"
           cd "$project"
           sudo snapcraft pack --destructive-mode
           count="$(find "$project" -maxdepth 1 -type f -name '*.snap' | wc -l)"
@@ -356,7 +356,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >
-          node tooling/release/submit-snap.mjs --submit --app subly
+          node tooling/release/submit-snap.mjs --submit --app subscriptiontracker
           --confirm SUBMIT-TO-SNAP-STORE
       - name: Record the submission in the [10]D-9 ledger
         if: always() && steps.upload.outcome == 'success'
@@ -364,4 +364,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           LISTING_URL: ${{ inputs.listing_url }}
-        run: node tooling/ci/record-deployment.mjs subly-linux-snap --state in_review --listing-url "$LISTING_URL"
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-linux-snap --state in_review --listing-url "$LISTING_URL"

@@ -334,7 +334,7 @@ belong to the `store-lanes` unit.
 
 `--dart-define=E2E_AUTH_TARGET=$E2E_AUTH_TARGET` carries the resolved target into
 the suite, which uses it to pick between two POSITIVE expectations rather than to
-skip anything — see `apps/subly/integration_test/app_test.dart`. Both names carry
+skip anything — see `apps/subscriptiontracker/integration_test/app_test.dart`. Both names carry
 an entry in `tooling/publishable-inputs.json`, because that register is checked
 for SET EQUALITY in both directions and a define nobody wrote a reason for is
 refused.

@@ -76,7 +76,7 @@ const NOTHING_ANYWHERE = [['itunes.apple.com/search', { status: 200, json: { res
 
 describe('the probe — green controls first', () => {
   test('A1 GREEN CONTROL — a live exact iOS listing comes back PROVEN-TAKEN with its evidence', async () => {
-    const r = await clear({ root: REPO, name: 'Subly', app: 'subly', http: stub(TAKEN_ON_ITUNES) });
+    const r = await clear({ root: REPO, name: 'Subly', app: 'subscriptiontracker', http: stub(TAKEN_ON_ITUNES) });
     assert.equal(r.channels['ios-appstore'].verdict, PROVEN_TAKEN);
     assert.match(r.channels['ios-appstore'].why, /GLOBALLY UNIQUE/);
     assert.ok(r.channels['ios-appstore'].evidence.some((e) => e.includes('Finance')), 'the colliding listing must be attached as evidence');
@@ -85,22 +85,22 @@ describe('the probe — green controls first', () => {
   });
 
   test('A2 GREEN CONTROL — an empty AMO answer with its control green is PROVEN-FREE', async () => {
-    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels.amo.verdict, PROVEN_FREE);
     assert.equal(r.controls.failed.length, 0);
   });
 
   test('A3 the register is what is walked — every channel in it appears in the record', async () => {
     const register = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
-    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.deepEqual(Object.keys(r.channels).sort(), register.channels.map((c) => c.id).sort());
   });
 });
 
 describe('the probe — the downgrades that make an answer honest', () => {
   test('B1 A DEAD RED CONTROL turns the SAME empty answer from PROVEN-FREE into UNDETERMINED', async () => {
-    const green = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
-    const red = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE, { controlsGreen: false }) });
+    const green = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
+    const red = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE, { controlsGreen: false }) });
     assert.equal(green.channels.amo.verdict, PROVEN_FREE, 'green control first — without this the red below proves nothing');
     assert.equal(red.channels.amo.verdict, UNDETERMINED);
     assert.match(red.channels.amo.why, /RED CONTROL FAILED/);
@@ -108,7 +108,7 @@ describe('the probe — the downgrades that make an answer honest', () => {
   });
 
   test('B2 a dead control downgrades EVERY networked channel, and the roll-up is COVERAGE LOST', async () => {
-    const red = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE, { controlsGreen: false }) });
+    const red = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE, { controlsGreen: false }) });
     for (const id of ['ios-appstore', 'macos-appstore', 'android-play', 'linux-snap', 'amo']) {
       assert.equal(red.channels[id].verdict, UNDETERMINED, `${id} must not answer while its control is dead`);
     }
@@ -117,21 +117,21 @@ describe('the probe — the downgrades that make an answer honest', () => {
   });
 
   test('B3 Apple never proves FREE — a clean miss with a green control is still UNDETERMINED', async () => {
-    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels['ios-appstore'].verdict, UNDETERMINED);
     assert.match(r.channels['ios-appstore'].why, /NOT PROOF OF AVAILABILITY/);
     assert.match(r.channels['ios-appstore'].why, /App Store Connect/, 'the manual step that WOULD settle it must be named');
   });
 
   test('B4 a snap 404 is UNDETERMINED, because registered-but-unpublished 404s identically', async () => {
-    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels['linux-snap'].verdict, UNDETERMINED);
     assert.match(r.channels['linux-snap'].why, /REGISTERED BUT UNPUBLISHED/);
     assert.match(r.channels['linux-snap'].why, /snapcraft register --dry-run/);
   });
 
   test('B5 Microsoft is never answered by software — the only authority is the reservation itself', async () => {
-    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: 'Qwintavul', app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels['windows-store'].verdict, UNDETERMINED);
     assert.match(r.channels['windows-store'].why, /OWNER ONLY/);
   });
@@ -148,7 +148,7 @@ describe('the probe — the downgrades that make an answer honest', () => {
 
 // 🔴 THE SELF-EXCLUSION PAIR READS THE DECLARED NAME OFF THE TREE, and does not
 // spell it. Both cases below are ABOUT the name `catalog/apps.json` currently
-// carries for `subly` — C1 that re-clearing it is not a self-collision, C2 that a
+// carries for `subscriptiontracker` — C1 that re-clearing it is not a self-collision, C2 that a
 // DIFFERENT app proposing that same name still collides. A literal here is a copy
 // of a value the tree owns, and on 2026-09-09 that copy went stale in the worst
 // available way: this file arrived on main written against `Subly`, the rename
@@ -160,14 +160,14 @@ describe('the probe — the downgrades that make an answer honest', () => {
 const DECLARED_NAME = (() => {
   const rows = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8'));
   const list = Array.isArray(rows) ? rows : rows.apps;
-  const row = list.find((a) => a.slug === 'subly');
-  assert.ok(row?.name, 'catalog/apps.json must carry a name for slug "subly" — without it this pair tests nothing');
+  const row = list.find((a) => a.slug === 'subscriptiontracker');
+  assert.ok(row?.name, 'catalog/apps.json must carry a name for slug "subscriptiontracker" — without it this pair tests nothing');
   return row.name;
 })();
 
 describe('the probe — self is not a collision', () => {
   test('C1 an app re-clearing ITS OWN declared name is PROVEN-FREE on web, and says so', async () => {
-    const r = await clear({ root: REPO, name: DECLARED_NAME, app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: DECLARED_NAME, app: 'subscriptiontracker', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels.web.verdict, PROVEN_FREE);
     assert.ok(r.channels.web.evidence.some((e) => /SELF, NOT A COLLISION/.test(e)), 'the exclusion must be visible in the output, not silent');
   });

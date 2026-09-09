@@ -103,7 +103,7 @@ function fakeP12(size = 512) {
  *  guard can read it without parsing ASN.1. The DER wrapper here is a stub; the
  *  plist is the real shape, field for field, including the `Entitlements` dict
  *  that carries `application-identifier` as `<TEAM>.<bundle id>`. */
-function fakeProfile({ name = 'Subly App Store', team = TEAM, bundleId = 'com.nikatru.subly', expires = '2027-07-31T00:00:00Z' } = {}) {
+function fakeProfile({ name = 'Subly App Store', team = TEAM, bundleId = 'com.nikatru.subscriptiontracker', expires = '2027-07-31T00:00:00Z' } = {}) {
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -283,7 +283,7 @@ function makeRoot({
   names = null,
   namesFor = {},
   register = true,
-  apps = [{ slug: 'subly' }],
+  apps = [{ slug: 'subscriptiontracker' }],
   submissionWorkflow = SUBMIT_WF,
   // ── THE ARMING FIELDS ──────────────────────────────────────────────────────
   // Defaulted to the REAL register's values for both Apple rows: `submittable:
@@ -323,7 +323,7 @@ function makeRoot({
 
 const out = (r) => `${r.stdout}${r.stderr}`;
 
-function runPrepare(root, env, { app = 'subly' } = {}) {
+function runPrepare(root, env, { app = 'subscriptiontracker' } = {}) {
   const outDir = join(TMP, `out${seq++}`);
   const ghEnv = join(TMP, `ghenv${seq++}.txt`);
   const blank = Object.fromEntries(WANTED.map((n) => [n, '']));
@@ -355,7 +355,7 @@ const FULL = () => ({
   [ROLE_ENV.teamId]: TEAM,
 });
 
-const ON_TAG = { GITHUB_REF: 'refs/tags/subly-v1.0.0' };
+const ON_TAG = { GITHUB_REF: 'refs/tags/subscriptiontracker-v1.0.0' };
 const ON_SUBMISSION_WF = { GITHUB_WORKFLOW_REF: `globalonlinedeveloper/repo/${SUBMIT_WF}@refs/heads/main` };
 
 // ═════ the all-or-none law ═══════════════════════════════════════════════════
@@ -416,7 +416,7 @@ describe('apple-signing — the role map is compared per ROW, both directions', 
   // correctly declared it would be reported as drift. Measured 2026-08-21 in a
   // scratch mirror with `notary: 'APPLE_NOTARY_PASSWORD_BASE64'` added to
   // ROLE_ENV and declared on the ios row: `node tooling/ci/apple-signing.mjs
-  // --app subly` EXIT 1, "⚠️ APPLE_NOTARY_PASSWORD_BASE64 IS known here — but
+  // --app subscriptiontracker` EXIT 1, "⚠️ APPLE_NOTARY_PASSWORD_BASE64 IS known here — but
   // only on the null row". This test is the negative half of that.
   test('🔴 WANTED and ROW_ONLY_ENV PARTITION ROLE_ENV — no role can be known but unreachable', () => {
     assert.deepEqual(
@@ -482,7 +482,7 @@ describe('apple-signing — the role map is compared per ROW, both directions', 
 // ═════ the release lane, derived ═════════════════════════════════════════════
 describe('apple-signing — a release lane is DERIVED, not declared in YAML', () => {
   test('a TAG push requires signing and says which signal decided it', () => {
-    const lane = releaseLane({ gitRef: 'refs/tags/subly-v1.0.0', submissionWorkflows: [SUBMIT_WF] });
+    const lane = releaseLane({ gitRef: 'refs/tags/subscriptiontracker-v1.0.0', submissionWorkflows: [SUBMIT_WF] });
     assert.equal(lane.required, true);
     assert.match(lane.reasons.join('\n'), /TAG push/);
   });
@@ -679,9 +679,9 @@ describe('apple-signing — posture resolution', () => {
 describe('apple-signing — the keychain plan', () => {
   const plan = () =>
     keychainPlan({
-      keychain: '/tmp/subly-signing.keychain-db',
+      keychain: '/tmp/subscriptiontracker-signing.keychain-db',
       keychainPassword: 'per-run-random',
-      p12Path: '/tmp/subly-distribution.p12',
+      p12Path: '/tmp/subscriptiontracker-distribution.p12',
       p12Password: 'the-passphrase',
       existingKeychains: ['/Users/runner/Library/Keychains/login.keychain-db'],
     });
@@ -718,7 +718,7 @@ describe('apple-signing — the keychain plan', () => {
       assert.doesNotMatch(shown, /the-passphrase/);
     }
     const created = redactArgv(plan()[0].argv, ['per-run-random']).join(' ');
-    assert.match(created, /subly-signing\.keychain-db/);
+    assert.match(created, /subscriptiontracker-signing\.keychain-db/);
   });
 
   test('redactArgv does not blank an argument merely because a secret is EMPTY', () => {
@@ -748,7 +748,7 @@ describe('apple-signing — the provisioning profile reader', () => {
     const p = parseMobileProvision(fakeProfile());
     assert.equal(p.name, 'Subly App Store');
     assert.deepEqual(p.teamIds, [TEAM]);
-    assert.equal(p.bundleId, 'com.nikatru.subly');
+    assert.equal(p.bundleId, 'com.nikatru.subscriptiontracker');
     assert.equal(p.expires, '2027-07-31T00:00:00Z');
   });
 
@@ -776,8 +776,8 @@ describe('apple-signing — the profiles container', () => {
 
   test('a zip of two profiles yields two members, stored and deflated alike', () => {
     const zip = makeZip([
-      { name: 'subly-ios.mobileprovision', bytes: fakeProfile({ name: 'Subly iOS' }), method: 0 },
-      { name: 'subly-macos.provisionprofile', bytes: fakeProfile({ name: 'Subly macOS' }), method: 8 },
+      { name: 'subscriptiontracker-ios.mobileprovision', bytes: fakeProfile({ name: 'Subly iOS' }), method: 0 },
+      { name: 'subscriptiontracker-macos.provisionprofile', bytes: fakeProfile({ name: 'Subly macOS' }), method: 8 },
     ]);
     const { kind, members } = profileMembers(zip);
     assert.equal(kind, 'zip');
@@ -834,7 +834,7 @@ describe('apple-signing — the profiles container', () => {
 describe('apple-signing — unzip and ZIP64', () => {
   const members = () => [
     { name: 'AppxManifest.xml', bytes: Buffer.from('<Package><Identity Name="X" /></Package>', 'utf8'), method: 8 },
-    { name: 'subly.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
+    { name: 'subscriptiontracker.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
     { name: 'Assets/icon.png', bytes: Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n', 'binary'), Buffer.alloc(200, 0x78)]), method: 8 },
   ];
   const find = (buf, sig) => buf.indexOf(Buffer.from([sig & 0xff, (sig >>> 8) & 0xff, (sig >>> 16) & 0xff, (sig >>> 24) & 0xff]));
@@ -870,7 +870,7 @@ describe('apple-signing — unzip and ZIP64', () => {
   // UNCOMPRESSED one, which describes the decompressed content and is routinely
   // larger than the whole archive. That is what compression IS.
   //
-  // MEASURED on the real subly.msix (build-platforms 32823633046, the first run
+  // MEASURED on the real subscriptiontracker.msix (build-platforms 32823633046, the first run
   // to keep the package after the guard refused it — see PR #372): 96 members,
   // every one carrying sentinels, and entry [2] `flutter_windows.dll` declaring
   // an uncompressed size of 21,284,864 bytes inside a 16,585,733-byte archive.
@@ -886,7 +886,7 @@ describe('apple-signing — unzip and ZIP64', () => {
     assert.ok(21284864 > zip.length, 'the declared size must exceed the archive, or this pins nothing');
     const out = unzip(zip);
     assert.notEqual(out, null, 'a member that decompresses to more than the archive holds must still open');
-    assert.deepEqual(out.map((e) => e.name), ['AppxManifest.xml', 'subly.exe', 'Assets/icon.png']);
+    assert.deepEqual(out.map((e) => e.name), ['AppxManifest.xml', 'subscriptiontracker.exe', 'Assets/icon.png']);
     for (const [i, m] of members().entries()) assert.deepEqual(out[i].bytes, m.bytes);
   });
 
@@ -910,7 +910,7 @@ describe('apple-signing — unzip and ZIP64', () => {
     const zip = makeZip(members(), { zip64: true });
     const out = unzip(zip);
     assert.notEqual(out, null, 'a ZIP64 archive must open, not return null');
-    assert.deepEqual(out.map((e) => e.name), ['AppxManifest.xml', 'subly.exe', 'Assets/icon.png']);
+    assert.deepEqual(out.map((e) => e.name), ['AppxManifest.xml', 'subscriptiontracker.exe', 'Assets/icon.png']);
     for (const [i, m] of members().entries()) assert.deepEqual(out[i].bytes, m.bytes);
   });
 
@@ -963,7 +963,7 @@ describe('apple-signing — unzip and ZIP64', () => {
     // instead of throwing, which is the failure that looks like a pass.
     const zip = makeZip(members(), { zip64: true });
     const out = unzip(zip);
-    assert.equal(out[1].name, 'subly.exe');
+    assert.equal(out[1].name, 'subscriptiontracker.exe');
     assert.equal(out[1].bytes.length, 8, 'stored member must carry its 8 real bytes');
     assert.equal(out[1].bytes.toString(), 'PE-BYTES');
     assert.equal(out[0].bytes.toString('utf8'), '<Package><Identity Name="X" /></Package>');
@@ -1020,10 +1020,37 @@ describe('apple-signing — unzip and ZIP64', () => {
     // corrupt central directory — is fixed here, over a real profile bundle and
     // over every truncation of it, so that widening the reader cannot quietly
     // narrow it.
+    // 🔴 THESE TWO MEMBER NAMES ARE PINNED BYTES, NOT AN APP IDENTITY, AND THEY
+    // DO NOT MOVE WITH THE SLUG. The member name is written twice into the
+    // archive (local header and central directory), so renaming it changes the
+    // archive's LENGTH — and the two constants at the bottom of this test are
+    // measurements over that exact length: `answers.length` is the archive size
+    // divided by the smear stride, and the digest is over every answer unzip()
+    // gives across it. The `subly` -> `subscriptiontracker` rename on 2026-09-09
+    // grew the archive by 84 bytes and took both of them red.
+    //
+    // Restoring the names is the fix rather than repasting node's new numbers,
+    // because the digest's whole claim is HISTORICAL: it is what this function
+    // answered BEFORE ZIP64 support was added to it, and that comparison exists
+    // only against these bytes. Re-baselining it over a renamed fixture would
+    // leave a constant that looks identical and proves nothing — the pre-ZIP64
+    // reader can no longer be run to re-derive it. A profile bundle's member
+    // names are arbitrary strings chosen by whoever zipped it; nothing about the
+    // app's published identity is asserted here, and nothing downstream reads
+    // them.
+    // The same applies to the BUNDLE ID: `fakeProfile`'s default is the app's
+    // real one, so leaving it defaulted let the store-identifier change of the
+    // same day into these bytes too. This test therefore states every field it
+    // depends on instead of inheriting one, which is what makes the pin immune
+    // to the next identity change rather than merely repaired after this one.
+    const PINNED_IOS_MEMBER = 'subly-ios.mobileprovision';
+    const PINNED_MACOS_MEMBER = 'subly-macos.provisionprofile';
+    const PINNED_BUNDLE_ID = 'com.nikatru.subly';
     const zip = makeZip([
-      { name: 'subly-ios.mobileprovision', bytes: fakeProfile({ name: 'Subly iOS' }), method: 0 },
-      { name: 'subly-macos.provisionprofile', bytes: fakeProfile({ name: 'Subly macOS' }), method: 8 },
+      { name: PINNED_IOS_MEMBER, bytes: fakeProfile({ name: 'Subly iOS', bundleId: PINNED_BUNDLE_ID }), method: 0 },
+      { name: PINNED_MACOS_MEMBER, bytes: fakeProfile({ name: 'Subly macOS', bundleId: PINNED_BUNDLE_ID }), method: 8 },
     ]);
+    assert.equal(zip.length, 1888, 'the pinned fixture is no longer the 1888-byte archive the two constants below were measured over');
     assert.equal(zip.readUInt32LE(eocdOf(zip) + 16) === 0xffffffff, false, 'the fixture must not be ZIP64');
     const full = unzip(zip);
     assert.equal(full.length, 2);
@@ -1075,15 +1102,15 @@ describe('apple-signing — unzip and ZIP64', () => {
 
 describe('apple-signing — the ExportOptions.plist', () => {
   test('it carries the team, the method and MANUAL signing', () => {
-    const plist = exportOptionsPlist({ teamId: TEAM, profiles: [{ bundleId: 'com.nikatru.subly', name: 'Subly App Store' }] });
+    const plist = exportOptionsPlist({ teamId: TEAM, profiles: [{ bundleId: 'com.nikatru.subscriptiontracker', name: 'Subly App Store' }] });
     assert.match(plist, new RegExp(`<key>teamID</key>\\s*<string>${TEAM}</string>`));
     assert.match(plist, /<string>app-store-connect<\/string>/);
     assert.match(plist, /<key>signingStyle<\/key>\s*<string>manual<\/string>/);
   });
 
   test('every profile is addressed by BUNDLE ID → NAME, which is what xcodebuild reads', () => {
-    const plist = exportOptionsPlist({ teamId: TEAM, profiles: [{ bundleId: 'com.nikatru.subly', name: 'Subly App Store' }] });
-    assert.match(plist, /<key>com\.nikatru\.subly<\/key>\s*<string>Subly App Store<\/string>/);
+    const plist = exportOptionsPlist({ teamId: TEAM, profiles: [{ bundleId: 'com.nikatru.subscriptiontracker', name: 'Subly App Store' }] });
+    assert.match(plist, /<key>com\.nikatru\.subscriptiontracker<\/key>\s*<string>Subly App Store<\/string>/);
   });
 
   test('no profiles yields an EMPTY dict, not a malformed one', () => {
@@ -1093,7 +1120,7 @@ describe('apple-signing — the ExportOptions.plist', () => {
 });
 
 describe('apple-signing — the signed-export intents', () => {
-  const plan = () => signedExportPlan({ appSlug: 'subly', exportOptionsPath: '/tmp/eo.plist', keychain: '/tmp/kc', teamId: TEAM, outDir: '/tmp' });
+  const plan = () => signedExportPlan({ appSlug: 'subscriptiontracker', exportOptionsPath: '/tmp/eo.plist', keychain: '/tmp/kc', teamId: TEAM, outDir: '/tmp' });
 
   test('the iOS intent is `flutter build ipa` against the plist this step wrote', () => {
     const ios = plan().find((s) => s.channel === 'ios-appstore');
@@ -1174,7 +1201,7 @@ describe('apple-signing — the endings, run as a process', () => {
   // A tag push with no secrets PASSES while both Apple rows are `lane: null`,
   // and FAILS the moment either one can actually ship. Before 2026-08-09 the
   // first two of these expected exit 1, and the consequence was measured: a
-  // `subly-v*` tag killed the `apple` job, build-platforms.yml's `release` job
+  // `subscriptiontracker-v*` tag killed the `apple` job, build-platforms.yml's `release` job
   // `needs:` it, and the first Release this repository would ever publish was
   // skipped — over an enrolment guarding a submission no lane in the tree can
   // even produce an artifact for.
@@ -1294,7 +1321,7 @@ describe('apple-signing — the endings, run as a process', () => {
     const { r, outDir } = runPrepare(makeRoot(), FULL());
     if (process.platform !== 'darwin') {
       assert.equal(r.status, 1, out(r));
-      assert.ok(!existsSync(join(outDir, 'subly-distribution.p12')), 'key material was left on disk by a run that failed');
+      assert.ok(!existsSync(join(outDir, 'subscriptiontracker-distribution.p12')), 'key material was left on disk by a run that failed');
     } else {
       assert.ok(true, 'on macOS this run proceeds; the half-state rule is asserted by the validation tests below');
     }
@@ -1373,7 +1400,7 @@ describe('apple-signing — a secret that is not what it claims to be', () => {
     const { r, outDir } = runPrepare(makeRoot(), { ...FULL(), [ROLE_ENV.teamId]: 'nope' });
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /10-character Apple team identifier/);
-    assert.ok(!existsSync(join(outDir, 'subly-distribution.p12')));
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-distribution.p12')));
   });
 
   test('FAILS when a profile belongs to a DIFFERENT team than APPLE_TEAM_ID', () => {
@@ -1407,7 +1434,7 @@ describe('apple-signing — a secret that is not what it claims to be', () => {
   test('a value carrying a newline is refused and no key material is written', () => {
     const { r, outDir } = runPrepare(makeRoot(), { ...FULL(), [ROLE_ENV.teamId]: `${TEAM}\nPATH=/evil` });
     assert.equal(r.status, 1, out(r));
-    assert.ok(!existsSync(join(outDir, 'subly-distribution.p12')));
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-distribution.p12')));
   });
 });
 
@@ -1455,7 +1482,7 @@ describe('apple-signing — coverage self-checks', () => {
     // NAME, AND THAT IS PRECISELY WHY IT COULD NOT SEE THE RED. 2d2f51b added
     // that exact name to the real macos-appstore row on 2026-08-20; this file
     // went on asserting the name was unknown, agreed with the script, and
-    // stayed green while `node tooling/ci/apple-signing.mjs --app subly` EXITED
+    // stayed green while `node tooling/ci/apple-signing.mjs --app subscriptiontracker` EXITED
     // 1 in CI. The example is now a name THE REGISTER DECLARES NOWHERE — measured
     // 2026-08-21, `grep -rn APPLE_NOTARY_PASSWORD_BASE64` over the worktree
     // (excluding .git/.bundles/node_modules) returns 6 hits and every one is in
@@ -1519,12 +1546,12 @@ describe('apple-signing — coverage self-checks', () => {
   test('an unknown --app fails and lists the apps it knows', () => {
     const { r } = runPrepare(makeRoot(), {}, { app: 'notanapp' });
     assert.equal(r.status, 1, out(r));
-    assert.match(out(r), /Known: subly/);
+    assert.match(out(r), /Known: subscriptiontracker/);
   });
 
   test('an EMPTY $GITHUB_ENV is treated as unset, not as a file named ""', () => {
     const blank = Object.fromEntries(WANTED.map((n) => [n, '']));
-    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subly', '--repo-root', makeRoot()], {
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot()], {
       encoding: 'utf8',
       env: { ...process.env, ...blank, GITHUB_ENV: '', GITHUB_REF: '', GITHUB_WORKFLOW_REF: '' },
     });
@@ -1554,7 +1581,7 @@ describe('apple-signing — against the REAL tooling/channel-register.json', () 
   // apple-signing.mjs compares its role map to `signing.ciSecrets.names` on
   // every run, per row, in both directions; nothing here compared the same two
   // sets, so the register could gain or lose a name and this suite stayed green
-  // while `node tooling/ci/apple-signing.mjs --app subly` exited 1 in CI.
+  // while `node tooling/ci/apple-signing.mjs --app subscriptiontracker` exited 1 in CI.
   // Measured 2026-08-21 before the fix: that command EXIT 1, "COVERAGE LOST …
   // declared in the register and unknown here: APPLE_INSTALLER_CERT_P12_BASE64";
   // this file EXIT 0, 74 `test(` declarations / 78 runner cases, 0 failing.

@@ -163,7 +163,7 @@ describe('channel-arming · the printed gap', () => {
     unarmedGapLines({
       armings: [armingOf(REAL_SHAPES['windows-direct'])],
       secretNames: ['WINDOWS_CODESIGN_PFX_BASE64', 'WINDOWS_CODESIGN_PFX_PASSWORD'],
-      laneReasons: ['the run is a TAG push (refs/tags/subly-v1.0.0)'],
+      laneReasons: ['the run is a TAG push (refs/tags/subscriptiontracker-v1.0.0)'],
       ownerItem: 'a certificate that must be PURCHASED',
     }).join('\n');
 

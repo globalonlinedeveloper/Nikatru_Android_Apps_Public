@@ -62,7 +62,7 @@
 //
 // Usage:
 //   node tooling/release/submit-appstore.mjs --dry-run --channel ios-appstore
-//   node tooling/release/submit-appstore.mjs --dry-run --channel macos-appstore --app subly
+//   node tooling/release/submit-appstore.mjs --dry-run --channel macos-appstore --app subscriptiontracker
 //   node tooling/release/submit-appstore.mjs --dry-run --channel ios-appstore --allow-missing-artifact
 //   node tooling/release/submit-appstore.mjs --submit  --channel ios-appstore     (refuses)
 //   [--repo-root <path>]   point every path below at a different tree (tests)
@@ -333,7 +333,7 @@ if (!problems.length) ok(`metadata tree ${metaDir} — ${filesChecked} field(s) 
 // real, and therefore checkable today with no Apple account.
 //
 // ⚠️ iOS and macOS declare it in DIFFERENT FILES and the register says which.
-// The macOS pbxproj carries only `com.nikatru.subly.RunnerTests`, so a reader
+// The macOS pbxproj carries only `com.nikatru.subscriptiontracker.RunnerTests`, so a reader
 // that assumed one location would compare against the TEST bundle's id and
 // agree with itself.
 const bundle = channel.bundleIdentifier ?? null;

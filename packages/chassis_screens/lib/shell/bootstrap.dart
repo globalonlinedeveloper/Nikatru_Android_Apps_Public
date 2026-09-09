@@ -32,7 +32,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 ///    condition means the licence does not apply. That is a breach at the first
 ///    store submission, not untidiness. The shared half already existed and was
 ///    tested (`packages/design_system/.../vendored_asset_licences.dart`); the
-///    brick simply never called it, so `apps/subly` was compliant and every app
+///    brick simply never called it, so `apps/subscriptiontracker` was compliant and every app
 ///    the factory stamped was not.
 ///
 ///    Registered BEFORE `runApp` because `LicenseRegistry` is read lazily by

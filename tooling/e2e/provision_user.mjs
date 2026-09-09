@@ -16,7 +16,7 @@ const url = need('SUPABASE_URL').replace(/\/+$/, '');
 const serviceKey = need('SUPABASE_SERVICE_ROLE_KEY');
 
 // GoTrue rejects @example.com; use a clearly-labelled @nikatru.com test address.
-const email = `subly-e2e+${Date.now()}@nikatru.com`;
+const email = `subscriptiontracker-e2e+${Date.now()}@nikatru.com`;
 const password = `E2e${randomBytes(24).toString('hex')}`; // 51 chars, alphanumeric
 console.log(`::add-mask::${password}`);
 

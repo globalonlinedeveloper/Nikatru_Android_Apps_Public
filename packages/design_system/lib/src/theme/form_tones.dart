@@ -5,7 +5,7 @@ import '../tokens/app_colors.dart';
 /// The six neutral colours a hand-painted form paints with, resolved for the
 /// current brightness.
 ///
-/// MOVED HERE FROM `apps/subly/lib/features/auth/login_screen.dart` on
+/// MOVED HERE FROM `apps/subscriptiontracker/lib/features/auth/login_screen.dart` on
 /// 2026-09-04 ([ADR 065], chassis step 2). It was a private `_tones` helper on
 /// one screen in one app and it is neither app-specific nor screen-specific:
 /// every hand-painted form in the portfolio needs exactly this resolution, and
@@ -16,7 +16,7 @@ import '../tokens/app_colors.dart';
 ///
 /// 🔴 LIGHT IS THE LITERAL TOKEN, NOT `scheme.<slot>`, AND THAT IS THE WHOLE
 /// SHAPE OF THIS FUNCTION — the same rule `cardDecoration` and `RowCard` are
-/// written to. `apps/subly` is the frozen legacy rail-prover the owner eyeballs,
+/// written to. `apps/subscriptiontracker` is the frozen legacy rail-prover the owner eyeballs,
 /// so light must come out byte-identical to the twelve `AppColors.*` references
 /// this replaced; a "tidy-up" to `scheme.surface` in the light arm would
 /// repaint the login screen while every assertion comparing scheme-to-scheme

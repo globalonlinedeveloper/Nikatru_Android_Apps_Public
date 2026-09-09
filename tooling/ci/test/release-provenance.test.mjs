@@ -84,7 +84,7 @@ function buildWorkflow({ gateJob = true, needsForm = 'scalar', gateInBuildJob = 
 // cases testing what they were written to test. It is deliberately the SHAPE of
 // the real lanes and not a copy of them: `submit-store.mjs` is a name no real
 // script has, so nothing here can pass by resembling submit-play.mjs.
-const SUBMIT_STEP = '      - run: node tooling/release/submit-store.mjs --submit --app subly';
+const SUBMIT_STEP = '      - run: node tooling/release/submit-store.mjs --submit --app subscriptiontracker';
 
 /** The run-time half limb 4 (b) demands, as real code. The template literal
  *  carrying `//` in a URL is on purpose: it is the shape that breaks a stripper
@@ -298,7 +298,7 @@ describe('assert-release-provenance — a publish must record what shipped', () 
   // Review 2026-07-31: `gh release upload` is the register's own locked
   // AppImage flow (Releases as artifact origin) and the PUBLISH list missed it.
   test('gh release upload IS a publish and needs a gate + marker', () => {
-    const uploader = `name: Ship\non:\n  push:\njobs:\n  upload:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: gh release upload subly-v1 app.AppImage\n`;
+    const uploader = `name: Ship\non:\n  push:\njobs:\n  upload:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: gh release upload subscriptiontracker-v1 app.AppImage\n`;
     const root = tree();
     writeFileSync(join(root, '.github/workflows/upload.yml'), uploader);
     const { code, out } = run(root);
@@ -768,7 +768,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // Comments are blanked by the shared parser, so this tree has zero real
     // submit jobs — and the floor is what says so. A limb that counted the
     // comment would report a gated lane that does not exist.
-    const commented = submitWorkflow({ step: '      # - run: node tooling/release/submit-store.mjs --submit --app subly\n      - run: echo nothing' });
+    const commented = submitWorkflow({ step: '      # - run: node tooling/release/submit-store.mjs --submit --app subscriptiontracker\n      - run: echo nothing' });
     const { code, out } = run(tree({ submit: commented }));
     assert.equal(code, 1, out);
     assert.match(out, /ZERO jobs invoke a `--submit` verb/);
@@ -815,7 +815,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // `--submit` is inside `--submit-preflight`, so a preflight-only lane would
     // be counted as a submit lane and reported gated — a limb ranging over a job
     // that never uploads anything.
-    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: node tooling/release/submit-store.mjs --submit-preflight --app subly' }) }));
+    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: node tooling/release/submit-store.mjs --submit-preflight --app subscriptiontracker' }) }));
     assert.equal(code, 1, out);
     assert.match(out, /ZERO jobs invoke a `--submit` verb/);
   });
@@ -825,7 +825,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // `.mjs` to the LEFT of the runner; without the prefix the guard reads
     // `NODE_OPTIONS=--loader=./tooling/release/trace.mjs` as the script, cannot
     // open it, and half (b) is never asked of the real one.
-    const step = '      - run: NODE_OPTIONS=--loader=./tooling/release/trace.mjs node tooling/release/submit-store.mjs --submit --app subly';
+    const step = '      - run: NODE_OPTIONS=--loader=./tooling/release/trace.mjs node tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.match(out, /tooling\/release\/submit-store\.mjs/);
@@ -841,7 +841,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // two `node`-invoked lanes on the real tree, a third direct-exec one would
     // raise no floor and would be missed. Recorded here, not papered over —
     // widening SUBMIT_RUNNER is a scope decision, not a test fix.
-    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: ./tooling/release/submit-store.mjs --submit --app subly' }) }));
+    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: ./tooling/release/submit-store.mjs --submit --app subscriptiontracker' }) }));
     assert.equal(code, 1, out);
     assert.match(out, /ZERO jobs invoke a `--submit` verb/);
   });
@@ -891,7 +891,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // `nodemon`, the job enters the domain, and — because SUBMIT_SCRIPT still
     // wants a real `node` — it lands on the UNREADABLE floor instead. Both
     // outcomes exit 1, so the discriminator is WHICH floor speaks.
-    const step = '      - run: nodemon tooling/release/submit-store.mjs --submit --app subly';
+    const step = '      - run: nodemon tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 1, out);
     assert.match(out, /ZERO jobs invoke a `--submit` verb/);
@@ -903,7 +903,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // `submit-store.mjsx` is captured as `submit-store.mjs` — a DIFFERENT file
     // that this fixture happens to have on disk and that does perform the read,
     // so the run goes green having checked a script the workflow never invokes.
-    const step = '      - run: node tooling/release/submit-store.mjsx --submit --app subly';
+    const step = '      - run: node tooling/release/submit-store.mjsx --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
@@ -976,7 +976,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     const root = tree();
     writeFileSync(
       join(root, '.github/workflows/lookalike.yml'),
-      submitWorkflow({ step: '      - run: xnode tooling/release/submit-store.mjs --submit --app subly' }),
+      submitWorkflow({ step: '      - run: xnode tooling/release/submit-store.mjs --submit --app subscriptiontracker' }),
     );
     const { code, out } = run(root);
     assert.equal(code, 0, out);
@@ -992,7 +992,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // inside `xnode/` and captures `/shim.mjs` — a file that is not on disk, so
     // half (b) is never asked of the script the workflow really invokes.
     const step =
-      '      - run: NODE_OPTIONS=--require=/opt/xnode/shim.mjs node tooling/release/submit-store.mjs --submit --app subly';
+      '      - run: NODE_OPTIONS=--require=/opt/xnode/shim.mjs node tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.match(out, /tooling\/release\/submit-store\.mjs/);
@@ -1007,7 +1007,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // `mon-dev.mjs` is that boundary. A single `&` is not a segment separator,
     // which is what keeps both commands on one segment.
     const step =
-      '      - run: npx nodemon-dev.mjs & node tooling/release/submit-store.mjs --submit --app subly';
+      '      - run: npx nodemon-dev.mjs & node tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.match(out, /tooling\/release\/submit-store\.mjs/);
@@ -1025,7 +1025,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // asked of the script that actually submits.
     // MEASURED 2026-08-24 on a scratch mirror, before this case existed:
     // `\.` -> `.` left the whole suite green, exit 0, 103 tests, 103 pass.
-    const step = '      - run: node /opt/hooks/loadermjs tooling/release/submit-store.mjs --submit --app subly';
+    const step = '      - run: node /opt/hooks/loadermjs tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /COVERAGE LOST/);
@@ -1042,7 +1042,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // free, the `.mjx` argument below wins the lazy race, the guard reads a file
     // that is not in the tree, and half (b) is never asked of the real script.
     const step =
-      '      - run: node tooling/release/decoy.mjx tooling/release/submit-store.mjs --submit --app subly';
+      '      - run: node tooling/release/decoy.mjx tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /COVERAGE LOST/);
@@ -1063,7 +1063,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // file, which this fixture puts in the tree fully compliant - so it exits 0
     // having credited a script the workflow never invoked. The silent credit is
     // the outcome being excluded here, not the fail-closed one.
-    const step = '      - run: ./node-tools.mjs --submit --app subly';
+    const step = '      - run: ./node-tools.mjs --submit --app subscriptiontracker';
     const { code, out } = run(
       tree({ submit: submitWorkflow({ step }), extraScript: { path: 'tools.mjs', body: SUBMIT_SCRIPT_REAL } }),
     );
@@ -1079,7 +1079,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // and `\S*` would capture `.mjs` as the script name. Both outcomes are
     // COVERAGE LOST, so the discriminator is WHICH floor message speaks: the
     // unnameable branch, or the unreadable one.
-    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: node --submit .mjs --app subly' }) }));
+    const { code, out } = run(tree({ submit: submitWorkflow({ step: '      - run: node --submit .mjs --app subscriptiontracker' }) }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /\(job "submit"\)/);
@@ -1094,7 +1094,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // folding: split the same command across the fold and a raw line scan sees
     // `node` on one line and `--submit` on another, matches neither, and reports
     // the domain EMPTY.
-    const step = '      - run: >\n          node tooling/release/submit-store.mjs\n          --submit --app subly';
+    const step = '      - run: >\n          node tooling/release/submit-store.mjs\n          --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.match(out, /1 job\(s\) invoke a `--submit` verb/);
@@ -1107,7 +1107,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // Read from the whole line, the guard checks a script the `--submit` command
     // never invoked and reports clean — the per-segment rule the dry-run
     // exclusion already pays for, one condition over.
-    const step = '      - run: node ./bin/wrapper --submit --app subly && node tooling/release/submit-store.mjs';
+    const step = '      - run: node ./bin/wrapper --submit --app subscriptiontracker && node tooling/release/submit-store.mjs';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
@@ -1138,7 +1138,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
       join(root, '.github/workflows/split-runner.yml'),
       submitWorkflow({
         environment: null,
-        step: '      - run: node tooling/release/submit-store.mjs --app subly && ./tooling/release/shipit.sh --submit',
+        step: '      - run: node tooling/release/submit-store.mjs --app subscriptiontracker && ./tooling/release/shipit.sh --submit',
       }),
     );
     const { code, out } = run(root);
@@ -1321,7 +1321,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // the guard reads the path the workflow actually wrote and fails closed when
     // it is not there; lazy stops at the FIRST `.mjs`, silently rewriting the
     // path into a neighbouring file that does exist and crediting that instead.
-    const step = '      - run: node tooling/release/submit-store.mjs.mjs --submit --app subly';
+    const step = '      - run: node tooling/release/submit-store.mjs.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
@@ -1416,7 +1416,7 @@ describe('assert-release-provenance — a --submit job is gated on an environmen
     // decoy leaves free — it differs from `.mjs` by a letter, this one by a
     // letter's CASE.
     const step =
-      '      - run: node /opt/hooks/PRELOAD.MJS tooling/release/submit-store.mjs --submit --app subly';
+      '      - run: node /opt/hooks/PRELOAD.MJS tooling/release/submit-store.mjs --submit --app subscriptiontracker';
     const { code, out } = run(tree({ submit: submitWorkflow({ step }) }));
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /COVERAGE LOST/);

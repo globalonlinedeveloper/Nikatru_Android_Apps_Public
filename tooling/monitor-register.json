@@ -333,9 +333,9 @@
           "name": "Subly web",
           "type": "GET",
           "derivedFrom": "appCatalogue",
-          "url": "https://nikatru.com/subly/",
+          "url": "https://nikatru.com/subscriptiontracker/",
           "expectedStatus": 200,
-          "expectedBody": "<base href=\"/subly/\">",
+          "expectedBody": "<base href=\"/subscriptiontracker/\">",
           "intervalSeconds": 60,
           "verifiedOn": null,
           "🔴 verifiedOnIsNullAndThatIsTheHONESTValue": [
@@ -367,10 +367,10 @@
           "theLiveChangeThatClosesThis": {
             "method": "PUT",
             "endpoint": "https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/3/",
-            "fields": { "url": "https://nikatru.com/subly/", "expectedBody": "<base href=\"/subly/\">" },
+            "fields": { "url": "https://nikatru.com/subscriptiontracker/", "expectedBody": "<base href=\"/subscriptiontracker/\">" },
             "🔴 fullReplace": "PUT IS A FULL REPLACE — re-send name, monitorType, expectedStatus, interval, timeout, confirmationThreshold AND `project` unchanged alongside the two fields above, then DIFF the read-back. Omitting `project` silently detaches the monitor from every alert recipient under an HTTP 200; that is monitor 6's defect and it happened to all nine monitors at once on 2026-08-11 (tooling/channel-register.json, [ADR 043]).",
             "orderMatters": "The PUT must land AFTER the apex router serves the app, not before: pointed at https://nikatru.com/<id>/ one minute early it is red for a reason that is not a fault. The deploy, then the PUT, then `node tooling/ops/verify-monitors.mjs` for exit 0, then this entry's `verifiedOn` becomes that day's date in the same commit that deletes this block.",
-            "whatItStillCannotSee": "Unchanged by the move and worth restating because the address changing invites the assumption that something got stronger: this is a LOADER SHELL and a monitor runs no JavaScript, so flutter_bootstrap.js 404ing, main() throwing or the first frame never rasterizing all still answer 200 with this exact body. What the new body DOES add over the old one is routing: `<base href=\"/subly/\">` is written by `flutter build web --base-href /<id>/` and cannot appear in a build published at the apex root or under another app's path, so a deploy cross-wired between two apps' Pages projects now fails a check it used to pass."
+            "whatItStillCannotSee": "Unchanged by the move and worth restating because the address changing invites the assumption that something got stronger: this is a LOADER SHELL and a monitor runs no JavaScript, so flutter_bootstrap.js 404ing, main() throwing or the first frame never rasterizing all still answer 200 with this exact body. What the new body DOES add over the old one is routing: `<base href=\"/subscriptiontracker/\">` is written by `flutter build web --base-href /<id>/` and cannot appear in a build published at the apex root or under another app's path, so a deploy cross-wired between two apps' Pages projects now fails a check it used to pass."
           }
         }
       ],
@@ -443,12 +443,12 @@
         "openedOn": "2026-08-03",
         "closedOn": "2026-08-11",
         "howItWasClosed": "PUT /api/0/organizations/nikatru/monitors/3/ with every existing value re-sent and only monitorType and expectedStatus changed; read back as GET / 200. The save's off-cadence check at 2026-08-10T19:22:21.062Z UTC came back up in 42 ms.",
-        "note": "⚠️ THE BODY LIMB IS NOW ASSERTED AND IT STILL DOES NOT PROVE THE APP BOOTS — read the second half of this note before trusting the first. expectedBody is <base href=\"/\">, measured live 2026-08-11: GET https://subly.nikatru.com/ → 200, 772 UTF-8 bytes. It was chosen over the <title> and over flutter_bootstrap.js because it is the ONE byte sequence in the served shell that exists only if a real flutter build web ran — the source template apps/subly/web/index.html carries the literal <base href=\"$FLUTTER_BASE_HREF\">, and $FLUTTER_BASE_HREF does not appear in the live body at all. So it catches an edge error page, an empty or wrong Pages project, and a deploy of the SOURCE directory instead of build/web; and tooling/ci/test/smoke-web-artifact.test.mjs already records a failing case for this exact string — <base href=\"/\"> rewritten to /nope/ → exit 1 naming four 404s, run against a real flutter build web. 🔴 WHAT IT STILL CANNOT SEE, AND NO GET EVER WILL: this shell is a loader and a monitor runs no JavaScript, so flutter_bootstrap.js 404ing, main() throwing, or the first frame never rasterizing ALL still answer 200 with this exact body. That is also precisely why flutter_bootstrap.js was REJECTED as the string — it is present in the shell exactly when the file it names is missing, so it would read as coverage of the failure it cannot see. The did-it-boot half stays with the nightly e2e and with tooling/smoke/smoke-web-artifact.mjs's flutter-first-frame signal. Note also that GET /__no_such_page__ on this host returns 200 with this same shell (SPA fallback, measured), so this body says nothing about routing either."
+        "note": "⚠️ THE BODY LIMB IS NOW ASSERTED AND IT STILL DOES NOT PROVE THE APP BOOTS — read the second half of this note before trusting the first. expectedBody is <base href=\"/\">, measured live 2026-08-11: GET https://subly.nikatru.com/ → 200, 772 UTF-8 bytes. It was chosen over the <title> and over flutter_bootstrap.js because it is the ONE byte sequence in the served shell that exists only if a real flutter build web ran — the source template apps/subscriptiontracker/web/index.html carries the literal <base href=\"$FLUTTER_BASE_HREF\">, and $FLUTTER_BASE_HREF does not appear in the live body at all. So it catches an edge error page, an empty or wrong Pages project, and a deploy of the SOURCE directory instead of build/web; and tooling/ci/test/smoke-web-artifact.test.mjs already records a failing case for this exact string — <base href=\"/\"> rewritten to /nope/ → exit 1 naming four 404s, run against a real flutter build web. 🔴 WHAT IT STILL CANNOT SEE, AND NO GET EVER WILL: this shell is a loader and a monitor runs no JavaScript, so flutter_bootstrap.js 404ing, main() throwing, or the first frame never rasterizing ALL still answer 200 with this exact body. That is also precisely why flutter_bootstrap.js was REJECTED as the string — it is present in the shell exactly when the file it names is missing, so it would read as coverage of the failure it cannot see. The did-it-boot half stays with the nightly e2e and with tooling/smoke/smoke-web-artifact.mjs's flutter-first-frame signal. Note also that GET /__no_such_page__ on this host returns 200 with this same shell (SPA fallback, measured), so this body says nothing about routing either."
       }
     },
     {
       "hostname": "api.nikatru.com",
-      "what": "the subly-api Worker",
+      "what": "the subscriptiontracker-api Worker",
       "derivedFrom": "appCatalogue",
       "monitor": { "id": 2, "name": "Subly API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" },
       "🔴 openBodyGap": {
@@ -469,8 +469,8 @@
           "matcherProvenance": "The value above is byte-for-byte identical to monitor 11's live, verified string on the same `/v1/health` shape — codepoints [34,111,107,34,58,116,114,117,101] for both, nine characters, NO space after the colon. A near-miss such as a space after the colon would be silently permissive, which is this wave's entire subject."
         },
         "📌 mustLandWithTheLiveChange": [
-          "services/subly-api/test/health.test.ts (branch fix/health-that-can-fail, PR #384) — asserts monitor 2's BODY-LESS state as a LIVE FACT, and goes stale the moment the PUT lands.",
-          "services/subly-api/src/index.ts — restates the same claim in the `/v1/health` header comment, and goes stale with it.",
+          "services/subscriptiontracker-api/test/health.test.ts (branch fix/health-that-can-fail, PR #384) — asserts monitor 2's BODY-LESS state as a LIVE FACT, and goes stale the moment the PUT lands.",
+          "services/subscriptiontracker-api/src/index.ts — restates the same claim in the `/v1/health` header comment, and goes stale with it.",
           "Both going stale is BY DESIGN — the note deletes itself when the gap closes — but they must land together with the PUT, or the tree asserts two contradictory things about one live monitor. Neither file belongs to the writer of this register."
         ]
       }
@@ -501,13 +501,13 @@
       "hostname": "config.nikatru.com",
       "what": "the shared platform Worker's config surface — GET /config/:app, the pre-consent launch fetch every client makes",
       "derivedFrom": "workerCustomDomains",
-      "monitor": { "id": 12, "name": "config.nikatru.com", "type": "GET", "path": "/config/subly", "expectedStatus": 200, "expectedBody": "\"app_id\"", "confirmationThreshold": 2, "intervalSeconds": 60, "verifiedOn": "2026-08-05" },
+      "monitor": { "id": 12, "name": "config.nikatru.com", "type": "GET", "path": "/config/subscriptiontracker", "expectedStatus": 200, "expectedBody": "\"app_id\"", "confirmationThreshold": 2, "intervalSeconds": 60, "verifiedOn": "2026-08-05" },
       "closedGap": {
         "why": "Same wrangler.jsonc, same omission. It is the FIRST request a launching app makes, so its failure is a launch failure rather than a degraded feature.",
         "openedOn": "2026-08-02",
         "closedOn": "2026-08-05",
-        "howItWasClosed": "Created via the GlitchTip API and exercised with the production perform_checks task against https://config.nikatru.com/config/subly — up, 36 ms.",
-        "note": "⚠️ THE MONITORED PATH NAMES ONE APP. `/config/:app` is per-app, so a monitor has to pick one, and `subly` is the only shipping client today. When a second app ships, this checks that the config surface ANSWERS, not that the second app's config exists — and nothing here will say so. Revisit when the portfolio grows past one client."
+        "howItWasClosed": "Created via the GlitchTip API and exercised with the production perform_checks task against https://config.nikatru.com/config/subscriptiontracker — up, 36 ms.",
+        "note": "⚠️ THE MONITORED PATH NAMES ONE APP. `/config/:app` is per-app, so a monitor has to pick one, and `subscriptiontracker` is the only shipping client today. When a second app ships, this checks that the config surface ANSWERS, not that the second app's config exists — and nothing here will say so. Revisit when the portfolio grows past one client."
       }
     },
     {
@@ -629,7 +629,7 @@
       ],
       "🔴 andTheTypeWasTRIEDAndItDoesNotWorkOnThisInstance": [
         "WHICH IS WHY NINE SSL MONITORS WERE NOT CREATED. Probed 2026-09-03 with one throwaway named",
-        "'TEMP ssl probe (delete me)' in project subly, created and deleted the way the alarm-chain proof",
+        "'TEMP ssl probe (delete me)' in project subscriptiontracker, created and deleted the way the alarm-chain proof",
         "of 2026-08-05 was — the instance is back to twelve monitors and the id is burnt.",
         "  · POST with monitorType SSL is ACCEPTED: HTTP 201, id 20. The type is not rejected.",
         "  · EVERY check it ever produced was `isUp: false, reason: null, responseTime: 0` — on creation,",

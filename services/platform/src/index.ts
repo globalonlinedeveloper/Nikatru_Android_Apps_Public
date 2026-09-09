@@ -184,7 +184,7 @@ app.route('/v1', account);
 
 // AUTHENTICATED: the shared entitlement read ([5]M-4). The other half of what
 // [4]B-3's middleware lift was for — until this route existed, the only working
-// entitlement read in the repo was inside services/subly-api, so every
+// entitlement read in the repo was inside services/subscriptiontracker-api, so every
 // CLIENT-ONLY stamped app had no way to ask whether its user had paid.
 // Path-scoped for the same reason as /v1/account above.
 app.use('/v1/entitlements', platformAuth);

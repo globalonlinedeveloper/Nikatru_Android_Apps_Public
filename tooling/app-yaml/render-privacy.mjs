@@ -13,7 +13,7 @@
 //                                                   the sibling STORE-LISTING.md
 //
 // ── WHY A GENERATOR AT ALL, WHEN THE DECLARATION ALREADY EXISTS ──────────────
-// `apps/subly/privacy.yaml`'s own header says what it was missing: "Its
+// `apps/subscriptiontracker/privacy.yaml`'s own header says what it was missing: "Its
 // renderings — the Play data-safety answers, the Apple privacy manifest, the
 // published policy text — are NOT generated from it today, and nothing here
 // pretends they are." Two of those three must never be generated ([ADR 037] —

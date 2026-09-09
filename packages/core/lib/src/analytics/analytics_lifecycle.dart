@@ -21,7 +21,7 @@ const String kLastOpenKey = 'nikatru.analytics.last_open';
 /// Implemented ONCE for every app the factory stamps.
 ///
 /// 🔴 WHY THIS IS IN `core` AND NOT IN AN APP. It shipped as `AnalyticsFunnel`
-/// inside `apps/subly`, so a stamped app inherited `app_open` and nothing else:
+/// inside `apps/subscriptiontracker`, so a stamped app inherited `app_open` and nothing else:
 /// **1 of the 3 lifecycle events**, with the property test asserting only the
 /// one that existed. Fifty stamps would have been fifty copies of a file the
 /// brick does not carry — and `first_launch` is the denominator every activation

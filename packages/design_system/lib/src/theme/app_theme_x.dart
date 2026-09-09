@@ -93,7 +93,7 @@ class AppThemeX extends ThemeExtension<AppThemeX> {
   /// Light-mode brand tokens (the original Subly values).
   ///
   /// ⚠️ These stay `const` ON PURPOSE — they are the LEGACY PIN that keeps
-  /// `apps/subly` rendering byte-for-byte as shipped (39-CHASSIS cut 1 froze it
+  /// `apps/subscriptiontracker` rendering byte-for-byte as shipped (39-CHASSIS cut 1 froze it
   /// as a rail-prover). They are reached only through [AppTheme.light]/[dark];
   /// the chassis path builds tokens with [AppThemeX.fromScheme]. Do NOT wire
   /// these back into `buildAppTheme` — that is the defect C-11 fixed.

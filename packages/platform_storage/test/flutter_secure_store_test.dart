@@ -42,12 +42,12 @@ void main() {
         EntitlementCache(store: FlutterSecureStore());
     await cache.saveVerified(
       const Entitlements(
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         isPro: true,
         items: <Entitlement>[
           Entitlement(
             entitlement: 'pro',
-            productId: 'subly_pro',
+            productId: 'subscriptiontracker_pro',
             store: 'paddle',
             isActive: true,
           ),

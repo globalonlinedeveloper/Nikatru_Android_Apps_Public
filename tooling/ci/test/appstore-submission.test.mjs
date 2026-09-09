@@ -57,7 +57,7 @@ after(() => {
 
 let seq = 0;
 
-const BUNDLE = 'com.nikatru.subly';
+const BUNDLE = 'com.nikatru.subscriptiontracker';
 const APPLE_SOURCE = 'developer.apple.com/help/app-store-connect/reference/app-information/ — fetched 2026-07-29';
 
 const FILES = {
@@ -75,8 +75,8 @@ const FILES = {
 };
 
 const ARTIFACT = {
-  'ios-appstore': 'apps/subly/build/ios/ipa/subly.ipa',
-  'macos-appstore': 'apps/subly/build/macos/pkg/subly.pkg',
+  'ios-appstore': 'apps/subscriptiontracker/build/ios/ipa/subscriptiontracker.ipa',
+  'macos-appstore': 'apps/subscriptiontracker/build/macos/pkg/subscriptiontracker.pkg',
 };
 
 const appleRow = (id, over = {}) => ({
@@ -135,13 +135,13 @@ function tree({
   if (mutateRegister) mutateRegister(register);
 
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }]));
 
   if (!omitProject) {
     // The iOS shape: a pbxproj carrying the app bundle AND the test bundles, so
     // the "drop the test bundles" logic is exercised rather than assumed.
     write(
-      'apps/subly/ios/Runner.xcodeproj/project.pbxproj',
+      'apps/subscriptiontracker/ios/Runner.xcodeproj/project.pbxproj',
       [
         '\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = ' + iosBundle + ';',
         '\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = ' + iosBundle + '.RunnerTests;',
@@ -152,15 +152,15 @@ function tree({
     // The macOS shape: an xcconfig. Its pbxproj carries ONLY the test bundle,
     // which is why the register names the xcconfig — a reader that guessed would
     // compare against the test bundle and agree with itself.
-    write('apps/subly/macos/Runner/Configs/AppInfo.xcconfig', `PRODUCT_NAME = subly\nPRODUCT_BUNDLE_IDENTIFIER = ${macosBundle}\n`);
-    write('apps/subly/macos/Runner.xcodeproj/project.pbxproj', `\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = ${macosBundle}.RunnerTests;\n`);
+    write('apps/subscriptiontracker/macos/Runner/Configs/AppInfo.xcconfig', `PRODUCT_NAME = subscriptiontracker\nPRODUCT_BUNDLE_IDENTIFIER = ${macosBundle}\n`);
+    write('apps/subscriptiontracker/macos/Runner.xcodeproj/project.pbxproj', `\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = ${macosBundle}.RunnerTests;\n`);
   }
 
   if (!omitTree) {
     for (const channelId of ['ios-appstore', 'macos-appstore']) {
       for (const [rel, body] of Object.entries(FILES)) {
         if (omitFiles.includes(rel)) continue;
-        write(`apps/subly/store/${channelId}/${rel}`, fields[rel] ?? body);
+        write(`apps/subscriptiontracker/store/${channelId}/${rel}`, fields[rel] ?? body);
       }
     }
   }
@@ -185,8 +185,8 @@ function run(root, args, env = {}) {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-const ios = (root, extra = []) => run(root, ['--dry-run', '--channel', 'ios-appstore', '--app', 'subly', ...extra]);
-const macos = (root, extra = []) => run(root, ['--dry-run', '--channel', 'macos-appstore', '--app', 'subly', ...extra]);
+const ios = (root, extra = []) => run(root, ['--dry-run', '--channel', 'ios-appstore', '--app', 'subscriptiontracker', ...extra]);
+const macos = (root, extra = []) => run(root, ['--dry-run', '--channel', 'macos-appstore', '--app', 'subscriptiontracker', ...extra]);
 
 /** A crash is not a catch. */
 const assertComplained = (out) => {
@@ -200,20 +200,20 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
     const { code, out } = ios(tree({ withArtifact: true }));
     assert.equal(code, 0, out);
     assert.match(out, /DRY RUN OK — nothing was sent to Apple/);
-    assert.match(out, /artifact apps\/subly\/build\/ios\/ipa\/subly\.ipa/);
-    assert.match(out, /bundle identifier com\.nikatru\.subly/);
+    assert.match(out, /artifact apps\/subscriptiontracker\/build\/ios\/ipa\/subscriptiontracker\.ipa/);
+    assert.match(out, /bundle identifier com\.nikatru\.subscriptiontracker/);
   });
 
   test('--dry-run PASSES for macOS, reading the xcconfig and not the pbxproj', () => {
     const { code, out } = macos(tree({ withArtifact: true }));
     assert.equal(code, 0, out);
-    assert.match(out, /artifact apps\/subly\/build\/macos\/pkg\/subly\.pkg/);
+    assert.match(out, /artifact apps\/subscriptiontracker\/build\/macos\/pkg\/subscriptiontracker\.pkg/);
     assert.match(out, /AppInfo\.xcconfig agree/);
   });
 
   // 🔴 the refusal, and it must be BEFORE any validation
   test('--submit REFUSES with UNVERIFIED, before running a single check', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--channel', 'ios-appstore', '--app', 'subly']);
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--channel', 'ios-appstore', '--app', 'subscriptiontracker']);
     assert.equal(code, 1, out);
     assert.match(out, /--submit is NOT IMPLEMENTED, and refusing is the implementation/);
     assert.match(out, /UNVERIFIED: the App Store Connect API base URL/);
@@ -276,7 +276,7 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
   test('FAILS when the whole metadata tree is gone', () => {
     const { code, out } = ios(tree({ withArtifact: true, omitTree: true }));
     assert.equal(code, 1, out);
-    assert.match(out, /the store metadata tree apps\/subly\/store\/ios-appstore does not exist/);
+    assert.match(out, /the store metadata tree apps\/subscriptiontracker\/store\/ios-appstore does not exist/);
   });
 
   test('FAILS when a URL field is not an absolute https URL', () => {
@@ -327,14 +327,14 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
 
   // ── the bundle identifier: one declaration, two readers ───────────────────
   test('FAILS when the iOS project builds a different bundle id from the register', () => {
-    const { code, out } = ios(tree({ withArtifact: true, iosBundle: 'com.someoneelse.subly' }));
+    const { code, out } = ios(tree({ withArtifact: true, iosBundle: 'com.someoneelse.subscriptiontracker' }));
     assert.equal(code, 1, out);
     assertComplained(out);
     assert.match(out, /bundle identifier DISAGREES/);
   });
 
   test('FAILS when the macOS xcconfig builds a different bundle id from the register', () => {
-    const { code, out } = macos(tree({ withArtifact: true, macosBundle: 'com.someoneelse.subly' }));
+    const { code, out } = macos(tree({ withArtifact: true, macosBundle: 'com.someoneelse.subscriptiontracker' }));
     assert.equal(code, 1, out);
     assertComplained(out);
     assert.match(out, /bundle identifier DISAGREES/);
@@ -363,7 +363,7 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
 
   test('COVERAGE LOST when the project file carries no bundle id at all', () => {
     const root = tree({ withArtifact: true });
-    writeFileSync(join(root, 'apps/subly/ios/Runner.xcodeproj/project.pbxproj'), '// nothing here\n');
+    writeFileSync(join(root, 'apps/subscriptiontracker/ios/Runner.xcodeproj/project.pbxproj'), '// nothing here\n');
     const { code, out } = ios(root);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST — .*contains ZERO `PRODUCT_BUNDLE_IDENTIFIER` assignments/);
@@ -387,7 +387,7 @@ describe('submit-appstore — both Apple channels are walkable, and --submit ref
     const { code, out } = ios(tree());
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /subly\.ipa does not exist/);
+    assert.match(out, /subscriptiontracker\.ipa does not exist/);
   });
 
   test('PASSES with --allow-missing-artifact, and SAYS the package was not validated', () => {

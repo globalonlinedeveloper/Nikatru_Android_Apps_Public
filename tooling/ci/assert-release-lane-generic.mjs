@@ -10,7 +10,7 @@
 // It read: *fail if any release workflow contains a hard-coded app path
 // (`apps/<id>`) outside a `workflow_call` input default.* That is a rule about a
 // STRING, and a rule about a string is satisfied by MOVING the string. Hoisting
-// the same literal into `env: APP: apps/subly` and writing
+// the same literal into `env: APP: apps/subscriptiontracker` and writing
 // `working-directory: ${{ env.APP }}` passes it exactly — one app, one file,
 // guard green, nothing generic. So this guard resolves the reference instead of
 // banning it: `${{ env.X }}` and `${{ matrix.X }}` are EXPANDED before anything
@@ -42,7 +42,7 @@
 //
 //     · A MIXED lane. `parameterised` short-circuited the equality check, so ONE
 //       `apps/${{ matrix.app }}` anywhere in the file excused every remaining
-//       `working-directory: apps/subly` beside it. That lane builds app #2's web
+//       `working-directory: apps/subscriptiontracker` beside it. That lane builds app #2's web
 //       bundle out of app #1's directory. A lane is generic when EVERY app path
 //       is parameterised, so a resolved literal alongside a dynamic one fails.
 //
@@ -75,8 +75,8 @@
 // LIMB D — NO LITERAL APP ID ON THE DEPLOY PATH, added 2026-08-07 with
 //   `[10]D-2b`. Limbs A/A′ quantify over `apps/<id>` PATHS, and that is not the
 //   whole of "takes any app id". `deploy-web.yml` also carried the app id in
-//   three places with no `apps/` prefix at all — `--project-name=subly`,
-//   `record-deployment.mjs subly-web`, and the smoke URL
+//   three places with no `apps/` prefix at all — `--project-name=subscriptiontracker`,
+//   `record-deployment.mjs subscriptiontracker-web`, and the smoke URL
 //   `https://subly.nikatru.com/version.json`. Every one of them is on the
 //   executable path, every one of them would have had to be hand-edited to ship
 //   app #2, and limbs A/A′ are blind to all three by construction.
@@ -86,7 +86,7 @@
 //   step's `run:` and `with:` — selected BY YAML KEY off the shared parser,
 //   expanded through the same `${{ env.X }}` / `${{ matrix.X }}` resolver as
 //   limb A, and then searched for any workspace app id AS A WHOLE TOKEN. Never
-//   by grepping the file: a `#`-comment naming `apps/subly/web/_headers` in an
+//   by grepping the file: a `#`-comment naming `apps/subscriptiontracker/web/_headers` in an
 //   explanation is prose, and this repository has already shipped a guard that
 //   matched the comment explaining why a thing did not exist.
 //
@@ -124,7 +124,7 @@
 //         node tooling/ci/assert-release-lane-generic.mjs --emit-apps [repoRoot]
 // Exit 0 = every R-1 lane covers the whole workspace and no guard hides a lane.
 //
-// `--emit-apps` prints the workspace app IDS as a JSON array (`["subly"]`) and
+// `--emit-apps` prints the workspace app IDS as a JSON array (`["subscriptiontracker"]`) and
 // exits. THIS IS NOT A CONVENIENCE. `build-platforms.yml` and `e2e.yml` build
 // their `strategy.matrix.app` from this output, so the set a lane iterates and
 // the set this guard grades it against come from the SAME `workspaceApps()`
@@ -347,7 +347,7 @@ const CLASSIFIED_ELSEWHERE = new Map([
       'artifact: it builds no shippable binary, publishes nothing and uploads pictures. R-1 quantifies ' +
       'over the workspace APP set to prove a lane is generic; a lane that ships no app has nothing for ' +
       'this guard to compare and would sit in the denominator as a permanent empty-set pass. It is ' +
-      'already `--app`-parameterised (`node tooling/store/capture-play-screenshots.mjs --app subly`), so ' +
+      'already `--app`-parameterised (`node tooling/store/capture-play-screenshots.mjs --app subscriptiontracker`), so ' +
       'the genericity R-1 cares about is in the script, and what holds its OUTPUT generic is ' +
       'assert-listing-assets.mjs, whose expected set is { channels declaring graphicAssets } x { apps }.',
   ],
@@ -508,7 +508,7 @@ const DYNAMIC = '\u0000dynamic\u0000';
 
 /** `KEY: value` under every `env:` block in the file — workflow level and job
  *  level merged. Merging is deliberate and it is what closes the bypass: the
- *  hoist the original criterion invited (`env: APP: apps/subly` at file scope)
+ *  hoist the original criterion invited (`env: APP: apps/subscriptiontracker` at file scope)
  *  and the same literal written inline resolve to the identical answer. */
 export function collectEnv(lines) {
   const map = new Map();
@@ -619,8 +619,8 @@ const APP_REF = new RegExp(`apps/(${DYNAMIC}|[A-Za-z0-9_.-]+)`, 'g');
 
 /** What a workflow resolves to: a set of `apps/<id>`, plus whether any app path
  *  is parameterised. Comments are already blanked by parseWorkflow — essential
- *  here, because build-platforms.yml names `apps/subly/android/app/build.gradle.kts`
- *  and `apps/subly/.gitignore` IN PROSE, and a raw match would read a lane's own
+ *  here, because build-platforms.yml names `apps/subscriptiontracker/android/app/build.gradle.kts`
+ *  and `apps/subscriptiontracker/.gitignore` IN PROSE, and a raw match would read a lane's own
  *  explanation as its behaviour. */
 export function laneApps(wf, env, matrix) {
   const resolved = new Set();
@@ -705,9 +705,9 @@ export function deployPathValues(wf) {
 }
 
 const RE_ESCAPE = /[.*+?^${}()|[\]\\]/g;
-/** An app id as a WHOLE TOKEN. `subly` must be found in `--project-name=subly`,
- *  in `subly-web` and in `https://subly.nikatru.com`, and must NOT be found
- *  inside `sublyx` or `resubly` — an id that is merely a substring of another
+/** An app id as a WHOLE TOKEN. `subscriptiontracker` must be found in `--project-name=subscriptiontracker`,
+ *  in `subscriptiontracker-web` and in `https://subly.nikatru.com`, and must NOT be found
+ *  inside `subscriptiontrackerx` or `resubscriptiontracker` — an id that is merely a substring of another
  *  word is not this lane naming that app. */
 const idToken = (id) => new RegExp(`(^|[^A-Za-z0-9])${id.replace(RE_ESCAPE, '\\$&')}([^A-Za-z0-9]|$)`);
 

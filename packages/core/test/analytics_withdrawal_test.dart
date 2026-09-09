@@ -77,7 +77,7 @@ AnalyticsRecorder _recorder({
   int batchSize = 99,
 }) =>
     AnalyticsRecorder(
-      appId: 'subly',
+      appId: 'subscriptiontracker',
       anonId: 'install-1',
       transport: transport,
       consent: consent,

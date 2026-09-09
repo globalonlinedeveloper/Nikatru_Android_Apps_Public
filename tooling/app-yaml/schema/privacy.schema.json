@@ -142,7 +142,7 @@
   },
   "allOf": [
     {
-      "description": "🔴 THE ARITY FLOORS, PER SURFACE. `collects` and `processors` carried `minItems: 1` unconditionally until the extension surface was added, and NOTHING HERE LOWERS THAT FLOOR FOR AN APP — it moves into the branch that applies to apps, which is where it can be true. An app that declares nothing collected and nobody processing is a declaration that graded itself; an extension that transmits nothing has, truthfully, neither. tooling/ci/test/app-yaml.test.mjs mutates apps/subly/privacy.yaml to `collects: []` and to `processors: []` and asserts EXIT 1 on both, which is the floor being demonstrated rather than asserted.",
+      "description": "🔴 THE ARITY FLOORS, PER SURFACE. `collects` and `processors` carried `minItems: 1` unconditionally until the extension surface was added, and NOTHING HERE LOWERS THAT FLOOR FOR AN APP — it moves into the branch that applies to apps, which is where it can be true. An app that declares nothing collected and nobody processing is a declaration that graded itself; an extension that transmits nothing has, truthfully, neither. tooling/ci/test/app-yaml.test.mjs mutates apps/subscriptiontracker/privacy.yaml to `collects: []` and to `processors: []` and asserts EXIT 1 on both, which is the floor being demonstrated rather than asserted.",
       "anyOf": [
         {
           "description": "An app: at least one collected category, at least one processor, and no extension-only block.",

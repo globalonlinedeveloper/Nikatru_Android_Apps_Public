@@ -11,7 +11,7 @@ import 'app_scaffold.dart' show AppBreakpoints;
 /// 🔴 THE COPY IS REQUIRED, NOT DEFAULTED. An English default here is a
 /// user-visible literal living in `packages/`, and
 /// `tooling/ci/assert-no-hardcoded-strings.mjs` scans exactly two roots — the
-/// brick and `apps/subly/lib` (`:119-131`) — not this one. So a default is a
+/// brick and `apps/subscriptiontracker/lib` (`:119-131`) — not this one. So a default is a
 /// shipped string that has left the domain of the only guard that hunts for
 /// one. Requiring it puts the string back in a scanned tree, because the
 /// caller lives in `apps/` or in the brick.

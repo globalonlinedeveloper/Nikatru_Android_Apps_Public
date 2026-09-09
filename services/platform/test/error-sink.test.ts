@@ -39,7 +39,7 @@ const CTX = {
   // portfolio shares that is never the same question as "whose app". A field
   // typed `string | undefined` but still REQUIRED makes a new caller state an
   // answer — including "there wasn't one" — instead of inheriting silence.
-  appId: 'subly',
+  appId: 'subscriptiontracker',
   requestId: 'rid-1',
   method: 'POST',
   path: '/v1/events',
@@ -122,7 +122,7 @@ describe('the envelope', () => {
   it('tags the report with the APP, not only the Worker', () => {
     const [, , item] = buildEnvelope(new Error('x'), CTX, DSN, NOW).split('\n');
     const { tags } = JSON.parse(item);
-    expect(tags.app_id).toBe('subly');
+    expect(tags.app_id).toBe('subscriptiontracker');
     // `service` still says which Worker. The two are different questions and
     // both must be answerable — this is the ONE Worker behind every app.
     expect(tags.service).toBe('platform');
@@ -177,7 +177,7 @@ describe('the privacy invariants of the payload', () => {
         // reach the REAL onError. A 404 would have made it pass for the wrong
         // reason: no envelope is sent, so "the envelope has no query string" is
         // trivially true.
-        body: JSON.stringify({ app_id: 'subly', events: [{ event_id: 'e1', event: 'app_open', anon_id: 'a1' }] }),
+        body: JSON.stringify({ app_id: 'subscriptiontracker', events: [{ event_id: 'e1', event: 'app_open', anon_id: 'a1' }] }),
       }),
       // No PLATFORM_DB binding, so the handler throws on `.prepare` — a real
       // unhandled error reaching the real onError, not a stubbed one.
@@ -226,7 +226,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          app_id: 'subly',
+          app_id: 'subscriptiontracker',
           events: [{ event_id: 'e1', event: 'app_open', anon_id: 'a1' }],
         }),
       }),
@@ -236,7 +236,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
     expect(res.status).toBe(500);
     expect(sent).toHaveLength(1);
     const event = JSON.parse(sent[0].split('\n')[2]);
-    expect(event.tags.app_id).toBe('subly');
+    expect(event.tags.app_id).toBe('subscriptiontracker');
     expect(event.release).toBe('sha123');
   });
 
@@ -251,7 +251,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          app_id: 'subly',
+          app_id: 'subscriptiontracker',
           events: [{ event_id: 'e1', event: 'app_open', anon_id: 'a1' }],
         }),
       }),
@@ -261,7 +261,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
     spy.mockRestore();
     const unhandled = lines.find((l) => l.includes('[unhandled]'));
     expect(unhandled).toBeDefined();
-    expect(unhandled).toContain('app=subly');
+    expect(unhandled).toContain('app=subscriptiontracker');
     expect(unhandled).toContain('release=sha123');
   });
 
@@ -283,7 +283,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           consent_id: 'c1',
-          app_id: 'subly',
+          app_id: 'subscriptiontracker',
           anon_id: 'a1',
           purpose: 'analytics',
           granted: true,
@@ -298,7 +298,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
     expect(res.status).toBe(503);
     const consent = lines.find((l) => l.includes('[consent]'));
     expect(consent).toBeDefined();
-    expect(consent).toContain('app=subly');
+    expect(consent).toContain('app=subscriptiontracker');
     expect(consent).toContain('release=sha123');
   });
 
@@ -321,7 +321,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          app_id: 'subly',
+          app_id: 'subscriptiontracker',
           events: [{ event_id: 'e1', event: 'app_open', anon_id: 'a1' }],
         }),
       }),
@@ -332,7 +332,7 @@ describe('[4]B-16 · the emitted report names the app AND the release', () => {
     expect(res.status).toBe(503); // the client KEEPS the batch and retries
     const ingest = lines.find((l) => l.includes('[events]'));
     expect(ingest).toBeDefined();
-    expect(ingest).toContain('app=subly');
+    expect(ingest).toContain('app=subscriptiontracker');
     expect(ingest).toContain('release=sha123');
   });
 

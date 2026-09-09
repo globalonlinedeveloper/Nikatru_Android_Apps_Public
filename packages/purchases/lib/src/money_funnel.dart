@@ -4,7 +4,7 @@ import 'package:nikatru_core/nikatru_core.dart' as core;
 /// an app — [pipeline 5]M-16.
 ///
 /// ## What was wrong before
-/// `apps/subly/lib/state/analytics_funnel.dart` declares `onPaywallViewed`,
+/// `apps/subscriptiontracker/lib/state/analytics_funnel.dart` declares `onPaywallViewed`,
 /// `onCheckoutStarted`, `onPurchaseSuccess` and `onPurchaseFailed`, and all four
 /// had **zero callers, tree-wide**. The analytics rail emitted launch,
 /// activation and notification opens — everything except the money. And because

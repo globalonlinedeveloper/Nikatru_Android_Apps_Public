@@ -857,7 +857,7 @@ describe('assert-ops-register — O-10: a cadence must be READ, not merely decla
 // ── [14]O-7 · a deploy is not trusted until the live surface agrees ──────────
 // ⚠️ MUTATION-PROVEN ON THE REAL TREE FIRST: renaming the smoke invocation in
 // `.github/workflows/deploy-web.yml` produced
-// "deploy-web records a deployment for `subly-web` and never probes it".
+// "deploy-web records a deployment for `subscriptiontracker-web` and never probes it".
 describe('assert-ops-register — O-7: every recorded deployment is probed', () => {
   const withJobs = (deployJobs, exemptions) => {
     const reg = baseRegister();
@@ -866,14 +866,14 @@ describe('assert-ops-register — O-7: every recorded deployment is probed', () 
   };
 
   test('PASSES when the job that records also probes', () => {
-    const v = withJobs([{ workflow: 'deploy-web.yml', job: 'deploy-web', environment: 'subly-web', smokes: 1 }]);
+    const v = withJobs([{ workflow: 'deploy-web.yml', job: 'deploy-web', environment: 'subscriptiontracker-web', smokes: 1 }]);
     assert.equal(v.errors.length, 0, v.errors.join(' | '));
     assert.match(v.prints.join(' | '), /1 deploy job\(s\) derived .*1 probe the surface they ship/);
   });
 
   test('🔴 FAILS when a job records a deployment and probes nothing', () => {
-    const v = withJobs([{ workflow: 'deploy-web.yml', job: 'deploy-web', environment: 'subly-web', smokes: 0 }]);
-    assert.match(v.errors.join(' | '), /records a deployment for `subly-web` and never probes it/);
+    const v = withJobs([{ workflow: 'deploy-web.yml', job: 'deploy-web', environment: 'subscriptiontracker-web', smokes: 0 }]);
+    assert.match(v.errors.join(' | '), /records a deployment for `subscriptiontracker-web` and never probes it/);
   });
 
   test('🔴 a smoke in a SIBLING job does not cover this one', () => {
@@ -881,9 +881,9 @@ describe('assert-ops-register — O-7: every recorded deployment is probed', () 
     // certify both while touching one.
     const v = withJobs([
       { workflow: 'deploy-workers.yml', job: 'platform', environment: 'platform', smokes: 1 },
-      { workflow: 'deploy-workers.yml', job: 'subly-api', environment: 'subly-api', smokes: 0 },
+      { workflow: 'deploy-workers.yml', job: 'subscriptiontracker-api', environment: 'subscriptiontracker-api', smokes: 0 },
     ]);
-    assert.match(v.errors.join(' | '), /records a deployment for `subly-api`/);
+    assert.match(v.errors.join(' | '), /records a deployment for `subscriptiontracker-api`/);
     assert.doesNotMatch(v.errors.join(' | '), /`platform`/);
   });
 

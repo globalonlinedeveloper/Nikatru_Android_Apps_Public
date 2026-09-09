@@ -19,7 +19,7 @@ corpus punishes hardest, so it is replaced by two statements a guard reads. What
   publisher footer — now read `BrandTokens.fontBody`. A 29th anywhere under
   `packages/` fails the build, in the file that gained it.
 - **The remaining app-level copies are enumerated per file and may only shrink** —
-  38 sites across 13 `apps/subly` files today, listed in `BRAND_FONT_DEBT` in
+  38 sites across 13 `apps/subscriptiontracker` files today, listed in `BRAND_FONT_DEBT` in
   that guard. Adding one fails. Removing one without lowering the number *also*
   fails, so the list cannot quietly stop describing the tree.
 
@@ -93,12 +93,12 @@ two brands, not two copies.
 ## What is still owed
 
 - 🔴 **A brand-font change is NOT a one-line change yet, and the guard says so.**
-  `apps/subly` types the two families 38 times across 13 files — 26 in screens,
+  `apps/subscriptiontracker` types the two families 38 times across 13 files — 26 in screens,
   12 in test expectations. Edit `dtcg/font.json` alone and those 38 sites keep
   the old face: a **half** repaint, which looks deliberate rather than broken.
   The sweep in `assert-palette-consistent.mjs` fails on exactly those files with
   their counts, so the work is enumerated rather than discovered on a store
-  screenshot. It is not done here because `apps/subly/**` belongs to the chassis
+  screenshot. It is not done here because `apps/subscriptiontracker/**` belongs to the chassis
   work ([ADR 067] decision 2), which moves those screens into packages; the
   entries come out of `BRAND_FONT_DEBT` one file at a time as it lands.
 - 🟡 **`sites/nikatru/fullshot/privacy.html` still hand-codes four of these

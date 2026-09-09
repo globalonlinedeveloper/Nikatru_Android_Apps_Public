@@ -10,7 +10,7 @@
 // wrong in scope, and the consequence was measured on 2026-08-08 before a single
 // tag had ever been pushed:
 //
-//   a `subly-v*` tag makes build-platforms.yml's `windows`, `apple` AND
+//   a `subscriptiontracker-v*` tag makes build-platforms.yml's `windows`, `apple` AND
 //   `linux_web_android` jobs die at the credential step; the `release` job
 //   `needs:` all three; so THE FIRST RELEASE THIS REPOSITORY EVER PUBLISHES IS
 //   SKIPPED, by three checks that were each individually defensible.

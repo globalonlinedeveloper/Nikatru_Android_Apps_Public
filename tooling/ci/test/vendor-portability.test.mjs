@@ -132,7 +132,7 @@ function tree({ mutate = (r) => r, dart = '', env = '', wrangler = '', core = nu
     // indistinguishable, and the test would prove nothing.
     [`services/api/${apiWranglerName}`]: `{\n  "d1_databases": [{ "binding": "SUBLY_DB" }]\n}\n`,
     // …and its binding ALSO appears in its own `interface Env`, exactly as the
-    // real subly-api's does. That overlap is why the real mutation was silent:
+    // real subscriptiontracker-api's does. That overlap is why the real mutation was silent:
     // source (b) kept every lost token in `derived`, so no vendor's claim went
     // stale and the ONLY signal available was the per-service count.
     'services/api/src/types.ts': 'export interface Env {\n  SUBLY_DB: D1Database;\n}\n',
@@ -320,7 +320,7 @@ describe('assert-vendor-portability', () => {
     });
 
     // 🔴 CORPUS TRIAGE 2026-08-01 (#39), REPRODUCED ON THE REAL TREE FIRST.
-    // `mv services/subly-api/wrangler.jsonc wrangler.json` dropped the wrangler
+    // `mv services/subscriptiontracker-api/wrangler.jsonc wrangler.json` dropped the wrangler
     // total from 11 to 7 and the guard EXITED 0, because the floor was `>= 5`
     // and the remaining Worker cleared it alone. Nothing else caught it either:
     // every lost token also lives in that Worker's `interface Env`, so no claim

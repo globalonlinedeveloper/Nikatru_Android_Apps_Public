@@ -14,7 +14,7 @@ import type { AppEnv } from '../src/types';
 //
 // Measured at HEAD, before the fix, on this exact route:
 //
-//   /config/subly        200   1 KV read   (the real config)
+//   /config/subscriptiontracker        200   1 KV read   (the real config)
 //   /config/__proto__    200   1 KV read   body `{}`  ← Object.prototype's JSON
 //   /config/constructor  500   1 KV read   ← JSON.stringify(fn) is undefined,
 //   /config/toString     500   1 KV read      and JSON.parse(undefined) throws
@@ -100,12 +100,12 @@ describe('GET /config/:app rejects a non-app-id BEFORE it touches anything', () 
 
   it('a KNOWN app still resolves, and reads exactly one KV key', async () => {
     const { kv, get } = harness({ kvValue: JSON.stringify({ paywall: { enabled: true } }) });
-    const res = await get('subly');
+    const res = await get('subscriptiontracker');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { app_id: string; paywall: { enabled: boolean } };
-    expect(body.app_id).toBe('subly');
+    expect(body.app_id).toBe('subscriptiontracker');
     expect(body.paywall.enabled).toBe(true); // the override was applied
-    expect(kv.reads).toEqual(['config:subly']);
+    expect(kv.reads).toEqual(['config:subscriptiontracker']);
     expect(res.headers.get('Cache-Control')).toContain('s-maxage=300');
   });
 
@@ -123,17 +123,17 @@ describe('GET /config/:app is behind the same server-derived ceiling as /v1/even
 
   it('the ceiling is keyed on request.cf, never on the path or a header', async () => {
     const { ceiling, get } = harness();
-    await get('subly', cf);
+    await get('subscriptiontracker', cf);
     expect(ceiling.keys).toEqual(['edge:MAA:24560']);
     // Nothing the caller chose is in it — not the app id, not the IP header the
     // harness always sends.
-    expect(ceiling.keys[0]).not.toContain('subly');
+    expect(ceiling.keys[0]).not.toContain('subscriptiontracker');
     expect(ceiling.keys[0]).not.toContain('203.0.113.9');
   });
 
   it('a denied ceiling sheds with 429 and never reaches KV', async () => {
     const { kv, get } = harness({ allowCeiling: false });
-    const res = await get('subly', cf);
+    const res = await get('subscriptiontracker', cf);
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: 'rate_limited' });
     expect(kv.reads).toEqual([]);
@@ -145,7 +145,7 @@ describe('GET /config/:app is behind the same server-derived ceiling as /v1/even
     // cache every time and reaches the origin — and therefore KV — every time.
     // The ceiling must not move with it.
     const { ceiling, get } = harness();
-    for (let i = 0; i < 3; i++) await get('subly', cf, `?cb=${i}`);
+    for (let i = 0; i < 3; i++) await get('subscriptiontracker', cf, `?cb=${i}`);
     expect(new Set(ceiling.keys).size).toBe(1);
   });
 
@@ -160,8 +160,8 @@ describe('GET /config/:app is behind the same server-derived ceiling as /v1/even
 
   it('an absent binding fails OPEN — config is on every app’s launch path', async () => {
     const { kv, get } = harness({ omit: true, allowCeiling: false });
-    const res = await get('subly', cf);
+    const res = await get('subscriptiontracker', cf);
     expect(res.status).toBe(200);
-    expect(kv.reads).toEqual(['config:subly']);
+    expect(kv.reads).toEqual(['config:subscriptiontracker']);
   });
 });

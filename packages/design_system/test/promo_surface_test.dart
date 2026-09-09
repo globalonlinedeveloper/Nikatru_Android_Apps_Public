@@ -3,7 +3,7 @@
 // and there is no way to render the creative without either.
 //
 // The app-level proof that an objection means zero renders lives in
-// `apps/subly/test/promo_objection_surface_test.dart` and its brick twin. This
+// `apps/subscriptiontracker/test/promo_objection_surface_test.dart` and its brick twin. This
 // file is the layer below: those tests would still pass if the frame quietly
 // dropped its label or its control, because neither is what they assert on.
 import 'package:flutter/material.dart';

@@ -382,7 +382,7 @@ if (backendApp) {
 // It runs on every invocation rather than under --client/--backend, because it
 // is a property of the whole services/ tree: the freshly stamped config is one
 // subject, the committed ones are the others, and a limb that only ever looked
-// at the stamp would miss a cron added to subly-api by hand.
+// at the stamp would miss a cron added to subscriptiontracker-api by hand.
 const CRON_HOME = 'platform';
 {
   // 🔴 A DEPLOYED WORKER IS A DIRECTORY WITH AN ENTRY POINT, NOT ANY DIRECTORY

@@ -38,7 +38,7 @@ cannot find — the same defect class the register was built to catch, committed
 
 2. `PromoGate` — the pure decision primitive in `packages/core`, including the `suppressed` latch the
    chassis never clears. That latch *is* the Art 21 objection mechanism.
-3. `PromoCard` in `packages/design_system` + the same-app upgrade card in the brick **and** `apps/subly`.
+3. `PromoCard` in `packages/design_system` + the same-app upgrade card in the brick **and** `apps/subscriptiontracker`.
 4. The objection surface + a `promo` value on `ConsentPurpose`
    (`packages/core/lib/src/analytics/consent.dart` — today `analytics` and `sync_backup`), surfaced **in or
    beside the first promotional card** and not only in Settings (Art 21(4): *"presented clearly and
@@ -233,7 +233,7 @@ guard de-duplicates spans within a page, so the existing row covers both occurre
       "type": "code",
       "assert": {
         "kind": "present",
-        "files": ["apps/subly/lib/features/settings/settings_screen.dart"],
+        "files": ["apps/subscriptiontracker/lib/features/settings/settings_screen.dart"],
         "pattern": "<the promo-consent call rung 4 introduces, e.g. recordPromoConsent\\(>",
         "why": "🔴 FILL THIS IN AT SIGNATURE, DO NOT SHIP THE PLACEHOLDER. The page names a control and tells the reader where it is; this row is what makes that a promise rather than an intention. It is modelled exactly on the existing 'Usage statistics can be withdrawn without contacting us.' row, which asserts `recordAnalyticsConsent\\(` in the same screen file — delete the row from Settings and the claim goes red. THE LABEL STRING ITSELF IS ALSO THE l10n KEY the brick's no-hardcoded-strings guard owns; the page and the app must use one name for one thing."
       }
@@ -288,7 +288,7 @@ guard de-duplicates spans within a page, so the existing row covers both occurre
    `tooling/legal/provider-register.json` that step 4 closed.
 6. Pick the new version string `<YYYY-MM-DD>` and set it in **three** places:
    - `sites/nikatru/privacy.html` — `data-policy-version="<v>"` **and** the visible "Last updated" line;
-   - `apps/subly/lib/state/analytics_providers.dart` — `kPrivacyPolicyVersion`;
+   - `apps/subscriptiontracker/lib/state/analytics_providers.dart` — `kPrivacyPolicyVersion`;
    - `tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart` — `kPrivacyPolicyVersion`.
 7. Add the archive snapshot `sites/nikatru/legal/<v>/en/privacy.html` — a copy of the new live page with the
    three differences `sites/nikatru/legal/README.md` specifies: `robots` → `noindex,follow`,

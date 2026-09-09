@@ -192,13 +192,13 @@ function fixture({ register = REGISTER, members = null, raw = null, zip64 = fals
   }
   const entries = members ?? [
     { name: MANIFEST_MEMBER, bytes: Buffer.from(manifestXml(), 'utf8'), method: 8 },
-    { name: 'subly.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
+    { name: 'subscriptiontracker.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
   ];
-  writeFileSync(join(root, 'pkg', 'subly.msix'), raw ?? makeZip(entries, { zip64 }));
+  writeFileSync(join(root, 'pkg', 'subscriptiontracker.msix'), raw ?? makeZip(entries, { zip64 }));
   return root;
 }
 
-const run = (root, args = ['pkg/subly.msix']) => {
+const run = (root, args = ['pkg/subscriptiontracker.msix']) => {
   const r = spawnSync(process.execPath, [GUARD, '--repo-root', root, ...args], { encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
@@ -321,7 +321,7 @@ describe('assert-artifact-signed-msix — the declaration is compared to the BYT
 describe('assert-artifact-signed-msix — the ZIP64 package MakeAppx actually writes', () => {
   test('the fixture really is ZIP64 — the sentinel is read off the bytes, not assumed', () => {
     const root = fixture({ zip64: true });
-    const raw = readFileSync(join(root, 'pkg', 'subly.msix'));
+    const raw = readFileSync(join(root, 'pkg', 'subscriptiontracker.msix'));
     const sig = (v) => Buffer.from([v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff]);
     assert.notEqual(raw.indexOf(sig(0x07064b50)), -1, 'EOCD64 locator 0x07064b50 must be present');
     assert.notEqual(raw.indexOf(sig(0x06064b50)), -1, 'EOCD64 record 0x06064b50 must be present');
@@ -363,7 +363,7 @@ describe('assert-artifact-signed-msix — the ZIP64 package MakeAppx actually wr
   });
 
   test('a ZIP64 package with no readable AppxManifest.xml still FAILS', () => {
-    const root = fixture({ zip64: true, members: [{ name: 'subly.exe', bytes: Buffer.from('PE'), method: 0 }] });
+    const root = fixture({ zip64: true, members: [{ name: 'subscriptiontracker.exe', bytes: Buffer.from('PE'), method: 0 }] });
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, new RegExp(`no readable ${MANIFEST_MEMBER}`));
@@ -374,7 +374,7 @@ describe('assert-artifact-signed-msix — the ZIP64 package MakeAppx actually wr
     // that shrugged and used the sentinel as an offset is the original crash; a
     // reader that shrugged and returned members would be worse.
     const root = fixture({ zip64: true });
-    const p = join(root, 'pkg', 'subly.msix');
+    const p = join(root, 'pkg', 'subscriptiontracker.msix');
     const raw = readFileSync(p);
     raw.writeUInt32LE(0x07064b51, raw.indexOf(Buffer.from([0x50, 0x4b, 0x06, 0x07])));
     writeFileSync(p, raw);
@@ -388,7 +388,7 @@ describe('assert-artifact-signed-msix — the ZIP64 package MakeAppx actually wr
   test('ZIP64 and classic packages of the SAME members reach the SAME verdict', () => {
     const members = [
       { name: MANIFEST_MEMBER, bytes: Buffer.from(manifestXml(), 'utf8'), method: 8 },
-      { name: 'subly.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
+      { name: 'subscriptiontracker.exe', bytes: Buffer.from('PE-BYTES'), method: 0 },
     ];
     const classic = run(fixture({ members }));
     const wide = run(fixture({ members, zip64: true }));
@@ -421,7 +421,7 @@ describe('assert-artifact-signed-msix — a question that could not be asked is 
   });
 
   test('a zip with no AppxManifest.xml', () => {
-    const root = fixture({ members: [{ name: 'subly.exe', bytes: Buffer.from('PE'), method: 0 }] });
+    const root = fixture({ members: [{ name: 'subscriptiontracker.exe', bytes: Buffer.from('PE'), method: 0 }] });
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, new RegExp(`no readable ${MANIFEST_MEMBER}`));
@@ -496,8 +496,8 @@ describe('assert-artifact-signed-msix — a question that could not be asked is 
 // was green while the lane was red. These tests use the CI shape.
 describe('assert-artifact-signed-msix — the path CI actually passes is not discarded', () => {
   test('parseArgs keeps the lone positional when --repo-root is ABSENT', () => {
-    const got = parseArgs(['apps/subly/build/windows/msix/subly.msix']);
-    assert.deepEqual(got.packages, ['apps/subly/build/windows/msix/subly.msix']);
+    const got = parseArgs(['apps/subscriptiontracker/build/windows/msix/subscriptiontracker.msix']);
+    assert.deepEqual(got.packages, ['apps/subscriptiontracker/build/windows/msix/subscriptiontracker.msix']);
     assert.equal(got.rootFlagSeen, false);
     assert.equal(got.rootArg, undefined);
   });
@@ -507,29 +507,29 @@ describe('assert-artifact-signed-msix — the path CI actually passes is not dis
   });
 
   test('parseArgs with --repo-root first still takes the value as the root, not as a package', () => {
-    const got = parseArgs(['--repo-root', '/tmp/root', 'pkg/subly.msix']);
+    const got = parseArgs(['--repo-root', '/tmp/root', 'pkg/subscriptiontracker.msix']);
     assert.equal(got.rootArg, '/tmp/root');
     assert.equal(got.rootFlagSeen, true);
-    assert.deepEqual(got.packages, ['pkg/subly.msix']);
+    assert.deepEqual(got.packages, ['pkg/subscriptiontracker.msix']);
   });
 
   test('parseArgs with --repo-root AFTER the positional keeps both straight', () => {
-    const got = parseArgs(['pkg/subly.msix', '--repo-root', '/tmp/root']);
+    const got = parseArgs(['pkg/subscriptiontracker.msix', '--repo-root', '/tmp/root']);
     assert.equal(got.rootArg, '/tmp/root');
-    assert.deepEqual(got.packages, ['pkg/subly.msix']);
+    assert.deepEqual(got.packages, ['pkg/subscriptiontracker.msix']);
   });
 
   test('parseArgs drops other flags without eating the path beside them', () => {
-    assert.deepEqual(parseArgs(['--verbose', 'pkg/subly.msix']).packages, ['pkg/subly.msix']);
+    assert.deepEqual(parseArgs(['--verbose', 'pkg/subscriptiontracker.msix']).packages, ['pkg/subscriptiontracker.msix']);
   });
 
   // A flag is not a path. Consuming one would root the entire comparison at a
   // string like "--verbose" and report the result as a verdict.
   test('parseArgs does not swallow a following FLAG as the repo root', () => {
-    const got = parseArgs(['--repo-root', '--verbose', 'pkg/subly.msix']);
+    const got = parseArgs(['--repo-root', '--verbose', 'pkg/subscriptiontracker.msix']);
     assert.equal(got.rootFlagSeen, true);
     assert.equal(got.rootArg, undefined);
-    assert.deepEqual(got.packages, ['pkg/subly.msix']);
+    assert.deepEqual(got.packages, ['pkg/subscriptiontracker.msix']);
   });
 
   test('parseArgs on a truly empty argv reports no packages and no flag', () => {

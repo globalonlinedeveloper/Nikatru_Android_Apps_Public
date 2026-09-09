@@ -26,7 +26,7 @@
 // ── WHAT THIS FIXES, IN THE GUARD'S OWN WORDS ────────────────────────────────
 // `assert-store-metadata.mjs` opens with "[pipeline D-5] Store listing metadata
 // is GENERATED from the spec and lives in the repo", and its own header then
-// records that every subject it had was `apps/subly/store/`, "which a human
+// records that every subject it had was `apps/subscriptiontracker/store/`, "which a human
 // wrote by hand". The guard was real, running and green while pointing one
 // artifact away from the behaviour the requirement names. This script is the
 // generator that sentence has been describing.

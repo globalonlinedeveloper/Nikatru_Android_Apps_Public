@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 // resolve a bare specifier by walking up from the FILE that writes it, and there
 // is no `node_modules` at `services/_shared/`, at `services/`, or at the repo
 // root: each Worker runs its own `npm ci` inside its own directory (ci.yml jobs
-// `worker-platform`, `worker-subly-api`), and `pnpm-workspace.yaml` lists only
+// `worker-platform`, `worker-subscriptiontracker-api`), and `pnpm-workspace.yaml` lists only
 // `sites/_shared` and `tooling/content_pipeline`. Measured 2026-09-06 with a
 // probe module importing `jose`:
 //

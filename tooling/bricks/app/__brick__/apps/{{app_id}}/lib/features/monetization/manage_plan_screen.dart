@@ -66,8 +66,8 @@ class _ManagePlanScreenState extends ConsumerState<ManagePlanScreen> {
     // reporting the cancelled plan as active for the rest of the session.
     //
     // ⚠️ THE INLINE PAIR IS THE PRICE OF `refreshEntitlements` TAKING A
-    // `WidgetRef`, AND IT IS NOT THE SHAPE apps/subly SETTLED ON.
-    // `apps/subly/lib/state/money_providers.dart:209-213` has since grown
+    // `WidgetRef`, AND IT IS NOT THE SHAPE apps/subscriptiontracker SETTLED ON.
+    // `apps/subscriptiontracker/lib/state/money_providers.dart:209-213` has since grown
     // `refreshEntitlementsIn(ProviderContainer)` — the SAME two calls behind a
     // name — and its `_cancel` calls that instead. THE BRICK'S OWN
     // `state/money_providers.dart` DOES NOT HAVE THAT HELPER YET, so this file

@@ -16,7 +16,7 @@
 //
 // 🔴 THE FAILING CASE IS THE PRODUCTION STATE, NOT AN INVENTED ONE. platform_db
 // holds THREE granted `consent_artifacts` rows (newest 2026-08-07T17:57:28Z, app
-// subly) and `SELECT COUNT(*) FROM events` = 0. `consents>0 && events=0` is
+// subscriptiontracker) and `SELECT COUNT(*) FROM events` = 0. `consents>0 && events=0` is
 // true today, so the red path below is the system's actual condition.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
@@ -151,7 +151,7 @@ describe('exit 2 — every way of not being able to look', () => {
   });
 
   test('NO portfolio row at all is 2 — that row is written unconditionally', () => {
-    const v = judge([row(LIVE, { target: 'subly' })], NOW);
+    const v = judge([row(LIVE, { target: 'subscriptiontracker' })], NOW);
     assert.equal(v.code, 2);
     assert.equal(v.kind, 'absent');
   });
@@ -210,7 +210,7 @@ describe('it parses TOKENS, and tolerates their order', () => {
   });
 
   test('per-app rows are ignored — only the aggregate carries the tokens', () => {
-    const perApp = { ...row('2 event(s) in 24h'), target: 'subly' };
+    const perApp = { ...row('2 event(s) in 24h'), target: 'subscriptiontracker' };
     assert.equal(judge([perApp, row(LIVE)], NOW).code, 0);
   });
 });

@@ -145,7 +145,7 @@ function tree({
     'catalog/apps.json',
     `${JSON.stringify(
       [
-        { slug: 'subly', name: 'Subly', tagline: '', url: 'https://subly.nikatru.com', api: '' },
+        { slug: 'subscriptiontracker', name: 'Subly', tagline: '', url: 'https://subly.nikatru.com', api: '' },
         { slug: app, name: shortOf(name), tagline: desc, url: `https://${app}.nikatru.com`, api: '' },
       ],
       null,
@@ -470,7 +470,7 @@ describe('assert-stamp-text-fidelity', () => {
     const r = run(
       tree({
         mutate: ({ write }) =>
-          write('catalog/apps.json', `${JSON.stringify([{ slug: 'subly', name: 'Subly' }], null, 2)}\n`),
+          write('catalog/apps.json', `${JSON.stringify([{ slug: 'subscriptiontracker', name: 'Subly' }], null, 2)}\n`),
       }),
     );
     assert.equal(r.code, 1, r.out);

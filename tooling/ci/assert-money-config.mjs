@@ -30,7 +30,7 @@
 //     `money_rail_not_configured` — the fail-closed marker limb 4 requires.
 //     (Until 2026-08-09 this read "exactly one config declares"; that was true
 //     while platform owned every door and became false when [ADR 039] D5's
-//     RevenueCat fan-in on services/subly-api gained the same world guard. The
+//     RevenueCat fan-in on services/subscriptiontracker-api gained the same world guard. The
 //     rule that survives both eras: declaring without a door is a second rail
 //     nobody decided to run, and a door without a declaration is a Worker that
 //     503s every money read in production.)
@@ -93,7 +93,7 @@
 // providers ["paddle"] both ways, its MOR_VERIFIERS match on line 29 both ways;
 // the guard's `secretEnvVar: '…'` PATTERN matches exactly once in services/, at
 // paddle.ts:422, raw and stripped), limb 5's block count falls 413→412 on
-// platform and 210→209 on subly-api while `proven` stays at 8 and 2 — the SAME
+// platform and 210→209 on subscriptiontracker-api while `proven` stays at 8 and 2 — the SAME
 // blocks — and limb 2 sees no sandbox shape in either view. The `ok` line this
 // guard prints is byte-identical before and after. What the change buys is that
 // the next comment cannot quietly become the evidence.
@@ -567,7 +567,7 @@ if (!existsSync(routePath)) {
 // A structural check can say the branch exists; only a test can say it fires.
 // The two together are what make limb 4 more than a shape. PER MONEY-DOOR
 // WORKER: each service in the door set proves its own 503 with its own tests —
-// platform's suite firing says nothing about subly-api's door.
+// platform's suite firing says nothing about subscriptiontracker-api's door.
 // ⚠️ DEPLOYED DOORS ONLY. The brick's service template ships no `test/` directory
 // at all, so requiring a vitest suite of it would fail on a template that is
 // correct today — and an invented limit that fires on correct input is one
@@ -603,14 +603,14 @@ for (const svc of doorConfigs.filter((c) => c.deployed).map((c) => c.service)) {
     //     comment is the purest form of written-and-never-fired.
     //
     // LATENT, NOT LIVE — measured 2026-08-21 against this tree. Blocks
-    // enumerated: services/platform 413 raw vs 412 stripped, services/subly-api
+    // enumerated: services/platform 413 raw vs 412 stripped, services/subscriptiontracker-api
     // 210 vs 209. The two raw-only blocks are prose, both of them:
     // services/platform/test/insights-equivalence.test.ts:490 (a doc comment
     // quoting `.test(JSON.stringify(rows))`) and
-    // services/subly-api/test/webhooks.test.ts:94 (a doc comment reading "null
+    // services/subscriptiontracker-api/test/webhooks.test.ts:94 (a doc comment reading "null
     // OMITS it (a clock-less event)" — `it(` inside English). Neither is a
     // proving block: `proven` resolves to 8 real blocks on platform and 2 on
-    // subly-api, IDENTICAL set-for-set raw and stripped, so THE VERDICT DOES NOT
+    // subscriptiontracker-api, IDENTICAL set-for-set raw and stripped, so THE VERDICT DOES NOT
     // MOVE TODAY. `describe.skip`/`.todo` occurs ZERO times across all 36 test
     // files in either view, so that half of the hazard is fully latent — no file
     // is dropped today by either reading.

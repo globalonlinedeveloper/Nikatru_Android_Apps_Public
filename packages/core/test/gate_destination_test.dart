@@ -2,7 +2,7 @@
 // gate_destination_test.dart — the open-redirect validator, tested DIRECTLY.
 //
 // 🔴 UNTIL NOW THIS LOGIC HAD NO DIRECT TEST IN EITHER TREE. It was exercised
-// only through the real router in `apps/subly/test/legal_gates_test.dart`, which
+// only through the real router in `apps/subscriptiontracker/test/legal_gates_test.dart`, which
 // is a good test of the ROUTER and a poor one of the validator: driving it needs
 // a container, a widget pump and a settled navigation, so the cases anybody
 // actually writes are the ones that are convenient rather than the ones that are

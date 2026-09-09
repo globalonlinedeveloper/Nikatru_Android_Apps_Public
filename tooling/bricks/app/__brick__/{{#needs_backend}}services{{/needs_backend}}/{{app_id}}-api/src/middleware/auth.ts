@@ -17,18 +17,18 @@
 // label — two independent limbs, because the mounting is one line somebody can
 // move and the route-level check is not.
 //
-// ── 🔴 PORTED FROM services/subly-api 2026-09-04, AND THE HISTORY IS THE POINT —
+// ── 🔴 PORTED FROM services/subscriptiontracker-api 2026-09-04, AND THE HISTORY IS THE POINT —
 // this template shipped the ORIGINAL shape until then: `catch (primaryErr)` fell
 // through to HS256 on ANY primary failure. So an outage did not 401, it
 // **silently downgraded every request from a signature to a shared string**, and
 // every app ever stamped from this brick inherited that. The fix landed in
-// `services/platform` (#433) and `services/subly-api` (#435) and was never
+// `services/platform` (#433) and `services/subscriptiontracker-api` (#435) and was never
 // propagated here, which is precisely the class of gap the 2026-09-04
 // inherit-everything-generic audit exists to close.
 //
 // ── 🔴 …AND SINCE [ADR 067] decision 2 IT CANNOT HAPPEN THAT WAY AGAIN ───────
 // The DECIDING now lives ONCE, at `services/_shared/src/auth.ts`, and this
-// template imports it exactly as `services/platform` and `services/subly-api`
+// template imports it exactly as `services/platform` and `services/subscriptiontracker-api`
 // do: the ES256 pin (`verifyOptions`), the twice-corrected `isKeySetUnavailable`
 // predicate, `JWKS_KV_KEY`, `JWKS_TTL_SECONDS`, `bearer`, and the refusal to
 // treat an empty JWKS document as a usable cache. A correction to any of those

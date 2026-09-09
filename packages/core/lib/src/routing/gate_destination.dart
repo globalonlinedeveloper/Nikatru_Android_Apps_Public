@@ -3,11 +3,11 @@
 // validation that stops a stranger choosing that destination for them.
 //
 // 🔴 WHY THIS IS SHARED CODE AND NOT A ROUTER DETAIL. Until 2026-09-04 all four
-// functions below existed TWICE — in `apps/subly/lib/core/router.dart` and in
+// functions below existed TWICE — in `apps/subscriptiontracker/lib/core/router.dart` and in
 // the app brick's `core/router.dart` — with **byte-identical bodies**, verified
 // by extracting and comparing them. Two copies of an open-redirect validator
 // means a security fix applied to one tree is invisible to the other, and
-// nothing anywhere would have said so. `apps/subly` predates the brick and was
+// nothing anywhere would have said so. `apps/subscriptiontracker` predates the brick and was
 // never stamped from it, so there was no mechanism by which the two could ever
 // have converged on their own.
 //

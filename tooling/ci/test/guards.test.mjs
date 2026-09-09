@@ -8,7 +8,7 @@
 // spec still says VERIFIED.
 //
 // That is not hypothetical. Both have already happened here:
-//   · check-migrations.mjs's own coverage assertion omits services/subly-api,
+//   · check-migrations.mjs's own coverage assertion omits services/subscriptiontracker-api,
 //     so a renamed directory would report "clean" over an incomplete set.
 //   · assert-gate-passed.mjs shipped with an off-by-one that made it unable to
 //     read its own SHA argument. It blocked both production deploys, and it was
@@ -119,9 +119,9 @@ describe('check-migrations', () => {
   const ADDITIVE = 'CREATE TABLE IF NOT EXISTS t (id TEXT);\nALTER TABLE t ADD COLUMN x TEXT;\n';
   // 🔴 THE FIXTURE MUST MIRROR THE REAL TREE, OR IT ENCODES THE SAME BLIND SPOT.
   // Until 2026-08-01 this builder wrote ONLY services/platform + the brick and
-  // asserted exit 0 — so "a tree with zero services/subly-api coverage" was
+  // asserted exit 0 — so "a tree with zero services/subscriptiontracker-api coverage" was
   // literally the suite's definition of clean, and the guard's REQUIRED_COVERAGE
-  // omitted subly-api to match. A passing fixture that is missing what the real
+  // omitted subscriptiontracker-api to match. A passing fixture that is missing what the real
   // tree has cannot ever notice the omission.
   /** A wrangler config declaring a `migrations_dir` — the DECLARATION that makes
    *  a migrations directory something wrangler will apply to a real database.
@@ -142,8 +142,8 @@ describe('check-migrations', () => {
     fixture(name, {
       'services/platform/migrations/0001_init.sql': platformSql,
       'services/platform/wrangler.jsonc': CFG('platform_db'),
-      'services/subly-api/migrations/0001_init.sql': ADDITIVE,
-      'services/subly-api/wrangler.jsonc': CFG('subly_db'),
+      'services/subscriptiontracker-api/migrations/0001_init.sql': ADDITIVE,
+      'services/subscriptiontracker-api/wrangler.jsonc': CFG('subly_db'),
       'tooling/bricks/app/__brick__/svc/migrations/0001_init.sql': brickSql,
       'tooling/bricks/app/__brick__/svc/wrangler.jsonc': CFG('app_db'),
       ...extra,
@@ -218,20 +218,20 @@ describe('check-migrations', () => {
 
   // 🔴 THE MIGRATION DIRECTORY THAT MOVES. This is not hypothetical: the brick's
   // move once shrank the scan 5 → 4 and reported PASS, which is what founded
-  // REQUIRED_COVERAGE in the first place — and subly-api was then left out of it.
+  // REQUIRED_COVERAGE in the first place — and subscriptiontracker-api was then left out of it.
   // Mutation-proven on a copy of the real tree 2026-08-01: renaming
-  // services/subly-api/migrations made the guard scan 4 files instead of 6 and
+  // services/subscriptiontracker-api/migrations made the guard scan 4 files instead of 6 and
   // still print "clean", exit 0.
-  test("FAILS when subly-api's migrations move out from under the glob", () => {
-    const dir = fixture('mig-cov-sublyapi', {
+  test("FAILS when subscriptiontracker-api's migrations move out from under the glob", () => {
+    const dir = fixture('mig-cov-subscriptiontrackerapi', {
       'services/platform/migrations/0001_init.sql': ADDITIVE,
-      'services/subly-api/db-migrations/0001_init.sql': ADDITIVE, // renamed
+      'services/subscriptiontracker-api/db-migrations/0001_init.sql': ADDITIVE, // renamed
       'tooling/bricks/app/__brick__/svc/migrations/0001_init.sql': ADDITIVE,
     });
     const { code, out } = run('check-migrations.mjs', { cwd: dir });
     assert.equal(code, 1, 'the files did not become safe; the guard stopped looking at them');
     assert.match(out, /COVERAGE LOST/i);
-    assert.match(out, /services\/subly-api/);
+    assert.match(out, /services\/subscriptiontracker-api/);
   });
 
   // ── [pipeline B-8] the coverage limb that points the OTHER way ────────────
@@ -285,7 +285,7 @@ describe('check-migrations', () => {
     // getting caught by.
     const dir = fixture('mig-nocfg', {
       'services/platform/migrations/0001_init.sql': ADDITIVE,
-      'services/subly-api/migrations/0001_init.sql': ADDITIVE,
+      'services/subscriptiontracker-api/migrations/0001_init.sql': ADDITIVE,
       'tooling/bricks/app/__brick__/svc/migrations/0001_init.sql': ADDITIVE,
     });
     const { code, out } = run('check-migrations.mjs', { cwd: dir });
@@ -319,7 +319,7 @@ describe('check-migrations', () => {
 
   // ── the shapes that must STAY green, or the rule gets weakened within a week ─
   test('does NOT trip on a WHERE-narrowed backfill — the shape the real tree already ships', () => {
-    // services/subly-api/migrations/0002_schema_debt.sql carries two of these,
+    // services/subscriptiontracker-api/migrations/0002_schema_debt.sql carries two of these,
     // applied --remote. A blanket UPDATE ban would fail HEAD.
     const sql = `${ADDITIVE}UPDATE t\n   SET x = lower(hex(randomblob(16)))\n WHERE x IS NULL OR x = '';\n`;
     const { code, out } = run('check-migrations.mjs', { cwd: build('mig-dml-backfill', sql) });
@@ -391,10 +391,10 @@ describe('check-migrations', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔴 REGRESSION CONTEXT. This guard read ONE hardcoded file
 // (services/platform/wrangler.jsonc) while tooling/capability-register.json
-// claimed it guarded ALLOWED_ORIGINS generally. Emptying services/subly-api's
+// claimed it guarded ALLOWED_ORIGINS generally. Emptying services/subscriptiontracker-api's
 // allowlist produced byte-identical output and exit 0 — a live user-data API
 // could go permissive with CI fully green. Every test below that names
-// subly-api would have PASSED against the old guard, which is exactly why they
+// subscriptiontracker-api would have PASSED against the old guard, which is exactly why they
 // are here: the fork must not be able to come back silently.
 //
 // The extension was mutation-proven against a scratch COPY of the real tree
@@ -412,9 +412,39 @@ describe('assert-cors-allowlist', () => {
   // config the guard must red, as an unjustified standing grant on a host that
   // serves nothing but a redirect.
   const APEX = 'https://nikatru.com';
-  const PLATFORM = [APEX, 'https://subly-9cp.pages.dev', 'http://localhost:3000'];
+  /** 🔴 THE OLD PAGES PROJECT ORIGIN, DECLARED ONCE AND NEVER RE-SPELLED.
+   *
+   *  `subly-9cp.pages.dev` is a LIVE Cloudflare Pages origin — the app's real
+   *  deployment target until the project itself is migrated — so it did not move
+   *  with the app slug and must not be renamed here. It stopped being written
+   *  twice on 2026-09-09 because the two assertions below had been re-spelling
+   *  it as an escaped regex: the `subly` -> `subscriptiontracker` rename rewrote
+   *  those ESCAPED copies and left the plain ones in the fixture lists alone, so
+   *  both controls were demanding a hostname that exists nowhere. Had the
+   *  replace caught both sides, the pair would have agreed with each other about
+   *  an origin the guard never prints and stayed green while checking nothing.
+   *  One declaration, derived on both sides, cannot be split that way. */
+  const PAGES = 'https://subly-9cp.pages.dev';
+  const PAGES_HOST = new URL(PAGES).host;
+  /** 🔴 THE NEW PAGES PROJECT ORIGIN, AND BOTH ARE IN THESE LISTS ON PURPOSE.
+   *
+   *  deploy-web.yml deploys with `--project-name=<workspace directory>`, so the
+   *  slug rename moved this app's Direct Upload project and Cloudflare minted a
+   *  fresh subdomain for it. That subdomain is READ BACK from the create call
+   *  and never derived from the id: `subscriptiontracker.pages.dev` answers 200
+   *  and belongs to a THIRD PARTY, so `<id>.pages.dev` here would be somebody
+   *  else's host rather than merely an unproven one.
+   *
+   *  The fixture carries BOTH preview origins because the live configs do: an
+   *  exact allowlist fails CLOSED and silently, so the retired origin leaves in
+   *  a separate later change — widen, cut over, then narrow. A fixture carrying
+   *  only one would assert a config shape that does not exist yet, and would go
+   *  green again the day the narrow lands for a reason nobody checked. */
+  const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
+  const PAGES_NEW_HOST = new URL(PAGES_NEW).host;
+  const PLATFORM = [APEX, PAGES, PAGES_NEW, 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = [APEX, 'https://subly-9cp.pages.dev'];
+  const SUBLY = [APEX, PAGES, PAGES_NEW];
 
   const config = (origins, { appId = null } = {}) =>
     `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
@@ -423,18 +453,18 @@ describe('assert-cors-allowlist', () => {
    *  Without it the guard reports COVERAGE LOST rather than checking anything,
    *  so every fixture below is a tree that has one. */
   const CATALOGUE = JSON.stringify(
-    [{ slug: 'subly', name: 'Subly', url: 'https://nikatru.com/subly', status: 'live' }],
+    [{ slug: 'subscriptiontracker', name: 'Subly', url: 'https://nikatru.com/subscriptiontracker', status: 'live' }],
     null,
     2,
   );
 
   /** Both Workers, each overridable. Anything less is not a valid tree — the
    *  guard is supposed to insist that every service it knows about is present. */
-  const build = (name, { platform = config(PLATFORM), subly = config(SUBLY, { appId: 'subly' }), extra = {} } = {}) =>
+  const build = (name, { platform = config(PLATFORM), subscriptiontracker = config(SUBLY, { appId: 'subscriptiontracker' }), extra = {} } = {}) =>
     fixture(name, {
       'catalog/apps.json': CATALOGUE,
       'services/platform/wrangler.jsonc': platform,
-      'services/subly-api/wrangler.jsonc': subly,
+      'services/subscriptiontracker-api/wrangler.jsonc': subscriptiontracker,
       ...extra,
     });
 
@@ -447,7 +477,10 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('FAILS when a required PLATFORM origin is dropped, and names it', () => {
-    const dir = build('cors-missing-platform', { platform: config(PLATFORM.slice(0, 2)) });
+    // `slice(0, -1)`, not `slice(0, 2)`: this case is "localhost is dropped",
+    // and a fixed index silently becomes "the preview origins are dropped too"
+    // the moment the list grows — which it just did.
+    const dir = build('cors-missing-platform', { platform: config(PLATFORM.slice(0, -1)) });
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /localhost:3000/);
@@ -455,11 +488,15 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('FAILS when a required SUBLY-API origin is dropped — the old guard could not see this', () => {
-    const dir = build('cors-missing-subly', { subly: config(SUBLY.slice(0, 1)) });
+    const dir = build('cors-missing-subscriptiontracker', { subscriptiontracker: config(SUBLY.slice(0, 1)) });
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api/);
-    assert.match(out, /subly-9cp\.pages\.dev/);
+    assert.match(out, /services\/subscriptiontracker-api/);
+    // The slice drops BOTH preview origins, so the guard has to name both.
+    // Naming one and going quiet about the other is the half-report that would
+    // let the second one be forgotten in exactly the window it is needed.
+    assert.ok(out.includes(PAGES_HOST), out);
+    assert.ok(out.includes(PAGES_NEW_HOST), out);
   });
 
   test('FAILS on an empty PLATFORM allowlist', () => {
@@ -471,28 +508,28 @@ describe('assert-cors-allowlist', () => {
 
   test('FAILS on an empty SUBLY-API allowlist — the exact mutation that shipped green', () => {
     const { code, out } = run('assert-cors-allowlist.mjs', {
-      cwd: build('cors-empty-subly', { subly: config([]) }),
+      cwd: build('cors-empty-subscriptiontracker', { subscriptiontracker: config([]) }),
     });
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api/);
+    assert.match(out, /services\/subscriptiontracker-api/);
     assert.match(out, /EMPTY/);
   });
 
   test('FAILS when ALLOWED_ORIGINS is absent from a Worker entirely', () => {
     const { code, out } = run('assert-cors-allowlist.mjs', {
-      cwd: build('cors-absent-subly', { subly: '{ "name": "subly-api" }\n' }),
+      cwd: build('cors-absent-subscriptiontracker', { subscriptiontracker: '{ "name": "subscriptiontracker-api" }\n' }),
     });
     assert.equal(code, 1);
     assert.match(out, /ALLOWED_ORIGINS is missing/);
   });
 
   test('is STRUCTURAL — an origin mentioned only in a comment does not satisfy it', () => {
-    const subly = `{\n  // https://subly-9cp.pages.dev used to be here\n  "vars": { "ALLOWED_ORIGINS": "https://subly.nikatru.com" }\n}\n`;
+    const subscriptiontracker = `{\n  // ${PAGES} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${APEX}" }\n}\n`;
     const { code, out } = run('assert-cors-allowlist.mjs', {
-      cwd: build('cors-comment', { subly }),
+      cwd: build('cors-comment', { subscriptiontracker }),
     });
     assert.equal(code, 1);
-    assert.match(out, /subly-9cp\.pages\.dev/);
+    assert.ok(out.includes(PAGES_HOST), out);
   });
 
   test('FAILS on a Worker it was never TAUGHT about — a new service is untaught scope, not out of scope', () => {
@@ -505,17 +542,17 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('FAILS its own coverage check when a Worker POLICY names is not on disk', () => {
-    // The rename case: services/subly-api moves and the guard keeps printing a
+    // The rename case: services/subscriptiontracker-api moves and the guard keeps printing a
     // healthy tally over whatever is left.
     const dir = fixture('cors-renamed', {
       'catalog/apps.json': CATALOGUE,
       'services/platform/wrangler.jsonc': config(PLATFORM),
-      'services/subly-backend/wrangler.jsonc': config(SUBLY),
+      'services/subscriptiontracker-backend/wrangler.jsonc': config(SUBLY),
     });
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
-    assert.match(out, /services\/subly-api/);
+    assert.match(out, /services\/subscriptiontracker-api/);
   });
 
   test('FAILS its own coverage check when fewer Workers than expected are found', () => {
@@ -1625,7 +1662,7 @@ describe('assert-workflow-hardening', () => {
       assert.equal(REAL_SNAP.split(anchor).length - 1, 2, 'the run: body this case extends must still be there');
       const shellier = REAL_SNAP.replace(
         anchor,
-        () => `${anchor}          echo "\${SNAP_NAME:-subly}" "\${RUNNER_TEMP}/x" "\${#deps}"\n`,
+        () => `${anchor}          echo "\${SNAP_NAME:-subscriptiontracker}" "\${RUNNER_TEMP}/x" "\${#deps}"\n`,
       );
       const { code, out } = run('assert-workflow-hardening.mjs', { args: [withSnap('wh-expr-shell', shellier)] });
       assert.equal(code, 0, out);
@@ -2114,7 +2151,7 @@ describe('assert-version-consistency', () => {
 
   test('REFUSES when not one Android module is discovered — discovery finding nothing is a silent shrink', () => {
     // Mutation-proven on the REAL tree 2026-08-17: with
-    // apps/subly/android/app/build.gradle.kts moved aside the existsSync-gated
+    // apps/subscriptiontracker/android/app/build.gradle.kts moved aside the existsSync-gated
     // version printed `ok  version consistency — 85 reference(s) across 14
     // file(s)` and exited 0, against 88/15 with it present. It passed having
     // checked LESS. MIN_OCCURRENCES could not see it: that floor is GLOBAL and
@@ -2464,7 +2501,7 @@ const String kPrivacyPolicyVersion = '2026-07-26';
   // 12 files minimum, else the guard reports COVERAGE LOST rather than passing.
   const filler = (n) => {
     const out = {};
-    for (let i = 0; i < n; i++) out[`apps/subly/lib/filler_${i}.dart`] = '// filler\n';
+    for (let i = 0; i < n; i++) out[`apps/subscriptiontracker/lib/filler_${i}.dart`] = '// filler\n';
     return out;
   };
 
@@ -2844,9 +2881,9 @@ Future<void> main() async {
         homeExtra,
         settingsExtra,
       }),
-      'apps/subly/lib/state/analytics_providers.dart':
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart':
         `${record}\n${decl}\nconst String kPrivacyPolicyVersion = '${dartVersion}';\n`,
-      'apps/subly/lib/features/consent/consent_prompt.dart': ui,
+      'apps/subscriptiontracker/lib/features/consent/consent_prompt.dart': ui,
       'sites/nikatru/privacy.html': POLICY(htmlVersion),
       'tooling/channel-register.json': register,
       '.github/workflows/deploy-web.yml': workflow(jobWith('deploy-web', deploy)),
@@ -2855,7 +2892,7 @@ Future<void> main() async {
         jobWith('windows', windows),
       ),
       '.github/workflows/submit-snap.yml': workflow(jobWith('dry-run', snap)),
-      'apps/subly/lib/main.dart': mainDart,
+      'apps/subscriptiontracker/lib/main.dart': mainDart,
       'packages/telemetry/lib/src/telemetry_bootstrap.dart': bootstrap,
       'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/main.dart': brickMain,
     });
@@ -2964,7 +3001,7 @@ Future<void> main() async {
   // Mutation-proven on the REAL tree first (2026-08-02, each restored from
   // memory and byte-compared, baseline re-verified green):
   //   1. a rate-us button added to the stamped settings screen  → caught
-  //   2. a second caller added to apps/subly                    → caught
+  //   2. a second caller added to apps/subscriptiontracker                    → caught
   //   3. the ONE permitted caller commented out                 → NOT CAUGHT at
   //      first. `hits()` matched the RAW source, so `// await prompter
   //      .requestReview();` still counted — and that hole was not specific to
@@ -2986,8 +3023,8 @@ Future<void> main() async {
   });
 
   test('review_prompt — an allowed file that does not EXIST is not a moved caller', () => {
-    // The fixture tree has no apps/subly at all, while the real guard's
-    // allowlist names apps/subly/lib/state/providers.dart. Before P2.6a's fix
+    // The fixture tree has no apps/subscriptiontracker at all, while the real guard's
+    // allowlist names apps/subscriptiontracker/lib/state/providers.dart. Before P2.6a's fix
     // this exact shape failed as "no longer calls it" — an allowlist entry for
     // a stamped app must be inert in trees where that app is not stamped.
     const { code, out } = run('assert-seams-wired.mjs', { cwd: build('seams-review-ok') });
@@ -3199,12 +3236,12 @@ Future<void> main() async {
       ...filler(14),
       ...PACK_FILES,
       ...brickFiles(),
-      'apps/subly/lib/state/analytics_providers.dart':
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart':
         `${RECORD_CALL}\n${DECLARATION}\nconst String kPrivacyPolicyVersion = '2026-07-26';\n`,
-      'apps/subly/lib/features/consent/consent_prompt.dart': UI_CALLER,
+      'apps/subscriptiontracker/lib/features/consent/consent_prompt.dart': UI_CALLER,
       'sites/nikatru/privacy.html': POLICY('2026-07-26'),
       '.github/workflows/deploy-web.yml': DEPLOY_WITH_DSN,
-      'apps/subly/lib/main.dart': MAIN_READS_DSN,
+      'apps/subscriptiontracker/lib/main.dart': MAIN_READS_DSN,
       // The ONLY call site is inside the throwaway stamp.
       'apps/probe/lib/main.dart': BRICK_MAIN_INITS_AUTH,
     });
@@ -3252,7 +3289,7 @@ Future<void> main() async {
         record: `${RECORD_CALL}\nawait service.scheduleDaily(reminder);\n`,
       }),
     });
-    assert.equal(code, 1, 'apps/subly calling scheduleDaily says nothing about the brick');
+    assert.equal(code, 1, 'apps/subscriptiontracker calling scheduleDaily says nothing about the brick');
     assert.match(out, /a real scheduleDaily call site in the stamped chassis NOT FOUND/);
   });
 
@@ -3274,7 +3311,7 @@ Future<void> main() async {
       ...filler(14),
       ...PACK_FILES,
       ...brickFiles(),
-      'apps/subly/lib/state/analytics_providers.dart':
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart':
         `${RECORD_CALL}\n${DECLARATION}\nconst String kPrivacyPolicyVersion = '2026-07-26';\n`,
       // no consent_prompt.dart, no settings caller — nothing calls it at all
       'sites/nikatru/privacy.html': POLICY('2026-07-26'),
@@ -3300,8 +3337,8 @@ Future<void> main() async {
       ...filler(14),
       ...PACK_FILES,
       ...brickFiles(),
-      'apps/subly/lib/state/analytics_providers.dart': `${RECORD_CALL}\nconst String kPrivacyPolicyVersion = '2026-07-26';\n`,
-      'apps/subly/lib/features/consent/consent_prompt.dart': UI_CALLER,
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart': `${RECORD_CALL}\nconst String kPrivacyPolicyVersion = '2026-07-26';\n`,
+      'apps/subscriptiontracker/lib/features/consent/consent_prompt.dart': UI_CALLER,
       'sites/nikatru/privacy.html': '<p class="updated">Last updated: whenever</p>',
     });
     const { code, out } = run('assert-seams-wired.mjs', { cwd: dir });
@@ -3529,7 +3566,7 @@ class Ed25519PackVerifier implements PackVerifier {
 
   const filler = (n) => {
     const out = {};
-    for (let i = 0; i < n; i++) out[`apps/subly/lib/f_${i}.dart`] = '// filler\n';
+    for (let i = 0; i < n; i++) out[`apps/subscriptiontracker/lib/f_${i}.dart`] = '// filler\n';
     return out;
   };
   // The OTHER seams must stay satisfied so these tests isolate the verifier —
@@ -3604,7 +3641,7 @@ class Ed25519PackVerifier implements PackVerifier {
     '.github/workflows/build-platforms.yml':
       `name: f\njobs:\n${laneJob('linux_web_android')}${laneJob('windows')}`,
     '.github/workflows/submit-snap.yml': `name: f\njobs:\n${laneJob('dry-run')}`,
-    'apps/subly/lib/main.dart': "final dsn = String.fromEnvironment('GLITCHTIP_DSN');\n",
+    'apps/subscriptiontracker/lib/main.dart': "final dsn = String.fromEnvironment('GLITCHTIP_DSN');\n",
     // [pipeline 11]E-10 — another seam that must stay satisfied so these tests
     // isolate the verifier rather than failing for an unrelated reason.
     'packages/telemetry/lib/src/telemetry_bootstrap.dart':
@@ -3620,9 +3657,9 @@ class Ed25519PackVerifier implements PackVerifier {
     // on the consent row while claiming to be about the verifier, the review
     // prompt or the pinned keys — which is precisely what happened when this
     // line was one need short.
-    'apps/subly/lib/state/analytics_providers.dart':
+    'apps/subscriptiontracker/lib/state/analytics_providers.dart':
       "await c.record(core.ConsentPurpose.analytics,\n granted: granted,\n);\nFuture<void> applyConsentDecision({\n  core.ConsentPurpose purpose = core.ConsentPurpose.analytics,\n}) async {}\nFuture<void> recordAnalyticsConsent(\n  WidgetRef ref, {\n  required bool granted,\n}) async {}\nconst String kPrivacyPolicyVersion = '2026-07-26';\n",
-    'apps/subly/lib/features/consent/consent_prompt.dart': 'recordAnalyticsConsent(ref, granted: true);',
+    'apps/subscriptiontracker/lib/features/consent/consent_prompt.dart': 'recordAnalyticsConsent(ref, granted: true);',
     'sites/nikatru/privacy.html': '<p data-policy-version="2026-07-26">x</p>',
     'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart': brickProviders(),
     // …and the reminders seam, and the secure-session seam, for the same reason.
@@ -4070,7 +4107,7 @@ enum WindowClass { compact, medium, expanded, large, extraLarge }
   // fixture has to declare all four by name as well as carry the three anchors.
   //
   // 🔴 `contentPack:` ALONE IS NOT THE ANCHOR — the anchor is a non-null
-  // pointer. This value read the literal `null` in the brick and in apps/subly,
+  // pointer. This value read the literal `null` in the brick and in apps/subscriptiontracker,
   // which is the empty antecedent that made every content-pack check vacuously
   // true, so the fixture models the pointer as well as the plumbing.
   const goodPackRail = `
@@ -4497,7 +4534,7 @@ Future<void> main() async {
 
   // [13]T-9 THE SUBSCRIPTION ITSELF — one file, and the whole inbound half.
   //
-  // 🔴 THE GAP THIS FIXTURE STANDS FOR. The tap loop was wired into apps/subly
+  // 🔴 THE GAP THIS FIXTURE STANDS FOR. The tap loop was wired into apps/subscriptiontracker
   // and nowhere else, so the template carried the entire OUTBOUND rail (schedule,
   // re-arm on boot, cancel, the platform matrix, the toggle) with NO subscriber
   // to `notificationTaps()` anywhere. Every stamped app could wake a user at
@@ -4740,7 +4777,7 @@ class CatchUpNudgeBanner extends ConsumerWidget {
 
   // [pipeline 11]E-5 · THE LAUNCH TRIO LIVES IN A SHARED TREE, and that is the
   // requirement rather than a tidiness preference: `first_launch` and
-  // `return_visit` used to live in apps/subly's own funnel, so every stamped app
+  // `return_visit` used to live in apps/subscriptiontracker's own funnel, so every stamped app
   // emitted `app_open` and nothing else — 1 of 3 — while the lane went green.
   // The fixture carries all three names so the mutation cases below can remove
   // one at a time.
@@ -4780,11 +4817,11 @@ class AppThemeX extends ThemeExtension<AppThemeX> {
   // refuses to run at all when that list is unreadable (an unreadable list would
   // silently shrink the domain back to the brick alone, which is the whole hole).
   //
-  // The default here lists only `apps/subly` — exempt by name under 39-CHASSIS §4
+  // The default here lists only `apps/subscriptiontracker` — exempt by name under 39-CHASSIS §4
   // cut 1 — so these cases still exercise exactly the brick-only path they were
   // written for, and the per-app path is exercised by the stamped-app cases below.
   const WORKSPACE = 'pubspec.yaml';
-  const goodWorkspace = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subly\n';
+  const goodWorkspace = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subscriptiontracker\n';
 
   // ── [pipeline 13]T-4 · THE BOOT PATH NEVER SPENDS THE OS PERMISSION ASK ────
   //
@@ -4801,11 +4838,11 @@ class LocalNotificationService {
   }
 }
 `;
-  // An app that ships. The workspace above lists apps/subly, which is EXEMPT
+  // An app that ships. The workspace above lists apps/subscriptiontracker, which is EXEMPT
   // from carrying the inherited property test and deliberately NOT exempt from
   // this: the exempt app is the one that shipped the defect.
-  const SUBLY_MAIN = 'apps/subly/lib/main.dart';
-  const SUBLY_NOTIFS = 'apps/subly/lib/services/notifications/notification_service.dart';
+  const SUBLY_MAIN = 'apps/subscriptiontracker/lib/main.dart';
+  const SUBLY_NOTIFS = 'apps/subscriptiontracker/lib/services/notifications/notification_service.dart';
   const goodSublyMain = `
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -4943,7 +4980,7 @@ export interface AppConfig {
   // does not, which is only true because the guard reads parsed structure.
   const PLATFORM_CATALOGUE = 'catalog/apps.json';
   const goodPlatformCatalogue = JSON.stringify([
-    { slug: 'subly', name: 'Subly', api: 'https://api.nikatru.com', platforms: ['web'], status: 'live' },
+    { slug: 'subscriptiontracker', name: 'Subly', api: 'https://api.nikatru.com', platforms: ['web'], status: 'live' },
   ]);
   const PLATFORM_CONFIG_DATA = 'services/platform/src/app-config-data.json';
   const platformConfigData = (updateUrl = null) =>
@@ -4953,7 +4990,7 @@ export interface AppConfig {
       ],
       sharedApiBaseUrl: 'https://platform.nikatru.com/v1',
       defaults: { min_supported_version: '1.0.0', update_url: updateUrl },
-      apps: { subly: {} },
+      apps: { subscriptiontracker: {} },
     });
   const goodPlatformConfigData = platformConfigData();
   // The channel set the comparison ranges over. Two rows with a lane and one
@@ -4992,11 +5029,11 @@ onTap: () => _openUrl(AppConfig.termsUrl),
 onTap: () => _openUrl(AppConfig.refundUrl),
 `;
 
-  const build = (name, { propTest = goodTest, app = goodApp, providers = goodProviders, packRail = goodPackRail, themeX = goodThemeX, scaffold = goodScaffold, authBarrel = goodAuthBarrel, authAdapter = goodAuthAdapter, settings = goodSettings, router = goodRouter, signUp = goodSignUp, onboarding = goodOnboarding, coreAuth = goodCoreAuth, arbTa = goodArbTa, brickMain = goodMain, tapObserver = goodTapObserver, accountRoute = goodAccountRoute, moneyProviders = goodMoneyProviders, home = goodHome, coreCache = goodCoreCache, coreLifecycle = goodCoreLifecycle, workspace = goodWorkspace, appConfig = goodAppConfig, siteIntegrity = goodSiteIntegrity, legalLinks = goodLegalLinks, permissionProbe = goodPermissionProbe, sublyMain = goodSublyMain, sublyNotifs = goodSublyNotifs, paywall = goodPaywall, moneyFunnel = goodMoneyFunnel, platformTypes = goodPlatformTypes, platformCatalogue = goodPlatformCatalogue, platformConfigData = goodPlatformConfigData, channelRegister = goodChannelRegister, extra = {}, omitArbTa = false, omitProp = false, omitTapObserver = false } = {}) => {
+  const build = (name, { propTest = goodTest, app = goodApp, providers = goodProviders, packRail = goodPackRail, themeX = goodThemeX, scaffold = goodScaffold, authBarrel = goodAuthBarrel, authAdapter = goodAuthAdapter, settings = goodSettings, router = goodRouter, signUp = goodSignUp, onboarding = goodOnboarding, coreAuth = goodCoreAuth, arbTa = goodArbTa, brickMain = goodMain, tapObserver = goodTapObserver, accountRoute = goodAccountRoute, moneyProviders = goodMoneyProviders, home = goodHome, coreCache = goodCoreCache, coreLifecycle = goodCoreLifecycle, workspace = goodWorkspace, appConfig = goodAppConfig, siteIntegrity = goodSiteIntegrity, legalLinks = goodLegalLinks, permissionProbe = goodPermissionProbe, subscriptiontrackerMain = goodSublyMain, subscriptiontrackerNotifs = goodSublyNotifs, paywall = goodPaywall, moneyFunnel = goodMoneyFunnel, platformTypes = goodPlatformTypes, platformCatalogue = goodPlatformCatalogue, platformConfigData = goodPlatformConfigData, channelRegister = goodChannelRegister, extra = {}, omitArbTa = false, omitProp = false, omitTapObserver = false } = {}) => {
     // The pack rail is APPENDED rather than folded into `goodProviders` so the
     // many cases that replace `providers` wholesale keep satisfying it — and so
     // the cases that are ABOUT the pack rail can drop it on its own.
-    const files = { [APP]: app, [BRICK_WEB_INDEX]: webIndex, [BRICK_PROVIDERS]: providers + packRail, [THEME_X]: themeX, [SCAFFOLD]: scaffold, [AUTH_BARREL]: authBarrel, [AUTH_ADAPTER]: authAdapter, [SETTINGS]: settings + legalLinks, [ROUTER]: router, [SIGN_UP]: signUp, [ONBOARDING]: onboarding, [CORE_AUTH]: coreAuth, [BRICK_MAIN]: brickMain, [ACCOUNT_ROUTE]: accountRoute, [MONEY_PROVIDERS]: moneyProviders, [HOME]: home, [CORE_CACHE]: coreCache, [CORE_LIFECYCLE]: coreLifecycle, [WORKSPACE]: workspace, [APP_CONFIG]: appConfig, [SITE_INTEGRITY]: siteIntegrity, [PERMISSION_PROBE]: permissionProbe, [SUBLY_MAIN]: sublyMain, [SUBLY_NOTIFS]: sublyNotifs, [PAYWALL]: paywall, [MONEY_FUNNEL]: moneyFunnel, [PLATFORM_TYPES]: platformTypes, [PLATFORM_CATALOGUE]: platformCatalogue, [PLATFORM_CONFIG_DATA]: platformConfigData, [CHANNEL_REGISTER]: channelRegister, ...extra };
+    const files = { [APP]: app, [BRICK_WEB_INDEX]: webIndex, [BRICK_PROVIDERS]: providers + packRail, [THEME_X]: themeX, [SCAFFOLD]: scaffold, [AUTH_BARREL]: authBarrel, [AUTH_ADAPTER]: authAdapter, [SETTINGS]: settings + legalLinks, [ROUTER]: router, [SIGN_UP]: signUp, [ONBOARDING]: onboarding, [CORE_AUTH]: coreAuth, [BRICK_MAIN]: brickMain, [ACCOUNT_ROUTE]: accountRoute, [MONEY_PROVIDERS]: moneyProviders, [HOME]: home, [CORE_CACHE]: coreCache, [CORE_LIFECYCLE]: coreLifecycle, [WORKSPACE]: workspace, [APP_CONFIG]: appConfig, [SITE_INTEGRITY]: siteIntegrity, [PERMISSION_PROBE]: permissionProbe, [SUBLY_MAIN]: subscriptiontrackerMain, [SUBLY_NOTIFS]: subscriptiontrackerNotifs, [PAYWALL]: paywall, [MONEY_FUNNEL]: moneyFunnel, [PLATFORM_TYPES]: platformTypes, [PLATFORM_CATALOGUE]: platformCatalogue, [PLATFORM_CONFIG_DATA]: platformConfigData, [CHANNEL_REGISTER]: channelRegister, ...extra };
     if (!omitArbTa) files[ARB_TA] = arbTa;
     if (!omitProp) files[PROP] = propTest;
     // [13]T-9 Omittable on its own, because "the observer file is not there at
@@ -5021,7 +5058,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // resolving it is a brand-vs-seed judgement only the owner can make, and
   // failing would block CI on owner work [CLAUDE.md C-6].
   //
-  // Case (c) below is the one that matters: the real `apps/subly/lib` carries
+  // Case (c) below is the one that matters: the real `apps/subscriptiontracker/lib` carries
   // FOUR mentions of `extension<AppThemeX>` and ZERO calls, because every one of
   // them sits in a doc comment ARGUING the code deliberately does not read it.
   // A limb that grepped would have reported 4 and called the chain live.
@@ -5050,7 +5087,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
 
   test('🔴 limb (c) counts CALLS, not mentions — a doc comment is still ZERO', () => {
     // The case that separates a measurement from a grep, and the shape the REAL
-    // apps/subly/lib is in today: four mentions of `extension<AppThemeX>`, every
+    // apps/subscriptiontracker/lib is in today: four mentions of `extension<AppThemeX>`, every
     // one inside a doc comment ARGUING the code deliberately does not read it,
     // and zero calls. A limb that grepped would have reported 4 and called the
     // chain live.
@@ -5306,7 +5343,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     // this limb treats as compliant.
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-d8-nodefaults', {
-        platformConfigData: JSON.stringify({ sharedApiBaseUrl: 'x', apps: { subly: {} } }),
+        platformConfigData: JSON.stringify({ sharedApiBaseUrl: 'x', apps: { subscriptiontracker: {} } }),
       }),
     });
     assert.equal(code, 1);
@@ -5423,7 +5460,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // reminder on a freshly stamped app records nothing, ever.
   //
   // 🔴 WHAT THIS PROPERTY IS A RESPONSE TO. The tap loop was wired into
-  // apps/subly and STOPPED THERE. The template carried the entire outbound rail
+  // apps/subscriptiontracker and STOPPED THERE. The template carried the entire outbound rail
   // — schedule, re-arm on boot, cancel, the platform matrix, the settings toggle
   // — and had no subscriber to `notificationTaps()` anywhere, so app #2 through
   // #50 were born able to wake a user at 09:00 and unable to notice they
@@ -5431,7 +5468,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // indistinguishable from no tap at all.
   //
   // ⚠️ AND `assert-capability-register.mjs` COULD NOT SAY SO: its emitter for
-  // that surface is pinned to `apps/subly/lib/state/analytics_funnel.dart` — a
+  // that surface is pinned to `apps/subscriptiontracker/lib/state/analytics_funnel.dart` — a
   // real file with a real caller — so the register stayed green about a
   // capability the template did not have. A guard pointed at one app cannot
   // answer a question about the factory. That is why every anchor here is
@@ -5562,17 +5599,17 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // the guard. The recorded real-tree results, `flutter analyze` clean each time
   // (21 info, 0 errors — identical to baseline, so no case is a compile error
   // masquerading as a catch):
-  //   · apps/subly SHIPPED the violation. The very first run of this limb was
+  //   · apps/subscriptiontracker SHIPPED the violation. The very first run of this limb was
   //     red on the untouched tree: `main() → init() → _requestPermissions()`.
   //   · a direct `await NotificationService.instance.requestPermissions();` in
-  //     apps/subly/lib/main.dart          → red at `main()`.
+  //     apps/subscriptiontracker/lib/main.dart          → red at `main()`.
   //   · the ask moved into ScanScreen's `initState`  → red at limb B.
   //   · the brick's runtime count weakened from `0` to `greaterThanOrEqualTo(0)`
   //     — a mutation `flutter test` stays GREEN on → red at the runtime anchor.
   test('passes when init() and the permission ask are separate', () => {
     const { code, out } = run('assert-stamp-properties.mjs', { cwd: build('sp-t4-ok') });
     assert.equal(code, 0);
-    assert.match(out, /\[13\]T-4 apps\/subly — launch path asks for no OS permission/);
+    assert.match(out, /\[13\]T-4 apps\/subscriptiontracker — launch path asks for no OS permission/);
     // The EXEMPT app is covered. That exemption is about the inherited property
     // test, and it cannot excuse an app from the boot path — it is the one that
     // shipped the defect.
@@ -5582,7 +5619,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   test('FAILS when main() itself asks for permission', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-main-asks', {
-        sublyMain: goodSublyMain.replace(
+        subscriptiontrackerMain: goodSublyMain.replace(
           'await NotificationService.instance.init();',
           'await NotificationService.instance.init();\n  await NotificationService.instance.requestPermissions();',
         ),
@@ -5590,7 +5627,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     });
     assert.equal(code, 1);
     assert.match(out, /THE LAUNCH PATH SPENDS THE OS PERMISSION ASK — main\(\)/);
-    assert.match(out, /apps\/subly\/lib\/main\.dart/);
+    assert.match(out, /apps\/subscriptiontracker\/lib\/main\.dart/);
   });
 
   // 🔴 THE ONE THAT ACTUALLY SHIPPED, and the reason a one-file scan of
@@ -5599,7 +5636,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   test('FAILS when the ask is TRANSITIVELY reachable from main()', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-transitive', {
-        sublyNotifs: goodSublyNotifs.replace(
+        subscriptiontrackerNotifs: goodSublyNotifs.replace(
           'await _plugin.initialize(settings);',
           'await _plugin.initialize(settings);\n    await requestPermissions();',
         ),
@@ -5616,7 +5653,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-initstate', {
         extra: {
-          'apps/subly/lib/features/scan/scan_screen.dart':
+          'apps/subscriptiontracker/lib/features/scan/scan_screen.dart':
             'class _S extends State<S> {\n  @override\n  void initState() {\n    super.initState();\n    NotificationService.instance.requestPermissions();\n  }\n}\n',
         },
       }),
@@ -5633,13 +5670,13 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-gesture', {
         extra: {
-          'apps/subly/lib/features/settings/toggle.dart':
+          'apps/subscriptiontracker/lib/features/settings/toggle.dart':
             'class ReminderTile extends StatelessWidget {\n  Widget build(BuildContext c) => SwitchListTile(\n    onChanged: (bool on) => _onToggle(on),\n  );\n  Future<void> _onToggle(bool on) async {\n    if (on) await NotificationService.instance.requestPermissions();\n  }\n}\n',
         },
       }),
     });
     assert.equal(code, 0);
-    assert.match(out, /\[13\]T-4 apps\/subly — launch path asks for no OS permission/);
+    assert.match(out, /\[13\]T-4 apps\/subscriptiontracker — launch path asks for no OS permission/);
   });
 
   // A guard that has stopped seeing an OS ask reports every app clean forever,
@@ -5682,9 +5719,9 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // guard's author also wrote encodes the same misunderstanding as the guard),
   // `flutter analyze` 21 issues / 0 errors on each — identical to baseline, so
   // no case below is a compile error masquerading as a catch:
-  //   · baseline: apps/subly 2 call site(s) — settings_controller.dart:139,
+  //   · baseline: apps/subscriptiontracker 2 call site(s) — settings_controller.dart:139,
   //     subscriptions_controller.dart:104; brick 1 — providers.dart:1045.
-  //   · BOTH real call sites replaced with `.init()` → limb C red at apps/subly,
+  //   · BOTH real call sites replaced with `.init()` → limb C red at apps/subscriptiontracker,
   //     while limb A/B printed the SAME `ok` line as baseline ("2 function(s)
   //     reached from main() across 45 lib file(s); initState/… clean") and the
   //     runtime `requestPermissionCalls == 0` limb also stayed ok. 2 → 0 asks,
@@ -5700,7 +5737,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     assert.equal(code, 0);
     // Both roots, not just the stamped one: the brick's ask lives in
     // applyReminderChoice, the app's in a controller the walk never reaches.
-    assert.match(out, /apps\/subly — the enable path asks: 1 call site\(s\)/);
+    assert.match(out, /apps\/subscriptiontracker — the enable path asks: 1 call site\(s\)/);
     assert.match(out, /\{\{app_id\}\} — the enable path asks: 1 call site\(s\)/);
   });
 
@@ -5715,14 +5752,14 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   test('FAILS when the enable-path call site is deleted but the declaration stays', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-enable-deleted', {
-        sublyNotifs: goodSublyNotifs.replace('if (on) await requestPermissions();', 'if (on) await init();'),
+        subscriptiontrackerNotifs: goodSublyNotifs.replace('if (on) await requestPermissions();', 'if (on) await init();'),
       }),
     });
     assert.equal(code, 1);
-    assert.match(out, /apps\/subly: THE ENABLE PATH NEVER ASKS/);
+    assert.match(out, /apps\/subscriptiontracker: THE ENABLE PATH NEVER ASKS/);
     // The proof that the two halves point opposite ways: the same input leaves
     // the launch-path limb printing ok.
-    assert.match(out, /\[13\]T-4 apps\/subly — launch path asks for no OS permission/);
+    assert.match(out, /\[13\]T-4 apps\/subscriptiontracker — launch path asks for no OS permission/);
   });
 
   // DISJOINTNESS. Exactly ONE ask in the app, sitting in an ungestured hook. It
@@ -5731,16 +5768,16 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   test('FAILS on BOTH limbs when the only ask sits in an ungestured hook', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-enable-vs-firstframe', {
-        sublyNotifs: goodSublyNotifs.replace('if (on) await requestPermissions();', 'if (on) await init();'),
+        subscriptiontrackerNotifs: goodSublyNotifs.replace('if (on) await requestPermissions();', 'if (on) await init();'),
         extra: {
-          'apps/subly/lib/features/scan/scan_screen.dart':
+          'apps/subscriptiontracker/lib/features/scan/scan_screen.dart':
             'class _S extends State<S> {\n  @override\n  void initState() {\n    super.initState();\n    NotificationService.instance.requestPermissions();\n  }\n}\n',
         },
       }),
     });
     assert.equal(code, 1);
     assert.match(out, /initState\(\) \[first frame, no gesture\]/);
-    assert.match(out, /apps\/subly: THE ENABLE PATH NEVER ASKS/);
+    assert.match(out, /apps\/subscriptiontracker: THE ENABLE PATH NEVER ASKS/);
   });
 
   // The other direction of the same barrier: an ask inside a function the walk
@@ -5749,21 +5786,21 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   test('an ask reachable from main() does not satisfy the enable-path limb', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
       cwd: build('sp-t4-enable-not-paid-by-main', {
-        sublyNotifs: goodSublyNotifs
+        subscriptiontrackerNotifs: goodSublyNotifs
           .replace('if (on) await requestPermissions();', 'if (on) await init();')
           .replace('await _plugin.initialize(settings);', 'await _plugin.initialize(settings);\n    await requestPermissions();'),
       }),
     });
     assert.equal(code, 1);
     assert.match(out, /main\(\) → init\(\)/);
-    assert.match(out, /apps\/subly: THE ENABLE PATH NEVER ASKS/);
+    assert.match(out, /apps\/subscriptiontracker: THE ENABLE PATH NEVER ASKS/);
   });
 
   // COVERAGE SELF-CHECK. A main.dart the walk cannot parse would start the whole
   // check from nothing and report a clean launch path for any code at all.
   test('FAILS when main() cannot be parsed out of an app that has a main.dart', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
-      cwd: build('sp-t4-unparseable-main', { sublyMain: '// everything commented out\n' }),
+      cwd: build('sp-t4-unparseable-main', { subscriptiontrackerMain: '// everything commented out\n' }),
     });
     assert.equal(code, 1);
     assert.match(out, /no `main\(\)` DECLARATION could be parsed/);
@@ -5897,7 +5934,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     // app-relative for the same reason as the paywall entry above.
     [`${dir}/web/index.html`]: over.webIndex ?? webIndex,
   });
-  const WS_WITH_PROBE = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subly\n  - apps/probe\n';
+  const WS_WITH_PROBE = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subscriptiontracker\n  - apps/probe\n';
 
   test('audits a stamped app on the workspace list, not only the brick', () => {
     const { code, out } = run('assert-stamp-properties.mjs', {
@@ -5966,27 +6003,27 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     assert.match(out, /apps\/probe: property 'notification-tap-observed' is asserted but its IMPLEMENTATION is gone/);
   });
 
-  // apps/subly is the frozen legacy rail-prover (39-CHASSIS §4 cut 1): it
+  // apps/subscriptiontracker is the frozen legacy rail-prover (39-CHASSIS §4 cut 1): it
   // predates the brick, was never stamped, and has no inherited property test to
   // keep. Exempting it BY NAME is what stops this guard demanding a retrofit the
   // freeze forbids — and this case is what stops the exemption being silently
   // widened to every app.
   //
   // ⚠️ NARROWED 2026-08-06 ([pipeline 13]T-4). This read
-  // `doesNotMatch(out, /apps\/subly/)` — an assertion far broader than its own
+  // `doesNotMatch(out, /apps\/subscriptiontracker/)` — an assertion far broader than its own
   // title, which said "does NOT demand a property TEST". Read literally it made
-  // apps/subly unmentionable by this guard for ANY reason, and so it would have
+  // apps/subscriptiontracker unmentionable by this guard for ANY reason, and so it would have
   // blocked the T-4 boot-path limb — a check the frozen app is deliberately NOT
   // exempt from, and the one whose defect it was shipping. The exemption covers
   // the inherited property test; it never covered the launch path. Both
   // directions are now asserted, so neither can be quietly widened.
-  test('does NOT demand a property test from the frozen apps/subly', () => {
-    const { code, out } = run('assert-stamp-properties.mjs', { cwd: build('sp-subly-exempt') });
+  test('does NOT demand a property test from the frozen apps/subscriptiontracker', () => {
+    const { code, out } = run('assert-stamp-properties.mjs', { cwd: build('sp-subscriptiontracker-exempt') });
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /apps\/subly: property/);
-    assert.doesNotMatch(out, /apps\/subly\/test\/chassis_properties_test\.dart/);
+    assert.doesNotMatch(out, /apps\/subscriptiontracker: property/);
+    assert.doesNotMatch(out, /apps\/subscriptiontracker\/test\/chassis_properties_test\.dart/);
     // …and it IS held to the boot path.
-    assert.match(out, /\[13\]T-4 apps\/subly — launch path asks for no OS permission/);
+    assert.match(out, /\[13\]T-4 apps\/subscriptiontracker — launch path asks for no OS permission/);
   });
 
   // The domain itself. An unreadable workspace list silently shrinks the scan
@@ -6098,7 +6135,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   });
 
   // [pipeline C-15] The auth seam had no home: the only implementations lived
-  // inside apps/subly, so the brick wired no auth and no tokenProvider — every
+  // inside apps/subscriptiontracker, so the brick wired no auth and no tokenProvider — every
   // stamped app was born unable to sign anyone in.
   describe('the auth seam is wired into the stamp', () => {
     test('FAILS when the brick wires no AuthRepository', () => {
@@ -6830,12 +6867,12 @@ onTap: () => _openUrl(AppConfig.refundUrl),
   // failing inside the guard that exists to enforce it.
   //
   // NOT HYPOTHETICAL, and the real-tree case is what these fixtures encode:
-  // `apps/subly/lib/state/providers.dart:158` is a doc comment quoting
+  // `apps/subscriptiontracker/lib/state/providers.dart:158` is a doc comment quoting
   // "`contentPack: 'https://packs…/latest'`" while that app's real config reads
   // `contentPack: null` on :172. MEASURED 2026-08-21 by running every anchor of
   // every property over both roots raw and stripped and diffing: exactly ONE
   // result flips, that one. It was latent rather than live only because
-  // `apps/subly` is in EXEMPT_APPS — dropping the exemption on a copy of the
+  // `apps/subscriptiontracker` is in EXEMPT_APPS — dropping the exemption on a copy of the
   // guard printed 9 FAIL lines with the raw read and 10 with the stripped one.
   //
   // MUTATION-TESTED, which is the only thing that makes these cases tests:
@@ -6875,7 +6912,7 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     });
 
     // 🔴 THE HTML FORM, which `stripDartComments` alone CANNOT see — hence
-    // `stripAnchorComments`. Also not hypothetical: `apps/subly/web/index.html:11`
+    // `stripAnchorComments`. Also not hypothetical: `apps/subscriptiontracker/web/index.html:11`
     // reproduces the exact `<meta name="viewport" … content="…width=device-width…"`
     // shape inside an `<!-- -->` block while explaining the tag, so the one
     // anchor whose own comment says "Matched on the TAG, never on prose" was
@@ -7402,9 +7439,9 @@ onTap: () => _openUrl(AppConfig.refundUrl),
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-responsive-coverage', () => {
-  const LIB = 'apps/subly/lib';
+  const LIB = 'apps/subscriptiontracker/lib';
   const ROUTER = `${LIB}/core/router.dart`;
-  const TEST = 'apps/subly/test';
+  const TEST = 'apps/subscriptiontracker/test';
 
   // 🔴 THE FIXTURE MIRRORS THE SHAPE OF THE REAL TREE, NOT A MINIATURE OF IT.
   // The guard carries a REQUIRED_COVERAGE floor of 19 surfaces and 16 width test
@@ -7455,7 +7492,7 @@ describe('assert-responsive-coverage', () => {
   /** A test file that imports feature paths and pumps the named subjects at
    *  every required window class, plus kWide. */
   const testSrc = (imports, uses, widths = ['kPhone', 'kTablet', 'kDesktop', 'kWide']) =>
-    `${imports.map((p) => `import 'package:subly/${p}';`).join('\n')}\n\nimport 'support/width_harness.dart';\n\nvoid main() {\n` +
+    `${imports.map((p) => `import 'package:subscriptiontracker/${p}';`).join('\n')}\n\nimport 'support/width_harness.dart';\n\nvoid main() {\n` +
     `${uses
       .flatMap((u) => widths.map((w) => `  testWidgets('at ${w}', (t) async { await pumpAt(t, ${w}, ${u}); });`))
       .join('\n')}\n}\n`;
@@ -7495,8 +7532,8 @@ describe('assert-responsive-coverage', () => {
    *  covering all 18. */
   const build = (name, over = {}, routerOpts = {}) => {
     const files = {
-      'pubspec.yaml': 'name: nikatru_workspace\npublish_to: none\n\nworkspace:\n  - apps/subly\n',
-      'apps/subly/pubspec.yaml': 'name: subly\n',
+      'pubspec.yaml': 'name: nikatru_workspace\npublish_to: none\n\nworkspace:\n  - apps/subscriptiontracker\n',
+      'apps/subscriptiontracker/pubspec.yaml': 'name: subscriptiontracker\n',
       [ROUTER]: routerSrc(routerOpts),
       [HARNESS]: harnessSrc,
       [sheetFile('add')]: sheetSrc('showAddSheet'),
@@ -7534,9 +7571,9 @@ describe('assert-responsive-coverage', () => {
   test('PASSES when the routed set and the measured set are EQUAL', () => {
     const { code, out } = run('assert-responsive-coverage.mjs', { cwd: build('rc-ok') });
     assert.equal(code, 0);
-    assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured/);
+    assert.match(out, /apps\/subscriptiontracker: 19 surface\(s\) reachable, 19 measured/);
     assert.match(out, /the two sets are EQUAL/);
-    assert.match(out, /apps\/subly: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/);
+    assert.match(out, /apps\/subscriptiontracker: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/);
   });
 
   test('PRINTS its exclusions with reasons on a PASSING run, never silently', () => {
@@ -7619,7 +7656,7 @@ describe('assert-responsive-coverage', () => {
     // measurement would count as the measurement.
     const dir = build('rc-width-prose', {
       [`${TEST}/width_s4_test.dart`]:
-        `import 'package:subly/features/s4/s4_screen.dart';\n\nimport 'support/width_harness.dart';\n\n` +
+        `import 'package:subscriptiontracker/features/s4/s4_screen.dart';\n\nimport 'support/width_harness.dart';\n\n` +
         `void main() {\n` +
         `  // kTablet is deliberately omitted, see below.\n` +
         `  testWidgets('at kPhone', (t) async {\n` +
@@ -7671,7 +7708,7 @@ describe('assert-responsive-coverage', () => {
     });
     const { code, out } = run('assert-responsive-coverage.mjs', { cwd: dir });
     assert.equal(code, 1);
-    assert.match(out, /`kDesktop` is required of every responsive surface and `apps\/subly` declares it nowhere/);
+    assert.match(out, /`kDesktop` is required of every responsive surface and `apps\/subscriptiontracker` declares it nowhere/);
   });
 
   test('COVERAGE LOST when the router is gone — the routed set parses EMPTY', () => {
@@ -7692,7 +7729,7 @@ describe('assert-responsive-coverage', () => {
     for (const i of ids.slice(0, 13)) over[`${TEST}/width_s${i}_test.dart`] = null;
     const { code, out } = run('assert-responsive-coverage.mjs', { cwd: build('rc-notests', over) });
     assert.equal(code, 1);
-    assert.match(out, /COVERAGE LOST — `apps\/subly` has 0 measured surface\(s\) and its measured floor is 19/);
+    assert.match(out, /COVERAGE LOST — `apps\/subscriptiontracker` has 0 measured surface\(s\) and its measured floor is 19/);
   });
 
   test('FAILS when a route builds something this guard cannot classify', () => {
@@ -7710,7 +7747,7 @@ describe('assert-responsive-coverage', () => {
     // there reports judgement over nothing.
     const { code, out } = run('assert-responsive-coverage.mjs', { cwd: build('rc-staleexcl', {}, { shell: false }) });
     assert.equal(code, 1);
-    assert.match(out, /`AppShell` is excluded in NOT_A_PANE for `apps\/subly` but no route/);
+    assert.match(out, /`AppShell` is excluded in NOT_A_PANE for `apps\/subscriptiontracker` but no route/);
   });
 
   test('resolves a router-local wrapper to the SCREEN it gates, not to the wrapper', () => {
@@ -7801,11 +7838,11 @@ describe('per-root coverage — a root that contributes nothing is named', () =>
 
   /** A tree that satisfies both guards' other limbs, so each case below is
    *  measuring per-root coverage and nothing else. `appDart` false is the
-   *  mutation: `apps/subly` is still a declared workspace member and still the
+   *  mutation: `apps/subscriptiontracker` is still a declared workspace member and still the
    *  only thing under `apps/`, but it contributes no dart file. */
   function tree(name, { appDart = true, tokensDart = false } = {}) {
     const files = {
-      'pubspec.yaml': rootPubspec(['packages/core', 'packages/purchases', 'apps/subly']),
+      'pubspec.yaml': rootPubspec(['packages/core', 'packages/purchases', 'apps/subscriptiontracker']),
       [BRICK_PAYWALL]: CALLERS,
       'packages/purchases/lib/src/offering.dart': OFFERING,
       'packages/purchases/lib/src/money_funnel.dart': FUNNEL,
@@ -7821,7 +7858,7 @@ describe('per-root coverage — a root that contributes nothing is named', () =>
     for (let i = 0; i < 20; i += 1) {
       files[`services/platform/src/filler_${i}.ts`] = `export const f${i} = ${i};\n`;
     }
-    if (appDart) files['apps/subly/lib/app.dart'] = CALLERS;
+    if (appDart) files['apps/subscriptiontracker/lib/app.dart'] = CALLERS;
     if (tokensDart) files['packages/tokens/lib/generated.dart'] = 'class Tokens {}\n';
     return fixture(name, files);
   }
@@ -7833,13 +7870,13 @@ describe('per-root coverage — a root that contributes nothing is named', () =>
       const { code, out } = run(guard, { args: [tree(`proot-ok-${short}`)] });
       assert.equal(code, 0, out);
       assert.match(out, /per root|per-root coverage/);
-      assert.match(out, /apps\/subly \(1\)/);
+      assert.match(out, /apps\/subscriptiontracker \(1\)/);
     });
 
-    test(`🔴 ${short} — COVERAGE LOST names apps/subly when it contributes nothing`, () => {
+    test(`🔴 ${short} — COVERAGE LOST names apps/subscriptiontracker when it contributes nothing`, () => {
       const { code, out } = run(guard, { args: [tree(`proot-quiet-${short}`, { appDart: false })] });
       assert.equal(code, 1, out);
-      assert.match(out, /COVERAGE LOST — apps\/subly contributed ZERO/);
+      assert.match(out, /COVERAGE LOST — apps\/subscriptiontracker contributed ZERO/);
       // The union floor stayed green throughout: that is the defect, not a
       // second symptom of it.
       assert.doesNotMatch(out, /COVERAGE LOST — scanned only/);

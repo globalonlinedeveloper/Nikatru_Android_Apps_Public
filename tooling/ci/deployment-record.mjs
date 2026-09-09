@@ -190,7 +190,7 @@ export function decodeDescription(text) {
 /**
  * Split an environment name into `{ app, channel }` against a register's
  * `deploymentEnvironment` templates. Derived from the register rather than by
- * splitting on the last hyphen: `subly-android-play` and `subly-web` do not
+ * splitting on the last hyphen: `subscriptiontracker-android-play` and `subscriptiontracker-web` do not
  * split the same way, and a reader that guessed would file a Play record under
  * a channel called "play".
  */

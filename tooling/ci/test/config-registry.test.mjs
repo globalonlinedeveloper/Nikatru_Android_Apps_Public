@@ -46,7 +46,7 @@ let seq = 0;
 
 /** The catalogue, as post_gen.dart writes it. */
 const CATALOGUE = [
-  { slug: 'subly', name: 'Subly', tagline: 't', url: 'https://subly.nikatru.com', api: 'https://api.nikatru.com', platforms: ['web'], status: 'live' },
+  { slug: 'subscriptiontracker', name: 'Subly', tagline: 't', url: 'https://subly.nikatru.com', api: 'https://api.nikatru.com', platforms: ['web'], status: 'live' },
 ];
 
 /** The value document. */
@@ -62,21 +62,21 @@ const DATA = {
     max_promos_per_week: 0,
     update_url: null,
   },
-  apps: { subly: { features: { renewals: true } } },
+  apps: { subscriptiontracker: { features: { renewals: true } } },
 };
 
 /** The Worker source, reduced to the two things the guard reads: the catalogue
  *  import reaching `buildRegistry`, and APP_ID_PATTERN.
  *
  *  🔴 IT CARRIES A HEADER COMMENT NAMING AN APP ID ON PURPOSE. The real file's
- *  header quotes the old hardcoded registry (`subly: { … }`) as the defect it
+ *  header quotes the old hardcoded registry (`subscriptiontracker: { … }`) as the defect it
  *  removed — so a guard that grepped raw text would fire on the very prose
  *  explaining why the thing it looks for is absent. That is not hypothetical
  *  here: this repo has already shipped a `grep '"r2_buckets"'` that matched the
  *  comment saying there is no `r2_buckets`. The literal limb must read
  *  comment-STRIPPED source, and this fixture is how that stays true. */
 const CONFIG_TS = `// Until B-2 the registry was a literal here:
-//     export const DEFAULT_CONFIGS = { subly: { app_id: 'subly' } };
+//     export const DEFAULT_CONFIGS = { subscriptiontracker: { app_id: 'subscriptiontracker' } };
 // which is why 'lingo' 404'd. It is derived now.
 import type { AppConfig } from './types';
 import catalogueJson from '../../../catalog/apps.json';
@@ -162,7 +162,7 @@ const DART = {
   //  it and asserts the failure, which is where a declaration of that shape
   //  belongs: in the one case that must fail over it.)
   'packages/core/lib/src/config/app_config.dart': `class AppConfig {\n  final Map<String, Object?>? theme;\n  final Map<String, String> copy;\n  bool feature(String key, {bool orElse = false}) => features[key] ?? orElse;\n}\n`,
-  'apps/subly/lib/state/providers.dart': `const String kPromoCardFeature = 'promo_card_enabled';\n`,
+  'apps/subscriptiontracker/lib/state/providers.dart': `const String kPromoCardFeature = 'promo_card_enabled';\n`,
   // 🔴 IT DECLARES ITS RECEIVER `core.AppConfig? cfg`, AND THAT IS NOT
   // DECORATION (2026-08-25). Limb 9's BOUND set resolves `.theme` against the
   // identifiers a file declares with an AppConfig type, and this line is the
@@ -175,7 +175,7 @@ const DART = {
   // member, so a Dart fixture with no `copy[...]` read anywhere makes it report
   // COVERAGE LOST on the passing tree -- which is 10g, deliberately, and must not
   // be the state every other case in this file runs in.
-  'apps/subly/lib/features/home/home_screen.dart': `Widget build() {\n  final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;\n  final bool on = cfg?.feature(kPromoCardFeature) ?? false;\n  return on ? card() : empty();\n}\n\n/// [O3] An override REPLACES designed copy; designed copy is the FALLBACK.\nString _copy(core.AppConfig? cfg, String key, String fallback) {\n  final String? override = cfg?.copy[key];\n  return (override == null || override.trim().isEmpty) ? fallback : override;\n}\n`,
+  'apps/subscriptiontracker/lib/features/home/home_screen.dart': `Widget build() {\n  final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;\n  final bool on = cfg?.feature(kPromoCardFeature) ?? false;\n  return on ? card() : empty();\n}\n\n/// [O3] An override REPLACES designed copy; designed copy is the FALLBACK.\nString _copy(core.AppConfig? cfg, String key, String fallback) {\n  final String? override = cfg?.copy[key];\n  return (override == null || override.trim().isEmpty) ? fallback : override;\n}\n`,
   // 🔴 AND A SECOND SITE UNDER `tooling/bricks`, BECAUSE ONE ROOT IS NOT THREE.
   // DART_ROOTS is ['apps', 'packages', 'tooling/bricks'] and the real tree reads the
   // map on BOTH brick screens. A fixture whose only read lived under `apps` would
@@ -232,7 +232,7 @@ describe('assert-config-registry — the passing case', () => {
 
   test('and it PRINTS the served set, so a shrink is visible', () => {
     const r = run(tree());
-    assert.match(r.out, /subly → https:\/\/api\.nikatru\.com\/v1/);
+    assert.match(r.out, /subscriptiontracker → https:\/\/api\.nikatru\.com\/v1/);
   });
 
   test('an app with no `api` host is printed against the SHARED base', () => {
@@ -292,13 +292,13 @@ describe('assert-config-registry — the seven observations', () => {
   });
 
   test('2 · an app id typed back into config.ts as a registry key', () => {
-    const r = run(tree({ configTs: `${CONFIG_TS}\nconst LEGACY = {\n  subly: { renewals: true },\n};\n` }));
+    const r = run(tree({ configTs: `${CONFIG_TS}\nconst LEGACY = {\n  subscriptiontracker: { renewals: true },\n};\n` }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /appears as a registry key/);
   });
 
   test('2b · …or as a string literal', () => {
-    const r = run(tree({ configTs: `${CONFIG_TS}\nconst FLAGSHIP = 'subly';\n` }));
+    const r = run(tree({ configTs: `${CONFIG_TS}\nconst FLAGSHIP = 'subscriptiontracker';\n` }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /appears as a string literal/);
   });
@@ -307,7 +307,7 @@ describe('assert-config-registry — the seven observations', () => {
     // The trap this limb has to survive: the real config.ts header quotes the
     // literal it deleted. A raw-text grep reports the opposite of the truth
     // exactly when the code is right.
-    const r = run(tree({ configTs: `${CONFIG_TS}\n// The old registry was { subly: {…} } and 'subly' was its only key.\n` }));
+    const r = run(tree({ configTs: `${CONFIG_TS}\n// The old registry was { subscriptiontracker: {…} } and 'subscriptiontracker' was its only key.\n` }));
     assert.equal(r.code, 0, r.out);
   });
 
@@ -395,15 +395,15 @@ describe('assert-config-registry — the seven observations', () => {
 
 describe('assert-config-registry — 8 · a served feature key nobody reads', () => {
   // 🔴 WHY THIS LIMB EXISTS, AND WHY IT IS NOT A ONE-LANGUAGE SCAN.
-  // The real tree serves `apps.subly.features = {renewals, budgets, exports}`
+  // The real tree serves `apps.subscriptiontracker.features = {renewals, budgets, exports}`
   // and 185 non-test Dart files read none of them; the only `.feature(` call in
   // shipped Dart asks for `promo_card_enabled`, which the document does not
   // serve. On that evidence the three keys are dead and the next move is to
   // delete them. They are not dead: tooling/sites/generate-discovery.mjs names
   // all three in FEATURE_NAMES and renders them as the three "What you get"
-  // bullets on sites/nikatru/apps/subly.html, which Cloudflare Pages serves out
+  // bullets on sites/nikatru/apps/subscriptiontracker.html, which Cloudflare Pages serves out
   // of this repo. The union of the two surfaces IS the limb.
-  const withFeatures = (features) => ({ ...DATA, apps: { subly: { features } } });
+  const withFeatures = (features) => ({ ...DATA, apps: { subscriptiontracker: { features } } });
 
   test('a key read by the site generator is not dead — the passing fixture', () => {
     const r = run(tree());
@@ -423,7 +423,7 @@ describe('assert-config-registry — 8 · a served feature key nobody reads', ()
     // would make "declare the switch before the code" impossible to do at all.
     const r = run(tree({ data: withFeatures({ renewals: true, teleport: false }) }));
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /DISARMED FEATURE LEVER\(S\)[\s\S]*apps\.subly\.features\.teleport/);
+    assert.match(r.out, /DISARMED FEATURE LEVER\(S\)[\s\S]*apps\.subscriptiontracker\.features\.teleport/);
   });
 
   test('8c · a NON-BOOLEAN value fails — _boolMap drops it and the generator skips it', () => {
@@ -443,7 +443,7 @@ describe('assert-config-registry — 8 · a served feature key nobody reads', ()
     // the declaration and the call can no longer be resolved, which is COVERAGE
     // LOST rather than "promo_card_enabled has no reader".
     const dart = { ...DART };
-    delete dart['apps/subly/lib/state/providers.dart'];
+    delete dart['apps/subscriptiontracker/lib/state/providers.dart'];
     const r = run(tree({ dart }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST[\s\S]*cannot resolve the key read by/);
@@ -501,7 +501,7 @@ describe('assert-config-registry — 8 · a served feature key nobody reads', ()
 
   test('8l · COVERAGE — zero `feature(` call sites means the scan moved, not the tree', () => {
     const dart = { ...DART };
-    delete dart['apps/subly/lib/features/home/home_screen.dart'];
+    delete dart['apps/subscriptiontracker/lib/features/home/home_screen.dart'];
     const r = run(tree({ dart }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST[\s\S]*ZERO `feature\(` call sites/);
@@ -545,7 +545,7 @@ describe('assert-config-registry — 8 · a served feature key nobody reads', ()
 //      NOTHING reads it". app-config-data.json sha256 b00e6a2e…16a7fac before
 //      and after.
 //   B  `Object? _t(core.AppConfig? cfg) => cfg?.theme;` added to
-//      apps/subly/lib/features/home/home_screen.dart → EXIT 1, "is READ by …
+//      apps/subscriptiontracker/lib/features/home/home_screen.dart → EXIT 1, "is READ by …
 //      and … emits it from NOWHERE". sha256 f551aeed…3412251 before and after.
 //   C  every `theme` renamed to `__gone__` in packages/core's app_config.dart
 //      → EXIT 1, "does not mention `theme`". sha256 00be0c94…5687e restored.
@@ -613,15 +613,15 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
   });
 
   test('9c · emitted from a PER-APP entry counts as emitted too, not just `defaults`', () => {
-    const r = run(tree({ data: { ...DATA, apps: { subly: { features: { renewals: true }, theme: {} } } } }));
+    const r = run(tree({ data: { ...DATA, apps: { subscriptiontracker: { features: { renewals: true }, theme: {} } } } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /emits optional AppConfig field "theme" \(apps\.subly\)/);
+    assert.match(r.out, /emits optional AppConfig field "theme" \(apps\.subscriptiontracker\)/);
   });
 
   test('9d · READ with no emitter fails — the `update_url` seam, which reported healthy', () => {
     const r = run(
       tree({
-        dart: { ...DART, 'apps/subly/lib/features/home/home_screen.dart': `${DART['apps/subly/lib/features/home/home_screen.dart']}Object? t(cfg) => cfg?.theme;\n` },
+        dart: { ...DART, 'apps/subscriptiontracker/lib/features/home/home_screen.dart': `${DART['apps/subscriptiontracker/lib/features/home/home_screen.dart']}Object? t(cfg) => cfg?.theme;\n` },
       }),
     );
     assert.equal(r.code, 1, r.out);
@@ -683,13 +683,13 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
     const r = run(
       tree({
         data: { ...DATA, defaults: { ...DATA.defaults, theme: { seed: '#6459F5' } } },
-        dart: { ...DART, 'apps/subly/lib/features/home/home_screen.dart': `${DART['apps/subly/lib/features/home/home_screen.dart']}Object? t(core.AppConfig? c) => c?.theme;\n` },
+        dart: { ...DART, 'apps/subscriptiontracker/lib/features/home/home_screen.dart': `${DART['apps/subscriptiontracker/lib/features/home/home_screen.dart']}Object? t(core.AppConfig? c) => c?.theme;\n` },
       }),
     );
     assert.equal(r.code, 0, r.out);
     assert.match(
       r.out,
-      /optional AppConfig field "theme" is emitted \(defaults\) and read off an AppConfig-typed receiver by apps\/subly\/lib\/features\/home\/home_screen\.dart/,
+      /optional AppConfig field "theme" is emitted \(defaults\) and read off an AppConfig-typed receiver by apps\/subscriptiontracker\/lib\/features\/home\/home_screen\.dart/,
     );
   });
 
@@ -711,7 +711,7 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
   test('9g · A READER INSIDE A COMMENT IS NOT A READER — prose is not code', () => {
     const r = run(
       tree({
-        dart: { ...DART, 'apps/subly/lib/features/home/home_screen.dart': `/// Deliberately does NOT read cfg?.theme — see the config contract.\n${DART['apps/subly/lib/features/home/home_screen.dart']}` },
+        dart: { ...DART, 'apps/subscriptiontracker/lib/features/home/home_screen.dart': `/// Deliberately does NOT read cfg?.theme — see the config contract.\n${DART['apps/subscriptiontracker/lib/features/home/home_screen.dart']}` },
       }),
     );
     assert.equal(r.code, 0, r.out);
@@ -757,14 +757,14 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
     // and EXITED 0: a correct FAIL turned into a pass, which is the worst defect
     // class in this repository and the one the limb's own header swore could not
     // happen here. `app.theme` on a MaterialApp already occurs 6 times in the
-    // real tree (3 in apps/subly/test/chassis_properties_test.dart, 3 in the
+    // real tree (3 in apps/subscriptiontracker/test/chassis_properties_test.dart, 3 in the
     // brick's copy); they are cut only because of where they live.
     const r = run(
       tree({
         data: { ...DATA, defaults: { ...DATA.defaults, theme: { seed: '#6459F5' } } },
         dart: {
           ...DART,
-          'apps/subly/lib/features/home/home_screen.dart': `${DART['apps/subly/lib/features/home/home_screen.dart']}ThemeData? _appTheme(MaterialApp app) => app.theme;\n`,
+          'apps/subscriptiontracker/lib/features/home/home_screen.dart': `${DART['apps/subscriptiontracker/lib/features/home/home_screen.dart']}ThemeData? _appTheme(MaterialApp app) => app.theme;\n`,
         },
       }),
     );
@@ -772,7 +772,7 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
     assert.match(r.out, /NOTHING reads it off an AppConfig-typed receiver/);
     // …and the near miss is NAMED, so an under-reach of the binding scan is one
     // glance to see rather than a silent FAIL with no file in it.
-    assert.match(r.out, /NEAR MISS[\s\S]*apps\/subly\/lib\/features\/home\/home_screen\.dart/);
+    assert.match(r.out, /NEAR MISS[\s\S]*apps\/subscriptiontracker\/lib\/features\/home\/home_screen\.dart/);
   });
 
   test('9l · a BOUND reader passes, and the note names the reader AND the near miss', () => {
@@ -781,14 +781,14 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
         data: { ...DATA, defaults: { ...DATA.defaults, theme: { seed: '#6459F5' } } },
         dart: {
           ...DART,
-          'apps/subly/lib/features/home/home_screen.dart': `${DART['apps/subly/lib/features/home/home_screen.dart']}Object? _seed(core.AppConfig? c) => c?.theme;\n`,
-          'apps/subly/lib/features/shell/app_shell.dart': 'ThemeData? _appTheme(MaterialApp app) => app.theme;\n',
+          'apps/subscriptiontracker/lib/features/home/home_screen.dart': `${DART['apps/subscriptiontracker/lib/features/home/home_screen.dart']}Object? _seed(core.AppConfig? c) => c?.theme;\n`,
+          'apps/subscriptiontracker/lib/features/shell/app_shell.dart': 'ThemeData? _appTheme(MaterialApp app) => app.theme;\n',
         },
       }),
     );
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /read off an AppConfig-typed receiver by apps\/subly\/lib\/features\/home\/home_screen\.dart/);
-    assert.match(r.out, /NOT counted as a reader: apps\/subly\/lib\/features\/shell\/app_shell\.dart/);
+    assert.match(r.out, /read off an AppConfig-typed receiver by apps\/subscriptiontracker\/lib\/features\/home\/home_screen\.dart/);
+    assert.match(r.out, /NOT counted as a reader: apps\/subscriptiontracker\/lib\/features\/shell\/app_shell\.dart/);
   });
 
   test('9m · the PARAMETER idiom `_copy(core.AppConfig? cfg, …)` resolves — three surfaces use it', () => {
@@ -801,13 +801,13 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
         data: { ...DATA, defaults: { ...DATA.defaults, theme: { seed: '#6459F5' } } },
         dart: {
           ...DART,
-          'apps/subly/lib/features/onboarding/onboarding_screen.dart':
+          'apps/subscriptiontracker/lib/features/onboarding/onboarding_screen.dart':
             'String _copy(core.AppConfig? cfg, String key) => cfg?.theme?.toString() ?? key;\n',
         },
       }),
     );
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /read off an AppConfig-typed receiver by apps\/subly\/lib\/features\/onboarding\/onboarding_screen\.dart/);
+    assert.match(r.out, /read off an AppConfig-typed receiver by apps\/subscriptiontracker\/lib\/features\/onboarding\/onboarding_screen\.dart/);
   });
 
   test('9n · a METHOD whose RETURN type is AppConfig is not itself a receiver', () => {
@@ -850,7 +850,7 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
         // 10) while removing the last declaration limb 9's resolver can see.
         dart: {
           ...DART,
-          'apps/subly/lib/features/home/home_screen.dart':
+          'apps/subscriptiontracker/lib/features/home/home_screen.dart':
             'Widget build() {\n  final bool on = cfg?.feature(kPromoCardFeature) ?? false;\n  return on ? card() : empty();\n}\n',
           'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/firstrun/onboarding_screen.dart':
             'String _copy(Map<String, String> copy, String key, String fallback) {\n  final String? override = copy[key];\n  return (override == null || override.trim().isEmpty) ? fallback : override;\n}\n',
@@ -917,7 +917,7 @@ describe('assert-config-registry — 9 · an OPTIONAL AppConfig field is still a
 // alone.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-config-registry — 10 · a copy override never falls back to the raw key', () => {
-  const HOME = 'apps/subly/lib/features/home/home_screen.dart';
+  const HOME = 'apps/subscriptiontracker/lib/features/home/home_screen.dart';
   const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/firstrun/onboarding_screen.dart';
   const CLASS = 'packages/core/lib/src/config/app_config.dart';
   const TESTF = 'packages/core/test/config_test.dart';
@@ -930,7 +930,7 @@ describe('assert-config-registry — 10 · a copy override never falls back to t
     // are represented. A bare count would not notice `tooling/bricks` dropping
     // out of DART_ROOTS — it would just get smaller, which is what "three" did
     // to this limb's own prose, twice.
-    assert.match(r.out, /apps\/subly\/lib\/features\/home\/home_screen\.dart \(read #1\)/);
+    assert.match(r.out, /apps\/subscriptiontracker\/lib\/features\/home\/home_screen\.dart \(read #1\)/);
     assert.match(r.out, /tooling\/bricks\/[\s\S]*firstrun\/onboarding_screen\.dart \(read #1\)/);
   });
 
@@ -971,7 +971,7 @@ describe('assert-config-registry — 10 · a copy override never falls back to t
   });
 
   test('10e · a `copy[…]` inside a COMMENT is not a read site', () => {
-    // Not hypothetical. apps/subly/lib/l10n/app_localizations.dart carries four
+    // Not hypothetical. apps/subscriptiontracker/lib/l10n/app_localizations.dart carries four
     // doc comments naming `AppConfig.copy['onboarding.1.title']` and friends,
     // and the prose that warns about the raw-key trap has to SPELL the trap out
     // — so a raw-text scan would fail this limb on the warning against the very
@@ -984,7 +984,7 @@ describe('assert-config-registry — 10 · a copy override never falls back to t
   });
 
   test('10f · a read in a TEST file is not a read site', () => {
-    // apps/subly/test/config_contract_test.dart:113 reads the map today, and
+    // apps/subscriptiontracker/test/config_contract_test.dart:113 reads the map today, and
     // the line added below is deliberately the FAILING shape: if the `/test/`
     // filter ever stops filtering, this case goes red rather than quietly
     // widening the domain with files that prove nothing about what ships.

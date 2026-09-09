@@ -10,7 +10,7 @@
 //  the portfolio requires no edit to the Worker's source."
 //
 // Measured live 2026-08-06, when it was false:
-//     GET https://config.nikatru.com/config/subly  → 200
+//     GET https://config.nikatru.com/config/subscriptiontracker  → 200
 //     GET https://config.nikatru.com/config/lingo  → 404 {"error":"unknown_app"}
 // `lingo` is a real content pack in this repo. The set lived in an object
 // literal `DEFAULT_CONFIGS` in services/platform/src/config.ts, so onboarding
@@ -80,7 +80,7 @@
 // beside it). Tests 10a–10h went with it in the same change.
 //
 // THE [O3] RULE THE LIMB ENFORCED IS UNCHANGED AND STILL LIVE. The `copy` map is
-// still read directly on three surfaces — subly's home_screen and
+// still read directly on three surfaces — subscriptiontracker's home_screen and
 // onboarding_screen and the brick's onboarding_screen — each supplying a designed
 // l10n default and each treating a blank override as absent. What is gone is the
 // accessor that got that rule wrong, not the rule.
@@ -271,7 +271,7 @@ if (problems.length) done();
 
 // ── 2 · NO APP ID IS A LITERAL IN THE WORKER'S SOURCE ────────────────────────
 // The failing input is one line long and is exactly the defect: paste
-// `subly: { app_id: 'subly', … }` back into config.ts and this goes red.
+// `subscriptiontracker: { app_id: 'subscriptiontracker', … }` back into config.ts and this goes red.
 //
 // ⚠️ SCOPE, stated because it is narrower than "the slug does not appear". The
 // two shapes matched are the ones a registry actually takes — a quoted string,
@@ -436,7 +436,7 @@ const slugSet = new Set(slugs.filter(Boolean));
 
 // ── 8 · EVERY SERVED `features` KEY THAT IS ON HAS A READER ──────────────────
 // 🔴 THE LIMB THAT EXISTS BECAUSE THE EVIDENCE FOR "THIS KEY IS DEAD" WAS
-// LANGUAGE-SCOPED AND WRONG. Measured 2026-08-21: `apps.subly.features` serves
+// LANGUAGE-SCOPED AND WRONG. Measured 2026-08-21: `apps.subscriptiontracker.features` serves
 // renewals/budgets/exports; 185 non-test Dart files read NONE of them (the one
 // `.feature(` call in shipped Dart, home_screen.dart:1573, asks for
 // `promo_card_enabled`, which this document does not serve at all); and
@@ -444,7 +444,7 @@ const slugSet = new Set(slugs.filter(Boolean));
 // are TESTS. Every one of those observations is true, and the conclusion they
 // invite — dead data, delete it — is false: tooling/sites/generate-discovery.mjs
 // FEATURE_NAMES maps all three to a title and a blurb, and they are three
-// bullets on sites/nikatru/apps/subly.html today, which Cloudflare Pages serves
+// bullets on sites/nikatru/apps/subscriptiontracker.html today, which Cloudflare Pages serves
 // out of this repo to strangers.
 //
 // So the reader set this limb builds is the UNION of both surfaces. A guard that
@@ -626,7 +626,7 @@ for (const rel of dartFiles) {
     // document does not serve resolves to `feature()`'s `orElse: false` — and
     // for `promo_card_enabled` that is DELIBERATE and owner-gated, because
     // serving it true turns the app into a promotional surface and makes
-    // apps/subly/store/android-play/ads-declaration.json re-derivable.
+    // apps/subscriptiontracker/store/android-play/ads-declaration.json re-derivable.
     // assert-stamp-properties.mjs:788 pins the absent-means-false read. Failing
     // here would block CI on a decision only the owner can take.
     const servedKeys = new Set(served.map((r) => r.key));
@@ -718,7 +718,7 @@ for (const rel of dartFiles) {
 //      → EXIT 1, `services/platform/src/app-config-data.json emits optional
 //        AppConfig field "theme" (defaults) and NOTHING reads it`. CORRECT.
 //   B. the same, PLUS one line appended to
-//      apps/subly/lib/features/home/home_screen.dart:
+//      apps/subscriptiontracker/lib/features/home/home_screen.dart:
 //          ThemeData? _appTheme(MaterialApp app) => app.theme;
 //      → EXIT 0, `ok  optional AppConfig field "theme" is emitted (defaults) and
 //        read by 1 non-test Dart file(s).`
@@ -728,7 +728,7 @@ for (const rel of dartFiles) {
 // fires exactly when `theme` starts moving, because `.theme` on a non-AppConfig
 // receiver is what a theming change introduces. Measured this run, `app.theme`
 // on a MaterialApp already occurs 6 times in this tree, 3 in
-// apps/subly/test/chassis_properties_test.dart and 3 in the brick's copy — all
+// apps/subscriptiontracker/test/chassis_properties_test.dart and 3 in the brick's copy — all
 // under /test/ today, so cut by the filter, and that is a property of where they
 // happen to live, not of the matcher.
 //
@@ -935,7 +935,7 @@ for (const rel of dartFiles) {
 // ⏱ APPENDED 2026-08-25 — the retired limb's prose (and the correction in this
 // file's header) says the map is read directly on THREE surfaces. Re-measured
 // today with `grep -rn "copy\[" --include=*.dart apps packages tooling`: there
-// are FOUR non-test sites, not three — subly's home_screen.dart:1535 and
+// are FOUR non-test sites, not three — subscriptiontracker's home_screen.dart:1535 and
 // onboarding_screen.dart:100, AND BOTH brick screens,
 // `tooling/bricks/…/features/firstrun/onboarding_screen.dart:53` and
 // `tooling/bricks/…/features/home/home_screen.dart:300`. The prose above is left

@@ -66,7 +66,7 @@ AnalyticsRecorder _recorder({
   String anonId = 'install-1',
 }) =>
     AnalyticsRecorder(
-      appId: 'subly',
+      appId: 'subscriptiontracker',
       anonId: anonId,
       transport: transport,
       consent: consent,

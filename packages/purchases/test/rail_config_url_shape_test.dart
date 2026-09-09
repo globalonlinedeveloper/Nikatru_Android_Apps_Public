@@ -45,7 +45,7 @@ void main() {
       final String? filled = RailConfig.fill(
         'https://pay.example.test/checkout'
         '?price={price_id}&app={app_id}&acct={account_id}&back={return_url}',
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: hostile,
         accountId: hostileAccount,
         returnUrl: 'https://nikatru.com/checkout-return?x=1&y=2',
@@ -68,7 +68,7 @@ void main() {
 
       final Uri u = Uri.parse(filled!);
       expect(u.queryParameters['price'], hostile);
-      expect(u.queryParameters['app'], 'subly');
+      expect(u.queryParameters['app'], 'subscriptiontracker');
       expect(u.queryParameters['acct'], hostileAccount);
       expect(
         u.queryParameters['back'],
@@ -107,12 +107,12 @@ void main() {
       expect(
         RailConfig.fill(
           'https://pay.example.test/c?a={app_id}&b={app_id}',
-          appId: 'subly',
+          appId: 'subscriptiontracker',
           priceId: 'p',
           accountId: 'u',
           returnUrl: 'r',
         ),
-        'https://pay.example.test/c?a=subly&b=subly',
+        'https://pay.example.test/c?a=subscriptiontracker&b=subscriptiontracker',
       );
     });
 
@@ -121,13 +121,13 @@ void main() {
       // segment instead of navigating somewhere else on the seller's host.
       final String? filled = RailConfig.fill(
         'https://pay.example.test/{app_id}/{price_id}',
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro/monthly',
         accountId: 'u',
         returnUrl: 'r',
       );
-      expect(filled, 'https://pay.example.test/subly/pro%2Fmonthly');
-      expect(Uri.parse(filled!).pathSegments, <String>['subly', 'pro/monthly']);
+      expect(filled, 'https://pay.example.test/subscriptiontracker/pro%2Fmonthly');
+      expect(Uri.parse(filled!).pathSegments, <String>['subscriptiontracker', 'pro/monthly']);
     });
   });
 
@@ -150,7 +150,7 @@ void main() {
 
       final String? filled = RailConfig.fill(
         template,
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro_monthly',
         accountId: hostileAccount,
         returnUrl: 'https://nikatru.com/checkout-return',
@@ -163,12 +163,12 @@ void main() {
       // *and* the raw values inside it. This is the answer the shape question
       // was asked for — the custom_data form IS expressible.
       final String? raw = Uri.parse(filled!).queryParameters['custom_data'];
-      expect(raw, '{"$userIdKey":"$hostileAccount","$appIdKey":"subly"}');
+      expect(raw, '{"$userIdKey":"$hostileAccount","$appIdKey":"subscriptiontracker"}');
 
       final Map<String, Object?> decoded =
           jsonDecode(raw!) as Map<String, Object?>;
       expect(decoded[userIdKey], hostileAccount);
-      expect(decoded[appIdKey], 'subly');
+      expect(decoded[appIdKey], 'subscriptiontracker');
     });
 
     test('a RAW-braces custom_data template also composes — Uri normalisation '
@@ -198,7 +198,7 @@ void main() {
 
       final String? filled = RailConfig.fill(
         c.checkoutUrlTemplate,
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro_monthly',
         accountId: hostileAccount,
         returnUrl: 'https://nikatru.com/checkout-return',
@@ -212,7 +212,7 @@ void main() {
       // the decode still yields exactly the same JSON as the encoded template.
       final Uri u = Uri.parse(filled!);
       final String? raw = u.queryParameters['custom_data'];
-      expect(raw, '{"$userIdKey":"$hostileAccount","$appIdKey":"subly"}');
+      expect(raw, '{"$userIdKey":"$hostileAccount","$appIdKey":"subscriptiontracker"}');
       expect(
         (jsonDecode(raw!) as Map<String, Object?>)[userIdKey],
         hostileAccount,
@@ -231,7 +231,7 @@ void main() {
 
       final String? filled = RailConfig.fill(
         template,
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro_monthly',
         accountId: 'usr_01J',
         returnUrl: 'https://nikatru.com/checkout-return',
@@ -261,7 +261,7 @@ void main() {
       // needing `{customer_email}` would ship that text to the seller.
       final String? filled = RailConfig.fill(
         'https://pay.example.test/c?u={account_id}&e={customer_email}',
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro',
         accountId: 'usr_01J',
         returnUrl: 'https://nikatru.com/checkout-return',
@@ -356,7 +356,7 @@ void main() {
       // that would have been fine on the checkout half.
       final String? manage = RailConfig.fill(
         c.manageUrlTemplate,
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         priceId: 'pro_monthly',
         accountId: hostileAccount,
         returnUrl: 'https://nikatru.com/checkout-return',

@@ -62,7 +62,7 @@
 
 -- WHICH RAIL wrote this row. Two are live by decision ([ADR 004]: Paddle primary,
 -- Lemon Squeezy parallel) and a third (RevenueCat, native IAP) is deferred but
--- already has a writer in services/subly-api. Without this, a refund arriving on
+-- already has a writer in services/subscriptiontracker-api. Without this, a refund arriving on
 -- one rail cannot be matched to a grant written by another.
 ALTER TABLE entitlements ADD COLUMN provider TEXT;
 

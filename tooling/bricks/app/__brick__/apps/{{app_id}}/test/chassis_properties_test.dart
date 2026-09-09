@@ -1466,7 +1466,7 @@ void main() {
   // and the token must reach the shared REST client.
   //
   // Before this, the brick wired no auth and no tokenProvider: the working
-  // implementations lived inside apps/subly, so every app the factory stamped
+  // implementations lived inside apps/subscriptiontracker, so every app the factory stamped
   // was born unable to sign anyone in. The seam existed in core and had no home.
   //
   // 🔴 PROVES THE SEAM OPENS, not merely that it refuses. [pipeline C-6]: a
@@ -1889,7 +1889,7 @@ void main() {
   // [pipeline 7]P-9 (consumer half) · [pipeline 8]K-9.
   //
   // 🔴 THE ANTECEDENT USED TO BE EMPTY, AND THAT WAS THE DEFECT. `contentPack`
-  // was the literal `null` in the brick AND in apps/subly, so every check
+  // was the literal `null` in the brick AND in apps/subscriptiontracker, so every check
   // phrased as "if an app declares a pack, then …" ranged over nothing and got
   // GREENER THE LESS WAS BUILT. `ContentPackLoader` had zero non-test call
   // sites tree-wide. The rail was fail-closed with no proven open path — the
@@ -2133,7 +2133,7 @@ void main() {
     // seam and the words; this limb is about whether the words SURVIVE. The
     // deletion signs the user out, the router replaces the page stack, and the
     // screen that asked — dialog, SnackBar and all — is gone before the
-    // sentence can be read. `apps/subly` measured exactly that: its first
+    // sentence can be read. `apps/subscriptiontracker` measured exactly that: its first
     // version rendered the result in the dialog and the router-driven test
     // found ZERO result widgets once the redirect settled, so *the message
     // that mattered most (502: your data is gone and your login still works)
@@ -3477,7 +3477,7 @@ void main() {
   // Stage 11 says a stamped app answers is-it-working / is-it-converting /
   // is-it-broken with no per-app instrumentation. That claim is only true if the
   // rail both REFUSES without consent and DELIVERS with it. Asserting only the
-  // refusal is what let apps/subly ship a rail that was inert for months: every
+  // refusal is what let apps/subscriptiontracker ship a rail that was inert for months: every
   // test passed, because discarding is the correct answer when consent is
   // absent. Both directions, or neither is worth anything.
   group('property: analytics-consent-gated', () {
@@ -3908,7 +3908,7 @@ void main() {
   // 🔴 WHY THIS IS A SEPARATE PROPERTY FROM THE ONE ABOVE. That one asserts
   // `contains('app_open')`, and `app_open` was the ONLY lifecycle event a
   // stamped app could emit: `first_launch` and `return_visit` lived in
-  // apps/subly's own funnel, a file the brick does not carry. So "the lifecycle
+  // apps/subscriptiontracker's own funnel, a file the brick does not carry. So "the lifecycle
   // events fire" ranged over the single event that existed, and a stamp that
   // would never emit the other two passed the lane — 1 of 3, reported green.
   //
@@ -4048,7 +4048,7 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════
   // [13]T-9 — A NOTIFICATION TAP IS OBSERVABLE END TO END, IN A STAMPED APP.
   //
-  // 🔴 WHAT WAS BROKEN, MEASURED. The tap loop was wired into `apps/subly` and
+  // 🔴 WHAT WAS BROKEN, MEASURED. The tap loop was wired into `apps/subscriptiontracker` and
   // nowhere else. The template carried the whole OUTBOUND rail — schedule,
   // re-arm on boot, cancel, the platform matrix, the settings toggle — and had
   // NO subscriber to `core.NotificationService.notificationTaps()` anywhere.
@@ -5191,7 +5191,7 @@ void main() {
     // mis-tap is the worst of the three.
     //
     // ⚠️ IT LIVES HERE, IN THE STAMPED SUITE, AND NOT ONLY IN
-    // `apps/subly/test/consent_clickwrap_a11y_test.dart`. Subly had already
+    // `apps/subscriptiontracker/test/consent_clickwrap_a11y_test.dart`. Subly had already
     // fixed all three; the defects existed ONLY in the brick, so a test that
     // runs against Subly proves nothing about the tree that was wrong. This one
     // runs against whatever the factory just stamped.

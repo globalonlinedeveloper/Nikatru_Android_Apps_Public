@@ -7,7 +7,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 /// are built on.
 ///
 /// ── WHY THIS FILE EXISTS AT ALL, AND WHY IT IS NOT A COPY ──────────────────
-/// `apps/subly/test/a11y_semantics_test.dart` carries a hand-rolled sweep
+/// `apps/subscriptiontracker/test/a11y_semantics_test.dart` carries a hand-rolled sweep
 /// family (`nakedControls` / `expectNothingNaked`) and two hand-rolled
 /// falsifier guidelines. NONE of it is importable from here: it lives in a
 /// TEST file of an APP, and Dart can only import `lib/` of a package. Copying
@@ -30,7 +30,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 /// a tap action and announces no ROLE (`isButton` / `isLink` / …).
 /// `labeledTapTargetGuideline` covers the NAME half of the same question and
 /// nothing in the framework covers the role half, so this package's sweeps are
-/// narrower than subly's by exactly that one predicate. Closing it needs the
+/// narrower than subscriptiontracker's by exactly that one predicate. Closing it needs the
 /// walk to live in a package both roots can import, which is a decision about
 /// where shared test support lives and not a thing to settle by copying.
 /// See `research/revamp-2026-09-05/post-audit-chassis-screens-a11y.md` §
@@ -40,7 +40,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 /// `addTearDown`. `flutter_test` verifies that no `SemanticsHandle` outlives
 /// the test BEFORE tear-downs run, so a handle released in a tear-down reports
 /// as leaked and buries the real failure under a second, unrelated one. Same
-/// reasoning `apps/subly/test/a11y_semantics_test.dart` records.
+/// reasoning `apps/subscriptiontracker/test/a11y_semantics_test.dart` records.
 
 /// The seed every stamped app's theme is built from in the brick's `app.dart`.
 ///
@@ -103,7 +103,7 @@ Future<void> pumpRootForA11y(
 /// 🔴 THE WHOLE REASON EVERY CASE IN THIS PACKAGE CARRIES ONE. An
 /// [AccessibilityGuideline] that inspects NOTHING returns `Evaluation.pass()`,
 /// which is byte-identical to a screen whose every control is the right size
-/// and every string legible. [ADR 048] records six of subly's nineteen surfaces
+/// and every string legible. [ADR 048] records six of subscriptiontracker's nineteen surfaces
 /// sitting in exactly that state while the tap-target increment was written,
 /// and [ADR 050] records the same shape one level up as the reason a vacuous
 /// conformance claim is worse than none.

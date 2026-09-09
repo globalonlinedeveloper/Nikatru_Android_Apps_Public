@@ -4,7 +4,7 @@ import 'package:nikatru_notifications/nikatru_notifications.dart';
 
 void main() {
   // This matrix is pinned to flutter_local_notifications 17.x (shared with
-  // apps/subly). If these expectations change, a version bump is the likely
+  // apps/subscriptiontracker). If these expectations change, a version bump is the likely
   // cause — re-verify against the plugin's actual per-platform support.
   group(
       'NotificationCapabilities.forPlatform (flutter_local_notifications 17.x)',

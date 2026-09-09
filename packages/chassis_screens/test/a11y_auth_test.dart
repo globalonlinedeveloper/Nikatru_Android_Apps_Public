@@ -43,7 +43,7 @@ import 'support/width_harness.dart';
 ///
 /// ⚠️ AND EVERY CASE CALLS `expectSweepHadSubjects` FIRST. An
 /// `AccessibilityGuideline` that inspects nothing returns `Evaluation.pass()`,
-/// byte-identical to a clean screen — [ADR 048] records six of subly's nineteen
+/// byte-identical to a clean screen — [ADR 048] records six of subscriptiontracker's nineteen
 /// surfaces sitting in that state while the tap-target increment was written.
 /// The floors below are MEASURED numbers, read off this rig on 2026-09-07.
 ///

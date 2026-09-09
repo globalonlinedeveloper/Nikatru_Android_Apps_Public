@@ -52,8 +52,8 @@ cannot be an instrument failure wearing the costume of a clean answer.
 
 **The form cannot be submitted while an `unresolved` row remains.** Answer them
 against this app's real code and cite the page you read, exactly as
-`apps/subly/store/android-play/data-safety.json` and
-`apps/subly/store/android-play/ads-declaration.json` do; then
+`apps/subscriptiontracker/store/android-play/data-safety.json` and
+`apps/subscriptiontracker/store/android-play/ads-declaration.json` do; then
 `tooling/ci/assert-play-declarations.mjs` and
 `tooling/ci/assert-ads-declarations.mjs` can be pointed at this app too.
 

@@ -57,7 +57,7 @@
     "",
     "🔴 TWO WORKERS, TWO ARRAYS, ONE DERIVED SET (2026-08-25). `routes[]` is the SHARED host’s and",
     "`appWorkers[].routes` is each per-app backend’s. Until this landed, limb 1’s subject was",
-    "`servingWorker` alone, so services/subly-api’s TWELVE mounted handlers were in no register at all",
+    "`servingWorker` alone, so services/subscriptiontracker-api’s TWELVE mounted handlers were in no register at all",
     "and limb 2 covered none of them. The Worker set is now READ OFF THE TREE — every `services/*`",
     "wrangler config declaring `main` — and the register must name exactly that set in both directions,",
     "so a third backend cannot arrive unnoticed. The route key is (worker, method, path): both Workers",
@@ -80,7 +80,7 @@
   "appWorkers": [
     {
       "_why": [
-        "services/subly-api — the ONE per-app backend in the portfolio, and until 2026-08-25 the only",
+        "services/subscriptiontracker-api — the ONE per-app backend in the portfolio, and until 2026-08-25 the only",
         "deployable Worker in this repo whose mounted routes no register named. It answers on",
         "api.nikatru.com and mounts TWELVE handlers; `routes[]` above held nine, all of them the shared",
         "host's, so limb 2's rule — 'a capability with no client is not delivered' — covered none of",
@@ -103,20 +103,21 @@
         "route’s own path. It is not reachability analysis. Three entries here resolve a real client and",
         "were then measured one level further by hand — PATCH /v1/subscriptions/:id, PUT /v1/budget and",
         "GET /v1/entitlements each build their URL in dio_api_client.dart through a SubscriptionRepository",
-        "method that nothing in apps/subly calls. That is written into each note rather than left implied,",
+        "method that nothing in apps/subscriptiontracker calls. That is written into each note rather than left implied,",
         "because \"a declaration counted as a call\" is this repo’s most repeated defect and a register that",
         "hid it would be the seventh place it happened."
       ],
       "name": "subly-api",
-      "entrypoint": "services/subly-api/src/index.ts",
-      "config": "services/subly-api/wrangler.jsonc",
+      "_nameWhy": "THE DEPLOYED WORKER NAME, WHICH IS NOT THE DIRECTORY NAME AND IS NOT THE SLUG. assert-platform-register.mjs compares this field against `name` in the config below, and it caught the split the moment they diverged — which is what this field is for. The slug moved to `subscriptiontracker` on 2026-09-09 and the directory moved with it; the DEPLOYED name did not, because `wrangler deploy` addresses a Worker BY NAME, so a new name is a NEW WORKER rather than a rename — and `api.nikatru.com` is a CUSTOM DOMAIN, bound to exactly one Worker at a time. Moving it is a live-resource migration owed as its own sequenced change, the same class as the `subly_db` rename and the Cloudflare Pages project. The full reasoning is at `name` in services/subscriptiontracker-api/wrangler.jsonc.",
+      "entrypoint": "services/subscriptiontracker-api/src/index.ts",
+      "config": "services/subscriptiontracker-api/wrangler.jsonc",
       "hosts": [
         "api.nikatru.com"
       ],
       "clientBasePath": "/v1",
       "_clientBasePathWhy": [
         "Subly's Dart seam is constructed with `baseUrl: '${AppConfig.apiBaseUrl}/v1'`",
-        "(apps/subly/lib/state/providers/subscriptions.dart:52), so every call site in dio_api_client.dart names the",
+        "(apps/subscriptiontracker/lib/state/providers/subscriptions.dart:52), so every call site in dio_api_client.dart names the",
         "path BELOW /v1 — `_rest.get('/budget')`, not `/v1/budget`. Requiring the full path in the client",
         "expression would have made ten honest clients unresolvable and pushed them into",
         "`unconsumedReason`, which is how a real client becomes a written excuse. The guard does not take",
@@ -125,11 +126,11 @@
       ],
       "routes": [
         {
-          "id": "subly-health",
+          "id": "subscriptiontracker-health",
           "method": "GET",
           "path": "/v1/health",
           "auth": "public",
-          "owningFile": "services/subly-api/src/index.ts",
+          "owningFile": "services/subscriptiontracker-api/src/index.ts",
           "purpose": "Deploy verification for the per-app Worker. Answers `{ ok, app, version, build, time }` from vars — no I/O at all. `build` is the commit this Worker was deployed from and is what joins a deploy to a running binary; `version` is the literal API-contract version. [pipeline 14]O-7.",
           "client": {
             "file": ".github/workflows/deploy-workers.yml",
@@ -139,139 +140,139 @@
           "noLimiterReason": "It does NO I/O — no D1 query, no KV read, no subrequest — so there is nothing an attacker can make expensive beyond the Worker invocation itself, which the account-wide request ceiling already bounds. Identical reasoning to the shared host’s health route. [4]B-13"
         },
         {
-          "id": "subly-webhook-revenuecat",
+          "id": "subscriptiontracker-webhook-revenuecat",
           "method": "POST",
           "path": "/v1/webhooks/revenuecat",
           "auth": "public",
-          "owningFile": "services/subly-api/src/routes/webhooks.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/webhooks.ts",
           "purpose": "The RevenueCat notification rail. Authenticated by a SHARED SECRET rather than a user JWT (constant-time compare against REVENUECAT_WEBHOOK_SECRET, 503 when unset), refuses any event from a money world that is not this deploy’s ([5]M-12), then derives the entitlement row in the shared PLATFORM_DB. `auth: public` here means \"no user token\", which is the sense [B-13] asks about.",
-          "unconsumedReason": "NO CLIENT IN THIS REPO, BY CONSTRUCTION — the caller is RevenueCat’s own delivery system, not code we ship. Same shape and same honest answer as POST /v1/money/:provider on the shared host. What replaces the client check for this route is its test file (services/subly-api/test/webhooks.test.ts) plus tooling/ci/assert-mor-adapters.mjs, which asserts across ALL of services/** that a verifier exists, is CALLED, and is the only path to an entitlements write.",
-          "noLimiterReason": "⚠️ A REAL GAP, RECORDED RATHER THAN DRESSED UP — this route is not in the class that cannot be made expensive: it does D1 work. Two things bound it today and neither is a limiter: the secret is compared in constant time BEFORE the body is read or any statement is prepared (routes/webhooks.ts:441-444), so an unauthenticated flood costs one comparison; and the account-wide Workers ceiling bounds the rest. There is no limiter CALL because services/subly-api/wrangler.jsonc binds no `ratelimits` namespace at all — closing this is a binding change plus a register entry, and MONEY_CEILING_LIMITER on the shared host is the shape to copy (its own namespace, keyed `edge:<colo>:<asn>` from `request.cf`, so no caller-chosen value is in the key). Printed on every run so it cannot go quiet. [4]B-13"
+          "unconsumedReason": "NO CLIENT IN THIS REPO, BY CONSTRUCTION — the caller is RevenueCat’s own delivery system, not code we ship. Same shape and same honest answer as POST /v1/money/:provider on the shared host. What replaces the client check for this route is its test file (services/subscriptiontracker-api/test/webhooks.test.ts) plus tooling/ci/assert-mor-adapters.mjs, which asserts across ALL of services/** that a verifier exists, is CALLED, and is the only path to an entitlements write.",
+          "noLimiterReason": "⚠️ A REAL GAP, RECORDED RATHER THAN DRESSED UP — this route is not in the class that cannot be made expensive: it does D1 work. Two things bound it today and neither is a limiter: the secret is compared in constant time BEFORE the body is read or any statement is prepared (routes/webhooks.ts:441-444), so an unauthenticated flood costs one comparison; and the account-wide Workers ceiling bounds the rest. There is no limiter CALL because services/subscriptiontracker-api/wrangler.jsonc binds no `ratelimits` namespace at all — closing this is a binding change plus a register entry, and MONEY_CEILING_LIMITER on the shared host is the shape to copy (its own namespace, keyed `edge:<colo>:<asn>` from `request.cf`, so no caller-chosen value is in the key). Printed on every run so it cannot go quiet. [4]B-13"
         },
         {
-          "id": "subly-account-delete",
+          "id": "subscriptiontracker-account-delete",
           "method": "DELETE",
           "path": "/v1/account",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/account.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/account.ts",
           "purpose": "G2 erasure for subly_db. THE ONE ROUTE ON THIS WORKER BEHIND THE STRICT BOUNDARY: mounted under `erasureAuth` (ES256/JWKS only, no HS256 fallback) and it re-checks `tokenAssurance` itself, so moving the mount produces a logged 403 rather than a silent downgrade. The table set is DERIVED from the schema (a `user_id` column is the selector), never a literal list.",
           "client": {
             "file": "services/platform/src/routes/account.ts",
             "expression": "`${origin}/v1/account`",
-            "note": "The relay. THE CALLER IS THE SHARED HOST, NOT THE APP: the Dart seam calls platform’s /v1/account once, and platform checks the service-role precondition, empties platform_db, relays to each app’s own DELETE /v1/account, and deletes the identity LAST. That ordering is the safety property, which is why the client must not own it (apps/subly/lib/state/providers/auth.dart:63-101 records the same thing from the other side)."
+            "note": "The relay. THE CALLER IS THE SHARED HOST, NOT THE APP: the Dart seam calls platform’s /v1/account once, and platform checks the service-role precondition, empties platform_db, relays to each app’s own DELETE /v1/account, and deletes the identity LAST. That ordering is the safety property, which is why the client must not own it (apps/subscriptiontracker/lib/state/providers/auth.dart:63-101 records the same thing from the other side)."
           }
         },
         {
-          "id": "subly-subscriptions-list",
+          "id": "subscriptiontracker-subscriptions-list",
           "method": "GET",
           "path": "/v1/subscriptions",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/subscriptions.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/subscriptions.ts",
           "purpose": "Every subscription owned by the verified user, newest renewal first. Scoped by the token's user_id, never by a body value.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.get('/subscriptions')",
             "note": "The real call inside `getSubscriptions()`, at the assignment — not the class doc comment, which is stripped before matching."
           }
         },
         {
-          "id": "subly-subscriptions-create",
+          "id": "subscriptiontracker-subscriptions-create",
           "method": "POST",
           "path": "/v1/subscriptions",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/subscriptions.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/subscriptions.ts",
           "purpose": "Create one subscription for the verified user. Validates the whole body before any write and answers 201 with the stored row.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "'/subscriptions',",
             "note": "The first positional argument of the real `_rest.post` call inside `createSubscription()`."
           }
         },
         {
-          "id": "subly-subscription-get",
+          "id": "subscriptiontracker-subscription-get",
           "method": "GET",
           "path": "/v1/subscriptions/:id",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/subscriptions.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/subscriptions.ts",
           "purpose": "One subscription the user owns, plus its `payment_history` rows. The ownership predicate is in the SQL (`AND user_id = ?`), so a row belonging to someone else is a 404 rather than a filtered read.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.get('/subscriptions/$id')",
             "note": "Two methods share this route: `getSubscription()` reads the subscription half and `getPaymentHistory()` reads the `payment_history` half of the same body."
           }
         },
         {
-          "id": "subly-subscription-update",
+          "id": "subscriptiontracker-subscription-update",
           "method": "PATCH",
           "path": "/v1/subscriptions/:id",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/subscriptions.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/subscriptions.ts",
           "purpose": "Update a WHITELISTED field set on a subscription the user owns. Unknown keys are refused rather than ignored.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.patch('/subscriptions/$id', body: changes)",
-            "note": "The real call inside `updateSubscription()`. ⚠️ MEASURED 2026-08-25 AND WORTH SAYING PLAINLY: the URL is built here, which is what limb 2 checks and it is genuinely the code that would issue this request — but the method that builds it has no live caller. `SubscriptionRepository.update` (apps/subly/lib/data/subscriptions/subscription_repository.dart:14) wraps it and NOTHING calls that wrapper: the only three repository methods reached from the UI or the controller are `fetchAll`, `add`, `cancel`, `history` and `budget`. So the route is reachable in code and not reached in the shipped app. Recorded rather than smoothed over — \"a declaration counted as a call\" is the exact defect services/subly-api/README.md warns about two paragraphs before it makes the same mistake."
+            "note": "The real call inside `updateSubscription()`. ⚠️ MEASURED 2026-08-25 AND WORTH SAYING PLAINLY: the URL is built here, which is what limb 2 checks and it is genuinely the code that would issue this request — but the method that builds it has no live caller. `SubscriptionRepository.update` (apps/subscriptiontracker/lib/data/subscriptions/subscription_repository.dart:14) wraps it and NOTHING calls that wrapper: the only three repository methods reached from the UI or the controller are `fetchAll`, `add`, `cancel`, `history` and `budget`. So the route is reachable in code and not reached in the shipped app. Recorded rather than smoothed over — \"a declaration counted as a call\" is the exact defect services/subscriptiontracker-api/README.md warns about two paragraphs before it makes the same mistake."
           }
         },
         {
-          "id": "subly-subscription-delete",
+          "id": "subscriptiontracker-subscription-delete",
           "method": "DELETE",
           "path": "/v1/subscriptions/:id",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/subscriptions.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/subscriptions.ts",
           "purpose": "Delete one subscription the user owns. Ownership is in the SQL, so a foreign id deletes nothing and says so.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.delete('/subscriptions/$id')",
             "note": "The real call inside `deleteSubscription()`."
           }
         },
         {
-          "id": "subly-renewals",
+          "id": "subscriptiontracker-renewals",
           "method": "GET",
           "path": "/v1/renewals",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/renewals.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/renewals.ts",
           "purpose": "The upcoming-renewals list for the verified user, computed server-side over a window. Mounted at index.ts:87 behind `supabaseAuth`, 108 lines, with its own test file.",
-          "unconsumedReason": "🔴 NOTHING IN THIS REPO CALLS IT, AND THAT IS THE FINDING THIS ENTRY EXISTS TO STOP BEING INVISIBLE. Measured 2026-08-25 across every language and every root in the repo, with the /v1 prefix removed after that exact mistake once produced a false negative: apps/subly/lib/data/api/api_client.dart declares NINE methods and none is renewals; dio_api_client.dart issues NINE requests and none is to /renewals; packages/api_client has no renewals transport; and every bare-word `renewals` hit outside services/ is a UI string, a feature flag, the platform cron fan-out (services/platform/src/scheduled.ts, which writes subly_db DIRECTLY through the SUBLY_DB binding and never over HTTP), or a test. The app computes its upcoming-renewal list locally from the subscriptions it already holds. ⚠️ IT IS NOT DELETED, AND DELETION IS NOT THIS ITEM’S CALL: it is a plausible sync-era surface, deletion is the irreversible half, and the register’s whole purpose is that an unconsumed capability is a PRINTED fact rather than a silence. Give it a client or remove it deliberately — but from now on the choice is on the screen every CI run."
+          "unconsumedReason": "🔴 NOTHING IN THIS REPO CALLS IT, AND THAT IS THE FINDING THIS ENTRY EXISTS TO STOP BEING INVISIBLE. Measured 2026-08-25 across every language and every root in the repo, with the /v1 prefix removed after that exact mistake once produced a false negative: apps/subscriptiontracker/lib/data/api/api_client.dart declares NINE methods and none is renewals; dio_api_client.dart issues NINE requests and none is to /renewals; packages/api_client has no renewals transport; and every bare-word `renewals` hit outside services/ is a UI string, a feature flag, the platform cron fan-out (services/platform/src/scheduled.ts, which writes subly_db DIRECTLY through the SUBLY_DB binding and never over HTTP), or a test. The app computes its upcoming-renewal list locally from the subscriptions it already holds. ⚠️ IT IS NOT DELETED, AND DELETION IS NOT THIS ITEM’S CALL: it is a plausible sync-era surface, deletion is the irreversible half, and the register’s whole purpose is that an unconsumed capability is a PRINTED fact rather than a silence. Give it a client or remove it deliberately — but from now on the choice is on the screen every CI run."
         },
         {
-          "id": "subly-budget-get",
+          "id": "subscriptiontracker-budget-get",
           "method": "GET",
           "path": "/v1/budget",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/budget.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/budget.ts",
           "purpose": "The user's monthly budget and per-category caps, with defaults when nothing is stored. Returns each category's surrogate `id` (0002_schema_debt.sql) so a category is addressable as (entity, row_id) outside the database.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.get('/budget')",
             "note": "The real call inside `getBudget()`."
           }
         },
         {
-          "id": "subly-budget-put",
+          "id": "subscriptiontracker-budget-put",
           "method": "PUT",
           "path": "/v1/budget",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/budget.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/budget.ts",
           "purpose": "REPLACE the budget and the whole category set, validated before any write and issued as ONE `APP_DB.batch()` so the DELETE cannot commit without its inserts. A category id supplied by the caller is PRESERVED, so a rename is an edit rather than a delete+create.",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.put('/budget', body: budget.toJson())",
             "note": "The real call inside `updateBudget()`. ⚠️ MEASURED 2026-08-25 AND WORTH SAYING PLAINLY: the URL is built here, which is what limb 2 checks and it is genuinely the code that would issue this request — but the method that builds it has no live caller. `SubscriptionRepository.saveBudget` (subscription_repository.dart:19) wraps it and has no caller; `budget_screen.dart:20` reads the budget and nothing writes one back yet. The route is complete, tested and unreached."
           }
         },
         {
-          "id": "subly-entitlements",
+          "id": "subscriptiontracker-entitlements",
           "method": "GET",
           "path": "/v1/entitlements",
           "auth": "required",
-          "owningFile": "services/subly-api/src/routes/entitlements.ts",
+          "owningFile": "services/subscriptiontracker-api/src/routes/entitlements.ts",
           "purpose": "Subly's own read of the SHARED platform_db entitlements table, scoped by the verified user_id and this deploy's APP_ID. Predates the shared host’s /v1/entitlements ([ADR 020]) and is why that route’s _why paragraph calls this “the one legacy app that happens to have a backend”. The money boundary fails closed on every undecidable case, including a row whose money environment is not this deploy’s ([5]M-12).",
           "client": {
-            "file": "apps/subly/lib/data/api/dio_api_client.dart",
+            "file": "apps/subscriptiontracker/lib/data/api/dio_api_client.dart",
             "expression": "_rest.get('/entitlements')",
-            "note": "The real call inside `getEntitlements()`. Note that the SHARED host’s identically-pathed route has a DIFFERENT client (packages/api_client/lib/src/dio_entitlement_transport.dart) — which is precisely why the route key had to become (worker, method, path). ⚠️ MEASURED 2026-08-25 AND WORTH SAYING PLAINLY: the URL is built here, which is what limb 2 checks and it is genuinely the code that would issue this request — but the method that builds it has no live caller. `SubscriptionRepository.entitlements()` (subscription_repository.dart:20) wraps it and its only other occurrence in the app tree is a doc comment in apps/subly/test/width_calendar_test.dart:630. services/subly-api/README.md already calls this one of \"two routes with zero clients, kept on purpose\" — this entry is where that claim stops being prose that can rot."
+            "note": "The real call inside `getEntitlements()`. Note that the SHARED host’s identically-pathed route has a DIFFERENT client (packages/api_client/lib/src/dio_entitlement_transport.dart) — which is precisely why the route key had to become (worker, method, path). ⚠️ MEASURED 2026-08-25 AND WORTH SAYING PLAINLY: the URL is built here, which is what limb 2 checks and it is genuinely the code that would issue this request — but the method that builds it has no live caller. `SubscriptionRepository.entitlements()` (subscription_repository.dart:20) wraps it and its only other occurrence in the app tree is a doc comment in apps/subscriptiontracker/test/width_calendar_test.dart:630. services/subscriptiontracker-api/README.md already calls this one of \"two routes with zero clients, kept on purpose\" — this entry is where that claim stops being prose that can rot."
           }
         }
       ]
@@ -285,12 +286,12 @@
       "glob cannot find, the scan and the tree have diverged and the build fails.",
       "",
       "The brick template is IN SCOPE on purpose. assert-clone-contract.mjs inspects only the throwaway",
-      "CI probe stamp, so services/subly-api is invisible to it — which is exactly how a per-app R2",
+      "CI probe stamp, so services/subscriptiontracker-api is invisible to it — which is exactly how a per-app R2",
       "bucket stayed live from 2026-07-17 with every guard green."
     ],
     "configs": [
       "services/platform/wrangler.jsonc",
-      "services/subly-api/wrangler.jsonc",
+      "services/subscriptiontracker-api/wrangler.jsonc",
       "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api/wrangler.jsonc"
     ]
   },
@@ -321,7 +322,7 @@
       "  API_VERSION       -> \"v9\"                          RED set UNCHANGED (nothing saw it)",
       "  PLATFORM_DB id    -> a fabricated uuid             RED set UNCHANGED (nothing saw it)",
       "  JWKS_CACHE id     -> a fabricated namespace id     assert-data-inventory.mjs RED (the only catch)",
-      "And in the LIVE Worker services/subly-api, repointing SUPABASE_URL at a foreign project and",
+      "And in the LIVE Worker services/subscriptiontracker-api, repointing SUPABASE_URL at a foreign project and",
       "bumping API_VERSION to \"v9\" both passed every one of those guards too. A stamped backend would",
       "have verified tokens against a project that does not exist and read entitlements from the wrong",
       "database, with CI green.",
@@ -340,9 +341,9 @@
       "and already refuses an origin nothing justifies. Declaring one literal for it here would replace",
       "a derivation with a copy — the defect this block exists to close, committed in the other",
       "direction. The two live lists deliberately DIFFER (services/platform carries",
-      "http://localhost:3000 and services/subly-api does not, because subly-api's middleware allows any",
+      "http://localhost:3000 and services/subscriptiontracker-api does not, because subscriptiontracker-api's middleware allows any",
       "localhost by regex and platform's has none); that asymmetry is recorded at",
-      "services/subly-api/src/middleware/cors.ts:20-27 and enforced by that guard's EXTRAS.",
+      "services/subscriptiontracker-api/src/middleware/cors.ts:20-27 and enforced by that guard's EXTRAS.",
       "",
       "GRAMMAR of `at`, and it is the entire addressing scheme:",
       "  vars.<NAME>                      -> cfg.vars[<NAME>]",
@@ -362,7 +363,7 @@
       {
         "at": "vars.SUPABASE_URL",
         "value": "https://lcrkiurkvzhkonjwhpiv.supabase.co",
-        "why": "ONE Supabase identity project (Cross_Platform_Auth, ap-south-1) for the whole portfolio, so one issuer, one JWKS document and one user row per human across every app. A Worker pointed at a second project verifies tokens nobody in this portfolio can mint — every authenticated route 401s while the Worker itself is perfectly well, which is the failure services/subly-api's health probe `supabase_jwks` exists to make visible and which no static check could see.",
+        "why": "ONE Supabase identity project (Cross_Platform_Auth, ap-south-1) for the whole portfolio, so one issuer, one JWKS document and one user row per human across every app. A Worker pointed at a second project verifies tokens nobody in this portfolio can mint — every authenticated route 401s while the Worker itself is perfectly well, which is the failure services/subscriptiontracker-api's health probe `supabase_jwks` exists to make visible and which no static check could see.",
         "absentFrom": []
       },
       {
@@ -450,7 +451,7 @@
       "path": "/v1/entitlements",
       "auth": "required",
       "owningFile": "services/platform/src/routes/entitlements.ts",
-      "purpose": "[pipeline 5]M-4 — ANY app reads ITS entitlement from the host every stamped app already has. The brick's DEFAULT stamp is CLIENT-ONLY ([ADR 020]), so until this route existed the only working entitlement read in the repo was inside services/subly-api — i.e. inside the one legacy app that happens to have a backend, while every app the factory stamps had no way to ask whether its user had paid. Scoped by BOTH user_id (from the verified token) AND app_id (a required query parameter that must name a registered app); the money boundary fails closed on every undecidable case, including a row whose money environment is not this deploy's ([5]M-12).",
+      "purpose": "[pipeline 5]M-4 — ANY app reads ITS entitlement from the host every stamped app already has. The brick's DEFAULT stamp is CLIENT-ONLY ([ADR 020]), so until this route existed the only working entitlement read in the repo was inside services/subscriptiontracker-api — i.e. inside the one legacy app that happens to have a backend, while every app the factory stamps had no way to ask whether its user had paid. Scoped by BOTH user_id (from the verified token) AND app_id (a required query parameter that must name a registered app); the money boundary fails closed on every undecidable case, including a row whose money environment is not this deploy's ([5]M-12).",
       "unconsumedReason": "🔄 CORRECTED 2026-08-06 — THERE IS A DART CLIENT. `packages/api_client/lib/src/dio_entitlement_transport.dart:40` issues `GET {platformBaseUrl}/v1/entitlements?app_id=<id>` as a `core.EntitlementTransport`. The claim of \"no Dart client yet … nothing fetches\" was true when written and false at head. [4]B-14 pins the three envelope keys plus the ten-key row item.",
       "noLimiterReason": "NOT APPLICABLE — `auth: required`, so limb 4 does not range over it. Recorded anyway because the read is on a launch path and the 100k Worker-requests/day Free ceiling is ACCOUNT-WIDE across ~50 apps: this must never become a per-screen fetch, which is a client-side constraint the cache in packages/core exists to satisfy."
     },
@@ -497,8 +498,8 @@
         "services/platform/src/routes/account.ts",
         "services/platform/src/routes/events.ts",
         "services/platform/src/scheduled.ts",
-        "services/subly-api/src/routes/entitlements.ts",
-        "services/subly-api/src/routes/webhooks.ts",
+        "services/subscriptiontracker-api/src/routes/entitlements.ts",
+        "services/subscriptiontracker-api/src/routes/webhooks.ts",
         "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api/src/routes/account.ts"
       ]
     },
@@ -517,9 +518,9 @@
       "scope": "per-app",
       "purpose": "A stamped app's own private database — the only datastore an opt-in backend owns outright. D1 Free is 10 databases per account and platform_db is one of them, which is why a backend is opt-in rather than default ([ADR 020]).",
       "readers": [
-        "services/subly-api/src/routes/subscriptions.ts",
-        "services/subly-api/src/routes/budget.ts",
-        "services/subly-api/src/routes/renewals.ts",
+        "services/subscriptiontracker-api/src/routes/subscriptions.ts",
+        "services/subscriptiontracker-api/src/routes/budget.ts",
+        "services/subscriptiontracker-api/src/routes/renewals.ts",
         "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api/src/routes/account.ts"
       ]
     },
@@ -539,7 +540,7 @@
       "purpose": "Caches the Supabase JWKS document so an ES256 verify does not fetch it per request. One identity project portfolio-wide, so one cache.",
       "readers": [
         "services/platform/src/middleware/auth.ts",
-        "services/subly-api/src/middleware/auth.ts",
+        "services/subscriptiontracker-api/src/middleware/auth.ts",
         "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api/src/middleware/auth.ts"
       ]
     },
@@ -557,7 +558,7 @@
       "kind": "r2_buckets",
       "scope": "shared",
       "role": "backup",
-      "purpose": "The ONE portfolio backup bucket, `nikatru-backups`, written by the 02:30 cron only and addressed by key prefix (`d1/`, `kv/`, `manifests/`). 🔴 It closes `06 §4.2` — D1, KV and R2 in NO backup, `recovery.worker-d1-export` NEVER drilled — for the entitlements database that serves the whole portfolio. ⚠️ It is deliberately ONE bucket: the per-app `<app>-exports` buckets removed from the brick on 2026-07-25 are the precedent, and `subly-exports` is still sitting in the account, empty and unbound, as the reminder.",
+      "purpose": "The ONE portfolio backup bucket, `nikatru-backups`, written by the 02:30 cron only and addressed by key prefix (`d1/`, `kv/`, `manifests/`). 🔴 It closes `06 §4.2` — D1, KV and R2 in NO backup, `recovery.worker-d1-export` NEVER drilled — for the entitlements database that serves the whole portfolio. ⚠️ It is deliberately ONE bucket: the per-app `<app>-exports` buckets removed from the brick on 2026-07-25 are the precedent, and `subscriptiontracker-exports` is still sitting in the account, empty and unbound, as the reminder.",
       "readers": [
         "services/platform/src/backup/index.ts"
       ]

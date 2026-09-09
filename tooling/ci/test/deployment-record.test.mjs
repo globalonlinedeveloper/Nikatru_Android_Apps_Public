@@ -55,7 +55,7 @@ const REGISTER = {
     { id: 'android-play', kind: 'store', deploymentEnvironment: '{app}-android-play' },
   ],
   serviceEnvironments: [
-    { id: 'subly-api', kind: 'service', deploymentEnvironment: 'subly-api' },
+    { id: 'subscriptiontracker-api', kind: 'service', deploymentEnvironment: 'subscriptiontracker-api' },
     { id: 'platform', kind: 'service', deploymentEnvironment: 'platform' },
   ],
 };
@@ -148,29 +148,29 @@ describe('deployment-record — the LEGACY form is unparseable, never "live"', (
 });
 
 describe('deployment-record — the environment resolves against the register', () => {
-  test('`subly-android-play` resolves to android-play, not to a channel called "play"', () => {
-    const r = resolveEnvironment(REGISTER, 'subly-android-play');
-    assert.equal(r.app, 'subly');
+  test('`subscriptiontracker-android-play` resolves to android-play, not to a channel called "play"', () => {
+    const r = resolveEnvironment(REGISTER, 'subscriptiontracker-android-play');
+    assert.equal(r.app, 'subscriptiontracker');
     assert.equal(r.channel.id, 'android-play');
   });
 
-  test('`subly-web` resolves to the web row', () => {
-    assert.equal(resolveEnvironment(REGISTER, 'subly-web').channel.id, 'web');
+  test('`subscriptiontracker-web` resolves to the web row', () => {
+    assert.equal(resolveEnvironment(REGISTER, 'subscriptiontracker-web').channel.id, 'web');
   });
 
   test('an environment no template matches resolves to null', () => {
-    assert.equal(resolveEnvironment(REGISTER, 'subly-nowhere'), null);
+    assert.equal(resolveEnvironment(REGISTER, 'subscriptiontracker-nowhere'), null);
   });
 
   test('a register with no channels resolves nothing', () => {
-    assert.equal(resolveEnvironment({}, 'subly-web'), null);
+    assert.equal(resolveEnvironment({}, 'subscriptiontracker-web'), null);
   });
 
   // ── SERVICE ENVIRONMENTS — the five red deploy-workers runs from 2026-08-02 ──
-  test('`subly-api` resolves to a service environment, not to nothing', () => {
-    const r = resolveEnvironment(REGISTER, 'subly-api');
+  test('`subscriptiontracker-api` resolves to a service environment, not to nothing', () => {
+    const r = resolveEnvironment(REGISTER, 'subscriptiontracker-api');
     assert.notEqual(r, null, 'a Worker deploy must be recordable');
-    assert.equal(r.channel.id, 'subly-api');
+    assert.equal(r.channel.id, 'subscriptiontracker-api');
     assert.equal(r.channel.kind, 'service');
   });
 
@@ -185,13 +185,13 @@ describe('deployment-record — the environment resolves against the register', 
   // neither list is the input that proves this change fixed the cause instead of
   // deleting the check.
   test('an environment in NEITHER list is still refused', () => {
-    assert.equal(resolveEnvironment(REGISTER, 'subly-nowhere'), null);
+    assert.equal(resolveEnvironment(REGISTER, 'subscriptiontracker-nowhere'), null);
     assert.equal(resolveEnvironment(REGISTER, 'not-a-worker'), null);
   });
 
   test('a service environment is matched exactly, never as a prefix', () => {
     assert.equal(resolveEnvironment(REGISTER, 'platform-staging'), null);
-    assert.equal(resolveEnvironment(REGISTER, 'subly-api-canary'), null);
+    assert.equal(resolveEnvironment(REGISTER, 'subscriptiontracker-api-canary'), null);
   });
 
   // A service row must never satisfy the store rules: record-deployment.mjs
@@ -303,7 +303,7 @@ describe('deployment-record — the environment resolves against the register', 
   });
 
   test('service environments are not store channels', () => {
-    for (const env of ['subly-api', 'platform']) {
+    for (const env of ['subscriptiontracker-api', 'platform']) {
       assert.notEqual(resolveEnvironment(REGISTER, env).channel.kind, 'store');
     }
     assert.deepEqual(
@@ -326,7 +326,7 @@ describe('deployment-record — readSubmissions separates read from unreadable',
 
   test('a web deploy is not a submission', () => {
     const { records } = readSubmissions(
-      [{ environment: 'subly-web', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12345' }],
+      [{ environment: 'subscriptiontracker-web', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12345' }],
       REGISTER,
     );
     assert.deepEqual(records, []);
@@ -335,7 +335,7 @@ describe('deployment-record — readSubmissions separates read from unreadable',
   test('a store record is read whole', () => {
     const { records } = readSubmissions(
       [{
-        environment: 'subly-windows-store',
+        environment: 'subscriptiontracker-windows-store',
         createdAt: '2026-08-03T10:00:00Z',
         description: 'nk1 state=in_review sha=abc12345 listing=https://apps.microsoft.com/detail/X',
       }],
@@ -343,8 +343,8 @@ describe('deployment-record — readSubmissions separates read from unreadable',
     );
     assert.equal(records.length, 1);
     assert.deepEqual(records[0], {
-      environment: 'subly-windows-store',
-      app: 'subly',
+      environment: 'subscriptiontracker-windows-store',
+      app: 'subscriptiontracker',
       channel: 'windows-store',
       state: 'in_review',
       sha: 'abc12345',
@@ -355,7 +355,7 @@ describe('deployment-record — readSubmissions separates read from unreadable',
 
   test('an unreadable store record is REPORTED, never silently dropped', () => {
     const { records, unreadable } = readSubmissions(
-      [{ environment: 'subly-windows-store', createdAt: '2026-08-03T10:00:00Z', description: 'live at abc12345' }],
+      [{ environment: 'subscriptiontracker-windows-store', createdAt: '2026-08-03T10:00:00Z', description: 'live at abc12345' }],
       REGISTER,
     );
     assert.deepEqual(records, []);
@@ -377,14 +377,14 @@ describe('deployment-record — readSubmissions separates read from unreadable',
 
 describe('record-deployment — the store rule is enforced BEFORE anything is written', () => {
   test('REFUSES a store environment with no --listing-url', () => {
-    const { code, out } = record(['subly-windows-store']);
+    const { code, out } = record(['subscriptiontracker-windows-store']);
     assert.equal(code, 1);
     assert.match(out, /kind: store\) and no --listing-url was given/);
     assert.match(out, /gives no way to look at it/);
   });
 
   test('REFUSES an unknown --state', () => {
-    const { code, out } = record(['subly-web', '--state', 'shipped']);
+    const { code, out } = record(['subscriptiontracker-web', '--state', 'shipped']);
     assert.equal(code, 1);
     assert.match(out, /is not one of in_review, live, rejected, pulled/);
   });
@@ -393,9 +393,9 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   // the resolver about backend Workers widened what it accepts; this is the
   // input proving it did not widen to everything.
   test('REFUSES an environment no register row claims', () => {
-    const { code, out } = record(['subly-nowhere']);
+    const { code, out } = record(['subscriptiontracker-nowhere']);
     assert.equal(code, 1);
-    assert.match(out, /claims the environment "subly-nowhere"/);
+    assert.match(out, /claims the environment "subscriptiontracker-nowhere"/);
   });
 
   // A near-miss on a real service name must still be refused — the service list
@@ -407,7 +407,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   });
 
   test('REFUSES a --state flag with no value', () => {
-    const { code, out } = record(['subly-web', '--state']);
+    const { code, out } = record(['subscriptiontracker-web', '--state']);
     assert.equal(code, 1);
     assert.match(out, /--state was given with no value/);
   });
@@ -415,7 +415,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   test('a WEB environment needs no listing URL and gets past the shape checks', () => {
     // It then fails at the API with a fake token, which is proof it got there:
     // the shape gate is upstream of the first fetch.
-    const { code, out } = record(['subly-web', 'https://subly.nikatru.com']);
+    const { code, out } = record(['subscriptiontracker-web', 'https://subly.nikatru.com']);
     assert.equal(code, 1);
     assert.match(out, /could not record the deployment/);
     assert.doesNotMatch(out, /--listing-url/);
@@ -423,7 +423,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
 
   test('a STORE environment WITH a listing URL gets past the shape checks', () => {
     const { code, out } = record([
-      'subly-windows-store',
+      'subscriptiontracker-windows-store',
       '--state', 'in_review',
       '--listing-url', 'https://apps.microsoft.com/detail/X',
     ]);
@@ -444,7 +444,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   // and the store decides hours-to-weeks later, possibly never. A forgotten flag
   // must not be what separates "we submitted it" from "the store approved it".
   test('a STORE environment REFUSES to inherit the `live` default', () => {
-    const { code, out } = record(['subly-windows-store', '--listing-url', 'https://apps.microsoft.com/detail/X']);
+    const { code, out } = record(['subscriptiontracker-windows-store', '--listing-url', 'https://apps.microsoft.com/detail/X']);
     assert.equal(code, 1);
     assert.match(out, /no --state was given/);
     assert.match(out, /NOT live when the upload succeeds/);
@@ -452,7 +452,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   });
 
   test('a WEB environment still gets the `live` default — the upload IS the go-live', () => {
-    const { code, out } = record(['subly-web']);
+    const { code, out } = record(['subscriptiontracker-web']);
     assert.equal(code, 1);
     assert.match(out, /could not record the deployment/); // got past the shape gate
     assert.doesNotMatch(out, /no --state was given/);
@@ -505,14 +505,14 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
   });
 
   test('a SUBMITTABLE store row REFUSES the origin state — it is not the easy way past naming a submission', () => {
-    const { code, out } = record(['subly-android-play', '--state', 'pending_manual_publish']);
+    const { code, out } = record(['subscriptiontracker-android-play', '--state', 'pending_manual_publish']);
     assert.equal(code, 1);
     assert.match(out, /this factory CAN submit through it/);
     assert.doesNotMatch(out, /could not record the deployment/);
   });
 
   test('a WEB row REFUSES the origin state too — nobody submits to a web channel', () => {
-    const { code, out } = record(['subly-web', '--state', 'pending_manual_publish']);
+    const { code, out } = record(['subscriptiontracker-web', '--state', 'pending_manual_publish']);
     assert.equal(code, 1);
     assert.match(out, /which nobody submits to/);
     assert.doesNotMatch(out, /could not record the deployment/);
@@ -525,7 +525,7 @@ describe('record-deployment — the store rule is enforced BEFORE anything is wr
 // record-deployment.mjs writes a GitHub Deployment AND a Deployment Status, and
 // each carries its own `description`. The status got `encodeDescription(...)`;
 // the deployment got the prose `"<env> deploy"`. Verified against the live API
-// that day: every deployment read `"subly-web deploy"` and every status read
+// that day: every deployment read `"subscriptiontracker-web deploy"` and every status read
 // `nk1 state=live sha=6525fb7d`.
 //
 // That is not cosmetic. `readSubmissions` decodes `description`, and the ledger
@@ -560,7 +560,7 @@ describe('record-deployment — the DEPLOYMENT and its STATUS carry the same sha
     // now yields for a store submission, fed to the reader that consumes it.
     const { records, unreadable } = readSubmissions(
       [{
-        environment: 'subly-android-play',
+        environment: 'subscriptiontracker-android-play',
         createdAt: '2026-08-06T00:00:00Z',
         description: encodeDescription({ state: 'in_review', sha: 'abc12345', listingUrl: 'https://play.google.com/x' }),
       }],
@@ -574,7 +574,7 @@ describe('record-deployment — the DEPLOYMENT and its STATUS carry the same sha
 
   test('the OLD deployment-field prose is what the fix removed — it decodes as unreadable', () => {
     const { records, unreadable } = readSubmissions(
-      [{ environment: 'subly-android-play', createdAt: '2026-08-06T00:00:00Z', description: 'subly-android-play deploy' }],
+      [{ environment: 'subscriptiontracker-android-play', createdAt: '2026-08-06T00:00:00Z', description: 'subscriptiontracker-android-play deploy' }],
       REAL_REGISTER,
     );
     assert.deepEqual(records, []);

@@ -321,16 +321,16 @@ jobs:
   //    WHETHER the command exists and never WHICH APP it builds. PR #92 fixed
   //    prose-vs-command and added no anchor at all. Mutation-proven against the
   //    real ci.yml 2026-08-01: flipping this step's `working-directory` from the
-  //    freshly stamped probe to `apps/subly` left the shipped guard printing
+  //    freshly stamped probe to `apps/subscriptiontracker` left the shipped guard printing
   //    `ok every claimed platform is stamped and built in CI`. "A fresh stamp
   //    really builds" was then being proven by building the hand-maintained
   //    legacy app that has compiled for a year.
   test('FAILS when the build runs in a DIFFERENT app than the one that was stamped', () => {
     const { code, out } = run(tree({
-      ci: goodCi.replace('working-directory: apps/probe', 'working-directory: apps/subly'),
+      ci: goodCi.replace('working-directory: apps/probe', 'working-directory: apps/subscriptiontracker'),
     }));
-    assert.equal(code, 1, 'building apps/subly proves nothing about a fresh stamp');
-    assert.match(out, /runs `flutter build web`, but not in `apps\/probe` — it runs in `apps\/subly`/);
+    assert.equal(code, 1, 'building apps/subscriptiontracker proves nothing about a fresh stamp');
+    assert.match(out, /runs `flutter build web`, but not in `apps\/probe` — it runs in `apps\/subscriptiontracker`/);
   });
 
   test('FAILS when the build runs at the repo root with no anchor at all', () => {

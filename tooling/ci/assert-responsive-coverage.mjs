@@ -52,7 +52,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴🔴 THE DOMAIN IS DERIVED, AND UNTIL 2026-09-05 IT WAS ONE HARDCODED APP
 // ═══════════════════════════════════════════════════════════════════════════
-// This file opened with `const APP = 'apps/subly';` from the day it was written
+// This file opened with `const APP = 'apps/subscriptiontracker';` from the day it was written
 // until 2026-09-05 [backlog G-3]. The brick template — the tree every future
 // app is stamped from — was outside it, and so was `packages/design_system`,
 // which [ADR 065] chassis step 2 made the home of `nav_shell.dart`,
@@ -110,10 +110,10 @@
 // So the UNCOVERED half is, FOR THE TWO ROOTS ADDED ON 2026-09-05 AND ONLY
 // THOSE:
 //     PRINTED IN FULL, BY NAME, ON EVERY RUN — and NOT failed.
-// `apps/subly` is unchanged: an uncovered surface there still fails the build.
+// `apps/subscriptiontracker` is unchanged: an uncovered surface there still fails the build.
 //
 // 🔴 AND THIS IS NOT A SWITCH THAT SILENCES THE ROOT. Everything else about a
-// report-mode root fails exactly as it does for subly:
+// report-mode root fails exactly as it does for subscriptiontracker:
 //   · DEAD COVERAGE — a measurement pointed at a widget nothing declares.
 //   · the `surfaces` floor — the domain shrinking.
 //   · the `coveredSurfaces` floor — THE BACKSTOP. The three brick screens that
@@ -152,7 +152,7 @@
 // covered set and reported clean — it would have written the exact bug it
 // exists to catch into its own answer. The file is what distinguishes a twin
 // from its original, so the file is part of the identity. Since 2026-09-05 the
-// key is root-qualified too: the brick and subly declare a `SignUpScreen` each
+// key is root-qualified too: the brick and subscriptiontracker declare a `SignUpScreen` each
 // and they are different files with different measurements.
 //
 // ── HOW A SUBJECT IS ESTABLISHED ───────────────────────────────────────────
@@ -165,7 +165,7 @@
 // that file is not a surface — and a bare name alone is the twin trap above.
 //
 // ⚠️ THE PACKAGE NAME IS READ OUT OF EACH ROOT'S OWN `pubspec.yaml`, NEVER
-// SPELLED HERE. It was `package:subly/` hardcoded until 2026-09-05. The brick's
+// SPELLED HERE. It was `package:subscriptiontracker/` hardcoded until 2026-09-05. The brick's
 // name is the literal string `{{app_id.snakeCase()}}` — a mustache placeholder
 // that is not a valid Dart identifier until the brick is stamped — and the
 // brick's own suite imports itself by exactly that spelling, so quoting the
@@ -182,7 +182,7 @@
 //
 // ── WHICH TEST FILES ARE THE CORPUS, AND WHY IT DIFFERS BY KIND OF ROOT ────
 // An APP root's corpus is `width_*_test.dart` and `responsive_width_test.dart`
-// under `<root>/test`. The naming rule exists to bound a large suite: subly's
+// under `<root>/test`. The naming rule exists to bound a large suite: subscriptiontracker's
 // `test/` holds 72 files and 17 of them are width tests, and a rule that read
 // all 72 would credit a surface with a measurement any file that merely
 // constructs it happens to make.
@@ -213,7 +213,7 @@
 // cases` as too risky to touch. Every mutation is applied to a byte copy of the
 // live repo:
 //   R1  delete a width test's construction → UNCOVERED SURFACE, by name, exit 1
-//   R2  delete every `GoRoute` from subly's router → COVERAGE LOST
+//   R2  delete every `GoRoute` from subscriptiontracker's router → COVERAGE LOST
 //   R3  point a width test at an unrouted twin → DEAD COVERAGE, by name
 //   R4  delete a route AND its width test together → the `surfaces` floor, the
 //       mutation set equality cannot see
@@ -230,7 +230,7 @@
 //   R11 THE POSITIVE CONTROLS — land an unmeasured surface in the brick and in
 //       design_system and watch each appear BY NAME in that root's printed
 //       list; then measure one and watch it leave.
-//   R12 an UNCOVERED surface in `apps/subly` FAILS in the SAME RUN in which the
+//   R12 an UNCOVERED surface in `apps/subscriptiontracker` FAILS in the SAME RUN in which the
 //       brick's nine only print — report mode is per root, dated and opt-in,
 //       never a default a new root falls into.
 //
@@ -239,7 +239,7 @@
 // coverage` block of sixteen cases over a SYNTHETIC sixteen-screen fixture. All
 // sixteen go red against this file until that fixture gains the two manifests
 // the derivation now reads (`pubspec.yaml` with a `workspace:` list, and
-// `apps/subly/pubspec.yaml` with a `name:`) and six of its assertions are
+// `apps/subscriptiontracker/pubspec.yaml` with a `name:`) and six of its assertions are
 // re-pointed at the root-qualified wording. MEASURED, NOT PREDICTED: the patch
 // was applied to a copy of that file on 2026-09-05 and all sixteen pass. It is
 // eight small hunks and it is reported to the owner rather than applied here,
@@ -452,7 +452,7 @@ const IS_FULL_CHECKOUT = existsSync(join(ROOT, 'tooling', 'ci', 'assert-responsi
 
 const REQUIRED_COVERAGE = [
   {
-    dir: 'apps/subly',
+    dir: 'apps/subscriptiontracker',
     enforce: true,
     // 19 reachable surfaces (17 routed screens, 2 modal sheets), all measured
     // by 17 width test files at 375/768/1280.
@@ -476,7 +476,7 @@ const REQUIRED_COVERAGE = [
     surfaces: 19,
     // 🔴 THIS FLOOR IS ONE UNDER ITS TREE AND IT IS BEING LEFT THERE ON
     // PURPOSE, WHICH IS WORTH MORE WORDS THAN RAISING IT WOULD HAVE BEEN.
-    // MEASURED 2026-09-05: `ls apps/subly/test | grep -cE
+    // MEASURED 2026-09-05: `ls apps/subscriptiontracker/test | grep -cE
     // '^(width_.*_test|responsive_width_test)\.dart$'` returns 17, and this
     // guard's own run agrees — so ONE width test file could be deleted today
     // with nothing said, which is precisely the #280 shape recorded above.
@@ -526,7 +526,7 @@ const REQUIRED_COVERAGE = [
     // `packages/chassis_screens` with a width suite. Read from this guard's
     // own per-root line, never incremented blind. `paywall_screen` and
     // `manage_plan_screen` delegate too and were ALREADY counted (their
-    // apps/subly forks carry width suites), which is why one move added one.
+    // apps/subscriptiontracker forks carry width suites), which is why one move added one.
     coveredSurfaces: 10,
     label:
       'the template every stamped app inherits — 12 routed screens, 3 measured. The nine unmeasured ' +
@@ -626,7 +626,7 @@ const NOT_FOUND_WHY =
 
 const NOT_A_PANE_BY_ROOT = new Map([
   [
-    'apps/subly',
+    'apps/subscriptiontracker',
     new Map([
       [
         'AppShell',
@@ -658,7 +658,7 @@ const NOT_A_PANE_BY_ROOT = new Map([
 // pump fails as stale.
 const WIDTH_EXEMPT = new Map([
   [
-    'apps/subly/lib/features/monetization/paywall_screen.dart#PaywallScreen',
+    'apps/subscriptiontracker/lib/features/monetization/paywall_screen.dart#PaywallScreen',
     new Map([
       [
         'kDesktop',
@@ -742,7 +742,7 @@ const sliceCall = (text, open) => sliceBalanced(text, open, '(', ')');
 // ROUTES IN IT, which is indistinguishable from a router that LOST them. The
 // domain widens to the barrel PLUS `router/*.dart`, in that order, and to
 // nothing else. A tree whose router is still one file has no sibling directory
-// and is read exactly as it was before — the brick is such a tree; subly is not.
+// and is read exactly as it was before — the brick is such a tree; subscriptiontracker is not.
 //
 // Concatenated rather than scanned per file on purpose: `_GatedInsights` is
 // declared in one file and routed from another.
@@ -820,7 +820,7 @@ const delegationOf = (rel) => resolveChassisDelegation(ROOT, rel, { describe: (r
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ONE ROOT, ANALYSED. Everything below used to be top-level code over
-// `const APP = 'apps/subly'`; it is the same accounting, once per derived root.
+// `const APP = 'apps/subscriptiontracker'`; it is the same accounting, once per derived root.
 // ═══════════════════════════════════════════════════════════════════════════
 function analyseRoot(R) {
   const routerRel = `${R.dir}/lib/core/router.dart`;
@@ -1001,7 +1001,7 @@ function analyseRoot(R) {
   // carried its own 375/768/1280 and the harness moved `kTablet` to 800, the
   // requirement would go on being satisfied by a constant nothing pumps.
   //
-  // ⚠️ AND THE DECLARATION IS NOT ALWAYS IN A HARNESS. subly declares its
+  // ⚠️ AND THE DECLARATION IS NOT ALWAYS IN A HARNESS. subscriptiontracker declares its
   // window classes in `test/support/width_harness.dart`; the BRICK declares the
   // same four constants at the top of `responsive_width_test.dart` itself, and
   // design_system declares none at all and writes raw `Size(375, 812)`. So the
@@ -1317,7 +1317,7 @@ for (const a of analyses) {
   // ═══════════════════════════════════════════════════════════════════════
   const missingClasses = REQUIRED_WIDTHS.filter((w) => !a.windowClasses.has(w));
   if (a.windowClasses.size === 0) {
-    // 🔴 PRINTED, AND FATAL ONLY WHERE IT WAS EARNED. For subly the harness is
+    // 🔴 PRINTED, AND FATAL ONLY WHERE IT WAS EARNED. For subscriptiontracker the harness is
     // the vocabulary and losing it is COVERAGE LOST (R5). For a root that has
     // never declared window classes — design_system writes raw `Size(375, 812)`
     // — the requirement cannot be applied at all, and saying so out loud is the
@@ -1404,7 +1404,7 @@ for (const a of analyses) {
     // 🔴 THE BACKSTOP. `covered.size === 0 ⇒ COVERAGE LOST` was right for the
     // one root this guard could see and is wrong the moment a root with little
     // coverage joins: it would redden CI over work nobody has started. A floor
-    // keeps the strength where it was earned — subly's is 19, so ANY loss there
+    // keeps the strength where it was earned — subscriptiontracker's is 19, so ANY loss there
     // fires — and a report-mode root's floor is its measured coverage, which is
     // what stops "printed, not failed" from meaning "not checked".
     // 🔴 THE FLOOR COUNTS DELEGATED COVERAGE, AND IT HAS TO. A screen moving

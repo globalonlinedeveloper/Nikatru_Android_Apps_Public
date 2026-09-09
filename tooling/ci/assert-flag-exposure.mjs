@@ -274,7 +274,7 @@ if (callSites.length === 0) {
 const RAW_RESOLVERS = /(?<![A-Za-z0-9_.])(?:core\.)?(resolveFlag|flagBucket)\s*\(/g;
 // 2 since 2026-08-10, and it is ONE logical read in TWO trees: the promo card's
 // variant, in the brick template and in the one in-repo stamped app that
-// carries the same spine file (`apps/subly`). Every future in-repo stamped app
+// carries the same spine file (`apps/subscriptiontracker`). Every future in-repo stamped app
 // repeats the line — the same drift `EXCLUSIVE_TRIGGERS` in
 // assert-seams-wired.mjs already accepts for the review prompt, and for the same
 // reason: the twin is the chassis, not a second decision. When D6 says measure,

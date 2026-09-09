@@ -11,7 +11,7 @@
 // and the shipped app has no manifest. Only a machine that reads the pbxproj can
 // tell those two apart, which is why this guard exists at all.
 //
-// apps/subly/{ios,macos}/Runner.xcodeproj carries `objectVersion = 54` with no
+// apps/subscriptiontracker/{ios,macos}/Runner.xcodeproj carries `objectVersion = 54` with no
 // PBXFileSystemSynchronizedRootGroup (measured 2026-08-20), so membership is
 // explicit and omittable. A newer, folder-synchronised project would not need
 // this — and the day one arrives, these fixtures are what says so.
@@ -112,7 +112,7 @@ ${codes.map((c) => `      <string>${c}</string>`).join('\n')}
  */
 function fixture({ manifest = manifestWith([]), pbx = pbxWired(), register = { channels: [] } } = {}) {
   const root = join(TMP, `f${seq++}`);
-  const ios = join(root, 'apps', 'subly', 'ios');
+  const ios = join(root, 'apps', 'subscriptiontracker', 'ios');
   mkdirSync(join(ios, 'Runner'), { recursive: true });
   mkdirSync(join(ios, 'Runner.xcodeproj'), { recursive: true });
   mkdirSync(join(root, 'tooling'), { recursive: true });
@@ -254,7 +254,7 @@ describe('assert-privacy-manifest — a scan with no subject is never a pass', (
 
   test('an app carrying NO Apple target is COVERAGE LOST, not clean', () => {
     const root = join(TMP, `noapple${seq++}`);
-    mkdirSync(join(root, 'apps', 'subly', 'android'), { recursive: true });
+    mkdirSync(join(root, 'apps', 'subscriptiontracker', 'android'), { recursive: true });
     mkdirSync(join(root, 'tooling'), { recursive: true });
     writeFileSync(join(root, 'tooling', 'channel-register.json'), '{"channels":[]}');
     const { code, out } = run(root);

@@ -59,7 +59,7 @@ jobs:
       # DEMO build -- mock sign-in, seeded data, no crash sink. Graded by
       # tooling/ci/assert-store-build-config.mjs.
       - name: Build windows
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build windows --release
           --obfuscate --split-debug-info=build/symbols/windows
@@ -84,8 +84,8 @@ jobs:
       # and the sink upload below is now the copy that lasts.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-windows-store-dry-run
-          path: apps/subly/build/symbols/windows
+          name: symbols-subscriptiontracker-windows-store-dry-run
+          path: apps/subscriptiontracker/build/symbols/windows
           retention-days: 7
           if-no-files-found: error
       # why: pwsh, for the same reason the msstore-cli install below is — this is
@@ -122,10 +122,10 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
-          --dir apps/subly/build/symbols/windows
+          --dir apps/subscriptiontracker/build/symbols/windows
           --org nikatru --project subscriptiontracker
       - name: Package MSIX (Microsoft Store)
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: dart run msix:create
       - name: Dry-run the Microsoft Store submission
         env:
@@ -138,11 +138,11 @@ jobs:
         # first, so the script validates a package that exists on disk; a dry run that
         # skipped the artifact would report the path healthy having never touched the one
         # output the channel accepts.
-        run: node tooling/release/submit-windows-store.mjs --dry-run --app subly
+        run: node tooling/release/submit-windows-store.mjs --dry-run --app subscriptiontracker
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-windows-store-msix
-          path: apps/subly/build/windows/msix/subly.msix
+          name: subscriptiontracker-windows-store-msix
+          path: apps/subscriptiontracker/build/windows/msix/subscriptiontracker.msix
           retention-days: 7
           if-no-files-found: error
 
@@ -221,7 +221,7 @@ jobs:
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
       - name: Build windows
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build windows --release
           --obfuscate --split-debug-info=build/symbols/windows
@@ -245,8 +245,8 @@ jobs:
       # this package ships.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-windows-store
-          path: apps/subly/build/symbols/windows
+          name: symbols-subscriptiontracker-windows-store
+          path: apps/subscriptiontracker/build/symbols/windows
           retention-days: 90
           if-no-files-found: error
       # why: pwsh, for the same reason the msstore-cli install below is — this is
@@ -286,10 +286,10 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
-          --dir apps/subly/build/symbols/windows
+          --dir apps/subscriptiontracker/build/symbols/windows
           --org nikatru --project subscriptiontracker
       - name: Package MSIX (Microsoft Store)
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: dart run msix:create
       # why: the Microsoft Store Developer CLI is the transport, for the same reason the
       # Snap lane speaks `snapcraft`: it is Microsoft's own, documented, cross-platform
@@ -325,7 +325,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >
-          node tooling/release/submit-windows-store.mjs --submit --app subly
+          node tooling/release/submit-windows-store.mjs --submit --app subscriptiontracker
           --confirm SUBMIT-TO-MICROSOFT-STORE
       - name: Record the submission in the [10]D-9 ledger
         if: always() && steps.submit.outcome == 'success'
@@ -333,4 +333,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           LISTING_URL: ${{ inputs.listing_url }}
-        run: node tooling/ci/record-deployment.mjs subly-windows-store --state in_review --listing-url "$LISTING_URL"
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-windows-store --state in_review --listing-url "$LISTING_URL"

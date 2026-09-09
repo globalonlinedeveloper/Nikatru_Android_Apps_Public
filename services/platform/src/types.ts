@@ -20,7 +20,7 @@ export interface Env {
   /**
    * Warm cache for the Supabase JWKS document, so an ES256 verify does not fetch
    * it on every cold isolate. ONE identity project portfolio-wide, so one cache
-   * — the same namespace services/subly-api binds.
+   * — the same namespace services/subscriptiontracker-api binds.
    *
    * Optional, and absence is NOT a security hole: `jose` fetches the JWKS itself,
    * so a missing binding costs latency on a cold start and nothing else.
@@ -80,7 +80,7 @@ export interface Env {
    *
    * Why the edge cache is not enough on its own: `Cache-Control: s-maxage=300`
    * only collapses requests that share a cache key, and the query string is part
-   * of that key. `GET /config/subly?cb=<random>` therefore reaches the origin
+   * of that key. `GET /config/subscriptiontracker?cb=<random>` therefore reaches the origin
    * every time and spends a free-tier KV read every time. (An UNKNOWN app costs
    * nothing at all now — that answer comes from the compiled-in registry before
    * any I/O.) Optional, and absence fails OPEN, for the same reason as above:
@@ -242,12 +242,12 @@ export interface Env {
 
   /**
    * WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `"<appId>=<https origin>"`,
-   * comma-separated. Today: `"subly=https://api.nikatru.com"`.
+   * comma-separated. Today: `"subscriptiontracker=https://api.nikatru.com"`.
    *
    * 🔴 A COMMITTED VAR, NOT A SECRET, AND NOT OPTIONAL IN PRACTICE. DELETE
    * /v1/account is the portfolio's erasure entry point, and this Worker can only
    * empty platform_db. Every app that keeps user rows in its OWN database has an
-   * erasure route on its own Worker (services/subly-api/src/routes/account.ts;
+   * erasure route on its own Worker (services/subscriptiontracker-api/src/routes/account.ts;
    * the brick stamps one for every future app), and this list is how the shared
    * route finds them. An app whose endpoint is missing here is an app whose rows
    * survive "delete my account" — so the route REFUSES rather than skipping, and
@@ -443,7 +443,7 @@ export interface AppConfig {
    *   · 1 — `packages/core/test/config_test.dart`, asserting it is null.
    *   · 6 — `MaterialApp.theme`, the different symbol.
    *   · AND THOSE SIX SIT IN TWO WIDGET TESTS, not the one named above:
-   *     `apps/subly/test/chassis_properties_test.dart` (3) and its brick copy
+   *     `apps/subscriptiontracker/test/chassis_properties_test.dart` (3) and its brick copy
    *     `tooling/bricks/app/__brick__/apps/{{app_id}}/test/chassis_properties_test.dart`
    *     (3). The brick copy appears nowhere in the record, and it is the copy
    *     that MULTIPLIES — every app the factory stamps carries it.

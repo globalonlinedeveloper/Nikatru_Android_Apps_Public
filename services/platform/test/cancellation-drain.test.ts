@@ -55,7 +55,7 @@ function insertRequest(
           provider_subscription_id, requested_at, executed_at, not_executed_reason)
        VALUES (?,?,?,?,?,?,?,?,?)`,
     )
-    .run(requestId, 'user-1', 'subly', 'live', 'paddle', 'sub_1', requestedAt, executedAt, reason);
+    .run(requestId, 'user-1', 'subscriptiontracker', 'live', 'paddle', 'sub_1', requestedAt, executedAt, reason);
 }
 
 /** The leading `key=value` run, parsed the way a MACHINE reader would parse it.

@@ -226,8 +226,8 @@ const MUST_COMPARE = [
  *  FullShot policy. It arrived carrying its own greys and was the only dissenting
  *  declaration of --ink, --muted and --line on either root, which is precisely
  *  what this guard is for — it caught the page on the run that added it.
- *  18 -> 19 on 2026-09-06: `sites/nikatru/subly/privacy.html`, the per-app
- *  privacy notice GENERATED from `apps/subly/privacy.yaml` by
+ *  18 -> 19 on 2026-09-06: `sites/nikatru/subscriptiontracker/privacy.html`, the per-app
+ *  privacy notice GENERATED from `apps/subscriptiontracker/privacy.yaml` by
  *  `tooling/app-yaml/render-privacy.mjs` ([ADR 067] phase 2, unit
  *  `privacy-generators`). RAISED, and the direction matters: an exact floor
  *  tracks the subject, so a page ADDED raises it exactly as a page deleted would
@@ -915,7 +915,7 @@ function dartKey(key) {
  *
  * Two of the 28 were inside `packages/design_system` and are now repointed at
  * `BrandTokens`: the app-wide text theme in `build_app_theme.dart` and the
- * publisher footer in `brand_lockup.dart`. The rest are in `apps/subly`, which
+ * publisher footer in `brand_lockup.dart`. The rest are in `apps/subscriptiontracker`, which
  * this unit does not own and which the chassis-packages work ([ADR 067]
  * decision 2) will move wholesale. So the truthful, checkable statement is not
  * "nothing else declares one" — it is:
@@ -948,23 +948,23 @@ const DART_DECLARING_FILE = DART_OUT;
  *  🔴 EVERY NUMBER HERE MAY ONLY GO DOWN. Raising one is adding a copy of a
  *  brand fact, which is the defect this limb exists to stop; the guard cannot
  *  tell a raised number from a fixed one, so the rule is stated here and the
- *  failure message repeats it. All of these belong to `apps/subly`, whose
+ *  failure message repeats it. All of these belong to `apps/subscriptiontracker`, whose
  *  screens the chassis work moves into packages — at which point the entries
  *  come out one by one and this object empties. */
 const BRAND_FONT_DEBT = {
-  'apps/subly/lib/features/add/add_subscription_sheet.dart': 2,
-  'apps/subly/lib/features/calendar/calendar_screen.dart': 1,
-  'apps/subly/lib/features/cancel/cancel_sheet.dart': 1,
-  'apps/subly/lib/features/detail/subscription_detail_screen.dart': 6,
-  'apps/subly/lib/features/home/home_screen.dart': 4,
-  'apps/subly/lib/features/insights/insights_screen.dart': 1,
-  'apps/subly/lib/features/onboarding/onboarding_screen.dart': 4,
-  'apps/subly/lib/features/scan/scan_screen.dart': 1,
-  'apps/subly/lib/features/settings/settings_screen.dart': 1,
-  'apps/subly/lib/features/shared/widgets.dart': 4,
-  'apps/subly/lib/features/shell/app_shell.dart': 1,
-  'apps/subly/test/brand_footer_parity_test.dart': 8,
-  'apps/subly/test/shared_primitives_test.dart': 4,
+  'apps/subscriptiontracker/lib/features/add/add_subscription_sheet.dart': 2,
+  'apps/subscriptiontracker/lib/features/calendar/calendar_screen.dart': 1,
+  'apps/subscriptiontracker/lib/features/cancel/cancel_sheet.dart': 1,
+  'apps/subscriptiontracker/lib/features/detail/subscription_detail_screen.dart': 6,
+  'apps/subscriptiontracker/lib/features/home/home_screen.dart': 4,
+  'apps/subscriptiontracker/lib/features/insights/insights_screen.dart': 1,
+  'apps/subscriptiontracker/lib/features/onboarding/onboarding_screen.dart': 4,
+  'apps/subscriptiontracker/lib/features/scan/scan_screen.dart': 1,
+  'apps/subscriptiontracker/lib/features/settings/settings_screen.dart': 1,
+  'apps/subscriptiontracker/lib/features/shared/widgets.dart': 4,
+  'apps/subscriptiontracker/lib/features/shell/app_shell.dart': 1,
+  'apps/subscriptiontracker/test/brand_footer_parity_test.dart': 8,
+  'apps/subscriptiontracker/test/shared_primitives_test.dart': 4,
 };
 
 /** Tracked `.dart` files on this tree, 2026-09-05. Applied ONLY when the root

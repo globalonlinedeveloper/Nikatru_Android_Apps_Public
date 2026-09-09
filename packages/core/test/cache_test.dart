@@ -150,7 +150,7 @@ void main() {
           items: <Entitlement>[
             Entitlement(
               entitlement: 'pro',
-              productId: 'subly_pro',
+              productId: 'subscriptiontracker_pro',
               store: 'paddle',
               isActive: true, // no expiresAt => lifetime
             ),
@@ -179,7 +179,7 @@ void main() {
       expect(back, isNotNull);
       expect(back!.appId, 'fixture');
       expect(back.isPro, isTrue);
-      expect(back.items.single.productId, 'subly_pro');
+      expect(back.items.single.productId, 'subscriptiontracker_pro');
     });
 
     test('lifetime entitlement stays Pro offline indefinitely', () async {
@@ -276,13 +276,13 @@ void main() {
   // read, and null expiry in this class means LIFETIME. So an unreadable
   // `expires_at` silently granted a permanent entitlement — offline, forever,
   // with nothing logged. The server had the mirror-image bug in
-  // services/subly-api/src/routes/entitlements.ts (`Number.isNaN(exp) ? true`),
+  // services/subscriptiontracker-api/src/routes/entitlements.ts (`Number.isNaN(exp) ? true`),
   // which is why both ends are fixed and pinned together.
   // ───────────────────────────────────────────────────────────────────────────
   group('Entitlement.fromJson fails CLOSED on an undecidable expiry', () {
     Map<String, dynamic> row(Object? expiresAt) => <String, dynamic>{
           'entitlement': 'pro',
-          'product_id': 'subly_pro_monthly',
+          'product_id': 'subscriptiontracker_pro_monthly',
           'store': 'APP_STORE',
           'is_active': true,
           'expires_at': expiresAt,
@@ -318,7 +318,7 @@ void main() {
       // divergence: `DateTime.tryParse('2026-13-45T00:00:00Z')` succeeds and
       // rolls the components over, while the server end of this same wire uses
       // JS `Date.parse`, which returns NaN and denies (see
-      // services/subly-api/test/entitlements.test.ts).
+      // services/subscriptiontracker-api/test/entitlements.test.ts).
       //
       // It is left alone deliberately. The defect being fixed is "undecidable ⇒
       // FOREVER"; a rolled-over date is decidable and still EXPIRES, so the
@@ -382,7 +382,7 @@ void main() {
   group('Entitlements fails CLOSED end to end', () {
     test('is_pro:true with only an unreadable line item is NOT Pro', () {
       final Entitlements ents = Entitlements.fromJson(<String, dynamic>{
-        'app_id': 'subly',
+        'app_id': 'subscriptiontracker',
         'is_pro': true,
         'entitlements': <dynamic>[
           <String, dynamic>{
@@ -411,7 +411,7 @@ void main() {
         true,
       ]) {
         final Entitlements ents = Entitlements.fromJson(<String, dynamic>{
-          'app_id': 'subly',
+          'app_id': 'subscriptiontracker',
           'is_pro': true,
           'entitlements': bad,
         });
@@ -425,7 +425,7 @@ void main() {
       // saying "Pro, no dated line items". Denying that would revoke a real
       // lifetime grant, so the guard above must not have swallowed it.
       final Entitlements ents = Entitlements.fromJson(<String, dynamic>{
-        'app_id': 'subly',
+        'app_id': 'subscriptiontracker',
         'is_pro': true,
         'entitlements': <dynamic>[],
       });
@@ -438,7 +438,7 @@ void main() {
       // as an undated lifetime grant — so discarding the only (broken) item
       // would have unlocked Pro. Fail-open one level up from the one just fixed.
       final Entitlements ents = Entitlements.fromJson(<String, dynamic>{
-        'app_id': 'subly',
+        'app_id': 'subscriptiontracker',
         'is_pro': true,
         'entitlements': <dynamic>['not-an-object'],
       });
@@ -449,7 +449,7 @@ void main() {
 
     test('one broken item does not sink a second, valid one', () {
       final Entitlements ents = Entitlements.fromJson(<String, dynamic>{
-        'app_id': 'subly',
+        'app_id': 'subscriptiontracker',
         'is_pro': true,
         'entitlements': <dynamic>[
           <String, dynamic>{
@@ -468,12 +468,12 @@ void main() {
       // The end-to-end statement: this is exactly what an on-disk cache holds.
       final SecureStore s = InMemorySecureStore(<String, String>{
         'nikatru.entitlements': jsonEncode(<String, dynamic>{
-          'app_id': 'subly',
+          'app_id': 'subscriptiontracker',
           'is_pro': true,
           'entitlements': <dynamic>[
             <String, dynamic>{
               'entitlement': 'pro',
-              'product_id': 'subly_pro',
+              'product_id': 'subscriptiontracker_pro',
               'store': 'APP_STORE',
               'is_active': true,
               'expires_at': 'not-a-date',
@@ -492,7 +492,7 @@ void main() {
       // re-reads as Pro after one persist cycle would reopen the hole through
       // the cache instead of through the wire.
       final Entitlements poisoned = Entitlements.fromJson(<String, dynamic>{
-        'app_id': 'subly',
+        'app_id': 'subscriptiontracker',
         'is_pro': true,
         'entitlements': <dynamic>[
           <String, dynamic>{

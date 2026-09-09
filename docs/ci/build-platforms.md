@@ -30,12 +30,12 @@ Web and Linux do build locally; they run here too so one green run answers
 
 Also gate release tags, where "it built on my machine" is not good enough.
 
-`<app>-v*`, not `subly-v*` — widened 2026-08-06 with the matrix refactor for
+`<app>-v*`, not `subscriptiontracker-v*` — widened 2026-08-06 with the matrix refactor for
 [9]R-1. The old glob was the last app-specific string left in this file after
 every path became a matrix value, and it is the half nobody would notice:
 tagging `probe-v1.0.0` would have produced NO six-platform proof and no
 error, because a tag that matches no filter is simply not a trigger. The
-widening is strictly additive — every `subly-v*` tag still matches — and
+widening is strictly additive — every `subscriptiontracker-v*` tag still matches — and
 `android-signing.mjs` derives "this is a release" from the `refs/tags/`
 PREFIX, never from the app slug, so the signing posture is unchanged.
 
@@ -255,7 +255,7 @@ nine days slower than a human dispatching the workflow once.
 
 ### before step **Resolve the workspace**
 
-apps/subly is a pub WORKSPACE member: resolution happens at the repo
+apps/subscriptiontracker is a pub WORKSPACE member: resolution happens at the repo
 root, not in the app directory.
 
 ### before step **Derive the release line from pubspec**
@@ -296,7 +296,7 @@ a check on the value could only ever run where the secret exists.
 
 ✅ RELEASE ATTRIBUTION IS SUPPLIED FROM HERE ON — [9]R-2, closed 2026-08-08.
 This note used to read "⬜ RELEASE ATTRIBUTION IS NOT SUPPLIED HERE",
-because `release: 'subly@${AppConfig.appVersion}'` (apps/subly/lib/
+because `release: 'subly@${AppConfig.appVersion}'` (apps/subscriptiontracker/lib/
 main.dart:25) needs an APP_VERSION and this workflow had no release line
 to derive one from — so every crash from every artifact it produced
 reached GlitchTip under the compiled-in default. The `ver` step above is
@@ -403,7 +403,7 @@ start.
 
 ── the Android UPLOAD KEY ───────────────────────────────────────────────
 🔴 THIS STEP IS THE FIX FOR THE DEFECT THAT WOULD HAVE FAILED THE FIRST
-PLAY SUBMISSION. apps/subly/android/app/build.gradle.kts has read a real
+PLAY SUBMISSION. apps/subscriptiontracker/android/app/build.gradle.kts has read a real
 keystore from `android/key.properties` or from four environment variables
 for weeks, falling back to the debug signing config when none is supplied.
 NOTHING IN CI SUPPLIED THEM — the comment that used to sit here said so in
@@ -577,7 +577,7 @@ than as an unreadable archive.
 ### in step **Every native library is aligned for a 16 KB memory page**, above `- uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4`
 
 🔴 THE POSTURE IS IN THE ARTIFACT NAME, and that is the "labelled, not
-indistinguishable" half of the fix. A downloaded `subly-linux-web-android`
+indistinguishable" half of the fix. A downloaded `subscriptiontracker-linux-web-android`
 said nothing about whether its .aab could be uploaded anywhere; a
 `…-debug-signed-build-proof` cannot be mistaken for a release by anyone
 reading the run's artifact list.
@@ -671,7 +671,7 @@ the tree produced was a ".exe" bundle directory, so the green "Windows
 builds" tick was a proof about an artifact the Microsoft Store does not
 take. Same shape as the .apk/.aab gap recorded one row up for Play.
 
-`msix_config` in apps/subly/pubspec.yaml sets `store: true`, so this
+`msix_config` in apps/subscriptiontracker/pubspec.yaml sets `store: true`, so this
 produces an UNSIGNED store package: the register's keyKind for this row is
 "none" because the Store re-signs. Nothing here holds a certificate and
 nothing here needs one — which is what makes this the cheapest real store
@@ -683,7 +683,7 @@ and `output_name`, which is what the produced file is called. There is no
 workflow-level expression that can name it, because the fact is not in
 this file and not in the matrix; it is in the app. So the upload below
 globs `*.msix` under the app's msix output_path instead of naming
-`subly.msix`. That is generic AND honest: `if-no-files-found: error`
+`subscriptiontracker.msix`. That is generic AND honest: `if-no-files-found: error`
 still fails the leg if an app's msix_config produced nothing. What stays
 app-specific is the CONTENT of msix_config, and `assert-store-metadata.mjs`
 already compares the identity a channel row declares against what each
@@ -948,7 +948,7 @@ the thing they operate on does not outlive the job. Every one of them is
 reachable from here; none was before.
 
 THE POSTURE IS IN THE NAME, for the reason recorded on the Android
-upload above: `subly-ios-unsigned-build-proof` cannot be mistaken for a
+upload above: `subscriptiontracker-ios-unsigned-build-proof` cannot be mistaken for a
 submittable build by anyone reading the run's artifact list, and today
 it is exactly what it says — apple-signing.mjs exports
 `unsigned-build-proof` when the four Apple secrets are absent, which
@@ -1164,7 +1164,7 @@ the question being asked.
 
 ⬜ NOT YET LOAD-BEARING, WHICH IS PRECISELY WHY IT IS BEING CLOSED NOW:
 with a staged `dist`, `release-manifest.mjs --emit-environments` omits
-`subly-windows-direct` while that channel's signing posture is SENTINEL, so
+`subscriptiontracker-windows-direct` while that channel's signing posture is SENTINEL, so
 the loop in the step below iterates over nothing and no ledger row is
 written today — the blind spot arms itself the day the code-signing pin is
 filled in, and closing it then costs a release.
@@ -1188,7 +1188,7 @@ would rightly refuse a store row with no --state and no --listing-url.
 ⚠️ SCOPED TO THE `app` SURFACE, said out loud since 2026-09-06: the
 emitter asks which surface `--app <id>` is on before it reads `kind`, so
 the browser-store rows added for the extension surface can never reach
-THIS loop (`--emit-environments dist --app subly` over a stray `.zip`
+THIS loop (`--emit-environments dist --app subscriptiontracker` over a stray `.zip`
 refuses, naming the surface). The extension lane in extensions.yml runs
 its own loop, over rows that ARE `kind: "store"`, and records them with
 `--state pending_manual_publish` — the release is their artifact's origin
@@ -1326,7 +1326,7 @@ left standing rather than rewritten; read this section as the correction.
 **1. The table says 13 release builds. It is 14.** [#518] landed a real `submit:` job in
 `submit-windows-store.yml` after this unit's last merge of `main`, carrying a
 `flutter build windows --release` this unit had never seen. It now obfuscates into
-`build/symbols/windows` and retains `symbols-subly-windows-store` for 90 days, placed **before** the
+`build/symbols/windows` and retains `symbols-subscriptiontracker-windows-store` for 90 days, placed **before** the
 store submission for the reason the Play and Snap lanes already state. So the row
 `submit-windows-store.yml · dry-run` reads **`dry-run`, `submit`**, and the guard prints
 `14 release build(s) on an obfuscatable target, 14 obfuscating`.

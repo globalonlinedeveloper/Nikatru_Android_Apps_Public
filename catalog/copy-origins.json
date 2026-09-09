@@ -61,7 +61,7 @@
     {
       "match": "apps/*/store/**",
       "kind": "per-slot",
-      "why": "Store listing metadata - title, description, screenshots, age ratings, per-store declarations. Measured 2026-08-18: 59 tracked files under apps/subly/store/, in five per-store subdirectories (android-play, ios-appstore, linux-snap, macos-appstore, windows-store). Differing is what they are FOR."
+      "why": "Store listing metadata - title, description, screenshots, age ratings, per-store declarations. Measured 2026-08-18: 59 tracked files under apps/subscriptiontracker/store/, in five per-store subdirectories (android-play, ios-appstore, linux-snap, macos-appstore, windows-store). Differing is what they are FOR."
     },
     {
       "match": "apps/*/@targetPlatformDir/**",

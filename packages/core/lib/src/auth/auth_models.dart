@@ -3,7 +3,7 @@
 /// Pure Dart, in `core`, so the auth CONTRACT is shared by every app and every
 /// stamped clone while the SDK stays behind a swappable implementation
 /// (`packages/auth_supabase` today). Lifted verbatim from
-/// `apps/subly/lib/data/auth/` — Subly re-exports these, so no feature file
+/// `apps/subscriptiontracker/lib/data/auth/` — Subly re-exports these, so no feature file
 /// changed (the F0-4 shim pattern).
 library;
 

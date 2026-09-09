@@ -6,7 +6,7 @@
 // broken version (`assert-seams-wired.mjs`, whose caller check matched the
 // function's own declaration): a fixture you write encodes the same
 // misunderstanding as the guard you write. The copy below carries the real
-// brick, the real apps/subly, the real root pubspec and — since [ADR 065]
+// brick, the real apps/subscriptiontracker, the real root pubspec and — since [ADR 065]
 // chassis step 2 — the real shared confirmation widget, so a mutation here is
 // the mutation a person would actually make.
 //
@@ -20,7 +20,7 @@
 //   the chassis presence COVERAGE LOST             "DELETING THE WIDGET"
 //   the chassis line floor                         "STUBBING IT BELOW ITS OWN FLOOR"
 //   limb 3 back to a bare `showDialog` substring   "THE OTHER DIALOGS…", "DROPPING barrierDismissible…"
-//   the per-root local-branch property loop        the 3 apps/subly-carries-its-own cases
+//   the per-root local-branch property loop        the 3 apps/subscriptiontracker-carries-its-own cases
 //   the branch dropped from the passing line       "names both roots AND the branch", "STEP 4 DONE RIGHT"
 //
 // Every new case is on that table. A case that appears on none of these rows is
@@ -38,7 +38,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-deletion-control.mjs');
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
-const SUBLY = 'apps/subly';
+const SUBLY = 'apps/subscriptiontracker';
 const BRICK_SETTINGS = `${BRICK}/lib/features/settings/settings_screen.dart`;
 const SUBLY_SETTINGS = `${SUBLY}/lib/features/settings/settings_screen.dart`;
 // The file that DECLARES the erasure hook, not the barrel that re-exports it.
@@ -72,7 +72,7 @@ function realTree() {
   // checkout and the chassis LINE FLOOR is applied here. The floor is a
   // measurement of the real repository and would mean nothing over a fixture —
   // but this tree is not a fixture: it carries the real brick, the real
-  // apps/subly and the real widget, byte for byte. Leaving the sentinel out
+  // apps/subscriptiontracker and the real widget, byte for byte. Leaving the sentinel out
   // would make the floor the one limb no test could ever reach.
   cpSync(join(REPO, SENTINEL), join(root, SENTINEL));
   // 🔴 AND THE CHASSIS SCREEN PACKAGE, FROM THE REAL TREE ([ADR 067] phase 2,
@@ -131,13 +131,13 @@ describe('the real tree', () => {
       (r) => {
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /2 of 2 root\(s\) offer accounts/);
-        assert.match(r.stdout, /apps\/subly/);
+        assert.match(r.stdout, /apps\/subscriptiontracker/);
         // 🔴 THE PASSING LINE HAS TO SAY WHERE IT LOOKED. Naming the roots and
         // nothing else stayed literally true while every property of the
         // confirmation had left those trees for packages/design_system and
         // gone unchecked — see the guard's header.
         assert.match(r.stdout, /=delegates to the shared confirmation/);
-        assert.match(r.stdout, /apps\/subly=carries its own confirmation/);
+        assert.match(r.stdout, /apps\/subscriptiontracker=carries its own confirmation/);
         assert.match(r.stdout, /holds all 3 propert\(ies\)/);
         assert.match(r.stdout, /floor 90/, 'the tmp tree must count as a full checkout');
       },
@@ -151,7 +151,7 @@ describe('the real tree', () => {
       () => {},
       () => {
         const real = readFileSync(join(REPO, SUBLY_SETTINGS), 'utf8');
-        assert.ok(real.includes('.deleteAccount('), 'apps/subly must really carry the call site');
+        assert.ok(real.includes('.deleteAccount('), 'apps/subscriptiontracker must really carry the call site');
         assert.ok(real.includes('accountDeletionOutcomeOf('), 'and really classify the outcome');
         // And the second subject is the shipped widget, not a stand-in.
         const widget = readFileSync(join(REPO, CHASSIS), 'utf8');
@@ -163,12 +163,12 @@ describe('the real tree', () => {
 });
 
 describe('an app with accounts must SHIP the control', () => {
-  test('🔴 DELETING THE CALL SITE FROM apps/subly FAILS — the exact state before [ADR 027]', () => {
+  test('🔴 DELETING THE CALL SITE FROM apps/subscriptiontracker FAILS — the exact state before [ADR 027]', () => {
     withTree(
       (root) => edit(root, SUBLY_SETTINGS, (s) => s.replaceAll('.deleteAccount(', '.signOut(')),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: no `\.deleteAccount\(` CALL SITE/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: no `\.deleteAccount\(` CALL SITE/);
       },
     );
   });
@@ -343,7 +343,7 @@ describe('the domain filter is derived, and cannot become a waiver', () => {
   test('an app with NO account surface owes nothing, and says so out loud', () => {
     withTree(
       (root) => {
-        // Strip the auth seam from apps/subly entirely — the shape of a future
+        // Strip the auth seam from apps/subscriptiontracker entirely — the shape of a future
         // app that genuinely has no accounts.
         rmSync(join(root, SUBLY, 'lib'), { recursive: true, force: true });
         mkdirSync(join(root, SUBLY, 'lib'), { recursive: true });
@@ -351,7 +351,7 @@ describe('the domain filter is derived, and cannot become a waiver', () => {
       },
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /apps\/subly — no account surface/);
+        assert.match(r.stdout, /apps\/subscriptiontracker — no account surface/);
         assert.match(r.stdout, /1 of 2 root\(s\) offer accounts/);
       },
     );
@@ -400,7 +400,7 @@ describe('coverage self-checks', () => {
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /COVERAGE LOST/);
-        assert.match(r.stderr, /no Dart source was read under apps\/subly\/lib/);
+        assert.match(r.stderr, /no Dart source was read under apps\/subscriptiontracker\/lib/);
       },
     );
   });
@@ -421,7 +421,7 @@ describe('coverage self-checks', () => {
     // template, which was never the problem.
     withTree(
       (root) =>
-        edit(root, 'pubspec.yaml', (s) => s.replace(/^\s*-\s*apps\/subly\s*$/m, '')),
+        edit(root, 'pubspec.yaml', (s) => s.replace(/^\s*-\s*apps\/subscriptiontracker\s*$/m, '')),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /COVERAGE LOST/);
@@ -550,7 +550,7 @@ describe('the shared confirmation keeps its properties where it now lives', () =
 // ENFORCEMENT FOLLOWS THE BEHAVIOUR, WHICH IS WHAT CHASSIS STEP 4 NEEDS.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('a root that carries its own confirmation owes the properties itself', () => {
-  test('🔴 apps/subly LOSING ITS IN-FLIGHT LOCK FAILS', () => {
+  test('🔴 apps/subscriptiontracker LOSING ITS IN-FLIGHT LOCK FAILS', () => {
     withTree(
       (root) =>
         mutate(root, SUBLY_SETTINGS, (s) =>
@@ -561,13 +561,13 @@ describe('a root that carries its own confirmation owes the properties itself', 
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: its OWN confirmation/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: its OWN confirmation/);
         assert.match(r.stderr, /NOTHING may dismiss it while the request is in flight/);
       },
     );
   });
 
-  test('🔴 apps/subly LOSING ITS SECRET GATE FAILS', () => {
+  test('🔴 apps/subscriptiontracker LOSING ITS SECRET GATE FAILS', () => {
     withTree(
       (root) =>
         mutate(root, SUBLY_SETTINGS, (s) =>
@@ -575,7 +575,7 @@ describe('a root that carries its own confirmation owes the properties itself', 
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: its OWN confirmation/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: its OWN confirmation/);
         assert.match(r.stderr, /INERT until the secret is typed/);
       },
     );
@@ -598,14 +598,14 @@ describe('a root that carries its own confirmation owes the properties itself', 
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /apps\/subly: its OWN confirmation/);
+        assert.match(r.stderr, /apps\/subscriptiontracker: its OWN confirmation/);
         assert.match(r.stderr, /Delegating to `packages\/design_system/);
       },
     );
   });
 
   test('✅ STEP 4 DONE RIGHT — the copy emptied AND the tree delegates — STAYS GREEN', () => {
-    // The point of the whole design. When chassis step 4 takes apps/subly's own
+    // The point of the whole design. When chassis step 4 takes apps/subscriptiontracker's own
     // dialog away, the properties are still enforced — over the widget it now
     // renders — and the passing line SAYS the branch flipped, so the move is
     // visible in the log rather than inferred. Without the last replacement
@@ -631,7 +631,7 @@ describe('a root that carries its own confirmation owes the properties itself', 
         ),
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /apps\/subly=delegates to the shared confirmation/);
+        assert.match(r.stdout, /apps\/subscriptiontracker=delegates to the shared confirmation/);
       },
     );
   });

@@ -51,7 +51,7 @@ const ENV = {
   APP_ID: 'platform',
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-key',
-  APP_ERASURE_ENDPOINTS: 'subly=https://api.nikatru.com',
+  APP_ERASURE_ENDPOINTS: 'subscriptiontracker=https://api.nikatru.com',
 };
 
 /**
@@ -137,7 +137,7 @@ function seeded(): RealDb {
   const db = realPlatformDb();
   db.db.exec(
     `INSERT INTO entitlements (user_id, app_id, entitlement, is_active)
-       VALUES ('${SUBJECT}','subly','pro',1), ('${BYSTANDER}','subly','pro',1)`,
+       VALUES ('${SUBJECT}','subscriptiontracker','pro',1), ('${BYSTANDER}','subscriptiontracker','pro',1)`,
   );
   return db;
 }
@@ -163,7 +163,7 @@ describe('DELETE /v1/account survives a transient D1 reset in the preflight', ()
     expect(remaining(db)).toEqual([BYSTANDER]);
     // …and the erasure ran to its END, which a preflight throw would have
     // prevented: limb 3 relayed and the identity was deleted last.
-    expect((body.apps as Record<string, string>).subly).toBe('deleted');
+    expect((body.apps as Record<string, string>).subscriptiontracker).toBe('deleted');
     expect((body.deleted as Record<string, number>).identity).toBe(1);
   });
 

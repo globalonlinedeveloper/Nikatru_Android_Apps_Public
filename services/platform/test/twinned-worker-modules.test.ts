@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 // either ONE FILE THAT THEY ALL RE-EXPORT, or a set of copies held equal
 // declaration by declaration. Nothing in between, and never unchecked.
 //
-// 🔴 THE CLAIM THAT WAS FALSE. `services/subly-api/src/lib/error-sink.ts` said,
+// 🔴 THE CLAIM THAT WAS FALSE. `services/subscriptiontracker-api/src/lib/error-sink.ts` said,
 // in its own header, that "tooling/ci/assert-worker-error-sink.mjs asserts BOTH
 // copies exist and are wired, so a fix applied to one and not the other is a
 // build failure rather than a discovery." Read that guard: it asserts each copy
@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
 //   · "NO MODULE BOUNDARY EXISTS BETWEEN THE TWO WORKERS." Still true as
 //     written — the Workers are separate npm packages with their own
 //     `package-lock.json` and their own `npm ci` (`ci.yml` jobs
-//     `worker-subly-api`, `worker-platform`), and `pnpm-workspace.yaml` lists
+//     `worker-subscriptiontracker-api`, `worker-platform`), and `pnpm-workspace.yaml` lists
 //     only `sites/_shared` and `tooling/content_pipeline`, so a `workspace:*`
 //     dependency would not resolve. But a bare RELATIVE import needs no package
 //     boundary at all: esbuild inlines it, which is exactly how
@@ -57,7 +57,7 @@ import { describe, it, expect } from 'vitest';
 // the deciding (the ES256 pin, `isKeySetUnavailable`, the KV key and TTL, the
 // bearer parse, the empty-JWKS refusal) and each Worker keeps its own plumbing —
 // which is also what keeps `services/platform`'s "no HS256 fallback" and
-// `services/subly-api`'s `erasureAuth` true, since collapsing those would be a
+// `services/subscriptiontracker-api`'s `erasureAuth` true, since collapsing those would be a
 // security change and not a refactor.
 //
 // ── WHAT THIS FILE NOW HOLDS ────────────────────────────────────────────────
@@ -295,9 +295,9 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'firstRow',
-    carriers: ['subly-api'],
+    carriers: ['subscriptiontracker-api'],
     why:
-      'subly-api reads single rows through this helper in routes/budget.ts and routes/subscriptions.ts. ' +
+      'subscriptiontracker-api reads single rows through this helper in routes/budget.ts and routes/subscriptions.ts. ' +
       'platform calls `stmt.first<T>()` directly (scheduled.ts, lib/mor/store.ts) and has no caller for it, ' +
       'so adding it there would ship an exported function with zero callers — dead code that this repo finds ' +
       'by mutation testing and deletes rather than keeps "for symmetry".',
@@ -305,9 +305,9 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'run',
-    carriers: ['subly-api'],
+    carriers: ['subscriptiontracker-api'],
     why:
-      'Same shape as `firstRow`: used by subly-api routes/subscriptions.ts, while platform calls ' +
+      'Same shape as `firstRow`: used by subscriptiontracker-api routes/subscriptions.ts, while platform calls ' +
       '`stmt.run()` directly in ten places and never imports a wrapper for it.',
   },
 
@@ -320,7 +320,7 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'allRows',
-    carriers: ['platform', 'subly-api'],
+    carriers: ['platform', 'subscriptiontracker-api'],
     why:
       "The brick's backend template ships `src/lib/d1.ts` as a FOUR-LINE STARTER STUB carrying `nowIso` " +
       'alone — that is the only helper a stamped Worker imports (`src/index.ts` for the health route; ' +
@@ -333,7 +333,7 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'uuid',
-    carriers: ['platform', 'subly-api'],
+    carriers: ['platform', 'subscriptiontracker-api'],
     why:
       'Same brick stub, same reason as `allRows` directly above: the stamped Worker starts with `nowIso` ' +
       'only, so `uuid` is absent on stamp day by design. A stamped app that later needs an id generator ' +
@@ -343,7 +343,7 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'TRANSIENT_D1_MESSAGES',
-    carriers: ['platform', 'subly-api'],
+    carriers: ['platform', 'subscriptiontracker-api'],
     why:
       'Same brick stub, same reason as `allRows`, `uuid` and `todayYmd` below — and MEASURED, not assumed, on ' +
       '2026-09-06: a probe was stamped with `mason make app -c tooling/bricks/app/_probe_backend_vars.json` ' +
@@ -357,7 +357,7 @@ const DECLARED_SOLE_OWNERS: SoleOwner[] = [
   {
     module: 'd1.ts',
     declaration: 'todayYmd',
-    carriers: ['platform', 'subly-api'],
+    carriers: ['platform', 'subscriptiontracker-api'],
     why:
       'Same brick stub, same reason as `allRows` and `uuid` above. Measured, not assumed: copying the ' +
       'brick stub to a scratch `services/probe2-api/` on 2026-08-17 and running this file reported exactly ' +

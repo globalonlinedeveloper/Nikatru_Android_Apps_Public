@@ -10,7 +10,7 @@
     "compared the two. At the moment this register landed the three published pages and the code disagreed",
     "in four independent places, and no build anywhere could go red over any of them:",
     "",
-    "  · services/subly-api/src/routes/webhooks.ts declares POST /revenuecat. RevenueCat is named in no",
+    "  · services/subscriptiontracker-api/src/routes/webhooks.ts declares POST /revenuecat. RevenueCat is named in no",
     "    published page and in no ADR.",
     "  · [ADR 004] LOCKED Paddle as the merchant of record on 2026-07-23. Paddle is named in none of",
     "    privacy.html, terms.html or refund.html. ✅ HALF FIXED — terms.html §4 and refund.html §2/§4 now",
@@ -146,7 +146,7 @@
       "",
       "Both are OURS and neither is a vendor tell. `plan` is the thing the user bought, in the chassis's",
       "own vocabulary — deliberately not \"subscription\", which [pipeline C-10] bans from shared code as",
-      "apps/subly's domain noun. `cancel` is the verb. No merchant of record is named in either, and none",
+      "apps/subscriptiontracker's domain noun. `cancel` is the verb. No merchant of record is named in either, and none",
       "can be: the route resolves the subscription from the verified session, never from the request."
     ]
   },
@@ -231,7 +231,7 @@
       "tells": ["account identifier", "account id"]
     },
     "user_content": {
-      "what": "What a person created inside an app — for apps/subly, the subscriptions they track and their budget figures. User-entered content about their own finances.",
+      "what": "What a person created inside an app — for apps/subscriptiontracker, the subscriptions they track and their budget figures. User-entered content about their own finances.",
       "tells": ["what you created inside an app", "subscriptions you track"]
     },
     "payment_instrument": {
@@ -530,7 +530,7 @@
       "privateRecord": null,
       "notes": [
         "🔴 THE ONLY PROVIDER IN THIS REGISTER THAT REAL CODE REACHES, AND IT IS NAMED IN NO PAGE.",
-        "services/subly-api/src/routes/webhooks.ts mounts POST /v1/webhooks/revenuecat, authenticated by a",
+        "services/subscriptiontracker-api/src/routes/webhooks.ts mounts POST /v1/webhooks/revenuecat, authenticated by a",
         "shared secret and fail-closed when the secret is unset. It upserts rows into platform_db",
         "`entitlements` keyed on a RevenueCat app_user_id.",
         "",
@@ -644,7 +644,7 @@
         "🔴 THIS ID EXISTED BEFORE 2026-09-05 AND MEANT SOMETHING ELSE. It carried the CRASH SINK — the",
         "GlitchTip instance — because that was the only thing on the Oracle box anybody had written a row",
         "for. GlitchTip moved to Box B on 2026-09-02 and the sink row moved with it, to `hostinger`. What",
-        "is left is what the id says on its face and what apps/subly/privacy.yaml was already pointing at:",
+        "is left is what the id says on its face and what apps/subscriptiontracker/privacy.yaml was already pointing at:",
         "the vendor whose machine runs the identity stack. So this is not a re-created row, it is the row",
         "the id should have been all along, and it is written down rather than left implicit because the",
         "conflation is what let a wrong host survive a policy signature.",

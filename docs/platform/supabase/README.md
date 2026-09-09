@@ -3,16 +3,16 @@
 One Supabase project authenticates every app in the portfolio. Branding it once brands all apps.
 
 ## What's configured via the Management API (session-applied, re-runnable)
-- **Site URL — TARGET:** `https://nikatru.com/subly` (app #1's web home; OAuth/email links
+- **Site URL — TARGET:** `https://nikatru.com/subscriptiontracker` (app #1's web home; OAuth/email links
   default here). The web build is compiled with `--base-href /<app id>/`, so the app is served
   under a **path prefix on the shared apex**, not at an origin of its own — and the Site URL is
   the app's base path, not `https://nikatru.com`. ⬜ **Not yet applied:** read live on
   **2026-09-09** it still holds `https://subly.nikatru.com`. The cutover PATCHes it; this file
   says what it is being PATCHed to.
-- **Redirect allow-list — TARGET:** `https://nikatru.com/subly/**`,
+- **Redirect allow-list — TARGET:** `https://nikatru.com/subscriptiontracker/**`,
   `https://subly-9cp.pages.dev/**`, `http://localhost:3000/**`, `http://localhost:8080/**`
   (web + local dev). Add per-app web paths as apps ship; add a custom-scheme deep link
-  (e.g. `subly://auth-callback`) once the desktop/mobile apps register one.
+  (e.g. `subscriptiontracker://auth-callback`) once the desktop/mobile apps register one.
   - 🔴 **PER APP, `/<app id>/**` — NEVER the bare apex `https://nikatru.com/**`.** Every app now
     shares ONE origin, and one Supabase project authenticates all of them. An apex wildcard
     would make **every path on nikatru.com** a legal post-auth redirect target: any other app,
@@ -22,8 +22,8 @@ One Supabase project authenticates every app in the portfolio. Branding it once 
     `https://subly-9cp.pages.dev/**`, `http://localhost:3000/**`, `http://localhost:8080/**` —
     the two localhost entries and the Pages entry are already correct and are carried over
     unchanged; only the first entry moves.
-  - 📌 **Correction, 2026-09-09:** this file used to say `https://subly.pages.dev/**`. The LIVE
-    config was right and the DOC was wrong — the Cloudflare Pages project is named `subly` and
+  - 📌 **Correction, 2026-09-09:** this file used to say `https://subscriptiontracker.pages.dev/**`. The LIVE
+    config was right and the DOC was wrong — the Cloudflare Pages project is named `subscriptiontracker` and
     its production alias is **`subly-9cp.pages.dev`**. A reader who "fixed" the live list to
     match this file would have deleted the only entry that lets a preview deployment complete a
     sign-in.

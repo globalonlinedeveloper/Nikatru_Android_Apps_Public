@@ -27,7 +27,7 @@
 //   2. every d1_databases / kv_namespaces / r2_buckets entry in EVERY wrangler
 //      config in the repo, PARSED as JSONC. ⚠️ Repo-wide deliberately:
 //      assert-clone-contract.mjs reads only services/<app>-api/wrangler.jsonc,
-//      so services/subly-api is invisible to it — borrowing that walk would have
+//      so services/subscriptiontracker-api is invisible to it — borrowing that walk would have
 //      inherited the blind spot and reported full coverage of a subset.
 //   3. every KV binding a Cloudflare Pages Function calls. These are bound in
 //      the dashboard, not in any config here, and one of them holds the only
@@ -621,7 +621,7 @@ for (const s of stores) {
     // pass through by design, and they MUST: composing `stripStringLiterals` (same
     // module) on top of this read takes 2 of the 14 .ts/.js pairs RED —
     // `rollup_state` in services/platform/src/scheduled.ts and `budget_categories`
-    // in services/subly-api/src/routes/budget.ts — because the anchors here are
+    // in services/subscriptiontracker-api/src/routes/budget.ts — because the anchors here are
     // SQL inside quoted strings. That regex handles '…' and "…" and does NOT touch
     // backticks; a stripper that also blanked template literals would take 10 of
     // the 14 red. Both numbers re-measured 2026-08-21. ⚠️ CORRECTED THE SAME DAY:

@@ -65,7 +65,7 @@
 // ⚠️ NEVER A GREP, ON EITHER LIMB.
 //
 // This repo has already shipped a guard whose `grep '"r2_buckets"'` matched the
-// TEMPLATE COMMENT EXPLAINING WHY THERE IS NO r2_buckets, and subly-api's own
+// TEMPLATE COMMENT EXPLAINING WHY THERE IS NO r2_buckets, and subscriptiontracker-api's own
 // config still ends with a paragraph headed `NO "r2_buckets"`. The same trap is
 // loaded here twice over: the platform config's header says the word "cron"
 // twice in prose, and any file documenting this rule will contain the very
@@ -108,7 +108,7 @@
 //   · A `wrangler.toml`. TOML is not parsed structurally by anything in this
 //     repo and this guard will not grep one as a consolation prize — a .toml
 //     config is a HARD FAILURE telling the author to convert it, which is what
-//     subly-api already did on its v3→v4 migration. Silently skipping it would
+//     subscriptiontracker-api already did on its v3→v4 migration. Silently skipping it would
 //     be the exact "scan reached nothing, printed ok" shape.
 //   · ANYTHING NOT IN THE REPO. An alarm added to a Worker through the
 //     Cloudflare dashboard, or a Worker deployed from another tree, is outside
@@ -169,7 +169,7 @@ const ALARM_RULES = [
     // 🔴 THIS PATTERN WAS WRONG WHEN IT WAS FIRST WRITTEN, AND ONLY MUTATING THE
     // REAL TREE SHOWED IT. The first version ended `\)\s*\{` and therefore
     // missed `async alarm(): Promise<void> {` — the ordinary TypeScript
-    // spelling, and the one the planted Durable Object in services/subly-api
+    // spelling, and the one the planted Durable Object in services/subscriptiontracker-api
     // actually used. Three sibling rules fired on that mutation, so the guard
     // went red and the miss was invisible in the exit code; it showed up only as
     // "3 problems" where 4 were expected. A fixture written by the same hand
@@ -304,7 +304,7 @@ for (const c of configs) {
     problems.push(
       `${c} is a wrangler.toml. Nothing in this repo parses TOML structurally, and this guard will not ` +
         'grep one instead — a text scan of a config is the defect that matched a comment explaining why ' +
-        'a binding was absent. Convert it to wrangler.jsonc (services/subly-api already did on its v3→v4 ' +
+        'a binding was absent. Convert it to wrangler.jsonc (services/subscriptiontracker-api already did on its v3→v4 ' +
         'migration) so its durable_objects and migrations blocks can be read as structure.',
     );
     continue;

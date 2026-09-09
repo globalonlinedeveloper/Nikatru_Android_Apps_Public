@@ -259,13 +259,36 @@ export const PROBES = Object.freeze({
     uniqueness: GLOBAL,
     async run(ctx) {
       const { http, slug, snapDeclared } = ctx;
+      // 🔴 THE NAME PROBED IS THE NAME THAT WILL BE REGISTERED, AND UNTIL
+      // 2026-09-09 IT WAS NOT. This probe queried `slug` — the display name with
+      // every non-alphanumeric stripped — while the string `snapcraft register`
+      // actually claims is the one in `snap-name.txt`. So the availability
+      // verdict was about a name nobody was going to ask for: on this app it
+      // answered for "nikatrusubscriptiontracker" while the tree shipped
+      // "nikatru-subscription-tracker". A 404 on the wrong string is not a
+      // measurement of anything, which is the one thing a clearance record may
+      // never contain. `snapDeclared` was already in scope and unused for this.
+      const target = snapDeclared?.value ? norm(snapDeclared.value) : slug;
       // REPO CONSISTENCY. The snap name IS the identifier, and it lives in a
       // plain text file the register does not model as an `identity` block — so
       // `read-identity.mjs` cannot answer for it and this is the one place the
       // disagreement can be seen. A rename that updates four of five files is
       // exactly the defect [10]D-3 exists to catch.
+      //
+      // ⚠️ COMPARED SEPARATOR-INSENSITIVELY, AND THAT IS A NARROWING WITH A
+      // REASON. `slug` cannot contain a hyphen (it is built by stripping every
+      // non-alphanumeric), but a snap name MAY and conventionally DOES — so a
+      // byte comparison against `slug` reported every correctly hyphenated name
+      // as INCONSISTENT. A guard that fires on correct input is a guard someone
+      // switches off; this repo has that failure on record
+      // (assert-desktop-runner-identity.mjs's header states the same rule).
+      // Folding the separators keeps the defect [10]D-3 is for — a rename that
+      // leaves this file holding the OLD STEM ("subscriptiontracker" against
+      // "nikatrusubscriptiontracker") still differs in its letters and still
+      // fires — while letting "nikatru-subscription-tracker" pass.
+      const fold = (s) => norm(s).replace(/[^a-z0-9]+/g, '');
       const drift =
-        snapDeclared && norm(snapDeclared.value) !== norm(slug)
+        snapDeclared && fold(snapDeclared.value) !== fold(slug)
           ? [`⛔ INCONSISTENT: ${snapDeclared.rel} declares "${snapDeclared.value}" and this name implies "${slug}". One app_id derives every store identity ([pipeline 10]D-3); a rename that leaves this file behind ships a snap under the old name.`]
           : [];
       const H = { 'Snap-Device-Series': '16' };
@@ -274,23 +297,23 @@ export const PROBES = Object.freeze({
       if (!ctl.green) {
         return answer(UNDETERMINED, 'RED CONTROL FAILED — api.snapcraft.io did not return the known-present control snap, so a 404 on this run means nothing.', drift, ctl);
       }
-      const r = await http(`https://api.snapcraft.io/v2/snaps/info/${encodeURIComponent(slug)}`, { headers: H });
+      const r = await http(`https://api.snapcraft.io/v2/snaps/info/${encodeURIComponent(target)}`, { headers: H });
       if (r.status === 200) {
         return answer(
           PROVEN_TAKEN,
           'Snap names are GLOBALLY UNIQUE and first-come. A published snap already holds this name.',
-          [`https://snapcraft.io/${slug} — publisher ${r.json?.snap?.publisher?.['display-name'] ?? 'unknown'}`, ...drift],
+          [`https://snapcraft.io/${target} — publisher ${r.json?.snap?.publisher?.['display-name'] ?? 'unknown'}`, ...drift],
           ctl,
         );
       }
       if (r.status === 404) {
         return answer(
           UNDETERMINED,
-          `No PUBLISHED snap holds "${slug}" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED ` +
+          `No PUBLISHED snap holds "${target}" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED ` +
             'returns EXACTLY this same 404 — the snap namespace is claimed by registration, not by publication — ' +
-            `so this is "no published snap", NOT "registerable". MANUAL STEP: \`snapcraft register --dry-run ${slug}\` ` +
+            `so this is "no published snap", NOT "registerable". MANUAL STEP: \`snapcraft register --dry-run ${target}\` ` +
             "under the owner's account.",
-          [`https://api.snapcraft.io/v2/snaps/info/${slug} — HTTP 404`, ...drift],
+          [`https://api.snapcraft.io/v2/snaps/info/${target} — HTTP 404`, ...drift],
           ctl,
         );
       }

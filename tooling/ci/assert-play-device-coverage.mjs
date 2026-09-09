@@ -46,7 +46,7 @@
 //
 // ── 🔴 ROOT 2: THE FACTORY. A CHECK THAT CANNOT SEE THE TEMPLATE IS THE BUG ──
 // Everything above ranges over `catalog/apps.json` — REGISTERED apps. Measured
-// 2026-09-05 on `main` @ a9b04696: that is ONE app, `subly`, whose tablet set a
+// 2026-09-05 on `main` @ a9b04696: that is ONE app, `subscriptiontracker`, whose tablet set a
 // human captured by hand on 2026-08-27. The template every future app is stamped
 // from, `tooling/bricks/app/__brick__/apps/{{app_id}}/store/android-play/`,
 // carried `screenshots/` AND NO `screenshots-tablet/` AT ALL — so every app

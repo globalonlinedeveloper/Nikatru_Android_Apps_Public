@@ -5,7 +5,7 @@
 // naming one database mean the same one.
 //
 // ⚠️ REAL-TREE MUTATIONS FIRST (2026-07-29, three, predictions written first):
-//   M1 the placeholder put back into services/subly-api  -> caught
+//   M1 the placeholder put back into services/subscriptiontracker-api  -> caught
 //   M2 subly_db given a different id in ONE of its two    -> caught, naming both
 //      configs                                               configs and both ids
 //   M3 the brick template left untouched                  -> still PASSES, which
@@ -71,7 +71,7 @@ const good = {
     { binding: 'PLATFORM_DB', name: 'platform_db', id: PLATFORM },
     { binding: 'SUBLY_DB', name: 'subly_db', id: SUBLY },
   ],
-  'subly-api': [
+  'subscriptiontracker-api': [
     { binding: 'APP_DB', name: 'subly_db', id: SUBLY },
     { binding: 'PLATFORM_DB', name: 'platform_db', id: PLATFORM },
   ],
@@ -89,7 +89,7 @@ describe('assert-d1-bindings', () => {
   test('FAILS on the all-zeros placeholder in a deployable config', () => {
     const { code, out } = run(tree({
       ...good,
-      'subly-api': [{ binding: 'APP_DB', name: 'subly_db', id: '00000000-0000-0000-0000-000000000000' }],
+      'subscriptiontracker-api': [{ binding: 'APP_DB', name: 'subly_db', id: '00000000-0000-0000-0000-000000000000' }],
     }));
     assert.equal(code, 1);
     assert.match(out, /still carries the all-zeros placeholder/);
@@ -100,7 +100,7 @@ describe('assert-d1-bindings', () => {
   test('FAILS when one database name maps to two different ids', () => {
     const { code, out } = run(tree({
       ...good,
-      'subly-api': [{ binding: 'APP_DB', name: 'subly_db', id: '11111111-2222-3333-4444-555555555555' }],
+      'subscriptiontracker-api': [{ binding: 'APP_DB', name: 'subly_db', id: '11111111-2222-3333-4444-555555555555' }],
     }));
     assert.equal(code, 1);
     assert.match(out, /database "subly_db" is declared with 2 DIFFERENT ids/);
@@ -111,7 +111,7 @@ describe('assert-d1-bindings', () => {
   test('FAILS when one id answers to two different names', () => {
     const { code, out } = run(tree({
       platform: [{ binding: 'A', name: 'old_name', id: PLATFORM }],
-      'subly-api': [{ binding: 'B', name: 'new_name', id: PLATFORM }],
+      'subscriptiontracker-api': [{ binding: 'B', name: 'new_name', id: PLATFORM }],
     }));
     assert.equal(code, 1);
     assert.match(out, /is declared under 2 DIFFERENT names/);

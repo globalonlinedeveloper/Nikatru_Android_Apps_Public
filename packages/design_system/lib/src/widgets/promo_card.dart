@@ -217,7 +217,7 @@ class PromoCard extends StatelessWidget {
                       //     and the action finally land together, and
                       //     `IconButton`'s inner node SURVIVES as a nested
                       //     tappable with no name: a NAKED CONTROL by
-                      //     `apps/subly/test/a11y_semantics_test.dart`'s own
+                      //     `apps/subscriptiontracker/test/a11y_semantics_test.dart`'s own
                       //     definition, hidden inside a control that reads
                       //     correctly.
                       //

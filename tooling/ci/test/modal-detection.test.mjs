@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-modal-detection.mjs');
 
-const SUBLY = 'apps/subly';
+const SUBLY = 'apps/subscriptiontracker';
 const CAPTURE = `${SUBLY}/integration_test/store_screenshots_test.dart`;
 const APP_TEST = `${SUBLY}/integration_test/app_test.dart`;
 
@@ -778,14 +778,14 @@ describe('assert-modal-detection · the shared chassis is inside the domain [ADR
         assert.match(r.out, /assert-modal-detection: ok/);
         // NINE since [ADR 071] added `packages/chassis_screens`. The number is
         // the point of the assertion — a root that stops being derived is
-        // exactly how `- apps/subly` once left in silence — so it moves only in
+        // exactly how `- apps/subscriptiontracker` once left in silence — so it moves only in
         // the change that adds or removes a root, and it moved here with one.
         assert.match(r.out, /in 9 root\(s\)/, 'the seven chassis package roots are not being derived');
         assert.match(r.out, /packages\/chassis_screens=\d+\/floor 4/);
         // The split, not only the total: a total is still true of a tree that
-        // lost a root, which is exactly how `- apps/subly` left in silence.
+        // lost a root, which is exactly how `- apps/subscriptiontracker` left in silence.
         assert.match(r.out, /packages\/design_system=\d+\/floor 10/);
-        assert.match(r.out, /apps\/subly=\d+\/floor 40/);
+        assert.match(r.out, /apps\/subscriptiontracker=\d+\/floor 40/);
         assert.match(r.out, /declared per-root floors were applied/);
         const m = r.out.match(/note (\d+) `find\.byType\(` site\(s\) across (\d+) suite file\(s\)/);
         assert.ok(m, `the passing line no longer reports its counts:\n${r.out}`);
@@ -861,7 +861,7 @@ describe('assert-modal-detection · the shared chassis is inside the domain [ADR
     // 🔬 THE HOLE THIS LIMB EXISTS FOR. Every coverage limb before it asks a
     // question about a DERIVED root, so deleting one line from the workspace
     // list slipped past all of them: measured 2026-09-05 on the guard as it
-    // stood, cutting `- apps/subly` took the scan from 349 sites to 80 and
+    // stood, cutting `- apps/subscriptiontracker` took the scan from 349 sites to 80 and
     // printed "ok".
     withTree((root) => cutLine(root, 'pubspec.yaml', '- packages/design_system'), (r) => {
       assert.equal(r.status, 1, r.out);
@@ -907,10 +907,10 @@ describe('assert-modal-detection · the shared chassis is inside the domain [ADR
     // 2 roots became 80 / 7 / 1, exit 0, "ok". 269 sites and 72 files gone,
     // past four COVERAGE LOST limbs, because none of them asks about a root the
     // derivation never produced.
-    withTree((root) => cutLine(root, 'pubspec.yaml', '- apps/subly'), (r) => {
+    withTree((root) => cutLine(root, 'pubspec.yaml', '- apps/subscriptiontracker'), (r) => {
       assert.equal(r.status, 1, r.out);
       assert.match(r.out, /COVERAGE LOST/);
-      assert.match(r.out, /`apps\/subly` is DECLARED here but is not among/);
+      assert.match(r.out, /`apps\/subscriptiontracker` is DECLARED here but is not among/);
       assert.doesNotMatch(r.out, /assert-modal-detection: ok/);
     }, { full: true });
   });

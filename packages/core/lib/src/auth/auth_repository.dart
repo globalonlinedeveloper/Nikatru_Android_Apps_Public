@@ -154,7 +154,7 @@ abstract class AuthRepository {
   // ⚠️ A DEFAULT BODY ONLY REACHES A CLASS THAT `extends` THIS ONE. Dart's
   // `implements` copies the SIGNATURES and none of the bodies, so a double
   // written `implements AuthRepository` does not compile against a member it
-  // has not written out. That is why the test doubles in `apps/subly/test/`
+  // has not written out. That is why the test doubles in `apps/subscriptiontracker/test/`
   // extend rather than implement: one word, and the double inherits refusals it
   // was never going to be asked for instead of eight files of stubs. The two
   // REAL implementations keep `implements` on purpose — a provider must state
@@ -255,7 +255,7 @@ abstract class AuthRepository {
   /// 4's route and does not exist yet — only CORS comments reference it". It
   /// does exist: `services/platform/src/routes/account.ts` is the entry point
   /// (platform_db, then every app's own route, then the identity, in that
-  /// order), and `services/subly-api/src/routes/account.ts` erases that app's own
+  /// order), and `services/subscriptiontracker-api/src/routes/account.ts` erases that app's own
   /// database behind an asymmetric-only boundary. The SPLIT is unchanged and is
   /// still the reason this method promises nothing about the server.
   ///

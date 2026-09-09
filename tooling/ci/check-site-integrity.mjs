@@ -174,7 +174,7 @@ const MIN_FUNCTIONS = 1;
  *  origin — and internal links to those pages written ROOT-RELATIVE (`/x.html`).
  *
  *  Why this form and not extensionless: it is what every already-published
- *  surface says. apps/subly/store/<channel>/privacy-policy-url.txt (five of them,
+ *  surface says. apps/subscriptiontracker/store/<channel>/privacy-policy-url.txt (five of them,
  *  the URL a store reviewer opens), the four page canonicals, every sitemap
  *  <loc>, llms.txt, and sites/nikatru/apps/_template.html's own footer all use
  *  `.html`. Extensionless would have been a defensible choice on an empty tree;
@@ -758,7 +758,7 @@ for (const root of siteRoots) {
   //     so that half keeps its full scope.
   //
   //  2. A LINK TO A `_redirects` SOURCE RESOLVES. `checkout-return.html` links
-  //     `/subly`, which is not a file — it is the permanent commerce address,
+  //     `/subscriptiontracker`, which is not a file — it is the permanent commerce address,
   //     declared in `_redirects`. Before the inversion nothing reached that link
   //     (it has no `.html`), so the limb had never had an opinion about it and
   //     the redirect map was unverified. Reading the map makes the link legal AND
@@ -778,10 +778,10 @@ for (const root of siteRoots) {
 
   //  3. A LINK TO AN APEX ROUTE RESOLVES. 🔴 THE `_redirects` MAP ABOVE STOPPED
   //     BEING THE WHOLE ANSWER ON 2026-09-09. [ADR 075] moved the running app to
-  //     `nikatru.com/<id>`, and the two `/subly …` lines this limb's own comment
+  //     `nikatru.com/<id>`, and the two `/subscriptiontracker …` lines this limb's own comment
   //     cites were DELETED in that change — `_redirects` cannot proxy, so the
   //     prefix is now owned by `functions/_middleware.js`, whose route table is
-  //     `app-routes.json`. `checkout-return.html`'s link to `/subly` still
+  //     `app-routes.json`. `checkout-return.html`'s link to `/subscriptiontracker` still
   //     resolves and now resolves to something better (the application, not a
   //     redirect to a marketing page), but the map that made it legal is gone.
   //
@@ -972,7 +972,7 @@ let appsMarkupFound = false;
 // the pages, and it had ZERO coverage: the string appeared in this file exactly
 // once, inside a comment. It was measurably lying — `sites/nikatru/llms.txt`
 // said "First releases are on the way" and "Status: pre-launch" while
-// `catalog/apps.json` marked `subly` live and
+// `catalog/apps.json` marked `subscriptiontracker` live and
 // `assert-catalog-reachable.mjs` proved its URL answers.
 //
 // 🔴 WHY THIS FAILS WHERE THE HOMEPAGE LIMB ONLY PRINTS. The homepage limb
