@@ -501,7 +501,7 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('is STRUCTURAL — an origin mentioned only in a comment does not satisfy it', () => {
-    const subscriptiontracker = `{\n  // ${PAGES} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${RETIRING}" }\n}\n`;
+    const subscriptiontracker = `{\n  // ${PAGES} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${APEX}" }\n}\n`;
     const { code, out } = run('assert-cors-allowlist.mjs', {
       cwd: build('cors-comment', { subscriptiontracker }),
     });

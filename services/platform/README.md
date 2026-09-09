@@ -90,8 +90,11 @@ because a caller can get them wrong in ways the others do not offer.)
   `0001_entitlements.sql` (relocated from subscriptiontracker-api to fix the footgun of a
   platform_db migration living in an APP_DB dir), then `0002_analytics`,
   `0003_cron_heartbeat`, `0004_money_rail`, `0005_cancellation_requests`,
-  `0006_erasure_reach` and `0007_events_rollup`. Additive-only, enforced by
-  `tooling/ci/check-migrations.mjs`.
+  `0006_erasure_reach`, `0007_events_rollup` and
+  `services/platform/migrations/0008_app_id_slug_rename.sql` (the 2026-09-09 `subly` -> `subscriptiontracker`
+  slug move: a WHERE-scoped backfill of every `app_id` column EXCEPT
+  `consent_artifacts`, which is append-only and keeps the identifier it was
+  granted against). Additive-only, enforced by `tooling/ci/check-migrations.mjs`.
 - **`subly_db`** (binding `SUBLY_DB`) — bound read/write for the renewals fan-out
   only; subscriptiontracker-api owns its own migrations.
 
