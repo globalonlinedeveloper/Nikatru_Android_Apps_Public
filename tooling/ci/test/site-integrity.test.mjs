@@ -184,6 +184,13 @@ const FIXTURE_PROMISE = 'We keep only what this fixture says we keep.';
  *  self-hosted cases go red instead of the requirement quietly relaxing. */
 const SELLER_LEGAL_NAME = 'Rajasekar Selvam';
 
+/** A contact address for the self-hosted fixtures. Deliberately NOT the real
+ *  one: the limb under test is "is a mailto: wrapped against Cloudflare's
+ *  obfuscation", which is a property of the MARKUP and true of any address, and
+ *  a fixture that hard-codes the live support address would go red the day it
+ *  changes for a reason nothing here is about. */
+const FIXTURE_CONTACT_EMAIL = 'contact@example.com';
+
 /** Modules the guard IMPORTS, which therefore have to travel with it into a
  *  self-hosted fixture. `check-site-integrity.mjs` decides it is scanning its
  *  own repository by comparing its own location to the root it was given, so
@@ -223,7 +230,16 @@ function selfHosted(dir, { root = 'a' } = {}) {
     // repository has to carry what this repository is required to carry, or the
     // requirement can be deleted to make a test pass.
     if (f.name === 'terms.html' || f.name === 'privacy.html') {
-      html = html.replace('</main>', `<p>NIKATRU is a proprietorship of ${SELLER_LEGAL_NAME}.</p></main>`);
+      html = html.replace(
+        '</main>',
+        `<p>NIKATRU is a proprietorship of ${SELLER_LEGAL_NAME}.</p>` +
+          // …and the customer-care address in the SERVED bytes, wrapped against
+          // Cloudflare Email Address Obfuscation. Exactly the bargain the line
+          // above strikes: a fixture claiming to BE this repository carries what
+          // this repository is required by rule 4(2) to carry, so the guard's
+          // empty-domain floor cannot be deleted to make these cases pass.
+          `<p><!--email_off--><a href="mailto:${FIXTURE_CONTACT_EMAIL}">${FIXTURE_CONTACT_EMAIL}</a><!--/email_off--></p></main>`,
+      );
     }
     writeFileSync(abs, html);
   }
