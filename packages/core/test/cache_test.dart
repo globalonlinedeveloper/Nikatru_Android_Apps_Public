@@ -182,18 +182,33 @@ void main() {
       expect(back.items.single.productId, 'subscriptiontracker_pro');
     });
 
-    test('lifetime entitlement stays Pro offline indefinitely', () async {
+    test('a lifetime entitlement is BOUNDED by the ceiling, offline included',
+        () async {
       final EntitlementCache cache =
           EntitlementCache(store: InMemorySecureStore());
-      // ⚠️ `saveVerified`, and OFFLINE. [pipeline 5]M-8 gave this cache a
-      // staleness ceiling, so "indefinitely" is now conditional on the client
-      // being unable to re-verify — which is exactly what an OFFLINE user is.
-      // The same call with connectivity available re-locks after the ceiling,
-      // and that is asserted in the M-8 group below.
+      // ⚠️ `saveVerified`, and OFFLINE. A lifetime grant carries no `expires_at`
+      // so the grace window never applies to it at all — the staleness ceiling
+      // is the ONLY thing that ever stops it, which is why it has to apply
+      // whether or not the device can reach the server. Reversed 2026-09-09
+      // (design §2.4 / G9); this test used to assert "stays Pro indefinitely".
       await cache.saveVerified(lifetime(), now: DateTime.utc(2026, 8, 1));
       final Entitlements v = await cache.readValid(
         now: DateTime.utc(2099, 1, 1),
-        connectivityAvailable: false,
+      );
+      expect(v.isPro, isFalse);
+      expect(v.appId, 'fixture'); // still identifies the app for a re-check
+    });
+
+    test('a lifetime entitlement WITHIN the ceiling is still Pro offline',
+        () async {
+      // BOTH DIRECTIONS. Without this half a client that always locks passes,
+      // and always-locking is the fail-closed-and-dead shape this bound exists
+      // to stop: a train tunnel is not a refund.
+      final EntitlementCache cache =
+          EntitlementCache(store: InMemorySecureStore());
+      await cache.saveVerified(lifetime(), now: DateTime.utc(2026, 8, 1));
+      final Entitlements v = await cache.readValid(
+        now: DateTime.utc(2026, 8, 6),
       );
       expect(v.isPro, isTrue);
     });
@@ -607,18 +622,21 @@ void main() {
       expect(e.appId, 'probe');
     });
 
-    test('bound + a YEAR, OFFLINE ⇒ still unlocked — the loss taken on purpose',
+    test('🔒 G9 · a 400-DAY-old cache, OFFLINE ⇒ NOT Pro', () async {
+      final EntitlementCache c = await cacheWithVerifiedPro();
+      final Entitlements e = await c.readValid(
+        now: verified.add(const Duration(days: 400)),
+      );
+      expect(e.isPro, isFalse);
+    });
+
+    test('bound + a YEAR, OFFLINE ⇒ RE-LOCKS too — the bound is not optional',
         () async {
-      // WRITTEN DOWN RATHER THAN DISCOVERED: a user who is refunded and then
-      // never reconnects keeps access indefinitely. Locking a paying user out
-      // because their train went into a tunnel is the larger harm, and it is the
-      // one that happens thousands of times more often.
       final EntitlementCache c = await cacheWithVerifiedPro();
       final Entitlements e = await c.readValid(
         now: verified.add(const Duration(days: 372)),
-        connectivityAvailable: false,
       );
-      expect(e.isPro, isTrue);
+      expect(e.isPro, isFalse);
     });
 
     test(
