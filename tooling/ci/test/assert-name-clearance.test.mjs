@@ -90,11 +90,16 @@ function run(root, args = []) {
 const RECORD = 'apps/subly/name-clearance.json';
 
 describe('assert-name-clearance — the green control', () => {
-  test('M0 GREEN CONTROL — the unmutated fixture exits 0 and PRINTS both owed findings', () => {
+  // 🔴 THIS CONTROL ASSERTS THE GUARD'S BEHAVIOUR, NOT TODAY'S VERDICTS. It used to
+  // also require `PROVEN-TAKEN on ios-appstore` and `NOT BLOCKING TODAY`, which were
+  // true of the record on 2026-09-08 and stopped being true on 2026-09-09: the app
+  // was renamed, the clearance was re-derived, and the new name is taken on nothing.
+  // A green control that fails because a real-world verdict IMPROVED is a control
+  // reporting on the internet rather than on the guard. The wall is still tested —
+  // M3 now SEEDS one rather than borrowing whichever one the tree happens to carry.
+  test('M0 GREEN CONTROL — the unmutated fixture exits 0 and PRINTS the owed finding', () => {
     const r = run(fixture());
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /PROVEN-TAKEN on ios-appstore/, 'the wall must be printed, not swallowed');
-    assert.match(r.out, /NOT BLOCKING TODAY/);
     assert.match(r.out, /QUALIFIED, NOT CLEAR/, 'a null trademark ruling must never print as clear');
     assert.match(r.out, /owner-gated until/);
   });
@@ -109,21 +114,55 @@ describe('assert-name-clearance — the mutation matrix', () => {
     assert.match(r.out, /name-clearance\.mjs "<Name>" --app subly --execute/);
   });
 
+  // 🔴 THE DECLARED NAME IS REWRITTEN, NOT SPELLED. `^name: Subly$` matched nothing
+  // after the 2026-09-09 rename, so the "mutation" silently mutated nothing, the
+  // guard saw an unchanged tree and exited 0, and a red control went green without
+  // anybody typing a waiver. A mutation that no longer mutates is the worst kind of
+  // passing test. `^name: .*$` cannot miss, and the assertion below reads the name
+  // the record actually clears out of the guard's own message.
   test('M2 a record for a DIFFERENT name than app.yaml declares is a finding', () => {
-    const root = fixture(({ readText, writeText }) => writeText('apps/subly/app.yaml', readText('apps/subly/app.yaml').replace(/^name: Subly$/m, 'name: Renamed')));
+    const root = fixture(({ readText, writeText }) => {
+      const before = readText('apps/subly/app.yaml');
+      const after = before.replace(/^name: .*$/m, 'name: Renamed');
+      assert.notEqual(after, before, 'the app.yaml `name:` line must exist for this mutation to mean anything');
+      writeText('apps/subly/app.yaml', after);
+    });
     const r = run(root);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /clears the name "Subly" while apps\/subly\/app\.yaml declares "Renamed"/);
+    assert.match(r.out, /clears the name "[^"]+" while apps\/subly\/app\.yaml declares "Renamed"/);
   });
 
+  // 🔴 THE WALL IS SEEDED HERE, and that is the whole repair. This case used to rely
+  // on the LIVE record carrying a PROVEN-TAKEN on `ios-appstore` — true while the app
+  // was called Subly, false the moment it was renamed to a name nobody had taken. The
+  // arming mutation then had no wall to arm, the guard exited 0, and THE SHARPEST CASE
+  // IN THIS FILE reported that the arming bite worked when it had not been exercised
+  // at all. M3's subject is "a BLOCKED record fails once its channel arms", so M3 must
+  // CONSTRUCT the blocked record; inheriting one from the internet is what broke it.
+  //
+  // The two runs below differ in exactly one property — `served` — over the same
+  // seeded wall, which is what makes the 0 → 1 move attributable to the arming.
+  const withWall = (doc) => {
+    doc.channels['ios-appstore'].verdict = 'PROVEN-TAKEN';
+    doc.channels['ios-appstore'].uniqueness = 'global';
+    doc.channels['ios-appstore'].evidence = ['"Seeded" — Somebody Else — Finance — https://apps.apple.com/us/app/id1'];
+    doc.overall = 'BLOCKED';
+  };
+
   test('M3 THE ARMING BITE — the same BLOCKED record fails the moment its channel arms', () => {
-    const before = run(fixture());
-    assert.equal(before.code, 0, 'green control first');
-    const root = fixture(({ editJson }) =>
+    // green control: the seeded wall on an UNARMED channel is printed, not fatal
+    const before = run(fixture(({ editJson }) => editJson(RECORD, withWall)));
+    assert.equal(before.code, 0, `green control first — a seeded wall on an unarmed channel must still exit 0:
+${before.out}`);
+    assert.match(before.out, /PROVEN-TAKEN on ios-appstore/, 'the wall must be printed, not swallowed');
+    assert.match(before.out, /NOT BLOCKING TODAY/);
+
+    const root = fixture(({ editJson }) => {
+      editJson(RECORD, withWall);
       editJson('tooling/channel-register.json', (doc) => {
         for (const c of doc.channels) if (c.id === 'ios-appstore') c.served = true;
-      }),
-    );
+      });
+    });
     const r = run(root);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /is ARMED/);
