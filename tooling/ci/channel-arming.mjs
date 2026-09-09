@@ -285,3 +285,160 @@ export function armedFatalLines(armed) {
   lines.push('     An armed channel that cannot sign would hand a user an artifact nothing vouches for.');
   return lines;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AVAILABILITY — the SITE's reading of the same register, added 2026-09-09.
+//
+// 🔴 WHY A THIRD FUNCTION AND NOT A WIDER `armingOf`, stated before the code so
+// nobody "simplifies" the two together. `armingOf` answers "would an unsigned
+// artifact from this row reach anybody" — a question about a RELEASE, which is
+// why its second limb requires a `lane`: with no job emitting the format, a
+// release produces nothing to sign badly. A marketing page asks a different
+// question: "should this channel appear in the availability row, and in which of
+// three states". Those answers genuinely differ, and the difference is not
+// cosmetic — on the register as measured 2026-09-09:
+//
+//   ios-appstore    submittable: true · lane: null  →  UNARMED, but it IS shown
+//                                                      as "coming soon", because
+//                                                      the row is a declared,
+//                                                      owner-gated submission
+//                                                      path and saying so is true
+//   apps-gov-in     submittable: false · storefrontKey: null
+//                                                   →  UNARMED and NOT SHOWN
+//
+// Collapsing them would either delete five honest "coming soon" tiles or promote
+// a channel with no submission path at all into the row. They share this file
+// because they share the ONE reading of the register — not because they are the
+// same question.
+//
+// ── THE RULE, IN ONE SENTENCE ────────────────────────────────────────────────
+// Render a tile for every register row where `served || submittable` is true AND
+// the row declares a non-empty `storefrontKey`; mark it LIVE when the app's
+// `listings[storefrontKey]` holds a URL and COMING SOON when that key is present
+// but null. A row that is neither served nor submittable does not render at all.
+//
+// 🔴 `storefrontKey` IS PART OF THE RULE AND NOT AN IMPLEMENTATION DETAIL. It is
+// the storefront's name for the channel and the ONLY join between a register row
+// and `catalog/apps.json`'s `listings` block (assert-catalog-contract.mjs derives
+// the whole listings vocabulary from it). A row with a null `storefrontKey` has
+// no listing to be live or pending, so it cannot have a state, so it cannot have
+// a tile. `apps-gov-in` is both `submittable: false` AND has a null
+// `storefrontKey` today — it fails the rule twice, and becomes the seventh tile
+// the day the register gives it both.
+//
+// ⚠️ THE COUNT IS NEVER TYPED. `shown` and `live` are the lengths of derived
+// lists. The trap this closes is real and was found in the design canvas itself:
+// its placeholder built tiles by slicing a HAND-ORDERED array and marking the
+// first N live, which rendered "App Store" as live when the only live channel is
+// `web`. A row order is not a truth, and a count in markup is a lie waiting for
+// the register to move.
+//
+// ⚠️ NOT A SCANNER, exactly like its neighbours: rows and a listings object in,
+// verdict out. No filesystem, no environment. "Did my scan still reach the tree"
+// belongs to the callers, which read the register and the catalogue themselves.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The three states a channel tile can be in. A fourth would be a design change. */
+export const AVAILABILITY_STATES = Object.freeze(['live', 'soon', 'absent']);
+
+/**
+ * Does this register row render an availability tile, and in what state?
+ *
+ * @param {object} row       a channel-register row
+ * @param {object} listings  the app's `listings` block from catalog/apps.json
+ * @returns {object} `{ id, name, storefrontKey, renders, state, url, why, lost }`
+ *   · `state` is one of AVAILABILITY_STATES; 'absent' means no tile.
+ *   · `lost` is non-null when the row SHOULD have a state and the catalogue
+ *     cannot give it one — a renderable row whose `storefrontKey` the listings
+ *     block does not mention at all. Absent and null are NOT the same answer:
+ *     null is "declared, not live yet", absent is "nobody has decided". Raised to
+ *     the caller as COVERAGE LOST rather than silently rendered as "coming soon",
+ *     which is how a channel nobody has thought about starts advertising itself.
+ */
+export function availabilityOf(row, listings = {}) {
+  const id = typeof row?.id === 'string' && row.id !== '' ? row.id : '(unnamed row)';
+  const name = typeof row?.name === 'string' && row.name !== '' ? row.name : id;
+  const served = row?.served === true;
+  const submittable = row?.submittable === true;
+  const key =
+    typeof row?.storefrontKey === 'string' && row.storefrontKey.trim() !== '' ? row.storefrontKey.trim() : null;
+
+  const base = { id, name, storefrontKey: key, served, submittable };
+
+  if (!served && !submittable) {
+    return {
+      ...base,
+      renders: false,
+      state: 'absent',
+      url: null,
+      why: `served and submittable are both false in ${REGISTER} — the register declares no way for this channel to reach a user, so the page claims nothing about it`,
+      lost: null,
+    };
+  }
+  if (key === null) {
+    return {
+      ...base,
+      renders: false,
+      state: 'absent',
+      url: null,
+      why: `no storefrontKey in ${REGISTER} — there is no key to look up in the app's listings, so this row has no listing to be live or pending`,
+      lost: null,
+    };
+  }
+
+  const declared = listings && typeof listings === 'object' ? listings : {};
+  if (!Object.hasOwn(declared, key)) {
+    return {
+      ...base,
+      renders: false,
+      state: 'absent',
+      url: null,
+      why: `the app's listings block does not mention "${key}"`,
+      lost:
+        `${REGISTER} row "${id}" renders (served or submittable) and declares storefrontKey "${key}", but the app's ` +
+        `listings block has no "${key}" key AT ALL. Absent is not null: null says "declared, not live yet" and renders ` +
+        `a COMING SOON tile; absent says nobody has decided. Rendering it anyway would advertise a channel on the ` +
+        `strength of a missing field.`,
+    };
+  }
+
+  const raw = declared[key];
+  const url = typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : null;
+  return {
+    ...base,
+    renders: true,
+    state: url === null ? 'soon' : 'live',
+    url,
+    why:
+      url === null
+        ? `listings["${key}"] is null — a declared channel with nothing published to it yet`
+        : `listings["${key}"] holds ${url}`,
+    lost: null,
+  };
+}
+
+/**
+ * THE AVAILABILITY ROW for one app: every tile, in register order, plus the two
+ * counts the page prints.
+ *
+ * Register order — not alphabetical and not a hand-written order — because the
+ * register is the only file entitled to say which channel comes first, and
+ * `assert-catalog-contract.mjs` already derives the listings vocabulary in that
+ * same order. One ordering, one file.
+ *
+ * @returns `{ tiles, shown, live, soon, hidden, lost }`. `shown`/`live` are
+ *   lengths, never arguments. `lost` is the list of COVERAGE-LOST messages the
+ *   caller must print and refuse on; an empty array is the clean case.
+ */
+export function availabilityRow(rows, listings = {}) {
+  const all = (Array.isArray(rows) ? rows : [rows]).map((r) => availabilityOf(r, listings));
+  const tiles = all.filter((a) => a.renders);
+  return {
+    tiles,
+    shown: tiles.length,
+    live: tiles.filter((a) => a.state === 'live').length,
+    soon: tiles.filter((a) => a.state === 'soon').length,
+    hidden: all.filter((a) => !a.renders),
+    lost: all.map((a) => a.lost).filter((m) => m !== null),
+  };
+}

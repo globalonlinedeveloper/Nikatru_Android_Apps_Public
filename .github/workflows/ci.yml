@@ -770,6 +770,8 @@ jobs:
         run: node tooling/ci/assert-discovery-surface.mjs
       - name: Every inline palette copy still matches the token source
         run: node tooling/ci/assert-palette-consistent.mjs
+      - name: No page claims a store channel the catalogue has not published to
+        run: node tooling/ci/assert-availability.mjs
       - name: The store matrix registry is internally consistent (tree limbs run locally)
         run: node tooling/ci/assert-store-matrix.mjs --registry-only
 
