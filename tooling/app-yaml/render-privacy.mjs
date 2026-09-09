@@ -241,6 +241,16 @@ export function renderAppPage(doc, { appName, appId, portfolioPolicyPath = '/pri
   p('     and the FullShot policy’s own :22-27 comment records what happens');
   p('     when one of them ships its own greys instead. */');
   p(STYLE_BODY);
+  // The two regions added 2026-09-09. `scale-css` must sit inside a `:root`
+  // block of its own — it emits bare custom-property declarations, which are
+  // only legal in a rule — and `generate-discovery.mjs` writes the identical
+  // wrapper, so the two generators produce the same bytes rather than fighting
+  // over this file on alternate runs. The region list is iterated from
+  // chrome.mjs's REGIONS; what is written here is only WHERE each one lands.
+  p('  :root{');
+  p(region('scale-css'));
+  p('  }');
+  p(region('marks-css'));
   p(region('a11y-css'));
   p(region('footer-css'));
   p('</style>');
