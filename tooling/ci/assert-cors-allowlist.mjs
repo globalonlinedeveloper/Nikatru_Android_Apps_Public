@@ -74,22 +74,8 @@ const SERVICE_POLICY = {
  * so each one has to earn its line. An origin in a config that is neither
  * catalogue-derived nor listed here is a hard failure.
  */
-const RETIRING_SUBDOMAIN_WHY =
-  'THE RETIRING APP SUBDOMAIN, held open for the length of the cutover ONLY [ADR 075]. ' +
-  'The catalogue now derives https://nikatru.com, because the app is published at ' +
-  'nikatru.com/<id>; until the zone Redirect Rule 301s the old host, a browser that ' +
-  'already has the app open at subly.nikatru.com still sends this Origin, and an exact ' +
-  'allowlist fails CLOSED and silently. REMOVE THIS ENTRY, and the matching origin from ' +
-  'both wrangler.jsonc files, in the commit that lands the 301 -- that removal is the ' +
-  'last step of the migration, and this line is what makes it a step somebody owes ' +
-  'rather than a leftover nobody notices.';
-
 const EXTRAS = {
   platform: [
-    {
-      origin: 'https://subly.nikatru.com',
-      why: RETIRING_SUBDOMAIN_WHY,
-    },
     {
       origin: 'https://subly-9cp.pages.dev',
       why: 'Subly’s Cloudflare Pages preview domain. Not in apps.json — the catalogue advertises production URLs to the public and a preview host has no business there.',
@@ -100,10 +86,6 @@ const EXTRAS = {
     },
   ],
   'subly-api': [
-    {
-      origin: 'https://subly.nikatru.com',
-      why: RETIRING_SUBDOMAIN_WHY,
-    },
     {
       origin: 'https://subly-9cp.pages.dev',
       why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform.',

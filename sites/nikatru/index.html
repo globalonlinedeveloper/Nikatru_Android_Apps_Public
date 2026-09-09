@@ -26,7 +26,7 @@
 <link rel="manifest" href="/site.webmanifest">
 <style>
   :root{
-    --ink:#0B1220; --ink-2:#111C33; --primary:#2E6FF2; --teal:#17C3A2;
+    --ink:#0B1220; --ink-2:#111C33; --primary:#2563EB; --teal:#0F766E;
     --bg:#F6F8FC; --card:#FFFFFF; --card-2:#F8FAFD;
     --text:#1E293B; --strong:#0B1220; --muted:#586275;
     --line:#E2E8F0; --radius:16px;
@@ -35,7 +35,7 @@
     :root{
       --bg:#0B1220; --card:#111C33; --card-2:#0E1830;
       --text:#C7D2E3; --strong:#F1F5F9; --muted:#93A1BC;
-      --line:#22304D;
+      --line:#22304D;--primary:#6E9BFF;--teal:#17C3A2;
     }
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -105,16 +105,20 @@
   .tag{align-self:flex-start;margin-top:auto;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
     color:var(--teal);background:rgba(23,195,162,.12);border:1px solid rgba(23,195,162,.3);padding:5px 11px;border-radius:999px}
 
-  /* Apps grid (populated only when APPS has entries) */
+  /* Apps grid (server-rendered between the APPS-GRID sentinels) */
   .app-head{display:flex;align-items:center;gap:14px}
   .app-icon{width:56px;height:56px;border-radius:14px;background:var(--ink);display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;overflow:hidden}
   .app-icon img{width:100%;height:100%;object-fit:cover}
+  .app-icon svg{width:38px;height:38px}
+  .app-more a{font-size:14.5px;font-weight:600;text-decoration:none}
+  .app-more a:hover{text-decoration:underline}
   .app-name{font-weight:700;font-size:18px;color:var(--strong)}
   .app-tag{color:var(--muted);font-size:14.5px}
   .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
   .badge{display:inline-block;font-size:12.5px;font-weight:600;text-decoration:none;padding:6px 12px;border-radius:8px;border:1px solid var(--line);color:var(--strong);background:var(--card-2)}
   .badge:hover{border-color:var(--primary);color:var(--primary)}
-  .badge.soon{background:rgba(245,217,168,.16);border-color:#F5D9A8;color:#B4802A;cursor:default}
+  .badge.soon{background:rgba(245,217,168,.16);border-color:#F5D9A8;color:#8A5F14;cursor:default}
+  @media (prefers-color-scheme: dark){ .badge.soon{color:#F5D9A8} }
 
   /* Platforms band */
   .platforms{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -160,8 +164,8 @@
 
   /* Footer */
   /* CHROME:a11y-css */
-  :focus-visible{outline:2px solid var(--primary,#2E6FF2);outline-offset:2px;border-radius:6px}
-  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2E6FF2);color:#fff;
+  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:#fff;
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
   .skip-link:focus{left:0}
   /* /CHROME:a11y-css */
@@ -333,37 +337,31 @@
 <section id="apps">
   <div class="wrap">
     <h2>What we're building</h2>
-    <p class="section-sub">Real products, in the open. Here's the honest picture while we build toward our first launch.</p>
-    <div class="bento" id="value-grid">
-      <div class="card b-a">
-        <div class="card-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 13l9 5 9-5"/></svg>
+    <p class="section-sub">Real products, in the open. Here's the honest picture of what ships today and what is still being built.</p>
+    <!-- 🔴 GENERATED. The block between the sentinels is written by
+         tooling/sites/generate-discovery.mjs from sites/_shared/_data/apps.json.
+         It used to be built in the browser from a hand-maintained JavaScript
+         array, which meant a crawler that does not run JS saw the pre-launch
+         placeholder cards and no product at all. Do not hand-edit; re-run the
+         generator. -->
+    <!-- APPS-GRID -->
+    <div class="grid">
+      <div class="card">
+        <div class="app-head">
+          <div class="app-icon">
+            <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <defs><linearGradient id="am" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="0.55" stop-color="#2A8FB8"/><stop offset="1" stop-color="#0F766E"/></linearGradient></defs>
+            <path d="M 292 720 L 292 304 L 656 720 L 656 304 M 580 380 L 656 304 L 732 380" fill="none" stroke="url(#am)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          </div>
+          <div><div class="app-name">Nikatru Subscription Tracker</div></div>
         </div>
-        <h3>Cross-platform apps</h3>
-        <p>Everyday tools and games that feel native on your phone, your computer and the web &mdash;
-        not watered-down ports.</p>
-        <span class="tag">In development</span>
-      </div>
-      <div class="card b-b">
-        <div class="card-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-        </div>
-        <h3>Privacy-first by design</h3>
-        <p>No tracking, no ads, no selling your data. Apps that do their job and respect your information.</p>
-        <span class="tag">Core principle</span>
-      </div>
-      <div class="card wide b-c">
-        <div class="card-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.4L20 10l-5.8 1.6L12 17l-2.2-5.4L4 10l5.8-1.6z"/></svg>
-        </div>
-        <div class="card-body">
-          <h3>Built for the long run</h3>
-          <p>Careful design and steady updates. Software we intend to support &mdash; not abandon after launch.</p>
-          <span class="tag">Our commitment</span>
-        </div>
+        <div class="app-tag">Track every subscription in one place</div>
+        <div class="badges"><a class="badge" target="_blank" rel="noopener" href="https://nikatru.com/subly">Web App</a></div>
+        <div class="app-more"><a href="/apps/subly">More about Nikatru Subscription Tracker &rarr;</a></div>
       </div>
     </div>
-    <div class="grid" id="apps-grid" hidden></div>
+<!-- /APPS-GRID -->
   </div>
 </section>
 
@@ -439,7 +437,7 @@
 
 <!-- CHROME:footer -->
 <footer>
-  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/delete-account">Delete account</a> &middot; <a href="/contact">Contact</a><br><br>
+  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/about">About</a> &middot; <a href="/support">Support</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/shipping">Shipping</a> &middot; <a href="/delete-account">Delete account</a><br><br>
   <span class="foot-em">Nikatru&trade;</span> &middot; Chennai, Tamil Nadu, India &middot; Registered MSME UDYAM-TN-02-0487004<br>
   Developed by <a href="https://rajasekarselvam.com" target="_blank" rel="noopener"><span class="foot-em">Rajasekar Selvam</span></a><br>
   &copy; 2026 Nikatru. All rights reserved.
@@ -447,78 +445,6 @@
 <!-- /CHROME:footer -->
 
 <script>
-/* ============================================================
-   YOUR APPS - add one object per published app.
-   Any store link you leave out simply won't show a button.
-   When APPS has entries, the value cards above are replaced
-   by the real apps grid automatically.
-   Example:
-   {
-     name: "My Notes App",
-     tagline: "Fast, offline-first notes.",
-     icon: "&#128241;",           // emoji, or "img/mynotes.png"
-     links: {
-       ios:     "https://apps.apple.com/app/id0000000000",
-       android: "https://play.google.com/store/apps/details?id=com.nikatru.XXXXXXXX",
-       windows: "https://apps.microsoft.com/detail/XXXXXXXX",
-       macos:   "https://apps.apple.com/app/id0000000000",
-       linux:   "https://dl.nikatru.com/XXXXXXXX/latest",   // Snap or AppImage from OUR domain
-       web:     "https://notes.nikatru.com"
-     }
-   }
-   ============================================================ */
-const APPS = [
-  // Kept in step with catalog/apps.json, which check-site-integrity.mjs compares
-  // against this array BY NAME in both directions: an app here that the registry
-  // does not call live FAILS, and an app the registry calls live that is missing
-  // here is PRINTED as UNANNOUNCED on every run. Announced 2026-08-21 by owner
-  // decision, after the app was measured answering 200. The address here moved
-  // from the subdomain to the apex path on 2026-09-09 ([ADR 075]); the app is
-  // now served at nikatru.com/subly by the apex router (functions/_middleware.js)
-  // and the subdomain 301s to it.
-  // Only `web` is listed because only web is live; an absent key renders nothing,
-  // which is why no vendor store badge is drawn for a listing that does not exist.
-  {
-    name: "Nikatru Subscription Tracker",
-    tagline: "Track every subscription in one place",
-    icon: "&#128179;",
-    links: {
-      web: "https://nikatru.com/subly"
-    }
-  }
-];
-
-const STORE_LABELS = {
-  ios: "App Store", android: "Google Play", windows: "Microsoft Store",
-  macos: "Mac App Store", linux: "Snap / AppImage", web: "Web App"
-};
-
-(function(){
-  if (!APPS.length) return;                 // keep the honest value cards until real apps exist
-  const valueGrid = document.getElementById("value-grid");
-  const grid = document.getElementById("apps-grid");
-  if (valueGrid) valueGrid.hidden = true;
-  if (!grid) return;
-  grid.hidden = false;
-  grid.innerHTML = APPS.map(app => {
-    const icon = app.icon && app.icon.includes(".")
-      ? `<img src="${app.icon}" alt="${app.name} icon">` : (app.icon || "&#128241;");
-    const links = app.links || {};
-    const badges = Object.keys(STORE_LABELS)
-      .filter(k => links[k])
-      .map(k => `<a class="badge" target="_blank" rel="noopener" href="${links[k]}">${STORE_LABELS[k]}</a>`)
-      .join("");
-    return `<div class="card">
-      <div class="app-head">
-        <div class="app-icon">${icon}</div>
-        <div><div class="app-name">${app.name}</div></div>
-      </div>
-      <div class="app-tag">${app.tagline || ""}</div>
-      <div class="badges">${badges || '<span class="badge soon">Coming soon</span>'}</div>
-    </div>`;
-  }).join("");
-})();
-
 /* ---- Mobile nav toggle ---- */
 (function(){
   const btn = document.getElementById("navToggle");

@@ -60,7 +60,7 @@ const SOURCE_REL = 'contracts/legal/fullshot-privacy.md';
 const check = process.argv.includes('--check');
 
 /** The shared CSS. One string, so the two files cannot disagree about it. */
-const STYLE_BODY = `  :root { --ink:#0B1220; --muted:#586275; --line:#E2E8F0; --accent:#2E6FF2; }
+const STYLE_BODY = `  :root { --ink:#0B1220; --muted:#586275; --line:#E2E8F0; --accent:#2563EB; }
   * { box-sizing: border-box; }
   body { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px;
          font: 16px/1.65 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;

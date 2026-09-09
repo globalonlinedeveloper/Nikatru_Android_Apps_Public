@@ -569,7 +569,12 @@ function tree(entries, opts = {}) {
     typeof entries === 'string' ? entries : JSON.stringify(entries, null, 2),
   );
   writeFileSync(join(root, 'sites', 'nikatru', 'sitemap.xml'), opts.sitemap ?? SITEMAP_BASE);
-  writeFileSync(join(root, 'sites', 'nikatru', 'index.html'), chromed('home'));
+  // 🔴 The fixture homepage carries the APPS-GRID sentinel pair because the REAL
+  // one does: since 2026-09-09 the generator splices the app grid into that span
+  // instead of the browser building it from a `const APPS = [...]` literal, and
+  // `applyHomeGrid` REFUSES a homepage without the pair for the same reason
+  // `applyChrome` refuses a page without its chrome markers.
+  writeFileSync(join(root, 'sites', 'nikatru', 'index.html'), chromed('home\n<!-- APPS-GRID -->\n<!-- /APPS-GRID -->'));
   if (opts.template !== false) writeFileSync(join(root, 'sites', 'nikatru', 'apps', '_template.html'), opts.template ?? TEMPLATE);
   // Content packs, for limb F's trigger watcher. `at` is a repo-relative
   // directory so a case can put the same pack somewhere the walk must PRUNE
@@ -1410,29 +1415,35 @@ describe('the real repository', () => {
     assert.match(r.out, /generated file\(s\) match a fresh run/);
   });
 
-  test('🔴 THE HOMEPAGE APPS ARRAY IS HAND-MAINTAINED, AND THE SPLICE DOES NOT TOUCH IT', () => {
-    // This test used to pin the OPPOSITE state: an empty array and a standing
-    // UNANNOUNCED print, because the owner decision had not been taken. It was
-    // taken on 2026-08-21 - announce Subly, which was measured answering 200 at
-    // https://subly.nikatru.com - so the assertions move with the decision.
+  test('🔴 THE HOMEPAGE APP GRID IS GENERATED, AND AGREES WITH THE CATALOGUE', () => {
+    // This case has pinned three different states, and the history is the point.
+    // It first pinned an empty array and a standing UNANNOUNCED print, because
+    // the owner decision had not been taken; it moved on 2026-08-21 when Subly
+    // was announced; and it moves again on 2026-09-09 because the array is GONE.
     //
-    // What did NOT change, and is the half worth keeping: the generator does not
-    // own this array. index.html is now spliced for shared chrome, so the risk is
-    // new and specific - a splice that disturbed the body would rewrite 33 KB of
-    // hand-written homepage, this array included.
+    // 🔴 WHY THE ARRAY WENT. Measured on the served bytes with every <script>
+    // removed - what a crawler that does not run JavaScript is handed - the
+    // homepage carried zero app cards, zero links to the product and the
+    // pre-launch placeholder copy. The array was guarded and the page still said
+    // Nikatru ships nothing. The grid is now generated into the markup.
+    //
+    // What did NOT change is the half worth keeping: the generator still does not
+    // own the 31 KB of hand-written body around it. It splices ONE bounded span,
+    // and the case below asserts the rest is byte-identical.
     const home = readFileSync(join(REPO, 'sites', 'nikatru', 'index.html'), 'utf8');
-    assert.match(home, /const APPS = \[\n/);
+    assert.match(home, /<!-- APPS-GRID -->/);
+    assert.doesNotMatch(home, /const APPS = \[/, 'the client-side array must not come back');
     // ⚠️ READ FROM THE CATALOGUE, NEVER TYPED. This assertion used to carry the
     // brand as a literal, and the 2026-09-09 rename turned it into a test of a
     // string nothing produces any more. The point of the case is that the
-    // hand-maintained homepage array AGREES with the catalogue — so the
-    // catalogue is where the expected value comes from, and the next rename
-    // moves this case for free.
+    // RENDERED grid agrees with the catalogue — so the catalogue is where the
+    // expected value comes from, and the next rename moves this case for free.
+    const grid = home.slice(home.indexOf('<!-- APPS-GRID -->'), home.indexOf('<!-- /APPS-GRID -->'));
     const live = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8')).filter((r) => r.status === 'live');
     assert.ok(live.length > 0, 'the catalogue lists no live app, so this case would assert nothing');
     for (const row of live) {
-      assert.ok(home.includes(`name: ${JSON.stringify(row.name)}`), `the homepage APPS array does not name ${row.name}`);
-      assert.ok(home.includes(row.url), `the homepage APPS array does not carry ${row.url}`);
+      assert.ok(grid.includes(`>${row.name}</div>`), `the generated grid does not name ${row.name}`);
+      assert.ok(grid.includes(row.url), `the generated grid does not carry ${row.url}`);
     }
 
     // The registry and the homepage now agree, so the print is gone. Its absence

@@ -120,7 +120,7 @@
 // The generated-siblings limb was negative-tested the same way, on the REAL tree
 // (2026-09-05, each mutation restored with `git checkout --` and a green control
 // run before and after):
-//   (d) brand_tokens.dart `primary` #2E6FF2 → #2E6FF3 ⇒ exit 1, "light.primary
+//   (d) brand_tokens.dart `primary` #2563EB → #2563EC ⇒ exit 1, "light.primary
 //       disagrees between the token source and a file generated from it",
 //       citing the Dart line.
 //   (e) brand_tokens.dart `line` (DARK class) #22304D → #22304E ⇒ exit 1, in the
@@ -233,7 +233,11 @@ const MUST_COMPARE = [
  *  tracks the subject, so a page ADDED raises it exactly as a page deleted would
  *  lower it. Leaving it at 18 would mean a tree that had since lost a page still
  *  cleared the floor — which is the floor failing to be one. */
-const MIN_PAGES = 19;
+/*  19 -> 22 on 2026-09-09: `/about`, `/support` and `/shipping`, the three
+ *  compliance pages Razorpay's website checks and the Consumer Protection
+ *  (E-Commerce) Rules 2020 require. Measured off this tree by the guard's own
+ *  ok line: 22 page(s). */
+const MIN_PAGES = 22;
 /** What the exclusion must still match. */
 const MIN_SNAPSHOTS = 3;
 /** `:root` blocks across every source. Today 33. EXACT: a block is a page's
@@ -244,8 +248,12 @@ const MIN_SNAPSHOTS = 3;
  *  and in the same shape: it declares one light `:root` and no dark override,
  *  because it is rendered with the same four brand tokens the FullShot policy
  *  carries — the values from `sites/_shared/assets/tokens.css`, never its own. */
-const MIN_ROOT_BLOCKS = 33;
-/** Declarations inside those blocks. Today 265, floored SLACK on purpose. The
+/*  33 -> 39 on 2026-09-09, with MIN_PAGES above. Each of the three new pages
+ *  declares BOTH a light `:root` and a dark override, so three pages contribute
+ *  six blocks rather than the three the two raises before this one added — the
+ *  earlier arrivals were single-palette generated notices. Measured: 39. */
+const MIN_ROOT_BLOCKS = 39;
+/** Declarations inside those blocks. Today 358 (265 until 2026-09-09), floored SLACK on purpose. The
  *  three exact floors already fence the subject; this one exists for the single
  *  failure they cannot see — a reducer that blanks one character too many and
  *  leaves the blocks standing with nothing in them. That is a collapse to near
@@ -254,7 +262,7 @@ const MIN_ROOT_BLOCKS = 33;
 const MIN_DECLARATIONS = 200;
 /** (scope, property) pairs declared by two or more sources — the count
  *  classification can eat, and the only one that measures whether any COMPARING
- *  happened at all. Today 21, floored SLACK for the same reason: the input this
+ *  happened at all. Today 28 (21 until 2026-09-09), floored SLACK for the same reason: the input this
  *  must catch is "every property renamed to something unique" or "the corpus
  *  collapsed to one source", both of which land at or near zero. */
 const MIN_COMPARED = 15;
