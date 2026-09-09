@@ -210,6 +210,141 @@ export function skipLink() {
 }
 
 /**
+ * THE NON-COLOUR SCALE TOKENS, on every page, read out of the ONE file that
+ * emits them.
+ *
+ * ── THE DEFECT ───────────────────────────────────────────────────────────────
+ * The colour palette has been one language since PR #322 — thirteen tokens, an
+ * inline `:root` per page, and `assert-palette-consistent.mjs` holding the copies
+ * equal. Everything that is NOT a colour had no such treatment: measured
+ * 2026-09-09 across the served pages, NINE distinct corner radii were in use
+ * (8, 10, 11, 12, 13, 14, 16, 18, 999), spacing was a per-page literal, and the
+ * type sizes existed only as numbers inside rules. A palette guard is structurally
+ * blind to all of it, because a literal is not a custom property — so the drift
+ * could not be seen, let alone measured.
+ *
+ * `contracts/tokens/dtcg/scale.json` gives those values names. This function is
+ * what puts the names on the pages, which is the half that makes them real: a
+ * token nothing declares is a token nothing can use.
+ *
+ * ── WHY IT IS A CONSTANT AND NOT A READ OF tokens.css ────────────────────────
+ * 🔴 BECAUSE THIS MODULE GETS COPIED, AND A COPY LOSES ITS DATA. The first
+ * version read `contracts/tokens/dtcg/scale.json` and
+ * `sites/_shared/assets/tokens.css` off disk, resolved from this file's own
+ * location. That is correct in the repository and WRONG the moment the module is
+ * copied — and it is copied routinely: render-payload.test.mjs materialises the
+ * whole tooling closure into a temp root to mutate one of its members, and
+ * assert-guards-refuse-empty.mjs copies its subjects for the same reason (a guard
+ * pointed at a fixture root re-scanned the real repository instead; twenty of
+ * them did). In a copied tree the reads throw ENOENT, and the failure surfaces as
+ * a module error inside a case that was testing something else entirely.
+ *
+ * So the values live here, as bytes, and the emitter stays the authority a GUARD
+ * compares them to rather than one they are fetched from.
+ *
+ * ── WHAT KEEPS IT HONEST, AND IT IS NOT A COMMENT ────────────────────────────
+ * `tooling/ci/assert-palette-consistent.mjs` compares every CSS custom property
+ * declared by two or more sources across the whole site, and BOTH sides of this
+ * are in its subject: `sites/_shared/assets/tokens.css` (a named member of
+ * MUST_COMPARE) and the 15 pages that carry this region spliced into their
+ * `:root`. So a value that drifts from the build is 15 sources against 1 and the
+ * guard names the property, the two values and every file — which is exactly the
+ * mechanism that already keeps the colour palette in step, applied to the scales.
+ *
+ * Negative-tested, not assumed: `--space-5` changed here from 24px to 25px,
+ * regenerated, and assert-palette-consistent exits 1 with "--space-5 is declared
+ * 2 different ways in the light palette". Restored and re-verified clean.
+ *
+ * TO CHANGE A VALUE: edit contracts/tokens/dtcg/scale.json, run
+ * `cd packages/tokens && npm run build`, copy the emitted `--group-name` lines
+ * from sites/_shared/assets/tokens.css into the constant below, and re-run
+ * tooling/sites/generate-discovery.mjs. The guard fails if you do only some of it.
+ */
+const SCALE_CSS = `  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:24px;
+  --space-6:32px;
+  --space-7:48px;
+  --space-gutter-sm:18px;
+  --space-gutter:24px;
+  --space-gutter-lg:32px;
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-xl:22px;
+  --radius-pill:999px;
+  --type-xs:12.5px;
+  --type-sm:13.5px;
+  --type-body:16px;
+  --type-lead:18px;
+  --type-h3:24px;
+  --type-h2:31px;
+  --type-display:clamp(34px, 5.5vw, 58px);
+  --shadow-sm:0 6px 16px rgba(11, 18, 32, .06);
+  --shadow-base:0 12px 32px rgba(11, 18, 32, .10);
+  --shadow-lg:0 16px 40px rgba(11, 18, 32, .14);
+  --motion-fast:120ms;
+  --motion-base:220ms;
+  --motion-ease:cubic-bezier(.2, .6, .3, 1);
+  --focus-ring:3px;
+  --focus-offset:3px;
+  --focus-scroll-margin:84px;
+  --container-max:1080px;
+  --container-gutter:24px;`;
+
+export function scaleCss() {
+  return SCALE_CSS;
+}
+
+/**
+ * The status mark, on every page, from the ONE string that declares it.
+ *
+ * See `MARK_CSS` in tooling/sites/availability.mjs for why it is emitted as
+ * chrome rather than declared beside each of its two uses: the mark appears
+ * labelled inside an availability tile and bare in the homepage register row,
+ * and two rule sets for one mark would drift with nothing able to see it — a CSS
+ * rule is not a custom property, so the palette guard is blind to it.
+ */
+/**
+ * THE STATUS MARK. It lives HERE, in the shared-chrome module, and not beside
+ * the availability tiles that were its first use.
+ *
+ * A filled teal square means LIVE; a dashed muted outline means COMING SOON.
+ * That is the whole visual state device this design uses in place of a row of
+ * coloured store badges — and it appears at two densities: labelled, inside an
+ * availability tile on an app landing, and bare, in the homepage register row
+ * beside the sentence "1 of 6 channels live".
+ *
+ * 🔴 TWO DENSITIES OF ONE MARK MUST NOT BE TWO RULE SETS. If the homepage
+ * declared its own `.mark`, the two would drift — by a pixel, by a radius, by a
+ * colour — and NOTHING in this repository could see it: `assert-palette-
+ * consistent.mjs` compares CSS CUSTOM PROPERTIES, and `width:9px` is not one.
+ * That is the same blind spot that let nine different corner radii accumulate
+ * across the served pages. So the mark is emitted ONCE, as the shared
+ * `marks-css` chrome region, onto every page — the identical mechanism that
+ * replaced six hand-maintained footers.
+ *
+ * ⚠️ EVERY VALUE IS A TOKEN OR A LITERAL THAT IS SCHEME-INDEPENDENT. `--teal`
+ * and `--muted` both fork under `prefers-color-scheme`, so the mark follows the
+ * scheme without this string knowing anything about schemes. A hex here would be
+ * the light-mode-hex-in-dark defect the design canvas was corrected for.
+ *
+ * ⚠️ AND THE MARK NEVER CARRIES THE MEANING ALONE. WCAG 1.4.1: on a tile the
+ * word "Coming soon" sits beside it, and in the compact homepage row the marks
+ * are `aria-hidden` and the count sentence carries the fact in words. A reader
+ * who cannot distinguish a filled square from a dashed one loses nothing.
+ */
+const MARK_CSS = `  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}`;
+
+export function marksCss() {
+  return MARK_CSS;
+}
+
+/**
  * The accessibility chrome that has to be present on every page to be worth
  * anything: a visible focus ring, and the skip link's own styling.
  *
@@ -224,10 +359,26 @@ export function skipLink() {
  * one way to write a skip link that cannot be used at all.
  */
 export function a11yCss() {
-  return `  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  return `  :focus-visible{outline:var(--focus-ring,3px) solid var(--primary,#2563EB);outline-offset:var(--focus-offset,3px);border-radius:6px}
   .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:var(--on-accent,#fff);
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
-  .skip-link:focus{left:0}`;
+  .skip-link:focus{left:0}
+  /* WCAG 2.2 SC 2.4.11 (Focus Not Obscured, Level AA). Every page on this site
+     opens with the same STICKY nav, so following an in-page link lands the
+     target underneath it — the focused element is on screen and cannot be seen,
+     which is the failure the criterion names. One page (the homepage) carried a
+     scroll-padding of its own; the other twelve carried nothing.
+
+     scroll-padding-top ON THE SCROLL CONTAINER, not scroll-margin-top on
+     every target. The margin form needs a selector reaching every anchorable
+     element, and that selector is read by assert-discovery-surface.mjs's
+     unfilled-slot limb as a bracketed template placeholder a visitor would see.
+     It is right to: a generated page carrying square brackets is nearly always a
+     slot the generator could not fill. The padding form is one declaration,
+     needs no selector at all, and is the property actually designed for a fixed
+     header — so the two limbs never have to be traded off against each other. */
+  html{scroll-padding-top:var(--focus-scroll-margin,84px)}
+  :target{scroll-margin-top:var(--focus-scroll-margin,84px)}`;
 }
 
 // ── THE SPLICE ───────────────────────────────────────────────────────────────
@@ -236,6 +387,8 @@ export function a11yCss() {
  *  region means adding it here and nowhere else; the generator and the guard both
  *  iterate this map rather than naming regions of their own. */
 export const REGIONS = new Map([
+  ['scale-css', scaleCss],
+  ['marks-css', marksCss],
   ['a11y-css', a11yCss],
   ['skiplink', skipLink],
   ['footer', footer],
@@ -249,7 +402,7 @@ export const openMarker = (region, css) => (css ? `  /* CHROME:${region} */` : `
 export const closeMarker = (region, css) => (css ? `  /* /CHROME:${region} */` : `<!-- /CHROME:${region} -->`);
 
 /** Regions written in CSS comment syntax because they live inside `<style>`. */
-const CSS_REGIONS = new Set(['footer-css', 'a11y-css']);
+const CSS_REGIONS = new Set(['footer-css', 'a11y-css', 'scale-css', 'marks-css']);
 export const isCssRegion = (region) => CSS_REGIONS.has(region);
 
 /**
