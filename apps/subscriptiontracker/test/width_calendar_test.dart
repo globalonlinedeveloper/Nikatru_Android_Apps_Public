@@ -382,7 +382,7 @@ void main() {
       id: id,
       name: name,
       category: 'Streaming',
-      price: 10,
+      price: const Money(1000, 'USD'),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(now.year, now.month, day),
     );

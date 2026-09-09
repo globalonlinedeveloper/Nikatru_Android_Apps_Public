@@ -89,4 +89,53 @@ void main() {
     );
     expect(client.getSubscriptions(), throwsA(isA<ApiException>()));
   });
+
+  test('a legacy row with a decimal price and NO currency still parses', () {
+    // 🔴 THE OLD WIRE IS STILL THE WIRE. `price` is a SQLite REAL and the
+    // migration policy here is strictly additive, so a server that has not
+    // grown `price_minor`/`currency` must keep working. 15.0 becomes an exact
+    // 1500 minor units under the fallback the caller names.
+    expect(
+      Subscription.fromJson(<String, dynamic>{
+        'id': '1',
+        'name': 'Netflix',
+        'category': 'Streaming',
+        'price': 15.0,
+        'cycle': 'monthly',
+        'next_renewal': '2026-08-01',
+      }).price,
+      const Money(1500, 'USD'),
+    );
+  });
+
+  test('a row that DOES carry the exact fields is read from them', () {
+    final Subscription s = Subscription.fromJson(<String, dynamic>{
+      'id': '1',
+      'name': 'Netflix',
+      'category': 'Streaming',
+      'price': 15.0,
+      'price_minor': 49900,
+      'currency': 'INR',
+      'cycle': 'monthly',
+      'next_renewal': '2026-08-01',
+    });
+    expect(s.price, const Money(49900, 'INR'));
+    expect(s.currencyCode, 'INR');
+  });
+
+  test('what the client SENDS keeps the decimal price and adds two fields', () {
+    // A client that silently stopped sending `price` would write zeroes into
+    // every row it touched on a server that has not migrated.
+    final Map<String, dynamic> body = Subscription(
+      id: '1',
+      name: 'Netflix',
+      category: 'Streaming',
+      price: const Money(49900, 'INR'),
+      cycle: BillingCycle.monthly,
+      nextRenewal: DateTime(2026, 8, 1),
+    ).toJson();
+    expect(body['price'], 499.0);
+    expect(body['price_minor'], 49900);
+    expect(body['currency'], 'INR');
+  });
 }
