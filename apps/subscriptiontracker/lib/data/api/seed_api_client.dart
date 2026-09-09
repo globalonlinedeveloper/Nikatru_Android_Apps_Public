@@ -8,9 +8,33 @@ import 'api_client.dart';
 
 /// Demo client — full CRUD against an in-memory list seeded from the design.
 /// Selected automatically until a real API base URL is configured.
+///
+/// ⚠️ IT IS STILL IN-MEMORY, AND THAT IS DELIBERATE. Durability is a SEPARATE
+/// object: `PersistedApiClient` wraps one of these and mirrors the working set
+/// into the device's key-value store. Keeping the two apart means this class
+/// stays the single implementation of what a create/update/delete MEANS
+/// (id minting, the glyph and plan defaults, the derived payment history) while
+/// the decorator owns only WHERE the bytes end up — so the two can never drift
+/// into two different answers for "what does adding a subscription do".
 class SeedApiClient implements ApiClient {
-  final List<Subscription> _subs = DemoData.subscriptions();
+  List<Subscription> _subs = DemoData.subscriptions();
   BudgetInfo _budget = DemoData.budget();
+
+  /// Replace the working set with what a durable store already held.
+  ///
+  /// 🔴 THE ONE WAY THE SEED IS OVERRULED, and it exists for exactly one caller:
+  /// `PersistedApiClient` hydrating a device that has run this app before. It
+  /// takes both halves at once because a device that has a stored list but no
+  /// stored budget (a write that failed between the two) must not end up with
+  /// one half of somebody's data and one half of the demo's — the caller passes
+  /// what it read and the seed for whatever it did not.
+  ///
+  /// The list is COPIED: the caller's list came out of a decoder and this object
+  /// mutates its own in place.
+  void restore({required List<Subscription> subs, required BudgetInfo budget}) {
+    _subs = List<Subscription>.of(subs);
+    _budget = budget;
+  }
 
   @override
   Future<List<Subscription>> getSubscriptions() async =>

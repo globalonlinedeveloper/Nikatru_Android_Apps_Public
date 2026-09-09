@@ -252,7 +252,7 @@
       "  isBackendLive        := isSupabaseConfigured && isApiConfigured",
       "and the app branches on them at four places that decide everything this form asks about:",
       "  providers/auth.dart:120          isBackendLive ? SupabaseAuthRepository : InMemoryAuthRepository",
-      "  providers/subscriptions.dart:50  !isApiConfigured -> SeedApiClient (in-memory, never leaves the device)",
+      "  providers/subscriptions.dart:69  !isApiConfigured -> SeedApiClient (wrapped by PersistedApiClient: device-local storage, never leaves the device)",
       "  analytics_providers.dart:536  !isBackendLive (via analyticsEnabledProvider) -> NoOpAnalytics",
       "  app.dart:470                  the consent prompt shows only when analyticsEnabledProvider is true",
       "",
@@ -339,7 +339,7 @@
     "gateFile": "apps/subscriptiontracker/lib/core/app_config.dart",
     "current": "backend-live",
     "postures": {
-      "demo": "No identity dart-defines. MockAuthRepository, SeedApiClient (in-memory list, lost on restart), NoOpAnalytics, no consent prompt, no account. The ONLY outbound traffic is the crash rail, because GLITCHTIP_DSN is passed.",
+      "demo": "No identity dart-defines. MockAuthRepository, SeedApiClient behind PersistedApiClient (the list and the budget are kept in the device's own key-value store and survive a restart; nothing is transmitted), NoOpAnalytics, no consent prompt, no account. The ONLY outbound traffic is the crash rail, because GLITCHTIP_DSN is passed.",
       "backend-live": "SUPABASE_URL + SUPABASE_ANON_KEY + API_BASE_URL all supplied. Real account, subscriptions/budget/payment rows synced to services/subscriptiontracker-api, consent-gated first-party analytics to services/platform. This is the posture .github/workflows/deploy-web.yml builds, and — since 2026-08-04 — the posture EVERY store lane builds: both Android steps, both Windows steps and both Apple steps were passing no identity defines at all, so every store artefact in the tree was the demo build. tooling/ci/assert-store-build-config.mjs now derives the required set from AppConfig.isBackendLive and grades every build step a `kind: store` row declares."
     }
   },
@@ -779,7 +779,7 @@
         "table:subly_db.budget_categories",
         "table:subly_db.payment_history"
       ],
-      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subly_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only in SeedApiClient's in-memory list (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:12-13) and are lost on restart — never written to disk, never transmitted, so not `collected` under Play's own definition."
+      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subly_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only on the device: SeedApiClient's working set (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:20-21) mirrored by PersistedApiClient into the app's own namespaced key-value store (apps/subscriptiontracker/lib/data/local/subscription_store.dart). ⚠️ THEY NOW SURVIVE A RESTART, AND THAT DOES NOT CHANGE THIS ANSWER — Play defines collection as data TRANSMITTED OFF THE DEVICE, and the demo posture opens no socket for them at all. The previous wording rested this row on 'lost on restart', which was true of the old in-memory list but was never the criterion; resting it on 'never transmitted' is the same conclusion on the ground Play actually states. Nothing is shared, and no server holds a copy."
     },
     {
       "category": "Health and fitness",
@@ -1298,7 +1298,7 @@
       "inventoryRows": [
         "table:subly_db.subscriptions"
       ],
-      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subly_db.subscriptions; under demo it stays in an in-memory list. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
+      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subly_db.subscriptions; under demo it stays on the device, in the app's own namespaced key-value store, and is never transmitted. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
     },
     {
       "category": "App activity",
