@@ -977,6 +977,7 @@
   },
   {
     "claims": [
+      "ADR 075",
       "E-9"
     ],
     "invokedBy": [

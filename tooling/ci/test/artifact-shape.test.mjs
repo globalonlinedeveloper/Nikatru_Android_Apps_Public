@@ -67,6 +67,30 @@ const REGISTER = {
       lane: { workflow: '.github/workflows/build-platforms.yml', job: 'windows' },
     },
     { id: 'windows-direct', kind: 'direct', served: false, artifactFormats: ['.msix', '.exe'], platforms: ['windows'] },
+    // ⏱ ADDED 2026-09-09. The guard derives its universe of installable formats
+    // from register rows whose `lane.job` matches, so without these two rows a
+    // fixture can only ever exercise the UNSIGNED apple branch — the signed one
+    // reports COVERAGE LOST for .ipa and .pkg before it looks at a single file.
+    // These mirror the real rows as they now stand (both armed, both bound to
+    // the `apple` job, `served: false`).
+    {
+      id: 'ios-appstore',
+      kind: 'store',
+      served: false,
+      submittable: true,
+      artifactFormats: ['.ipa'],
+      platforms: ['ios'],
+      lane: { workflow: '.github/workflows/build-platforms.yml', job: 'apple' },
+    },
+    {
+      id: 'macos-appstore',
+      kind: 'store',
+      served: false,
+      submittable: true,
+      artifactFormats: ['.pkg'],
+      platforms: ['macos'],
+      lane: { workflow: '.github/workflows/build-platforms.yml', job: 'apple' },
+    },
   ],
 };
 
@@ -97,8 +121,18 @@ function fixture({ register = REGISTER, app = 'subly', build = {}, withApp = tru
   return root;
 }
 
-const run = (root, args) => {
-  const r = spawnSync(process.execPath, [GUARD, '--repo-root', root, ...args], { encoding: 'utf8' });
+/** ⏱ `env` ADDED 2026-09-09. The apple lane now reads APPLE_SIGNING_POSTURE and
+ *  asserts DIFFERENT artifacts on the two postures, so a test that cannot set it
+ *  can only ever exercise one of the two branches. The default is a spread of
+ *  the real environment MINUS that variable: inheriting a posture from whatever
+ *  shell ran the suite would make these tests pass or fail on the developer's
+ *  environment, which is the one thing a fixture must never do. */
+const run = (root, args, env = {}) => {
+  const { APPLE_SIGNING_POSTURE: _drop, ...clean } = process.env;
+  const r = spawnSync(process.execPath, [GUARD, '--repo-root', root, ...args], {
+    encoding: 'utf8',
+    env: { ...clean, ...env },
+  });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
 
@@ -248,14 +282,72 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     // across this whole change, which makes it a pin that cannot tell the old
     // disclaimer from the new one — exactly the weak proxy this repo keeps
     // deleting. What is owner-gated is the FORMAT, and that is what is asserted.
-    assert.match(out, /GAP — iOS — THE \.ipa/);
-    // RE-PINNED 2026-09-08. /OWNER_QUEUE A-4/ alone still matched the corrected
-    // sentence, so it was a pin that could not tell the correction from the
-    // defect. What the gap now claims is the thing worth pinning: CODE-gated.
-    assert.match(out, /this gap is CODE-gated, not owner-gated/);
+    assert.match(out, /GAP — iOS — THE \.ipa, and macOS — THE \.pkg/);
+    // ⏱ RE-PINNED 2026-09-09. The 2026-09-08 pin was /this gap is CODE-gated,
+    // not owner-gated/ — a claim about who could issue the missing certificate.
+    // The certificate was issued, so that sentence is gone and the gap now says
+    // something narrower and still true: THIS RUN has no identity. The pin
+    // follows the claim, and the negative below stops the old one returning.
+    assert.match(out, /It is a statement about THIS RUN/);
+    assert.doesNotMatch(out, /needs an Apple DISTRIBUTION CERTIFICATE/, 'issued 2026-09-09');
     assert.doesNotMatch(out, /So this gap is owner-gated, not code-gated/, 'the inversion was the finding');
     assert.doesNotMatch(out, /STILL ASSERTS NOTHING ABOUT IT/, 'the old disclaimer must be gone, not merely outvoted');
-    assert.match(out, /no channel in tooling\/channel-register\.json names lane job "apple"/);
+    // ⏱ INVERTED 2026-09-09. This used to assert that NO channel named the
+    // `apple` lane job — true while both Apple rows carried `lane: null`, and
+    // the reason direction (c) had nothing to compare for this lane. Both rows
+    // now name it, so the guard compares rather than shrugs, and the pin says
+    // so. The .ipa and .pkg are excused HERE only because this is the unsigned
+    // branch, and only against the gap printed above.
+    assert.match(out, /2 channel row\(s\) bound to this lane job/);
+  });
+
+  // ── ⏱ THE SIGNED LANE, ADDED 2026-09-09 ────────────────────────────────────
+  // Before today this branch did not exist: the apple lane produced one shape
+  // and the .ipa was a printed gap. It now produces a .ipa and a .pkg when there
+  // is an identity, and the tests below are the half that can go red if either
+  // stops being asserted. The failure they exist for is the one this repository
+  // keeps hitting — a step exits 0 having written nothing.
+  const APPLE_SIGNED_OK = {
+    'build/macos/Build/Products/Release/Subly.app/Contents/MacOS/Subly': 'MACHO',
+    'build/macos/Build/Products/Release/Subly.app/Contents/Info.plist': '<plist/>',
+    'build/ios/ipa/Subly.ipa': 'PK-ZIP-BYTES',
+    'build/macos/pkg/subly.pkg': 'XAR-BYTES',
+  };
+  const SIGNED = { APPLE_SIGNING_POSTURE: 'release-signed' };
+
+  test('a signed apple lane asserts the .ipa and the .pkg, and prints NO gap', () => {
+    const { code, out } = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    assert.equal(code, 0, out);
+    assert.match(out, /build\/ios\/ipa/);
+    assert.match(out, /build\/macos\/pkg/);
+    assert.match(out, /3 expectation\(s\) satisfied/);
+    // The whole point of the change: on a signed lane there is nothing left to
+    // apologise for, so the guard must print no GAP at all.
+    assert.doesNotMatch(out, /GAP —/, 'a signed lane produces both submittable formats; there is no gap');
+  });
+
+  test('a signed lane that produced NO .ipa fails, however green the build step was', () => {
+    const { 'build/ios/ipa/Subly.ipa': _gone, ...noIpa } = APPLE_SIGNED_OK;
+    const { code, out } = run(fixture({ build: noIpa }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    assert.equal(code, 1, out);
+    assert.match(out, /\.ipa/);
+  });
+
+  test('a signed lane that produced NO .pkg fails — the glob the register declared had no filler for weeks', () => {
+    const { 'build/macos/pkg/subly.pkg': _gone, ...noPkg } = APPLE_SIGNED_OK;
+    const { code, out } = run(fixture({ build: noPkg }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    assert.equal(code, 1, out);
+    assert.match(out, /\.pkg/);
+  });
+
+  // 🔴 THE DISJOINTNESS THAT MAKES A WRONG POSTURE UNPASSABLE. The two branches
+  // assert paths that never coexist, so a run mislabelled in either direction
+  // fails rather than passing on the other branch's weaker evidence.
+  test('the unsigned tree does not satisfy the signed lane, and vice versa', () => {
+    const a = run(fixture({ build: APPLE_OK }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    assert.equal(a.code, 1, a.out);
+    const b = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subly', '--platform', 'apple']);
+    assert.equal(b.code, 1, b.out);
   });
 
   test('an EMPTY .app directory is not a build — size on a directory says nothing', () => {

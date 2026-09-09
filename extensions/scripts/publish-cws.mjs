@@ -26,9 +26,18 @@
 //        Authorization: Bearer <token>; body = the zip bytes.
 //   POST https://chromewebstore.googleapis.com/v2/publishers/{P}/items/{I}:publish
 //        Authorization: Bearer <token>.
-// preceded by the token exchange:
+// preceded by the token mint:
 //   POST https://oauth2.googleapis.com/token
-//        client_id, client_secret, refresh_token, grant_type=refresh_token
+//        grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer, assertion=<RS256 JWT>
+//
+// ⏱ CONVERTED 2026-09-09 — THE AUTH IS A SERVICE ACCOUNT, NOT A REFRESH TOKEN.
+// CWS_CLIENT_ID / CWS_CLIENT_SECRET / CWS_REFRESH_TOKEN are retired. Google
+// documents service accounts for this API at
+// https://developer.chrome.com/docs/webstore/service-accounts (fetched
+// 2026-09-09) — the account email is added in the Developer Dashboard under
+// Account, and "you can only add one service account to your publisher". The
+// single secret is CWS_SERVICE_ACCOUNT_JSON, the same shape the Play lane's
+// PLAY_SERVICE_ACCOUNT_JSON already uses. See publish-cws-token.mjs.
 //
 // ⚠️ `upload` UPDATES AN EXISTING ITEM AND CANNOT CREATE ONE — the page says so
 // ("Upload a package to update an existing store item") and adds that the upload
@@ -52,13 +61,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { laneVerdict, ArmingCoverageLost, readSubmittablePackage } from './publish-arming.mjs';
-import { exchangeRefreshToken } from './publish-cws-token.mjs';
+import { mintAccessToken, CWS_SA_ENV, CWS_SA_DOC } from './publish-cws-token.mjs';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIMARY SOURCES — fetched 2026-09-07.
 // ─────────────────────────────────────────────────────────────────────────────
 const PRIMARY_SOURCES = Object.freeze({
   api: 'https://developer.chrome.com/docs/webstore/using-api',
+  serviceAccounts: CWS_SA_DOC,
 });
 
 const UPLOAD_ROOT = 'https://chromewebstore.googleapis.com/upload/v2/publishers';
@@ -101,20 +111,17 @@ async function main() {
   }
   if (result.verdict !== 'go') return;
 
-  const tok = await exchangeRefreshToken({
-    clientId: process.env.CWS_CLIENT_ID,
-    clientSecret: process.env.CWS_CLIENT_SECRET,
-    refreshToken: process.env.CWS_REFRESH_TOKEN,
-  });
+  const tok = await mintAccessToken({ serviceAccountJson: process.env[CWS_SA_ENV] });
   if (!tok.ok) {
     die([
-      `FAIL the Chrome Web Store token exchange failed (HTTP ${tok.status}): ${tok.detail}`,
-      `     Source: ${PRIMARY_SOURCES.api}. A refresh token that has gone unused dies, which is exactly`,
-      '     what the cws-token-keepalive job in .github/workflows/extensions.yml exists to prevent.',
+      `FAIL the Chrome Web Store token mint failed (HTTP ${tok.status}): ${tok.detail}`,
+      `     Source: ${PRIMARY_SOURCES.serviceAccounts}. The credential is a SERVICE ACCOUNT key in`,
+      `     ${CWS_SA_ENV}, not the retired refresh-token trio; a mint failure means the key was`,
+      '     disabled, deleted or rotated, which the scheduled cws-token-keepalive job exists to catch first.',
     ]);
     return;
   }
-  console.log(`ok   access token obtained (expires_in ${tok.expiresIn}s, scope ${tok.scope})`);
+  console.log(`ok   access token obtained as ${tok.clientEmail} (expires_in ${tok.expiresIn}s, scope ${tok.scope})`);
 
   const publisher = encodeURIComponent(process.env.CWS_PUBLISHER_ID);
   // 🔴 THE ITEM ID COMES OFF THE TOOL, NOT OUT OF THE ENVIRONMENT. `laneVerdict`

@@ -39,6 +39,33 @@
 //   gap stopped being mentioned at all — which is the failure mode of every
 //   "printed, not hidden" limb in this repository.
 //
+// ⏱ 2026-09-09 — THE `origin` LIMB, APPENDED. NOTHING ABOVE IS REWRITTEN.
+// catalog/apps.json grew an `origin` field with [ADR 075] — the Cloudflare Pages
+// production alias the apex router fetches an app's bytes from — and the guard
+// did not read it, so an alias that had gone stale (a project renamed, a
+// catalogue re-render that never happened) was green everywhere.
+//
+//   REAL-TREE MUTATIONS, 2026-09-09, working tree only, each restored with
+//   `git checkout --` and the guard re-run to exit 0:
+//   MN7  catalog/apps.json's `origin` retargeted     -> caught: "routes app
+//        to a stale host                                 \"subly\" to origin
+//                                                        subly-OLD.pages.dev while
+//                                                        apps/subly/app.yaml declares
+//                                                        subly-9cp.pages.dev"
+//   MN8  a register row added for the CURRENT        -> exit 0 — the row is legitimate
+//        alias (subly-9cp.pages.dev)                    now, which it was NOT before
+//                                                       this change (limb 2 called it
+//                                                       dead)
+//   MN9  that same row left in place while the       -> caught: "has a row … and
+//        alias moved in BOTH declarations               nothing in the tree deploys it"
+//
+// ⚠️ THE ACCOUNTING GAP PRINTS RATHER THAN FAILING, and this suite pins BOTH
+//   halves the same way it already does for `monitor: null`: the origin host is
+//   named on stdout with the app that depends on it, AND the guard exits 0. The
+//   reason is in the guard's header — a register row is a claim of coverage, and
+//   a row written before the GlitchTip monitor exists is the defect
+//   tooling/monitor-register.json refuses by name.
+//
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe, before, after } from 'node:test';
@@ -74,11 +101,40 @@ const PLATFORM_WRANGLER = `{
   ],
 }`;
 
+/** ⏱ 2026-09-09 — `origin` is the Pages production alias the apex router fetches
+ *  from. It is deliberately a DIFFERENT host from `url` and from `api`: the
+ *  address an app is published at and the host its bytes come from stopped being
+ *  the same hostname with [ADR 075], and a fixture that spelled them alike could
+ *  not tell the two readings apart. */
 const APPS_JSON = JSON.stringify(
-  [{ slug: 'demo', name: 'Demo', url: 'https://demo.example.test', api: 'https://api.example.test', status: 'live' }],
+  [{
+    slug: 'demo',
+    name: 'Demo',
+    url: 'https://demo.example.test',
+    origin: 'https://demo-pages.example.test',
+    api: 'https://api.example.test',
+    status: 'live',
+  }],
   null,
   2,
 );
+
+/** The app's OWN declaration — the file the catalogue is rendered from, and the
+ *  one place the alias was read off the Pages API. Two-space indent and block
+ *  mappings only: tooling/app-yaml/yaml.mjs parses a subset and refuses the
+ *  rest, which is the whole reason the guard imports it rather than guessing. */
+const APP_YAML = (hosts) => `id: demo
+name: Demo
+tagline: a fixture
+${hosts}
+platforms:
+  - web
+`;
+
+const HOSTS_BOTH = `hosts:
+  web: demo.example.test
+  pagesOrigin: demo-pages.example.test
+  api: api.example.test`;
 
 const SITE_HTML = (host) => `<!doctype html>
 <html><head>
@@ -118,6 +174,7 @@ function makeRepo(edit = (f) => f) {
   const files = edit({
     'services/platform/wrangler.jsonc': PLATFORM_WRANGLER,
     'catalog/apps.json': APPS_JSON,
+    'apps/demo/app.yaml': APP_YAML(HOSTS_BOTH),
     'sites/main/index.html': SITE_HTML('main.example.test'),
     'sites/founder/index.html': SITE_HTML('founder.example.test'),
     'tooling/monitor-register.json': JSON.stringify(REGISTER(), null, 2),
@@ -335,5 +392,127 @@ describe('assert-monitor-coverage — coverage self-checks', () => {
     })));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST — no row .* carries `"role": "observability"`/s);
+  });
+});
+
+/** Edit the catalogue through its parsed form, for the same reason `withRegister`
+ *  does: a text replace on JSON starts asserting about whitespace. */
+const withCatalogue = (mutate) => (f) => {
+  const rows = JSON.parse(f['catalog/apps.json']);
+  mutate(rows);
+  return { ...f, 'catalog/apps.json': JSON.stringify(rows, null, 2) };
+};
+
+describe('assert-monitor-coverage — the app ORIGIN the apex router fetches from', () => {
+  test('a corroborated origin is ACCOUNTED for, PRINTED, and the guard exits 0', () => {
+    const r = run(makeRepo());
+    assert.equal(r.code, 0, r.out);
+    // Both halves, as with every "printed, not hidden" limb in this repository:
+    // the host is named WITH the app that depends on it, and the run stays green.
+    assert.match(r.out, /1 app ORIGIN host\(s\) with no row in tooling\/monitor-register\.json — printed not hidden/);
+    assert.match(r.out, /demo-pages\.example\.test — the apex router fetches demo from it/);
+    assert.match(r.out, /1 app origin host\(s\) corroborated \(0 with a row\)/);
+  });
+
+  test('FAILS a STALE catalogue origin — the app declares a different alias', () => {
+    // The mutation MN7 recorded at the top of this file, in fixture form: the
+    // Pages project is renamed in the declaration and the catalogue keeps the
+    // old spelling, so the router fetches a host the tree no longer names.
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/app.yaml': APP_YAML(HOSTS_BOTH.replace('demo-pages.example.test', 'demo-moved.example.test')),
+    })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(
+      r.out,
+      /routes app "demo" to origin demo-pages\.example\.test while apps\/demo\/app\.yaml declares demo-moved\.example\.test/,
+    );
+    assert.match(r.out, /One of the two is STALE/);
+  });
+
+  test('FAILS when the catalogue row names an app with no declaration at all', () => {
+    // apps/ still exists — the coverage floor is not what fires here — but the
+    // row's own slug names nothing, so the alias is stated once and checkable
+    // never.
+    const r = run(makeRepo((f) => {
+      const { 'apps/demo/app.yaml': _gone, ...rest } = f;
+      return { ...rest, 'apps/other/app.yaml': APP_YAML(HOSTS_BOTH) };
+    }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /for slug "demo" and apps\/demo\/app\.yaml does not exist/);
+  });
+
+  test('`hosts.web` corroborates when `hosts.pagesOrigin` is absent', () => {
+    // The same fallback tooling/app-yaml/render.mjs uses to COMPOSE the field.
+    // Absent pagesOrigin is a legal declaration, not a stale one.
+    const r = run(makeRepo((f) => ({
+      ...withCatalogue((rows) => { rows[0].origin = 'https://demo.example.test'; })(f),
+      'apps/demo/app.yaml': APP_YAML('hosts:\n  web: demo.example.test\n  api: api.example.test'),
+    })));
+    assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /STALE/);
+  });
+
+  test('FAILS when the declaration names neither `pagesOrigin` nor `web`', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/app.yaml': APP_YAML('hosts:\n  api: api.example.test'),
+    })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /declares neither `hosts\.pagesOrigin` nor `hosts\.web`/);
+  });
+
+  test('a register row for the CURRENT origin host is NOT a dead row', () => {
+    // MN8. Before this change limb 2 refused such a row outright, so the register
+    // could not declare the one hostname the whole apex path depends on. The row
+    // is legitimate now — and the accounting print stops, because it is accounted
+    // for.
+    const r = run(makeRepo(withRegister((reg) => {
+      reg.hosts.push({
+        hostname: 'demo-pages.example.test',
+        derivedFrom: 'appOrigins',
+        monitor: monitor(8, 'demo origin', 'GET'),
+      });
+    })));
+    assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /demo-pages\.example\.test has a row/);
+    assert.doesNotMatch(r.out, /app ORIGIN host\(s\) with no row/);
+    assert.match(r.out, /1 app origin host\(s\) corroborated \(1 with a row\)/);
+  });
+
+  test('FAILS a register row whose origin host has gone STALE', () => {
+    // MN9, and the whole point of admitting the row above: the alias moves in
+    // BOTH declarations — a real rename, correctly re-rendered — and the register
+    // row that still names last week's host is now a row for a hostname nothing
+    // in the tree produces.
+    const r = run(makeRepo((f) => {
+      const moved = {
+        ...withCatalogue((rows) => { rows[0].origin = 'https://demo-new.example.test'; })(f),
+        'apps/demo/app.yaml': APP_YAML(HOSTS_BOTH.replace('demo-pages.example.test', 'demo-new.example.test')),
+      };
+      return withRegister((reg) => {
+        reg.hosts.push({
+          hostname: 'demo-pages.example.test',
+          derivedFrom: 'appOrigins',
+          monitor: monitor(8, 'demo origin', 'GET'),
+        });
+      })(moved);
+    }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /demo-pages\.example\.test has a row .* and nothing in the tree deploys it/);
+  });
+
+  test('COVERAGE LOST when the catalogue carries rows but no origin at all', () => {
+    // The field renamed or dropped. Limb 5 would then grade an empty set and
+    // print ok — the failure this repository repeats most.
+    const r = run(makeRepo(withCatalogue((rows) => { for (const row of rows) delete row.origin; })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — .*not one of them yields an `origin` hostname/s);
+  });
+
+  test('COVERAGE LOST when there are no app declarations to corroborate against', () => {
+    const r = run(makeRepo((f) => ({ ...f, 'apps/demo/app.yaml': null })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — no apps\/ directory/);
   });
 });

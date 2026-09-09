@@ -1952,7 +1952,7 @@ Each store gets a pair inside the `release` job:
 | store | transport | source (fetched 2026-09-07) |
 |---|---|---|
 | AMO | `web-ext@10.6.0 sign --channel listed` — exact pin, because a range resolves at run time | extensionworkshop.com web-ext command reference |
-| Chrome Web Store | `POST …/upload/v2/publishers/{P}/items/{I}:upload` then `POST …/v2/publishers/{P}/items/{I}:publish`, on a refresh-token exchange at `https://oauth2.googleapis.com/token` | developer.chrome.com "Use the Chrome Web Store API" |
+| Chrome Web Store | `POST …/upload/v2/publishers/{P}/items/{I}:upload` then `POST …/v2/publishers/{P}/items/{I}:publish`, on a **service-account JWT-bearer mint** at `https://oauth2.googleapis.com/token` | developer.chrome.com "Use the Chrome Web Store API" + "Service accounts" (2026-09-09) |
 | Edge Add-ons | four calls with `Authorization: ApiKey` + `X-ClientID` — upload, poll, publish, poll — at `https://api.addons.microsoftedge.microsoft.com` | learn.microsoft.com "Use the REST API" |
 
 ⚠️ **The Chrome path is v2, and the brief said v1.1.** The primary source fetched
@@ -1982,13 +1982,53 @@ restating it, and answers one of three ways:
 * credentials present on an **unarmed** row → also pending, with its own loud
   line. A secret is not an authorisation.
 
+### The Chrome auth is a SERVICE ACCOUNT, not a refresh token (2026-09-09)
+
+`CWS_CLIENT_ID`, `CWS_CLIENT_SECRET` and `CWS_REFRESH_TOKEN` are **retired**.
+[developer.chrome.com/docs/webstore/service-accounts](https://developer.chrome.com/docs/webstore/service-accounts)
+(fetched 2026-09-09) documents service accounts for this API: the account email
+is added in the Developer Dashboard under **Account**, and "you can only add one
+service account to your publisher". The lane now holds ONE credential,
+`CWS_SERVICE_ACCOUNT_JSON`, in the same shape the Play lane's
+`PLAY_SERVICE_ACCOUNT_JSON` already used — so the repository has one way of
+authenticating to Google rather than two. `publish-cws-token.mjs` mints an RS256
+JWT-bearer assertion; nothing prints the token, the assertion or the key.
+
+⚠️ **Authentication is not authorisation, and the API will not tell you which
+you have.** Measured 2026-09-09 with the real publisher id: a token mints 200,
+and `GET /v2/publishers/{P}/items/{I}:fetchStatus` answers **403
+PERMISSION_DENIED "…(or it might not exist)"** for the REAL publisher and for a
+BOGUS publisher **alike, byte for byte apart from the echoed id**, while a bogus
+token answers **401 UNAUTHENTICATED** and the same call against a nonexistent
+`/v2/publishers/{P}` route answers an HTML **404**. The API deliberately
+conflates "not your publisher" with "no such item", so with **zero items** in the
+account, linkage is **unreadable**. It becomes readable the moment the owner's
+manual first publish (ADR 067 decision 8) issues a listing id: `:fetchStatus` on
+THAT id returns 200 when linked. Until then, linkage is an owner console step and
+this repository must not claim to have verified it.
+
 ### `cws-token-keepalive`
 
-A new job on the existing `schedule` (`53 20 * * *`, DAILY since #519 — it was the Monday-only
+A job on the existing `schedule` (`53 20 * * *`, DAILY since #519 — it was the Monday-only
 `17 4 * * 1` when this job was written), `timeout-minutes: 10`.
-It runs the same refresh-token exchange the publish runs — imported from
-`publish-cws-token.mjs`, never restated, because a keep-alive that refreshes
-something adjacent keeps the wrong thing alive. Armed row and a failed exchange
-→ exit 1; unarmed → the owner step. `extensions-lane-accounting` grades it by
-EVENT rather than by lane: it must succeed on `schedule` and be SKIPPED on
-everything else.
+
+⏱ **Its original duty is retired.** It existed because an unused OAuth refresh
+token is revoked. There is no refresh token any more: a JWT-bearer assertion is
+minted fresh per call and has no non-use clock. A job that kept *that* alive
+would be keeping alive a thing that no longer exists and printing OK for it.
+
+🔴 **The job survives because a different silent failure replaced the old one,
+and it is not smaller.** A service-account key can be disabled, deleted or
+rotated in the Google Cloud console — instantly, invisibly from this repository,
+and discovered on a tag push unless something scheduled asks. So it now **mints a
+token** on the schedule, through the same `publish-cws-token.mjs` the publish
+uses, never restated. Armed row and a failed mint → exit 1; unarmed → the owner
+step. It asks only for `CWS_SERVICE_ACCOUNT_JSON`: `CWS_PUBLISHER_ID` is a route
+segment and this job addresses no publisher, so demanding it would redden the job
+on a value it never reads. `extensions-lane-accounting` grades it by EVENT rather
+than by lane: it must succeed on `schedule` and be SKIPPED on everything else.
+
+⚠️ **The job id is deliberately unchanged.** `tooling/ops/register.json` names
+`cws-token-keepalive` as this duty's detector; renaming the job while that file
+is owned elsewhere would point a detector at a job that does not exist. Its prose
+rows are OWED an update.
