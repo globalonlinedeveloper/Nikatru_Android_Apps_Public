@@ -15,7 +15,7 @@
   "appimage-signing.test.mjs": 73,
   "apple-privacy-manifest.test.mjs": 42,
   "apple-signing-2026-09-09.test.mjs": 11,
-  "apple-signing.test.mjs": 114,
+  "apple-signing.test.mjs": 117,
   "appstore-submission.test.mjs": 37,
   "artifact-shape.test.mjs": 29,
   "artifact-signed-apple.test.mjs": 35,

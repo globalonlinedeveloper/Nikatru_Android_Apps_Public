@@ -1300,6 +1300,45 @@ describe('apple-signing — the endings, run as a process', () => {
     }
   });
 
+  // ── 🔴 THE RECORDED FAILING CASE, 2026-09-09 ───────────────────────────────
+  // This cost two full CI runs. The .p12 was exported on Windows with a
+  // passphrase from `openssl rand -base64 24 | tr -d '\n='`; Windows openssl
+  // writes CRLF, `tr` took only the LF, and the archive was encrypted with a
+  // passphrase ending in a CARRIAGE RETURN. Every local `openssl pkcs12 -in`
+  // passed — it was handed the same stray byte. The script's own `.trim()` then
+  // removed it, and macOS said "the passphrase you entered is not correct",
+  // which is true and points nowhere. Refusing the difference is the fix; these
+  // pin that it is refused rather than silently absorbed.
+  test('a p12 password with a trailing CR is REFUSED, not quietly trimmed', () => {
+    const full = FULL();
+    const { r } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: `${full[ROLE_ENV.p12Password]}\r` });
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /carries leading or trailing whitespace, and it is being REFUSED rather than trimmed/);
+    // The DIAGNOSIS is the whole value of this failure over the macOS one.
+    assert.match(out(r), /openssl rand` writes CRLF/);
+    // Lengths, never the value.
+    assert.match(out(r), /character\(s\); \d+ survive trimming/);
+    assert.ok(!out(r).includes(full[ROLE_ENV.p12Password]), 'the passphrase itself must not be printed');
+  });
+
+  test('the same refusal covers a trailing newline and leading space, not just CR', () => {
+    const full = FULL();
+    for (const pad of ['\n', ' ', '\t', '\r\n']) {
+      const { r } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: `${full[ROLE_ENV.p12Password]}${pad}` });
+      assert.equal(r.status, 1, out(r));
+      assert.match(out(r), /REFUSED rather than trimmed/);
+    }
+    const { r: lead } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: ` ${full[ROLE_ENV.p12Password]}` });
+    assert.equal(lead.status, 1, out(lead));
+  });
+
+  test('GREEN CONTROL — a clean password gets past this check', () => {
+    // Without this the refusal above is consistent with a check that fires on
+    // every password, which would fail the lane it exists to protect.
+    const { r } = runPrepare(makeRoot(), FULL());
+    assert.doesNotMatch(out(r), /REFUSED rather than trimmed/);
+  });
+
   test('the secret values never appear anywhere in the output', () => {
     const full = FULL();
     const { r } = runPrepare(makeRoot(), full);
