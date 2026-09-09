@@ -84,6 +84,15 @@ after(() => {
 const APEX = new URL(APEX_ORIGIN).origin;
 
 const PAGES = 'https://subly-9cp.pages.dev';
+/** The Pages project the app deploys to AFTER the slug rename, and both are in
+ *  the baseline because both are in the live configs. deploy-web.yml deploys with
+ *  `--project-name=<workspace directory>`, so renaming `apps/subly` moved the
+ *  Direct Upload project; Cloudflare minted this subdomain at creation and it was
+ *  READ BACK from the API rather than derived, because `<id>.pages.dev` is a
+ *  third party's live host here, not a free one. The retired origin leaves in a
+ *  separate later change -- an exact allowlist fails CLOSED and silently, so the
+ *  order is widen, cut over, then narrow. */
+const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
 const LOCAL = 'http://localhost:3000';
 /** The RETIRED app subdomain. It is no longer in either config and no longer in
  *  EXTRAS -- it is kept here only as the input for the two cases that must still
@@ -114,8 +123,8 @@ const SUBLY = {
  *  fixture is the live config rather than a convenient invention. The subdomain
  *  left both on 2026-09-09 with the 301. */
 const REAL = {
-  platform: `${APEX},${PAGES},${LOCAL}`,
-  'subscriptiontracker-api': `${APEX},${PAGES}`,
+  platform: `${APEX},${PAGES},${PAGES_NEW},${LOCAL}`,
+  'subscriptiontracker-api': `${APEX},${PAGES},${PAGES_NEW}`,
 };
 
 /**
@@ -177,7 +186,7 @@ describe('assert-cors-allowlist', () => {
     // blended tally is how a hand-maintained list creeps back unnoticed. The
     // EXTRAS count is FIVE, not three, and the two it grew by are the retiring
     // subdomain in each config — the number rising is the cutover being visible.
-    assert.match(out, /2 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
+    assert.match(out, /2 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -210,7 +219,7 @@ describe('assert-cors-allowlist', () => {
     );
     // The shared Worker still carries one derived requirement PER APP — they
     // just happen to be the same string now, which is exactly the point.
-    assert.match(ok.out, /3 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
+    assert.match(ok.out, /3 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
 
     // (b) the floor that survived: drop the apex from the shared Worker and
     //     every app in the catalogue is named, not just the newest one.

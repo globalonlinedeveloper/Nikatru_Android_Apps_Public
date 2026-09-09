@@ -34,7 +34,8 @@ function appWith(allowedOrigins: string | undefined) {
 /** Mirrors the deployed `vars.ALLOWED_ORIGINS`. Read 2026-09-09, after [ADR 075]
  *  moved the app to a PATH on the apex and the old subdomain was retired behind a
  *  301 -- so the live browser origin is the apex, and the subdomain is gone. */
-const SHIPPED = 'https://nikatru.com,https://subly-9cp.pages.dev';
+const SHIPPED =
+  'https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev';
 
 describe('subscriptiontracker-api CORS — exact allowlist', () => {
   it('reflects an origin that is on the list, exactly', async () => {

@@ -426,9 +426,25 @@ describe('assert-cors-allowlist', () => {
    *  One declaration, derived on both sides, cannot be split that way. */
   const PAGES = 'https://subly-9cp.pages.dev';
   const PAGES_HOST = new URL(PAGES).host;
-  const PLATFORM = [APEX, PAGES, 'http://localhost:3000'];
+  /** 🔴 THE NEW PAGES PROJECT ORIGIN, AND BOTH ARE IN THESE LISTS ON PURPOSE.
+   *
+   *  deploy-web.yml deploys with `--project-name=<workspace directory>`, so the
+   *  slug rename moved this app's Direct Upload project and Cloudflare minted a
+   *  fresh subdomain for it. That subdomain is READ BACK from the create call
+   *  and never derived from the id: `subscriptiontracker.pages.dev` answers 200
+   *  and belongs to a THIRD PARTY, so `<id>.pages.dev` here would be somebody
+   *  else's host rather than merely an unproven one.
+   *
+   *  The fixture carries BOTH preview origins because the live configs do: an
+   *  exact allowlist fails CLOSED and silently, so the retired origin leaves in
+   *  a separate later change — widen, cut over, then narrow. A fixture carrying
+   *  only one would assert a config shape that does not exist yet, and would go
+   *  green again the day the narrow lands for a reason nobody checked. */
+  const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
+  const PAGES_NEW_HOST = new URL(PAGES_NEW).host;
+  const PLATFORM = [APEX, PAGES, PAGES_NEW, 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = [APEX, PAGES];
+  const SUBLY = [APEX, PAGES, PAGES_NEW];
 
   const config = (origins, { appId = null } = {}) =>
     `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
@@ -461,7 +477,10 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('FAILS when a required PLATFORM origin is dropped, and names it', () => {
-    const dir = build('cors-missing-platform', { platform: config(PLATFORM.slice(0, 2)) });
+    // `slice(0, -1)`, not `slice(0, 2)`: this case is "localhost is dropped",
+    // and a fixed index silently becomes "the preview origins are dropped too"
+    // the moment the list grows — which it just did.
+    const dir = build('cors-missing-platform', { platform: config(PLATFORM.slice(0, -1)) });
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /localhost:3000/);
@@ -473,7 +492,11 @@ describe('assert-cors-allowlist', () => {
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /services\/subscriptiontracker-api/);
+    // The slice drops BOTH preview origins, so the guard has to name both.
+    // Naming one and going quiet about the other is the half-report that would
+    // let the second one be forgotten in exactly the window it is needed.
     assert.ok(out.includes(PAGES_HOST), out);
+    assert.ok(out.includes(PAGES_NEW_HOST), out);
   });
 
   test('FAILS on an empty PLATFORM allowlist', () => {

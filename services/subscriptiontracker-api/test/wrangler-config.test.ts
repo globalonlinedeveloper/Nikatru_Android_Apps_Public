@@ -123,7 +123,18 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
     // browser tab sends. `https://subly.nikatru.com` was removed on 2026-09-09
     // when the zone Redirect Rule started 301ing it, so nothing is served there
     // and nothing sends that Origin.
-    for (const origin of ['https://nikatru.com', 'https://subly-9cp.pages.dev']) {
+    // ⏱ 2026-09-09, the Pages-project move: deploy-web.yml deploys with
+    // `--project-name=<workspace directory>`, so the slug rename re-pointed the
+    // deploy at a NEW Direct Upload project and Cloudflare minted a new preview
+    // subdomain for it (read back from the API, never derived -- the bare
+    // `subscriptiontracker.pages.dev` is a third party's live host). BOTH are
+    // required while the cutover is in flight: an exact allowlist fails closed
+    // and silently, so the retired one is dropped in its own later change.
+    for (const origin of [
+      'https://nikatru.com',
+      'https://subly-9cp.pages.dev',
+      'https://subscriptiontracker-7qg.pages.dev',
+    ]) {
       expect(listed, `missing ${origin}`).toContain(origin);
     }
   });
