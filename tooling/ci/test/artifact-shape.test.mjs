@@ -311,12 +311,12 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     'build/macos/Build/Products/Release/Subly.app/Contents/MacOS/Subly': 'MACHO',
     'build/macos/Build/Products/Release/Subly.app/Contents/Info.plist': '<plist/>',
     'build/ios/ipa/Subly.ipa': 'PK-ZIP-BYTES',
-    'build/macos/pkg/subly.pkg': 'XAR-BYTES',
+    'build/macos/pkg/subscriptiontracker.pkg': 'XAR-BYTES',
   };
   const SIGNED = { APPLE_SIGNING_POSTURE: 'release-signed' };
 
   test('a signed apple lane asserts the .ipa and the .pkg, and prints NO gap', () => {
-    const { code, out } = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    const { code, out } = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subscriptiontracker', '--platform', 'apple'], SIGNED);
     assert.equal(code, 0, out);
     assert.match(out, /build\/ios\/ipa/);
     assert.match(out, /build\/macos\/pkg/);
@@ -328,14 +328,14 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
 
   test('a signed lane that produced NO .ipa fails, however green the build step was', () => {
     const { 'build/ios/ipa/Subly.ipa': _gone, ...noIpa } = APPLE_SIGNED_OK;
-    const { code, out } = run(fixture({ build: noIpa }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    const { code, out } = run(fixture({ build: noIpa }), ['--app', 'subscriptiontracker', '--platform', 'apple'], SIGNED);
     assert.equal(code, 1, out);
     assert.match(out, /\.ipa/);
   });
 
   test('a signed lane that produced NO .pkg fails — the glob the register declared had no filler for weeks', () => {
-    const { 'build/macos/pkg/subly.pkg': _gone, ...noPkg } = APPLE_SIGNED_OK;
-    const { code, out } = run(fixture({ build: noPkg }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    const { 'build/macos/pkg/subscriptiontracker.pkg': _gone, ...noPkg } = APPLE_SIGNED_OK;
+    const { code, out } = run(fixture({ build: noPkg }), ['--app', 'subscriptiontracker', '--platform', 'apple'], SIGNED);
     assert.equal(code, 1, out);
     assert.match(out, /\.pkg/);
   });
@@ -344,9 +344,9 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
   // assert paths that never coexist, so a run mislabelled in either direction
   // fails rather than passing on the other branch's weaker evidence.
   test('the unsigned tree does not satisfy the signed lane, and vice versa', () => {
-    const a = run(fixture({ build: APPLE_OK }), ['--app', 'subly', '--platform', 'apple'], SIGNED);
+    const a = run(fixture({ build: APPLE_OK }), ['--app', 'subscriptiontracker', '--platform', 'apple'], SIGNED);
     assert.equal(a.code, 1, a.out);
-    const b = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subly', '--platform', 'apple']);
+    const b = run(fixture({ build: APPLE_SIGNED_OK }), ['--app', 'subscriptiontracker', '--platform', 'apple']);
     assert.equal(b.code, 1, b.out);
   });
 

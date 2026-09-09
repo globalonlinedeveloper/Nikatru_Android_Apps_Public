@@ -78,9 +78,8 @@ void main() {
 ///
 /// The catalogue is what `services/platform/src/config.ts` builds its served
 /// registry from (`buildRegistry`, filtered by APP_ID_PATTERN), so this is the
-/// same string the server will answer `/config/<id>` for. Reading it here binds
-/// the compiled-in client default to the declaration rather than to a second
-/// copy of it.
+/// same string the server answers `/config/<id>` for. Reading it here binds the
+/// compiled-in client default to the declaration rather than to a second copy.
 String _catalogueSlug() {
   final Directory dir = Directory.current;
   for (Directory d = dir; ; d = d.parent) {
@@ -91,14 +90,14 @@ String _catalogueSlug() {
       final List<String> slugs = rows
           .map((dynamic r) => (r as Map<String, dynamic>)['slug'] as String)
           .toList();
-      // COVERAGE LOST, never a silent pass: if the catalogue stops declaring
-      // exactly one app this assertion has no unambiguous subject and must say
-      // so rather than pick one.
+      // COVERAGE LOST, never a silent pass: with more or fewer than one app
+      // there is no unambiguous subject and this must say so rather than pick.
       expect(
         slugs.length,
         1,
-        reason: 'catalog/apps.json must declare exactly one app for this '
-            'assertion to have a subject; it declares ${slugs.length}.',
+        reason:
+            'catalog/apps.json must declare exactly one app for this assertion '
+            'to have a subject; it declares ${slugs.length}.',
       );
       return slugs.single;
     }
