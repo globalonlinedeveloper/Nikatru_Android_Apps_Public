@@ -22,6 +22,15 @@ on:
       # scoped to *.js/*.json so a README edit cannot redeploy production.
       - 'contracts/entitlement/*.js'
       - 'contracts/entitlement/*.json'
+      # why: src/lib/bundle/availability.ts imports these three and esbuild
+      # INLINES them, so the bundle set, the extension set and the channel
+      # map the live Worker serves are all decided at build time. Named as
+      # exact files, not catalog/** or tooling/**, for the same reason
+      # catalog/apps.json is: a broad glob would redeploy production on an
+      # unrelated edit.
+      - 'catalog/bundles.json'
+      - 'extensions/catalog/extensions.json'
+      - 'tooling/channel-register.json'
       - '.github/workflows/deploy-workers.yml'
   workflow_dispatch:
 
@@ -84,6 +93,11 @@ jobs:
               # environment in src/lib/money.ts.
               - 'contracts/entitlement/*.js'
               - 'contracts/entitlement/*.json'
+              # why: the three inlined bundle inputs — see the trigger list.
+              # subscriptiontracker-api reads none of them.
+              - 'catalog/bundles.json'
+              - 'extensions/catalog/extensions.json'
+              - 'tooling/channel-register.json'
               - '.github/workflows/deploy-workers.yml'
       - id: decide
         # why: manual dispatch has no diff to filter on → deploy both.
