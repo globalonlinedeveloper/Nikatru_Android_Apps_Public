@@ -242,10 +242,33 @@ final Provider<bool> mustForceUpdateProvider = Provider<bool>((ref) {
 //    stays pure Dart. Async — the stores create off the platform. ──
 
 /// Non-secret key-value store (prefs, the flag install-id, last-good config).
+///
+/// 🔴 NAMESPACED TO THIS APP, AND THAT IS LOAD-BEARING ON WEB. Every app in the
+/// portfolio serves from `nikatru.com/<app>` rather than its own subdomain, so
+/// they all share ONE browser origin — and `localStorage` (which is where
+/// `shared_preferences` lands on web, as `flutter.<key>`) is scoped to the
+/// ORIGIN, never to the path. Two apps persisting a pref of the same name would
+/// otherwise write the same slot and read back each other's value, with no
+/// exception and nothing in either app's logs. `PrefsKeyValueStore` requires
+/// the app id for that reason: it cannot be constructed without one.
+///
+/// `AppConfig.appId` is the STAMPED id, so this line is correct in every app
+/// the brick produces; a literal here would give all of them one namespace,
+/// which is the collision itself.
 final FutureProvider<core.KeyValueStore> keyValueStoreProvider =
-    FutureProvider<core.KeyValueStore>((ref) => PrefsKeyValueStore.create());
+    FutureProvider<core.KeyValueStore>(
+      (ref) => PrefsKeyValueStore.create(appId: AppConfig.appId),
+    );
 
 /// Secure store (auth tokens, the entitlement cache).
+///
+/// ⚠️ DELIBERATELY *NOT* NAMESPACED, unlike the key-value store above. The
+/// session this holds — and gotrue's own `sb-<project-ref>-auth-token`, which
+/// the Supabase SDK writes straight into the shared origin's `localStorage`
+/// where nothing here can reach it — is meant to be SHARED across every app on
+/// the origin. One login reaching everything is the portfolio's premise, so one
+/// session per origin is the accepted, intended consequence of path routing.
+/// Do not "fix" it by adding a prefix: that would be the regression.
 final Provider<core.SecureStore> secureStoreProvider =
     Provider<core.SecureStore>((ref) => FlutterSecureStore());
 

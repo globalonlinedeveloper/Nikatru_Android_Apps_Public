@@ -11,8 +11,8 @@
     "(17 were red both before and after, all of them needing build artifacts, credentials or CLI args). This ledger is the first",
     "thing that makes the template a declared set."
   ],
-  "measuredOn": "2026-09-07",
-  "measuredAtCommit": "b61f15b6",
+  "measuredOn": "2026-09-09",
+  "measuredAtCommit": "63fb84ce",
   "roots": [
     "tooling/bricks/app/__brick__/apps/{{app_id}}",
     "tooling/bricks/app/__brick__/{{#needs_backend}}services{{/needs_backend}}/{{app_id}}-api"
@@ -20,7 +20,7 @@
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged. ⏱ THE FIGURES IN THIS NOTE MOVED ON 2026-09-08 AND ARE CORRECTED RATHER THAN REWRITTEN: the Worker half is now 14 files and 1,021 lines, because the template gained src/lib/error-sink.ts — a stamped backend had NO crash sink at all and failed tooling/ci/assert-worker-error-sink.mjs on limbs 2, 3 and 5 at its first CI run. The guard PRINTS both figures per root on every run, which is the number to read; this sentence is prose and prose rots.",
   "totals": {
     "files": 118,
-    "lines": 16805,
+    "lines": 16828,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -219,7 +219,7 @@
     },
     {
       "path": "lib/state/providers.dart",
-      "lines": 2579,
+      "lines": 2602,
       "verdict": "STAYS",
       "why": "MEASURED: undeletable (9 guards) and NOT reducible to declarations — a 98-line stub carrying all 51 provider names and all 14 class/typedef signatures still left 8 guards red. MIN_DOMAIN=59 is NOT the binding constraint (its regex does accept a one-line delegation, verified: 51 such lines count 51); the binding constraints are 37 literal anchors in assert-stamp-properties, the analytics envelope literal (assert-analytics-contract:207), the consent gate (assert-policy-claims POLICY_CONSTS), two sole non-test seam call sites (assert-seams-wired:588,622) and MIN_PROVIDERS=20 (assert-provider-graph-acyclic:419, the stub parsed 9)."
     },

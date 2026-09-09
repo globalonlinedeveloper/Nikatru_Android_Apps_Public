@@ -472,7 +472,10 @@ const APPS = [
   // against this array BY NAME in both directions: an app here that the registry
   // does not call live FAILS, and an app the registry calls live that is missing
   // here is PRINTED as UNANNOUNCED on every run. Announced 2026-08-21 by owner
-  // decision, after https://subly.nikatru.com was measured answering 200.
+  // decision, after the app was measured answering 200. The address here moved
+  // from the subdomain to the apex path on 2026-09-09 ([ADR 075]); the app is
+  // now served at nikatru.com/subly by the apex router (functions/_middleware.js)
+  // and the subdomain 301s to it.
   // Only `web` is listed because only web is live; an absent key renders nothing,
   // which is why no vendor store badge is drawn for a listing that does not exist.
   {
@@ -480,7 +483,7 @@ const APPS = [
     tagline: "Track every subscription in one place",
     icon: "&#128179;",
     links: {
-      web: "https://subly.nikatru.com"
+      web: "https://nikatru.com/subly"
     }
   }
 ];

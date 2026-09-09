@@ -40,3 +40,160 @@ class InMemoryKeyValueStore implements KeyValueStore {
   @override
   Future<bool> containsKey(String key) async => _store.containsKey(key);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE ORIGIN, MANY APPS.
+//
+// 🔴 THIS IS THE ROUTING MIGRATION'S SHARP EDGE. Every app moved from
+// `<app>.nikatru.com` to `nikatru.com/<app>`, so all of them now run on ONE
+// browser origin. `localStorage`, `sessionStorage`, IndexedDB and Cache Storage
+// are scoped to the ORIGIN, never to the path — the browser does not know or
+// care that `/one` and `/two` are different products.
+//
+// `shared_preferences` on web writes `flutter.<key>` into that origin's
+// `localStorage`. So two apps that each persist a pref called `theme_mode` are
+// not writing two entries: they are writing ONE, `flutter.theme_mode`, and the
+// second app reads back the first app's value. There is no exception, no
+// quota error and no console warning — the read SUCCEEDS with somebody else's
+// data. A silent swap is the worst shape a persistence bug takes, because
+// neither app's logs contain anything at all.
+//
+// The fix is a prefix, and it is applied in EXACTLY ONE PLACE:
+// [StorageNamespace.qualify]. Everything the chassis persists goes through
+// [NamespacedKeyValueStore], which is the only caller of it, so there is no
+// second implementation to keep in step and no key that can quietly opt out.
+//
+// ⚠️ THE APP ID IS INJECTED, NEVER A LITERAL. A hard-coded id would be wrong
+// twice over: this chassis is stamped into every app by the brick, so one
+// literal would give ALL of them the same namespace — the exact collision this
+// file exists to prevent — and the ids themselves are not stable, one app in
+// this portfolio has already been renamed once.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 WHAT IS *NOT* OURS TO NAMESPACE, SO NOBODY "FIXES" IT LATER.
+//
+// The gotrue session key `sb-<project-ref>-auth-token` is written into
+// `localStorage` by the Supabase SDK itself, under a name derived from the
+// PROJECT ref rather than from any app. The chassis never sees that write, so
+// no prefix here could reach it — and, more importantly, IT MUST NOT BE
+// PREFIXED. One shared session across every app on the origin is the DELIBERATE
+// and accepted consequence of path routing: the portfolio's stated premise is
+// that one login reaches everything, and per-app auth storage would break that
+// premise on purpose. The same holds for the single secure-store session key
+// that `SecureSessionStorage` writes.
+//
+// So: a session shared between apps on this origin is the FEATURE. It is not a
+// leak, not an oversight, and not a bug report. Namespacing it would be the
+// regression.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The per-app prefix carried by every key the chassis writes.
+///
+/// A value type rather than a bare `String` so the app id is VALIDATED once, at
+/// construction, instead of being concatenated hopefully at each call site.
+class StorageNamespace {
+  /// The namespace for [appId].
+  ///
+  /// Throws [ArgumentError] unless [appId] is a snake_case identifier
+  /// (lowercase letters, digits and underscores, starting with a letter). That
+  /// is not fussiness: the id becomes the literal head of every stored key, and
+  /// an id containing the [separator] would let one app's prefix match another
+  /// app's keys — a namespace that leaks is worse than no namespace, because it
+  /// reads as safe.
+  factory StorageNamespace(String appId) {
+    if (!_validAppId.hasMatch(appId)) {
+      throw ArgumentError.value(
+        appId,
+        'appId',
+        'a storage namespace must be a snake_case app id: lowercase letters, '
+            'digits and underscores only, starting with a letter. It becomes '
+            'the literal prefix of every stored key, so a separator inside it '
+            'would make one app id a prefix of another',
+      );
+    }
+    return StorageNamespace._(appId);
+  }
+
+  const StorageNamespace._(this.appId);
+
+  /// What divides the app id from the caller's logical key.
+  ///
+  /// A dot, matching the existing key style in this chassis
+  /// (`nikatru.install_id`). Stored keys therefore read
+  /// `flutter.<app_id>.nikatru.install_id` once `shared_preferences` has added
+  /// its own web prefix.
+  static const String separator = '.';
+
+  static final RegExp _validAppId = RegExp(r'^[a-z][a-z0-9_]*$');
+
+  /// The app this namespace belongs to.
+  final String appId;
+
+  /// The literal string every key of this app starts with.
+  String get prefix => '$appId$separator';
+
+  /// 🔴 THE ONE PLACE A PREFIX IS APPLIED. Every namespaced read, write, remove
+  /// and containsKey routes through here; there is no second copy of this
+  /// concatenation anywhere in the chassis, and there must never be one.
+  String qualify(String key) => '$prefix$key';
+
+  /// Whether [storedKey] — a raw, already-qualified key as it sits in the
+  /// backing store — belongs to this app.
+  bool owns(String storedKey) => storedKey.startsWith(prefix);
+
+  /// The logical key behind [storedKey], or null when another app owns it.
+  String? unqualify(String storedKey) =>
+      owns(storedKey) ? storedKey.substring(prefix.length) : null;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StorageNamespace && other.appId == appId;
+
+  @override
+  int get hashCode => appId.hashCode;
+
+  @override
+  String toString() => 'StorageNamespace($appId)';
+}
+
+/// A [KeyValueStore] that prefixes every key with its app's
+/// [StorageNamespace] before touching [inner].
+///
+/// Wrap the platform store in this ONCE, at the composition root, and every
+/// caller downstream keeps writing plain logical keys (`theme_mode`) while the
+/// bytes land under `<app_id>.theme_mode`. Two apps sharing one backing store —
+/// which, after the path-routing move, is what every web build now is — then
+/// cannot see or clobber each other's values.
+class NamespacedKeyValueStore implements KeyValueStore {
+  /// Namespace [inner] to [appId]. Both are required: an optional app id is an
+  /// app id somebody forgets, and forgetting it is silent.
+  NamespacedKeyValueStore({
+    required KeyValueStore inner,
+    required String appId,
+  })  : _inner = inner,
+        namespace = StorageNamespace(appId);
+
+  final KeyValueStore _inner;
+
+  /// The prefix this store applies. Exposed so a caller that must reason about
+  /// RAW stored keys (a migration, a diagnostic) can do so without rebuilding
+  /// the string itself.
+  final StorageNamespace namespace;
+
+  @override
+  Future<String?> read(String key) => _inner.read(namespace.qualify(key));
+
+  @override
+  Future<void> write(String key, String value) =>
+      _inner.write(namespace.qualify(key), value);
+
+  @override
+  Future<void> remove(String key) => _inner.remove(namespace.qualify(key));
+
+  @override
+  Future<bool> containsKey(String key) =>
+      _inner.containsKey(namespace.qualify(key));
+
+  @override
+  String toString() => 'NamespacedKeyValueStore(${namespace.appId})';
+}

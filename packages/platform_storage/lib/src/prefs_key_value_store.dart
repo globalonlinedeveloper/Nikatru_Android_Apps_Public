@@ -6,12 +6,67 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// For SECRETS/tokens use a `SecureStore` implementation instead — this store is
 /// not encrypted.
+///
+/// 🔴 EVERY KEY IS NAMESPACED TO [appId], AND THAT IS NOT OPTIONAL. On web all
+/// apps in this portfolio now serve from ONE origin (`nikatru.com/<app>`, not
+/// `<app>.nikatru.com`), `shared_preferences` writes `flutter.<key>` into that
+/// origin's `localStorage`, and `localStorage` is origin-scoped. Two apps
+/// writing a pref of the same name would write the SAME slot and read back each
+/// other's value with no error of any kind. The prefix is applied by core's
+/// [NamespacedKeyValueStore] — one implementation, no second copy — and the raw
+/// passthrough below is PRIVATE so no caller outside this library can obtain an
+/// un-namespaced prefs store at all.
+///
+/// See `key_value_store.dart` in `packages/core` for why the gotrue session key
+/// `sb-<project-ref>-auth-token` is deliberately NOT namespaced.
 class PrefsKeyValueStore implements KeyValueStore {
-  PrefsKeyValueStore(this._prefs);
+  /// Wrap an existing [prefs] instance, namespaced to [appId].
+  ///
+  /// [appId] is REQUIRED and must be injected — pass the stamped
+  /// `AppConfig.appId`. A default, or a literal written here, would give every
+  /// app in the portfolio the same namespace, which is precisely the collision
+  /// the namespace exists to prevent.
+  PrefsKeyValueStore(SharedPreferences prefs, {required String appId})
+      : _delegate = NamespacedKeyValueStore(
+          inner: _RawPrefsKeyValueStore(prefs),
+          appId: appId,
+        );
 
-  /// Build from the platform's default `SharedPreferences` instance.
-  static Future<PrefsKeyValueStore> create() async =>
-      PrefsKeyValueStore(await SharedPreferences.getInstance());
+  /// Build from the platform's default `SharedPreferences` instance, namespaced
+  /// to [appId].
+  static Future<PrefsKeyValueStore> create({required String appId}) async =>
+      PrefsKeyValueStore(await SharedPreferences.getInstance(), appId: appId);
+
+  final NamespacedKeyValueStore _delegate;
+
+  /// The prefix this store writes under. Exposed for diagnostics and for a
+  /// caller that has to reason about RAW stored keys.
+  StorageNamespace get namespace => _delegate.namespace;
+
+  @override
+  Future<String?> read(String key) => _delegate.read(key);
+
+  @override
+  Future<void> write(String key, String value) => _delegate.write(key, value);
+
+  @override
+  Future<void> remove(String key) => _delegate.remove(key);
+
+  @override
+  Future<bool> containsKey(String key) => _delegate.containsKey(key);
+
+  @override
+  String toString() => 'PrefsKeyValueStore(${namespace.appId})';
+}
+
+/// The unprefixed passthrough to `shared_preferences`.
+///
+/// 🔴 PRIVATE ON PURPOSE. This is the only object in the package that can write
+/// a key with no app id in front of it, and nothing outside this library can
+/// construct one — so "forgot to namespace" is not a mistake a caller is able
+/// to make, rather than one a comment asks them not to make.
+class _RawPrefsKeyValueStore implements KeyValueStore {
+  _RawPrefsKeyValueStore(this._prefs);
 
   final SharedPreferences _prefs;
 

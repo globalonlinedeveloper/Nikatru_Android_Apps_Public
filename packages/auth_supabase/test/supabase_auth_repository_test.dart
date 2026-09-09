@@ -385,13 +385,13 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://subly.nikatru.com/',
+        passwordResetRedirectTo: 'https://nikatru.com/subly/',
       );
 
       await auth.sendPasswordReset('a@b.com');
 
       expect(g.resetRequests, <List<String?>>[
-        <String?>['a@b.com', 'https://subly.nikatru.com/'],
+        <String?>['a@b.com', 'https://nikatru.com/subly/'],
       ]);
     });
 
@@ -732,7 +732,7 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://subly.nikatru.com/',
+        passwordResetRedirectTo: 'https://nikatru.com/subly/',
       );
 
       await auth.sendPasswordReset('a@b.com', captchaToken: 'tok-abc123');
@@ -747,7 +747,7 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://subly.nikatru.com/',
+        passwordResetRedirectTo: 'https://nikatru.com/subly/',
       );
 
       await auth.sendPasswordReset('a@b.com');
@@ -756,7 +756,7 @@ void main() {
       // …and the redirect is still there. A forwarding change that quietly
       // dropped a sibling argument would pass the line above.
       expect(g.resetRequests, <List<String?>>[
-        <String?>['a@b.com', 'https://subly.nikatru.com/'],
+        <String?>['a@b.com', 'https://nikatru.com/subly/'],
       ]);
     });
 

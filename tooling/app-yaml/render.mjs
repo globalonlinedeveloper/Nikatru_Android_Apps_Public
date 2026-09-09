@@ -81,6 +81,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseYaml, YamlError } from './yaml.mjs';
 import { validate } from './schema-validate.mjs';
+import { publicAppUrl } from '../sites/apex.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -188,7 +189,7 @@ export const ICON_LABEL_TARGETS = [
  *  and the bytes are compared by two positive controls: a row whose keys arrive
  *  in whatever order the reader happened to produce is a file that reformats
  *  itself the first time a different tool writes it. */
-const ROW_ORDER = ['slug', 'name', 'tagline', 'url', 'api', 'listings', 'platforms', 'markets', 'audience', 'status'];
+const ROW_ORDER = ['slug', 'name', 'tagline', 'url', 'origin', 'api', 'listings', 'platforms', 'markets', 'audience', 'status'];
 
 /* ------------------------------------------------------------------ */
 /* Serialisation — the catalogue's hand-written house style           */
@@ -317,7 +318,30 @@ export function plan(root) {
 
   // ── the catalogue ─────────────────────────────────────────────────────────
   const rows = declarations.map(({ doc }) => {
-    const url = `https://${doc.hosts.web}`;
+    /* 🔴 THE PUBLIC ADDRESS IS A PATH ON THE APEX, NOT A SUBDOMAIN [ADR 075].
+     *
+     * It was `https://${doc.hosts.web}` until 2026-09-09. The owner's decision
+     * and its measured premise: Paddle approves a DOMAIN and says of a
+     * subdomain "you will need to have that subdomain approved separately",
+     * and its overlay enforces at init AGAINST THE PAGE ORIGIN — so on
+     * `<id>.nikatru.com` in-app checkout could not open at all. Razorpay needs
+     * a support ticket per sub-domain against a ceiling of one main site plus
+     * five. Neither conditions anything on a PATH. So one apex approval, held
+     * once, covers app #51.
+     *
+     * `publicAppUrl` is imported, never retyped — the apex is declared exactly
+     * once (tooling/sites/apex.mjs) and `doc.id` is interpolated, never a
+     * literal, because the app has already been renamed once and a rename must
+     * move both sides of every comparison in the same run. */
+    const url = publicAppUrl(doc.id);
+
+    /* WHERE THE BYTES COME FROM, as distinct from where they are addressed.
+     * The apex router (sites/nikatru/functions/_middleware.js) reads this to
+     * know what to fetch. Prefer `pagesOrigin` — it is outside the nikatru.com
+     * zone, so the Redirect Rule retiring the subdomain cannot catch the
+     * router's own subrequest. Falling back to `hosts.web` keeps a
+     * freshly-stamped app routable before its Pages project has been named. */
+    const origin = `https://${doc.hosts.pagesOrigin || doc.hosts.web}`;
     const declared = doc.listings ?? {};
     const listings = {};
     for (const c of storefronts) {
@@ -328,6 +352,7 @@ export function plan(root) {
       name: doc.name,
       tagline: doc.tagline,
       url,
+      origin,
       api: doc.hosts.api ? `https://${doc.hosts.api}` : '',
       listings,
       platforms: doc.platforms,
