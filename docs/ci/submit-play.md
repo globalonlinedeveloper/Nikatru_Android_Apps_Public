@@ -242,6 +242,56 @@ ci.yml runs this same guard plain, where it prints; here it runs with
 --for-submission, where it refuses. It is placed BEFORE the dry run so
 the refusal names the listing rather than arriving as a Play API error.
 
+── 🔴 WHAT CHANGED 2026-08-27: THE GAP IS CLOSED, AND THE SENTENCE ABOVE
+   ("the set is four phone screenshots") HAS BEEN FALSE SINCE THAT DATE ─
+The paragraph is kept as written — it is why this step exists — and this
+correction sits beside it because two later review passes read it as a
+live blocker and re-derived a defect that no longer exists.
+`tooling/channel-register.json` grew its `sets.tablet` row on 2026-08-21
+and the four tablet frames landed on 2026-08-27 (#393). The listing now
+covers TWO device types, which is Play's stated minimum:
+
+  phone   apps/subly/store/android-play/screenshots/         4 × 1080×1920
+  tablet  apps/subly/store/android-play/screenshots-tablet/  4 × 1800×3200
+
+Measured on `main` @ `d7586e3e`, 2026-09-08 —
+`node tooling/ci/assert-play-device-coverage.mjs --for-submission` exits
+0: "2 declared device-type set(s) measured … --for-submission, so a
+shortfall would have been fatal". The tablet frames are 9:16 with both
+sides inside [1,080, 3,840], which is the rule Google states for
+"Chromebook and tablets" verbatim.
+
+⚠️ RUN 32451812894 IS NOT EVIDENCE ABOUT THIS TREE. It is the last
+dispatch of this workflow, it failed on exactly this step, and it ran on
+2026-08-21 — hours BEFORE the register row that fixes it. A red run that
+predates its own fix stays red in the run list forever. Re-dispatch with
+`confirm: dry-run-only` to replace it; nothing in the tree needs changing
+first.
+
+⚠️ WHAT IS STILL NOT DECLARED, DELIBERATELY: which console slot the
+tablet set is uploaded to. The Play Developer API has NO generic tablet
+image type — `AppImageType` is `phoneScreenshots · sevenInchScreenshots ·
+tenInchScreenshots · tvScreenshots · wearScreenshots · icon ·
+featureGraphic · tvBanner`
+(developers.google.com/android-publisher/api-ref/rest/v3/AppImageType,
+fetched 2026-09-08) — so choosing between the seven-inch and the ten-inch
+slot is a real human step at upload. `submit-play.mjs` never calls
+`edits.images`, so no automation depends on the answer and nothing here
+guesses it; `tooling/store/capture-play-screenshots.mjs` records why the
+capture does not claim an inch count either.
+
+⚠️ AND WHY A THIRD SET IS NOT ADDED. Google makes a Chromebook, Wear OS,
+Android TV, XR or Automotive set mandatory only for an app DISTRIBUTED to
+that form factor ("If you distribute an app to Android TV devices, you
+need to add at least one Android TV screenshot before you can publish
+your app" — support.google.com/googleplay/android-developer/answer/9866151,
+fetched 2026-09-08), and Subly declares none of them. The 2026-04-10
+adaptive app quality guidelines that replaced the large-screen ones ask
+for tablet and foldable screenshots for VISIBILITY, not to publish. A set
+declared without frames captured on it would buy device-type coverage
+from pixels nobody photographed — the exact failure
+`assert-play-device-coverage.mjs`'s header says a 1×1 PNG once bought.
+
 ### before step **Every native library is aligned for a 16 KB memory page**
 
 ── THE PLAY STORE GATE, ON THE BUNDLE THAT WOULD BE UPLOADED ──────────

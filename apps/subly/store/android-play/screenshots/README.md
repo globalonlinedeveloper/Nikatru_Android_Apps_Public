@@ -153,6 +153,23 @@ frames the run produced are listed below; **four of them sit next to this file**
 | `04-budget.png` | 1080×1920 | 2 | 133,497 |
 | `05-settings.png` | 1080×1920 | 2 | 203,988 |
 
+🔴 **THE `bytes` COLUMN IS RUN `30922349590`'s, AND STOPPED BEING THIS DIRECTORY'S ON 2026-08-27.**
+The set was RE-CAPTURED that day (`#393` — *"the captured screenshot set — phone refreshed, tablet
+captured for the first time"*), so the four files beside this README are different bytes at the same
+dimensions. Measured 2026-09-08 on `main` @ `d7586e3e`: `01-home` 458,303 · `02-calendar` 149,312 ·
+`03-insights` 129,114 · `04-budget` 152,555. The table is kept as the record of the run it names
+rather than re-typed, because a hand-copied byte column beside files a workflow re-captures goes
+stale on the next merge — `store-screenshots.yml`'s PR **#542** is open right now and changes three
+of these four again. Read the bytes, never this table:
+
+```
+node -e "const fs=require('fs');for(const f of fs.readdirSync('.').filter(x=>x.endsWith('.png')))console.log(f,fs.statSync(f).size)"
+```
+
+`pixels` and `colour type` are unchanged and are recomputed on every run by
+`tooling/ci/assert-listing-assets.mjs` and `tooling/ci/assert-play-device-coverage.mjs`. The byte
+column was the only one nothing recomputes, which is why it is the only one that drifted.
+
 `CAPTURE.json` came with them and records `posture: "live"`, `count: 4` beside
 `curation.framesCaptured: 5`, `pixels: "1080x1920"`, `viewport: "360x640@3"` —
 written by the capture script on the live run, not by hand afterwards.
