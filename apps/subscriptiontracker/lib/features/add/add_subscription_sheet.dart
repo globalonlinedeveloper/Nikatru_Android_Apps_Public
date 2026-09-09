@@ -270,7 +270,7 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
       id: '',
       name: _name.text.trim(),
       category: _category,
-      price: double.tryParse(_price.text.trim()) ?? 9.99,
+      price: _enteredPrice(),
       cycle: _cycle,
       nextRenewal: _renewal,
     );
@@ -687,6 +687,34 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
         ),
       ),
     );
+  }
+
+  /// What the user typed in the amount field, as money that knows what it is.
+  ///
+  /// 🔴 THE ROW IS ENTERED IN THE USER'S CHOSEN CURRENCY AND IT KEEPS IT.
+  /// Before this the amount was stored bare and every screen re-symboled it
+  /// under whatever Settings said AT RENDER TIME — so switching the picker
+  /// silently restated every subscription the user had ever added as a
+  /// different currency. Parsing is exact (integer minor units), and a field
+  /// that will not parse falls back to the same default it always did.
+  ///
+  /// The code comes from [SubscriptionsController] rather than from the
+  /// settings provider directly: the controller is what WRITES rows, so "which
+  /// currency a new row is created in" is its question, and the sheet does not
+  /// have to know which provider holds a preference.
+  ///
+  /// ⚠️ AND IT LIVES DOWN HERE, BELOW THE FIELDS, ON PURPOSE.
+  /// `store/android-play/data-safety.json` cites the LINE NUMBER of the name
+  /// field's `_input(...)` as the evidence for its free-text declaration, and
+  /// `assert-sworn-store-files.mjs` re-measures that citation on every run.
+  /// Putting these fifteen lines above `build` would move that field and
+  /// falsify a sworn store declaration — a thing this increment does not own.
+  Money _enteredPrice() {
+    final String code = ref
+        .read(subscriptionsControllerProvider.notifier)
+        .newRowCurrencyCode;
+    return Money.tryParseMajor(_price.text.trim(), code) ??
+        Money.fromMajorUnits(9.99, code);
   }
 
   /// The category, chosen from [_categories].

@@ -1,0 +1,36 @@
+{
+  "provider": "paddle",
+  "note": "The first notification of a subscription's life. It is the one obliged to carry custom_data - provider_accounts is written from it and every later event resolves through that link (paddle.ts U3). Synthetic ids and an .invalid email: no real customer, no real subscription, nothing that exists on any rail.",
+  "payload": {
+    "event_id": "evt_replay000000000000000001",
+    "notification_id": "ntf_replay000000000000000001",
+    "event_type": "subscription.created",
+    "occurred_at": "2026-08-01T00:00:00.000Z",
+    "data": {
+      "id": "sub_replayfixture0000000001",
+      "status": "trialing",
+      "transaction_id": "txn_replayfixture0000000001",
+      "current_billing_period": {
+        "starts_at": "2026-08-01T00:00:00.000Z",
+        "ends_at": "2026-08-15T00:00:00.000Z"
+      },
+      "items": [
+        {
+          "trial_dates": {
+            "starts_at": "2026-08-01T00:00:00.000Z",
+            "ends_at": "2026-08-15T00:00:00.000Z"
+          }
+        }
+      ],
+      "custom_data": {
+        "nikatru_user_id": "replay-user-0001",
+        "nikatru_app_id": "subscriptiontracker"
+      },
+      "customer_id": "ctm_replayfixture0000000001",
+      "customer": {
+        "id": "ctm_replayfixture0000000001",
+        "email": "replay-fixture@example.invalid"
+      }
+    }
+  }
+}

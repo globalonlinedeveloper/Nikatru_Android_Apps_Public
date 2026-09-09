@@ -182,8 +182,9 @@ describe('the served app set comes from the catalogue, not from this Worker', ()
       '{"app_id":"subscriptiontracker","api_base_url":"https://api.nikatru.com/v1",' +
         '"features":{"renewals":true,"budgets":true,"exports":true},"flags":{},' +
         '"paywall":{"enabled":false,"offerings":[' +
-        '{"product_id":"pro_monthly","amount_minor":499,"currency_code":"USD","term":"month","trial_days":30},' +
-        '{"product_id":"pro_yearly","amount_minor":1999,"currency_code":"USD","term":"year","trial_days":30}]},' +
+        '{"product_id":"pro_monthly","amount_minor":599,"currency_code":"USD","term":"month","trial_days":30},' +
+        '{"product_id":"pro_yearly","amount_minor":3499,"currency_code":"USD","term":"year","trial_days":30},' +
+        '{"product_id":"pro_lifetime","amount_minor":8900,"currency_code":"USD","term":"one_time","trial_days":30}]},' +
         '"content_pack":null,"copy":{},"min_supported_version":"1.0.0","max_promos_per_week":0,' +
         '"update_url":null}',
     );

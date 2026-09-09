@@ -52,7 +52,7 @@ Subscription _draft(String name) => Subscription(
   id: '',
   name: name,
   category: 'AI tools',
-  price: 20,
+  price: const Money(2000, 'USD'),
   cycle: BillingCycle.monthly,
   nextRenewal: DateTime(2026, 10, 1),
 );
@@ -131,7 +131,12 @@ void main() {
         (await reborn.read(subscriptionRepositoryProvider).fetchAll())
             .firstWhere((Subscription s) => s.id == id);
     expect(reread.name, 'Renamed');
-    expect(reread.price, 1.23);
+    // ⚠️ THE PATCH IS STILL A BARE `num` AND THE ROW KEEPS ITS OWN CURRENCY.
+    // `changes` comes off the wire, where a price is a decimal with no
+    // currency beside it, so `copyWith` reads 1.23 as 123 minor units of the
+    // unit this row was already in — a patch that changes the NUMBER has not
+    // changed the currency.
+    expect(reread.price, const Money(123, 'USD'));
   });
 
   test('the BUDGET survives a restart', () async {
@@ -142,8 +147,8 @@ void main() {
         .read(subscriptionRepositoryProvider)
         .saveBudget(
           const BudgetInfo(
-            monthlyBudget: 250,
-            categories: <BudgetCap>[BudgetCap('AI tools', 60)],
+            monthlyBudget: Money(25000, 'USD'),
+            categories: <BudgetCap>[BudgetCap('AI tools', Money(6000, 'USD'))],
           ),
         );
     first.dispose();
@@ -153,9 +158,9 @@ void main() {
     final BudgetInfo budget = await reborn
         .read(subscriptionRepositoryProvider)
         .budget();
-    expect(budget.monthlyBudget, 250);
+    expect(budget.monthlyBudget, const Money(25000, 'USD'));
     expect(budget.categories.single.name, 'AI tools');
-    expect(budget.categories.single.cap, 60);
+    expect(budget.categories.single.cap, const Money(6000, 'USD'));
   });
 
   test('🔴 AN EMPTIED LIST STAYS EMPTY — the seed is not re-planted', () async {
@@ -216,8 +221,15 @@ void main() {
     final ProviderContainer c = _launch(kv);
     addTearDown(c.dispose);
     expect(await c.read(subscriptionRepositoryProvider).fetchAll(), isNotEmpty);
+    // ⚠️ `greaterThan(0)` NO LONGER TYPE-CHECKS AT RUNTIME and the analyzer
+    // cannot say so: `expect`'s matcher argument is `dynamic`, so an int
+    // against a [Money] compiles and then throws inside `_OrderingMatcher`.
+    // The claim is "the seed budget is a real figure", so it is read off the
+    // minor units — the one axis that is comparable without naming a currency.
     expect(
-      (await c.read(subscriptionRepositoryProvider).budget()).monthlyBudget,
+      (await c.read(subscriptionRepositoryProvider).budget())
+          .monthlyBudget
+          .minorUnits,
       greaterThan(0),
     );
   });

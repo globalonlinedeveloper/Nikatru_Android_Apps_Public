@@ -3,15 +3,26 @@ import '../models/subscription.dart';
 
 /// The exact seed set from the Subly design, so demo mode renders identically
 /// to the mockup.
+///
+/// 🔴 EVERY AMOUNT IS AN INTEGER COUNT OF MINOR UNITS UNDER [demoCurrency],
+/// not a decimal. The figures are the mockup's to the cent; what changed is
+/// that a demo row now says what unit it is in, exactly as a real one does —
+/// so the demo exercises the same code path a real user's data does rather
+/// than a currency-free one that could hide a defect.
 class DemoData {
   DemoData._();
+
+  /// The design's own currency. The demo set is deliberately single-currency:
+  /// it has to render identically to the mockup, and a mixed set would be a
+  /// different screen. The MIXED case is exercised by the tests instead.
+  static const String demoCurrency = 'USD';
 
   static List<Subscription> subscriptions() => <Subscription>[
     Subscription(
       id: '1',
       name: 'Netflix',
       category: 'Streaming',
-      price: 15.49,
+      price: Money(1549, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 22),
       plan: 'Premium 4K',
@@ -23,7 +34,7 @@ class DemoData {
       id: '2',
       name: 'Spotify',
       category: 'Music',
-      price: 11.99,
+      price: Money(1199, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 19),
       plan: 'Premium',
@@ -35,7 +46,7 @@ class DemoData {
       id: '3',
       name: 'ChatGPT Plus',
       category: 'AI tools',
-      price: 20.00,
+      price: Money(2000, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 20),
       plan: 'Plus',
@@ -47,7 +58,7 @@ class DemoData {
       id: '4',
       name: 'iCloud+',
       category: 'Cloud',
-      price: 2.99,
+      price: Money(299, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 25),
       plan: '200 GB',
@@ -59,7 +70,7 @@ class DemoData {
       id: '5',
       name: 'GitHub Copilot',
       category: 'Developer',
-      price: 10.00,
+      price: Money(1000, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 24),
       plan: 'Individual',
@@ -71,7 +82,7 @@ class DemoData {
       id: '6',
       name: 'Adobe CC',
       category: 'Creative',
-      price: 59.99,
+      price: Money(5999, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 28),
       plan: 'All apps',
@@ -84,7 +95,7 @@ class DemoData {
       id: '7',
       name: 'Disney+',
       category: 'Streaming',
-      price: 13.99,
+      price: Money(1399, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 8, 3),
       plan: 'Standard',
@@ -97,7 +108,7 @@ class DemoData {
       id: '8',
       name: 'Notion',
       category: 'Productivity',
-      price: 10.00,
+      price: Money(1000, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 8, 1),
       plan: 'Plus',
@@ -109,7 +120,7 @@ class DemoData {
       id: '9',
       name: 'NYTimes',
       category: 'News',
-      price: 4.25,
+      price: Money(425, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 7, 30),
       plan: 'Digital',
@@ -121,7 +132,7 @@ class DemoData {
       id: '10',
       name: 'Equinox',
       category: 'Fitness',
-      price: 255.00,
+      price: Money(25500, demoCurrency),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 8, 1),
       plan: 'Destination',
@@ -134,7 +145,7 @@ class DemoData {
       id: '11',
       name: 'YouTube Premium',
       category: 'Streaming',
-      price: 139.99,
+      price: Money(13999, demoCurrency),
       cycle: BillingCycle.yearly,
       nextRenewal: DateTime(2026, 8, 10),
       plan: 'Individual (annual)',
@@ -146,7 +157,7 @@ class DemoData {
       id: '12',
       name: '1Password',
       category: 'Security',
-      price: 35.88,
+      price: Money(3588, demoCurrency),
       cycle: BillingCycle.yearly,
       nextRenewal: DateTime(2026, 9, 2),
       plan: 'Individual (annual)',
@@ -157,18 +168,18 @@ class DemoData {
   ];
 
   static BudgetInfo budget() => const BudgetInfo(
-    monthlyBudget: 320,
+    monthlyBudget: Money(32000, demoCurrency),
     categories: <BudgetCap>[
-      BudgetCap('Streaming', 60),
-      BudgetCap('Music', 15),
-      BudgetCap('AI tools', 25),
-      BudgetCap('Creative', 65),
-      BudgetCap('Fitness', 250),
-      BudgetCap('Developer', 20),
-      BudgetCap('Productivity', 15),
-      BudgetCap('Cloud', 10),
-      BudgetCap('News', 10),
-      BudgetCap('Security', 5),
+      BudgetCap('Streaming', Money(6000, demoCurrency)),
+      BudgetCap('Music', Money(1500, demoCurrency)),
+      BudgetCap('AI tools', Money(2500, demoCurrency)),
+      BudgetCap('Creative', Money(6500, demoCurrency)),
+      BudgetCap('Fitness', Money(25000, demoCurrency)),
+      BudgetCap('Developer', Money(2000, demoCurrency)),
+      BudgetCap('Productivity', Money(1500, demoCurrency)),
+      BudgetCap('Cloud', Money(1000, demoCurrency)),
+      BudgetCap('News', Money(1000, demoCurrency)),
+      BudgetCap('Security', Money(500, demoCurrency)),
     ],
   );
 

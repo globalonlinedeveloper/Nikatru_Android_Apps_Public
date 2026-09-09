@@ -37,19 +37,22 @@ class _BrokenStore implements core.KeyValueStore {
       throw StateError('no store');
 }
 
-Subscription _sub(String id, {String name = 'Netflix', double price = 15.49}) =>
-    Subscription(
-      id: id,
-      name: name,
-      category: 'Streaming',
-      price: price,
-      cycle: BillingCycle.monthly,
-      nextRenewal: DateTime(2026, 7, 22),
-      plan: 'Premium 4K',
-      glyph: 'NFX',
-      usedPct: 78,
-      usageNote: 'Watched 14 hrs this month.',
-    );
+Subscription _sub(
+  String id, {
+  String name = 'Netflix',
+  Money price = const Money(1549, 'USD'),
+}) => Subscription(
+  id: id,
+  name: name,
+  category: 'Streaming',
+  price: price,
+  cycle: BillingCycle.monthly,
+  nextRenewal: DateTime(2026, 7, 22),
+  plan: 'Premium 4K',
+  glyph: 'NFX',
+  usedPct: 78,
+  usageNote: 'Watched 14 hrs this month.',
+);
 
 void main() {
   group('LocalSubscriptionStore', () {
@@ -87,7 +90,7 @@ void main() {
       final _MemStore kv = _MemStore();
       final List<Subscription> written = <Subscription>[
         _sub('1'),
-        _sub('2', name: 'Spotify', price: 11.99),
+        _sub('2', name: 'Spotify', price: const Money(1199, 'USD')),
       ];
       await LocalSubscriptionStore(
         Future<core.KeyValueStore>.value(kv),
@@ -98,7 +101,11 @@ void main() {
       ).readSubscriptions())!;
       expect(read.map((Subscription s) => s.id), <String>['1', '2']);
       expect(read[1].name, 'Spotify');
-      expect(read[1].price, 11.99);
+      // 🔴 THE AMOUNT ROUND-TRIPS AS AN EXACT INTEGER, CURRENCY AND ALL.
+      // `toJson` writes `price_minor` + `currency` beside the legacy decimal
+      // `price`, and `fromJson` prefers the integer pair — so what this store
+      // reads back is the same Money that went in, not a re-derived double.
+      expect(read[1].price, const Money(1199, 'USD'));
       expect(read[0].cycle, BillingCycle.monthly);
       expect(read[0].nextRenewal, DateTime(2026, 7, 22));
       expect(read[0].plan, 'Premium 4K');
@@ -109,8 +116,8 @@ void main() {
     test('the budget round-trips, categories and all', () async {
       final _MemStore kv = _MemStore();
       const BudgetInfo written = BudgetInfo(
-        monthlyBudget: 120,
-        categories: <BudgetCap>[BudgetCap('Streaming', 40)],
+        monthlyBudget: Money(12000, 'USD'),
+        categories: <BudgetCap>[BudgetCap('Streaming', Money(4000, 'USD'))],
       );
       await LocalSubscriptionStore(
         Future<core.KeyValueStore>.value(kv),
@@ -119,9 +126,15 @@ void main() {
       final BudgetInfo read = (await LocalSubscriptionStore(
         Future<core.KeyValueStore>.value(kv),
       ).readBudget())!;
-      expect(read.monthlyBudget, 120);
+      // ⚠️ THE BUDGET IS THE ONE FIGURE THE WIRE CARRIES NO CURRENCY FOR, so
+      // `BudgetInfo.fromJson` reads it under the code the CALLER names and the
+      // codec has none to name — see `BudgetInfo.inCurrency`, which is how the
+      // budget screen relabels it with the user's own choice. The AMOUNT still
+      // round-trips exactly: `monthly_budget` is a decimal that came from an
+      // integer count of minor units, and it rounds back to that integer.
+      expect(read.monthlyBudget, const Money(12000, 'USD'));
       expect(read.categories.single.name, 'Streaming');
-      expect(read.categories.single.cap, 40);
+      expect(read.categories.single.cap, const Money(4000, 'USD'));
     });
 
     test('the persisted keys carry the nikatru. family prefix', () async {
@@ -131,7 +144,10 @@ void main() {
       );
       await store.writeSubscriptions(<Subscription>[_sub('1')]);
       await store.writeBudget(
-        const BudgetInfo(monthlyBudget: 1, categories: <BudgetCap>[]),
+        const BudgetInfo(
+          monthlyBudget: Money(100, 'USD'),
+          categories: <BudgetCap>[],
+        ),
       );
       expect(kv.data.keys, <String>{'nikatru.subscriptions', 'nikatru.budget'});
       expect(kLocalSubscriptionsKey, 'nikatru.subscriptions');
@@ -187,7 +203,10 @@ void main() {
       );
       await store.writeSubscriptions(<Subscription>[_sub('1')]);
       await store.writeBudget(
-        const BudgetInfo(monthlyBudget: 1, categories: <BudgetCap>[]),
+        const BudgetInfo(
+          monthlyBudget: Money(100, 'USD'),
+          categories: <BudgetCap>[],
+        ),
       );
       await store.clear();
       expect(kv.data, isEmpty);
@@ -213,7 +232,10 @@ void main() {
       );
       await expectLater(
         store.writeBudget(
-          const BudgetInfo(monthlyBudget: 1, categories: <BudgetCap>[]),
+          const BudgetInfo(
+            monthlyBudget: Money(100, 'USD'),
+            categories: <BudgetCap>[],
+          ),
         ),
         completes,
       );

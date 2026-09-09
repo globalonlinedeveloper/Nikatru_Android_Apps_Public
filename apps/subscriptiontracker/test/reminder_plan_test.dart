@@ -224,7 +224,7 @@ List<Subscription> _subs(int count) => <Subscription>[
       id: 's$i',
       name: i == 0 ? 'Netflix' : 'Hulu',
       category: 'Other',
-      price: 10,
+      price: const Money(1000, 'USD'),
       cycle: BillingCycle.monthly,
       nextRenewal: DateTime(2026, 8, 12),
     ),
