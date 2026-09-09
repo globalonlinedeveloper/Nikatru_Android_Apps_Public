@@ -60,6 +60,23 @@ function edit(d, rel, from, to) {
 }
 const writeJson = (d, rel, v) => writeFileSync(join(d, rel), JSON.stringify(v, null, 2) + '\n');
 
+/**
+ * Re-run the real discovery generator over a fixture, after a catalogue change.
+ *
+ * The generator reads the SITE FEED (`sites/_shared/_data/apps.json`), which
+ * `tooling/sites/generate-apps-data.mjs` derives from the catalogue; the fixture
+ * copies neither, so both are written here from the same mutated rows. That is
+ * the same two-step the real tree performs — catalogue, then feed, then pages —
+ * and doing it by hand keeps this file's promise that every fixture is the real
+ * tree mutated rather than a toy.
+ */
+function regenerate(d, catalogue) {
+  mkdirSync(join(d, 'sites/_shared/_data'), { recursive: true });
+  writeJson(d, 'sites/_shared/_data/apps.json', catalogue);
+  const r = spawnSync(process.execPath, [join(ROOT, 'tooling/sites/generate-discovery.mjs'), d], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `the fixture generator must succeed: ${r.stdout}${r.stderr}`);
+}
+
 // ── THE DERIVATION, against the REAL register ────────────────────────────────
 
 test('the real register yields 6 tiles for the real catalogue, and exactly one is live', () => {
@@ -208,9 +225,33 @@ test('POSITIVE CONTROL · the same link is clean once the catalogue publishes th
   const cat = JSON.parse(readFileSync(join(d, 'catalog/apps.json'), 'utf8'));
   cat[0].listings.play = 'https://play.google.com/store/apps/details?id=x';
   writeJson(d, 'catalog/apps.json', cat);
+  // 🔴 AND THE GENERATED PAGES ARE REGENERATED, because publishing a listing
+  // legitimately changes the availability row from 1-of-6 live to 2-of-6 — and
+  // sites/nikatru/apps/subly.html is COMMITTED (Cloudflare serves the repo with
+  // no build step). Leaving the stale page in the fixture makes limb B fire on a
+  // real disagreement, so this control would go red for the correct reason while
+  // asserting nothing about limb C, the thing it exists to hold down. That limb
+  // B fires at all here is the evidence it now has a domain: before the landings
+  // rendered the row, the guard reported "0 generated availability block(s)".
+  regenerate(d, cat);
   const r = run(d);
   rmSync(d, { recursive: true, force: true });
   assert.equal(r.code, 0, r.out);
+});
+
+test('🔴 the committed landing IS re-derived — publish a listing and DO NOT regenerate, and limb B fires', () => {
+  // The mutation the control above repairs, left in place. This is the drift
+  // limb's own failing input: the register and the catalogue moved, the served
+  // bytes did not, and what a visitor reads is the served bytes.
+  const d = tree();
+  const cat = JSON.parse(readFileSync(join(d, 'catalog/apps.json'), 'utf8'));
+  cat[0].listings.play = 'https://play.google.com/store/apps/details?id=x';
+  writeJson(d, 'catalog/apps.json', cat);
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /an availability block renders 6 tile\(s\) of which 1 are links/);
+  assert.match(r.out, /never regenerated/);
 });
 
 test('a store name inside a <script> string is not read as a link', () => {
@@ -254,7 +295,13 @@ test('POSITIVE CONTROL · a block matching the derived shape passes', () => {
   const r = run(d);
   rmSync(d, { recursive: true, force: true });
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /1 generated availability block/);
+  // TWO blocks, not one: this snippet's, plus the REAL one on
+  // sites/nikatru/apps/subly.html since the landings started rendering the row
+  // on 2026-09-09. The number is asserted rather than left loose precisely
+  // because it is the guard's own floor against a shrinking subject — the run
+  // that reported "0 generated availability block(s)" for weeks was a run whose
+  // A and B limbs ranged over nothing, and it looked exactly like a pass.
+  assert.match(r.out, /2 generated availability block\(s\) found, carrying 2 tile link\(s\)/);
 });
 
 // ── THE PARSING CONTRACT ─────────────────────────────────────────────────────
