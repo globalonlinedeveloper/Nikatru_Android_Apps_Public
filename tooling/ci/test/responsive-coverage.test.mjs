@@ -206,7 +206,7 @@ describe('the guard says YES on the tree as it is', () => {
     );
     // The two report-mode roots, and the shape of what they report.
     assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 2 PRINTED and not failed/);
-    assert.match(out, /packages\/design_system: 11 of 19 surface\(s\) measured — 8 PRINTED and not failed/);
+    assert.match(out, /packages\/design_system: 12 of 20 surface\(s\) measured — 8 PRINTED and not failed/);
   });
 
   test('the copied subject tree reproduces the subscriptiontracker reading exactly — and derives ONE root', () => {
@@ -466,7 +466,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /COVERAGE LOST — `packages\/design_system` has 9 measured surface\(s\) and its measured floor is 11/s,
+      /COVERAGE LOST — `packages\/design_system` has 10 measured surface\(s\) and its measured floor is 12/s,
     );
   });
 
@@ -493,7 +493,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     rmSync(join(root, `${DS}/lib/src/widgets/two_pane.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 17 responsive surface\(s\).*floor is 19/s);
+    assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 18 responsive surface\(s\).*floor is 20/s);
   });
 
   test("R11c · a NEW unmeasured surface in EACH new root reaches that root's printed list", () => {
@@ -519,7 +519,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
     assert.ok(printedUnmeasured(out, BRICK).includes('showG3ProbeSheet'), out);
     assert.ok(printedUnmeasured(out, DS).includes('G3ProbeWidget'), out);
     assert.match(out, /\{\{app_id\}\}: 3 of 13 surface\(s\) measured — 3 PRINTED/);
-    assert.match(out, /packages\/design_system: 11 of 20 surface\(s\) measured — 9 PRINTED/);
+    assert.match(out, /packages\/design_system: 12 of 21 surface\(s\) measured — 9 PRINTED/);
   });
 });
 

@@ -330,7 +330,7 @@ function sweepTheNewSheet(root) {
 // POSITIVE CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the guard says YES on the tree as it is', () => {
-  test('the REAL repository — 4 derived roots, 67 surfaces, 36 swept, exit 0', () => {
+  test('the REAL repository — 4 derived roots, 68 surfaces, 37 swept, exit 0', () => {
     const { code, out } = run(REPO);
     assert.equal(code, 0, out);
     // 🔴 THE ROOT LINE IS PINNED BECAUSE THE ROOT LINE IS THE FIX. Until
@@ -366,7 +366,7 @@ describe('the guard says YES on the tree as it is', () => {
     // falls 48 → 21 and `swept where they delegate to` rises 0 → 10: the ten
     // brick adapters are judged in the chassis and the guard now says so. Read
     // off the guard's own closing line, never arithmetic on this comment.
-    assert.match(out, /67 reachable surface\(s\); 36 swept by 4 a11y test file\(s\) across 161 case\(s\)/);
+    assert.match(out, /68 reachable surface\(s\); 37 swept by 5 a11y test file\(s\) across 165 case\(s\)/);
     assert.match(out, /10 swept where they delegate to/);
     assert.match(out, /21 unswept and PRINTED/);
     // The per-family tally for subscriptiontracker, pinned. It read `tap-target ×0` from the
@@ -480,7 +480,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     // surfaces never reach the report is a root this guard cannot see.
     assert.match(out, /apps\/subscriptiontracker: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
     assert.match(out, /\{\{app_id\}\}: 0 of 12 reachable surface\(s\) carry an a11y sweep/);
-    assert.match(out, /packages\/design_system: 0 of 19 reachable surface\(s\) carry an a11y sweep/);
+    assert.match(out, /packages\/design_system: 1 of 20 reachable surface\(s\) carry an a11y sweep/);
     // And the gap in each is PRINTED, by name, not merely counted.
     assert.ok(printedUnswept(out, BRICK).includes('HomeScreen'), out);
     assert.ok(printedUnswept(out, DS).includes('NavShell'), out);
@@ -558,7 +558,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     rmSync(join(root, `${DS}/lib/src/widgets/two_pane.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 17 reachable surface\(s\).*floor is 19/s);
+    assert.match(out, /COVERAGE LOST — `packages\/design_system` has only 18 reachable surface\(s\).*floor is 20/s);
   });
 
   // ── M11g · THE CHASSIS FLOOR, PINNED BY NUMBER ────────────────────────────
@@ -671,7 +671,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     // NEW surface reaches that list, and `showG3ProbeSheet` is asserted by name
     // above, which is the assertion this number was only ever the frame for.
     assert.match(out, /3 of 13 reachable surface\(s\) in tooling\/bricks/);
-    assert.match(out, /20 of 20 reachable surface\(s\) in packages\/design_system/);
+    assert.match(out, /20 of 21 reachable surface\(s\) in packages\/design_system/);
   });
 });
 
