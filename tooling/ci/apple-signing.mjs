@@ -739,8 +739,36 @@ export function parseMobileProvision(buffer) {
  * uses the profiles supplied as a secret, which is why they are a secret.
  */
 export function exportOptionsPlist({ teamId, method = 'app-store-connect', profiles = [], signingStyle = 'manual' } = {}) {
-  const mapping = profiles
-    .filter((p) => p && p.bundleId && p.name)
+  const usable = profiles.filter((p) => p && p.bundleId && p.name);
+  // 🔴 TWO PROFILES FOR ONE BUNDLE ID IS REFUSED, NOT LAST-ONE-WINS. Measured
+  // 2026-09-09, and it was caused by fixing a DIFFERENT bug an hour earlier.
+  // This app is a universal purchase: the iOS and macOS profiles carry the SAME
+  // bundle id, `com.nikatru.subly`, deliberately. Until the macOS spelling of
+  // `application-identifier` was read, the macOS profile resolved to
+  // `bundleId: null` and the filter above silently dropped it — so this map
+  // happened to hold exactly one entry, for the right platform, by accident.
+  // Once both parsed, both landed under one key and the LAST won, which was the
+  // macOS one. `xcodebuild -exportArchive` then said:
+  //
+  //     error: exportArchive Provisioning profile "… macOS App Store" has
+  //     platform "macOS", which does not match the current platform "iOS".
+  //
+  // A plist is per-platform, so the caller must pass one platform's profiles. A
+  // duplicate key here means it did not, and emitting a dict whose meaning
+  // depends on ordering is how the accident above stayed invisible.
+  const seen = new Map();
+  for (const p of usable) {
+    if (seen.has(p.bundleId)) {
+      throw new Error(
+        `exportOptionsPlist: two profiles claim bundle id "${p.bundleId}" — "${seen.get(p.bundleId)}" and "${p.name}". ` +
+          'An ExportOptions.plist describes ONE platform; pass only that platform\'s profiles. This app is a ' +
+          'universal purchase, so its iOS and macOS profiles share a bundle id by design and a plist holding both ' +
+          'silently exports against whichever came last.',
+      );
+    }
+    seen.set(p.bundleId, p.name);
+  }
+  const mapping = usable
     .map((p) => `      <key>${p.bundleId}</key>\n      <string>${p.name}</string>`)
     .join('\n');
   return [
@@ -1443,7 +1471,21 @@ function main() {
     }
     installedTo.push(dir);
   }
-  writeFileSync(exportOptionsPath, exportOptionsPlist({ teamId, method: METHOD, profiles: parsed }));
+  // ONE PLATFORM'S PROFILES, and the file extension is what says which. A
+  // `.provisionprofile` is macOS and a `.mobileprovision` is iOS; this plist is
+  // consumed by the iOS `flutter build ipa --export-options-plist` and by
+  // nothing else, because the macOS side never runs `-exportArchive` — `flutter
+  // build macos` signs in place and `productbuild` wraps the result.
+  const iosProfiles = parsed.filter((p) => !p.member.endsWith('.provisionprofile'));
+  if (iosProfiles.length === 0) {
+    coverageLost([
+      `${ROLE_ENV.profiles} carries no iOS profile (.mobileprovision), so ExportOptions.plist would map NOTHING.`,
+      'An empty `provisioningProfiles` dict does not fail the export — it makes xcodebuild fall back to',
+      'searching, which is the automatic signing this lane refuses. The .ipa would either not build or',
+      'build against a profile nobody chose.',
+    ]);
+  }
+  writeFileSync(exportOptionsPath, exportOptionsPlist({ teamId, method: METHOD, profiles: iosProfiles }));
 
   // ── the keychain ──────────────────────────────────────────────────────────
   const keychainPassword = randomBytes(24).toString('base64url');
