@@ -367,7 +367,21 @@ const WIRE_CONTRACTS = [
       verified_at:
         'NOT A WIRE FIELD. The client stamps it itself via verifiedAtNow() on the success path of a read; it exists to bound how long an unrefreshed answer is honoured ([5]M-8) and travels only through the persisted cache. A server that started sending it would let the host refresh its own staleness ceiling.',
     },
-    serverOnly: {},
+    serverOnly: {
+      // ⏱ ADDED 2026-09-09 with the bundle union read ([ADR 057]). Every one of
+      // these is ADDITIVE and no shipped client reads any of them — which is
+      // exactly the property ADR 057 §6 protects, and the reason each has to be
+      // declared here rather than quietly tolerated: an undeclared extra is
+      // indistinguishable from a field somebody forgot to wire up.
+      granted_via:
+        "WHICH BRANCH OF THE UNION DECIDED — 'app' | 'bundle' | 'none'. The ACCESS decision is `is_pro`, which the client already reads and which is deliberately unchanged; this says only WHERE the entitlement came from, and it exists for the account page's \"manage your subscription where you bought it\" copy. A client that branched on it would be re-deriving access from provenance, which is the same class of mistake as branching on revocation_reason one level down.",
+      bundle:
+        'THE PINNED FEATURE SET a live bundle grant was sold under — its name, version, member products, expiry and source rail. Present only when a grant exists, ABSENT (not null) otherwise. Support-visible and account-page material; nothing about it decides access, and the members it lists come from the version the grant PINNED rather than from whatever the register says today ([ADR 057] §4). ⚠️ IT IS NOT PERSISTED BY THE CACHE: packages/core Entitlements.toJson() does not carry it, so the offline answer keeps the DECISION and loses the attribution — recorded here because that is a client change nobody has made, not an oversight in this envelope.',
+      products:
+        'GET /v1/entitlements/subject only — every product the caller is entitled to, each with the branch that granted it. The per-app route is scoped to one app by design and every shipped client depends on that scoping, so the subject-wide answer is a SECOND route rather than a wider first one. No Dart client fetches it yet; the account page is what will.',
+      bundles:
+        'GET /v1/entitlements/subject only — the live bundle grants themselves, each carrying `source`. That field is what makes the honest UI sentence possible: cross-rail cancellation is impossible by construction on every store rail, so naming the rail that holds the subscription is the only truthful thing a client can say.',
+    },
     nested: {
       key: 'entitlements',
       client: {
@@ -409,6 +423,16 @@ const WIRE_CONTRACTS = [
       client: { file: 'packages/api_client/lib/src/dio_cancellation_transport.dart', marker: 'data: <String, Object?>' },
       keys: ['app_id'],
     },
+  },
+  {
+    id: 'entitlements-subject',
+    kind: 'gap',
+    reason:
+      'NO CLIENT IN THIS REPO, AND UNLIKE money-webhook THAT IS A STATE, NOT A CONSTRUCTION — which is why the claim below is checked rather than argued. GET /v1/entitlements/subject is the "what do I own" read ([ADR 057] §5); the account page is what will fetch it and nothing does yet. There is therefore no released client of ours to break and no wire contract to pin. 🔴 AND NOTHING ABOUT ACCESS DEPENDS ON IT: every shipped client decides Pro from `is_pro` on the PER-APP route, which is pinned above and is deliberately unchanged, so an unpinned envelope here cannot lock anyone out. Its four keys are declared server-only on the `entitlements` contract with the reason each, so they are named rather than tolerated.',
+    /** THE CLAIM IS CHECKED, NOT ASSERTED. The day any Dart source builds this
+     *  path there IS a released client, the printed gap becomes a false
+     *  statement, and this fails rather than going on printing it. */
+    absentFromDart: '/v1/entitlements/subject',
   },
   {
     id: 'receipts',

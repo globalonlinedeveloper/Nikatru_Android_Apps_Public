@@ -575,12 +575,17 @@ describe('assert-analytics-contract — coverage self-checks', () => {
 // below against the same real files, copied.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-analytics-contract — limb 5, every shared route has a wire pin', () => {
-  // ⏱ RE-MEASURED 2026-09-09: POST /v1/receipts/:store joined the register, so
-  // the shared-route set went 9 -> 10 and the printed gaps 2 -> 3. The numbers
-  // are PINNED rather than derived on purpose — a derived count agrees with any
-  // register, including one that quietly stopped enumerating — so they move in
-  // the same change as the route that moved them.
-  test('PASSES on the real tree: 10 routes, 7 pinned, 3 printed gaps', () => {
+  // ⏱ RE-MEASURED 2026-09-09, TWICE OVER. TWO routes joined the register on the
+  // same day, on branches that did not see each other: GET /v1/entitlements/subject
+  // (the bundle union read) and POST /v1/receipts/:store (the receipt route).
+  // EACH branch independently moved the shared-route set 9 -> 10 and the gaps
+  // 2 -> 3, so a textual merge of the two agrees with itself at 10/3 and is WRONG
+  // by exactly one route — the failure mode that stays GREEN. The pins below are
+  // re-measured from what the guard prints with BOTH routes present.
+  // The numbers are PINNED rather than derived on purpose — a derived count
+  // agrees with any register, including one that quietly stopped enumerating —
+  // so they move in the same change as the routes that moved them.
+  test('PASSES on the real tree: 11 routes, 7 pinned, 4 printed gaps', () => {
     const r = run(makeRepo());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /wire health — deploy-smoke fields/);
@@ -592,10 +597,14 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     // half ([ADR 044] rung 2). Its gap is a STATE, not a construction: the day a
     // Dart client builds /v1/checkout the guard fails and demands a real pin.
     assert.match(r.out, /GAP {2}wire checkout/);
-    // …and the third, added with the receipt route. Its gap is a STATE too: the
+    // …and the third, added with the bundle union read. Its gap is a STATE too:
+    // the day a Dart client builds /v1/entitlements/subject the guard fails and
+    // demands a real pin.
+    assert.match(r.out, /GAP {2}wire entitlements-subject/);
+    // …and the fourth, added with the receipt route. Its gap is a STATE too: the
     // day a Dart client builds /v1/receipts the guard fails and demands a pin.
     assert.match(r.out, /GAP {2}wire receipts/);
-    assert.match(r.out, /10 shared route\(s\) from tooling\/platform-register\.json: 7 pinned, 3 printed gap/);
+    assert.match(r.out, /11 shared route\(s\) from tooling\/platform-register\.json: 7 pinned, 4 printed gap/);
     // [4]B-14's last clause: the config route's client half resolves in the
     // BRICK, so the count above is about apps that do not exist yet too.
     assert.match(r.out, /wire config — .*client half INHERITED by every stamped app: 10 key\(s\) in tooling\/bricks\//);
@@ -623,7 +632,13 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
   test('COVERAGE LOST when a declared floor key leaves the server response', () => {
     const r = run(makeRepo((f) =>
       mutate(f, 'services/platform/src/routes/entitlements.ts',
-        'is_pro: rows.some(grants),', 'pro: rows.some(grants),')));
+        // ⏱ RE-POINTED 2026-09-09: the read became a UNION ([ADR 057] §5), so
+        // `is_pro` is now `appPro || bundlePro` rather than `rows.some(grants)`.
+        // The MUTATION is unchanged in substance — rename the declared floor key
+        // and the guard must report COVERAGE LOST — and `mutate` throws when its
+        // target text is absent, which is what caught the stale string here
+        // rather than the case quietly passing over a no-op replacement.
+        'is_pro: appPro || bundlePro,', 'pro: appPro || bundlePro,')));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST — entitlements: key\(s\) is_pro/);
   });
@@ -809,9 +824,10 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
         "    'update_url',\n  ] as const;", "    'update_url',\n    'support_url',\n  ] as const;")));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /On the server \(services\/platform\/test\/config\.test\.ts\) and NOT in the brick: support_url/);
-    // and the route stops counting as pinned — the number moves, honestly
-    // ⏱ 3 gaps since 2026-09-09; see the re-measurement note on the real-tree case.
-    assert.match(r.out, /6 pinned, 3 printed gap/);
+    // and the route stops counting as pinned — the number moves, honestly.
+    // ⏱ 4 gaps since 2026-09-09 — TWO routes joined that day, not one; see the
+    // re-measurement note on the real-tree case.
+    assert.match(r.out, /6 pinned, 4 printed gap/);
   });
 
   test('FAILS when the brick drops a key the server still requires', () => {

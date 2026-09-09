@@ -96,7 +96,18 @@
       "plan",
       "cancel",
       "checkout",
+    "subject",
     "receipts"
+    ],
+    "_subject": [
+   "🟢 `subject` ADDED 2026-09-09, AND THIS LIMB CAUGHT IT AGAIN. GET /v1/entitlements/subject is the",
+   "\"what do I own\" read the per-app route cannot answer — [ADR 057] §5, the bundle union. It is a",
+   "RESOURCE OF OURS and not a provider tell: nothing posts to it, it takes no body, and it is behind",
+   "platformAuth like the route it sits under.",
+   "",
+   "⚠️ IT IS LISTED BECAUSE THE GUARD IS RIGHT TO ASK. A new segment under a Worker that already",
+   "carries the money rail is exactly where a payment webhook would land unnoticed, and the answer",
+   "has to be written down by the person adding it rather than inferred from the name."
     ],
     "_receipts": [
    "🟢 `receipts` ADDED 2026-09-09, AND THIS LIMB CAUGHT IT AGAIN. POST /v1/receipts/:store is a",

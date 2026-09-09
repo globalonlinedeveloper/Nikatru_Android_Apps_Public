@@ -44,12 +44,45 @@
 // payment. The RevenueCat writer sets the column as of 2026-08-09 (same fail-
 // closed world guard, M-2 ordering); `entitlements` was verified EMPTY that
 // day, so no row predates the stamp — NULL here only ever means damage.
+//
+// ── ⏱ 2026-09-09 · THE READ IS NOW A UNION [ADR 057] §5 ──────────────────────
+// A person may hold access to this app in two ways: a per-app row in
+// `entitlements`, or a BUNDLE GRANT whose pinned feature set has this app as a
+// member. The answer is the union of the two, computed at read time.
+//
+// 🔴 THE SAME FIVE RULES DECIDE BOTH BRANCHES, and they are ONE FUNCTION —
+// `grantsAccess` in ../lib/bundle/resolve.ts — not two copies of a policy. The
+// per-branch code is a PROJECTION (which columns carry "active", "which money
+// world", "when does it end") and nothing else. A second copy of the policy is
+// a second thing to keep in step, and the copy nobody edits is the one that
+// keeps granting a refunded customer access.
+//
+// 🔴 NOTHING IS MATERIALISED BACK INTO `entitlements`. The rejected alternative
+// was fanning a bundle grant out into per-app rows; it fails because two writers
+// to one table drift, which is what limb 5 of assert-entitlement-contract.mjs
+// already exists for. One writer per table; combine at read time.
+//
+// THE RESPONSE SHAPE IS UNCHANGED and gains two ADDITIVE keys, `granted_via` and
+// `bundle`. [ADR 057] §6 — every already-shipped client keeps working, which is
+// what makes the whole bundle change server-side and reversible. The shipped
+// Dart parser (packages/core/lib/src/models/entitlement.dart) reads named keys
+// off the decoded map and ignores the rest; test/entitlements.test.ts asserts
+// the unchanged keys are byte-for-byte what they were, so the additive claim is
+// measured rather than assumed.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { allRows } from '../lib/d1';
 import { isKnownApp } from '../config';
 import { isMoneyEnvironment } from '../lib/mor/contract';
+import {
+  type BundleGrantRow,
+  bundleGrantsForProduct,
+  bundleGrantsForUser,
+  bundleRowToGrantable,
+  grantsAccess,
+  membersOfPinnedVersion,
+} from '../lib/bundle/resolve';
 
 const entitlements = new Hono<AppEnv>();
 
@@ -111,33 +144,64 @@ entitlements.get('/entitlements', async (c) => {
 
   const nowMs = Date.now();
 
-  /** Whether ONE row grants access. Every branch that cannot decide denies. */
-  const grants = (r: EntitlementRow): boolean => {
-    if (r.is_active !== 1) return false;
-    if (r.provider_environment !== environment) {
-      // Correlate by REQUEST ID, never by user id — `userId` is the Supabase
-      // `sub` and this line lands in Workers Logs, outside the PiiScrubber seam.
-      console.warn(
-        `[entitlements] rid=${rid} app=${appId} entitlement=${r.entitlement} — row's money environment is ` +
-          `${JSON.stringify(r.provider_environment)}, this deploy is '${environment}'. Denying. [5]M-12`,
-      );
-      return false;
-    }
-    if (r.expires_at === null || r.expires_at === undefined) return true; // lifetime
-    const exp = Date.parse(r.expires_at);
-    if (Number.isNaN(exp)) {
-      console.warn(
-        `[entitlements] rid=${rid} app=${appId} entitlement=${r.entitlement} — unparseable expires_at, ` +
-          'denying (fail closed)',
-      );
-      return false;
-    }
-    return exp > nowMs;
-  };
+  // Correlate by REQUEST ID, never by user id — `userId` is the Supabase `sub`
+  // and these lines land in Workers Logs, outside the PiiScrubber seam.
+  const warn = (m: string) => console.warn(`[entitlements] rid=${rid} app=${appId} ${m}`);
+
+  /** Whether ONE per-app row grants access: a PROJECTION plus the SHARED decision. */
+  const grants = (r: EntitlementRow): boolean =>
+    grantsAccess(
+      {
+        label: `entitlement=${r.entitlement}`,
+        is_active: r.is_active,
+        provider_environment: r.provider_environment,
+        expires_at: r.expires_at,
+      },
+      environment,
+      nowMs,
+      warn,
+    );
+
+  // ── THE BUNDLE BRANCH ──────────────────────────────────────────────────────
+  // The membership join is on the PINNED (name, version), so a product added to
+  // a later feature-set version does not reach an older grant — G10. The SAME
+  // `grantsAccess` decides it, so the environment rule, the lifetime rule and
+  // the unparseable-date rule are not re-implemented here and cannot drift.
+  const bundleRows = await bundleGrantsForProduct(c.env.PLATFORM_DB, userId, appId);
+  const liveBundle = bundleRows.find((g) =>
+    grantsAccess(bundleRowToGrantable(g), environment, nowMs, warn),
+  );
+
+  const appPro = rows.some(grants);
+  const bundlePro = liveBundle !== undefined;
+
+  // The `bundle` block is rendered from the PINNED members, for the same reason
+  // the decision joins on them: it describes what the customer BOUGHT, never
+  // what the register says the bundle contains today.
+  const bundleBlock =
+    liveBundle === undefined
+      ? null
+      : {
+          feature_set: liveBundle.feature_set_name,
+          version: liveBundle.feature_set_version,
+          products: await membersOfPinnedVersion(
+            c.env.PLATFORM_DB,
+            liveBundle.feature_set_name,
+            liveBundle.feature_set_version,
+          ),
+          expires_at: liveBundle.expires_at,
+          source: liveBundle.source,
+        };
 
   return c.json({
     app_id: appId,
-    is_pro: rows.some(grants),
+    is_pro: appPro || bundlePro,
+    // 🔴 WHICH BRANCH DECIDED, and 'app' wins a tie. A user who holds both a
+    // per-app subscription and the bundle is served the UNION — never
+    // under-served — and the account page has to be able to say which one it is
+    // looking at. 'none' when neither grants: an absent key would be a third
+    // state every client would have to guess at.
+    granted_via: appPro ? 'app' : bundlePro ? 'bundle' : 'none',
     // The rows are returned even when they grant nothing, so a client and a
     // support conversation can both see that a row EXISTS and why it is inert.
     // Refusing silently is what makes a paid user's lockout unexplainable.
@@ -153,6 +217,125 @@ entitlements.get('/entitlements', async (c) => {
       trial_end: r.trial_end,
       revocation_reason: r.revocation_reason,
     })),
+    // Present ONLY when a grant exists: `undefined` is dropped by JSON
+    // serialisation, so the key is ABSENT rather than null and a client never
+    // has to distinguish "no bundle" from "a bundle whose block is null".
+    //
+    // 🔴 A NAMED KEY, NOT A SPREAD, AND THAT IS NOT A STYLE CHOICE. The first
+    // version wrote `...(bundleBlock === null ? {} : { bundle: bundleBlock })`,
+    // and `assert-analytics-contract.mjs` refused it: "1 spread(s) … in a
+    // response literal. A key this scan cannot name is a key it cannot compare,
+    // and an under-counted server set makes the 'no stray keys' direction pass
+    // by being blind." The guard is right — a spread can introduce any key at
+    // all, so the envelope check would have gone quiet over exactly the file
+    // that was adding keys to the envelope.
+    bundle: bundleBlock ?? undefined,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /v1/entitlements/subject — "what do I own", which the per-app route
+// cannot answer.
+//
+// WHY A SECOND ROUTE RATHER THAN A WIDER FIRST ONE. `/entitlements?app_id=X` is
+// scoped to one app by design and every shipped client depends on that scoping
+// ([ADR 057] §6). Widening it would change the response of a released contract;
+// adding a route changes nothing that exists. The account page and the "manage
+// your subscription where you bought it" copy both need the subject-wide answer,
+// and `bundle_grants.source` is what makes that copy honest — cross-rail
+// cancellation is impossible by construction on every store rail, so naming the
+// rail that holds the subscription is the only truthful thing a UI can say.
+//
+// Same auth (`platformAuth`), same environment refusal, same five rules through
+// the same `grantsAccess`.
+// ─────────────────────────────────────────────────────────────────────────────
+interface SubjectAppRow {
+  app_id: string;
+  entitlement: string;
+  is_active: number;
+  expires_at: string | null;
+  provider_environment: string | null;
+}
+
+entitlements.get('/entitlements/subject', async (c) => {
+  const userId = c.get('userId');
+  const rid = c.get('requestId') ?? '-';
+
+  const environment = c.env.MONEY_ENVIRONMENT;
+  if (!isMoneyEnvironment(environment)) {
+    console.error(
+      `[entitlements/subject] rid=${rid} MONEY_ENVIRONMENT is ${JSON.stringify(environment)} — refusing ` +
+        'to decide access without knowing which money world this deploy is. [5]M-12',
+    );
+    return c.json({ error: 'money_rail_not_configured' }, 503);
+  }
+
+  const nowMs = Date.now();
+  const warn = (m: string) => console.warn(`[entitlements/subject] rid=${rid} ${m}`);
+
+  const appRows = await allRows<SubjectAppRow>(
+    c.env.PLATFORM_DB.prepare(
+      `SELECT app_id, entitlement, is_active, expires_at, provider_environment
+         FROM entitlements
+        WHERE user_id = ?`,
+    ).bind(userId),
+  );
+
+  // A Map, so a product granted BOTH per-app and by a bundle appears once. The
+  // tie-break matches the per-app route: 'app' wins, because a per-app
+  // subscription is the more specific fact and it is the one whose cancellation
+  // the user will go looking for.
+  const owned = new Map<string, { granted_via: string; expires_at: string | null }>();
+
+  for (const r of appRows) {
+    const ok = grantsAccess(
+      {
+        label: `app=${r.app_id} entitlement=${r.entitlement}`,
+        is_active: r.is_active,
+        provider_environment: r.provider_environment,
+        expires_at: r.expires_at,
+      },
+      environment,
+      nowMs,
+      warn,
+    );
+    if (ok) owned.set(r.app_id, { granted_via: 'app', expires_at: r.expires_at });
+  }
+
+  const grantRows: BundleGrantRow[] = await bundleGrantsForUser(c.env.PLATFORM_DB, userId);
+  const bundles: {
+    feature_set: string;
+    version: number;
+    products: string[];
+    expires_at: string | null;
+    source: string;
+  }[] = [];
+
+  for (const g of grantRows) {
+    if (!grantsAccess(bundleRowToGrantable(g), environment, nowMs, warn)) continue;
+    const products = await membersOfPinnedVersion(
+      c.env.PLATFORM_DB,
+      g.feature_set_name,
+      g.feature_set_version,
+    );
+    bundles.push({
+      feature_set: g.feature_set_name,
+      version: g.feature_set_version,
+      products,
+      expires_at: g.expires_at,
+      source: g.source,
+    });
+    for (const slug of products) {
+      if (!owned.has(slug)) owned.set(slug, { granted_via: 'bundle', expires_at: g.expires_at });
+    }
+  }
+
+  return c.json({
+    // Sorted, so two reads of one subject render the same bytes.
+    products: [...owned.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([slug, v]) => ({ product: slug, granted_via: v.granted_via, expires_at: v.expires_at })),
+    bundles,
   });
 });
 
