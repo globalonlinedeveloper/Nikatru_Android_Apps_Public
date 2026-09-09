@@ -23,36 +23,58 @@
 #     Reviewed prose about what Subly actually does. Yours to sharpen.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 🔴 THE STORE IDENTIFIERS HAVE MOVED; `id` HAS NOT — AND THE TWO ARE DIFFERENT
-# KINDS OF NAME. This paragraph replaces one that said the identifiers were
-# "deliberately not renamed"; that was true until the OWNER RULED OTHERWISE on
-# 2026-09-09 ("we need to remove old name completely"), and a stale paragraph is
-# how a settled decision gets re-derived by the next reader.
+# 🔴 THE WHOLE IDENTIFIER FAMILY HAS MOVED, `id` INCLUDED. This paragraph
+# replaces two earlier ones — the first said the identifiers were "deliberately
+# not renamed", the second said `id` was a SEPARATE, SEQUENCED change. Both were
+# true when written; the OWNER RULED OTHERWISE on 2026-09-09: one identifier
+# family, no special cases. A stale paragraph is how a settled decision gets
+# re-derived by the next reader, so both are gone rather than annotated.
 #
-# WHAT MOVED, and why it had to move NOW rather than later: every one of these
-# is bound PERMANENTLY and unreclaimably at the FIRST upload on its channel, and
-# on 2026-09-09 not one of them was claimed (Play 404, iTunes lookup
-# resultCount 0 against a green Gmail control, snap 404 against a green firefox
-# control). That window is the whole reason for the sequencing.
+# WHY THE SLUG HAD TO MOVE RATHER THAN THE PACKAGE ID ALONE: the package id is
+# DERIVED from the slug, at assert-store-identity.mjs's `canonical()` and again
+# at submit-play.mjs (architecture §24, `com.nikatru.${id}`). The rejected
+# alternative was declaring the package id separately here, which decouples it
+# from the slug and rewrites a locked rule for every future app to save one URL
+# hyphen. The slug moved instead, and the derivation rule is untouched.
 #
+# WHY `subscriptiontracker` AND NOT `subscription-tracker`: services/platform/
+# src/config.ts's APP_ID_PATTERN is /^[a-z][a-z0-9_]{0,31}$/ — NO HYPHENS — and
+# it is a SILENT FILTER at buildRegistry (:205): a hyphenated slug would not
+# throw, it would simply stop being served. Android package SEGMENTS forbid
+# hyphens too. One spelling satisfies both.
+#
+# WHAT MOVED, and why it had to move NOW: every store identifier below is bound
+# PERMANENTLY and unreclaimably at the FIRST upload on its channel, and on
+# 2026-09-09 not one of them was claimed (Play 404, iTunes lookup resultCount 0
+# against a green Gmail control, snap 404 against a green firefox control).
+# That window is the whole reason for the sequencing.
+#
+#   subscriptiontracker               this `id` — the repo directory, the
+#                                     Cloudflare Pages project, the Worker name
+#                                     `subscriptiontracker-api`, the analytics
+#                                     `app_id`, and nikatru.com/<id>
 #   com.nikatru.subscriptiontracker   Android applicationId + namespace,
 #                                     iOS + macOS bundle id, Linux APPLICATION_ID
 #   subscription-tracker              Linux BINARY_NAME
 #   nikatru-subscription-tracker      the snap name
 #
-# ⚠️ WHAT `id` STILL IS, and why renaming it is a SEPARATE, SEQUENCED change
-# rather than a slower version of this one. `id` is not only a repo directory:
-# it is the Cloudflare Pages PROJECT NAME (`deploy-web.yml` passes
-# `--project-name=${{ matrix.app }}`), the Worker name `subscriptiontracker-api`, the D1
-# database `subly_db`, the DNS label in subly.nikatru.com, and the analytics
-# `app_id` value that keys every historical row. Those are LIVE RESOURCES, not
-# declarations — renaming them in this file does not rename them in the account,
-# it PROVISIONS NEW ONES beside the old, and the replacement `*.pages.dev`
-# subdomain is not knowable in advance (see `hosts.pagesOrigin` below: Cloudflare
-# appended `-9cp` precisely because `subscriptiontracker` was already taken). pre_gen.dart's
-# rule still holds for exactly this half — "a rename is not a rename; it is an
-# orphaning" — which is why the `id` rename is owner-gated on a live migration
-# and not folded in here. NOTHING A USER SEES READS `id` today.
+# ⚠️ WHAT DELIBERATELY DID NOT MOVE, because each is a LIVE resource whose
+# rename is a data migration and not a declaration edit. Renaming these here
+# would not rename them in the account; it would point this file at something
+# that does not exist. Each is owed as its own change:
+#
+#   subly_db                 the Cloudflare D1 database NAME (the binding is by
+#                            id, so the name is display only). Moving it means
+#                            creating a database and migrating rows.
+#   subly.nikatru.com        the retired subdomain, now an internal origin only
+#                            ([ADR 075] / #562). It is a DNS label with a zone
+#                            Redirect Rule 301ing it to the path form; both are
+#                            account-side. It is a legacy 301 source, not an
+#                            address anything new resolves.
+#   api-subly.nikatru.com    same, for the API host.
+#   subly@<version>          historical GlitchTip release stamps, and SUBLY-8/9/A
+#                            are GlitchTip ISSUE ids. Records of what happened.
+#                            Rewriting them would falsify the citation.
 id: subscriptiontracker
 name: Nikatru Subscription Tracker
 # The ICON label. Shares the token `Subscription(s)` with `name` per Apple
@@ -67,12 +89,14 @@ status: live
 hosts:
   web: subly.nikatru.com
   # WHERE THE APEX ROUTER FETCHES THE BYTES. Not derivable and deliberately
-  # declared: Cloudflare appended `-9cp` when the project name `subscriptiontracker` was
-  # already taken, so `<id>.pages.dev` is wrong for exactly this app. Measured
-  # 2026-09-09 from the Pages API -- project `subscriptiontracker`, subdomain
-  # `subly-9cp.pages.dev`. It is preferred over `web` because *.pages.dev sits
-  # OUTSIDE the nikatru.com zone, so the Redirect Rule that 301s the retired
-  # subdomain cannot match the router's own proxy subrequest.
+  # declared: Cloudflare assigns the *.pages.dev subdomain AT PROJECT CREATION
+  # and appends a suffix when the bare name is taken -- the retired project was
+  # created as `subly` and got `subly-9cp.pages.dev`, which is why `<id>.pages.
+  # dev` was never a safe derivation here. It is preferred over `web` because
+  # *.pages.dev sits OUTSIDE the nikatru.com zone, so the Redirect Rule that
+  # 301s the retired subdomain cannot match the router's own proxy subrequest.
+  #
+  # MEASURED, not assumed -- see the deploy-web run cited in the pull request.
   pagesOrigin: subly-9cp.pages.dev
   api: api.nikatru.com
 
