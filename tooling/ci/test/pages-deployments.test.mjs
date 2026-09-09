@@ -35,6 +35,7 @@ import {
   judgeProject,
   foldVerdicts,
   newestCommitTouching,
+  isAncestorOf,
 } from '../../ops/check-pages-deployments.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -127,10 +128,73 @@ describe('judgeProject — the green control, then each way it goes red', () => 
     const v = judgeProject({
       ...base,
       deployments: [deployment({ deployment_trigger: { type: 'github:push', metadata: { commit_hash: SHA_OLD } } })],
+      // the served commit does NOT carry the one main names: genuinely behind.
+      isAncestor: () => false,
     });
     assert.equal(v.code, 1, 'a succeeded deployment at the wrong commit must not read as healthy');
-    assert.match(v.line, /serving commit aaaaaaa while the newest commit on `main`/);
+    assert.match(v.line, /serving commit aaaaaaa, which does NOT carry bbbbbbb/);
     assert.match(v.line, /invisible on the Actions page/);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // The limb below is the one that was WRONG, not missing. Cloudflare's git
+  // integration builds every push to main, so "served !== expected" is the
+  // NORMAL state of a healthy project and the old `!==` red-flagged it.
+  // Measured 2026-09-09, ops-watch run 34379156976.
+  // ───────────────────────────────────────────────────────────────────────────
+  const SHA_AHEAD = 'c'.repeat(40);
+
+  test('🔴 THE FALSE RED — serving a DESCENDANT of the named commit is GREEN, not stale', () => {
+    const seen = [];
+    const v = judgeProject({
+      ...base,
+      deployments: [deployment({ deployment_trigger: { type: 'github:push', metadata: { commit_hash: SHA_AHEAD } } })],
+      isAncestor: (a, b) => {
+        seen.push([a, b]);
+        return true;
+      },
+    });
+    assert.equal(v.code, 0, 'a build AHEAD of the named commit already carries it and is not stale');
+    assert.match(v.line, /^ok /);
+    assert.match(v.line, /is AHEAD of bbbbbbb/);
+    assert.deepEqual(
+      seen,
+      [[SHA_NEW, SHA_AHEAD]],
+      'the question must be asked as isAncestor(expected, served) — reversing it inverts the verdict',
+    );
+  });
+
+  test('an UNREADABLE ancestry is exit 2, never a pass — a shallow clone has not judged this', () => {
+    const v = judgeProject({
+      ...base,
+      deployments: [deployment({ deployment_trigger: { type: 'github:push', metadata: { commit_hash: SHA_AHEAD } } })],
+      isAncestor: () => null,
+    });
+    assert.equal(v.code, 2);
+    assert.match(v.line, /^\? /);
+    assert.match(v.line, /could not be read from this/);
+  });
+
+  test('no injected resolver at all is exit 2 — the limb refuses to guess', () => {
+    const v = judgeProject({
+      ...base,
+      deployments: [deployment({ deployment_trigger: { type: 'github:push', metadata: { commit_hash: SHA_AHEAD } } })],
+    });
+    assert.equal(v.code, 2, 'without a way to ask, the freshness question is unanswered rather than fine');
+  });
+
+  test('EQUALITY still short-circuits — the resolver is not consulted when the commits match', () => {
+    let asked = 0;
+    const v = judgeProject({
+      ...base,
+      deployments: [deployment()],
+      isAncestor: () => {
+        asked += 1;
+        return false;
+      },
+    });
+    assert.equal(v.code, 0);
+    assert.equal(asked, 0, 'an equal commit is already the answer; asking git again is a way to get it wrong');
   });
 
   test('a failed build stage is RED, and the message says production serves the PREVIOUS build', () => {
@@ -214,6 +278,50 @@ describe('foldVerdicts — 2 outranks 1, because an unjudged half could hold any
     assert.equal(v.code, 2);
     assert.equal(v.reds, 1);
     assert.equal(v.unknowns, 1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('isAncestorOf — the exit CODE is the answer, and 128 is not "no"', () => {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+
+  test('it asks `merge-base --is-ancestor` in that order', () => {
+    let seen = null;
+    isAncestorOf('/root', A, B, (cmd, args) => {
+      seen = { cmd, args };
+      return { status: 0 };
+    });
+    assert.equal(seen.cmd, 'git');
+    assert.deepEqual(seen.args, ['merge-base', '--is-ancestor', A, B]);
+  });
+
+  test('exit 0 is true, exit 1 is false', () => {
+    assert.equal(isAncestorOf('/root', A, B, () => ({ status: 0 })), true);
+    assert.equal(isAncestorOf('/root', A, B, () => ({ status: 1 })), false);
+  });
+
+  test('🔴 RED CONTROL — exit 128 (the object is not in this checkout) is null, NOT false', () => {
+    assert.equal(
+      isAncestorOf('/root', A, B, () => ({ status: 128 })),
+      null,
+      'reading a missing object as "not an ancestor" turns a shallow clone into a fabricated red',
+    );
+  });
+
+  test('a spawn error is null', () => {
+    assert.equal(isAncestorOf('/root', A, B, () => ({ error: new Error('ENOENT') })), null);
+  });
+
+  test('a non-sha argument is null and git is never called', () => {
+    let called = 0;
+    const run = () => {
+      called += 1;
+      return { status: 0 };
+    };
+    assert.equal(isAncestorOf('/root', 'not-a-sha', B, run), null);
+    assert.equal(isAncestorOf('/root', A, null, run), null);
+    assert.equal(called, 0);
   });
 });
 
