@@ -73,7 +73,9 @@ const String kInstallIdKey = 'nikatru.install_id';
 
 /// Non-secret key-value store (install id, consent decision, event queue).
 final FutureProvider<core.KeyValueStore> keyValueStoreProvider =
-    FutureProvider<core.KeyValueStore>((ref) => PrefsKeyValueStore.create(appId: AppConfig.appId));
+    FutureProvider<core.KeyValueStore>(
+      (ref) => PrefsKeyValueStore.create(appId: AppConfig.appId),
+    );
 
 /// The stable pseudonymous per-install id. Generated once from a secure random
 /// source, then returned unchanged on every launch. Never a device ad-ID.

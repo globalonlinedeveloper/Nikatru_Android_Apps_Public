@@ -44,7 +44,7 @@
   "content-pipeline.test.mjs": 45,
   "content-qa-checks.test.mjs": 7,
   "copy-parity.test.mjs": 28,
-  "cors-allowlist.test.mjs": 16,
+  "cors-allowlist.test.mjs": 18,
   "d1-bindings.test.mjs": 7,
   "d1-sql-inventory.test.mjs": 54,
   "data-inventory.test.mjs": 47,

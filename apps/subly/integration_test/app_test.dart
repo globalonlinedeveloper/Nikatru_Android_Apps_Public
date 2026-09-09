@@ -556,7 +556,9 @@ void main() {
     WidgetTester tester, {
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    final PrefsKeyValueStore store = await PrefsKeyValueStore.create(appId: AppConfig.appId);
+    final PrefsKeyValueStore store = await PrefsKeyValueStore.create(
+      appId: AppConfig.appId,
+    );
     String? id;
     final int startedIn = testEpoch;
     final DateTime end = DateTime.now().add(timeout);

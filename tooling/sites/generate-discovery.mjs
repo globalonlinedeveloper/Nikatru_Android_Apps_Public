@@ -1166,9 +1166,17 @@ export function planDiscovery(repoRoot) {
   {
     const headersRel = `${DEPLOY_ROOT}/_headers`;
     const headersPath = join(repoRoot, ...headersRel.split('/'));
-    if (!existsSync(headersPath)) {
-      problems.push(`${headersRel} does not exist, so the security headers this root serves are whatever the platform defaults to.`);
-    } else {
+    // ⚠️ AN ABSENT `_headers` IS NOT THIS GENERATOR'S FINDING, and that is a
+    // scoping decision rather than a shrug. This block SPLICES one directive
+    // line into a file it does not own — it has no business creating the file,
+    // and a root with no header policy at all is a different, larger defect with
+    // a guard of its own: `assert-web-cache-policy.mjs` floors every static-site
+    // bundle on its entry-point rules and goes RED when `_headers` is gone
+    // (MEASURED 2026-09-09 by deleting it: exit 1, naming `/` and `/*.html`).
+    // Claiming it here as well would make every fixture root in
+    // `tooling/ci/test/discovery-surface.test.mjs` fail for a reason that test is
+    // not about, which is how a generator acquires opinions nobody asked it for.
+    if (existsSync(headersPath)) {
       const pages = new Set([...htmlUnder(repoRoot, DEPLOY_ROOT), ...[...files.keys()].filter((k) => k.endsWith('.html'))]);
       const hashes = new Set();
       for (const rel of [...pages].sort()) {

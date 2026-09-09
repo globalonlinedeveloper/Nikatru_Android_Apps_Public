@@ -21,6 +21,36 @@
 //   `node --check` passes on the guard, so every catch above is an assertion
 //   firing and not a parse error.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 [ADR 075] — WHAT THIS FILE LOST, AND WHY THE LOSS IS RECORDED HERE RATHER
+// THAN QUIETLY EDITED AWAY.
+//
+// Every app moved from `<id>.nikatru.com` to a PATH on the apex: a catalogue row's
+// `url` is now `https://nikatru.com/<slug>`, so EVERY app derives THE SAME browser
+// origin. N1 above — the founding negative test of this whole file — can no longer
+// be written. A second app's origin is the string the first app already
+// contributes, so "missing from the shared Worker" has no input that reds it.
+//
+// That is not a fixture problem. It is the real consequence the design recorded in
+// advance: **CORS stopped being a per-app boundary the day app #2 shipped.** An
+// exact allowlist can still say "a browser, at nikatru.com"; it can no longer say
+// WHICH app's tab is calling. Two cases below therefore assert something that
+// CANNOT HAPPEN, and this repo's rule is that an assertion which cannot fail is
+// worse than none. Both were rewritten in place — each carries a comment naming
+// what it used to assert and why that became untestable — onto the two properties
+// that ARE still falsifiable:
+//   · N apps yield exactly ONE derived origin, and a Worker missing THAT origin
+//     is still red (the floor survived; only its per-app resolution died);
+//   · a per-app Worker without `vars.APP_ID` is red — the token+APP_ID pair is the
+//     boundary that REPLACED the per-app origin, and the guard asserts it in the
+//     same block as the assertion it replaces.
+// And one case was ADDED for the limb that makes the reversal itself reviewable:
+// a catalogue row back on a subdomain must go red and name the apex.
+//
+// ⚠️ THE RETIRING SUBDOMAIN IS DELIBERATELY STILL LISTED in both live configs and
+// justified in the guard's EXTRAS for the length of the cutover. The REAL fixture
+// below mirrors that on purpose; do not "fix" it. It leaves with the 301.
+//
 // Run:  node --test "tooling/ci/test/cors-allowlist.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe, before, after } from 'node:test';
@@ -30,6 +60,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { APEX_ORIGIN } from '../../sites/apex.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-cors-allowlist.mjs');
@@ -44,20 +75,41 @@ after(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
-const SUBLY = { slug: 'subly', name: 'Subly', url: 'https://subly.nikatru.com', status: 'live' };
+/** IMPORTED, never retyped — same rule the guard itself follows. If the apex ever
+ *  moves, both sides of every comparison in this file move with it. */
+const APEX = new URL(APEX_ORIGIN).origin;
+
 const PAGES = 'https://subly-9cp.pages.dev';
 const LOCAL = 'http://localhost:3000';
+/** The retiring app subdomain. NOT derivable from the catalogue any more — it
+ *  survives only as an EXTRAS entry for the length of the cutover [ADR 075]. */
+const SUBDOMAIN = 'https://subly.nikatru.com';
 
-/** The allowlists the real repo carries today, so the baseline fixture is the
- *  live config rather than a convenient invention. */
+/** The live catalogue row's shape. `origin` is carried by the real apps.json and
+ *  is NOT what the guard derives from — the browser origin comes from `url`, i.e.
+ *  from the app's PUBLIC ADDRESS, which is now a path on the apex. */
+const SUBLY = {
+  slug: 'subly',
+  name: 'Nikatru Subscription Tracker',
+  url: `${APEX}/subly`,
+  origin: PAGES,
+  status: 'live',
+};
+
+/** The allowlists the real repo carries today (services/platform/wrangler.jsonc
+ *  and services/subly-api/wrangler.jsonc, read 2026-09-09), so the baseline
+ *  fixture is the live config rather than a convenient invention. The subdomain
+ *  is present in both because the cutover has not landed its 301 yet. */
 const REAL = {
-  platform: `${SUBLY.url},${PAGES},${LOCAL}`,
-  'subly-api': `${SUBLY.url},${PAGES}`,
+  platform: `${APEX},${SUBDOMAIN},${PAGES},${LOCAL}`,
+  'subly-api': `${APEX},${SUBDOMAIN},${PAGES}`,
 };
 
 /**
- * Build a throwaway repo. `workers` maps a service directory to its
- * ALLOWED_ORIGINS string, or to `null` to omit the var entirely.
+ * Build a throwaway repo. `workers` maps a service directory either to its
+ * ALLOWED_ORIGINS string (or `null` to omit the var entirely), or to a
+ * `{ allowed, appId }` pair — `appId: null` omits `vars.APP_ID`, which is the
+ * only way to write the input that reds the limb that replaced the per-app origin.
  *
  * 🔴 EVERY fixture config is written as REAL JSONC — line comments, a block
  * comment and a trailing comma — because "parse the config, never grep it" is
@@ -69,10 +121,13 @@ function tree({ apps = [SUBLY], workers = REAL, extraComment = '' } = {}) {
   mkdirSync(dataDir, { recursive: true });
   if (apps !== null) writeFileSync(join(dataDir, 'apps.json'), JSON.stringify(apps, null, 2));
 
-  for (const [name, allowed] of Object.entries(workers)) {
+  for (const [name, spec] of Object.entries(workers)) {
+    const { allowed, appId } =
+      spec !== null && typeof spec === 'object' ? spec : { allowed: spec, appId: name };
     const dir = join(root, 'services', name);
     mkdirSync(dir, { recursive: true });
     const varsLine = allowed === null ? '' : `    "ALLOWED_ORIGINS": ${JSON.stringify(allowed)},\n`;
+    const appIdLine = appId === null ? '' : `    "APP_ID": ${JSON.stringify(appId)},\n`;
     writeFileSync(
       join(dir, 'wrangler.jsonc'),
       `{\n` +
@@ -82,7 +137,7 @@ function tree({ apps = [SUBLY], workers = REAL, extraComment = '' } = {}) {
         `  // This app's web origins only (comma-separated).\n` +
         `${extraComment}` +
         `  "vars": {\n` +
-        `    "APP_ID": ${JSON.stringify(name)},\n` +
+        appIdLine +
         varsLine +
         `  },\n` + // ← trailing comma before } — jsonc, not json
         `}\n`,
@@ -106,27 +161,98 @@ describe('assert-cors-allowlist', () => {
     assert.equal(code, 0, out);
     assert.match(out, /2 Worker config\(s\) checked against 1 catalogue origin\(s\) from 1 app\(s\)/);
     // Derived and EXTRAS are counted SEPARATELY and both printed: a single
-    // blended tally is how a hand-maintained list creeps back unnoticed.
-    assert.match(out, /2 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
+    // blended tally is how a hand-maintained list creeps back unnoticed. The
+    // EXTRAS count is FIVE, not three, and the two it grew by are the retiring
+    // subdomain in each config — the number rising is the cutover being visible.
+    assert.match(out, /2 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
   });
 
-  // 🔴 N1 — THE defect [4]B-2 exists for, and the one the previous guard passed.
-  // A new app is stamped into the catalogue; nobody edits the shared Worker.
-  test('FAILS when a new catalogue app is missing from the shared Worker', () => {
-    const drift = { slug: 'drift', name: 'Drift', url: 'https://drift.nikatru.com', status: 'live' };
-    const { code, out } = run(tree({ apps: [SUBLY, drift] }));
+  // ─────────────────────────────────────────────────────────────────────────
+  // ⏱ REWRITTEN [ADR 075]. THIS USED TO BE "FAILS when a new catalogue app is
+  // missing from the shared Worker" — N1, the defect [4]B-2 exists for and the
+  // one the previous guard passed: a second app (`https://drift.nikatru.com`)
+  // stamped into the catalogue, nobody edits the shared Worker, exit 1 naming
+  // the new origin.
+  //
+  // THAT INPUT NO LONGER EXISTS. App #2's `url` is `https://nikatru.com/drift`,
+  // whose origin is the string app #1 already contributes, so nothing can ever
+  // be "missing" for the second app alone. The per-app CORS boundary was traded
+  // for one payment-provider approval instead of N; this is the receipt.
+  //
+  // What survives, and CAN still fail: N apps must collapse to exactly ONE
+  // derived origin (publish one on a subdomain again and the tally changes and
+  // the apex limb below goes red), and the shared Worker missing THAT origin is
+  // still every app's browser traffic refused at runtime. Both halves asserted.
+  // ─────────────────────────────────────────────────────────────────────────
+  test('two catalogue apps yield exactly ONE derived origin, and dropping it still FAILS', () => {
+    const drift = { slug: 'drift', name: 'Drift', url: `${APEX}/drift`, status: 'live' };
+
+    // (a) the collapse itself: 2 apps, 1 origin. If this ever reads "2
+    //     catalogue origin(s)", an app has left the apex.
+    const ok = run(tree({ apps: [SUBLY, drift] }));
+    assert.equal(ok.code, 0, ok.out);
+    assert.match(
+      ok.out,
+      /2 Worker config\(s\) checked against 1 catalogue origin\(s\) from 2 app\(s\)/,
+    );
+    // The shared Worker still carries one derived requirement PER APP — they
+    // just happen to be the same string now, which is exactly the point.
+    assert.match(ok.out, /3 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
+
+    // (b) the floor that survived: drop the apex from the shared Worker and
+    //     every app in the catalogue is named, not just the newest one.
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
+    const { code, out } = run(tree({ apps: [SUBLY, drift], workers }));
     assert.equal(code, 1);
-    assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/drift\.nikatru\.com"/);
+    assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
     assert.match(out, /apps\.json declares "drift"/);
+    assert.match(out, /apps\.json declares "subly"/);
     assert.match(out, /refused at runtime with nothing logged server side/);
   });
 
-  // The per-app limb: services/<slug>-api must carry its own app's origin.
-  test('FAILS when a per-app Worker drops its own app origin', () => {
-    const { code, out } = run(tree({ workers: { ...REAL, 'subly-api': PAGES } }));
+  // ─────────────────────────────────────────────────────────────────────────
+  // ⏱ REWRITTEN [ADR 075]. THIS USED TO BE "FAILS when a per-app Worker drops
+  // its own app origin" — services/<slug>-api had to list THAT ONE APP'S origin,
+  // and the input that redded it was subly-api carrying everything except
+  // `https://subly.nikatru.com`.
+  //
+  // UNTESTABLE FOR THE SAME REASON as the case above: "its own app origin" and
+  // "every other app's origin" are now one string. Dropping the apex from a
+  // per-app Worker is still red — case (b) above covers that shape — but it no
+  // longer asserts a PER-APP anything, so keeping it here under this name would
+  // be an assertion whose title is a lie.
+  //
+  // What replaced the boundary is asserted instead: a per-app Worker (one not
+  // marked `scope: 'every-app'`) must declare `vars.APP_ID`. With one shared
+  // origin, the token+APP_ID pair is the only thing left that can tell one app's
+  // caller from another's, and a per-app Worker without it authorises on a
+  // string every app in the portfolio sends. THAT has an input that reds it.
+  // ─────────────────────────────────────────────────────────────────────────
+  test('FAILS when a per-app Worker declares no vars.APP_ID', () => {
+    const workers = { ...REAL, 'subly-api': { allowed: REAL['subly-api'], appId: null } };
+    const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api\/wrangler\.jsonc — missing "https:\/\/subly\.nikatru\.com"/);
-    assert.match(out, /that app's own Worker/);
+    assert.match(out, /services\/subly-api\/wrangler\.jsonc — vars\.APP_ID is missing on a PER-APP Worker/);
+    assert.match(out, /authorises on a string every app in the portfolio sends/);
+    // The shared Worker is exempt from this limb by design — it is every app's
+    // Worker, so there is no single APP_ID it could carry. If this ever starts
+    // naming services/platform, the exemption has inverted.
+    assert.doesNotMatch(out, /services\/platform\/wrangler\.jsonc — vars\.APP_ID/);
+  });
+
+  // ── the reversal itself is guarded [ADR 075] ──────────────────────────────
+  // NEW. The two cases above lost their teeth because every app moved to the
+  // apex; this is the case that makes moving BACK a red build rather than a
+  // silent restoration of a boundary nothing else asserts any more. An app on
+  // its own origin needs its own payment-provider approval and its own
+  // allowlist entry, and neither happens by accident.
+  test('FAILS when a catalogue row is published on a subdomain again', () => {
+    const relapsed = { ...SUBLY, url: SUBDOMAIN };
+    const { code, out } = run(tree({ apps: [relapsed] }));
+    assert.equal(code, 1);
+    assert.match(out, /1 catalogue origin\(s\) are not the apex https:\/\/nikatru\.com/);
+    assert.match(out, /https:\/\/subly\.nikatru\.com/);
+    assert.match(out, /publishes every app at a PATH on the apex/);
   });
 
   // The other direction: the catalogue is also a CEILING, not just a floor.
@@ -138,13 +264,15 @@ describe('assert-cors-allowlist', () => {
     assert.match(out, /standing CORS grant nobody reviewed/);
   });
 
-  test('accepts the declared EXTRAS (preview domain, local dev server)', () => {
+  test('accepts the declared EXTRAS (retiring subdomain, preview domain, local dev server)', () => {
     // These are NOT in apps.json and must still be allowed, because EXTRAS
-    // gives each a reason.
+    // gives each a reason. The subdomain is one of them now: it stopped being
+    // catalogue-derived the moment the app moved to a path.
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /pages\.dev/);
     assert.doesNotMatch(out, /localhost:3000/);
+    assert.doesNotMatch(out, /subly\.nikatru\.com/);
   });
 
   // 🔴 AN EXTRA IS REQUIRED, NOT MERELY PERMITTED — and the first draft of this
@@ -154,10 +282,22 @@ describe('assert-cors-allowlist', () => {
   // "FAILS when a required PLATFORM origin is dropped"). Removing an origin has
   // to be a reviewable diff, not a quiet edit to a comma-separated string.
   test('FAILS when a declared EXTRA is dropped from the config', () => {
-    const workers = { ...REAL, platform: `${SUBLY.url},${PAGES}` }; // localhost gone
+    const workers = { ...REAL, platform: `${APEX},${SUBDOMAIN},${PAGES}` }; // localhost gone
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, /missing "http:\/\/localhost:3000" — EXTRAS:/);
+    assert.match(out, /delete the EXTRAS entry in the same change/);
+  });
+
+  // The cutover's own step: the retiring subdomain leaves the configs and the
+  // EXTRAS entry in ONE commit, or not at all. Dropping it from the config
+  // alone is a live browser tab losing its API with nothing logged.
+  test('FAILS when the retiring subdomain is dropped from a config but not from EXTRAS', () => {
+    const workers = { ...REAL, 'subly-api': `${APEX},${PAGES}` };
+    const { code, out } = run(tree({ workers }));
+    assert.equal(code, 1);
+    assert.match(out, /services\/subly-api\/wrangler\.jsonc — missing "https:\/\/subly\.nikatru\.com"/);
+    assert.match(out, /THE RETIRING APP SUBDOMAIN/);
     assert.match(out, /delete the EXTRAS entry in the same change/);
   });
 
@@ -187,11 +327,16 @@ describe('assert-cors-allowlist', () => {
   test('FAILS a comment-only origin that the config no longer really lists', () => {
     // The mirror of the above: the origin is REQUIRED by the catalogue and
     // present only in prose. A grep would call this covered.
-    const ghosted = { slug: 'ghost', name: 'Ghost', url: 'https://ghost.nikatru.com', status: 'live' };
-    const extraComment = '  // "https://ghost.nikatru.com" used to be listed here\n';
-    const { code, out } = run(tree({ apps: [SUBLY, ghosted], extraComment }));
+    //
+    // ⏱ The fixture changed with [ADR 075] — it used to ghost a second app on
+    // its own subdomain (`https://ghost.nikatru.com`), which the apex limb now
+    // rejects before this limb is ever reached. The required origin it ghosts
+    // is therefore the apex itself, which is the only derived origin left.
+    const extraComment = `  // "${APEX}" used to be listed here\n`;
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
+    const { code, out } = run(tree({ workers, extraComment }));
     assert.equal(code, 1);
-    assert.match(out, /missing "https:\/\/ghost\.nikatru\.com"/);
+    assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
   });
 
   // ── untaught scope ────────────────────────────────────────────────────────
@@ -225,7 +370,7 @@ describe('assert-cors-allowlist', () => {
   // If the <slug>-api limb matches nothing, only the shared Worker is really
   // being checked and the tally still looks healthy. That must be loud.
   test('COVERAGE LOST when the <slug>-api derivation matches no Worker', () => {
-    const other = { slug: 'other', name: 'Other', url: 'https://other.nikatru.com', status: 'live' };
+    const other = { slug: 'other', name: 'Other', url: `${APEX}/other`, status: 'live' };
     const { code, out } = run(tree({ apps: [other] }));
     assert.equal(code, 1);
     assert.match(out, /the <slug>-api derivation matched 0 Worker\(s\)/);
