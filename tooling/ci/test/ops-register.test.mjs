@@ -145,6 +145,13 @@ import {
   evaluateRedSince,
   hostWorkflowFile,
   dispatchableWorkflows,
+  gateTopology,
+  gateCheckName,
+  workflowRunsScript,
+  feedsTheGate,
+  deadlockExemption,
+  GATE_SCRIPT_REL,
+  GUARD_SCRIPT_REL,
   redSinceTriggerCensus,
   redSinceTriggerShape,
   rowWorkflowFile,
@@ -3928,5 +3935,253 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     assert.equal(rowWorkflowFile({ mechanism: { anchor: '.github/workflows/ci.yml' } }), 'ci.yml');
     assert.equal(rowWorkflowFile({ mechanism: { anchor: 'renovate.json' } }), null);
     assert.equal(rowWorkflowFile({ mechanism: { anchor: '.github/workflows/x.yml', recordQuery: { workflow: 'y.yml' } } }), 'y.yml', 'the query wins: it is what the probe actually reads');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🔴 THE LIVELOCK: A RED VERDICT THAT ABORTS ITS OWN REMEDY.
+  // Added 2026-09-09, coverage unit `red-since-self-gate`.
+  //
+  // Measured on `main`, not reasoned: `build-platforms.yml` run 34351523027
+  // FAILED at 12:45:45Z → this limb routed it into `errors` → the guard exited 1
+  // in `ci.yml`'s `guards-platform` job → `ci-gate` went red (runs 34354769442,
+  // 34355401877) → `build-platforms.yml`'s FIRST step is
+  // `node tooling/ci/assert-gate-passed.mjs`, which refused ("✗ ci-gate concluded
+  // \"failure\" for ddfc63d4 — refusing to deploy", run 34355529015) → no green
+  // run is possible → RED SINCE never clears. The verdict's own remedy line,
+  // "dispatch the workflow once the cause is fixed", was unreachable.
+  //
+  // And a SECOND LAP: `ops-watch.yml` runs this same guard, so the same red
+  // failed it too (run 34354893475), which made `duty.workflow.ops-watch.yml`
+  // RED SINCE in turn — and ops-watch is not self-gated, so exempting only the
+  // self-gated row leaves `ci-gate` red through the ops-watch row instead.
+  //
+  // GREEN CONTROLS FIRST throughout, and every case runs through the PURE
+  // functions with the host taken from a fabricated ENVIRONMENT — because the
+  // context that decides print-vs-block must come from the environment and never
+  // from an argument a caller may choose. A flag is a waiver.
+  // ───────────────────────────────────────────────────────────────────────────
+  describe('a RED verdict may not be routed into `errors` by the very gate the graded workflow needs to recover', () => {
+    const BP = 'duty.workflow.build-platforms.yml';
+    const OPS = 'duty.workflow.ops-watch.yml';
+    const wfRow = (id, workflow, cadence) => ({
+      id,
+      kind: 'duty',
+      what: 'a scheduled proof',
+      detector: 'its own alert job',
+      response: 'read the issue it files',
+      cadence,
+      mechanism: {
+        substrate: 'github-actions',
+        anchor: `.github/workflows/${workflow}`,
+        record: 'GitHub Actions run history',
+        failingValue: 'conclusion = failure',
+        readBy: 'this guard',
+        recordQuery: { reader: 'github-run-history', workflow, event: 'schedule', headBranch: 'main' },
+      },
+    });
+    // The measured runs, so the fixture is the incident rather than a sketch.
+    const BP_FAIL = { id: 34351523027, at: '2026-09-09T12:45:45Z' };
+    const BP_OK = { id: 34192868585, at: '2026-09-08T06:16:33Z' };
+    const OPS_FAIL = { id: 34354893475, at: '2026-09-09T13:06:44Z' };
+    const OPS_OK = { id: 34332836726, at: '2026-09-09T09:08:21Z' };
+
+    const TOPO = () => ({
+      selfGated: new Set(['build-platforms.yml']),
+      guardHosts: new Set(['ci.yml', 'ops-watch.yml']),
+      gateName: 'ci-gate',
+      gateWorkflow: 'ci.yml',
+      why: [],
+    });
+    // The environment of a `ci.yml` run and of an `ops-watch.yml` run. Nothing
+    // below passes a host directly: it is derived from these, exactly as the
+    // guard derives it from `process.env`.
+    const IN_CI = () => hostWorkflowFile({ GITHUB_WORKFLOW: 'CI', GITHUB_RUN_ID: '1', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/heads/main' });
+    const IN_OPS = () => hostWorkflowFile({ GITHUB_WORKFLOW: 'Ops watch', GITHUB_RUN_ID: '2', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ops-watch.yml@refs/heads/main' });
+    const bothRed = () => probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL }, [OPS]: { success: OPS_OK, failure: OPS_FAIL } });
+    const reg2 = () => regOf(wfRow(BP, 'build-platforms.yml', '7d'), wfRow(OPS, 'ops-watch.yml', '1d'));
+
+    // ── the derivation, over the real tree ──────────────────────────────────
+    test('GREEN CONTROL — the COMMITTED tree derives the gate, the self-gated lanes and the guard hosts', () => {
+      // The ratchet. If the gate is renamed, if a deploy lane drops its gate step,
+      // or if this guard moves out of a workflow, THIS goes red rather than the
+      // exemption silently widening or the freeze silently returning.
+      const t = gateTopology(REPO_ROOT);
+      assert.deepEqual(t.why, [], `the derivation must be complete on the committed tree:\n${t.why.join('\n')}`);
+      assert.equal(t.gateName, 'ci-gate', `${GATE_SCRIPT_REL} no longer waits for a check named ci-gate`);
+      assert.equal(t.gateWorkflow, 'ci.yml', 'the workflow declaring the gate job is no longer ci.yml');
+      assert.ok(t.selfGated.has('build-platforms.yml'), 'build-platforms.yml no longer runs the gate script — re-read the livelock before trusting this');
+      assert.ok(t.selfGated.has('deploy-web.yml') && t.selfGated.has('deploy-workers.yml') && t.selfGated.has('extensions.yml'));
+      for (const s of ['submit-appstore.yml', 'submit-play.yml', 'submit-snap.yml', 'submit-windows-store.yml']) {
+        assert.ok(t.selfGated.has(s), `${s} carries the gate step and must be in the self-gated set`);
+      }
+      assert.equal(t.selfGated.has('ci.yml'), false, 'ci.yml must NOT be self-gated: it PRODUCES the gate');
+      assert.equal(t.selfGated.has('ops-watch.yml'), false, 'ops-watch.yml is gated on nothing — that is why blocking there cannot deadlock');
+      assert.deepEqual([...t.guardHosts].sort(), ['ci.yml', 'ops-watch.yml'], `the workflows running ${GUARD_SCRIPT_REL} have changed`);
+      assert.equal(gateCheckName(REPO_ROOT), 'ci-gate');
+    });
+
+    test('🔴 "MENTIONS" IS NOT "RUNS" — a `paths:` filter naming the gate script does not make a workflow self-gated', () => {
+      // `deploy-web.yml` really does name the script in its `on.push.paths:`.
+      // Harmless there, because it also runs it — but a substring search would
+      // admit a workflow to a deadlock exemption on the strength of a filter line.
+      const filterOnly = { lines: [{ n: 1, text: "      - 'tooling/ci/assert-gate-passed.mjs'" }] };
+      assert.equal(workflowRunsScript(filterOnly, GATE_SCRIPT_REL), false, 'a paths: entry is not an invocation');
+      const invoked = { lines: [{ n: 1, text: '        run: node tooling/ci/assert-gate-passed.mjs ${{ github.sha }}' }] };
+      assert.equal(workflowRunsScript(invoked, GATE_SCRIPT_REL), true);
+      const quoted = { lines: [{ n: 1, text: '        run: node tooling/ci/assert-gate-passed.mjs "$GITHUB_SHA"' }] };
+      assert.equal(workflowRunsScript(quoted, GATE_SCRIPT_REL), true, 'extensions.yml writes it this way');
+      assert.equal(workflowRunsScript({ lines: [] }, GATE_SCRIPT_REL), false);
+      assert.equal(workflowRunsScript(null, GATE_SCRIPT_REL), false);
+    });
+
+    test('the CONTEXT comes from the environment — `feedsTheGate` needs the gate producer AND a guard host', () => {
+      const t = TOPO();
+      assert.equal(feedsTheGate(IN_CI(), t), true, 'a ci.yml run is the run whose exit code decides ci-gate');
+      assert.equal(feedsTheGate(IN_OPS(), t), false, 'ops-watch decides nothing that gates anything');
+      assert.equal(feedsTheGate(hostWorkflowFile({}), t), false, 'off Actions there is no host, so nothing is exempt');
+      assert.equal(feedsTheGate(IN_CI(), null), false, 'no derivation, no exemption');
+      assert.equal(feedsTheGate(IN_CI(), { ...t, guardHosts: new Set(['ops-watch.yml']) }), false, 'a host that does not run this guard cannot be the reason the gate is red');
+      assert.equal(feedsTheGate(IN_CI(), { ...t, gateWorkflow: null }), false);
+    });
+
+    // ── the green control that proves the exemption does not leak ───────────
+    test('GREEN CONTROL — with NO self-gated lane red, a red ops-watch STILL BLOCKS inside ci.yml', () => {
+      // This is the case the exemption must not swallow: ops-watch red for its
+      // own reasons is exactly the alarm this limb exists to raise, and it keeps
+      // turning ci-gate red on every branch.
+      const r = evaluateRedSince(
+        reg2(),
+        probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK }, [OPS]: { success: OPS_OK, failure: OPS_FAIL } }),
+        IN_CI(),
+        null,
+        TOPO(),
+      );
+      assert.equal(r.errors.length, 1, `a genuinely red ops-watch must block:\n${JSON.stringify(r, null, 1)}`);
+      assert.match(r.errors[0], /duty\.workflow\.ops-watch\.yml — RED SINCE/);
+      assert.equal(r.stats.deadlockExempt, 0, 'nothing was deadlocked, so nothing may be exempt');
+    });
+
+    // ── the defect itself ──────────────────────────────────────────────────
+    test('🔴 THE LIVELOCK — a RED on a SELF-GATED workflow is NOT routed into `errors` by the run that decides the gate', () => {
+      const r = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL } }), IN_CI(), null, TOPO());
+      assert.equal(
+        r.errors.length,
+        0,
+        `build-platforms.yml is self-gated on ci-gate; blocking ci-gate on its redness is the livelock:\n${JSON.stringify(r, null, 1)}`,
+      );
+      assert.equal(r.stats.red, 1, 'it is still RED — the verdict is unchanged, only where it is routed');
+      assert.equal(r.stats.deadlockExempt, 1);
+    });
+
+    test('🔴 LOUDNESS — the exempt RED prints in full: the workflow, the run id, the timestamps and the deadlock reason', () => {
+      // A red that stops blocking and stops speaking is the thing this repository
+      // calls a silent shrink. It must be a SENTENCE, not a smaller number.
+      const r = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL } }), IN_CI(), null, TOPO());
+      const loud = r.prints.filter((p) => /RED, AND NOT BLOCKING IN THIS HOST BECAUSE BLOCKING HERE WOULD DEADLOCK IT/.test(p));
+      assert.equal(loud.length, 1, `the exempt RED must print by name:\n${JSON.stringify(r.prints, null, 1)}`);
+      assert.match(loud[0], /build-platforms\.yml on main/, 'the workflow must be named');
+      assert.match(loud[0], /run 34351523027 FAILED/, 'the failing run id must be named');
+      assert.match(loud[0], /RED SINCE 2026-09-09T12:45:45Z/, 'the timestamp must be named');
+      assert.match(loud[0], /run 34192868585 at 2026-09-08T06:16:33Z/, 'and the success it was compared against');
+
+      const why = r.prints.filter((p) => /WHY THIS RED IS A PRINT HERE/.test(p));
+      assert.equal(why.length, 1, 'the reason must be printed beside the verdict, not inferred');
+      assert.match(why[0], /SELF-GATED/);
+      assert.match(why[0], new RegExp(GATE_SCRIPT_REL.replace(/[.\/]/g, '\\$&')), 'the reason must name the step that makes the remedy unreachable');
+      assert.match(why[0], /UNREACHABLE from this host/);
+      assert.match(why[0], /BLOCKING in every other host/, 'or a reader cannot tell this from a waiver');
+
+      // …and the tally line carries the count, so "0 RED" and "1 RED, printed"
+      // are two different sentences.
+      assert.ok(r.prints.some((p) => /1 RED \(1 of them printed rather than blocked HERE/.test(p)), JSON.stringify(r.prints, null, 1));
+    });
+
+    test('🔴 THE SECOND LAP — a RED on a workflow that RUNS THIS GUARD is exempt too, but ONLY while a self-gated lane is red', () => {
+      // ops-watch.yml is not self-gated, so the first rule does not reach it —
+      // yet its redness IS this guard's own output, and routing it into `errors`
+      // in ci.yml keeps ci-gate red through the other row. Same loop, one hop out.
+      const both = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, TOPO());
+      assert.equal(both.errors.length, 0, `the loop survives through the ops-watch row:\n${JSON.stringify(both, null, 1)}`);
+      assert.equal(both.stats.red, 2);
+      assert.equal(both.stats.deadlockExempt, 2);
+      const why = both.prints.filter((p) => /WHY THIS RED IS A PRINT HERE: SECOND LAP/.test(p));
+      assert.equal(why.length, 1);
+      assert.match(why[0], new RegExp(GUARD_SCRIPT_REL.replace(/[.\/]/g, '\\$&')), 'the reason must name the guard whose output the conclusion is');
+      assert.match(why[0], /build-platforms\.yml is RED and self-gated/);
+      assert.match(why[0], /blocking here the moment build-platforms\.yml is green again/, 'the exemption must state its own expiry');
+    });
+
+    // ── and the half that must not move ────────────────────────────────────
+    test('🔴 STILL BLOCKING IN OPS-WATCH — the same two REDs fail the host that is gated on nothing', () => {
+      // The alarm keeps its bite. ops-watch is gated on no check, so blocking
+      // there cannot deadlock, and its `if: failure()` alert job is the page.
+      const r = evaluateRedSince(reg2(), bothRed(), IN_OPS(), null, TOPO());
+      assert.equal(r.stats.deadlockExempt, 0, 'no exemption may exist outside the host that feeds the gate');
+      assert.equal(r.errors.length, 1, `the self-gated RED must fail ops-watch:\n${JSON.stringify(r, null, 1)}`);
+      assert.match(r.errors[0], /duty\.workflow\.build-platforms\.yml — RED SINCE/);
+      assert.equal(r.stats.self, 1, 'and the ops-watch row is still deferred by the 2026-09-08 self rule, not by this one');
+    });
+
+    test('🔴 STILL BLOCKING OFF ACTIONS — no host resolves, so every RED blocks exactly as before', () => {
+      const r = evaluateRedSince(reg2(), bothRed(), hostWorkflowFile({}), null, TOPO());
+      assert.equal(r.stats.deadlockExempt, 0);
+      assert.equal(r.errors.length, 2, 'a local run of this guard grades both rows hard');
+    });
+
+    // ── fail-closed, in every direction ────────────────────────────────────
+    test('🔴 FAIL-CLOSED — a COLLAPSED derivation exempts nothing and SAYS the freeze may return', () => {
+      // The mutation this file must catch: an empty self-gated set. Nothing is
+      // exempt, the deadlock comes back — and it comes back as a printed sentence
+      // rather than as a guard that quietly went back to freezing the queue.
+      const empty = { selfGated: new Set(), guardHosts: new Set(['ci.yml']), gateName: 'ci-gate', gateWorkflow: 'ci.yml', why: ['no workflow under .github/workflows runs tooling/ci/assert-gate-passed.mjs, so no lane is self-gated'] };
+      const r = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, empty);
+      assert.equal(r.stats.deadlockExempt, 0);
+      assert.equal(r.errors.length, 2, 'an unproven exemption is no exemption');
+      assert.ok(r.prints.some((p) => /GATE TOPOLOGY INCOMPLETE/.test(p) && /Fail-closed is deliberate/.test(p)), JSON.stringify(r.prints, null, 1));
+
+      // …and with no topology supplied at all, the pre-2026-09-09 behaviour exactly.
+      const none = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, null);
+      assert.equal(none.errors.length, 2);
+      assert.equal(none.stats.deadlockExempt, 0);
+    });
+
+    test('🔴 TWO workflows answering to the gate name is a GUESS, and a guess exempts nothing', () => {
+      // The derivation must be unambiguous or absent. A widened exemption is the
+      // failure mode that costs coverage, so ambiguity resolves to blocking.
+      const t = gateTopology(REPO_ROOT);
+      assert.equal(t.gateWorkflow, 'ci.yml');
+      const ambiguous = { ...TOPO(), gateWorkflow: null, why: ['2 workflows declare a job named `ci-gate`'] };
+      const r = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, ambiguous);
+      assert.equal(r.errors.length, 2);
+      assert.equal(r.stats.deadlockExempt, 0);
+    });
+
+    test('the exemption is a DERIVATION, never a caller flag — `deadlockExemption` refuses when the host does not feed the gate', () => {
+      // There is no `--allow-deadlock`, no register field and no boolean a caller
+      // may set. The only inputs are the derived topology and the environment.
+      const t = TOPO();
+      assert.equal(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), t, false), null, 'gateFeeding false must exempt nothing');
+      assert.equal(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), null, true), null, 'no topology must exempt nothing');
+      assert.equal(deadlockExemption('', new Set(), t, true), null, 'a row naming no workflow file is never exempt');
+      assert.equal(deadlockExemption('ops-watch.yml', new Set(['ops-watch.yml']), t, true), null, 'a guard host alone is not enough — a self-gated lane must actually be red');
+      assert.match(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), t, true), /SELF-GATED/);
+      assert.match(deadlockExemption('ops-watch.yml', new Set(['ops-watch.yml', 'build-platforms.yml']), t, true), /SECOND LAP/);
+    });
+
+    test('the GATE TOPOLOGY is printed on EVERY run, red or green — the anti-shrink half', () => {
+      // Same rule the trigger census follows: the self-gated set comes from a
+      // step anybody may delete, so what was derived and what it did is a
+      // sentence in the log rather than a behaviour nobody can see.
+      const green = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK }, [OPS]: { success: OPS_FAIL, failure: OPS_OK } }), IN_CI(), null, TOPO());
+      assert.deepEqual(green.errors, []);
+      const line = green.prints.filter((p) => /GATE TOPOLOGY: gate check `ci-gate` is produced by `ci\.yml`/.test(p));
+      assert.equal(line.length, 1, `the derivation must print even when nothing is red:\n${JSON.stringify(green.prints, null, 1)}`);
+      assert.match(line[0], /SELF-GATED[^:]*: build-platforms\.yml/);
+      assert.match(line[0], /GUARD HOSTS[^:]*: ci\.yml · ops-watch\.yml/);
+      assert.match(line[0], /THIS RUN'S HOST: ci\.yml, which FEEDS that gate/);
+
+      const inOps = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK } }), IN_OPS(), null, TOPO());
+      assert.ok(inOps.prints.some((p) => /THIS RUN'S HOST: ops-watch\.yml, which does NOT feed that gate — so EVERY RED here is BLOCKING/.test(p)));
+    });
   });
 });

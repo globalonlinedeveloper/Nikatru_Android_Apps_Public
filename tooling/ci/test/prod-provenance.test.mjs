@@ -623,6 +623,49 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
     assert.deepEqual(r.stdout.trim().split('\n').sort(), ['drift-web', 'subscriptiontracker-web']);
   });
 
+  // ── THE RETIRED-ENVIRONMENT WIDENING, AND THE ASYMMETRY THAT MAKES IT SAFE ──
+  // A GitHub Deployment environment is a name on GitHub, created the day the
+  // deploy ran; it does not move when a directory is renamed. When `apps/subly`
+  // became `apps/subscriptiontracker` the ledger went from 58 witnesses to 2 and
+  // six groups of real production rows stopped tracing to any published build.
+  // RETIRED_ENVIRONMENTS repairs the READ side only, and these two cases are the
+  // only thing standing between that and a reader that accepts any name someone
+  // adds to a list.
+  test('the LEDGER reads the retired environments and the EMITTED set does not', () => {
+    const emitted = spawnSync(process.execPath, [MONITOR, '--emit-served-environments'], { cwd: REPO, encoding: 'utf8' });
+    const ledger = spawnSync(process.execPath, [MONITOR, '--emit-ledger-environments'], { cwd: REPO, encoding: 'utf8' });
+    assert.equal(emitted.status, 0, emitted.stdout + emitted.stderr);
+    assert.equal(ledger.status, 0, ledger.stdout + ledger.stderr);
+    const lines = (r) => r.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+    const e = lines(emitted);
+    const l = lines(ledger);
+
+    // (a) SUPERSET. Everything the lane writes today is still read — a retired
+    //     entry must never be able to displace a live one.
+    for (const env of e) assert.ok(l.includes(env), `the ledger stopped reading "${env}", which deploy-web.yml writes today`);
+
+    // (b) STRICT. If the two sets are equal, RETIRED_ENVIRONMENTS is empty or
+    //     duplicates the derivation, and this whole limb is asserting nothing.
+    //     That is the state to fail in, not to pass quietly through.
+    assert.ok(
+      l.length > e.length,
+      `--emit-ledger-environments returned the same set as --emit-served-environments (${l.join(', ')}). ` +
+        'Either RETIRED_ENVIRONMENTS is empty — in which case delete it and this test together — or it is ' +
+        'listing a name the derivation already produces, which grades nothing.',
+    );
+
+    // (c) THE ASYMMETRY. A retired name reaching the EMITTED set would mean the
+    //     reader claims deploy-web.yml records into an environment nothing has
+    //     written since the rename.
+    for (const env of l) {
+      if (e.includes(env)) continue;
+      assert.ok(
+        !e.includes(env),
+        `"${env}" is retired but is being emitted as an environment the lane records into`,
+      );
+    }
+  });
+
   test('THE NEGATIVE CASE: a register that expands to NOTHING is exit 2, never an empty ledger', () => {
     // An empty environment set makes githubDeployments return an empty sha set,
     // which reads exactly like "nothing was ever deployed" — so every build from
