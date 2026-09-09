@@ -185,6 +185,10 @@ const markerInCode = (source) => stripSourceComments(source, '.mjs').includes(CO
  *  test, which limb 1 above enforces regardless of this map.) */
 const NOT_A_SCANNER = new Map([
   [
+    'sql-seed.mjs',
+    "is not a guard: it is the ONE reading of \"which rows does a migration SEED into this table\" — the `INSERT … VALUES` tuple scanner, pure functions, text in, rows out, no filesystem and no tree. It was extracted from limb 3 of assert-entitlement-contract.mjs on 2026-09-09, UNCHANGED, when 0009_bundle_grants.sql added a SECOND seeded enum (`bundle_sources`) and limb 9 needed the same parse. Two copies of this scanner drift in the one way that reports clean — WHICH TUPLES THEY CAN SEE — and the three traps it survives are all silent-miscount shapes measured on the real tree: parentheses and commas inside a seeded English description, the `ON CONFLICT(reason) DO NOTHING` tail that a naive tuple scanner reads as one more VALUES tuple, and a doubled quote inside a string. It asserts nothing and exits nowhere, so \"did my scan still reach the tree\" belongs to its one importer, which carries COVERAGE LOST over the migration set it reads and fails loudly when this module returns `ok: false` or an empty row set. MOVED CODE SILENCES GUARDS, so the extraction was PROVED rather than assumed: the 95 cases in test/entitlement-contract.test.mjs — including EC3, EC6, EC7 and EC9, the mutations that make limb 3 bite — ran green against the pre-move file and still go red against the moved one. Its own trap cases are in test/bundle-contract-limbs.test.mjs. It sits flat in tooling/ci because the stray-.mjs check above (correctly) treats a subdirectory as a guard escaping the scan.",
+  ],
+  [
     'assert-gate-passed.mjs',
     'takes a SHA and asks the GitHub API one question about it. There is no tree to under-reach; its failure mode is argument handling, which is where the real off-by-one lived and which its tests cover.',
   ],

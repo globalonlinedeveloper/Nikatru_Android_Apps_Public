@@ -26,6 +26,8 @@
   "availability.test.mjs": 32,
   "await-pr-checks.test.mjs": 46,
   "bundle-availability.test.mjs": 9,
+  "bundle-contract-limbs.test.mjs": 14,
+  "bundle-provenance-guards.test.mjs": 11,
   "capability-register-seams.test.mjs": 27,
   "capability-register.test.mjs": 40,
   "captcha-gated-call-sites.test.mjs": 16,

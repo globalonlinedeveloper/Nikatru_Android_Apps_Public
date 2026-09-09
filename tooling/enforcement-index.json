@@ -703,6 +703,7 @@
     "claims": [
       "ADR 020",
       "ADR 039",
+      "ADR 057",
       "ADR 067",
       "M-2",
       "M-3",
@@ -1118,6 +1119,18 @@
   },
   {
     "claims": [
+      "ADR 057"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-no-null-entitlement-key.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 020",
       "F-10"
     ],
@@ -1172,6 +1185,16 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-no-secret-defines.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-no-store-bundle-copy.mjs",
     "references": [],
     "state": "WIRED"
   },
@@ -2278,6 +2301,14 @@
     "ref": "tooling/ci/scan-workflows.mjs",
     "references": [],
     "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [],
+    "kind": "guard",
+    "ref": "tooling/ci/sql-seed.mjs",
+    "references": [],
+    "state": "LIBRARY"
   },
   {
     "claims": [
