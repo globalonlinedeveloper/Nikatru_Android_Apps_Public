@@ -68,6 +68,14 @@ per store — a divergence here is a policy-mismatch finding a reviewer can see.
   without the wrapper the address rule 4(2) obliges us to **display** is absent from the served bytes
   until JavaScript runs. Measured live 2026-09-09: zero occurrences across nine pages. Held by
   `tooling/ci/check-site-integrity.mjs`.
+  ⚠️ **AND THIS IS WHY IT SURVIVED EVERY PREVIEW TEST: `*.pages.dev` IS A DIFFERENT ZONE.** Measured
+  2026-09-09, the same path on the same deployment, without the fix — `project-nek.pages.dev/contact`
+  served `support@nikatru.com` in the clear **3 times** with **zero** `__cf_email__`, while
+  `nikatru.com/contact` served it **0** times with **3**. The obfuscation is a setting on the
+  `nikatru.com` zone, and a Pages preview URL never passes through it. **A green preview is not
+  evidence about production for anything the zone transforms** — caching headers were the last one
+  (see `_headers`, the 2026-08-04 `browser_cache_ttl` note). Prove this class of fix by fetching
+  `https://nikatru.com/…` after the merge, never the preview.
 - **Phone:** `+91 94984 98011`
 - **Registered address:** `7, RR Tower 4, Thiru Vi Ka Industrial Estate, SIDCO Industrial Estate,
   Guindy, Chennai, Tamil Nadu, 600032, India` — see the superseded block below for why this spelling
