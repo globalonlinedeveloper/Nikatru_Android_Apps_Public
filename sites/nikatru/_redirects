@@ -84,5 +84,15 @@
 # ⚠️ THIS IS A ONE-OFF FOR A RETIRED NAME, NOT A PATTERN. A SECOND app never
 # gets a line here — it gets a row in `app-routes.json` and is served by the
 # router. The day the old address stops being requested, delete these two lines.
-/subly     /subscriptiontracker        308
+#
+# 🔴 THE BARE FORM TARGETS THE SLASHED ADDRESS, AND THAT SAVES A WHOLE HOP.
+# `/subly` -> `/subscriptiontracker` would land on a path the ROUTER itself then
+# 301s to `/subscriptiontracker/` (functions/_middleware.js normalises the
+# trailing slash, because the build is compiled with `--base-href
+# /subscriptiontracker/` and the bare form would resolve every asset against
+# `/`). That is TWO hops for the one address most likely to be held by an old
+# client -- and each hop is another chance for something in the chain not to
+# follow. Targeting the slashed form directly makes it one, measured: bare
+# `/subly` -> 308 -> `/subscriptiontracker/` -> 200.
+/subly     /subscriptiontracker/       308
 /subly/*   /subscriptiontracker/:splat 308
