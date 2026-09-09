@@ -2502,6 +2502,16 @@
     "state": "WIRED"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/money-dry-run.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "ADR 023",
       "ADR 075",
