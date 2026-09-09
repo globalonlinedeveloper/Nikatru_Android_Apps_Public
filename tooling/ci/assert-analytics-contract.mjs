@@ -425,6 +425,16 @@ const WIRE_CONTRACTS = [
     },
   },
   {
+    id: 'entitlements-subject',
+    kind: 'gap',
+    reason:
+      'NO CLIENT IN THIS REPO, AND UNLIKE money-webhook THAT IS A STATE, NOT A CONSTRUCTION — which is why the claim below is checked rather than argued. GET /v1/entitlements/subject is the "what do I own" read ([ADR 057] §5); the account page is what will fetch it and nothing does yet. There is therefore no released client of ours to break and no wire contract to pin. 🔴 AND NOTHING ABOUT ACCESS DEPENDS ON IT: every shipped client decides Pro from `is_pro` on the PER-APP route, which is pinned above and is deliberately unchanged, so an unpinned envelope here cannot lock anyone out. Its four keys are declared server-only on the `entitlements` contract with the reason each, so they are named rather than tolerated.',
+    /** THE CLAIM IS CHECKED, NOT ASSERTED. The day any Dart source builds this
+     *  path there IS a released client, the printed gap becomes a false
+     *  statement, and this fails rather than going on printing it. */
+    absentFromDart: '/v1/entitlements/subject',
+  },
+  {
     id: 'money-webhook',
     kind: 'gap',
     reason:

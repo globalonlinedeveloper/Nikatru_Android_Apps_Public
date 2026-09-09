@@ -456,6 +456,16 @@
       "noLimiterReason": "NOT APPLICABLE — `auth: required`, so limb 4 does not range over it. Recorded anyway because the read is on a launch path and the 100k Worker-requests/day Free ceiling is ACCOUNT-WIDE across ~50 apps: this must never become a per-screen fetch, which is a client-side constraint the cache in packages/core exists to satisfy."
     },
     {
+      "id": "entitlements-subject",
+      "method": "GET",
+      "path": "/v1/entitlements/subject",
+      "auth": "required",
+      "owningFile": "services/platform/src/routes/entitlements.ts",
+      "purpose": "[ADR 057] §5 — \"what do I own\", which the per-app route cannot answer. `/v1/entitlements?app_id=X` is scoped to ONE app by design and every shipped client depends on that scoping, so widening it would change a released contract; adding a route changes nothing that exists. It answers the subject-wide union — the per-app rows plus the products of every live bundle grant, deduped with the per-app branch winning — through the SAME `grantsAccess` five rules, the same auth and the same 503 when MONEY_ENVIRONMENT is undeclared. It carries `bundle_grants.source` per grant, which is what makes \"manage your subscription where you bought it\" an honest sentence: cross-rail cancellation is impossible by construction on every store rail.",
+      "unconsumedReason": "NO DART CLIENT FETCHES IT YET, and that is a state rather than a construction. The account page is what will; `packages/api_client` builds `/v1/entitlements?app_id=` only. Its four envelope keys are DECLARED SERVER-ONLY in tooling/ci/assert-analytics-contract.mjs with the reason each — an undeclared extra is indistinguishable from a field somebody forgot to wire up, which is exactly the [4]B-14 failure. ⚠️ THE ACCESS DECISION IS NOT HERE: `is_pro` on the per-app route is what every client reads and it is deliberately unchanged, so nothing about this route can lock anyone out.",
+      "noLimiterReason": "NOT APPLICABLE — `auth: required`, so limb 4 does not range over it. Recorded anyway because it is a heavier read than the per-app route (one query per live grant to resolve pinned members) against an ACCOUNT-WIDE 100k Worker-requests/day ceiling shared by ~50 apps: it is an account-page read, never a per-screen one."
+    },
+    {
       "id": "plan-cancel",
       "method": "POST",
       "path": "/v1/plan/cancel",

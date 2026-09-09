@@ -575,7 +575,12 @@ describe('assert-analytics-contract — coverage self-checks', () => {
 // below against the same real files, copied.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-analytics-contract — limb 5, every shared route has a wire pin', () => {
-  test('PASSES on the real tree: 9 routes, 7 pinned, 2 printed gaps', () => {
+  // ⏱ RE-MEASURED 2026-09-09: GET /v1/entitlements/subject joined the register
+  // with the bundle union read, so the shared-route set went 9 -> 10 and the
+  // printed gaps 2 -> 3. The numbers are PINNED rather than derived on purpose —
+  // a derived count agrees with any register, including one that quietly stopped
+  // enumerating — so they move in the same change as the route that moved them.
+  test('PASSES on the real tree: 10 routes, 7 pinned, 3 printed gaps', () => {
     const r = run(makeRepo());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /wire health — deploy-smoke fields/);
@@ -587,7 +592,11 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     // half ([ADR 044] rung 2). Its gap is a STATE, not a construction: the day a
     // Dart client builds /v1/checkout the guard fails and demands a real pin.
     assert.match(r.out, /GAP {2}wire checkout/);
-    assert.match(r.out, /9 shared route\(s\) from tooling\/platform-register\.json: 7 pinned, 2 printed gap/);
+    // …and the third, added with the bundle union read. Its gap is a STATE too:
+    // the day a Dart client builds /v1/entitlements/subject the guard fails and
+    // demands a real pin.
+    assert.match(r.out, /GAP {2}wire entitlements-subject/);
+    assert.match(r.out, /10 shared route\(s\) from tooling\/platform-register\.json: 7 pinned, 3 printed gap/);
     // [4]B-14's last clause: the config route's client half resolves in the
     // BRICK, so the count above is about apps that do not exist yet too.
     assert.match(r.out, /wire config — .*client half INHERITED by every stamped app: 10 key\(s\) in tooling\/bricks\//);
@@ -807,8 +816,9 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
         "    'update_url',\n  ] as const;", "    'update_url',\n    'support_url',\n  ] as const;")));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /On the server \(services\/platform\/test\/config\.test\.ts\) and NOT in the brick: support_url/);
-    // and the route stops counting as pinned — the number moves, honestly
-    assert.match(r.out, /6 pinned, 2 printed gap/);
+    // and the route stops counting as pinned — the number moves, honestly.
+    // ⏱ 3 gaps since 2026-09-09; see the re-measurement note on the real-tree case.
+    assert.match(r.out, /6 pinned, 3 printed gap/);
   });
 
   test('FAILS when the brick drops a key the server still requires', () => {
