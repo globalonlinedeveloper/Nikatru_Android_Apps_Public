@@ -307,9 +307,11 @@ void main() {
 
       await tapForgot(tester, en);
 
-      expect(auth.sentTo, <String>[
-        'a@b.test',
-      ], reason: 'the request was made — this case is about its ANSWER');
+      expect(
+        auth.sentTo,
+        <String>['a@b.test'],
+        reason: 'the request was made — this case is about its ANSWER',
+      );
       expect(
         find.text(en.authRateLimited),
         findsOneWidget,
@@ -338,9 +340,11 @@ void main() {
 
       await tapForgot(tester, en);
 
-      expect(auth.sentTo, <String>[
-        'a@b.test',
-      ], reason: 'the seam is handed the TRIMMED address, as it was before');
+      expect(
+        auth.sentTo,
+        <String>['a@b.test'],
+        reason: 'the seam is handed the TRIMMED address, as it was before',
+      );
       expect(
         find.text(en.resetSent),
         findsOneWidget,

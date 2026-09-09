@@ -6,13 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart'
     show ContentPane;
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
-import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
 import '../shared/painters.dart';
 import '../shared/widgets.dart';
@@ -180,7 +179,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     final ThemeData theme = Theme.of(context);
     final bool isLight = theme.brightness == Brightness.light;
     final ColorScheme scheme = theme.colorScheme;
-    final currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(l10n.localeName);
     final AsyncValue<List<Subscription>> subsAsync = ref.watch(
       subscriptionsControllerProvider,
     );
@@ -278,7 +277,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 child: failed
                     ? _failed(context, l10n, subsAsync.error)
                     : ready
-                    ? _results(context, l10n, currency, subsAsync.requireValue)
+                    ? _results(context, l10n, money, subsAsync.requireValue)
                     : _scanning(context, l10n),
               ),
               const SizedBox(height: 12),
@@ -464,10 +463,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Widget _results(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     List<Subscription> subs,
   ) {
-    final double total = SubMath.totalMonthly(subs);
+    final MoneyBag total = SubMath.totalMonthly(subs);
     final ThemeData theme = Theme.of(context);
     final bool isLight = theme.brightness == Brightness.light;
     final ColorScheme scheme = theme.colorScheme;
@@ -514,7 +513,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 style: AppText.fig.copyWith(fontSize: 34, color: Colors.white),
               ),
               Text(
-                l10n.perMonthTotal(currency.fmt(total)),
+                l10n.perMonthTotal(money.formatBag(total)),
                 style: const TextStyle(
                   fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
@@ -551,7 +550,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   ),
                 ),
                 trailing: Text(
-                  currency.fmt(s.monthlyPrice),
+                  money.format(s.monthlyPrice),
                   style: AppText.fig.copyWith(
                     fontSize: 15,
                     color: isLight ? AppColors.ink : scheme.onSurface,

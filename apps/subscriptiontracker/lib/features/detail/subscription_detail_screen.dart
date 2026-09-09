@@ -4,12 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../data/models/payment_record.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
-import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
 import '../cancel/cancel_sheet.dart';
 import '../shared/due.dart';
@@ -103,7 +102,7 @@ class SubscriptionDetailScreen extends ConsumerWidget {
     final ColorScheme scheme = theme.colorScheme;
     final Color ink = isLight ? AppColors.ink : scheme.onSurface;
     final Color muted = isLight ? AppColors.muted : scheme.onSurfaceVariant;
-    final Currency currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(l10n.localeName);
     final List<Subscription> subs =
         ref.watch(subscriptionsControllerProvider).valueOrNull ??
         const <Subscription>[];
@@ -299,7 +298,7 @@ class SubscriptionDetailScreen extends ConsumerWidget {
                         child: _miniCard(
                           context,
                           l10n.fieldLabelPrice,
-                          currency.fmt(s.price),
+                          money.format(s.price),
                           s.cycle == BillingCycle.yearly
                               ? l10n.perYear
                               : l10n.perMonth,
@@ -434,7 +433,7 @@ class SubscriptionDetailScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  _history(ref, currency, s.id),
+                  _history(ref, money, s.id),
                   const SizedBox(height: 20),
                   Row(
                     children: <Widget>[
@@ -503,7 +502,7 @@ class SubscriptionDetailScreen extends ConsumerWidget {
   /// It reads `l10n` and the theme off the BUILDER's context rather than taking
   /// them as parameters: that context is a descendant of the screen's, so both
   /// resolve, and the signature stays what every other increment expects.
-  Widget _history(WidgetRef ref, Currency currency, String subId) {
+  Widget _history(WidgetRef ref, MoneyFormatter money, String subId) {
     return FutureBuilder<List<PaymentRecord>>(
       future: ref.read(subscriptionRepositoryProvider).history(subId),
       builder: (BuildContext context, AsyncSnapshot<List<PaymentRecord>> snap) {
@@ -585,7 +584,7 @@ class SubscriptionDetailScreen extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        currency.fmt(h.amount),
+                        money.format(h.amount),
                         style: AppText.fig.copyWith(
                           fontSize: 14,
                           color: isLight ? AppColors.ink : scheme.onSurface,
