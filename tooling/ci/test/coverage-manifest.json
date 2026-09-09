@@ -118,7 +118,7 @@
   "post-deploy-smoke.test.mjs": 146,
   "price-literals.test.mjs": 15,
   "privacy-manifest.test.mjs": 20,
-  "prod-provenance.test.mjs": 49,
+  "prod-provenance.test.mjs": 50,
   "propagate-versions.test.mjs": 11,
   "provider-graph-acyclic.test.mjs": 12,
   "provision-backend.test.mjs": 9,
