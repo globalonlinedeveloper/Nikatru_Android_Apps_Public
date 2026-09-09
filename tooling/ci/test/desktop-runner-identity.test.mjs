@@ -63,6 +63,32 @@ const edit = (root, rel, fn) => {
   writeFileSync(p, after);
 };
 
+// 🔴 THE MUTATION READS THE ID OUT OF THE FILE; IT DOES NOT SPELL IT. Until
+// 2026-09-09 the three "id source gone" mutations below searched for the
+// literal `com.nikatru.subly`, and the rename to `com.nikatru.subscriptiontracker`
+// made every one of them an anchor that matches nothing. `edit`'s land-check
+// turns that into a LOUD failure rather than a silent pass — which is the only
+// reason this was a re-spelling job and not seven dead controls — but a control
+// that has to be hand-re-spelled on every rename is a control that WILL be
+// re-spelled wrong eventually. These two helpers strip whatever reverse-DNS id
+// the file actually declares, so the next rename cannot reach them at all.
+//
+// What the mutation must produce is an id that is NOT reverse-DNS, because the
+// guard derives its forbidden set from dotted ids and the case under test is
+// "no id source left to derive from".
+// The app id AS THE TREE DECLARES IT TODAY, read once. The two `setValue` rows
+// below inject a bad value that must CONTAIN a real application id; typing that
+// id made them survive the rename only because the ORG PREFIX (`com.nikatru`)
+// happened to be unchanged. Reading it keeps them testing the whole id.
+const REAL_APP_ID = (() => {
+  const m = readFileSync(join(REPO, GRADLE), 'utf8').match(/^\s*applicationId = "([^"]+)"$/m);
+  assert.ok(m, `no applicationId in ${GRADLE} — this test can derive nothing`);
+  return m[1];
+})();
+
+const stripXcId = (s) => s.replace(/^(PRODUCT_BUNDLE_IDENTIFIER = )[A-Za-z0-9_.-]+$/m, '$1app');
+const stripGradleId = (s) => s.replace(/^(\s*applicationId = )"[A-Za-z0-9_.-]+"$/m, '$1"app"');
+
 describe('the real tree', () => {
   test('passes, and says what it read', () => {
     withTree(
@@ -104,9 +130,9 @@ describe('limb 1 — no application id in a field a human reads', () => {
 
   const FIELDS = [
     ['CompanyName', setValue('CompanyName', 'com.nikatru')],
-    ['FileDescription', setValue('FileDescription', 'com.nikatru.subly')],
+    ['FileDescription', setValue('FileDescription', REAL_APP_ID)],
     ['LegalCopyright', (s) => s.replace('Copyright (C) 2026 Nikatru.', 'Copyright (C) 2026 com.nikatru.')],
-    ['ProductName', setValue('ProductName', 'com.nikatru.subly')],
+    ['ProductName', setValue('ProductName', REAL_APP_ID)],
   ];
 
   for (const [field, mutate] of FIELDS) {
@@ -228,8 +254,8 @@ describe('coverage — an empty evaluation set is never green', () => {
   test('both id sources gone → the guard says it has nothing to compare against', () => {
     withTree(
       (root) => {
-        edit(root, XC, (s) => s.replace('PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subly', 'PRODUCT_BUNDLE_IDENTIFIER = subly'));
-        edit(root, GRADLE, (s) => s.replace('applicationId = "com.nikatru.subly"', 'applicationId = "subly"'));
+        edit(root, XC, stripXcId);
+        edit(root, GRADLE, stripGradleId);
       },
       (r) => {
         assert.equal(r.status, 1);
@@ -242,7 +268,7 @@ describe('coverage — an empty evaluation set is never green', () => {
     // Kept deliberately. The first mutation run treated this as a miss; it is
     // not. Making the guard fail here would make it fail on a correct tree.
     withTree(
-      (root) => edit(root, XC, (s) => s.replace('PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subly', 'PRODUCT_BUNDLE_IDENTIFIER = subly')),
+      (root) => edit(root, XC, stripXcId),
       (r) => assert.equal(r.status, 0, r.stderr),
     );
   });

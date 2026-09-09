@@ -1,4 +1,4 @@
-package com.nikatru.subly
+package com.nikatru.subscriptiontracker
 
 import io.flutter.embedding.android.FlutterActivity
 

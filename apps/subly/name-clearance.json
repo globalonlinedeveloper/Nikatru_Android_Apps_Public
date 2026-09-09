@@ -32,8 +32,8 @@
       "uniqueness": "tolerated",
       "why": "Play TOLERATES duplicate titles, so a title hit would be advisory rather than blocking — but the store search surface is JS-rendered with no unauthenticated API, so NO TITLE VERDICT can be proven here. The permanent applicationId is free of any PUBLISHED listing (control green, HTTP 404); a draft in somebody's console would not show. MANUAL/AUTHENTICATED STEP: a logged-in Play Console title check.",
       "evidence": [
-        "apps/subly/android/app/build.gradle.kts declares com.nikatru.subly",
-        "applicationId com.nikatru.subly — HTTP 404, no published listing holds it (control green)."
+        "apps/subly/android/app/build.gradle.kts declares com.nikatru.subscriptiontracker",
+        "applicationId com.nikatru.subscriptiontracker — HTTP 404, no published listing holds it (control green)."
       ],
       "control": {
         "what": "play.google.com details?id=com.spotify.music (known present)",
@@ -86,10 +86,9 @@
     "linux-snap": {
       "verdict": "UNDETERMINED",
       "uniqueness": "global",
-      "why": "No PUBLISHED snap holds \"nikatrusubscriptiontracker\" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED returns EXACTLY this same 404 — the snap namespace is claimed by registration, not by publication — so this is \"no published snap\", NOT \"registerable\". MANUAL STEP: `snapcraft register --dry-run nikatrusubscriptiontracker` under the owner's account.",
+      "why": "No PUBLISHED snap holds \"nikatru-subscription-tracker\" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED returns EXACTLY this same 404 — the snap namespace is claimed by registration, not by publication — so this is \"no published snap\", NOT \"registerable\". MANUAL STEP: `snapcraft register --dry-run nikatru-subscription-tracker` under the owner's account.",
       "evidence": [
-        "https://api.snapcraft.io/v2/snaps/info/nikatrusubscriptiontracker — HTTP 404",
-        "⛔ INCONSISTENT: apps/subly/store/linux-snap/snap-name.txt declares \"subly\" and this name implies \"nikatrusubscriptiontracker\". One app_id derives every store identity ([pipeline 10]D-3); a rename that leaves this file behind ships a snap under the old name."
+        "https://api.snapcraft.io/v2/snaps/info/nikatru-subscription-tracker — HTTP 404"
       ],
       "control": {
         "what": "api.snapcraft.io/v2/snaps/info/firefox (known present)",
@@ -133,7 +132,7 @@
       "control": {
         "what": "addons.mozilla.org search?q=ublock (known non-empty)",
         "green": true,
-        "detail": "HTTP 200, count 2000"
+        "detail": "HTTP 200, count 2001"
       }
     }
   },
@@ -142,41 +141,41 @@
       "channel": "android-play",
       "kind": "gradle-application-id",
       "declaredIn": "apps/subly/android/app/build.gradle.kts",
-      "value": "com.nikatru.subly",
+      "value": "com.nikatru.subscriptiontracker",
       "verdict": "UNDETERMINED",
-      "why": "apps/subly/android/app/build.gradle.kts declares com.nikatru.subly — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. Play TOLERATES duplicate titles, so a title hit would be advisory rather than blocking — but the store search surface is JS-rendered with no unauthenticated API, so NO TITLE VERDICT can be proven here. The permanent applicationId is free of any PUBLISHED listing (control green, HTTP 404); a draft in somebody's console would not show. MANUAL/AUTHENTICATED STEP: a logged-in Play Console title check."
+      "why": "apps/subly/android/app/build.gradle.kts declares com.nikatru.subscriptiontracker — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. Play TOLERATES duplicate titles, so a title hit would be advisory rather than blocking — but the store search surface is JS-rendered with no unauthenticated API, so NO TITLE VERDICT can be proven here. The permanent applicationId is free of any PUBLISHED listing (control green, HTTP 404); a draft in somebody's console would not show. MANUAL/AUTHENTICATED STEP: a logged-in Play Console title check."
     },
     {
       "channel": "ios-appstore",
       "kind": "apple-bundle-id",
       "declaredIn": "apps/subly/ios/Runner.xcodeproj/project.pbxproj",
-      "value": "com.nikatru.subly",
+      "value": "com.nikatru.subscriptiontracker",
       "verdict": "UNDETERMINED",
-      "why": "apps/subly/ios/Runner.xcodeproj/project.pbxproj declares com.nikatru.subly — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No iOS listing carries this name (control green, 196 result(s) scanned). THIS IS NOT PROOF OF AVAILABILITY: the search index omits unreleased and name-reserved records, and Apple exposes no availability endpoint short of creating a record — which is forbidden here. MANUAL STEP: the App Store Connect new-app dialog, read and cancelled without saving."
+      "why": "apps/subly/ios/Runner.xcodeproj/project.pbxproj declares com.nikatru.subscriptiontracker — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No iOS listing carries this name (control green, 196 result(s) scanned). THIS IS NOT PROOF OF AVAILABILITY: the search index omits unreleased and name-reserved records, and Apple exposes no availability endpoint short of creating a record — which is forbidden here. MANUAL STEP: the App Store Connect new-app dialog, read and cancelled without saving."
     },
     {
       "channel": "macos-appstore",
       "kind": "apple-bundle-id",
       "declaredIn": "apps/subly/macos/Runner/Configs/AppInfo.xcconfig",
-      "value": "com.nikatru.subly",
+      "value": "com.nikatru.subscriptiontracker",
       "verdict": "UNDETERMINED",
-      "why": "apps/subly/macos/Runner/Configs/AppInfo.xcconfig declares com.nikatru.subly — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No macOS listing carries this name (control green, 32 result(s) scanned). THIS IS NOT PROOF OF AVAILABILITY: the search index omits unreleased and name-reserved records, and Apple exposes no availability endpoint short of creating a record — which is forbidden here. MANUAL STEP: the App Store Connect new-app dialog, read and cancelled without saving."
+      "why": "apps/subly/macos/Runner/Configs/AppInfo.xcconfig declares com.nikatru.subscriptiontracker — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No macOS listing carries this name (control green, 32 result(s) scanned). THIS IS NOT PROOF OF AVAILABILITY: the search index omits unreleased and name-reserved records, and Apple exposes no availability endpoint short of creating a record — which is forbidden here. MANUAL STEP: the App Store Connect new-app dialog, read and cancelled without saving."
     },
     {
       "channel": "linux-snap",
       "kind": "cmake-application-id",
       "declaredIn": "apps/subly/linux/CMakeLists.txt",
-      "value": "com.nikatru.subly",
+      "value": "com.nikatru.subscriptiontracker",
       "verdict": "UNDETERMINED",
-      "why": "apps/subly/linux/CMakeLists.txt declares com.nikatru.subly — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No PUBLISHED snap holds \"nikatrusubscriptiontracker\" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED returns EXACTLY this same 404 — the snap namespace is claimed by registration, not by publication — so this is \"no published snap\", NOT \"registerable\". MANUAL STEP: `snapcraft register --dry-run nikatrusubscriptiontracker` under the owner's account."
+      "why": "apps/subly/linux/CMakeLists.txt declares com.nikatru.subscriptiontracker — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. No PUBLISHED snap holds \"nikatru-subscription-tracker\" (control green, HTTP 404). ⚠️ A name REGISTERED BUT UNPUBLISHED returns EXACTLY this same 404 — the snap namespace is claimed by registration, not by publication — so this is \"no published snap\", NOT \"registerable\". MANUAL STEP: `snapcraft register --dry-run nikatru-subscription-tracker` under the owner's account."
     },
     {
       "channel": "apps-gov-in",
       "kind": "gradle-application-id",
       "declaredIn": "apps/subly/android/app/build.gradle.kts",
-      "value": "com.nikatru.subly",
+      "value": "com.nikatru.subscriptiontracker",
       "verdict": "UNDETERMINED",
-      "why": "apps/subly/android/app/build.gradle.kts declares com.nikatru.subly — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. The register declares `served: false`, `submittable: false` and no submission API — a manual web upload forever. There is no namespace to contest until a submission exists."
+      "why": "apps/subly/android/app/build.gradle.kts declares com.nikatru.subscriptiontracker — bound PERMANENTLY at the first upload on this channel and never recycled, so this is the string that cannot be taken back. The register declares `served: false`, `submittable: false` and no submission API — a manual web upload forever. There is no namespace to contest until a submission exists."
     }
   ],
   "controls": {

@@ -23,13 +23,36 @@
 #     Reviewed prose about what Subly actually does. Yours to sharpen.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 🔴 `id` IS NOT THE BRAND AND IS DELIBERATELY NOT RENAMED. It is the DNS label
-# in subly.nikatru.com, the Dart package, the Linux binary, the snap name, the
-# analytics `app_id` column that keys every historical row and the stem of
-# com.nikatru.subly. pre_gen.dart states the rule this follows: "the one name
-# every other name derives from — and two of those derivations are IRREVERSIBLE
-# … a rename is not a rename; it is an orphaning." The brand moved; the
-# identifiers did not, and nothing a user sees reads either of them.
+# 🔴 THE STORE IDENTIFIERS HAVE MOVED; `id` HAS NOT — AND THE TWO ARE DIFFERENT
+# KINDS OF NAME. This paragraph replaces one that said the identifiers were
+# "deliberately not renamed"; that was true until the OWNER RULED OTHERWISE on
+# 2026-09-09 ("we need to remove old name completely"), and a stale paragraph is
+# how a settled decision gets re-derived by the next reader.
+#
+# WHAT MOVED, and why it had to move NOW rather than later: every one of these
+# is bound PERMANENTLY and unreclaimably at the FIRST upload on its channel, and
+# on 2026-09-09 not one of them was claimed (Play 404, iTunes lookup
+# resultCount 0 against a green Gmail control, snap 404 against a green firefox
+# control). That window is the whole reason for the sequencing.
+#
+#   com.nikatru.subscriptiontracker   Android applicationId + namespace,
+#                                     iOS + macOS bundle id, Linux APPLICATION_ID
+#   subscription-tracker              Linux BINARY_NAME
+#   nikatru-subscription-tracker      the snap name
+#
+# ⚠️ WHAT `id` STILL IS, and why renaming it is a SEPARATE, SEQUENCED change
+# rather than a slower version of this one. `id` is not only a repo directory:
+# it is the Cloudflare Pages PROJECT NAME (`deploy-web.yml` passes
+# `--project-name=${{ matrix.app }}`), the Worker name `subly-api`, the D1
+# database `subly_db`, the DNS label in subly.nikatru.com, and the analytics
+# `app_id` value that keys every historical row. Those are LIVE RESOURCES, not
+# declarations — renaming them in this file does not rename them in the account,
+# it PROVISIONS NEW ONES beside the old, and the replacement `*.pages.dev`
+# subdomain is not knowable in advance (see `hosts.pagesOrigin` below: Cloudflare
+# appended `-9cp` precisely because `subly` was already taken). pre_gen.dart's
+# rule still holds for exactly this half — "a rename is not a rename; it is an
+# orphaning" — which is why the `id` rename is owner-gated on a live migration
+# and not folded in here. NOTHING A USER SEES READS `id` today.
 id: subly
 name: Nikatru Subscription Tracker
 # The ICON label. Shares the token `Subscription(s)` with `name` per Apple

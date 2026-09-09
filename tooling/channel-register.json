@@ -1610,7 +1610,7 @@
           "macOS — which is exactly why the value is written down once here rather than read from",
           "'wherever it lives'."
         ],
-        "value": "com.nikatru.subly",
+        "value": "com.nikatru.subscriptiontracker",
         "declaredIn": "apps/{app}/ios/Runner.xcodeproj/project.pbxproj"
       },
       "identity": {
@@ -1766,7 +1766,7 @@
           "PRODUCT_BUNDLE_IDENTIFIER in the same place as iOS would find the TEST bundle's id and",
           "compare against it happily. `declaredIn` exists so that cannot happen."
         ],
-        "value": "com.nikatru.subly",
+        "value": "com.nikatru.subscriptiontracker",
         "declaredIn": "apps/{app}/macos/Runner/Configs/AppInfo.xcconfig"
       },
       "identity": {
