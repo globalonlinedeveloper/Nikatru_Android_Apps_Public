@@ -293,6 +293,18 @@
   },
   {
     "claims": [
+      "ADR 057"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-bundle-availability.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "C-1",
       "C-2",
       "C-3",
@@ -2491,6 +2503,7 @@
   },
   {
     "claims": [
+      "ADR 057",
       "B-17"
     ],
     "invokedBy": [

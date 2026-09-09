@@ -1,0 +1,57 @@
+{
+  "$schema": "./bundle.schema.json",
+  "bundleSources": [
+    {
+      "source": "paddle_subscription",
+      "requiresReceipt": true
+    },
+    {
+      "source": "razorpay_subscription",
+      "requiresReceipt": true
+    },
+    {
+      "source": "apple_iap",
+      "requiresReceipt": true
+    },
+    {
+      "source": "google_play_billing",
+      "requiresReceipt": true
+    },
+    {
+      "source": "microsoft_store",
+      "requiresReceipt": true
+    },
+    {
+      "source": "promo_code",
+      "requiresReceipt": false
+    },
+    {
+      "source": "owner_comp",
+      "requiresReceipt": false
+    }
+  ],
+  "productKinds": [
+    "app",
+    "extension",
+    "script"
+  ],
+  "productRegisters": [
+    {
+      "kind": "app",
+      "register": "catalog/apps.json"
+    },
+    {
+      "kind": "extension",
+      "register": "extensions/catalog/extensions.json"
+    },
+    {
+      "kind": "script",
+      "register": null
+    }
+  ],
+  "productStatuses": [
+    "live",
+    "preview"
+  ],
+  "minLiveProductsForBundle": 2
+}

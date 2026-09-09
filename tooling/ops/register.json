@@ -3523,6 +3523,94 @@
         "cloudflare"
       ],
       "source": "verified",
+      "id": "retention.d1.platform_db.bundle_grants",
+      "store": "d1:platform_db:bundle_grants",
+      "what": "One row per BUNDLE PURCHASE — who bought it, from which rail, under which pinned feature-set version, and the dates that bound access.",
+      "rule": "keep",
+      "keepWhy": "KEPT until the account is erased, and NOT on a timer. [ADR 057] §2 is the reason the table exists: a row that records only the ACCESS has thrown away the PURCHASE, and refunding, migrating, re-pricing and answering a customer all need it back. It carries `user_id`, so it leaves with the account through the DERIVED erasure sweep rather than by age — the same disposition `entitlements` and `cancellation_requests` already have. ⚠️ HONEST RESIDUE: erasing the row does not end the subscription, because only the merchant of record can, and on the store rails not even we can ask.",
+      "mechanism": {
+        "substrate": "cloudflare-d1",
+        "anchor": "services/platform/migrations/0009_bundle_grants.sql",
+        "record": "the table itself",
+        "failingValue": "not applicable to a reasoned keep",
+        "readBy": "tooling/ci/assert-retention-coverage.mjs"
+      }
+    },
+    {
+      "kind": "retention",
+      "detector": "tooling/ci/assert-retention-coverage.mjs — the store set is ENUMERATED from wrangler bindings and migrations, so a store cannot leave the domain by having no rule.",
+      "response": "n/a",
+      "cadence": "365d",
+      "accessProviders": [
+        "cloudflare"
+      ],
+      "source": "verified",
+      "id": "retention.d1.platform_db.bundle_sources",
+      "store": "d1:platform_db:bundle_sources",
+      "what": "A seeded lookup table: how a bundle grant can come to exist, and whether that source requires a verified receipt.",
+      "rule": "keep",
+      "keepWhy": "Reference data with no personal content and no growth — seven rows seeded by the migration, extendable only by an additive INSERT. Deleting a member would make every historical grant’s provenance unclassifiable forever, and would make `requires_receipt` — the machine-readable half of “no entitlement without a verified receipt” — unreadable for the rows already written.",
+      "mechanism": {
+        "substrate": "cloudflare-d1",
+        "anchor": "services/platform/migrations/0009_bundle_grants.sql",
+        "record": "the table itself",
+        "failingValue": "not applicable to a reasoned keep",
+        "readBy": "tooling/ci/assert-retention-coverage.mjs"
+      }
+    },
+    {
+      "kind": "retention",
+      "detector": "tooling/ci/assert-retention-coverage.mjs — the store set is ENUMERATED from wrangler bindings and migrations, so a store cannot leave the domain by having no rule.",
+      "response": "n/a",
+      "cadence": "365d",
+      "accessProviders": [
+        "cloudflare"
+      ],
+      "source": "verified",
+      "id": "retention.d1.platform_db.feature_sets",
+      "store": "d1:platform_db:feature_sets",
+      "what": "The pinned bundle definitions: a name, a version, when it was minted and from what, and whether it is draft, sellable or retired.",
+      "rule": "keep",
+      "keepWhy": "🔴 KEPT FOREVER, RETIRED VERSIONS INCLUDED, and that is load-bearing rather than tidy. A grant PINS (name, version) — [ADR 057] §4 — so deleting a version strands every grant that pointed at it: the union read would resolve no members and a paying customer would silently lose everything they bought. Retirement is therefore a STATUS and never a DELETE. No personal content; no growth beyond one row per bundle version ever sold.",
+      "mechanism": {
+        "substrate": "cloudflare-d1",
+        "anchor": "services/platform/migrations/0009_bundle_grants.sql",
+        "record": "the table itself",
+        "failingValue": "not applicable to a reasoned keep",
+        "readBy": "tooling/ci/assert-retention-coverage.mjs"
+      }
+    },
+    {
+      "kind": "retention",
+      "detector": "tooling/ci/assert-retention-coverage.mjs — the store set is ENUMERATED from wrangler bindings and migrations, so a store cannot leave the domain by having no rule.",
+      "response": "n/a",
+      "cadence": "365d",
+      "accessProviders": [
+        "cloudflare"
+      ],
+      "source": "verified",
+      "id": "retention.d1.platform_db.feature_set_members",
+      "store": "d1:platform_db:feature_set_members",
+      "what": "Which product slugs belong to which pinned feature-set version, and which register each slug came from.",
+      "rule": "keep",
+      "keepWhy": "Kept for the same reason `feature_sets` is, and more sharply: these rows ARE the resolution of an existing grant. Deleting a member row silently removes a product from a bundle somebody already paid for — no revocation, no notification, no trace. No personal content, and no identifier of any person may ever appear here: per-customer bundle contents is exactly the design [ADR 057] §4 refuses.",
+      "mechanism": {
+        "substrate": "cloudflare-d1",
+        "anchor": "services/platform/migrations/0009_bundle_grants.sql",
+        "record": "the table itself",
+        "failingValue": "not applicable to a reasoned keep",
+        "readBy": "tooling/ci/assert-retention-coverage.mjs"
+      }
+    },
+    {
+      "kind": "retention",
+      "detector": "tooling/ci/assert-retention-coverage.mjs — the store set is ENUMERATED from wrangler bindings and migrations, so a store cannot leave the domain by having no rule.",
+      "response": "n/a",
+      "cadence": "365d",
+      "accessProviders": [
+        "cloudflare"
+      ],
+      "source": "verified",
       "id": "retention.d1.platform_db.cancellation_requests",
       "store": "d1:platform_db:cancellation_requests",
       "what": "One row per \"I pressed cancel\", including the ones the rail has not executed.",

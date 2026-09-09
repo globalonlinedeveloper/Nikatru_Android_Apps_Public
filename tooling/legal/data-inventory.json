@@ -301,6 +301,84 @@
         "services/platform/migrations/0004_money_rail.sql"
       ]
     },
+
+    {
+      "id": "table:platform_db.bundle_grants",
+      "kind": "d1-table",
+      "name": "bundle_grants",
+      "personalData": true,
+      "holds": "One row per BUNDLE PURCHASE — never one per app. It holds WHO bought it (the Supabase `sub`), WHERE the purchase came from (`source`: a Paddle or Razorpay subscription, an Apple/Google/Microsoft store purchase, or an operator promo/comp), the FEATURE SET NAME AND VERSION it was sold under, the provider's own subscription and transaction ids, the provider's status verbatim, the money world it belongs to, the ordering pair (`last_event_id`, `occurred_at`), the three dates that bound access (`current_period_end`, `trial_end`, `expires_at`) plus an explicit `grace_until`, why and when it was revoked, how many days of a superseded single-app term were credited into it, and which grant replaced it. It holds NO name, NO email and NO payment instrument — those live only in the provider's own systems and, verbatim, in `provider_notifications`.",
+      "retention": {
+        "kind": "keep",
+        "reason": "KEPT until the account is erased. A bundle grant is the record of a purchase, and [ADR 057] §2 is the reason the table exists at all: a row that records only the ACCESS has thrown away the PURCHASE, and refunding, migrating, re-pricing and answering a customer all need the purchase back. It joins the erasure set BY CONSTRUCTION — the column is spelled `user_id`, and the shared erasure route (services/platform/src/routes/account.ts) derives the tables it empties from the schema, so this is emptied with no edit to the route. That was VERIFIED rather than assumed: adding the table turned services/platform/test/auth.test.ts and test/erasure-*.test.ts red on their domain assertions, which is the derivation working."
+      },
+      "erasure": {
+        "kind": "purge",
+        "route": "services/platform/src/routes/account.ts",
+        "reason": "A bundle grant IS a record about a person and goes when they do — the same answer `entitlements` and `cancellation_requests` already give, and for the same reason. ⚠️ HONEST RESIDUE, NAMED RATHER THAN DISCOVERED: erasing this row does NOT end the subscription. Only the merchant of record can do that, and on the store rails not even we can ask — so a purge here removes our record of the purchase while the rail keeps billing. That is why the account-deletion flow must continue to route the user to the rail named in `source`, and why `unclaimed_payments` is UNLINKED rather than deleted: the two together are what stop an erased person's money becoming unattributable."
+      },
+      "writtenBy": [
+        "services/platform/migrations/0009_bundle_grants.sql"
+      ],
+      "disclosure": {
+        "page": "privacy.html",
+        "quote": "if you buy something, the transaction is processed by the relevant app store or by our payment processor"
+      }
+    },
+    {
+      "id": "table:platform_db.bundle_sources",
+      "kind": "d1-table",
+      "name": "bundle_sources",
+      "personalData": false,
+      "holds": "NOTHING ABOUT A PERSON. Seven seeded rows naming how a bundle grant can come to exist — five payment rails (paddle_subscription, razorpay_subscription, apple_iap, google_play_billing, microsoft_store) and two operator acts (promo_code, owner_comp) — each with a `requires_receipt` flag and an English sentence. The flag is the machine-readable half of 'no entitlement without a verified receipt': a guard READS which sources are exempt instead of a reviewer remembering. A table rather than a CHECK constraint or a comment, for the reason [ADR 057] §3 gives — the set is decided in the migration that creates it or never.",
+      "retention": {
+        "kind": "keep",
+        "reason": "Reference data seeded by the migration itself. Deleting it would leave every `bundle_grants.source` value unresolvable — the rows would still say where a purchase came from, and nothing would be able to say what those words mean or whether they required evidence."
+      },
+      "erasure": {
+        "kind": "no-personal-data",
+        "reason": "Seven seeded vocabulary rows. There is nothing here to erase, and an erasure sweep that DID empty it would make every other customer's grant provenance unreadable."
+      },
+      "writtenBy": [
+        "services/platform/migrations/0009_bundle_grants.sql"
+      ]
+    },
+    {
+      "id": "table:platform_db.feature_sets",
+      "kind": "d1-table",
+      "name": "feature_sets",
+      "personalData": false,
+      "holds": "NOTHING ABOUT A PERSON. The pinned bundle definitions: a name, a version, when it was minted, the commit or register hash it was minted from, and a status (draft | sellable | retired). It is the left-hand side of [ADR 057] §4 — a grant pins `(name, version)` so that editing catalog/bundles.json can never silently change what somebody already bought.",
+      "retention": {
+        "kind": "keep",
+        "reason": "🔴 KEPT FOREVER, INCLUDING RETIRED VERSIONS, AND THAT IS LOAD-BEARING. Deleting a version would strand every grant that pinned it: the union read would resolve no members and a paying customer would silently lose everything they bought. Retirement is therefore a STATUS, never a DELETE."
+      },
+      "erasure": {
+        "kind": "no-personal-data",
+        "reason": "Product definitions. A version says which products a bundle contained, not who owns one — the ownership is in `bundle_grants`, which IS purged. Emptying this table on an erasure would break every other customer's grant."
+      },
+      "writtenBy": [
+        "services/platform/migrations/0009_bundle_grants.sql"
+      ]
+    },
+    {
+      "id": "table:platform_db.feature_set_members",
+      "kind": "d1-table",
+      "name": "feature_set_members",
+      "personalData": false,
+      "holds": "NOTHING ABOUT A PERSON. Which product slugs belong to which pinned `(name, version)`, and which register each slug came from (`product_kind`: app | extension | script). This is the table the entitlement read JOINS to decide whether a bundle grant covers the app being asked about.",
+      "retention": {
+        "kind": "keep",
+        "reason": "Kept for the same reason `feature_sets` is, and more sharply: these rows ARE the resolution of an existing grant. Deleting a member row silently removes a product from a bundle somebody already paid for, with no revocation, no notification and no trace."
+      },
+      "erasure": {
+        "kind": "no-personal-data",
+        "reason": "Slugs of products, joined to a version number. No identifier of any person appears in this table and none may — a `user_id` here would mean per-customer bundle contents, which is exactly the design [ADR 057] §4 refuses."
+      },
+      "writtenBy": [
+        "services/platform/migrations/0009_bundle_grants.sql"
+      ]
+    },
     {
       "id": "table:platform_db.events",
       "kind": "d1-table",

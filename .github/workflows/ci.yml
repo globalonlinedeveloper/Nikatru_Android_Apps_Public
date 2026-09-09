@@ -264,6 +264,8 @@ jobs:
         run: node tooling/ci/assert-money-config.mjs
       - name: A stored notification replayed in any order reaches the same entitlement
         run: node tooling/ops/money-dry-run.mjs
+      - name: The bundle's coming-soon gate is derived, and it moves in both directions
+        run: node tooling/ci/assert-bundle-availability.mjs
       - name: Every app with accounts ships a deletion control
         run: node tooling/ci/assert-deletion-control.mjs
       - name: Account deletion reaches every user-owned table, never via a shared secret

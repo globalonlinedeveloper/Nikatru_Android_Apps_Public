@@ -1,0 +1,42 @@
+[
+  {
+    "_why": [
+      "🔴 THIS FILE CARRIES NO `purchasable` BOOLEAN, AND IT NEVER MAY.",
+      "Whether the bundle can be bought is DERIVED — tooling/bundle-availability.mjs computes it",
+      "from the registers that already exist, and tooling/ci/assert-bundle-availability.mjs fails",
+      "the build if a boolean literal ever appears here or if the derivation stops deriving.",
+      "A flag in this file would be a coming-soon gate that any stray edit could flip open, on the",
+      "one surface where being wrong means advertising a subscription that cannot be delivered.",
+      "",
+      "As of 2026-09-09 the derivation answers FALSE, from data: catalog/apps.json has ONE `live`",
+      "row (subscriptiontracker) and extensions/catalog/extensions.json has ONE `preview` row",
+      "(fullshot), so the live-product count is 1 and 1 >= 2 is false. Flipping fullshot's `status`",
+      "to `live` in its own catalogue is the whole enable trigger — nothing else changes.",
+      "",
+      "⚠️ NO PRICE AMOUNTS HERE, ONLY PRICE IDS. [pipeline 5]M-11 — a displayed price comes from",
+      "the rail, never from a file in this repo. `priceIds` are opaque rail handles; the amount",
+      "they resolve to is the rail's answer and is fetched, not stored.",
+      "",
+      "⚠️ THIS IS THE DRAFT DEFINITION, NOT A MINTED VERSION. `feature_sets` /",
+      "`feature_set_members` in platform_db are the PINNED record a grant points at ([ADR 057] §4),",
+      "and minting a version into them is a dated, reviewed act. Editing this file changes what a",
+      "FUTURE grant would be sold under; it can never change what an existing grant already owns."
+    ],
+    "featureSet": "nikatru_all",
+    "version": 1,
+    "status": "draft",
+    "name": "Nikatru bundle",
+    "tagline": "Every Nikatru product, one subscription",
+    "members": [
+      { "slug": "subscriptiontracker", "kind": "app" },
+      { "slug": "fullshot", "kind": "extension" }
+    ],
+    "priceIds": {
+      "paddle": {
+        "_why": "EMPTY UNTIL THE OFFER EXISTS. A price id is minted in the rail's dashboard against a real product; inventing one here would make the derivation's price limb pass over a handle that resolves to nothing, and the first buyer would meet a 404 at checkout. Empty is the honest state and the derivation reads it as NOT purchasable.",
+        "monthly": null,
+        "yearly": null
+      }
+    }
+  }
+]
