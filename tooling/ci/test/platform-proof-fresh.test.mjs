@@ -643,15 +643,24 @@ describe('coverage self-check — against a MUTATED REAL workflow, not a fixture
     // line inside a folded `run: >` block — both shapes are live in this repo
     // today. mutate() refuses an unchanged result, so if BOTH stop matching, this
     // test says so instead of quietly grading a healthy tree.
+    // ⏱ WIDENED TO `ipa` AND MADE GLOBAL — 2026-09-09. Disguising only
+    // `flutter build ios` stopped proving anything the day the apple job gained
+    // a `flutter build ipa` branch: `ipa` compiles the same target, so iOS was
+    // still legitimately proven and this test failed for a CORRECT reason. The
+    // disguise has to cover every command that proves the platform, or it is
+    // testing the guard's blind spot rather than its classifier.
     const root = mutate((s) =>
       s.replace(
-        /^([ \t]*)(run:[ \t]*)?flutter build ios\b([^\n]*)$/m,
-        (_m, pad, run, rest) => `${pad}${run ?? ''}echo "flutter build ios${rest} is disabled"`,
+        /^([ \t]*)(run:[ \t]*)?flutter build (ios|ipa)\b([^\n]*)$/gm,
+        (_m, pad, run, tgt, rest) => `${pad}${run ?? ''}echo "flutter build ${tgt}${rest} is disabled"`,
       ),
     );
     const problem = assertWatchedWorkflowIntact(root);
     assert.match(problem, /COVERAGE LOST/);
-    assert.match(problem, /no longer builds: ios \(needs `flutter build ios`\)/);
+    // The guard names BOTH acceptable commands now, the way it already did for
+    // Android — telling an editor `ios` is missing without saying `ipa` also
+    // satisfies it would send them to restore the weaker of the two builds.
+    assert.match(problem, /no longer builds: ios \(needs `flutter build ios` or `ipa`\)/);
     assert.doesNotMatch(problem, /macos \(needs/, 'the other five platforms still build and must not be blamed');
     rmSync(root, { recursive: true, force: true });
   });
@@ -660,7 +669,10 @@ describe('coverage self-check — against a MUTATED REAL workflow, not a fixture
     // `run:` is OPTIONAL for the same reason as above: inside a folded `run: >`
     // block the command sits on its own line. Comments naming these commands
     // start with `#`, so the line anchor leaves them alone.
-    const root = mutate((s) => s.split('\n').filter((l) => !/^\s*(?:run:\s*)?flutter build (macos|ios)\b/.test(l)).join('\n'));
+    // ⏱ `ipa` ADDED 2026-09-09 — deleting "the entire Apple half" has to delete
+    // the signed iOS build too, or the mutation leaves one behind and this test
+    // measures a tree that is not the one it names.
+    const root = mutate((s) => s.split('\n').filter((l) => !/^\s*(?:run:\s*)?flutter build (macos|ios|ipa)\b/.test(l)).join('\n'));
     const problem = assertWatchedWorkflowIntact(root);
     assert.match(problem, /COVERAGE LOST/);
     assert.match(problem, /ios/);
@@ -669,7 +681,7 @@ describe('coverage self-check — against a MUTATED REAL workflow, not a fixture
   });
 
   test('EVERY build disguised as an echo is caught as a classifier failure, not a clean tree', () => {
-    const root = mutate((s) => s.replace(/flutter build (web|linux|apk|appbundle|windows|macos|ios)/g, (m) => `echo "${m} disabled"`));
+    const root = mutate((s) => s.replace(/flutter build (web|linux|apk|appbundle|windows|macos|ios|ipa)/g, (m) => `echo "${m} disabled"`));
     const problem = assertWatchedWorkflowIntact(root);
     assert.match(problem, /COVERAGE LOST/);
     assert.match(problem, /NONE of them is a `flutter build` command/);

@@ -65,6 +65,8 @@ import {
   newlineOffenders,
   unzip,
   profileMembers,
+  pickIdentities,
+  installerImportPlan,
 } from '../apple-signing.mjs';
 import { armingOf } from '../channel-arming.mjs';
 
@@ -543,9 +545,10 @@ describe('apple-signing — posture resolution', () => {
     assert.equal(d.posture, null);
     const text = d.fatal.lines.join('\n');
     assert.match(text, /RELEASE lane/);
-    assert.match(text, /IT IS A CERTIFICATE: Apple distribution certificate/);
-    assert.match(text, /the account is ACTIVE, verified 2026-09-08/);
+    assert.match(text, /NO LONGER A CERTIFICATE: App Store screenshots and the owner-run first submission/);
     assert.doesNotMatch(text, /IT IS AN ACCOUNT/, 'the account exists; that sentence was the defect');
+    // 2026-09-09: and it is no longer a certificate either — one was issued today.
+    assert.doesNotMatch(text, /IT IS A CERTIFICATE/, 'the certificate exists; that sentence is the new defect');
     for (const n of WANTED) assert.match(text, new RegExp(n));
   });
 
@@ -565,7 +568,7 @@ describe('apple-signing — posture resolution', () => {
     assert.match(text, /channel "ios-appstore" IS ARMED/);
     assert.match(text, /`served: true`/);
     // …and the original message survives underneath it.
-    assert.match(text, /IT IS A CERTIFICATE: Apple distribution certificate/);
+    assert.match(text, /NO LONGER A CERTIFICATE: App Store screenshots and the owner-run first submission/);
   });
 
   test('partial → fatal on EVERY lane, release or not', () => {
@@ -1107,14 +1110,24 @@ describe('apple-signing — the signed-export intents', () => {
   // the old sentence would keep a closed gap open in the log; asserting only
   // /OWNER_QUEUE A-4/ would pass on either, which is a pin that cannot tell the
   // change apart - so the pin below names the certificate and the closure date.
-  test('the macOS .pkg intent is productbuild, and the gap it prints is now the CERTIFICATE, not the declaration', () => {
+  // ⏱ REWRITTEN 2026-09-09. This test used to pin the WORDING of a gap on the
+  // .pkg intent, and it had already been rewritten twice as that gap moved
+  // (declaration → account → certificate). The gap is now CLOSED: a
+  // MAC_INSTALLER_DISTRIBUTION certificate exists, the secret carries it,
+  // apple-signing.mjs imports it, and build-platforms.yml runs productbuild. So
+  // the pin inverts — it asserts the ABSENCE of a gap, which is the only form
+  // that can catch a re-introduction, and a wording test could not.
+  test('the macOS .pkg intent is productbuild and carries NO gap — the installer certificate exists', () => {
     const pkg = plan().find((s) => s.argv[0] === 'productbuild');
     assert.ok(pkg, 'the .pkg intent is missing');
-    assert.match(pkg.gap, /DECLARED AND DOES NOT EXIST/);
-    assert.match(pkg.gap, /APPLE_INSTALLER_CERT_P12_BASE64/);
-    assert.match(pkg.gap, /nothing here has issued one: Apple distribution certificate/);
-    assert.match(pkg.gap, /OWNER_QUEUE A-4 closed 2026-08-31/);
-    assert.doesNotMatch(pkg.gap, /IS NOT IN THE REGISTER/, 'the register declares it now — that sentence is false');
+    assert.equal(pkg.gap, undefined, 'the installer certificate was issued 2026-09-09; there is no gap left to print');
+    assert.equal(pkg.channel, 'macos-appstore');
+    assert.match(pkg.produces, /\.pkg$/);
+    // The two certificates are still distinct, and the intent must still sign
+    // the package with the INSTALLER one — that has not changed and is the
+    // mistake this intent exists to prevent.
+    assert.ok(pkg.argv.includes('--sign'));
+    assert.match(pkg.argv[pkg.argv.indexOf('--sign') + 1], /3rd Party Mac Developer Installer:/);
   });
 
   test('every intent names the channel it belongs to', () => {
@@ -1143,8 +1156,17 @@ describe('apple-signing — the endings, run as a process', () => {
 
   test('the unsigned ending prints the gap IN CAPITALS and names the owner item', () => {
     const { r } = runPrepare(makeRoot(), {});
-    assert.match(out(r), /THE MISSING ITEM IS THE APPLE DISTRIBUTION CERTIFICATE \(THE ACCOUNT IS ACTIVE, VERIFIED 2026-09-08; NONE ISSUED\)/);
+    // ⏱ MOVED 2026-09-09, for the third time, and the two negative pins below
+    // are the history: the print said ACCOUNT until 2026-09-08, CERTIFICATE
+    // until today, and now names the only thing actually left. Each superseded
+    // wording stays pinned as `doesNotMatch` so a revert to any of them is a
+    // red test rather than a quiet regression in a log nobody reads.
+    assert.match(
+      out(r),
+      /THE MISSING ITEM IS THE APP STORE SCREENSHOTS AND THE OWNER-RUN FIRST SUBMISSION \(THE SIGNING INFRASTRUCTURE NOW EXISTS\)/,
+    );
     assert.doesNotMatch(out(r), /THE MISSING ITEM IS THE APPLE DEVELOPER ACCOUNT/, 'the account exists - that print was the defect');
+    assert.doesNotMatch(out(r), /THE MISSING ITEM IS THE APPLE DISTRIBUTION CERTIFICATE/, 'issued 2026-09-09 - that print is the newer defect');
     assert.match(out(r), /CANNOT BE UPLOADED TO APP STORE CONNECT/);
   });
 
@@ -1167,14 +1189,15 @@ describe('apple-signing — the endings, run as a process', () => {
     assert.match(out(r), /channel "macos-appstore" is NOT ARMED/);
     assert.match(out(r), /`submittable: true` but `lane: null`/);
     assert.match(out(r), /TRIPWIRE, NOT A WAIVER/);
-    // The LABEL is asserted, not only the item: `unarmedGapLines` prints
-    // OWNER-GATED by default and CODE-GATED only when a caller says so. Apple is
-    // the one caller passing `ownerGated: false`, because the account is active
-    // and the ASC API issues the missing certificate. A pin on the item alone
-    // would go green again the day somebody reverted the label.
-    assert.match(out(r), /THE BLOCKER IS CODE-GATED: Apple distribution certificate/);
-    assert.doesNotMatch(out(r), /THE BLOCKER IS OWNER-GATED/, 'an agent can close this one');
-    assert.match(out(r), /An agent CAN close this one/);
+    // The LABEL is asserted, not only the item. ⏱ INVERTED 2026-09-09: this
+    // pinned CODE-GATED, on the ground that an agent holding the ASC key could
+    // issue the missing certificate. An agent did, on 2026-09-09 — so that item
+    // is closed and OWNER_GAP moved on to screenshots and the first submission,
+    // which no agent may do. The label has to move with the item, and pinning
+    // both directions is what stops it drifting back on either.
+    assert.match(out(r), /THE BLOCKER IS OWNER-GATED: App Store screenshots and the owner-run first submission/);
+    assert.doesNotMatch(out(r), /THE BLOCKER IS CODE-GATED/, 'the certificate exists; what is left is the owner’s');
+    assert.doesNotMatch(out(r), /An agent CAN close this one/, 'no agent may create an app record or submit');
     for (const n of WANTED) assert.match(out(r), new RegExp(n));
     assert.match(exported, /APPLE_SIGNING_POSTURE=unsigned-build-proof/);
   });
@@ -1275,6 +1298,50 @@ describe('apple-signing — the endings, run as a process', () => {
     } else {
       assert.ok(true, 'on macOS this run proceeds; the half-state rule is asserted by the validation tests below');
     }
+  });
+
+  // ── 🔴 THE RECORDED FAILING CASE, 2026-09-09 ───────────────────────────────
+  // This cost two full CI runs. The .p12 was exported on Windows with a
+  // passphrase from `openssl rand -base64 24 | tr -d '\n='`; Windows openssl
+  // writes CRLF, `tr` took only the LF, and the archive was encrypted with a
+  // passphrase ending in a CARRIAGE RETURN. Every local `openssl pkcs12 -in`
+  // passed — it was handed the same stray byte. The script's own `.trim()` then
+  // removed it, and macOS said "the passphrase you entered is not correct",
+  // which is true and points nowhere. Refusing the difference is the fix; these
+  // pin that it is refused rather than silently absorbed.
+  test('a p12 password with a trailing CR is REFUSED, not quietly trimmed', () => {
+    const full = FULL();
+    const { r } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: `${full[ROLE_ENV.p12Password]}\r` });
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /carries leading or trailing whitespace, and it is being REFUSED rather than trimmed/);
+    // The DIAGNOSIS is the whole value of this failure over the macOS one.
+    assert.match(out(r), /openssl rand` writes CRLF/);
+    // ⏱ TIGHTENED 2026-09-09 after CodeQL flagged the first version as
+    // `js/clear-text-logging` (high). That version printed the raw and trimmed
+    // LENGTHS. A length is not the secret — but the alert is right in spirit,
+    // and the message now draws only from a fixed allowlist of literals, so
+    // NOTHING derived from the password can reach a log through this path.
+    assert.match(out(r), /Found: a trailing carriage return/);
+    assert.doesNotMatch(out(r), /character\(s\)/, 'not even a length is derived from the secret any more');
+    assert.ok(!out(r).includes(full[ROLE_ENV.p12Password]), 'the passphrase itself must not be printed');
+  });
+
+  test('the same refusal covers a trailing newline and leading space, not just CR', () => {
+    const full = FULL();
+    for (const pad of ['\n', ' ', '\t', '\r\n']) {
+      const { r } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: `${full[ROLE_ENV.p12Password]}${pad}` });
+      assert.equal(r.status, 1, out(r));
+      assert.match(out(r), /REFUSED rather than trimmed/);
+    }
+    const { r: lead } = runPrepare(makeRoot(), { ...full, [ROLE_ENV.p12Password]: ` ${full[ROLE_ENV.p12Password]}` });
+    assert.equal(lead.status, 1, out(lead));
+  });
+
+  test('GREEN CONTROL — a clean password gets past this check', () => {
+    // Without this the refusal above is consistent with a check that fires on
+    // every password, which would fail the lane it exists to protect.
+    const { r } = runPrepare(makeRoot(), FULL());
+    assert.doesNotMatch(out(r), /REFUSED rather than trimmed/);
   });
 
   test('the secret values never appear anywhere in the output', () => {
@@ -1545,26 +1612,41 @@ describe('apple-signing — against the REAL tooling/channel-register.json', () 
     assert.deepEqual(iosNames.filter((n) => !macNames.includes(n)), [], 'ios declares nothing macOS does not');
   });
 
-  test('🔴 BOTH Apple rows are STILL UNARMED — the day either is not, a tag stops being survivable without the enrolment', () => {
+  // ⏱ THE DAY ARRIVED, 2026-09-09. These two tests were written to ANNOUNCE the
+  // moment either Apple row became armed — "the day either is not, a tag stops
+  // being survivable without the enrolment" — and they did exactly that, on the
+  // branch that armed them. They are inverted rather than deleted, because the
+  // announcement is only worth making once and the state it announced is now the
+  // state worth pinning.
+  //
+  // 🔴 WHAT MADE THE ARMING SAFE IS NOT THAT THE TEST WAS EDITED. It is that the
+  // condition the old test was guarding against no longer holds: the secrets
+  // exist. `submittable: true` plus a real lane makes the release lane FATAL
+  // without the signing secrets, and that is now the correct behaviour, because
+  // a tag push in this repository has them. The tripwire's own instruction was
+  // that arming a channel and creating its secrets belong in ONE change; this is
+  // that change, and the test moving is the evidence the instruction was read
+  // rather than stepped over.
+  test('🔴 BOTH Apple rows are NOW ARMED — the enrolment, the certificates and the secrets all exist', () => {
     for (const row of realRows()) {
       const a = armingOf(row);
-      assert.equal(
-        a.armed,
-        false,
-        `${row.id} is now armed (${a.reasons.join('; ')}). The release lane is fatal again without the Apple enrolment — which is right, and is what this test exists to announce.`,
-      );
+      assert.equal(a.armed, true, `${row.id} is expected to be armed as of 2026-09-09: ${a.blockers.join(' | ')}`);
     }
   });
 
-  test('the reason both are unarmed is `lane: null`, not `submittable`, and the print says exactly that', () => {
-    // Worth pinning separately: these rows ARE submittable. If the derivation
-    // were "submittable ⇒ armed" the release lane would still be fatal, so the
-    // specific field doing the work has to be the one the message names.
+  test('what arms them is `submittable` PLUS a real lane on the apple job, and `served` is still false', () => {
+    // Worth pinning the parts separately: `served: true` would also arm a row,
+    // and it would mean something entirely different — that something publishes
+    // from this channel. Nothing does, and no app record exists. The arming came
+    // from the lane alone, which is a statement that the artifact is BUILT.
     for (const row of realRows()) {
       const a = armingOf(row);
       assert.equal(a.submittable, true, `${row.id} is expected to be a submittable store row`);
-      assert.equal(a.lane, null, `${row.id} is expected to have no lane — nothing here emits an .ipa or a .pkg`);
-      assert.ok(a.blockers.some((b) => b.includes('`lane: null`')), a.blockers.join(' | '));
+      assert.notEqual(a.lane, null, `${row.id} is expected to name the lane that emits its artifact`);
+      assert.equal(a.lane.job, 'apple');
+      assert.match(a.lane.workflow, /build-platforms\.yml$/);
+      assert.equal(row.served, false, `${row.id} must NOT be served — submitting remains the owner's call`);
+      assert.deepEqual(a.blockers, [], `${row.id} still reports a blocker: ${a.blockers.join(' | ')}`);
     }
   });
 });

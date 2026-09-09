@@ -1580,7 +1580,12 @@
         "flutter",
         "xcode"
       ],
-      "lane": null,
+      "lane": {
+        "_why": "SET 2026-09-09. It was null from the first commit of this row, and the null was true: no job in this repository emitted this channel format. The apple job now does — build-platforms.yml runs `flutter build ipa --export-options-plist` (archive + exportArchive) and `productbuild --component ... --sign`, and assert-artifact-shape.mjs asserts both artifacts on a signed lane. Naming the lane is what lets that guard derive .ipa and .pkg as installable formats at all; while this was null the guard reported COVERAGE LOST for exactly these two.",
+        "_arming": "🔴 THIS ARMS THE ROW, and that is deliberate rather than a side effect. `submittable: true` with a REAL lane is what channel-arming.mjs counts as ARMED, which turns apple-signing.mjs’s missing-secret print into a FAILURE on a release lane. That tripwire says in its own words that arming a channel and creating its secrets belong in ONE change - and they did: APPLE_DIST_CERT_P12_BASE64, APPLE_DIST_CERT_PASSWORD, APPLE_PROVISIONING_PROFILES_BASE64, APPLE_INSTALLER_CERT_P12_BASE64 and APPLE_TEAM_ID were all created on 2026-09-09, in the same pass that added the lane. `served` stays false and no app record exists: the artifact is now BUILT, and submitting it remains the owner’s call.",
+        "workflow": ".github/workflows/build-platforms.yml",
+        "job": "apple"
+      },
       "deploymentEnvironment": "{app}-ios-appstore",
       "storeMetadataDir": "apps/{app}/store/ios-appstore",
       "ownerQueue": "A-4",
@@ -1687,7 +1692,7 @@
       "signing": {
         "keyKind": "distribution-certificate",
         "identity": null,
-        "custody": "does not exist yet - CORRECTED 2026-09-08: the same ACTIVE account as ios-appstore, holding zero certificates — same Apple Developer account as ios-appstore (OWNER_QUEUE A-4).",
+        "custody": "EXISTS as of 2026-09-09 — the SAME account and the SAME distribution certificate as ios-appstore (DISTRIBUTION ND3WDZ2B5K), because one Apple Distribution identity signs the app on both platforms. What is specific to THIS row is the second certificate: MAC_INSTALLER_DISTRIBUTION RDYD44LRCZ, \"3rd Party Mac Developer Installer: ...\", expires 2027-09-09. It signs the .pkg and cannot sign code, just as the distribution one cannot sign a package; that is why this row alone declares APPLE_INSTALLER_CERT_P12_BASE64. Profile HRJS9Z65X6 (MAC_APP_STORE) against bundle id YZGQND6Z9C. Superseded readings: \"no Apple Developer account\" (wrong from 2026-08-31) and \"holding zero certificates\" (wrong from 2026-09-09).",
         "restoreDrill": {
           "date": null,
           "required": true,
@@ -1739,7 +1744,12 @@
         "flutter",
         "xcode"
       ],
-      "lane": null,
+      "lane": {
+        "_why": "SET 2026-09-09. It was null from the first commit of this row, and the null was true: no job in this repository emitted this channel format. The apple job now does — build-platforms.yml runs `flutter build ipa --export-options-plist` (archive + exportArchive) and `productbuild --component ... --sign`, and assert-artifact-shape.mjs asserts both artifacts on a signed lane. Naming the lane is what lets that guard derive .ipa and .pkg as installable formats at all; while this was null the guard reported COVERAGE LOST for exactly these two.",
+        "_arming": "🔴 THIS ARMS THE ROW, and that is deliberate rather than a side effect. `submittable: true` with a REAL lane is what channel-arming.mjs counts as ARMED, which turns apple-signing.mjs’s missing-secret print into a FAILURE on a release lane. That tripwire says in its own words that arming a channel and creating its secrets belong in ONE change - and they did: APPLE_DIST_CERT_P12_BASE64, APPLE_DIST_CERT_PASSWORD, APPLE_PROVISIONING_PROFILES_BASE64, APPLE_INSTALLER_CERT_P12_BASE64 and APPLE_TEAM_ID were all created on 2026-09-09, in the same pass that added the lane. `served` stays false and no app record exists: the artifact is now BUILT, and submitting it remains the owner’s call.",
+        "workflow": ".github/workflows/build-platforms.yml",
+        "job": "apple"
+      },
       "deploymentEnvironment": "{app}-macos-appstore",
       "storeMetadataDir": "apps/{app}/store/macos-appstore",
       "ownerQueue": "A-4",
