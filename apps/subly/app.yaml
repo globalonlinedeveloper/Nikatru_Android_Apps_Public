@@ -43,6 +43,14 @@ status: live
 # *.nikatru.com. What a new host needs is ATTACHMENT, not a record.
 hosts:
   web: subly.nikatru.com
+  # WHERE THE APEX ROUTER FETCHES THE BYTES. Not derivable and deliberately
+  # declared: Cloudflare appended `-9cp` when the project name `subly` was
+  # already taken, so `<id>.pages.dev` is wrong for exactly this app. Measured
+  # 2026-09-09 from the Pages API -- project `subly`, subdomain
+  # `subly-9cp.pages.dev`. It is preferred over `web` because *.pages.dev sits
+  # OUTSIDE the nikatru.com zone, so the Redirect Rule that 301s the retired
+  # subdomain cannot match the router's own proxy subrequest.
+  pagesOrigin: subly-9cp.pages.dev
   api: api.nikatru.com
 
 platforms:

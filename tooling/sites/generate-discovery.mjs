@@ -112,6 +112,7 @@
 //         planDiscovery(repoRoot)                                (pure, for CI)
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from '../ci/tree-walk.mjs';
@@ -126,6 +127,7 @@ import {
   closeMarker,
 } from './chrome.mjs';
 import { lastmodFor } from './lastmod.mjs';
+import { APEX_ORIGIN } from './apex.mjs';
 
 /** The deploy root this generator owns. The mirror (`sites/rajasekarselvam`) is
  *  deliberately NOT generated into — see the note in assert-discovery-surface.mjs
@@ -136,7 +138,33 @@ export const APPS_DIR = `${DEPLOY_ROOT}/apps`;
 export const REGISTRY = 'sites/_shared/_data/apps.json';
 export const SITEMAP = `${DEPLOY_ROOT}/sitemap.xml`;
 export const LLMS = `${DEPLOY_ROOT}/llms.txt`;
-export const ORIGIN = 'https://nikatru.com/';
+
+/** The apex router's route table — see the block that writes it in
+ *  `planDiscovery`. Named here so `assert-app-address-shape.mjs` and
+ *  `assert-discovery-surface.mjs` can import the path instead of retyping it. */
+export const APP_ROUTES = `${DEPLOY_ROOT}/app-routes.json`;
+
+/** An inline `<script>` — one with no `src`. The negative lookahead is what keeps
+ *  `<script src="…">` out: an external script is covered by `'self'`, and hashing
+ *  its (empty) body would add a hash that matches nothing. */
+export const INLINE_SCRIPT_RE = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+
+/** The two script shapes a hash CANNOT cover: an inline event-handler attribute
+ *  and a `javascript:` URL. Both need `'unsafe-hashes'`, which is a keyword this
+ *  root must never acquire, so their presence is a build problem rather than
+ *  something the header quietly accommodates. */
+export const INLINE_HANDLER_RE = /(\son[a-z]+\s*=\s*["'])|(["']javascript:)/i;
+
+/** The `_headers` line this generator splices. It matches the DIRECTIVE LINE, not
+ *  the file, so every other rule and every one of that file's several hundred
+ *  lines of recorded reasoning is untouched. */
+export const CSP_LINE_RE = /^ *Content-Security-Policy:.*$/m;
+/** RE-EXPORTED, not declared. The literal moved to `apex.mjs` on 2026-09-09 so
+ *  that `render.mjs` and `assert-app-address-shape.mjs` could import the apex
+ *  without importing this generator — see that file's header for the four
+ *  readers that now have to agree. Every existing importer of `ORIGIN` keeps
+ *  working unchanged, which is why the name stays. */
+export const ORIGIN = APEX_ORIGIN;
 
 /** 🔴 THE ONE PLACE A PRICE EXISTS IN THIS REPOSITORY. `services/platform/src/
  *  config.ts` serves these bytes to the app, `tooling/ci/assert-purchase-path.mjs`
@@ -1291,6 +1319,51 @@ export function planDiscovery(repoRoot) {
   // into `problems` turns it into a named build failure. Silently passing over
   // such a page is the one way this design rots without anything going red —
   // the page keeps serving stale chrome while the file count still includes it.
+  // ── THE APEX ROUTE TABLE ──────────────────────────────────────────────────
+  // 🔴 `sites/nikatru/app-routes.json` IS THE ROUTER'S ONLY INPUT. Since
+  // [ADR 075] an app is published at `nikatru.com/<id>`, and
+  // `sites/nikatru/functions/_middleware.js` proxies that prefix to the app's own
+  // Cloudflare Pages project. This table is what tells it which prefix and which
+  // project — one row per LIVE catalogue entry, both halves read verbatim from
+  // `catalog/apps.json` (`slug` and `origin`), so app #2 becomes routable by
+  // existing in the catalogue and by nothing else. No workflow edit, no DNS
+  // record, no Cloudflare console step, no hand-maintained list.
+  //
+  // ⚠️ IT IS COMMITTED, and it has to be: the `nikatru` Pages project is
+  // Git-connected with NO BUILD STEP (`sites/nikatru/README.md`), so a file that
+  // is not in the repository is a file that is not deployed. What keeps a
+  // committed generated file honest is the lane that already exists —
+  // `site-drift-repair.yml` regenerates this surface on every merge to `main` and
+  // opens a self-merging PR when the committed bytes drift.
+  //
+  // ⚠️ ONLY `live` ENTRIES. A `preview` app has no Pages project attached yet, so
+  // routing its prefix would proxy the apex to a host that answers 522 — and it
+  // would do it on the same origin that serves /pricing and the legal archive.
+  // The same filter the hub and the sitemap already apply, for a sharper reason.
+  //
+  // The bytes use this repository's catalogue house style (see `serialise` in
+  // tooling/app-yaml/render.mjs and the note in generate-apps-data.mjs) so a
+  // byte-comparison in CI is comparing formatting nobody has to think about.
+  {
+    const routes = live
+      .filter((app) => typeof app.origin === 'string' && app.origin.startsWith('https://'))
+      .map((app) => ({ path: `/${app.slug}`, origin: app.origin }));
+    const missing = live.filter((app) => typeof app.origin !== 'string' || !app.origin.startsWith('https://'));
+    for (const app of missing) {
+      problems.push(
+        `${REGISTRY}: live entry "${app.slug}" has no https \`origin\`, so the apex router has nowhere to ` +
+          'proxy `/' + app.slug + '` and the app would 404 into the marketing 404. `origin` is rendered from ' +
+          '`hosts.pagesOrigin` (or `hosts.web`) by tooling/app-yaml/render.mjs.',
+      );
+    }
+    const body = routes.length === 0
+      ? '[]'
+      : `[\n${routes
+          .map((r) => `  { "path": ${JSON.stringify(r.path)}, "origin": ${JSON.stringify(r.origin)} }`)
+          .join(',\n')}\n]`;
+    files.set(APP_ROUTES, `${body}\n`);
+  }
+
   const chromeOnly = new Set();
   for (const rel of htmlUnder(repoRoot, DEPLOY_ROOT)) {
     if (!isChromePage(rel) || files.has(rel)) continue; // the generated pair already carries the regions
@@ -1303,6 +1376,84 @@ export function planDiscovery(repoRoot) {
       chromeOnly.add(rel);
     } catch (e) {
       problems.push(`${rel}: ${e.message}`);
+    }
+  }
+
+  // ── script-src: HASHES, NOT `'unsafe-inline'` ─────────────────────────────
+  // 🔴 THE HIGHEST-PRIORITY SECURITY ITEM OF [ADR 075], AND IT IS ONLY URGENT
+  // BECAUSE OF [ADR 075]. `script-src 'unsafe-inline'` was a survivable weakness
+  // while this origin served nothing but marketing copy. It is not one now: the
+  // app is published at `nikatru.com/<id>`, its Supabase bearer token lives in
+  // origin-shared web storage, and `'unsafe-inline'` means any injected `<script>`
+  // on ANY page of this origin executes — including on the pages that have never
+  // had a script of their own. One XSS anywhere on the apex reads every app's
+  // session. Under the old subdomain layout that same XSS was contained to one app.
+  //
+  // The replacement is a `'sha256-…'` per inline block. Hashes also make the
+  // directive SELF-ENFORCING in a way a keyword never is: a CSP that carries any
+  // hash makes browsers IGNORE `'unsafe-inline'`, so the two cannot quietly
+  // coexist, and an inline block whose bytes change without this generator
+  // running simply stops executing.
+  //
+  // ⚠️ IT IS GENERATED, AND IT HAS TO BE. Three of the inline blocks on this root
+  // live in pages this file WRITES (`apps/index.html`, `apps/<slug>.html`) and the
+  // rest are chrome-spliced by the block above, so a hand-maintained hash list
+  // would go stale on the next generator change — silently, because a stale hash
+  // does not error, it just refuses to run the script. Computing it HERE, from the
+  // planned bytes rather than the bytes on disk, is what keeps the header and the
+  // pages in the same commit. `site-drift-repair.yml` diffs the result.
+  //
+  // ⚠️ ORDER MATTERS: this runs AFTER the chrome splice, because splicing can move
+  // an inline block. Hashing the on-disk bytes would produce a header that is
+  // correct for the previous deploy.
+  //
+  // Inline EVENT HANDLERS (`onclick=`) and `javascript:` URLs are NOT covered by
+  // hashes — they need `'unsafe-hashes'`, which this root must never acquire.
+  // Measured 2026-09-09: this deploy root has ZERO of either. The `problems` push
+  // below is what keeps that a measurement rather than a memory.
+  {
+    const headersRel = `${DEPLOY_ROOT}/_headers`;
+    const headersPath = join(repoRoot, ...headersRel.split('/'));
+    // ⚠️ AN ABSENT `_headers` IS NOT THIS GENERATOR'S FINDING, and that is a
+    // scoping decision rather than a shrug. This block SPLICES one directive
+    // line into a file it does not own — it has no business creating the file,
+    // and a root with no header policy at all is a different, larger defect with
+    // a guard of its own: `assert-web-cache-policy.mjs` floors every static-site
+    // bundle on its entry-point rules and goes RED when `_headers` is gone
+    // (MEASURED 2026-09-09 by deleting it: exit 1, naming `/` and `/*.html`).
+    // Claiming it here as well would make every fixture root in
+    // `tooling/ci/test/discovery-surface.test.mjs` fail for a reason that test is
+    // not about, which is how a generator acquires opinions nobody asked it for.
+    if (existsSync(headersPath)) {
+      const pages = new Set([...htmlUnder(repoRoot, DEPLOY_ROOT), ...[...files.keys()].filter((k) => k.endsWith('.html'))]);
+      const hashes = new Set();
+      for (const rel of [...pages].sort()) {
+        const html = files.has(rel)
+          ? files.get(rel)
+          : (existsSync(join(repoRoot, ...rel.split('/'))) ? readFileSync(join(repoRoot, ...rel.split('/')), 'utf8') : null);
+        if (html === null) continue;
+        if (INLINE_HANDLER_RE.test(html)) {
+          problems.push(
+            `${rel} carries an inline event handler or a javascript: URL. A CSP hash cannot cover either, so ` +
+              "this page would need `'unsafe-hashes'` — which reopens the hole this directive exists to close. " +
+              'Move the handler into one of the page\'s <script> blocks.',
+          );
+        }
+        for (const m of html.matchAll(INLINE_SCRIPT_RE)) {
+          if (m[1].trim() !== '') hashes.add(`'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
+        }
+      }
+      const scriptSrc = `script-src 'self'${[...hashes].sort().map((h) => ` ${h}`).join('')}`;
+      const current = files.get(headersRel) ?? readFileSync(headersPath, 'utf8');
+      const next = current.replace(CSP_LINE_RE, (line) => line.replace(/script-src [^;]*/, scriptSrc));
+      if (next === current && !current.includes(scriptSrc)) {
+        problems.push(
+          `${headersRel}: no Content-Security-Policy line with a script-src directive was found, so the hash ` +
+            'list this run computed has nowhere to go. The header is spliced, not written whole — see the block ' +
+            'in generate-discovery.mjs that computes it.',
+        );
+      }
+      files.set(headersRel, next);
     }
   }
 

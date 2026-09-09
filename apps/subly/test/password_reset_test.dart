@@ -87,7 +87,7 @@ class _OnboardingSeen extends OnboardingSeenController {
 /// tests came to prove a state production could not produce.
 ProviderContainer _container(
   InMemoryAuthRepository auth, {
-  String launchUrl = 'https://subly.nikatru.com/',
+  String launchUrl = 'https://nikatru.com/subly/',
 }) => ProviderContainer(
   overrides: <Override>[
     onboardingSeenProvider.overrideWith(_OnboardingSeen.new),
@@ -453,7 +453,7 @@ void main() {
     final ProviderContainer c = _container(
       auth,
       launchUrl:
-          'https://subly.nikatru.com/?nk_auth=reset'
+          'https://nikatru.com/subly/?nk_auth=reset'
           '#error=access_denied&error_code=otp_expired'
           '&error_description=Email+link+is+invalid+or+has+expired&sb=',
     );
@@ -500,7 +500,7 @@ void main() {
     final ProviderContainer c = _container(
       auth,
       launchUrl:
-          'https://subly.nikatru.com/?nk_auth=reset&code=abc123#/reset-password',
+          'https://nikatru.com/subly/?nk_auth=reset&code=abc123#/reset-password',
     );
     addTearDown(c.dispose);
     await _pump(tester, c);
@@ -538,7 +538,7 @@ void main() {
     final ProviderContainer c = _container(
       auth,
       launchUrl:
-          'https://subly.nikatru.com/?nk_auth=reset#error=access_denied'
+          'https://nikatru.com/subly/?nk_auth=reset#error=access_denied'
           '&error_code=otp_expired',
     );
     addTearDown(c.dispose);
@@ -565,7 +565,7 @@ void main() {
     // the reset-password screen.
     final ProviderContainer c = _container(
       auth,
-      launchUrl: 'https://subly.nikatru.com/?code=an-oauth-code',
+      launchUrl: 'https://nikatru.com/subly/?code=an-oauth-code',
     );
     addTearDown(c.dispose);
 

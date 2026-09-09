@@ -625,11 +625,19 @@ function guard(root) {
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
+// ⏱ MOVED TO THE APEX 2026-09-09 [ADR 075]. `url` was `https://subly.nikatru.com`
+// until the app's public address became a PATH on the apex, and the row gained
+// `origin` — the app's own Pages project, which the apex router proxies to.
+// Both halves are load-bearing in this fixture: the generator writes
+// `app-routes.json` from them, and a LIVE row with no https `origin` is a real
+// problem (the router would have nowhere to send `/<slug>`), so a fixture
+// without one is not a smaller fixture — it is a catalogue the router cannot use.
 const SUBLY = {
   slug: 'subly',
   name: 'Subly',
   tagline: 'Track every subscription in one place',
-  url: 'https://subly.nikatru.com',
+  url: 'https://nikatru.com/subly',
+  origin: 'https://subly-9cp.pages.dev',
   platforms: ['web'],
   status: 'live',
 };

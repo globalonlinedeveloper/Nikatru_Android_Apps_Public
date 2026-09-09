@@ -72,6 +72,30 @@ void main() {
     expect(web.note, isNotEmpty);
   });
 
+  // 🔴 ONE ORIGIN FOR EVERY APP. Path routing (`nikatru.com/<app>`) put the
+  // whole portfolio on a single origin, and localStorage / sessionStorage /
+  // IndexedDB / Cache Storage are all origin-scoped, never path-scoped. A
+  // caller reading this matrix has to be told that, or it will assume the
+  // browser separates two apps that it does not separate.
+  test('web declares that all apps now share ONE origin', () {
+    final StorageCapabilities web = StorageCapabilities.forPlatform(
+      TargetPlatform.android,
+      isWeb: true,
+    );
+    expect(
+      web.note.toLowerCase(),
+      contains('origin'),
+      reason: 'the web row must say storage is scoped to the ORIGIN — that is '
+          'the whole reason app-owned keys carry the app id',
+    );
+    expect(
+      web.note.toLowerCase(),
+      contains('app id'),
+      reason: 'the row must name the mitigation (namespaced keys), not just '
+          'the hazard',
+    );
+  });
+
   test('isWeb takes precedence over the host platform', () {
     // A web build still reports a host TargetPlatform.
     for (final TargetPlatform p in all) {

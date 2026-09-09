@@ -85,7 +85,15 @@ export const SITE_DATA = 'sites/_shared/_data/apps.json';
  * by name, so an unrecognised field is carried through deterministically rather
  * than dropped (see the header).
  */
-const FIELD_ORDER = ['slug', 'name', 'tagline', 'url', 'api', 'platforms', 'status'];
+// `origin` is placed next to `url` on purpose: they are the two halves of one
+// fact since [ADR 075] — `url` is WHERE THE APP IS ADDRESSED (a path on the
+// apex), `origin` is WHERE ITS BYTES COME FROM (its own Pages project, which the
+// apex router fetches). Reading them adjacent is what stops the next person
+// assuming the address is the origin, which is exactly the assumption the move
+// away from `<id>.nikatru.com` invalidated. Unknown fields would be carried
+// through sorted anyway; naming it here makes the position deterministic
+// rather than alphabetical-by-accident.
+const FIELD_ORDER = ['slug', 'name', 'tagline', 'url', 'origin', 'api', 'platforms', 'status'];
 
 /* ------------------------------------------------------------------ */
 /* Serialisation                                                      */
