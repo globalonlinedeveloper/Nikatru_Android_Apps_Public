@@ -615,7 +615,13 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
   test('COVERAGE LOST when a declared floor key leaves the server response', () => {
     const r = run(makeRepo((f) =>
       mutate(f, 'services/platform/src/routes/entitlements.ts',
-        'is_pro: rows.some(grants),', 'pro: rows.some(grants),')));
+        // ⏱ RE-POINTED 2026-09-09: the read became a UNION ([ADR 057] §5), so
+        // `is_pro` is now `appPro || bundlePro` rather than `rows.some(grants)`.
+        // The MUTATION is unchanged in substance — rename the declared floor key
+        // and the guard must report COVERAGE LOST — and `mutate` throws when its
+        // target text is absent, which is what caught the stale string here
+        // rather than the case quietly passing over a no-op replacement.
+        'is_pro: appPro || bundlePro,', 'pro: appPro || bundlePro,')));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST — entitlements: key\(s\) is_pro/);
   });

@@ -217,10 +217,19 @@ entitlements.get('/entitlements', async (c) => {
       trial_end: r.trial_end,
       revocation_reason: r.revocation_reason,
     })),
-    // Present ONLY when a grant exists. Spreading an empty object leaves the key
-    // absent rather than null, so a client never has to distinguish "no bundle"
-    // from "a bundle whose block is null".
-    ...(bundleBlock === null ? {} : { bundle: bundleBlock }),
+    // Present ONLY when a grant exists: `undefined` is dropped by JSON
+    // serialisation, so the key is ABSENT rather than null and a client never
+    // has to distinguish "no bundle" from "a bundle whose block is null".
+    //
+    // 🔴 A NAMED KEY, NOT A SPREAD, AND THAT IS NOT A STYLE CHOICE. The first
+    // version wrote `...(bundleBlock === null ? {} : { bundle: bundleBlock })`,
+    // and `assert-analytics-contract.mjs` refused it: "1 spread(s) … in a
+    // response literal. A key this scan cannot name is a key it cannot compare,
+    // and an under-counted server set makes the 'no stray keys' direction pass
+    // by being blind." The guard is right — a spread can introduce any key at
+    // all, so the envelope check would have gone quiet over exactly the file
+    // that was adding keys to the envelope.
+    bundle: bundleBlock ?? undefined,
   });
 });
 
