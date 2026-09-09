@@ -124,6 +124,7 @@ import {
   evaluate,
   evaluateRunRecords,
   classifyRunRecord,
+  effectiveMultiplier,
   cadenceDays,
   parseJsonc,
   findWranglerConfigs,
@@ -1167,9 +1168,9 @@ describe('assert-ops-register — [14]O-3 · the record-query limb, whose domain
     assert.equal(r.stats.fail, 1, 'gating changes the exit code, never the verdict');
     assert.equal(r.stats.gatedFail, 1);
     assert.equal(r.stats.unreadable, 0, 'a known-bad row is never laundered back into "could not tell"');
-    const summary = r.prints.find((l) => /scheduled duty\(ies\) ·/.test(l));
-    assert.match(summary, /1 FAILING \(1 of them OWNER-GATED: printed, not blocking\)/);
-    assert.doesNotMatch(summary, /0 FAILING/);
+    const summary = r.prints.find((l) => /\[14\]O-3 — scheduled=\d+ ·/.test(l));
+    assert.match(summary, /failing=1 \(owner-gated=1: printed, not blocking\)/);
+    assert.doesNotMatch(summary, /failing=0/);
   });
 
   test('🔴 THE TEETH SURVIVE: the SAME dark reader and the SAME held failure still BLOCK without the gate — absent, half-declared, or on a readable failure the gate never reaches', () => {
@@ -1268,11 +1269,11 @@ describe('assert-ops-register — [14]O-3 · the record-query limb, whose domain
     }
     // The summary is the line a reader scans, and it is what said `0 FAILING`
     // through run 33001960316 while this duty was failing every night.
-    const summary = r.prints.find((l) => /scheduled duty\(ies\) ·/.test(l));
+    const summary = r.prints.find((l) => /\[14\]O-3 — scheduled=\d+ ·/.test(l));
     // Domain asked of the REGISTER, not of the guard's own output: with no held
     // failure left, `0 FAILING` is the true count and demanding otherwise lies.
     if (win.some((row) => row.mechanism.recordQuery.lastObserved?.verdict === 'fail')) {
-      assert.doesNotMatch(summary, /0 FAILING/, 'the shipped register knows a duty is failing; the count must say so on the Linux runner too');
+      assert.doesNotMatch(summary, /failing=0/, 'the shipped register knows a duty is failing; the count must say so on the Linux runner too');
     }
   });
 
@@ -1364,6 +1365,124 @@ describe('assert-ops-register — [14]O-3 · the record-query limb, whose domain
   test('a window multiplier under 1 FAILS — a window shorter than the cadence reports a healthy duty dead', () => {
     const r = evaluateRunRecords(reg3(two(), { _windowMultiplier: 0.5 }), new Map(), NOW3);
     assert.match(r.errors.join(' | '), /_windowMultiplier` must be a number >= 1/);
+  });
+
+  // ═══ 🔴 THE WINDOW AND THE RULE, WHICH DISAGREED FOR A MONTH ═══════════════
+  // `_windowMultiplier: 1.5` was documented as "One missed run is not an alarm;
+  // two are." Put the last success at t=0 and the runs due at C, 2C, 3C: at age
+  // C ONE run has been missed, at age 2C two have, and the alarm fires when
+  // `age > window`. 1.5C therefore fires on the FIRST miss — the opposite of the
+  // sentence. These cases pin the arithmetic in BOTH directions, so neither half
+  // can be edited alone again.
+  //
+  // ⬜ THE NUMBER DID NOT MOVE AND MUST NOT: 1.5 is exactly the M=0 window, "a
+  // LATE run is not an alarm; a MISSED one is". What changed is that the budget
+  // is now declared per row and ADDED to the base, which keeps every window
+  // strictly inside ((M+1)C, (M+2)C) — so a row alarms on exactly M+1 misses.
+  const budgeted = (b, why) =>
+    duty('duty.win', '1d', {
+      reader: 'windows-scheduled-task',
+      task: 'T',
+      missedRunsTolerated: b,
+      ...(why === undefined ? {} : { missedRunsToleratedWhy: why }),
+    });
+  const WHY = 'MEASURED: 12 gaps, worst 41h, re-take it against run 34299058966.';
+  const budgetReg = (b, why, over = {}) =>
+    reg3([budgeted(b, why), two()[1]], { _maxMissedRunsTolerated: 4, ...over });
+  const aged = (h) => ({ 'duty.win': { lastSuccessMs: NOW3 - h * 3_600_000, detail: `fixture: ${h}h` } });
+
+  test('🔴 THE BASE WINDOW IS THE M=0 RULE, MEASURED AT ITS EDGE: 1d x 1.5 = 36h — 35h is GREEN, 37h is RED', () => {
+    assert.deepEqual(evaluateRunRecords(reg3(two()), probesOf(aged(35)), NOW3).errors, []);
+    const red = evaluateRunRecords(reg3(two()), probesOf(aged(37)), NOW3);
+    assert.match(red.errors.join(' | '), /duty\.win — its record IS reachable and the newest SUCCESSFUL run is 37\.0h old, outside its own window/);
+    assert.equal(red.stats.fail, 1);
+  });
+
+  test('🔴 A BUDGET WIDENS ONE ROW AND STILL GOES RED WHEN THE DUTY GENUINELY STOPS — 1d + 1 tolerated = 60h, so 59h is GREEN and 61h is RED', () => {
+    // The whole point of the per-row budget: it buys slack, it does NOT buy an
+    // alarm that cannot fire. A window that never fires is not an alarm, so the
+    // RED half of this case is the one that matters.
+    assert.deepEqual(evaluateRunRecords(budgetReg(1, WHY), probesOf(aged(59)), NOW3).errors, []);
+    const red = evaluateRunRecords(budgetReg(1, WHY), probesOf(aged(61)), NOW3);
+    assert.equal(red.stats.fail, 1, 'a budgeted duty whose record has genuinely stopped must still be RED');
+    assert.match(red.errors.join(' | '), /outside its own window/);
+  });
+
+  test('🔴 THE SLACK IS PRINTED ON EVERY LINE THE ROW EMITS — a wider window that did not say so is an invisible waiver', () => {
+    const r = evaluateRunRecords(budgetReg(1, WHY), probesOf(aged(10)), NOW3);
+    const line = r.prints.find((l) => /duty\.win/.test(l));
+    assert.match(line, /1d x 2\.5 = 60\.0h \(base 1\.5 \+ 1 missed run\(s\) TOLERATED on this row\)/);
+  });
+
+  test('an UNBUDGETED row keeps the base window while a sibling is budgeted — the slack is per row, never register-wide', () => {
+    const rows = [budgeted(1, WHY), duty('duty.two', '1d', { reader: 'windows-scheduled-task', task: 'U' }), two()[1]];
+    const reg = reg3(rows, { _maxMissedRunsTolerated: 4 });
+    const probes = probesOf({
+      'duty.win': { lastSuccessMs: NOW3 - 40 * 3_600_000, detail: '40h' },
+      'duty.two': { lastSuccessMs: NOW3 - 40 * 3_600_000, detail: '40h' },
+    });
+    const r = evaluateRunRecords(reg, probes, NOW3);
+    assert.equal(r.stats.fail, 1, 'exactly the unbudgeted row is RED at 40h');
+    assert.match(r.errors.join(' | '), /duty\.two —/);
+    assert.doesNotMatch(r.errors.join(' | '), /duty\.win —/);
+  });
+
+  test('🔴 A BUDGET ABOVE THE DECLARED CEILING FAILS — the ratchet goes down, and raising the ceiling to fit a row is how every window gets widened', () => {
+    const r = evaluateRunRecords(budgetReg(5, WHY), probesOf(aged(1)), NOW3);
+    assert.match(r.errors.join(' | '), /missedRunsTolerated: 5` is above the declared ceiling of 4/);
+  });
+
+  test('🔴 A BUDGET WITH NO DECLARED CEILING FAILS — an undeclared ceiling reads as no ceiling, and this is the one field that widens an alarm', () => {
+    const r = evaluateRunRecords(reg3([budgeted(1, WHY), two()[1]]), probesOf(aged(1)), NOW3);
+    assert.match(r.errors.join(' | '), /_maxMissedRunsTolerated` is missing or not a non-negative integer/);
+  });
+
+  test('a budget that is not a whole number FAILS — it counts missed runs, and a fraction of a missed run is not a thing a window can mean', () => {
+    for (const bad of [2.5, -1, '1', null]) {
+      const r = evaluateRunRecords(budgetReg(bad, WHY), probesOf(aged(1)), NOW3);
+      assert.match(r.errors.join(' | '), /must be a non-negative INTEGER/, `${JSON.stringify(bad)} must be refused`);
+    }
+  });
+
+  test('🔴 A BUDGET WITHOUT A MEASUREMENT FAILS — "it misses sometimes" is an adjective, and only an observation may buy slack', () => {
+    assert.match(evaluateRunRecords(budgetReg(1), probesOf(aged(1)), NOW3).errors.join(' | '), /with no `missedRunsToleratedWhy` carrying a MEASUREMENT/);
+    assert.match(evaluateRunRecords(budgetReg(1, 'it misses sometimes'), probesOf(aged(1)), NOW3).errors.join(' | '), /carrying a MEASUREMENT/);
+    assert.deepEqual(evaluateRunRecords(budgetReg(1, WHY), probesOf(aged(1)), NOW3).errors, [], 'a measurement a later reader can re-take is accepted');
+  });
+
+  test('a budget on an `unreachable` row FAILS — no query is made, so no window applies and nothing could be tolerated', () => {
+    const rows = [two()[0], duty('duty.box', '1d', { reader: 'unreachable', why: 'nothing here can reach it', missedRunsTolerated: 1 })];
+    const r = evaluateRunRecords(reg3(rows, { _maxMissedRunsTolerated: 4 }), probesOf(aged(1)), NOW3);
+    assert.match(r.errors.join(' | '), /missedRunsTolerated` on a row whose reader is `unreachable`/);
+  });
+
+  test('a justification with no budget FAILS — it reads as slack the row does not actually have', () => {
+    const rows = [duty('duty.win', '1d', { reader: 'windows-scheduled-task', task: 'T', missedRunsToleratedWhy: WHY }), two()[1]];
+    const r = evaluateRunRecords(reg3(rows, { _maxMissedRunsTolerated: 4 }), probesOf(aged(1)), NOW3);
+    assert.match(r.errors.join(' | '), /missedRunsToleratedWhy` with no `missedRunsTolerated`/);
+  });
+
+  test('🔴 THE SHIPPED REGISTER: every budget it declares is inside the ceiling, measured, and on a row a reader can actually query', () => {
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    const decl = real._recordReaders;
+    assert.equal(decl._windowMultiplier, 1.5, 'the base is the M=0 window and correcting the PROSE must not have moved it');
+    assert.ok(Number.isInteger(decl._maxMissedRunsTolerated) && decl._maxMissedRunsTolerated >= 0);
+    const budgeted2 = real.rows.filter((r) => r?.mechanism?.recordQuery?.missedRunsTolerated > 0);
+    assert.ok(budgeted2.length > 0, 'if no row uses the field, delete it rather than carry code that cannot fail');
+    for (const r of budgeted2) {
+      const q = r.mechanism.recordQuery;
+      assert.ok(q.missedRunsTolerated <= decl._maxMissedRunsTolerated, `${r.id} exceeds the ceiling`);
+      assert.notEqual(q.reader, 'unreachable', `${r.id} budgets a window nothing queries`);
+      assert.match(q.missedRunsToleratedWhy, DURABLE_ID, `${r.id} must carry a measurement a later reader can re-take`);
+      // The budget must be REACHED by a real stop: a window is only an alarm if
+      // ageing past it is RED.
+      const days = cadenceDays(r.cadence);
+      const mult = effectiveMultiplier(r, decl._windowMultiplier);
+      const past = classifyRunRecord(r, { lastSuccessMs: NOW3 - days * 86_400_000 * mult - 3_600_000, detail: 'fixture' }, NOW3, decl._windowMultiplier);
+      assert.equal(past.verdict, 'fail', `${r.id} must go RED once its own window lapses`);
+      const inside = classifyRunRecord(r, { lastSuccessMs: NOW3 - days * 86_400_000 * mult + 3_600_000, detail: 'fixture' }, NOW3, decl._windowMultiplier);
+      assert.equal(inside.verdict, 'pass', `${r.id} must stay GREEN inside its own window`);
+    }
   });
 });
 
@@ -1849,7 +1968,14 @@ describe('assert-ops-register — end to end, against the real repository', () =
     // Without this the previous test is satisfiable by a guard that stopped
     // querying entirely — the defect the whole limb replaces, one level up.
     const { out } = realGuard();
-    assert.match(out, /\[14\]O-3 — \d+ scheduled duty\(ies\) · \d+ record\(s\) QUERIED/);
+    assert.match(out, /\[14\]O-3 — scheduled=\d+ · queried_ok=\d+ · failing=\d+/);
+    // 🔴 THE LABELS ARE PART OF THE ASSERTION. The previous shape of this line put
+    // `22 record(s) QUERIED` and `(ceiling 12)` in one sentence with the unreadable
+    // count between them, and on 2026-09-09 two reading passes filed "22 unreadable
+    // duties against a ceiling of 12" off a run that had QUERIED 22 and failed to read
+    // 0. A count whose label can be misattached is a false alarm waiting to be filed,
+    // so every number here is bound to its own name.
+    assert.match(out, /unreadable=\d+\/ceiling \d+ · unreachable=\d+\/ceiling \d+/);
   });
 
   test('the [14]O-11 and [14]O-17 execution counts print on every run', () => {
