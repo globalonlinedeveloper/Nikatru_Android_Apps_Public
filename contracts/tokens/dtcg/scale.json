@@ -1,0 +1,57 @@
+{
+  "space": {
+    "$type": "dimension",
+    "$description": "The rhythm BETWEEN elements. Mirrors packages/design_system/lib/src/tokens/app_spacing.dart AppSpacing xs..xxxl exactly (4/8/12/16/24/32/48), so the websites and the Flutter apps measure in one language. NOT emitted to Dart: AppSpacing already IS the Dart side and generating a second copy would give the apps two spacing scales that nothing compares. The gutters below are deliberately NOT steps of this ramp — same reasoning as AppSpacing's own PAGE GUTTERS note: 18 is a margin, not a step.",
+    "1": { "$value": "4px" },
+    "2": { "$value": "8px" },
+    "3": { "$value": "12px" },
+    "4": { "$value": "16px" },
+    "5": { "$value": "24px" },
+    "6": { "$value": "32px" },
+    "7": { "$value": "48px" },
+    "gutter-sm": { "$value": "18px" },
+    "gutter": { "$value": "24px" },
+    "gutter-lg": { "$value": "32px" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "$description": "Mirrors AppRadius sm/md/lg/xl/pill (8/12/16/22/999). Measured 2026-09-09, the served pages used NINE ad-hoc radii — 8, 10, 11, 12, 13, 14, 16, 18 and 999 — none of them named. `size.radius` (16px) predates this group and stays where it is: it is the ONE radius the Dart output already carries as BrandTokens.radius, and duplicating it here as `radius.lg` would give two token paths one value. `radius.lg` is therefore absent on purpose; use `--radius`.",
+    "sm": { "$value": "8px" },
+    "md": { "$value": "12px" },
+    "xl": { "$value": "22px" },
+    "pill": { "$value": "999px" }
+  },
+  "type": {
+    "$description": "The seven-step ramp, PROMOTED FROM MEASURED LIVE VALUES rather than invented: 12.5 is the served `.badge`, 13.5 the served `.chip`, 16 body, 18 `.sub`, 24 h3-large, 31 h2 and the clamp is the served h1. Nothing here changes a rendered size; it gives the sizes names so the next page does not pick a ninth one. `$type` is omitted on `display` because `clamp()` is not a DTCG dimension and typing it as one would be a false claim about a value no transform can convert.",
+    "xs": { "$value": "12.5px", "$type": "dimension" },
+    "sm": { "$value": "13.5px", "$type": "dimension" },
+    "body": { "$value": "16px", "$type": "dimension" },
+    "lead": { "$value": "18px", "$type": "dimension" },
+    "h3": { "$value": "24px", "$type": "dimension" },
+    "h2": { "$value": "31px", "$type": "dimension" },
+    "display": { "$value": "clamp(34px, 5.5vw, 58px)" }
+  },
+  "shadow": {
+    "$description": "Three steps. `base` is lifted verbatim from the served card rule (`0 12px 32px rgba(11,18,32,.10)`); `sm` and `lg` are the same hue and geometry at half and at rest-plus-hover. The rgba carries the ink colour as a literal because a CSS custom property cannot be interpolated into an rgba() channel list without a colour-mix, and colour-mix is not the compatibility floor this site targets. That is a stated cost, not an oversight: these three strings are the only place in the shared CSS where a channel value is written out.",
+    "sm": { "$value": "0 6px 16px rgba(11, 18, 32, .06)" },
+    "base": { "$value": "0 12px 32px rgba(11, 18, 32, .10)" },
+    "lg": { "$value": "0 16px 40px rgba(11, 18, 32, .14)" }
+  },
+  "motion": {
+    "$description": "Two durations and one easing. The site already honours prefers-reduced-motion on every page; these name the values it animates with so a new component does not invent a third duration.",
+    "fast": { "$value": "120ms", "$type": "duration" },
+    "base": { "$value": "220ms", "$type": "duration" },
+    "ease": { "$value": "cubic-bezier(.2, .6, .3, 1)" }
+  },
+  "focus": {
+    "$description": "The focus indicator, and the scroll offset that keeps a focused anchor out from under the sticky header. `scroll-margin` is in this group and not in `space` on purpose: it is a function of the nav's height (64px) plus clearance, so it moves when the nav moves and never when the spacing ramp does. WCAG 2.2 SC 2.4.11 (Focus Not Obscured) is the requirement it serves; SC 2.4.13 (Focus Appearance) is what the 3px ring serves.",
+    "ring": { "$value": "3px", "$type": "dimension" },
+    "offset": { "$value": "3px", "$type": "dimension" },
+    "scroll-margin": { "$value": "84px", "$type": "dimension" }
+  },
+  "container": {
+    "$description": "The measure and its frame. 1080/24 are the values every served page already hard-codes in `.wrap`; promoted, not changed. THERE IS NO `breakpoint` GROUP, and its absence is a decision: a CSS custom property CANNOT be used in a media query condition, so `--bp-md: 860px` would be a token that reads correctly, emits correctly, and is unusable by the only consumer that would want it. A token nothing can consume is worse than a literal, because it looks like it is being honoured. The three collapse points (860px, 720px, 520px) stay as literals in the shared CSS, in one file, where they can at least be read together.",
+    "max": { "$value": "1080px", "$type": "dimension" },
+    "gutter": { "$value": "24px", "$type": "dimension" }
+  }
+}

@@ -252,7 +252,23 @@ const MIN_SNAPSHOTS = 3;
  *  declares BOTH a light `:root` and a dark override, so three pages contribute
  *  six blocks rather than the three the two raises before this one added — the
  *  earlier arrivals were single-palette generated notices. Measured: 39. */
-const MIN_ROOT_BLOCKS = 39;
+/*  39 -> 54 on 2026-09-09, and NOT because pages were added: the page count is
+ *  unchanged at 22. Every one of the 15 pages that receives shared chrome grew a
+ *  SECOND `:root` block — a small dedicated one holding the non-colour scale
+ *  tokens, spliced as the `scale-css` region from contracts/tokens/dtcg/
+ *  scale.json — and the homepage grew a THIRD, holding the four ink-band colours it
+ *  paints in BOTH schemes. 39 + 15 + 2 = 56, and 56 is what the guard own ok
+ *  line reports on this tree.
+ *
+ *  🔴 THE RE-BASE IS THE POINT, NOT A FORMALITY. This floor is EXACT precisely
+ *  so that losing one block reddens; at 39 against a tree of 54 it had fifteen
+ *  blocks of slack, so a page could quietly lose its whole palette and this limb
+ *  would still pass. `palette-consistent.test.mjs`'s "an ordinary page losing
+ *  its :root trips the block floor" is the control that caught it — it went
+ *  GREEN when it is supposed to go red, which is the only way a stale exact
+ *  floor ever announces itself. Re-verified after the raise: the same mutation
+ *  exits 2 again. */
+const MIN_ROOT_BLOCKS = 56;
 /** Declarations inside those blocks. Today 358 (265 until 2026-09-09), floored SLACK on purpose. The
  *  three exact floors already fence the subject; this one exists for the single
  *  failure they cannot see — a reducer that blanks one character too many and
