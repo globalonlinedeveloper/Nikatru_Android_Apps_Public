@@ -293,6 +293,31 @@ export const OWNER_GAP = 'App Store screenshots and the owner-run first submissi
 //   · profile   IOS_APP_STORE      TPT7N9XTC7
 //   · profile   MAC_APP_STORE      HRJS9Z65X6
 //
+// 🔴 THE BUNDLE ID AND BOTH PROFILES ABOVE NO LONGER EXIST. Superseded
+// 2026-09-09, later the same day, when the owner moved the package identifier to
+// `com.nikatru.subscriptiontracker` (ADR 067's slug rename). An App ID is not
+// renamable and a provisioning profile is issued against ONE App ID, so the
+// three identifier-bound resources were deleted and re-minted; the two
+// CERTIFICATES are identifier-INDEPENDENT and were REUSED unchanged, which is
+// why their ids above are still the live ones. Read from the API after the
+// change, and the deletions returned 204 in this order — profiles first, because
+// a profile referencing an App ID blocks its deletion:
+//
+//   · bundleId  UNIVERSAL          W5XX7RJ4WQ  com.nikatru.subscriptiontracker
+//                                                 "Nikatru Subscription Tracker"
+//                                                 capability IN_APP_PURCHASE, as before
+//   · profile   IOS_APP_STORE      ZUHKLYLZNR  "Nikatru Subscription Tracker iOS App Store"
+//   · profile   MAC_APP_STORE      97KS2MWMVC  "Nikatru Subscription Tracker macOS App Store"
+//
+// Both new profiles name certificate ND3WDZ2B5K, exactly as the deleted pair
+// did. `/v1/apps` held ZERO records before the deletion and holds zero now: no
+// App Store Connect app record was ever created against `com.nikatru.subly`, so
+// that identifier was NOT permanently spent and the deletion was clean.
+// `APPLE_PROVISIONING_PROFILES_BASE64` was re-set from the two new profiles in
+// the same pass — a profile is bound to its App ID, so the old secret would have
+// failed the embedded-identifier check in build-platforms.yml rather than
+// signing something wrong quietly.
+//
 // and the five repository secrets that carry them exist. So the gap is no longer
 // an account (closed 2026-08-31), no longer a certificate (closed today), and no
 // longer a missing build step: this file's `signedExportPlan` is now RUN by
@@ -733,6 +758,10 @@ export function parseMobileProvision(buffer) {
   // SILENTLY DROPS EVERY .provisionprofile. Measured 2026-09-09 on the two
   // profiles this account actually issued: the IOS_APP_STORE profile carries
   // `application-identifier = Q2B2BY33B6.com.nikatru.subly`, the MAC_APP_STORE
+  // (that identifier was RETIRED later the same day for
+  // `com.nikatru.subscriptiontracker`; the measurement is quoted as measured,
+  // and the two spellings it found are a property of the PLATFORM, not of the
+  // identifier — re-read on the replacement profiles and both still hold)
   // profile carries `com.apple.application-identifier` with the identical
   // value. Before this fallback the macOS profile parsed to `bundleId: null`,
   // which is not a loud failure anywhere — it made the profile INVISIBLE to the
@@ -766,7 +795,8 @@ export function exportOptionsPlist({ teamId, method = 'app-store-connect', profi
   // 🔴 TWO PROFILES FOR ONE BUNDLE ID IS REFUSED, NOT LAST-ONE-WINS. Measured
   // 2026-09-09, and it was caused by fixing a DIFFERENT bug an hour earlier.
   // This app is a universal purchase: the iOS and macOS profiles carry the SAME
-  // bundle id, `com.nikatru.subly`, deliberately. Until the macOS spelling of
+  // bundle id — `com.nikatru.subly` when this was measured, today
+  // `com.nikatru.subscriptiontracker` — deliberately. Until the macOS spelling of
   // `application-identifier` was read, the macOS profile resolved to
   // `bundleId: null` and the filter above silently dropped it — so this map
   // happened to hold exactly one entry, for the right platform, by accident.
@@ -1480,6 +1510,8 @@ function main() {
   // in force and the identity in the keychain:
   //
   //     error: No profile for team '…' matching 'Nikatru Subly macOS App Store'
+  //     (the profile is named 'Nikatru Subscription Tracker macOS App Store' since
+  //      the 2026-09-09 re-mint; the quote is the message as it was measured)
   //     found: Xcode couldn't find any provisioning profiles matching …
   //
   // `PROVISIONING_PROFILE_SPECIFIER` names a profile; it does not point at a
