@@ -25,6 +25,7 @@
   "assert-name-clearance.test.mjs": 16,
   "availability.test.mjs": 32,
   "await-pr-checks.test.mjs": 46,
+  "bundle-availability.test.mjs": 9,
   "capability-register-seams.test.mjs": 27,
   "capability-register.test.mjs": 40,
   "captcha-gated-call-sites.test.mjs": 16,

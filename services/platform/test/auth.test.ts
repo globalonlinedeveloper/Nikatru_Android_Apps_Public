@@ -620,11 +620,18 @@ describe('DELETE /v1/account — three limbs, executed against a real engine', (
     // column that put the one non-pseudonymous table in platform_db inside the
     // reach of "delete my account" ([pipeline K-7]). Again: a migration, no route
     // edit, and this fixture the only thing that moved.
+    //
+    // ⚠️ AND A FOURTH TIME with 0009's `bundle_grants.user_id` — the bundle
+    // purchase. Same story: a migration, no route edit, and this fixture the only
+    // thing that moved. The list below is the WHOLE user-owned set, so a table
+    // added later without being dropped here leaves the derivation non-empty and
+    // this test goes red instead of passing over a 503 that never happened.
     const db = realPlatformDb();
     db.db.exec('DROP TABLE entitlements;');
     db.db.exec('DROP TABLE provider_accounts;');
     db.db.exec('DROP TABLE cancellation_requests;');
     db.db.exec('DROP TABLE provider_notifications;');
+    db.db.exec('DROP TABLE bundle_grants;');
     const res = await harness({ db }).del('/v1/account', `Bearer ${await token({ sub: 'user-a' })}`);
     expect(res.status).toBe(503);
     expect(identityCalls).toHaveLength(0);

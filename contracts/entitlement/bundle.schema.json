@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nikatru.com/contracts/entitlement/bundle.schema.json",
+  "title": "NIKATRU bundle contract",
+  "description": "The bundle vocabulary: how a bundle grant came to exist, and what kinds of product a bundle may span. Authored in contracts/entitlement/bundle.js and derived into bundle.json by generate-bundle.mjs; this schema is what makes the JSON copy checkable by something other than a reader. The SQL half is services/platform/migrations/0009_bundle_grants.sql section B, and tooling/ci/assert-entitlement-contract.mjs limb 9 holds the two sets equal in both directions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bundleSources", "productKinds", "productRegisters", "productStatuses", "minLiveProductsForBundle"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "bundleSources": {
+      "description": "How a bundle grant came to exist. [ADR 057] §3 — the set is decided in the migration that creates it or never, because a grant whose provenance was not written at insert time is unclassifiable forever. Must equal the rows seeded by 0009_bundle_grants.sql section B.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "requiresReceipt"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "The stored value. snake_case, because it is written into a database column and read back by more than one runtime."
+          },
+          "requiresReceipt": {
+            "type": "boolean",
+            "description": "Whether a grant from this source is only legitimate with a VERIFIED server-side receipt behind it. The machine-readable half of 'no entitlement without a verified receipt': a guard READS which sources are exempt instead of a reviewer remembering. A copy that keeps every name and flips one flag turns a paid rail into one that mints grants from nothing, and it looks correct in a diff."
+          }
+        }
+      }
+    },
+    "productKinds": {
+      "description": "A product is an app, an extension or a script. The bundle spans all three, which is the single property that keeps adding a category a DATA change rather than a schema change.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["app", "extension", "script"] }
+    },
+    "productRegisters": {
+      "description": "Where each kind's slugs are published, as data — so the availability derivation and its Worker twin read the same list instead of two hand-written ones. `register: null` records a category that is DECLARED and has no register yet, which is a different fact from a category nobody thought about.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "register"],
+        "properties": {
+          "kind": { "enum": ["app", "extension", "script"] },
+          "register": {
+            "type": ["string", "null"],
+            "description": "Repo-relative path to the JSON array of {slug, status} rows, or null when the category ships nothing yet."
+          }
+        }
+      }
+    },
+    "productStatuses": {
+      "description": "The two values tooling/ci/assert-catalog-contract.mjs permits. Restated here because the bundle's purchasable gate is a predicate over them; a third spelling is not a new state, it is a row no guard grades.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "enum": ["live", "preview"] }
+    },
+    "minLiveProductsForBundle": {
+      "description": "The minimum number of LIVE products that makes a bundle an offer at all. Two. One live product plus a 'bundle' is a second SKU for one thing, and selling it as 'everything we make' would be a false statement on the day it was made. A named constant rather than a literal in the derivation, so the number can be asserted rather than read.",
+      "type": "integer",
+      "minimum": 2
+    }
+  }
+}

@@ -43,6 +43,7 @@ import moneyRail0004 from '../migrations/0004_money_rail.sql?raw';
 import cancellations0005 from '../migrations/0005_cancellation_requests.sql?raw';
 import erasureReach0006 from '../migrations/0006_erasure_reach.sql?raw';
 import eventsRollup0007 from '../migrations/0007_events_rollup.sql?raw';
+import bundleGrants0009 from '../migrations/0009_bundle_grants.sql?raw';
 
 type SQLValue = string | number | bigint | null | Uint8Array;
 
@@ -63,6 +64,9 @@ export const PLATFORM_MIGRATIONS: readonly string[] = [
   cancellations0005,
   erasureReach0006,
   eventsRollup0007,
+  // 0008 is the app_id slug rename — an UPDATE-only data migration over rows
+  // this harness never seeds, so it is not in the schema set. 0009 is.
+  bundleGrants0009,
 ];
 
 /**
@@ -90,6 +94,11 @@ export const REPLAY_SAFE_MIGRATIONS: readonly string[] = [
   // seed row is idempotent BY the ON CONFLICT rather than by luck. Same
   // reasoning as 0005: listed so the classifier proves it, not assumed.
   eventsRollup0007,
+  // 0009 is CREATE TABLE / CREATE [UNIQUE] INDEX IF NOT EXISTS plus one
+  // INSERT … ON CONFLICT DO NOTHING — no ALTER TABLE anywhere in it, so it
+  // replays. Listed so the classifier PROVES that rather than the comment
+  // asserting it.
+  bundleGrants0009,
 ];
 
 // `node:sqlite` is fetched through `process.getBuiltinModule` rather than a

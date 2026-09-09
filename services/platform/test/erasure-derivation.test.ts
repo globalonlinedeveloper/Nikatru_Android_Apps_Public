@@ -74,6 +74,10 @@ describe('the delete set is derived from the real platform schema', () => {
     // the point: joining the erasure sweep must be a deliberate act.
     // `identity` is not a table — the route adds it after the GoTrue delete.
     expect(Object.keys(body.deleted as Record<string, number>).sort()).toEqual([
+      // 0009's bundle grants. THE DERIVATION WORKING AGAIN: the migration spelled
+      // its column `user_id`, so the route empties the table with no edit to the
+      // route, and this fixture is the only thing that had to move.
+      'bundle_grants',
       'cancellation_requests',
       'entitlements',
       'identity',

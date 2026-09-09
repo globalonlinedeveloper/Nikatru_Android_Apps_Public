@@ -194,12 +194,20 @@ describe('platform_db migrations re-apply cleanly', () => {
       .rows("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
       .map((r) => String(r.name));
     expect(tables).toEqual([
+      // 0009 — the bundle purchase ([ADR 057]). Four tables, and the list is
+      // spelled out here rather than counted so a migration silently dropped
+      // from PLATFORM_MIGRATIONS is visible as a NAME and not as an arithmetic
+      // slip.
+      'bundle_grants',
+      'bundle_sources',
       'cancellation_requests',
       'consent_artifacts',
       'cron_heartbeat',
       'entitlements',
       'events',
       'events_daily',
+      'feature_set_members',
+      'feature_sets',
       'provider_accounts',
       'provider_notifications',
       'revocation_reasons',
