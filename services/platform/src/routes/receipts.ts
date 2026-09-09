@@ -63,7 +63,7 @@ import {
   mintGrantId,
   upsertBundleGrant,
 } from '../lib/mor/bundle-store';
-import { receiptVerifierFor } from '../lib/receipts/registry';
+import { receiptVerifierFor } from '../lib/receipts/verifiers';
 import { type ProductMap, featureSetForProduct } from '../lib/receipts/products';
 import { nowIso } from '../lib/d1';
 

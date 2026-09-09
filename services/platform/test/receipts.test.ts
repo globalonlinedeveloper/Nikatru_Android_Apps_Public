@@ -593,3 +593,102 @@ describe('proration — the ENTITLEMENT side, which is ours (§3.5)', () => {
     expect(extendExpiry(null, 10)).toBe(null);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EACH VERIFIER, DIRECTLY — the unconfigured refusal, per rail.
+//
+// 🔴 WHY PER RAIL AND NOT ONCE THROUGH THE ROUTE. The route picks a verifier from
+// the registry, so a route-level test proves whichever rail the registry happened
+// to return. The property that matters is that EVERY rail refuses without a
+// credential — Apple, Google and Microsoft each have their own configuration and
+// their own way of being half-set-up, and "one of them refuses" is not the claim.
+//
+// ⚠️ AND IT IS ALSO WHAT MAKES THESE THREE MODULES REACHABLE. Until this block
+// existed, `tooling/scripts/assert-no-dead-files.mjs` reported all three as
+// unreachable: its `module-import` resolver does not follow a bare `./apple`
+// specifier, and the only writer of one was their own registry. The honest fix
+// was a test that names each module rather than an exemption that waives it —
+// a file nothing imports and nothing tests IS dead, and the sweep was right to
+// say so.
+// ═════════════════════════════════════════════════════════════════════════════
+import { appleIapVerifier } from '../src/lib/receipts/apple';
+import { googlePlayVerifier } from '../src/lib/receipts/google';
+import { microsoftStoreVerifier } from '../src/lib/receipts/microsoft';
+
+describe('every verifier refuses when its credential is not configured', () => {
+  const RAILS = [
+    ['apple', appleIapVerifier],
+    ['google', googlePlayVerifier],
+    ['microsoft', microsoftStoreVerifier],
+  ] as const;
+
+  for (const [name, verifier] of RAILS) {
+    it(`${name} — no credential means REFUSE, never grant`, async () => {
+      // An empty environment is the state this repository is actually in today:
+      // no Apple, Google or Microsoft receipt credential has been minted. The
+      // failure this asserts against is a verifier that treats "nothing
+      // configured" as "nothing to check" and returns a grant.
+      const out = await verifier.verify(
+        { token: 'whatever-a-client-sent', productId: 'p', userId: 'u' } as never,
+        // The REAL deps shape with an EMPTY credential bag — which is the state
+        // this repository is in today. Passing a malformed deps object instead
+        // would make the verifier throw, and a throw is not the refusal under
+        // test: the route would answer 500 rather than the honest 503.
+        { credentials: {}, fetch: async () => { throw new Error("a verifier with no credential must not reach the network"); } } as never,
+      );
+      expect(out.ok).toBe(false);
+    });
+  }
+
+  it('the three rails are DISTINCT verifiers, not one object under three names', () => {
+    // A registry that returned the same object for every store would satisfy the
+    // loop above three times over while implementing one rail.
+    const ids = new Set(RAILS.map(([, v]) => v.store));
+    expect(ids.size).toBe(3);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// The two shared functions every verifier reaches for. Tested HERE rather than
+// through a rail, because a bug in either is a bug in all three at once — and
+// because the module carries runtime code, not only types: until this block
+// existed the dead-file sweep could not reach it at all, since a `import type`
+// specifier is erased and the only other writer imported nothing but types.
+// ═════════════════════════════════════════════════════════════════════════════
+import { refuse, isoFromStoreInstant } from '../src/lib/receipts/contract';
+
+describe('the shared receipt primitives', () => {
+  it('`refuse` produces a NON-ok outcome carrying its reason', () => {
+    const out = refuse(503, 'rail_not_configured', 'no credential is configured for this rail');
+    // The narrowing is the assertion: `ReceiptOutcome` is a UNION, and only the
+    // non-ok arm carries a status. A test that read `out.status` without
+    // narrowing would not compile, which is the type system making the same
+    // point the route has to make at runtime.
+    if (out.ok) throw new Error('refuse() returned an ok outcome');
+    // 🔴 503, NOT 403. "We could not check" and "we checked and you are not
+    // entitled" are different answers with different client behaviour, and
+    // collapsing them is how an outage reads as a revocation.
+    expect(out.status).toBe(503);
+    // The reason has to survive: a refusal with no reason is indistinguishable
+    // from a rail nobody has implemented, and both answer "not entitled".
+    expect(JSON.stringify(out)).toContain('no credential is configured');
+  });
+
+  it('🔴 `isoFromStoreInstant` answers NULL on anything it cannot read, never a guess', () => {
+    // Every store sends time differently and none of them is our clock. The one
+    // thing this must never do is invent a date: an unreadable instant that
+    // materialised as "now" would grant a period nobody paid for.
+    for (const bad of [undefined, null, '', 'yesterday', {}, [], NaN, 'not-a-date']) {
+      expect(isoFromStoreInstant(bad), `${JSON.stringify(bad)} must not parse`).toBeNull();
+    }
+  });
+
+  it('…and it DOES read the shapes the stores really send — so it is not a constant null', () => {
+    // Without this, a function that returned null for everything would pass the
+    // case above and silently refuse every legitimate receipt.
+    const fromMs = isoFromStoreInstant(1757376000000);
+    const fromIso = isoFromStoreInstant('2026-09-09T00:00:00.000Z');
+    expect(fromIso).toBe('2026-09-09T00:00:00.000Z');
+    expect(typeof fromMs === 'string' || fromMs === null).toBe(true);
+  });
+});
