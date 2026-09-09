@@ -347,8 +347,36 @@ export function readStoryboardImageSize(text, name = 'LaunchImage') {
  * read comments, so neither does this.
  */
 export function backgroundDrawsSplash(text, name = ANDROID_DRAWABLE_NAME) {
-  const code = text.replace(/<!--[\s\S]*?-->/g, '');
+  const code = stripXmlComments(text);
   return new RegExp(`android:src\\s*=\\s*"@(?:drawable|mipmap)/${name}"`).test(code);
+}
+
+/**
+ * `text` with every XML comment gone, to a FIXPOINT, and truncated at any
+ * comment that is never closed.
+ *
+ * 🔴 A LOOP RATHER THAN ONE GLOBAL `replace`, and CodeQL was right to say so
+ * (js/incomplete-multi-character-sanitization, raised on this file 2026-09-09).
+ * A single pass over a multi-character delimiter can leave a fresh one behind in
+ * the text it has just joined up, so the only honest stopping condition is
+ * "nothing changed".
+ *
+ * 🔴 AND AN UNCLOSED `<!--` TRUNCATES THE REST, which is the half a fixpoint
+ * alone does not fix and the half that matters here. Left in place, a dangling
+ * `<!--` would leave the `<bitmap>` after it looking like live markup to the
+ * caller — reporting the splash as wired over a file the resource compiler
+ * cannot even parse. Everything after an unterminated comment is comment as far
+ * as any XML reader is concerned, so it is dropped.
+ */
+export function stripXmlComments(text) {
+  let out = text;
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/<!--[\s\S]*?-->/, '');
+  } while (out !== prev);
+  const dangling = out.indexOf('<!--');
+  return dangling === -1 ? out : out.slice(0, dangling);
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
@@ -380,11 +408,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let drift = 0;
   for (const [rel, bytes] of derived) {
     const path = join(appDir, rel);
-    const same = existsSync(path) && readFileSync(path).equals(bytes);
+    // ONE read, not `existsSync` then `readFileSync` — CodeQL raised the
+    // check-then-use race on this line (js/file-system-race, 2026-09-09), and
+    // the fix is also the simpler code: whether the file is absent or is there
+    // and unreadable, the answer this loop needs is the same one.
+    let current = null;
+    try {
+      current = readFileSync(path);
+    } catch {
+      current = null;
+    }
+    const same = current !== null && current.equals(bytes);
     if (check) {
       if (!same) {
         drift++;
-        console.error(`FAIL apps/${app}/${rel} — ${existsSync(path) ? 'differs from' : 'is missing and would be'} the derivation`);
+        console.error(`FAIL apps/${app}/${rel} — ${current !== null ? 'differs from' : 'is missing and would be'} the derivation`);
       }
       continue;
     }

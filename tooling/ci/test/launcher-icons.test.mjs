@@ -70,7 +70,7 @@ import { deriveDesktopEntry, deriveLinuxPackaging } from '../../store/render-lin
 // Limb 8's fixtures, on the same terms and for the same reason: the PASSING
 // case is what the generator derives, so it models "correctly generated" rather
 // than one more hand-typed guess. The failing cases perturb it afterwards.
-import { ANDROID_DRAWABLE_NAME, IOS_BASE_PX, deriveSplash } from '../../store/render-splash.mjs';
+import { ANDROID_DRAWABLE_NAME, IOS_BASE_PX, backgroundDrawsSplash, deriveSplash } from '../../store/render-splash.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-launcher-icons.mjs');
@@ -953,5 +953,68 @@ describe('the desktop entry Name is the icon label', () => {
     const title = readFileSync(join(appDir, 'store', 'linux-snap', 'title.txt'), 'utf8').trim();
     assert.equal(name, declared);
     assert.notEqual(name, title, 'the two are the same string here, so this case cannot tell which one was read');
+  });
+});
+
+// ── limb 8b's comment stripper, on its own ──────────────────────────────────
+// 🔴 THE FIXTURE ABOVE CANNOT REACH THESE. It writes well-formed XML, because
+// that is what `flutter create` writes and what a person edits — but the
+// stripper's whole job is to be right about the malformed cases too, and CodeQL
+// raised exactly one of them (js/incomplete-multi-character-sanitization, this
+// file's generator, 2026-09-09). These are unit cases over the real function.
+describe('backgroundDrawsSplash', () => {
+  const wired = `<layer-list>
+    <item><bitmap android:src="@drawable/${ANDROID_DRAWABLE_NAME}" /></item>
+</layer-list>`;
+
+  test('a live bitmap item counts', () => {
+    assert.equal(backgroundDrawsSplash(wired), true);
+  });
+
+  test("Flutter's stock file — the item is inside a comment — does NOT", () => {
+    // Byte-for-byte the shape `flutter create` writes. It CONTAINS the drawable
+    // name, which is why a text match is green over the defect.
+    const stock = `<layer-list>
+    <item android:drawable="?android:colorBackground" />
+
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/${ANDROID_DRAWABLE_NAME}" />
+    </item> -->
+</layer-list>`;
+    assert.equal(backgroundDrawsSplash(stock), false);
+  });
+
+  // 🔴 THE CODEQL CASE, WORKED THROUGH RATHER THAN ASSERTED. `<!<!-- -->--`
+  // contains a complete comment (`<!-- -->`) starting at the third character.
+  // Remove it and the `<!` before it JOINS the `--` after it into a brand-new
+  // `<!--` that opens a comment over the live item. A single global pass cannot
+  // see that, because it resumes scanning AFTER the text it just removed; only
+  // running to a fixpoint does.
+  test('a comment that re-forms after one pass still hides the item', () => {
+    const reforms = `<layer-list>
+    <!<!-- -->-- <item><bitmap android:src="@drawable/${ANDROID_DRAWABLE_NAME}" /></item> -->
+</layer-list>`;
+    // The single-pass behaviour, spelled out, so the case cannot silently stop
+    // being the case it was written for: one pass leaves the item LIVE.
+    assert.match(reforms.replace(/<!--[\s\S]*?-->/g, ''), /android:src="@drawable\//);
+    assert.equal(backgroundDrawsSplash(reforms), false);
+  });
+
+  // The half a fixpoint alone does NOT fix: everything after an unterminated
+  // comment is comment to any XML reader, so it must be to this one.
+  test('an UNCLOSED comment swallows the item after it', () => {
+    const dangling = `<layer-list>
+    <!-- somebody deleted the close
+    <item><bitmap android:src="@drawable/${ANDROID_DRAWABLE_NAME}" /></item>
+</layer-list>`;
+    assert.equal(backgroundDrawsSplash(dangling), false);
+  });
+
+  test('@mipmap is accepted as well as @drawable', () => {
+    const mip = `<item><bitmap android:src="@mipmap/${ANDROID_DRAWABLE_NAME}" /></item>`;
+    assert.equal(backgroundDrawsSplash(mip), true);
   });
 });
