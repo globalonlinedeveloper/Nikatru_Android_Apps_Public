@@ -795,7 +795,23 @@ for (const root of siteRoots) {
 //     fix is "announce it", which is owner work; failing the build on it would
 //     block ALL CI on a decision only the owner can take, and a guard that cries
 //     wolf gets switched off (assert-lane-coverage.mjs:14-17).
-let appsArrayFound = false;
+//
+// 🔴 RETARGETED 2026-09-09, AND THE MOVE IS THE POINT. This limb used to read
+// `const APPS = [` — a JavaScript literal inside a `<script>`, from which the
+// browser built the grid with `innerHTML`. It compared the registry against a
+// promise about what the page WOULD render, and that promise was never kept for
+// a reader without JavaScript: measured on the served bytes with every `<script>`
+// removed, the homepage contained zero app cards, zero links to the product and
+// the pre-launch placeholder copy. The array was guarded and the page still said
+// Nikatru ships nothing.
+//
+// The grid is now generated into the markup by `tooling/sites/generate-discovery.mjs`
+// between the `<!-- APPS-GRID -->` sentinels, so this limb reads THE RENDERED
+// CARDS instead. The check is strictly stronger: its subject is what a crawler
+// is actually handed, not what a script says it would build. Moving the code
+// would have silenced the old scan (`const APPS = [` no longer exists), which is
+// why the floor below moved with it rather than being deleted.
+let appsMarkupFound = false;
 {
   const appsJsonPath = join(repoRoot, 'catalog', 'apps.json');
   const siteIndex = join(SITES, 'nikatru', 'index.html');
@@ -810,38 +826,22 @@ let appsArrayFound = false;
     } catch {
       registry = [];
     }
-    // RAW, not stripInert: the array lives inside a <script>, which stripInert
-    // removes. Bracket-depth scan from `const APPS = [` so the INSTRUCTIONAL
-    // comment above it — which contains a full example object, `name` and all —
-    // cannot be mistaken for a listed app.
+    // The GENERATED SPAN, bounded by the sentinels the generator splices between,
+    // so the pre-launch placeholder cards outside it — and any other `app-name`
+    // that a future hand edit might introduce elsewhere on the page — cannot be
+    // mistaken for a listed app. Read RAW rather than through stripInert: the
+    // sentinels are HTML comments and stripInert removes comments.
     const raw = readFileSync(siteIndex, 'utf8');
-    const at = raw.search(/\bconst\s+APPS\s*=\s*\[/);
-    if (at !== -1) {
-      appsArrayFound = true;
-      const open = raw.indexOf('[', at);
-      let depth = 0;
-      let end = open;
-      for (let i = open; i < raw.length; i++) {
-        const c = raw[i];
-        if (c === '"' || c === "'" || c === '`') {
-          const q = c;
-          i++;
-          while (i < raw.length && raw[i] !== q) i += raw[i] === '\\' ? 2 : 1;
-          continue;
-        }
-        if (c === '/' && raw[i + 1] === '/') {
-          i = raw.indexOf('\n', i);
-          if (i === -1) break;
-          continue;
-        }
-        if (c === '[') depth++;
-        else if (c === ']' && --depth === 0) {
-          end = i;
-          break;
-        }
-      }
-      const body = raw.slice(open, end + 1);
-      const onSite = new Set([...body.matchAll(/\bname\s*:\s*["']([^"']+)["']/g)].map((m) => m[1].toLowerCase()));
+    const OPEN = '<!-- APPS-GRID -->';
+    const CLOSE = '<!-- /APPS-GRID -->';
+    const at = raw.indexOf(OPEN);
+    const closeAt = raw.indexOf(CLOSE);
+    if (at !== -1 && closeAt > at) {
+      appsMarkupFound = true;
+      const body = raw.slice(at + OPEN.length, closeAt);
+      const onSite = new Set(
+        [...body.matchAll(/class="app-name"[^>]*>([^<]+)</g)].map((m) => m[1].trim().toLowerCase()),
+      );
       const live = new Map(
         (Array.isArray(registry) ? registry : [])
           .filter((a) => a && a.status === 'live' && typeof a.name === 'string')
@@ -851,16 +851,16 @@ let appsArrayFound = false;
       for (const listed of onSite) {
         if (!live.has(listed)) {
           problems.push(
-            `sites/nikatru/index.html lists an app "${listed}" in its APPS array, and catalog/apps.json has no entry with that name and status "live". The homepage is advertising an app the registry does not say is live — one of the two files is wrong, and a store button with nothing behind it is a promise made to a stranger.`,
+            `sites/nikatru/index.html renders an app card for "${listed}" inside its APPS-GRID block, and catalog/apps.json has no entry with that name and status "live". The homepage is advertising an app the registry does not say is live — one of the two files is wrong, and a store button with nothing behind it is a promise made to a stranger. The grid is generated: fix the registry, then re-run tooling/sites/generate-discovery.mjs.`,
           );
         }
       }
       for (const [key, app] of live) {
         if (!onSite.has(key)) {
           prints.push(
-            `UNANNOUNCED: catalog/apps.json marks "${app.name}" status "live" (${app.url ?? 'no url'}), and sites/nikatru/index.html still ships an empty APPS array with the copy "our first releases are on the way". ` +
+            `UNANNOUNCED: catalog/apps.json marks "${app.name}" status "live" (${app.url ?? 'no url'}), and the generated APPS-GRID block in sites/nikatru/index.html does not render a card for it. ` +
               'The two disagree. WHICH ONE IS RIGHT IS AN OWNER DECISION — a soft launch that is deliberately not announced is a legitimate state, and so is an announcement that was simply never written; no decision record answers it. ' +
-              'Resolve it by either adding the app to the APPS array (and refreshing the pre-launch copy), or changing its apps.json status to something other than "live". Printed, not failed, so this cannot block CI on owner-only work — and printed EVERY run so it cannot become permanent.',
+              'Resolve it by either re-running tooling/sites/generate-discovery.mjs (the grid is a pure function of the registry, so a live entry renders a card), or changing its apps.json status to something other than "live". Printed, not failed, so this cannot block CI on owner-only work — and printed EVERY run so it cannot become permanent.',
           );
         }
       }
@@ -1200,8 +1200,8 @@ if (SCANNING_OWN_REPO) {
   if (storeUrlsChecked === 0) {
     lost.push('NO apps/*/store/*/*-url.txt resolved to a host this repo deploys, so no store listing was compared to a page we serve. Five of them point at nikatru.com today.');
   }
-  if (!appsArrayFound) {
-    lost.push('`const APPS = [` was not found in sites/nikatru/index.html, so the site-list/apps.json comparison had nothing to compare. Renaming that array silently retires the check.');
+  if (!appsMarkupFound) {
+    lost.push('The `<!-- APPS-GRID -->` … `<!-- /APPS-GRID -->` pair was not found in sites/nikatru/index.html, so the rendered-grid/apps.json comparison had nothing to compare. Those sentinels are where tooling/sites/generate-discovery.mjs writes the app cards; removing or renaming them silently retires this check AND returns the homepage to a state where a reader without JavaScript sees no product.');
   }
   if (ipReaders === 0) {
     lost.push(`NO Pages Function reads the ${IP_HEADER} header, so the keyed-fingerprint requirement ranged over an empty set. sites/nikatru/functions/api/subscribe.js does read it.`);
@@ -1239,7 +1239,7 @@ if (SCANNING_OWN_REPO) {
 
 // ── [12]W-3a · THE RELATIONSHIP FLOOR, ON EVERY TREE AND NOT JUST THIS ONE ───
 // Runs outside the SCANNING_OWN_REPO block on purpose: the other floors defend
-// facts that are true of THIS repository (a policy version exists, an APPS array
+// facts that are true of THIS repository (a policy version exists, an APPS-GRID block
 // exists), and a synthetic tree legitimately has none of them. This one defends
 // a property of the LIMB, which is equally true of any tree it is pointed at — a
 // root whose sitemap was compared to its indexable pages, and which HAS
