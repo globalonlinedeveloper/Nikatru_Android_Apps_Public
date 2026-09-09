@@ -11,18 +11,35 @@ import 'package:nikatru_core/nikatru_core.dart' as core;
 import '../../core/app_config.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/dio_api_client.dart';
+import '../../data/api/persisted_api_client.dart';
 import '../../data/api/seed_api_client.dart';
 import '../../data/subscriptions/subscription_repository.dart';
 import 'auth.dart';
 import 'config.dart';
+import 'persistence.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // SECTION K · SUBLY'S OWN PRODUCT STATE (live-only, carried verbatim)
 // ═════════════════════════════════════════════════════════════════════════════
 
-/// API: real Worker via Dio when configured, else the seed client (demo mode).
+/// API: real Worker via Dio when configured, else the seed client (demo mode),
+/// with the DEVICE as that client's store.
 /// The Dio base URL comes from the CFG-1 `api_base_url` (runtime, swappable with
 /// no store release), falling back to the compile-time define until it resolves.
+///
+/// 🔴 THE UNCONFIGURED BRANCH KEPT NOTHING, AND IT IS THE BRANCH THAT SHIPS.
+/// `SeedApiClient` holds its list and its budget in plain fields, and this
+/// provider is not auto-dispose — so a subscription the user added survived
+/// every navigation and died with the process, silently, on every build that
+/// carries no `--dart-define=API_BASE_URL`. [PersistedApiClient] mirrors that
+/// same client's working set into the device's key-value store; the client is
+/// untouched and is still the one implementation of what a create or a cancel
+/// MEANS, which is why this is a wrapper and not a flag.
+///
+/// ⚠️ THE CONFIGURED BRANCH IS UNCHANGED AND HAS NO LOCAL COPY. There the Worker
+/// is the system of record, and an offline write queue in front of it is a
+/// different piece of work — conflict resolution and replay ordering — that must
+/// not be smuggled in behind a demo-mode fix.
 ///
 /// 🔴 `tokenProvider` TAKES [authTokenProvider], AND IT IS THE SAME RULE
 /// [platformRestClientProvider] IS BUILT ON — read that block, which explains how
@@ -47,7 +64,12 @@ import 'config.dart';
 /// client belongs on this shape; the brick's `restClientProvider` already is, and
 /// is why the brick never had this defect.
 final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
-  if (!AppConfig.isApiConfigured) return SeedApiClient();
+  if (!AppConfig.isApiConfigured) {
+    return PersistedApiClient(
+      SeedApiClient(),
+      ref.watch(localSubscriptionStoreProvider),
+    );
+  }
   final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;
   final String baseUrl = cfg?.apiBaseUrl ?? '${AppConfig.apiBaseUrl}/v1';
   return DioApiClient(
