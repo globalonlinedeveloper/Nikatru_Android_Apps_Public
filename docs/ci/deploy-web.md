@@ -224,6 +224,34 @@ unset today, so the define arrives EMPTY;
 renders `SizedBox.shrink()` and every caller's token stays null — byte-for-byte
 today's deployed behaviour.
 
+⏱ **2026-09-09 — THE PARAGRAPH ABOVE IS NO LONGER TRUE AND IS LEFT STANDING
+BECAUSE THE SEQUENCE IS THE RECORD.** `vars.TURNSTILE_SITE_KEY` IS SET. Measured
+with `gh variable list`: `TURNSTILE_SITE_KEY = 0x4AAAAAAEmJbm3bI8bk4wno`, set
+`2026-09-07T06:09:24Z`. And it is not merely set in the repository — it is
+COMPILED INTO THE LIVE BUNDLE: that literal appears in
+`https://nikatru.com/subly/main.dart.js` fetched today, inside the `TurnstileGate`
+widget constructor. The gate is live on the four gated auth screens.
+
+🔴 **AND THAT MAKES THE WIDGET'S DOMAIN ALLOWLIST A LIVE DEFECT, NOT A TIDY-UP.**
+`tooling/publishable-inputs.json` records the allowlist as `subly.nikatru.com +
+localhost`. [ADR 075] moved the app's published address to `nikatru.com/subly/`.
+A Turnstile widget validates the HOSTNAME the challenge is requested from against
+that list, so on the address the app is actually served at, the challenge is
+refused — sign-in, sign-up, forgot-password and resend-verification with it. The
+allowlist was written when the app owned a whole origin and nothing re-read it
+when the origin moved.
+
+👤 **OWNER STEP — THIS IS A CLOUDFLARE DASHBOARD SETTING AND NO REPOSITORY EDIT
+REACHES IT.** The site key is a `--dart-define` this workflow passes; the widget's
+*domain list* lives only in the Turnstile console. Steps: Cloudflare dashboard →
+account `nikatru` → **Turnstile** → the widget whose site key is
+`0x4AAAAAAEmJbm3bI8bk4wno` → **Settings** → **Domains** → ADD `nikatru.com`.
+⚠️ KEEP `subly.nikatru.com` — it is not dead: it is the 301 source and the apex
+router's proxy origin (`tooling/monitor-register.json` records both), and removing
+it would break the widget for anyone arriving through a legacy link before the
+redirect completes. Keep `localhost` for `flutter run`. Net change: one domain
+ADDED, none removed. No key rotation is required, so no redeploy is required.
+
 ⚠️ **THE ONE THING THAT MADE THIS SAFE WAS A MEASUREMENT, NOT AN ARGUMENT.** The
 claim underneath it is that a hosted GoTrue IGNORES a captcha token it was never
 configured to want, so a build carrying the key keeps working against the CURRENT
@@ -283,6 +311,81 @@ therefore the whole update mechanism on this channel — which is why
 `apps/<id>/web/_headers` exists and why assert-web-cache-policy.mjs
 asserts it. ADR 023 explicitly REJECTS guarding this flag in CI as
 over-encoding; this citation is the consequence it did ask for.
+
+⏱ **2026-09-09 — THE BOOT PATH FETCHES FIVE EXTERNAL ORIGINS, AND THE APP SAYS IT
+FETCHES NONE.** [ADR 075]'s CSP work named three; a live read names five. This is
+the measurement, not a build log — a green build is not evidence of what a browser
+asks for. `https://nikatru.com/subly/` was loaded in a real browser and
+`performance.getEntriesByType('resource')` read back, which is the only source
+that sees a cross-origin fetch a same-origin network log misses (that is how the
+fourth origin below stayed invisible):
+
+| origin | what it fetched | why |
+|---|---|---|
+| `https://www.gstatic.com` | `/flutter-canvaskit/<engineRevision>/chromium/canvaskit.js` + `.wasm` | the CanvasKit engine |
+| `https://fonts.gstatic.com` | `/s/roboto/v32/…woff2`, `/s/notosanssymbols2/v24/…woff2` | the engine's font FALLBACK |
+| `https://browser.sentry-cdn.com` | `/10.38.0/bundle.tracing.min.js` | `sentry_flutter`'s web JS SDK |
+| `https://static.cloudflareinsights.com` | `/beacon.min.js/…` (twice) | Cloudflare Web Analytics, injected at the EDGE |
+| `https://config.nikatru.com` | `/config/subly` | first-party, expected |
+
+🔴 **`static.cloudflareinsights.com` IS THE ONE NOBODY DECLARED, AND IT IS BEING
+BLOCKED RIGHT NOW.** It is in no build output and no source file — Cloudflare
+injects it into the HTML response, so it cannot be found by reading this
+repository. The browser console on the live page reports it BLOCKED by the app's
+own `script-src`. So the state today is a third-party analytics beacon that the
+zone is trying to add and the app is refusing: the refusal is the right outcome,
+but it is an accident rather than a decision, and it is not written down anywhere
+until this line. Either turn Web Analytics OFF for this zone (owner, dashboard) or
+declare it — silently failing on every page load is the one option that should not
+stand.
+
+**THE LEVERS, EACH ESTABLISHED FROM SOURCE RATHER THAN ASSUMED:**
+
+* **CanvasKit** — `flutter build web --no-web-resources-cdn`. VERIFIED in the SDK
+  on this machine: `flutter_command.dart:1479` sets `useLocalCanvasKit` from the
+  flag, `build_info.dart:378` turns it into `kUseLocalCanvasKitFlag`, and
+  `web.dart:691` emits `'useLocalCanvasKit': true` into `_flutter.buildConfig`.
+  The deployed `flutter_bootstrap.js` carries NO such key today, which is why its
+  `canvasKitBaseUrl` falls through to `https://www.gstatic.com/flutter-canvaskit`.
+  `/canvaskit/*` already ships in this bundle and is already declared in
+  `apps/<id>/web/_headers`. This one is a one-flag change.
+* 🔴 **THE FONT FALLBACK IS NOT COVERED BY THAT FLAG, AND ASSUMING IT WAS IS THE
+  EASY MISTAKE HERE.** `--no-web-resources-cdn` sets `useLocalCanvasKit` and
+  nothing else. The fallback base is a SEPARATE engine setting,
+  `FlutterConfiguration.fontFallbackBaseUrl`, defaulting to
+  `https://fonts.gstatic.com/s/` — visible in the deployed `main.dart.js` as
+  `s.fontFallbackBaseUrl … return s==null?"https://fonts.gstatic.com/s/":s`.
+  Closing it means self-hosting the Noto fallback set in the engine's own `/s/`
+  layout and passing `fontFallbackBaseUrl` through the bootstrap's `config`. It is
+  a real hosting decision, not a flag.
+* 🔴 **SENTRY HAS NO SUPPORTED FIX, AND THE OBVIOUS ONE SILENTLY DELETES CRASH
+  REPORTING.** `sentry_flutter-9.27.0` hard-codes the URL: `productionScripts` in
+  `lib/src/web/sentry_js_bundle.dart` is a `const`, so it cannot be re-pointed at a
+  self-hosted copy. The only public switch is
+  `options.autoInitializeNativeSdk = false`, which does stop
+  `WebSdkIntegration` injecting the script — **and it must not be used on its own.**
+  `sentry_flutter.dart:139-141` installs `JavascriptTransport` on web whenever the
+  binding supports capture-envelope, BEFORE the user's options callback runs and
+  WITHOUT consulting that flag. So the transport would keep handing envelopes to a
+  JS SDK that was never loaded: no script, no events, no error. Restoring the Dart
+  HTTP transport from app code is not possible either — `SentryClient` only
+  installs `HttpTransport` when `options.transport is NoOpTransport`, and neither
+  `NoOpTransport` nor `HttpTransport` is exported from `package:sentry/sentry.dart`
+  (only the abstract `Transport` is). The honest options are: (a) drop
+  `sentry_flutter` on the web target and initialise pure-Dart `package:sentry`
+  behind the existing `packages/telemetry` facade, which has no CDN dependency at
+  all — the architecturally clean answer and the one worth costing; (b) vendor or
+  patch the package; (c) keep the CDN and say so. What must NOT happen is (a')
+  flipping the flag and shipping it, which reads as a fix and is an outage.
+
+**OWED, AND NOT LANDED HERE ON PURPOSE.** The three edits this needs —
+`--no-web-resources-cdn` on the build line below, the `script-src`/`connect-src`
+trim in `apps/<id>/web/_headers`, and the paragraph in `apps/<id>/web/index.html`
+that claims "no third party on the boot path" — all sit in files the in-flight
+slug rename (PR #567, `apps/subly` → `apps/subscriptiontracker`, currently DIRTY)
+is rewriting, including this workflow. Landing them now would collide in files
+that PR is already rebasing. They are written up here rather than attempted, and
+the measurement above is what makes them a one-sitting change afterwards.
 
 ### in step **Build web (release, no service worker)**, above `- uses: ./.github/actions/setup-node`
 
