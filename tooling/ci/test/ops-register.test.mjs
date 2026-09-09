@@ -144,6 +144,10 @@ import {
   classifyRedSince,
   evaluateRedSince,
   hostWorkflowFile,
+  dispatchableWorkflows,
+  redSinceTriggerCensus,
+  redSinceTriggerShape,
+  rowWorkflowFile,
 } from '../assert-ops-register.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -2217,8 +2221,15 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
   test('[14]O-3b ran on the green fixture root, and printed its domain size beside its verdict', () => {
     const r = runRoot(fixtureRoot());
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /\[14\]O-3b — RED SINCE: 1 scheduled workflow duty\(ies\) graded/);
+    assert.match(r.out, /\[14\]O-3b — RED SINCE: 1 workflow duty\(ies\) graded \(1 on a clock · 0 `trigger` row\(s\)/);
     assert.match(r.out, /ORDERED ZERO PAIRS ON THIS RUN/, 'with no token every read is unreadable, and that state must not read like a green branch');
+    // ⏱ 2026-09-09 — THE WIRING OF THE DERIVATION, not just of the verdict. The
+    // fixture root's `duty.workflow.ci.yml` is a `trigger` row and its
+    // `.github/workflows/ci.yml` declares no `workflow_dispatch`, so main() must
+    // have READ that file to say so. This is what proves `dispatchableWorkflows`
+    // is actually called from main() rather than only from the pure suite.
+    assert.match(r.out, /NOT GRADED · duty\.workflow\.ci\.yml — `\.github\/workflows\/ci\.yml` declares NO `workflow_dispatch`/);
+    assert.match(r.out, /green only by MERGING/, 'the exclusion must carry its reason at the line, never leave it to be inferred');
   });
 
   test('🔴 [14]O-3b with an EMPTY domain exits **2** — COVERAGE LOST, which is neither a pass nor a finding', () => {
@@ -3453,7 +3464,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     assert.equal(r.stats.green, 1);
     assert.equal(r.stats.red, 0);
     assert.equal(r.stats.domain, 1);
-    assert.ok(r.prints.some((p) => /RED SINCE: 1 scheduled workflow duty\(ies\) graded · 1 whose newest run/.test(p)));
+    assert.ok(r.prints.some((p) => /RED SINCE: 1 workflow duty\(ies\) graded \(1 on a clock · 0 `trigger` row\(s\)[^·]*\) · 1 whose newest run/.test(p)));
   });
 
   test('GREEN CONTROL — a workflow that has never failed at all is green, and says so rather than saying nothing', () => {
@@ -3577,6 +3588,15 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
       .sort();
     assert.ok(inDomain.length > 0, 'the committed register grades no workflow for redness at all');
     assert.deepEqual(inDomain, scheduledWorkflowRows, 'a scheduled workflow duty has fallen out of the RED-SINCE domain');
+    // ⏱ 2026-09-09 — and with NO derivation handed in, that is the WHOLE domain:
+    // the trigger half fails closed. A caller with no workflow tree admits no
+    // clockless row, because admission to a BLOCKING alarm is on evidence that
+    // the red has an exit, never on a default.
+    assert.equal(
+      inDomain.some((id) => /deploy-(web|workers)/.test(id)),
+      false,
+      'a trigger row was admitted with no `workflow_dispatch` evidence supplied — the fail-closed direction has been inverted',
+    );
   });
 
   // -- THE SECOND SELF-REFERENCE: ops-watch.yml GRADING ITS OWN HOST RUN ------
@@ -3698,5 +3718,215 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
     const selfRows = redSinceDomain(real).filter((r) => r.mechanism.recordQuery.workflow === 'ops-watch.yml');
     assert.equal(selfRows.length, 1, 'the committed register must still put ops-watch.yml in this domain, or the deferral guards nothing');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ⏱ 2026-09-09 · THE TRIGGER ROWS WITH A NON-MERGE EXIT.
+  //
+  // THE MEASURED DEFECT: run 34315492291, `deploy-web.yml` on `main`, sha
+  // 43ab0224, conclusion FAILURE at 2026-09-09T05:35Z. The web deploy lane was
+  // red on the default branch and NOTHING alarmed — the row is `cadence:
+  // trigger`, the domain above was `TIME_CADENCE` rows only, and the [14]O-3
+  // freshness limb does not range over a clockless row either. The exclusion
+  // existed for `ci.yml`, whose newest run on main can be made green only BY
+  // MERGING; it was being applied to three rows it was never argued for.
+  //
+  // THE ADMISSION IS DERIVED, and these tests hold that: the evidence is the
+  // `workflow_dispatch:` line in the workflow file, read through the shared
+  // parser, so a row joins and leaves this alarm on a fact about the tree rather
+  // than on a list somebody can shorten. GREEN CONTROL FIRST in each pair.
+  // ───────────────────────────────────────────────────────────────────────────
+  const REPO_ROOT = resolve(CI_DIR, '..', '..');
+  const trigDuty = (id, workflow, over = {}) => ({
+    id,
+    kind: 'duty',
+    what: 'a deploy lane',
+    detector: 'a red deploy job on the push that triggered it',
+    response: 'redeploy or roll back',
+    cadence: 'trigger',
+    trigger: 'push to main, or a manual dispatch',
+    mechanism: {
+      substrate: 'github-actions',
+      anchor: `.github/workflows/${workflow}`,
+      record: 'GitHub Deployments + the run history',
+      failingValue: 'conclusion = failure',
+      readBy: 'this guard',
+      recordQuery: { reader: 'github-run-history', workflow, headBranch: 'main', event: 'push' },
+    },
+    ...over,
+  });
+  const WEB = 'duty.workflow.deploy-web.yml';
+
+  test('GREEN CONTROL — a `trigger` row whose workflow declares `workflow_dispatch` IS in the domain and IS graded green', () => {
+    const dispatchable = new Set(['deploy-web.yml']);
+    const reg = regOf(trigDuty(WEB, 'deploy-web.yml'));
+    assert.deepEqual(redSinceDomain(reg, dispatchable).map((r) => r.id), [WEB]);
+    const r = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_NEW, failure: BAD } }), null, dispatchable);
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.stats.green, 1);
+    assert.equal(r.stats.trigger, 1, 'the trigger half of the domain is counted SEPARATELY, or a lost deploy row hides inside the total');
+    assert.equal(r.stats.clocked, 0);
+  });
+
+  test('🔴 MUTATION — the SAME row with the newest run FAILING is RED SINCE, it BLOCKS, and it names the lane', () => {
+    // This is the run that alarmed nothing on 2026-09-09. Same shape, graded.
+    const dispatchable = new Set(['deploy-web.yml']);
+    const r = evaluateRedSince(
+      regOf(trigDuty(WEB, 'deploy-web.yml')),
+      probesOf({ [WEB]: { success: OK_OLD, failure: { id: 34315492291, at: '2026-09-09T05:35:00Z' } } }),
+      null,
+      dispatchable,
+    );
+    assert.equal(r.errors.length, 1, `a red deploy lane did not block:\n${JSON.stringify(r, null, 1)}`);
+    assert.match(r.errors[0], /RED SINCE 2026-09-09T05:35:00Z/);
+    assert.match(r.errors[0], /deploy-web\.yml on main/);
+    assert.match(r.errors[0], /run 34315492291 FAILED/);
+    assert.match(r.errors[0], /A success of ANY event on that branch clears it/, 'the exit must be named, and for this row it is a dispatch rather than a merge');
+    assert.equal(r.stats.red, 1);
+  });
+
+  test('🔴 `ci.yml` IS STILL NOT GRADED — it declares no `workflow_dispatch`, so its only exit is a merge', () => {
+    // The deadlock the original exclusion was argued for, and the one thing this
+    // change must not touch. The derivation reaches it on its own: `ci.yml` is
+    // simply absent from the dispatchable set.
+    const dispatchable = new Set(['deploy-web.yml', 'deploy-workers.yml']);
+    const ci = trigDuty('duty.workflow.ci.yml', 'ci.yml');
+    const reg = regOf(trigDuty(WEB, 'deploy-web.yml'), ci);
+    assert.deepEqual(redSinceDomain(reg, dispatchable).map((r) => r.id), [WEB], '`ci.yml` must not be in the RED-SINCE domain — grading it deadlocks the merge queue');
+    const r = evaluateRedSince(
+      reg,
+      probesOf({
+        [WEB]: { success: OK_NEW, failure: BAD },
+        'duty.workflow.ci.yml': { success: OK_OLD, failure: BAD },
+      }),
+      null,
+      dispatchable,
+    );
+    assert.deepEqual(r.errors, [], 'a red `ci.yml` must NOT block: the only way to make it green is the merge this would be blocking');
+    assert.equal(r.stats.domain, 1);
+    // …and the exclusion is a NAMED PRINT carrying its reason, never a silence.
+    const line = r.prints.filter((p) => /NOT GRADED · duty\.workflow\.ci\.yml/.test(p));
+    assert.equal(line.length, 1, `the exclusion must be printed by name:\n${JSON.stringify(r.prints, null, 1)}`);
+    assert.match(line[0], /declares NO `workflow_dispatch`/);
+    assert.match(line[0], /green only by MERGING/);
+    assert.match(line[0], /ci-18/, 'and it must cite the incident, or the next reader re-derives the argument');
+  });
+
+  test('the DERIVATION is the admission — removing `workflow_dispatch` from the file removes the row, LOUDLY', () => {
+    // The anti-shrink property. A hand-set boolean on the row could be flipped
+    // to close an alarm; so could a list. The evidence is the workflow file, and
+    // when the file stops carrying it the row leaves the domain WITH A PRINTED
+    // SENTENCE rather than as a number that got smaller.
+    const reg = regOf(trigDuty(WEB, 'deploy-web.yml'));
+    const gone = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_OLD, failure: BAD } }), null, new Set(['other.yml']));
+    assert.equal(gone.stats, undefined, 'with the only row gone the domain is EMPTY and that is coverage lost, not a pass');
+    assert.ok(gone.coverageLost, 'an empty domain must still refuse');
+    assert.match(gone.coverageLost.join(' '), /ranges over the EMPTY SET/);
+
+    // With a sibling to keep the domain non-empty, the shrink is a print.
+    const sib = trigDuty('duty.workflow.deploy-workers.yml', 'deploy-workers.yml');
+    const shrunk = evaluateRedSince(
+      regOf(trigDuty(WEB, 'deploy-web.yml'), sib),
+      probesOf({ 'duty.workflow.deploy-workers.yml': { success: OK_NEW, failure: BAD } }),
+      null,
+      new Set(['deploy-workers.yml']),
+    );
+    assert.equal(shrunk.stats.domain, 1);
+    const line = shrunk.prints.filter((p) => new RegExp(`NOT GRADED · ${WEB}`).test(p));
+    assert.equal(line.length, 1, 'a row leaving this alarm must say so on the run it leaves');
+    assert.match(line[0], /declares NO `workflow_dispatch`/);
+  });
+
+  test('NO derivation supplied FAILS CLOSED — no trigger row is admitted, and the run SAYS it was not', () => {
+    const reg = regOf(trigDuty(WEB, 'deploy-web.yml'), wfDuty(ID));
+    assert.deepEqual(redSinceDomain(reg).map((r) => r.id), [ID], 'admission to a blocking alarm may never default to yes');
+    const r = evaluateRedSince(reg, probesOf({ [ID]: { success: OK_NEW, failure: BAD } }), null);
+    assert.equal(r.stats.trigger, 0);
+    assert.ok(
+      r.prints.some((p) => /NOT GRADED · duty\.workflow\.deploy-web\.yml — no workflow-dispatch derivation was supplied/.test(p)),
+      'failing closed in silence is the same shrink wearing a safer hat',
+    );
+  });
+
+  // ── the split: REDNESS is graded, STALENESS is not ─────────────────────────
+  test('🔴 a `trigger` row may NOT carry the vocabulary of a clock — the staleness fields are REFUSED', () => {
+    // `cadenceDays("trigger")` is null, so every one of these is arithmetic with
+    // no operand. Inert today is not the argument: the danger is a later limb
+    // widening its domain and finding a window it can believe.
+    for (const [field, value] of [
+      ['missedRunsTolerated', 2],
+      ['firstDue', '2026-12-01T00:00:00Z'],
+      ['timer', { reader: 'cloudflare-d1-heartbeat', table: 'cron_heartbeat', wrangler: 'w.jsonc', job: 'x' }],
+    ]) {
+      const row = trigDuty(WEB, 'deploy-web.yml');
+      row.mechanism.recordQuery[field] = value;
+      const errs = redSinceTriggerShape(regOf(row));
+      assert.equal(errs.length, 1, `\`${field}\` on a clockless row was accepted`);
+      assert.match(errs[0], new RegExp(`recordQuery\\.${field}\`? on a`));
+      assert.match(errs[0], /grades\s+REDNESS/);
+      assert.match(errs[0], /never staleness/);
+    }
+    // GREEN CONTROL: the shape the committed rows actually use passes.
+    assert.deepEqual(redSinceTriggerShape(regOf(trigDuty(WEB, 'deploy-web.yml'))), []);
+  });
+
+  test('🔴 `event: workflow_dispatch` is refused on a trigger row too — a hand-press is never a duty\'s evidence', () => {
+    // [14]O-3 makes this refusal on a SCHEDULED row and never sees a trigger one.
+    // Stated here so the field cannot be carried in on a clockless row and then
+    // land in the freshness limb whole when somebody flips the cadence.
+    const row = trigDuty(WEB, 'deploy-web.yml');
+    row.mechanism.recordQuery.event = 'workflow_dispatch';
+    const errs = redSinceTriggerShape(regOf(row));
+    assert.equal(errs.length, 1);
+    assert.match(errs[0], /somebody pressed a button/);
+
+    const noBranch = trigDuty(WEB, 'deploy-web.yml');
+    delete noBranch.mechanism.recordQuery.headBranch;
+    assert.match(redSinceTriggerShape(regOf(noBranch))[0], /names no `workflow` and\/or no `headBranch`/);
+
+    const wrongReader = trigDuty(WEB, 'deploy-web.yml');
+    wrongReader.mechanism.recordQuery.reader = 'glitchtip-heartbeat';
+    assert.match(redSinceTriggerShape(regOf(wrongReader))[0], /only record a clockless workflow duty has is its RUN HISTORY/);
+  });
+
+  test('the shape errors REACH `errors`, so a malformed trigger row fails the build rather than printing', () => {
+    const row = trigDuty(WEB, 'deploy-web.yml');
+    row.mechanism.recordQuery.firstDue = '2026-12-01T00:00:00Z';
+    const r = evaluateRedSince(regOf(row, wfDuty(ID)), probesOf({ [ID]: { success: OK_NEW, failure: BAD } }), null, new Set(['deploy-web.yml']));
+    assert.equal(r.errors.length, 1);
+    assert.match(r.errors[0], /recordQuery\.firstDue/);
+  });
+
+  // ── the tree, which is the only place the derivation can be wrong ─────────
+  test('the COMMITTED tree really does put both deploy lanes in this domain, and keeps ci.yml out', () => {
+    // The ratchet. If `workflow_dispatch:` is ever removed from a deploy
+    // workflow, or a deploy row loses its `recordQuery`, THIS is what goes red
+    // rather than the alarm quietly shrinking to the seven nightly proofs.
+    const dispatchable = dispatchableWorkflows(REPO_ROOT);
+    assert.ok(dispatchable.has('deploy-web.yml'), '.github/workflows/deploy-web.yml no longer declares `workflow_dispatch` — a red web deploy now has no exit but a merge');
+    assert.ok(dispatchable.has('deploy-workers.yml'), '.github/workflows/deploy-workers.yml no longer declares `workflow_dispatch`');
+    assert.equal(dispatchable.has('ci.yml'), false, 'ci.yml has grown a `workflow_dispatch` — re-read the deadlock argument before letting it into this domain');
+    assert.equal(dispatchable.has('site-drift-repair.yml'), false, 'site-drift-repair.yml has grown a `workflow_dispatch` — same re-read');
+
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    const ids = redSinceDomain(real, dispatchable).map((r) => r.id);
+    assert.ok(ids.includes('duty.workflow.deploy-web.yml'), 'the web deploy lane has fallen out of the RED-SINCE domain — the 2026-09-09 defect is back');
+    assert.ok(ids.includes('duty.workflow.deploy-workers.yml'), 'the workers deploy lane has fallen out of the RED-SINCE domain');
+    assert.equal(ids.includes('duty.workflow.ci.yml'), false);
+    assert.equal(ids.includes('duty.workflow.site-drift-repair.yml'), false);
+
+    const census = redSinceTriggerCensus(real, dispatchable);
+    assert.deepEqual(census.admitted.sort(), ['duty.workflow.deploy-web.yml', 'duty.workflow.deploy-workers.yml']);
+    assert.equal(census.excluded.length, 2, 'the committed register has exactly two trigger rows with no non-merge exit');
+    assert.ok(census.excluded.every((l) => /declares NO `workflow_dispatch`/.test(l)), 'every exclusion must carry the derived reason');
+  });
+
+  test('`rowWorkflowFile` reads the anchor when there is no recordQuery — so an unqueried row still gets a REASON', () => {
+    // `duty.workflow.ci.yml` carries no `recordQuery`, and "this row names no
+    // workflow" would be a uselessly true exclusion line. The anchor is what
+    // lets the census say WHY ci.yml is out rather than merely that it is.
+    assert.equal(rowWorkflowFile({ mechanism: { anchor: '.github/workflows/ci.yml' } }), 'ci.yml');
+    assert.equal(rowWorkflowFile({ mechanism: { anchor: 'renovate.json' } }), null);
+    assert.equal(rowWorkflowFile({ mechanism: { anchor: '.github/workflows/x.yml', recordQuery: { workflow: 'y.yml' } } }), 'y.yml', 'the query wins: it is what the probe actually reads');
   });
 });
