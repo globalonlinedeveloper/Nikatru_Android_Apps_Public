@@ -1250,6 +1250,184 @@ export function applyHomeGrid(html, liveApps) {
   return `${html.slice(0, start + HOME_GRID_OPEN.length)}\n${homeAppsGrid(liveApps)}\n${html.slice(end)}`;
 }
 
+// -----------------------------------------------------------------------------
+// THE PRICE LIST - sites/nikatru/pricing.html's numbers, spliced from RAIL_CONFIG
+//
+// 🔴 UNTIL 2026-09-09 THIS PAGE WAS THE SECOND HOME OF EVERY PRICE, AND NOTHING
+// COULD SEE IT. `RAIL_CONFIG`'s own comment above calls itself "the ONE place a
+// price exists in this repository", and then says, three lines later, that
+// "`sites/nikatru/pricing.html`'s numbers were copied out of it". Both halves
+// were true, and the second one is the defect: a copy is a copy.
+//
+// It survived every guard, each for its own reason:
+//   - `assert-no-price-literals.mjs` scans `apps/`, `packages/` and
+//     `tooling/bricks`. `sites/` was never in its roots.
+//   - `assert-render-payload.mjs` and `assert-discovery-surface.mjs` re-derive
+//     the prices on the GENERATED landing page. This page is hand-written, so
+//     they compared it against nothing.
+//   - `assert-policy-archive.mjs` version-gates `privacy.html`, not this one.
+// So moving `amount_minor` moved the app, the served config, the landing page
+// and the render payload - and left the page a buyer actually reads, and the one
+// Paddle carries as its default payment link, quoting the old number. That is
+// the [pipeline 5]M-11 defect exactly, one surface further out.
+//
+// ⚠️ IT IS SPLICED, NOT REGENERATED, for the reason chrome.mjs is spliced: the
+// page is hand-written argument - refunds, taxes, what renewal means - and
+// moving all of it into a generator to derive four numbers would trade a small
+// duplication for a large one. Three regions, each the smallest span holding a
+// price.
+// -----------------------------------------------------------------------------
+
+/** The three spliced spans on `pricing.html`. Same sentinel discipline as
+ *  `HOME_GRID_OPEN`: exactly one pair each, and a missing pair REFUSES. */
+export const PRICING_REGIONS = ['meta', 'plans', 'table'];
+export const pricingOpen = (region) => `<!-- PRICING:${region} -->`;
+export const pricingClose = (region) => `<!-- /PRICING:${region} -->`;
+
+/**
+ * The offerings the price list is FOR.
+ *
+ * 🔴 ONE PAGE, ONE PRICED APP, AND IT IS ASSERTED RATHER THAN ASSUMED.
+ * `/pricing` is a single site-wide URL - the one a merchant of record verifies,
+ * and the one every generated landing links to with `?app=<slug>` attached. It
+ * can render exactly one SKU set. Today `subscriptiontracker` is the only app
+ * whose paywall declares offerings, so the question does not arise; the moment a
+ * second one does, this REFUSES rather than silently rendering whichever came
+ * first out of the catalogue. The fix then is a per-app price list, and that is
+ * a decision - not something this function may take on a reader's behalf.
+ *
+ * @returns {{slug: string, offerings: object[], paywallEnabled: boolean}|null}
+ */
+export function pricedApp(ctx, liveApps, problems) {
+  const priced = [];
+  for (const app of liveApps) {
+    const { offerings, paywallEnabled } = commerceFor(ctx.rail, app.slug, problems);
+    if (offerings.length > 0) priced.push({ slug: app.slug, offerings, paywallEnabled });
+  }
+  if (priced.length > 1) {
+    problems.push(
+      `${PRICING_PAGE} is ONE page and ${priced.length} live apps declare offerings ` +
+        `(${priced.map((p) => p.slug).join(', ')}). A single price list cannot carry two SKU sets, and ` +
+        'picking one would show the other app\u2019s buyers a price that is not theirs. Split the price ' +
+        'list per app, or leave the second app with no offerings until it has its own page.',
+    );
+    return null;
+  }
+  return priced[0] ?? null;
+}
+
+/** `<meta name="description">`, carrying the headline prices and the trial. */
+export function pricingMeta(app) {
+  if (app === null || app.offerings.length === 0) {
+    return '<meta name="description" content="Pricing for Nikatru apps. Nothing is sold from this website today.">';
+  }
+  const trial = Math.max(...app.offerings.map((o) => o.trialDays ?? 0));
+  const parts = app.offerings.map((o) => (o.term.unit ? `${o.amount}/${o.term.unit}` : `${o.amount} once`));
+  const trialWords = trial > 0 ? ` with a ${trial}-day free trial` : '';
+  return `<meta name="description" content="Pricing for Nikatru apps. Free plan, and Pro at ${esc(parts.join(' or '))}${trialWords}.">`;
+}
+
+/** The plan cards: one Free card, then one card per offering. */
+export function pricingPlans(app) {
+  if (app === null || app.offerings.length === 0) {
+    return '    <p>No plan is on sale from this website today.</p>';
+  }
+  const code = app.offerings[0].code;
+  const free = `    <div class="plan">
+      <h3>Free</h3>
+      <div class="price">${esc(zero(code))}</div>
+      <div class="sub">No card required</div>
+      <ul>
+        <li>Track your subscriptions</li>
+        <li>See monthly and yearly totals</li>
+        <li>Renewal dates at a glance</li>
+        <li>Sign in on any device</li>
+      </ul>
+    </div>`;
+  const cards = app.offerings.map((o) => {
+    const trial = (o.trialDays ?? 0) > 0 ? `<span class="tag">${o.trialDays}-DAY TRIAL</span>` : '';
+    const per = o.term.unit ? ` <small>/ ${esc(o.term.unit)}</small>` : ' <small>once</small>';
+    // The highlight follows the TERM, never a position in the list. `year` is
+    // the plan every surface leads with, and deriving it from `o.term` means
+    // reordering the offerings cannot silently move the emphasis onto a SKU
+    // nobody chose to lead with.
+    const hi = o.term.heading === TERM_NAMES.get('year').heading ? ' hi' : '';
+    return `    <div class="plan${hi}">
+      <h3>${esc(o.term.heading)} ${trial}</h3>
+      <div class="price">${esc(o.amount)}${per}</div>
+      <div class="sub">${esc(o.term.renews)}</div>
+      <ul>
+        <li>Everything in Free</li>
+        <li>Renewal reminders before you are charged</li>
+        <li>Budgets across all your subscriptions</li>
+        <li>Export your data</li>
+      </ul>
+    </div>`;
+  });
+  return [free, ...cards].join('\n');
+}
+
+/** The plan-details table. */
+export function pricingTable(app) {
+  const head = '    <tr><th>Plan</th><th>Price</th><th>Billing</th><th>Free trial</th></tr>';
+  if (app === null || app.offerings.length === 0) return head;
+  const code = app.offerings[0].code;
+  const rows = [`    <tr><td>Free</td><td>${esc(zero(code))}</td><td>&mdash;</td><td>&mdash;</td></tr>`];
+  for (const o of app.offerings) {
+    const billing = o.term.unit ? `Every ${esc(o.term.unit)}` : 'One-time payment';
+    const trial = (o.trialDays ?? 0) > 0 ? `${o.trialDays} days` : '&mdash;';
+    rows.push(
+      `    <tr><td>Pro ${esc(o.term.heading)}</td><td>${esc(o.amount)}</td><td>${billing}</td><td>${trial}</td></tr>`,
+    );
+  }
+  return [head, ...rows].join('\n');
+}
+
+/**
+ * Splice all three regions into the price list.
+ *
+ * 🔴 REFUSES on a missing or duplicated sentinel pair, exactly as `applyHomeGrid`
+ * and `spliceRegion` do, and for the same reason: a splice that quietly does
+ * nothing leaves a PRICE on a served page while every count still includes the
+ * file. Deleting a marker must not become the way back to hand-maintaining a
+ * number.
+ *
+ * @param {string} html `pricing.html` as it is on disk
+ * @param {{slug: string, offerings: object[]}|null} app
+ * @returns {string}
+ */
+export function applyPricing(html, app) {
+  const bodies = new Map([
+    ['meta', pricingMeta(app)],
+    ['plans', pricingPlans(app)],
+    ['table', pricingTable(app)],
+  ]);
+  let out = html;
+  for (const region of PRICING_REGIONS) {
+    const open = pricingOpen(region);
+    const close = pricingClose(region);
+    const opens = out.split(open).length - 1;
+    const closes = out.split(close).length - 1;
+    if (opens !== 1 || closes !== 1) {
+      throw new Error(
+        `${PRICING_PAGE}: expected exactly one ${open} ... ${close} pair, found ${opens} opening and ` +
+          `${closes} closing sentinel(s). The price list's numbers are generated into that span from ` +
+          `${RAIL_CONFIG}; without the pair the page would keep whatever price it last had while this ` +
+          'generator still counted the file as written - which is the second-home defect this splice ends.',
+      );
+    }
+    const start = out.indexOf(open);
+    const end = out.indexOf(close);
+    if (end < start) {
+      throw new Error(
+        `${PRICING_PAGE}: the PRICING:${region} sentinels are reversed, which would replace the rest of the document.`,
+      );
+    }
+    out = `${out.slice(0, start + open.length)}\n${bodies.get(region)}\n${out.slice(end)}`;
+  }
+  return out;
+}
+
 /**
  * The whole plan, as bytes, without touching the disk. `assert-discovery-surface.mjs`
  * calls this and compares; the CLI below calls it and writes.
@@ -1396,6 +1574,11 @@ export function planDiscovery(repoRoot) {
       // The homepage takes ONE more spliced region than the rest: its app grid,
       // which used to be built in the browser. See `applyHomeGrid` above.
       if (rel === HOME_PAGE) out = applyHomeGrid(out, live);
+      // ... and the price list takes THREE more, for the prices themselves. See
+      // `applyPricing` above for why a hand-written page is spliced rather than
+      // generated, and why leaving those four numbers hand-maintained was a
+      // defect no guard in this repository could see.
+      if (rel === PRICING_PAGE) out = applyPricing(out, pricedApp(ctx, live, problems));
       files.set(rel, out);
       chromeOnly.add(rel);
     } catch (e) {
