@@ -39,9 +39,15 @@
 //   node tooling/ci/assert-glitchtip-project.mjs [--workflows <dir>] [--live]
 // Exit 0 = one literal project, everywhere. Exit 1 = it is not, and why.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// why: `listDir`, never `readdirSync`. tooling/ci/assert-walks-bounded.mjs holds
+// this for every guard, and the reason is measured: a bare listing descends into
+// a nested checkout — a git worktree, a submodule, a stray clone — and reads
+// another repository's workflows as this tree's. That is green in CI, which
+// creates no worktrees, and red on the one machine actually looking at it.
+import { listDir } from './tree-walk.mjs';
 
 const NAME = 'assert-glitchtip-project';
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -78,7 +84,7 @@ const PROJECT = /--project\s+(\S+)/;
 const DERIVED = /[$]|\$\{\{/;
 
 const sites = [];
-for (const f of readdirSync(WORKFLOWS).filter((n) => /\.ya?ml$/.test(n)).sort()) {
+for (const f of listDir(WORKFLOWS).filter((n) => /\.ya?ml$/.test(n)).sort()) {
   const lines = readFileSync(join(WORKFLOWS, f), 'utf8').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = PROJECT.exec(lines[i]);
