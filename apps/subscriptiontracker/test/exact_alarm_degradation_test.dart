@@ -349,7 +349,7 @@ List<Subscription> _subs(int n) {
         id: 'sub-id-$i',
         name: 'sub-$i',
         category: 'Other',
-        price: 10,
+        price: const Money(1000, 'USD'),
         cycle: BillingCycle.monthly,
         nextRenewal: base.add(Duration(days: i)),
       ),

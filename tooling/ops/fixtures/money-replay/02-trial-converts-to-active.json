@@ -1,0 +1,28 @@
+{
+  "provider": "paddle",
+  "note": "The trial ends and the first real charge lands. custom_data is repeated because Paddle carries it on the ENTITY; attribution does not depend on that (the provider_accounts link from 01 already exists), and repeating it keeps every subscription event resolvable on its own, so no ordering of this corpus can leave one unattributed.",
+  "payload": {
+    "event_id": "evt_replay000000000000000002",
+    "notification_id": "ntf_replay000000000000000002",
+    "event_type": "subscription.updated",
+    "occurred_at": "2026-08-15T00:00:00.000Z",
+    "data": {
+      "id": "sub_replayfixture0000000001",
+      "status": "active",
+      "current_billing_period": {
+        "starts_at": "2026-08-15T00:00:00.000Z",
+        "ends_at": "2026-09-15T00:00:00.000Z"
+      },
+      "items": [],
+      "custom_data": {
+        "nikatru_user_id": "replay-user-0001",
+        "nikatru_app_id": "subscriptiontracker"
+      },
+      "customer_id": "ctm_replayfixture0000000001",
+      "customer": {
+        "id": "ctm_replayfixture0000000001",
+        "email": "replay-fixture@example.invalid"
+      }
+    }
+  }
+}

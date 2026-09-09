@@ -4,11 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart';
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
-import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -42,11 +41,11 @@ class NotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Currency currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(l10n.localeName);
     final List<Subscription> subs =
         ref.watch(subscriptionsControllerProvider).valueOrNull ??
         const <Subscription>[];
-    final double savings = SubMath.savings(subs);
+    final MoneyBag savings = SubMath.savings(subs);
 
     final ThemeData theme = Theme.of(context);
     final bool isLight = theme.brightness == Brightness.light;
@@ -139,7 +138,7 @@ class NotificationsScreen extends ConsumerWidget {
               // placeholder map, and the plural SELECTOR is the second one here.
               : l10n.notifRenewsInDays(x.name, x.daysUntil(now)),
           l10n.notifChargeOn(
-            currency.fmt(x.price),
+            money.format(x.price),
             renewalDate.format(x.nextRenewal),
           ),
         ),
@@ -151,7 +150,7 @@ class NotificationsScreen extends ConsumerWidget {
           l10n.notifUnusedCount(flaggedUnused.length),
           l10n.notifCancellingSaves(
             flaggedUnused.length,
-            currency.fmt(savings),
+            money.formatBag(savings),
           ),
         ),
     ];

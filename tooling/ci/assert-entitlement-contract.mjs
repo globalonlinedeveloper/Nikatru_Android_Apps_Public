@@ -168,6 +168,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 import { stripSourceComments } from './text-reductions.mjs';
+import { parseSeededRows } from './sql-seed.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -361,6 +362,115 @@ const REQUIRED_UPSERT_WRITERS = [
   },
 ];
 
+// ── limbs 8–10's constants (the BUNDLE half, [ADR 057]) ──────────────────────
+
+/**
+ * LIMB 8 · the bundle tables. Same shape as REQUIRED_TABLES above and for the
+ * same reason: each column names the question that is unanswerable without it,
+ * and every one is permanent the instant a stranger buys a bundle.
+ *
+ * 🔴 `feature_set_version` IS THE ONE THIS LIMB EXISTS FOR. [ADR 057] §4 — a
+ * grant that records only a feature-set NAME resolves against whatever the
+ * register says today, so editing a config file silently changes a stranger's
+ * purchased rights, with no audit trail and no migration. Deleting that one
+ * column is the guard's own recorded failing input.
+ */
+const REQUIRED_BUNDLE_TABLES = [
+  {
+    table: 'bundle_grants',
+    why: '[ADR 057] §2 — the row that records the PURCHASE. A row that records only the access has thrown away which per-app grants were one subscription, and refunding, migrating, re-pricing and answering a customer all need that back',
+    columns: [
+      'grant_id',
+      'user_id',
+      'source',
+      'feature_set_name',
+      'feature_set_version',
+      'provider',
+      'provider_environment',
+      'provider_subscription_id',
+      'provider_status',
+      'last_event_id',
+      'occurred_at',
+      'expires_at',
+      'grace_until',
+      'revoked_at',
+      'revocation_reason',
+      'credit_days_applied',
+      'superseded_by',
+    ],
+    unique: null,
+    uniqueWhy: null,
+  },
+  {
+    table: 'bundle_sources',
+    why: '[ADR 057] §3 — the provenance enum, decided in the migration that creates it or never, because a grant whose provenance was not written at insert time is unclassifiable forever',
+    columns: ['source', 'requires_receipt'],
+    unique: null,
+    uniqueWhy: null,
+  },
+  {
+    table: 'feature_sets',
+    why: '[ADR 057] §4 — the pinned definitions. Retirement is a STATUS and never a DELETE: deleting a version strands every grant that pinned it, and the union read then resolves no members while a paying customer silently loses everything',
+    columns: ['name', 'version', 'minted_at', 'status'],
+    unique: null,
+    uniqueWhy: null,
+  },
+  {
+    table: 'feature_set_members',
+    why: 'the rows the union read JOINS to decide whether a bundle covers the product being asked about. `product_kind` is what keeps a new product CATEGORY a data change rather than a schema change — the bundle spans app | extension | script',
+    columns: ['name', 'version', 'product_slug', 'product_kind'],
+    unique: null,
+    uniqueWhy: null,
+  },
+];
+
+/**
+ * LIMB 8b · the NOT NULL columns. SQLite will not enforce a rowid PRIMARY KEY as
+ * NOT NULL and NULLs compare as distinct, so a nullable identity column turns an
+ * UPSERT into an APPEND — measured on the real `entitlements` DDL by [ADR 057]:
+ * three identical inserts, three rows, no error. `entitlements` cannot be fixed
+ * (additive-only, no ALTER PRIMARY KEY); `bundle_grants` is new, so the
+ * constraint is expressible and this limb requires it in the DDL text.
+ */
+const REQUIRED_NOT_NULL = [
+  ['bundle_grants', 'user_id', 'a grant with no subject is not a grant, it is an append nothing can revoke'],
+  ['bundle_grants', 'source', 'provenance that was not written at insert time cannot be inferred afterwards from any column'],
+  ['bundle_grants', 'feature_set_name', 'a grant with no pinned set resolves against the register, which is the exact silent-rights-change [ADR 057] §4 refuses'],
+  ['bundle_grants', 'feature_set_version', 'the VERSION is the pin. Without it the name resolves to whatever the register says today'],
+  ['feature_set_members', 'product_slug', 'a member row with no product names nothing and unlocks nothing'],
+  ['feature_set_members', 'product_kind', 'the category a slug came from is a fact about the sale, not a lookup'],
+];
+
+/** LIMB 9's runtime copy of the seeded `bundle_sources` set. */
+const BUNDLE_CONTRACT_JS = 'contracts/entitlement/bundle.js';
+const BUNDLE_CONTRACT_JSON = 'contracts/entitlement/bundle.json';
+
+/**
+ * LIMB 9's minimum source set. Five rails and two operator acts. Every rail is
+ * required even though only Paddle has an adapter today, for [ADR 057] §3's
+ * reason: a source that is not in the set on the day the first customer pays on
+ * that rail is unclassifiable forever, and there is no back-fill.
+ */
+const REQUIRED_BUNDLE_SOURCES = [
+  'paddle_subscription',
+  'razorpay_subscription',
+  'apple_iap',
+  'google_play_billing',
+  'microsoft_store',
+  'promo_code',
+  'owner_comp',
+];
+
+/**
+ * LIMB 10 · the bundle writer's ordering clause, VERBATIM after whitespace
+ * normalisation — the same tail 0004's writer carries, against the bundle
+ * table's own columns. A delayed retry of an older event must not re-grant a
+ * refunded bundle, and the comparison has to be IN THE SQL so there is no
+ * read-modify-write window two concurrent deliveries could both pass.
+ */
+const BUNDLE_ORDERING_CLAUSE =
+  'WHERE bundle_grants.occurred_at IS NULL OR excluded.occurred_at > bundle_grants.occurred_at';
+
 /**
  * The two instant canonicalisers. Named with the file that declares them so a
  * rename is a diff rather than a silent COVERAGE LOST.
@@ -539,126 +649,45 @@ for (const spec of REQUIRED_TABLES) {
 }
 
 // ── LIMB 3 · the revocation reason set, parsed from the seed's VALUES ────────
-const insertMatch = /INSERT\s+INTO\s+revocation_reasons\s*\(([^)]*)\)\s*VALUES/i.exec(codeWithStrings);
+//
+// ⏱ 2026-09-09 — the tuple scanner MOVED to tooling/ci/sql-seed.mjs, unchanged,
+// because 0009 added a SECOND seeded enum (`bundle_sources`, limb 9) and a second
+// transcription of this parser is the failure the contracts/ directory exists to
+// stop, one level up. MOVED CODE SILENCES GUARDS, so the move was proved rather
+// than assumed: the 79 cases in tooling/ci/test/entitlement-contract.test.mjs ran
+// GREEN against the pre-move file, and EC3, EC6, EC7 and EC9 — the mutations that
+// make this limb bite — were re-run against the moved one and still go RED.
+// The three traps the scanner survives are documented at its new home.
+const seedRead = parseSeededRows(codeWithStrings, 'revocation_reasons');
 let seeded = new Map(); // reason -> restores(boolean)
-if (!insertMatch) {
+if (!seedRead.ok) {
   fail(
     'no `INSERT INTO revocation_reasons (…) VALUES …` seed found. [5]M-3: the reason set is decided in the ' +
       'migration or never — rows written before a value exists are unclassifiable forever, and there is no back-fill.',
   );
+} else if (!seedRead.columns.includes('reason') || !seedRead.columns.includes('restores_access')) {
+  fail('the revocation_reasons seed does not name both `reason` and `restores_access` columns.');
 } else {
-  const header = insertMatch[1].split(',').map((s) => s.trim().replace(/["'`[\]]/g, ''));
-  const reasonIdx = header.indexOf('reason');
-  const restoresIdx = header.indexOf('restores_access');
-  if (reasonIdx === -1 || restoresIdx === -1) {
-    fail('the revocation_reasons seed does not name both `reason` and `restores_access` columns.');
-  } else {
-    // Everything from VALUES to the statement terminator, split into tuples.
-    //
-    // ⚠️ STRING LITERALS ARE TRACKED WHILE COUNTING PARENTHESES, and that is not
-    // fussiness. This view of the SQL keeps strings (limb 3 is ABOUT the string
-    // values), and the seeded descriptions are English sentences that contain
-    // both parentheses — "(stage 13)" — and commas. The first version of this
-    // scanner counted every `(` including the ones inside a description, which
-    // desynchronised the depth counter and made it read the COLUMN NAME `reason`
-    // as a seeded value. It failed loudly rather than passing wrongly, which is
-    // the right direction, but a parser that miscounts can fail in the other
-    // direction just as easily.
-    const after = codeWithStrings.slice(insertMatch.index + insertMatch[0].length);
-    const semi = (() => {
-      let inStr = false;
-      for (let i = 0; i < after.length; i++) {
-        if (after[i] === "'") {
-          if (inStr && after[i + 1] === "'") { i++; continue; }
-          inStr = !inStr;
-        } else if (after[i] === ';' && !inStr) return i;
-      }
-      return after.length;
-    })();
-    // …and stop at the conflict clause. `ON CONFLICT(reason) DO NOTHING` ends
-    // the statement with a PARENTHESISED COLUMN LIST, which a tuple scanner
-    // reads as one more VALUES tuple — so the guard "found" a seeded reason
-    // called `reason` and reported it as drift against the TypeScript set.
-    // Caught by running the guard against the real tree before writing a line of
-    // its tests: the fixture that would have exercised this is the fixture
-    // nobody thinks to write, because the bug is in the parser rather than in
-    // the thing being parsed.
-    const stmt = (() => {
-      const body = after.slice(0, semi);
-      let inStr = false;
-      for (let i = 0; i < body.length; i++) {
-        if (body[i] === "'") {
-          if (inStr && body[i + 1] === "'") { i++; continue; }
-          inStr = !inStr;
-          continue;
-        }
-        if (!inStr && /^ON\s+CONFLICT\b/i.test(body.slice(i, i + 20))) return body.slice(0, i);
-      }
-      return body;
-    })();
-
-    /** Top-level tuples, and within each, top-level comma-separated parts. */
-    const tuples = [];
-    {
-      let depth = 0;
-      let inStr = false;
-      let cur = '';
-      for (let i = 0; i < stmt.length; i++) {
-        const ch = stmt[i];
-        if (ch === "'") {
-          if (inStr && stmt[i + 1] === "'") { cur += "''"; i++; continue; }
-          inStr = !inStr;
-          if (depth >= 1) cur += ch;
-          continue;
-        }
-        if (!inStr && ch === '(') {
-          depth++;
-          if (depth === 1) { cur = ''; continue; }
-        }
-        if (!inStr && ch === ')') {
-          depth--;
-          if (depth === 0) { tuples.push(cur); continue; }
-        }
-        if (depth >= 1) cur += ch;
-      }
+  for (const row of seedRead.rows) {
+    const reason = row.reason ?? '';
+    if (reason) seeded.set(reason, (row.restores_access ?? '').trim() === '1');
+  }
+  if (seeded.size === 0) {
+    fail('COVERAGE LOST — the revocation_reasons seed was found but no VALUES tuple could be parsed out of it.');
+  }
+  for (const r of REQUIRED_REASONS) {
+    if (!seeded.has(r)) {
+      fail(
+        `revocation reason '${r}' is NOT seeded. [5]M-3: the set is permanent once rows exist. ` +
+          (r === 'chargeback_reversed'
+            ? 'This is the one member that RESTORES access — without it a customer who lost a dispute they raised in error stays locked out forever.'
+            : ''),
+      );
     }
-    for (const t of tuples) {
-      const parts = [];
-      let inStr = false;
-      let piece = '';
-      for (let i = 0; i < t.length; i++) {
-        const ch = t[i];
-        if (ch === "'") {
-          if (inStr && t[i + 1] === "'") { piece += "''"; i++; continue; }
-          inStr = !inStr;
-          piece += ch;
-          continue;
-        }
-        if (ch === ',' && !inStr) { parts.push(piece); piece = ''; continue; }
-        piece += ch;
-      }
-      parts.push(piece);
-      const reason = (parts[reasonIdx] ?? '').trim().replace(/^'|'$/g, '');
-      const restores = (parts[restoresIdx] ?? '').trim() === '1';
-      if (reason) seeded.set(reason, restores);
-    }
-    if (seeded.size === 0) {
-      fail('COVERAGE LOST — the revocation_reasons seed was found but no VALUES tuple could be parsed out of it.');
-    }
-    for (const r of REQUIRED_REASONS) {
-      if (!seeded.has(r)) {
-        fail(
-          `revocation reason '${r}' is NOT seeded. [5]M-3: the set is permanent once rows exist. ` +
-            (r === 'chargeback_reversed'
-              ? 'This is the one member that RESTORES access — without it a customer who lost a dispute they raised in error stays locked out forever.'
-              : ''),
-        );
-      }
-    }
-    const restoring = [...seeded].filter(([, v]) => v).map(([k]) => k);
-    if (restoring.length === 0) {
-      fail('no seeded revocation reason has `restores_access = 1`. Nothing in this rail would ever give access back.');
-    }
+  }
+  const restoring = [...seeded].filter(([, v]) => v).map(([k]) => k);
+  if (restoring.length === 0) {
+    fail('no seeded revocation reason has `restores_access = 1`. Nothing in this rail would ever give access back.');
   }
 }
 
@@ -1426,6 +1455,295 @@ let rcSwept = 0;
   }
 }
 // ── report ───────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// THE BUNDLE HALF — limbs 8, 9 and 10. [ADR 057], landed 2026-09-09 by
+// services/platform/migrations/0009_bundle_grants.sql.
+//
+// These are limbs 1, 3+4 and 5 again, aimed at the second half of the money
+// schema. They are limbs of THIS file rather than a new guard because the
+// property is one property: `entitlements` and `bundle_grants` are the two
+// tables the union read combines, they share a revocation vocabulary and an
+// ordering rule, and a guard that graded one of them while the other drifted
+// would be the exact split this file's limb 5 already exists to prevent.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── LIMB 8 · the bundle tables exist, with the columns and the NOT NULLs ─────
+{
+  let graded = 0;
+  for (const spec of REQUIRED_BUNDLE_TABLES) {
+    const cols = tables.get(spec.table);
+    if (!cols || !createdTables.has(spec.table)) {
+      fail(
+        `table \`${spec.table}\` — MISSING. ${spec.why}. The bundle read resolves nothing without it, and a ` +
+          'grant written against a table that does not exist is a purchase with no record.',
+      );
+      continue;
+    }
+    graded += 1;
+    for (const c of spec.columns) {
+      if (!cols.has(c)) fail(`${spec.table}.${c} — MISSING. ${spec.why}.`);
+    }
+  }
+  if (graded === 0) {
+    fail(
+      `COVERAGE LOST — limb 8 graded ZERO of its ${REQUIRED_BUNDLE_TABLES.length} bundle table(s). Either the ` +
+        'migration set is unreadable or every table is gone; both make every column assertion above vacuous.',
+    );
+  }
+
+  // 🔴 THE NOT NULLs, READ OUT OF THE DDL TEXT. A rowid PRIMARY KEY does not imply
+  // NOT NULL in SQLite and NULLs compare as distinct, so a nullable identity column
+  // turns an UPSERT into an APPEND: [ADR 057] measured three identical inserts
+  // producing THREE ROWS with no error on the real `entitlements` DDL, while the
+  // same statement with a non-null key was refused. `entitlements` can never be
+  // fixed — migrations are additive-only and SQLite has no ALTER PRIMARY KEY — so
+  // this limb is the only place the constraint can be REQUIRED, and it is required
+  // on the table that is still new enough to carry it.
+  //
+  // ⚠️ THE COLUMN'S OWN LINE, not the table body. A body-wide search for `NOT NULL`
+  // passes as long as ANY column has one, which is the shape of a check that stops
+  // checking the moment the wrong column keeps it.
+  let notNullGraded = 0;
+  for (const [table, column, why] of REQUIRED_NOT_NULL) {
+    const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${table}\\b`, 'i').exec(code);
+    if (create === null) continue; // already reported as a MISSING table above
+    const body = balanced(code, create.index + create[0].length);
+    const line = body
+      .split(',')
+      .map((s) => s.trim())
+      .find((s) => new RegExp(`^${column}\\b`).test(s));
+    notNullGraded += 1;
+    if (line === undefined) continue; // already reported as a MISSING column above
+    if (!/NOT\s+NULL/i.test(line)) {
+      fail(
+        `${table}.${column} is NULLABLE. ${why}. [ADR 057] measured the consequence on the real DDL: three ` +
+          'identical inserts with a NULL key column produced THREE ROWS, no error, no warning — an upsert ' +
+          'silently became an append, and a retried webhook would multiply a paying customer’s rows forever ' +
+          'while every response stayed 200.',
+      );
+    }
+  }
+  if (notNullGraded === 0) {
+    fail(
+      `COVERAGE LOST — limb 8 read ZERO of its ${REQUIRED_NOT_NULL.length} NOT NULL column(s) out of the DDL. ` +
+        'The NULL trap is unchecked and the parser, not the schema, is what changed.',
+    );
+  }
+}
+
+// ── LIMB 9 · the bundle source enum: SQL == every runtime copy, BOTH ways ────
+//
+// Limbs 3 and 4 again, for the second seeded enum. Same argument, and one extra:
+// `requires_receipt` is the machine-readable half of "no entitlement without a
+// verified receipt". A copy that keeps all seven names and flips ONE flag to
+// false turns a paid rail into one that will mint a grant from nothing, and it
+// looks correct in a diff — which is exactly why `restores` is compared rather
+// than just the names on the revocation set one limb up.
+let bundleSourcesSeeded = new Map(); // source -> requiresReceipt(boolean)
+let bundleCopiesCompared = 0;
+{
+  const read = parseSeededRows(codeWithStrings, 'bundle_sources');
+  if (!read.ok) {
+    fail(
+      'no `INSERT INTO bundle_sources (…) VALUES …` seed found. [ADR 057] §3: the source set is decided in the ' +
+        'migration that creates it or never — a grant whose provenance was not written at insert time is ' +
+        'unclassifiable forever, and there is no back-fill for a fact the provider only ever sent once.',
+    );
+  } else if (!read.columns.includes('source') || !read.columns.includes('requires_receipt')) {
+    fail('the bundle_sources seed does not name both `source` and `requires_receipt` columns.');
+  } else {
+    for (const row of read.rows) {
+      const s = row.source ?? '';
+      if (s) bundleSourcesSeeded.set(s, (row.requires_receipt ?? '').trim() === '1');
+    }
+    if (bundleSourcesSeeded.size === 0) {
+      fail('COVERAGE LOST — the bundle_sources seed was found but no VALUES tuple could be parsed out of it.');
+    }
+    for (const s of REQUIRED_BUNDLE_SOURCES) {
+      if (!bundleSourcesSeeded.has(s)) {
+        fail(
+          `bundle source '${s}' is NOT seeded. [ADR 057] §3: the set is permanent once rows exist, and a rail ` +
+            'that is not in it on the day its first customer pays is unclassifiable forever. Every rail is ' +
+            'seeded before its adapter exists precisely so adding the adapter is a verifier and a price id, ' +
+            'never a migration.',
+        );
+      }
+    }
+    // 🔴 AT LEAST ONE SOURCE MUST REQUIRE EVIDENCE. A set in which every member is
+    // exempt is a set that permits a grant from nothing, and it satisfies every
+    // name-based check above.
+    if (![...bundleSourcesSeeded.values()].some((v) => v === true)) {
+      fail(
+        'NO SEEDED BUNDLE SOURCE REQUIRES A RECEIPT. "No entitlement without a verified receipt" would then be ' +
+          'a rule with no member it applies to, and every rail could mint a grant from nothing.',
+      );
+    }
+    // …and at least one must NOT, or the two operator paths (a promo code, an
+    // owner comp) have no representation and would have to be smuggled in as a
+    // fake rail — which is how an exemption stops being auditable.
+    if (![...bundleSourcesSeeded.values()].some((v) => v === false)) {
+      fail(
+        'EVERY SEEDED BUNDLE SOURCE REQUIRES A RECEIPT, so a promo code or an owner comp has no honest ' +
+          'representation. An exemption that is written down can be audited; one that is not gets smuggled in ' +
+          'as a fake rail and becomes indistinguishable from the bug.',
+      );
+    }
+  }
+
+  // The runtime copies. A MISSING file is COVERAGE LOST, never a quiet pass —
+  // same rule limb 4 applies to its five.
+  const BUNDLE_COPIES = [
+    {
+      file: BUNDLE_CONTRACT_JS,
+      why: 'THE AUTHORED COPY — the plain ES module the Worker twin and the node tooling both import',
+      parse: (src) => {
+        const arr = /BUNDLE_SOURCES\s*=\s*\[([\s\S]*?)\n\]/.exec(src);
+        const out = new Map();
+        if (!arr) return out;
+        for (const m of arr[1].matchAll(/source:\s*'([^']+)'\s*,\s*requiresReceipt:\s*(true|false)/g)) {
+          out.set(m[1], m[2] === 'true');
+        }
+        return out;
+      },
+    },
+    {
+      file: BUNDLE_CONTRACT_JSON,
+      why: 'the generated machine-readable form, held to bundle.js by generate-bundle.mjs --check',
+      parse: (src) => {
+        const out = new Map();
+        let doc;
+        try { doc = JSON.parse(src); } catch { return out; }
+        for (const row of doc?.bundleSources ?? []) {
+          if (typeof row?.source === 'string') out.set(row.source, row.requiresReceipt === true);
+        }
+        return out;
+      },
+    },
+  ];
+
+  for (const copy of BUNDLE_COPIES) {
+    const abs = join(ROOT, copy.file);
+    if (!existsSync(abs)) {
+      fail(`COVERAGE LOST — ${copy.file} does not exist (${copy.why}), so limb 9 compared the seed against it not at all.`);
+      continue;
+    }
+    const parsed = copy.parse(readFileSync(abs, 'utf8'));
+    if (parsed.size === 0) {
+      fail(
+        `COVERAGE LOST — ${copy.file} parsed to ZERO bundle sources (${copy.why}). An empty set agrees with ` +
+          'nothing and disagrees with nothing; it is the parser having stopped reading, not a set that matches.',
+      );
+      continue;
+    }
+    bundleCopiesCompared += 1;
+    if (bundleSourcesSeeded.size === 0) continue; // limb already failed loudly above
+    // 🔴 BOTH DIRECTIONS. A one-way check passes a copy that has every seeded
+    // member PLUS an invented one — which is a source the database will never
+    // classify and which a reader would render as a real provenance.
+    for (const [s, requires] of bundleSourcesSeeded) {
+      if (!parsed.has(s)) {
+        fail(`bundle source '${s}' is seeded in SQL but missing from ${copy.file}. ${copy.why}.`);
+      } else if (parsed.get(s) !== requires) {
+        fail(
+          `bundle source '${s}' — SQL says requires_receipt=${requires ? 1 : 0}, ${copy.file} says ` +
+            `requiresReceipt=${parsed.get(s)}. THIS IS THE FIELD THAT MATTERS: it decides whether a grant from ` +
+            'this source is legitimate without a verified receipt, and a copy that flips it turns a paid rail ' +
+            'into one that mints access from nothing.',
+        );
+      }
+    }
+    for (const s of parsed.keys()) {
+      if (!bundleSourcesSeeded.has(s)) {
+        fail(
+          `${copy.file} declares bundle source '${s}', which is NOT seeded in the migration. A grant written ` +
+            'with it would carry a provenance the database has no row for, and nothing could ever say what it means.',
+        );
+      }
+    }
+  }
+  if (bundleCopiesCompared === 0) {
+    fail(
+      `COVERAGE LOST — limb 9 compared the seed against ZERO of its ${BUNDLE_COPIES.length} runtime copies, so ` +
+        '"the SQL set equals the runtime set" was asserted over nothing.',
+    );
+  }
+}
+
+// ── LIMB 10 · ONE writer into bundle_grants, carrying the ordering clause ────
+//
+// Limb 5 again, for the second table. The sweep is over the SAME tree (`services/`,
+// every deployed Worker) for the same recorded reason: the rail that does NOT own
+// the table is the one that got missed.
+//
+// 🔴 AND THE CEILING IS ONE, NOT "AT LEAST ONE". Two writers to one table drift
+// about what "older" means — which is exactly why limb 5 exists for `entitlements`
+// and why [ADR 057] §5 refuses to materialise bundle grants back into it. The
+// bundle table is new, so the stronger constraint is still available: exactly one
+// upsert, in one file, or the guard says so.
+{
+  const bundleWrites = new Map(); // file -> [statement, …]
+  if (!existsSync(scanRoot)) {
+    fail(
+      `COVERAGE LOST — ${WRITER_SCAN.dir}/ does not exist (${WRITER_SCAN.label}), so limb 10 swept no writers ` +
+        'at all and "exactly one writer" was asserted over an empty tree.',
+    );
+  } else {
+    // 🔴 `stringSpans`, NOT `blankSpans`, and the difference is the whole limb.
+    // The SQL lives INSIDE a template literal, so the view that BLANKS string
+    // spans erases the very thing being looked for — the scan then finds nothing,
+    // reports "no writer yet", and prints a clean run over a real second writer.
+    // Measured: the first version of this limb used `blankSpans` and every one of
+    // its three mutations (a second writer, a writer with the ordering clause
+    // deleted, a writer at all) came back exit 0. Limb 5 has iterated
+    // `stringSpans` since it was written, for exactly this reason.
+    for (const abs of tsSourcesUnder(scanRoot)) {
+      const rel = abs.replace(ROOT, '').replace(/^[\\/]/, '').replaceAll('\\', '/');
+      const src = stripSourceComments(readFileSync(abs, 'utf8'), '.ts');
+      for (const span of stringSpans(src)) {
+        if (!/INSERT\s+INTO\s+bundle_grants\b/i.test(span.text)) continue;
+        if (!bundleWrites.has(rel)) bundleWrites.set(rel, []);
+        bundleWrites.get(rel).push(span.text);
+      }
+    }
+
+    const total = [...bundleWrites.values()].reduce((n, a) => n + a.length, 0);
+    if (total === 0) {
+      // NOT a failure, and the distinction is the point: the writer is a later
+      // unit than the schema, and a guard that demanded it on the day the tables
+      // landed would have to be waived on that day — which is how a guard learns
+      // to be waived. It PRINTS, so the gap cannot become permanent by silence.
+      console.log(
+        '⬜  limb 10 — NO writer into `bundle_grants` exists yet. The schema landed before the writer by ' +
+          'design ([ADR 057] fixes the mechanism; the rails come after). This limb becomes load-bearing the ' +
+          'moment one appears, and it PRINTS on every run until then so the gap cannot become permanent by ' +
+          'being quiet.',
+      );
+    } else {
+      if (total > 1 || bundleWrites.size > 1) {
+        fail(
+          `${total} INSERT(s) into \`bundle_grants\` across ${bundleWrites.size} file(s) ` +
+            `(${[...bundleWrites.keys()].join(', ')}). [ADR 057] §5: ONE WRITER PER TABLE. Two writers drift ` +
+            'about what "older" means, and then two concurrent deliveries race over one grant — the failure ' +
+            'limb 5 exists for on `entitlements`, repeated on the table that was new enough to prevent it.',
+        );
+      }
+      for (const [rel, stmts] of bundleWrites) {
+        for (const stmt of stmts) {
+          if (!norm(stmt).includes(BUNDLE_ORDERING_CLAUSE)) {
+            fail(
+              `${rel} — the \`bundle_grants\` upsert does not carry the ordering clause verbatim ` +
+                `(\`${BUNDLE_ORDERING_CLAUSE}\`). [5]M-2: no rail guarantees delivery order, and a delayed ` +
+                "retry of an older event re-grants a refunded bundle. The comparison has to be IN THE SQL — a " +
+                'read-modify-write in TypeScript leaves a window two concurrent deliveries can both pass.',
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+
 if (problems.length) {
   console.error(`✗ entitlement contract — ${problems.length} problem(s):`);
   for (const p of problems) console.error(`    ${p}`);
@@ -1440,6 +1758,7 @@ if (problems.length) {
   console.error("  [5]M-2 Ordering is the provider's clock, and it is the SAME clause in both writers.");
   process.exit(1);
 }
+
 
 console.log(
   `ok  entitlement contract — ${files.length} migration file(s); entitlements carries ${ent.size} column(s) ` +

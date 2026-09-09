@@ -215,17 +215,43 @@ describe('[14]O-5 · LIMB A — the firing history must be READABLE (fail-closed
     return spawnSync(process.execPath, args, { cwd: REPO, encoding: 'utf8', env: { ...base, ...env } });
   };
 
+  // 🔴 EVERY ASSERTION IN THIS BLOCK IS `status === 2`, NOT MERELY `!== 0`.
+  //    Until 2026-09-09 they all asserted 1, and 1 is this guard's code for an
+  //    ANSWERED negative — so a GitHub 403 rate limit (the history was not read)
+  //    was indistinguishable from a broken declaration (the history was read and
+  //    is wrong). That is what turned a transient outage into a deploy refusal.
+  //    `assert.equal(r.status, 2)` fails on BOTH 0 and 1, so it pins the code in
+  //    both directions: restoring `process.exit(1)` at any of these call sites
+  //    reddens this block, and so does any future attempt to waive them to 0.
+  const unread = (r, why) => {
+    assert.equal(r.status, 2, `unreadable must exit 2 (COVERAGE LOST), not ${r.status}:\n${r.stdout}${r.stderr}`);
+    assert.notEqual(r.status, 1, 'exit 1 is this guard\'s ANSWERED negative and must not be reused for silence');
+    assert.match(r.stderr, /COVERAGE LOST \(exit 2\)/);
+    assert.match(r.stderr, why);
+  };
+
   test('M11 no token at all — "I could not look" must never read as "it is fine"', () => {
     const r = runGuard(null);
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /neither GITHUB_TOKEN nor GH_TOKEN is in the environment/);
+    unread(r, /neither GITHUB_TOKEN nor GH_TOKEN is in the environment/);
     assert.doesNotMatch(r.stderr, /SyntaxError|ReferenceError|TypeError/);
   });
 
   test('M12 the issue enumeration itself fails', () => {
     const r = runGuard({ issuesError: 'GitHub API returned 403 for /repos/x/issues' });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /the firing history is NOT readable/);
+    unread(r, /the firing history is NOT readable/);
+  });
+
+  test('M12b a 403 rate limit is COVERAGE LOST, never a finding about the alerting', () => {
+    const r = runGuard({ issuesError: 'GitHub API returned 403 for /repos/x/issues — API rate limit exceeded for installation' });
+    unread(r, /rate limit exceeded for installation/);
+    // The wording a human reads off a red step must say the question went
+    // unanswered. Without this the code changes and the message still accuses.
+    assert.match(r.stderr, /went\s+unanswered on this runner/);
+    // ⚠️ NOT `✓ limb A`: that line is the DECLARATION limb, which legitimately
+    //    passed before the history was ever fetched. The line that must be
+    //    absent is the disposition verdict — the only one that would be a claim
+    //    about firings the guard never enumerated.
+    assert.doesNotMatch(r.stdout, /limb B/);
   });
 
   test('M13 a declared source has no scheduled run history — unreadable, not healthy', () => {
@@ -233,14 +259,35 @@ describe('[14]O-5 · LIMB A — the firing history must be READABLE (fail-closed
       issues: [],
       runs: { 'e2e.yml': [{ id: 1, event: 'workflow_dispatch', conclusion: 'success', created_at: NOW }], 'ops-watch.yml': [{ id: 2, event: 'schedule', conclusion: 'success', created_at: NOW }] },
     });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /could not be read: no scheduled run in the sampled history/);
+    unread(r, /could not be read: no scheduled run in the sampled history/);
   });
 
   test('M14 the open-issue enumeration returns a non-list', () => {
     const r = runGuard({ issues: { not: 'a list' }, runs: {} });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /did not return a list/);
+    unread(r, /did not return a list/);
+  });
+
+  // 🔴 THE OTHER HALF OF THE SPLIT, ASSERTED SO THE TWO CODES CANNOT COLLAPSE
+  //    BACK INTO ONE. A structural problem in the repository's own content is an
+  //    ANSWERED negative and keeps exit 1. If a later change re-points the whole
+  //    file at 2 for tidiness, exit 2 stops meaning "unreadable" and the tests
+  //    above become vacuous — this test is what stops that being silent.
+  test('M15 an ANSWERED negative keeps exit 1 — the two codes stay distinct', () => {
+    // ⚠️ THE GUARD IS COPIED INTO THE TREE, not merely run with `cwd` set. It
+    //    resolves its ROOT from `import.meta.url`, so spawning the REPOSITORY's
+    //    copy from a temp directory scans the repository — a test written that
+    //    way passes on the live tree's health and proves nothing. Three files
+    //    are the whole dependency closure: the guard, workflow-scan, tree-walk.
+    const root = tree();
+    mkdirSync(join(root, 'tooling/ci'), { recursive: true });
+    for (const f of ['assert-alert-disposition.mjs', 'workflow-scan.mjs', 'tree-walk.mjs']) {
+      cpSync(join(CI_DIR, f), join(root, 'tooling/ci', f));
+    }
+    rmSync(join(root, '.github/workflows'), { recursive: true });
+    const r = spawnSync(process.execPath, [join(root, 'tooling/ci/assert-alert-disposition.mjs')], { cwd: root, encoding: 'utf8' });
+    assert.match(r.stderr, /COVERAGE LOST — \.github\/workflows does not exist/);
+    assert.equal(r.status, 1, `a structural verdict is an ANSWERED negative, not silence:\n${r.stdout}${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /COVERAGE LOST \(exit 2\)/);
   });
 });
 

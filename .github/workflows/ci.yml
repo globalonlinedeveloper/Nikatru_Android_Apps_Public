@@ -258,12 +258,20 @@ jobs:
         run: node tooling/ci/assert-analytics-contract.mjs
       - name: The entitlement contract is complete before the first payment
         run: node tooling/ci/assert-entitlement-contract.mjs
+      - name: No writer can strand a NULL in a money-schema key column
+        run: node tooling/ci/assert-no-null-entitlement-key.mjs
       - name: One verifier stands between a provider and the entitlement table
         run: node tooling/ci/assert-mor-adapters.mjs
       - name: Sandbox money cannot grant a production unlock
         run: node tooling/ci/assert-money-config.mjs
+      - name: A stored notification replayed in any order reaches the same entitlement
+        run: node tooling/ops/money-dry-run.mjs
       - name: The bundle's coming-soon gate is derived, and it moves in both directions
         run: node tooling/ci/assert-bundle-availability.mjs
+      - name: No store surface promises a bundle that cannot be bought
+        run: node tooling/ci/assert-no-store-bundle-copy.mjs
+      - name: No bundle entitlement exists without a verified receipt
+        run: node tooling/ci/assert-bundle-provenance.mjs
       - name: Every app with accounts ships a deletion control
         run: node tooling/ci/assert-deletion-control.mjs
       - name: Account deletion reaches every user-owned table, never via a shared secret
@@ -415,6 +423,18 @@ jobs:
         run: node tooling/ci/assert-flag-exposure.mjs
       - name: Every app carries a done-record, and its DoD items really run
         run: node tooling/ci/assert-app-dod.mjs
+      # why HERE and not in guard-meta: this is the STATIC half of the Dart
+      # mutation harness — it resolves every done-record row to a real test
+      # declaration and compares each proof against a content hash of the code it
+      # probed. It costs milliseconds, needs no Flutter, and unlike
+      # assert-app-dod.mjs above it does NOT hold apps/subscriptiontracker exempt,
+      # so it is the only thing in CI that grades that app's fourteen rows.
+      # The EXECUTED half (--execute, which applies each mutation and requires the
+      # named test to go red) is deliberately not wired into any push job: it was
+      # measured at 90–140 minutes for a full sweep against a 25-minute cap. The
+      # guard's own header carries the measurement and the argument.
+      - name: Every mutation proof still addresses the code it was run against
+        run: node tooling/ci/assert-mutation-proofs.mjs
 
   security-scan:
     # why: split out so a leaked credential is not reported as "the platform

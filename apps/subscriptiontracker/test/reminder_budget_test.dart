@@ -284,7 +284,7 @@ List<Subscription> _subs(int count, {String name = 'sub', DateTime? from}) {
         id: '$name-id-$i',
         name: '$name-$i',
         category: 'Other',
-        price: 10,
+        price: const Money(1000, 'USD'),
         cycle: BillingCycle.monthly,
         nextRenewal: start.add(Duration(days: i)),
       ),

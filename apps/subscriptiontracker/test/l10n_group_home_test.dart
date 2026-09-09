@@ -44,7 +44,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:nikatru_design_system/nikatru_design_system.dart';
-import 'package:subscriptiontracker/core/format/currency.dart';
+import 'package:subscriptiontracker/core/format/money_format.dart';
 import 'package:subscriptiontracker/core/format/sub_math.dart';
 import 'package:subscriptiontracker/core/router.dart';
 import 'package:subscriptiontracker/data/api/seed_api_client.dart';
@@ -54,8 +54,6 @@ import 'package:subscriptiontracker/features/notifications/notifications_screen.
 import 'package:subscriptiontracker/features/shell/app_shell.dart';
 import 'package:subscriptiontracker/l10n/app_localizations.dart';
 import 'package:subscriptiontracker/state/providers.dart';
-import 'package:subscriptiontracker/state/settings_controller.dart'
-    show currencyProvider;
 
 import 'support/width_harness.dart';
 
@@ -71,7 +69,7 @@ Subscription _sub(
   String id,
   String name, {
   required int inDays,
-  required double price,
+  required Money price,
   BillingCycle cycle = BillingCycle.monthly,
   int usedPct = 50,
   bool unused = false,
@@ -102,14 +100,28 @@ class _FixedClient extends SeedApiClient {
   Future<List<Subscription>> getSubscriptions() async => <Subscription>[
     // Renews TOMORROW: the `=1` arm of notifRenewsInDays, and DueInfo's
     // `renewsTomorrow` branch.
-    _sub('a', 'Alpha', inDays: 1, price: 10, usedPct: 90),
+    _sub('a', 'Alpha', inDays: 1, price: const Money(1000, 'USD'), usedPct: 90),
     // Renews in 3 days: the `other` arm, same screen, same run.
-    _sub('b', 'Beta', inDays: 3, price: 20, usedPct: 30),
+    _sub('b', 'Beta', inDays: 3, price: const Money(2000, 'USD'), usedPct: 30),
     // Far out, so they never enter the 7-day window and only ever drive the
     // unused plurals.
-    _sub('c', 'Gamma', inDays: 40, price: 30, usedPct: 4, unused: true),
+    _sub(
+      'c',
+      'Gamma',
+      inDays: 40,
+      price: const Money(3000, 'USD'),
+      usedPct: 4,
+      unused: true,
+    ),
     if (unusedCount > 1)
-      _sub('d', 'Delta', inDays: 50, price: 40, usedPct: 2, unused: true),
+      _sub(
+        'd',
+        'Delta',
+        inDays: 50,
+        price: const Money(4000, 'USD'),
+        usedPct: 2,
+        unused: true,
+      ),
   ];
 }
 
@@ -226,12 +238,8 @@ void main() {
         WidgetTester tester,
       ) async {
         final AppLocalizations l = await _l10n(code);
-        final ProviderContainer c = await _pumpScreen(
-          tester,
-          Locale(code),
-          const HomeScreen(),
-        );
-        final Currency currency = c.read(currencyProvider);
+        await _pumpScreen(tester, Locale(code), const HomeScreen());
+        final MoneyFormatter money = MoneyFormatter(l.localeName);
         final List<Subscription> subs = await _FixedClient(
           unusedCount: 2,
         ).getSubscriptions();
@@ -263,7 +271,7 @@ void main() {
               'number renders a different sentence and this goes red',
         );
         expect(
-          find.text(l.cancelToSave(currency.fmt(SubMath.savings(subs)))),
+          find.text(l.cancelToSave(money.formatBag(SubMath.savings(subs)))),
           findsOneWidget,
         );
 
@@ -276,7 +284,9 @@ void main() {
         expect(find.text(l.dueIn30Days), findsOneWidget);
         expect(
           find.text(
-            l.perYearTotal(currency.fmt0(SubMath.totalMonthly(subs) * 12)),
+            l.perYearTotal(
+              money.formatBagRounded(SubMath.totalMonthly(subs).times(12)),
+            ),
           ),
           findsOneWidget,
         );
@@ -495,12 +505,8 @@ void main() {
         WidgetTester tester,
       ) async {
         final AppLocalizations l = await _l10n(code);
-        final ProviderContainer c = await _pumpScreen(
-          tester,
-          Locale(code),
-          const NotificationsScreen(),
-        );
-        final Currency currency = c.read(currencyProvider);
+        await _pumpScreen(tester, Locale(code), const NotificationsScreen());
+        final MoneyFormatter money = MoneyFormatter(l.localeName);
         final DateFormat fmt = DateFormat.yMd(code);
 
         expect(find.text(l.notifications), findsOneWidget);
@@ -519,7 +525,7 @@ void main() {
         expect(
           find.text(
             l.notifChargeOn(
-              currency.fmt(10),
+              money.format(const Money(1000, 'USD')),
               fmt.format(_today.add(const Duration(days: 1))),
             ),
           ),
@@ -534,7 +540,7 @@ void main() {
         ).getSubscriptions();
         expect(
           find.text(
-            l.notifCancellingSaves(2, currency.fmt(SubMath.savings(subs))),
+            l.notifCancellingSaves(2, money.formatBag(SubMath.savings(subs))),
           ),
           findsOneWidget,
         );

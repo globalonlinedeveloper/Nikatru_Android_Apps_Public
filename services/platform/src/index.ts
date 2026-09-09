@@ -8,6 +8,10 @@
 //   AUTHED  POST   /v1/plan/cancel — the ROSCA cancel path ([5]M-9).
 //   AUTHED  POST   /v1/checkout — the Paddle create-transaction half ([ADR 044]
 //                                  rung 2). Dormant: 403 while the paywall is off.
+//   AUTHED  POST   /v1/receipts/:store — the STORE RECEIPT pull (design 3.2).
+//                                  A store purchase is verified against the
+//                                  store's own API; the client's token is never
+//                                  evidence on its own.
 //   SIGNED  POST   /v1/money/:provider — the merchant-of-record webhook ([5]M-1).
 //                                  HMAC over the raw body; no user session.
 //   CRON    0 6 * * *           — Supabase keep-alive + per-app renewals fan-out.
@@ -33,6 +37,7 @@ import events from './routes/events';
 import cancellation from './routes/cancellation';
 import checkout from './routes/checkout';
 import money from './routes/money';
+import receipts from './routes/receipts';
 import { scheduled } from './scheduled';
 
 const app = new Hono<AppEnv>();
@@ -233,6 +238,26 @@ app.route('/v1', cancellation);
 // finding and the reason this is rung 2 rather than the v1 dependency.
 app.use('/v1/checkout', platformAuth);
 app.route('/v1', checkout);
+
+// AUTHENTICATED: the STORE RECEIPT rail (design §3.2).
+//
+// 🔴 IT EXISTS TO REMOVE THE ONE LEG THAT CANNOT BE REVERSED. On iOS and Android
+// the purchase→unlock leg runs inside the client; a server that granted on the
+// posted token would inherit that irreversibility and add a forgery surface. So
+// the client posts an OPAQUE token, the server calls the store's own API, and
+// only a verified server-side answer writes a grant. Google's RTDN carries no
+// proof in its body and Microsoft has no push at all — the pull is mandatory, not
+// an optimisation.
+//
+// ⚠️ BEHIND `platformAuth` BECAUSE THE SUBJECT IS THE POINT: the grant is written
+// for the Supabase `sub` in the verified JWT and for no id that appeared in a
+// body — the same reason /v1/checkout is authenticated ([ADR 044] §6).
+//
+// Path-scoped like the four above, and mounted at `/v1/receipts` rather than
+// under `/v1/money`, which is a `/:provider` route: a sibling there would be
+// matched as a merchant of record named "receipts".
+app.use('/v1/receipts/*', platformAuth);
+app.route('/v1', receipts);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 // [pipeline 11]E-8 — an unhandled error REACHES A SINK, not just the log.

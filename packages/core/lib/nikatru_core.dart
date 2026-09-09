@@ -33,6 +33,8 @@ export 'src/config/flag_resolver.dart';
 export 'src/config/observed_feature_flags.dart';
 export 'src/config/version_gate.dart';
 export 'src/models/entitlement.dart';
+export 'src/money/money.dart';
+export 'src/money/money_bag.dart';
 export 'src/notifications/catch_up_nudge.dart';
 export 'src/notifications/notification_service.dart';
 export 'src/promo/promo_gate.dart';

@@ -640,8 +640,16 @@
     "id": "no-timed-media",
     "guard": "tooling/ci/assert-no-timed-media.mjs",
     "guardStatus": "⬜ NOT BUILT — SPECIFIED HERE, NOT ENFORCED ANYWHERE",
-    "covers": ["1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.4.7"],
-    "partiallyCovers": ["2.3.2"],
+    "covers": [
+      "1.2.6",
+      "1.2.7",
+      "1.2.8",
+      "1.2.9",
+      "1.4.7"
+    ],
+    "partiallyCovers": [
+      "2.3.2"
+    ],
     "decided": "2026-08-13",
     "whyItExists": "Five adopted criteria are satisfied ONLY because no app plays video or audio. W3C: 'if there is no content to which a success criterion applies, the success criterion is satisfied.' A VACUOUS CLAIM WITH NO GUARD GOES FALSE SILENTLY — the day someone adds an onboarding video, five published conformance statements become untrue and nothing anywhere goes red. This is the same shape as the four criteria reclaimed earlier on 2026-08-13, with one difference that decides the guard: those four range over domains that are non-empty and STAY non-empty, whereas these five are true about an ABSENCE, and an absence is what a single commit reverses",
     "🔴 theBriefsScopeWasMeasuredWRONG": "The decision arrived asking for a guard that 'fails if any video/audio asset enters an APP BUNDLE'. Measured 2026-08-13, that guard would have been GREEN ON A REPO THAT ALREADY CONTAINS A MANIFEST-DECLARED MP3, and would have stayed green through the exact change it was written to catch. THE MEASUREMENTS: (1) tooling/content_pipeline/src/formats.mjs FORMAT_ALLOWLIST ALREADY CARRIES `{format:'mp3', modality:'audio'}`, locked by [ADR 017] — audio is a DELIBERATELY ALLOWED pack format, not an oversight. (2) packages/core/test/fixtures/pack/v1/assets/tone/confirm.mp3 exists and is DECLARED in that pack's manifest.json assets list with its sha256; assert-pack-inert.mjs:145-159 runs live negative tests against those very bytes. (3) [ADR 019] locks audio/TTS to Google Cloud Chirp 3 HD and banks it as content — so the pack rail is the DESIGNED delivery route for audio, and it is not an app-bundle asset at all. A bundle-scoped guard watches the door nobody is going to use",
@@ -675,6 +683,41 @@
       "🔴 AND THE ONE THAT PROVES THE SCOPE FIX: run the guard AS THE BRIEF ORIGINALLY SCOPED IT (limb 1 alone) against the tree as it stands -> it must pass, while packages/core/test/fixtures/pack/v1/assets/tone/confirm.mp3 sits declared in a manifest. That green run IS the finding, and it is the reason limbs 2 and 3 exist"
     ],
     "conditionalityMustBeRecordedOnTheClaim": "the five criteria are adopted as CONDITIONAL: each row carries `conditionalOn: vacuityGuard`, and until the guard is built each is a vacuous claim with no tripwire. Attaching them to a published §5.3.2 optional component BEFORE the guard exists would put five statements under [8]K-3 that nothing can falsify"
+  },
+  "mutationProofs": {
+    "_why": [
+      "THE UNPROVEN RATCHET, read by tooling/ci/assert-mutation-proofs.mjs.",
+      "",
+      "Every feature row in every dod.json claims a mutation proof. A row whose proof is MACHINE-",
+      "RE-RUNNABLE carries `mutation.edit` (a literal find/replace against the effect file) and",
+      "`mutation.codeHash` (sha256 of that file with its comment prose stripped — the same reading",
+      "of \"code\" assert-app-dod.mjs already uses for its effect anchor and for the historical blobs",
+      "`lastCodeChangeDay` compares). A row without both is UNPROVEN: it is recorded in prose, and",
+      "nothing in this tree can re-run it.",
+      "",
+      "`unprovenFloor` is the number of such rows, MEASURED rather than chosen. The guard fails if",
+      "the real count is HIGHER (an unproven row was added) and fails if it is LOWER (a row was",
+      "earned and the number was not moved). It is an equality with a stated direction of travel,",
+      "and the only way to move it is to RUN the mutation:",
+      "",
+      "  node tooling/ci/assert-mutation-proofs.mjs . --execute --only \"the row name\"",
+      "",
+      "which runs the named test UNMUTATED first (green control, must exit 0), applies the edit,",
+      "re-runs, and requires a non-zero exit whose output contains `mutation.observedRed` — because",
+      "a compile error and a caught mutation are identical from the exit code alone. The commit that",
+      "lowers this number carries those two exit codes, each captured on its own line.",
+      "",
+      "🔴 A row may NEVER be re-dated, re-hashed, or moved out of this count on the strength of an",
+      "argument about git history or about what a diff \"obviously\" did not change. Converting a",
+      "proof into a claim is the exact dishonesty the done-record exists to prevent.",
+      "",
+      "It lives here rather than as a constant inside the guard so that a FIXTURE can carry its own",
+      "floor — a visible, committed artefact a test points at, never an invisible argument. That is",
+      "the same reasoning assert-case-count-honest.mjs gives for refusing a `--partial` flag."
+    ],
+    "unprovenFloor": 18,
+    "measuredOn": "2026-09-09",
+    "measuredBy": "node tooling/ci/assert-mutation-proofs.mjs"
   },
   "aaaNotAdopted": [
     {

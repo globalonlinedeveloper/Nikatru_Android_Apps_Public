@@ -154,6 +154,15 @@
 // GH_TOKEN, this exits non-zero by design, identically to
 // assert-e2e-proof-fresh.mjs. In CI it uses the ambient GITHUB_TOKEN.
 //
+// EXIT CODES — and the distinction that was missing until 2026-09-09:
+//   0  every declared firing has a disposition (limb B may still PRINT gaps).
+//   1  an ANSWERED negative: the declaration is structurally wrong, or a
+//      declared source has no readable declaration behind it.
+//   2  COVERAGE LOST — the firing history was not read at all (no token, a
+//      non-200 such as a 403 rate limit, a timeout, a truncated page walk).
+//      Non-zero, so nothing is waived; distinct, so a transient outage cannot be
+//      reported as a finding about the alerting. See `unreadable()` below.
+//
 // Offline testing: --probe-file <json> --now <iso> injects the API answers so the
 // decision logic runs for real with no network. It prints a loud banner so its
 // presence in a real CI log is unmistakable.
@@ -417,6 +426,53 @@ export function classify(issue, health, nowMs) {
 
 // ─── the boring half: the API ────────────────────────────────────────────────
 
+/** 🔴 "I COULD NOT LOOK" IS ITS OWN EXIT CODE, AND IT IS **2**.
+ *
+ *  Limb A has always refused to pass when the firing history is unreadable —
+ *  that half was right and is not being weakened here. What it got WRONG was the
+ *  CODE it refused with: every readability failure exited **1**, the same code
+ *  this file uses for "a declared source is genuinely broken". A caller reading
+ *  the exit code therefore could not tell an ANSWERED negative from an
+ *  UNANSWERED query, and graded the second as the first.
+ *
+ *  That cost a real outage. On 2026-09-09 the GitHub API answered
+ *  `403 API rate limit exceeded for installation` to CI's ambient token. The
+ *  history was not bad — it was not READ. `assert-ops-register.mjs`, asked the
+ *  same question by the same runner, printed its unreadable rows and carried on;
+ *  this guard exited 1 and the disposition step read as a definite negative, so
+ *  the `Guards` job called the repository non-compliant over a transient rate
+ *  limit. #604 fixed the identical confusion in `check-pages-deployments.mjs`,
+ *  where `git merge-base --is-ancestor` exit 128 ("the object is not here") was
+ *  being read as its exit 1 ("not an ancestor").
+ *
+ *  The platform rule is `C-COVERAGE-LOST-IS-NOT-PASS` in
+ *  `platform-state/constraints.json`: a guard exits 2 when it did not check
+ *  enough to be evidence, so "I compared nothing" can share a code with neither
+ *  "every floor holds" (0) nor "a floor broke" (1).
+ *
+ *  ⚠️ THIS IS NOT A WAIVER AND MUST NEVER BECOME ONE. 2 is non-zero; the step
+ *  still fails. Nothing here lets an unread history report clean — the ONLY
+ *  thing that changes is that a reader of the code can now tell which of the two
+ *  refusals happened. "Never a pass, and never a definite negative either."
+ *
+ *  ⚠️ THE FILE'S OTHER EXIT-1 CALL SITES ARE LEFT ALONE ON PURPOSE, for the
+ *  reason `assert-ops-register.mjs` records beside its own `coverageLostHard`:
+ *  `reconcile()`'s structural verdicts are STATEMENTS ABOUT THIS REPOSITORY'S
+ *  OWN CONTENT — a register that declares no source, a workflow directory that
+ *  is gone — which a query DID answer. Those are negatives, not silences, and
+ *  they keep code 1. The split this helper draws is answered-vs-unanswered, not
+ *  severity. */
+const unreadable = (lines) => {
+  console.error(`\n✗ COVERAGE LOST (exit 2) — limb A did not read the firing history, so it is claiming NOTHING about it.`);
+  for (const l of lines) console.error(`  ${l}`);
+  console.error(
+    '  This is NOT "the alerting is fine" and NOT "the alerting is broken". It is "the question went ' +
+      'unanswered on this runner". A transient GitHub 403 (rate limit) is the common cause and it clears ' +
+      'by itself; re-run the job rather than editing anything.',
+  );
+  process.exit(2);
+};
+
 const ghToken = () => process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
 
 async function ghJson(path) {
@@ -490,40 +546,38 @@ async function main() {
     console.log(`\n⚠️  --probe-file ${probeFile} — API ANSWERS ARE INJECTED. This is a TEST RUN, not a live check.`);
     const probe = JSON.parse(readFileSync(probeFile, 'utf8'));
     if (probe.issuesError) {
-      console.error(`\n✗ limb A — the firing history is NOT readable: ${probe.issuesError}`);
-      process.exit(1);
+      unreadable([`limb A — the firing history is NOT readable: ${probe.issuesError}`]);
     }
     issues = probe.issues;
     for (const s of sources) runsByWorkflow.set(s.workflow, probe.runs?.[s.workflow.split('/').pop()]);
   } else {
     if (!ghToken()) {
-      console.error(
-        '\n✗ limb A — neither GITHUB_TOKEN nor GH_TOKEN is in the environment, so no declared firing history could be read. ' +
-          'This FAILS CLOSED on purpose: an unreadable source is the state O-5 exists to catch, and reporting ok here would ' +
-          'mean the guard passes hardest exactly when it can see least.',
-      );
-      process.exit(1);
+      unreadable([
+        'limb A — neither GITHUB_TOKEN nor GH_TOKEN is in the environment, so no declared firing history could be read.',
+        'This FAILS CLOSED on purpose: an unreadable source is the state O-5 exists to catch, and reporting ok here would',
+        'mean the guard passes hardest exactly when it can see least.',
+      ]);
     }
     try {
       issues = await fetchOpenIssues(repo);
       for (const s of sources) runsByWorkflow.set(s.workflow, await fetchRuns(repo, s.workflow.split('/').pop()));
     } catch (e) {
-      console.error(`\n✗ limb A — a declared firing history could not be enumerated: ${e.message}`);
-      process.exit(1);
+      // 🔴 THE CALL SITE THIS WHOLE CHANGE IS FOR. Every network failure lands
+      // here — 403 rate limit, 5xx, DNS, the AbortSignal timeout, a truncated
+      // page walk. Not one of them is an observation about the alerting.
+      unreadable([`limb A — a declared firing history could not be enumerated: ${e.message}`]);
     }
   }
 
   if (!Array.isArray(issues)) {
-    console.error('\n✗ limb A — the open-issue enumeration did not return a list, so no firing can be shown to have a disposition.');
-    process.exit(1);
+    unreadable(['limb A — the open-issue enumeration did not return a list, so no firing can be shown to have a disposition.']);
   }
 
   const verdicts = [];
   for (const s of sources) {
     const health = sourceHealth(runsByWorkflow.get(s.workflow));
     if (health.state === 'unreadable') {
-      console.error(`\n✗ limb A — ${s.id} declares ${s.workflow} as its firing history and it could not be read: ${health.why}.`);
-      process.exit(1);
+      unreadable([`limb A — ${s.id} declares ${s.workflow} as its firing history and it could not be read: ${health.why}.`]);
     }
     const open = issues.filter((i) => i.title === s.title);
     console.log(
