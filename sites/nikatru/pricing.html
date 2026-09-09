@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pricing &mdash; Nikatru</title>
-<meta name="description" content="Pricing for Nikatru Subscription Tracker by Nikatru. Free plan, and Pro from $4.99/month or $19.99/year with a 30-day free trial.">
+<!-- PRICING:meta -->
+<meta name="description" content="Pricing for Nikatru apps. Free plan, and Pro at $5.99/month or $34.99/year or $89.00 once with a 30-day free trial.">
+<!-- /PRICING:meta -->
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://nikatru.com/pricing">
 <meta name="theme-color" content="#0B1220">
@@ -140,7 +142,7 @@
 
 <main id="main">
   <h1>Pricing</h1>
-  <p class="updated">Last updated: 7 August 2026 &middot; All prices in US dollars (USD)</p>
+  <p class="updated">Last updated: 9 September 2026 &middot; All prices in US dollars (USD)</p>
 
   <!-- ── THE APEX PATH IS THE ADDRESS WE PUBLISH (ADR 038, 2026-08-08) ────────
        This line used to send readers to `https://subly.nikatru.com`, which was
@@ -159,7 +161,27 @@
 
   <h2>Plans</h2>
 
+  <!-- ── THE NUMBERS BELOW ARE GENERATED. DO NOT TYPE A PRICE INTO THIS PAGE. ──
+       Everything between each PRICING: sentinel pair is spliced in by
+       tooling/sites/generate-discovery.mjs (`applyPricing`) out of
+       services/platform/src/app-config-data.json, which is the ONE place a price
+       exists in this repository. tooling/ci/assert-discovery-surface.mjs re-runs
+       the splice in CI and byte-compares, so a hand-edit inside a pair goes red.
+
+       🔴 IT WAS NOT ALWAYS SO, AND THAT WAS A REAL DEFECT. Until 2026-09-09 these
+       four numbers were typed here, copied out of the rail config by hand — the
+       generator's own header said so in as many words. `assert-no-price-literals`
+       does not scan `sites/`, and the two guards that DO re-derive prices only
+       look at the generated app landing, so moving `amount_minor` moved the app,
+       the served config, the landing page and the render payload and left THIS
+       page — the one a buyer reads, and the one Paddle carries as its default
+       payment link — quoting the old price with nothing able to see it.
+
+       ⚠️ THE PROSE OUTSIDE THE PAIRS IS STILL HAND-WRITTEN AND STILL YOURS: the
+       refund, tax and renewal paragraphs below are argument, not data. Just do
+       not put a number in them. -->
   <div class="plans">
+    <!-- PRICING:plans -->
     <div class="plan">
       <h3>Free</h3>
       <div class="price">$0</div>
@@ -171,10 +193,10 @@
         <li>Sign in on any device</li>
       </ul>
     </div>
-    <div class="plan hi">
-      <h3>Pro <span class="tag">30-DAY TRIAL</span></h3>
-      <div class="price">$4.99 <small>/ month</small></div>
-      <div class="sub">or <b>$19.99 / year</b> &mdash; save about 67%</div>
+    <div class="plan">
+      <h3>Monthly <span class="tag">30-DAY TRIAL</span></h3>
+      <div class="price">$5.99 <small>/ month</small></div>
+      <div class="sub">Renews every month until you cancel.</div>
       <ul>
         <li>Everything in Free</li>
         <li>Renewal reminders before you are charged</li>
@@ -182,22 +204,52 @@
         <li>Export your data</li>
       </ul>
     </div>
+    <div class="plan hi">
+      <h3>Yearly <span class="tag">30-DAY TRIAL</span></h3>
+      <div class="price">$34.99 <small>/ year</small></div>
+      <div class="sub">Renews every year until you cancel.</div>
+      <ul>
+        <li>Everything in Free</li>
+        <li>Renewal reminders before you are charged</li>
+        <li>Budgets across all your subscriptions</li>
+        <li>Export your data</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <h3>One-time <span class="tag">30-DAY TRIAL</span></h3>
+      <div class="price">$89.00 <small>once</small></div>
+      <div class="sub">A single payment. Nothing renews.</div>
+      <ul>
+        <li>Everything in Free</li>
+        <li>Renewal reminders before you are charged</li>
+        <li>Budgets across all your subscriptions</li>
+        <li>Export your data</li>
+      </ul>
+    </div>
+<!-- /PRICING:plans -->
   </div>
 
   <h2>Plan details</h2>
   <table>
+    <!-- PRICING:table -->
     <tr><th>Plan</th><th>Price</th><th>Billing</th><th>Free trial</th></tr>
     <tr><td>Free</td><td>$0</td><td>&mdash;</td><td>&mdash;</td></tr>
-    <tr><td>Pro Monthly</td><td>$4.99</td><td>Every month</td><td>30 days</td></tr>
-    <tr><td>Pro Yearly</td><td>$19.99</td><td>Every 12 months</td><td>30 days</td></tr>
+    <tr><td>Pro Monthly</td><td>$5.99</td><td>Every month</td><td>30 days</td></tr>
+    <tr><td>Pro Yearly</td><td>$34.99</td><td>Every year</td><td>30 days</td></tr>
+    <tr><td>Pro One-time</td><td>$89.00</td><td>One-time payment</td><td>30 days</td></tr>
+<!-- /PRICING:table -->
   </table>
 
   <h2>What you should know before you buy</h2>
   <ul>
     <li><b>Prices are in USD.</b> If your card is issued in another currency, your bank converts at its own
     rate and may add a foreign-transaction fee.</li>
-    <li><b>The trial is 30 days.</b> You are not charged during the trial. If you cancel before it ends you
-    are not charged at all.</li>
+    <!-- The trial LENGTH deliberately does not appear in this sentence. It is on
+         the plan cards and in the table above, both generated from the rail
+         config, and writing "30 days" here would put it back in two places —
+         the same second-home defect the cards above were just moved out of. -->
+    <li><b>You are not charged during the free trial.</b> The length of the trial is on every plan above.
+    If you cancel before it ends you are not charged at all.</li>
     <li><b>Subscriptions renew automatically</b> until you cancel &mdash; monthly plans every month, yearly
     plans every 12 months.</li>
     <li><b>You can cancel any time.</b> Cancelling stops future renewals; your paid period stays active
