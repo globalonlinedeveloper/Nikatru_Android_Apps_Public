@@ -3,10 +3,30 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="?android:colorBackground" />
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <!-- THE BRAND MARK, CENTRED — and it was a COMMENT until 2026-09-09.
+         What `flutter create` writes is exactly this <bitmap>, wrapped in an XML
+         comment under the words "You can insert your own image assets here", and
+         no `launch_image` drawable anywhere in the tree for it to have named. So
+         the launch window was a bare colour layer: a blank screen for the whole
+         of the engine's cold start, on the one surface a user sees every single
+         time they open the app.
+
+         The colour layer above is LEFT EXACTLY AS IT WAS, deliberately. It
+         follows the system theme, and swapping it for a fixed brand colour would
+         make the splash the one surface in this app that ignores dark mode. The
+         mark carries its own background (the brand tile — see
+         assets/icon/app_icon_background.svg), so it reads on either.
+
+         @drawable, not @mipmap: mipmap is for launcher icons, which the OS reads
+         at a density other than the device's. Nothing does that with a splash.
+
+         DERIVED, NOT PLACED: the PNGs are written by
+         `node tooling/store/render-splash.mjs --app subscriptiontracker` from
+         assets/icon/app_icon_1024.png, and assert-launcher-icons.mjs limb 8
+         re-derives them and compares decoded pixels. Do not hand-edit them. -->
+    <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:src="@drawable/launch_image" />
+    </item>
 </layer-list>
