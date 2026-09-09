@@ -62,16 +62,49 @@ moves. What moved is `/<id>`, from a redirect into the application.
 Used identically on the site, in every store console and in FullShot's privacy policy. Never retyped
 per store — a divergence here is a policy-mismatch finding a reviewer can see.
 
-- **Support / privacy / grievance:** `support@nikatru.com`
+- **Support / privacy / grievance:** `support@nikatru.com` — 🔴 **every `mailto:` to it must be wrapped
+  in `<!--email_off-->…<!--/email_off-->`.** Cloudflare's Email Address Obfuscation is a ZONE feature,
+  on by default, and it rewrites both the `href` and the visible text to `[email protected]`, so
+  without the wrapper the address rule 4(2) obliges us to **display** is absent from the served bytes
+  until JavaScript runs. Measured live 2026-09-09: zero occurrences across nine pages. Held by
+  `tooling/ci/check-site-integrity.mjs`.
 - **Phone:** `+91 94984 98011`
-- **Public location:** `Chennai, Tamil Nadu, India`
+- **Registered address:** `7, RR Tower 4, Thiru Vi Ka Industrial Estate, SIDCO Industrial Estate,
+  Guindy, Chennai, Tamil Nadu, 600032, India` — see the superseded block below for why this spelling
+  and not `7th Floor`.
+- **Public location (short form, still used where a city is all that fits):** `Chennai, Tamil Nadu, India`
 
-🔴 **THE REGISTERED POSTAL ADDRESS DOES NOT GO ON THIS SITE.** Clause 6d of the Awfis membership
-agreement forbids it on the website or in marketing, and the NOC that grants use of the address
-**auto-revokes on breach** — with the GST and Udyam registrations resting on it. The 2026-08-04
-carve-out in `nikatru/business/company-master.md` is narrow: it covers channels that *require* the
-address (the Play public developer profile publishes it, unavoidably) and states that the public
-site copy stays "Chennai, Tamil Nadu, India".
+### 🔄 SUPERSEDED 2026-09-09 — the postal address IS published, by owner ruling
+
+The paragraph below was the rule until 2026-09-09 and is kept verbatim, because every document that
+quotes it should still find the sentence it quoted — and because the exposure it describes is
+**accepted, not absent**.
+
+> 🔴 **THE REGISTERED POSTAL ADDRESS DOES NOT GO ON THIS SITE.** Clause 6d of the Awfis membership
+> agreement forbids it on the website or in marketing, and the NOC that grants use of the address
+> **auto-revokes on breach** — with the GST and Udyam registrations resting on it. The 2026-08-04
+> carve-out in `nikatru/business/company-master.md` is narrow: it covers channels that *require* the
+> address (the Play public developer profile publishes it, unavoidably) and states that the public
+> site copy stays "Chennai, Tamil Nadu, India".
+
+**What replaced it.** Owner ruling 2026-09-09, verbatim: *"publish the address, it's a statutory
+requirement, and update the respective requirement."* `contact.html`, `about.html`, `support.html`,
+`shipping.html` and `terms.html` now carry the full registered address (PR #564, `5b0a017e`). The
+hook is **rule 4(2) of the Consumer Protection (E-Commerce) Rules, 2020** — legal name, the principal
+geographic address of the headquarters and all branches, website details and customer-care contact
+details, **displayed** — reinforced commercially by the Razorpay merchant contract's website check.
+⛔ Not the RBI circular clause 7.2; that was repealed 2025-09-15.
+
+**The published spelling is `7, RR Tower 4, …` and it is NOT to be "corrected" to `7th Floor`.**
+One structured field, value `7`, printed three ways: `Floor No 7` on the GST certificate, `7th Floor`
+on the Udyam certificate, `7,` in the D&B record — and the D&B rendering is what the Play payments
+profile and Microsoft Partner Center hold, because confirming a D-U-N-S overwrites the profile to the
+registry's form. Editing the site to the Udyam prose form would create the divergence it looks like it
+is fixing. Recorded at `nikatru/vendors/awfis.md` (*the field-rendering trap*) and
+`nikatru/vendors/dnb.md` (retraction of 2026-08-04, with the side-by-side that settled it).
+
+⬜ **Rides this, not part of it:** written consent from Awfis for the website use has NOT been asked
+for. Tracked in `nikatru/business/company-master.md` §3.
 
 ## Performance targets — and the two "optimisations" that are FORBIDDEN
 

@@ -293,6 +293,12 @@ function legalDuties(root) {
 
 const boundRoots = [];
 const appFacingRoots = [];
+/** Bound pages that are ABSENT. Read by the mailto/obfuscation coverage floor
+ *  below: a tree missing its policy pages is a BROKEN TREE, already reported as
+ *  such, and firing a COVERAGE LOST at it would send the fix to the guard
+ *  instead of to the missing file — the same distinction `sellerNameDomain`
+ *  draws one limb down. */
+let missingBoundPages = 0;
 for (const root of siteRoots) {
   const { name, duties, reasons, appFacing } = legalDuties(root);
   if (appFacing) appFacingRoots.push({ root, name });
@@ -304,6 +310,7 @@ for (const root of siteRoots) {
     const rel = relative(repoRoot, abs);
     if (!existsSync(abs)) {
       problems.push(`missing ${rel} — ${why}`);
+      missingBoundPages++;
       continue;
     }
     const raw = readFileSync(abs, 'utf8');
@@ -369,6 +376,61 @@ for (const { root, name } of SCANNING_OWN_REPO ? appFacingRoots : []) {
         `PROMOTE ME: sites/${name}/${page} now exists, so it no longer needs the owner-gated exemption. Move ` +
           `${JSON.stringify(page)} from PRINTED_LEGAL_GAPS into LEGAL_PAGES in this file — a one-line change, after ` +
           'which the visible-text floor, the <h1> check and the navigation walker all apply to it unchanged.',
+      );
+    }
+  }
+}
+
+// ── the statutory contact e-mail must be in the SERVED BYTES ─────────────────
+// Rule 4(2) of the Consumer Protection (E-Commerce) Rules, 2020 obliges an
+// e-commerce entity to DISPLAY its legal name, its principal geographic address
+// and its customer-care contact details. Cloudflare's Email Address Obfuscation
+// — a ZONE feature, on by default, nothing this repository opted into — rewrites
+// every `mailto:` href to `/cdn-cgi/l/email-protection#…` and the visible
+// address to `[email protected]`, restoring it only after
+// `/cdn-cgi/scripts/…/email-decode.min.js` has run.
+//
+// MEASURED LIVE 2026-09-09, raw response bytes, no JavaScript: `support@nikatru.com`
+// occurred ZERO times on /contact, /terms, /about, /support, /shipping, /privacy,
+// /refund, /pricing and /delete-account. A crawler, a store reviewer with JS off
+// and an automated compliance check all saw the placeholder. This is the same
+// class of defect as the homepage building its app list in the browser (#564):
+// content that exists only after JavaScript is content some readers never see.
+//
+// THE FIX IS REPO-SIDE AND PER-REGION, NOT A DASHBOARD CHANGE. Cloudflare
+// documents `<!--email_off-->…<!--/email_off-->` as the way to "prevent
+// Cloudflare from obfuscating specific email addresses"
+// (developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/,
+// read 2026-09-09). That is the trade this limb holds open: the addresses we are
+// legally obliged to display are readable in the served bytes, and obfuscation
+// stays ON for everything else — turning the zone setting off would have made
+// every address on every property scrapable to fix nine pages.
+//
+// The wrapper must enclose the WHOLE anchor: the feature rewrites the `href` as
+// well as the link text, so wrapping only the text leaves a decode-link behind.
+//
+// `sites/<name>/legal/<version>/<locale>/` is excluded BY PATH. Those are the
+// frozen bytes of superseded policies and their entire value is being the
+// document that was actually published; the statutory duty attaches to the live
+// page, not to the archive of a page nobody may now rely on.
+let emailOffChecks = 0;
+const EMAIL_OFF_REGION = /<!--\s*email_off\s*-->[\s\S]*?<!--\s*\/\s*email_off\s*-->/gi;
+for (const { root } of appFacingRoots) {
+  for (const abs of htmlIn(root)) {
+    const rel = relative(repoRoot, abs).replaceAll('\\', '/');
+    if (rel.includes('/legal/')) continue;
+    const raw = readFileSync(abs, 'utf8');
+    if (!/mailto:/i.test(raw)) continue;
+    emailOffChecks++;
+    const unprotected = [...raw.replace(EMAIL_OFF_REGION, '').matchAll(/mailto:([^"'?>\s]+)/gi)].map((m) => m[1]);
+    if (unprotected.length) {
+      problems.push(
+        `${rel} carries ${unprotected.length} mailto: link(s) OUTSIDE an <!--email_off--> region ` +
+          `(${[...new Set(unprotected)].sort().join(', ')}). Cloudflare Email Address Obfuscation will rewrite ` +
+          'them to "[email protected]" in the served HTML, so the customer-care address rule 4(2) of the ' +
+          'Consumer Protection (E-Commerce) Rules 2020 requires us to DISPLAY is absent from the bytes a crawler, ' +
+          'a reviewer with JavaScript off or a compliance scanner reads. Wrap the WHOLE anchor: ' +
+          '<!--email_off--><a href="mailto:…">…</a><!--/email_off-->.',
       );
     }
   }
@@ -1266,6 +1328,17 @@ if (SCANNING_OWN_REPO) {
         'stopped matching, that is what broke.',
     );
   }
+  // Gated on the tree being INTACT. A root whose policy pages are missing has
+  // already been told so by name; adding "and the mailto limb saw nothing"
+  // would bury that under a report about the guard.
+  if (emailOffChecks === 0 && missingBoundPages === 0) {
+    lost.push(
+      'NO app-facing page contains a `mailto:` link at all, so the Cloudflare-obfuscation limb ranged over ' +
+        'nothing. sites/nikatru publishes support@nikatru.com on eleven pages today; if the contact route stopped ' +
+        'being a mailto: (a form, a JS handler), rule 4(2) still wants a readable address in the served bytes and ' +
+        'this limb has stopped being the thing that checks for one.',
+    );
+  }
   if (lost.length) {
     console.error(`✗ COVERAGE LOST — ${lost.length} check(s) below ran over an empty set and would report clean forever:`);
     for (const l of lost) console.error(`    ${l}`);
@@ -1322,6 +1395,9 @@ console.log(
 );
 console.log(
   `    ${sellerNameChecks} commercial page(s) name the seller's legal person, not just the brand`,
+);
+console.log(
+  `    ${emailOffChecks} page(s) with a mailto: keep it inside <!--email_off-->, so the rule 4(2) contact address is in the served bytes without JavaScript`,
 );
 // The secret is OWNER work — it lives in the Cloudflare dashboard, not the repo —
 // so its NAME is printed every run. A guard that silently requires a secret
