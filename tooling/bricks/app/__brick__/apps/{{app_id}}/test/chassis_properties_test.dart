@@ -3706,7 +3706,7 @@ void main() {
       expect(c.read(paywallLockedProvider), isFalse);
     });
 
-    test('[5]M-8 · a stale answer RE-LOCKS, and connectivity does not excuse it', () async {
+    test('[5]M-8 · a stale answer RE-LOCKS, connectivity is no excuse', () async {
       final ProviderContainer c = _moneyContainer(
         store: _onboardedStore(),
         server: _FakeEntitlements(pro: true),
@@ -3734,14 +3734,16 @@ void main() {
       expect(
         (await cache.readValid(now: near)).isPro,
         isTrue,
-        reason: 'INSIDE the ceiling ⇒ still Pro. A tunnel, a flight or a dead '
+        reason:
+            'INSIDE the ceiling ⇒ still Pro. A tunnel, a flight or a dead '
             'router is not a refund, and a client that always locks is worse '
             'than the hole it replaces',
       );
       expect(
         (await cache.readValid(now: far)).isPro,
         isFalse,
-        reason: 'PAST the ceiling ⇒ access stops, and it now stops OFFLINE too. '
+        reason:
+            'PAST the ceiling ⇒ access stops, and it now stops OFFLINE too. '
             'This assertion used to read isTrue with a '
             '`connectivityAvailable: false` argument, on the grounds that '
             'holding an unverifiable grant was the smaller harm. It was not '
