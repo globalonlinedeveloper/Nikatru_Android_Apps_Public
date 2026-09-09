@@ -77,7 +77,16 @@
     // declared set to EQUAL derived ∪ EXTRAS. Adding localhost to subly-api to
     // "re-sync" the two files fails the build as an unjustified origin; removing
     // it from here fails as a missing EXTRA. Do not hand-sync these two lines.
-    "ALLOWED_ORIGINS": "https://subly.nikatru.com,https://subly-9cp.pages.dev,http://localhost:3000",
+    // WIDENED BEFORE THE MOVE, NOT AFTER IT [ADR 075]. The apex comes FIRST
+    // because it is now the app's public origin (nikatru.com/<id>); the
+    // subdomain stays for the length of the cutover ONLY, so that the copy of
+    // the app still being served at subly.nikatru.com does not lose its API the
+    // moment this Worker deploys. An exact allowlist fails CLOSED and silently,
+    // so the order of operations is the whole safety property: widen, cut over,
+    // then narrow. The subdomain's line out of here is the LAST step of the
+    // migration, and it is justified in assert-cors-allowlist.mjs EXTRAS until
+    // then -- not left unexplained.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly.nikatru.com,https://subly-9cp.pages.dev,http://localhost:3000",
     // WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `<appId>=<https origin>`.
     //
     // 🔴 DELETE /v1/account IS THE PORTFOLIO'S ERASURE ENTRY POINT AND THIS

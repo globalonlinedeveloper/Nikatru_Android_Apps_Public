@@ -329,25 +329,25 @@
       "a Linux runner can be given. So every one of the 8 readable rows is now readable in CI, and the measured",
       "count on a good day is 0, not 7.",
       "",
-      "\u26ab RE-DERIVED 3 -> 4 ON 2026-09-04, AND THE NUMBER ROSE BECAUSE THE DOMAIN GREW, NOT BECAUSE THE",
-   "STANDARD SLIPPED. The rule is unchanged; its INPUTS moved. Cloudflare backed ONE row when the text",
-   "below was written; it now backs THREE - duty.platform-cron, plus the e2e and build-platforms timer",
-   "limbs. A row with a timer limb is exposed to BOTH its providers, because either going dark makes the",
-   "combined probe unreadable. So one-provider-dark costs 3 and the spare puts the ceiling at 4.",
-   "",
-   "\ud83d\udd34 IT WENT STALE THE DAY AFTER IT WAS WRITTEN AND NOTHING SAID SO. The e2e timer limb landed on",
-   "2026-09-04 and made Cloudflare-dark cost 2, i.e. both-providers-dark exactly 3 - the ceiling, with zero",
-   "headroom - while the prose below still read 'both at once costs 2, and 3 still absorbs it'. A",
-   "hand-maintained derived number is a number that quietly stops being derived, so assert-ops-register.mjs",
-   "now RE-DERIVES this value and fails the build when the constant and the rows disagree.",
-   "",
-   "N IS DERIVED, NOT CHOSEN: it is the headroom for ONE network provider going dark, plus one spare. The",
+      "⚫ RE-DERIVED 3 -> 4 ON 2026-09-04, AND THE NUMBER ROSE BECAUSE THE DOMAIN GREW, NOT BECAUSE THE",
+      "STANDARD SLIPPED. The rule is unchanged; its INPUTS moved. Cloudflare backed ONE row when the text",
+      "below was written; it now backs THREE - duty.platform-cron, plus the e2e and build-platforms timer",
+      "limbs. A row with a timer limb is exposed to BOTH its providers, because either going dark makes the",
+      "combined probe unreadable. So one-provider-dark costs 3 and the spare puts the ceiling at 4.",
+      "",
+      "🔴 IT WENT STALE THE DAY AFTER IT WAS WRITTEN AND NOTHING SAID SO. The e2e timer limb landed on",
+      "2026-09-04 and made Cloudflare-dark cost 2, i.e. both-providers-dark exactly 3 - the ceiling, with zero",
+      "headroom - while the prose below still read 'both at once costs 2, and 3 still absorbs it'. A",
+      "hand-maintained derived number is a number that quietly stops being derived, so assert-ops-register.mjs",
+      "now RE-DERIVES this value and fails the build when the constant and the rows disagree.",
+      "",
+      "N IS DERIVED, NOT CHOSEN: it is the headroom for ONE network provider going dark, plus one spare. The",
       "8 readable rows sit behind three providers — 6 on the GitHub API, 1 on Cloudflare D1, 1 on GlitchTip —",
       "and a reader that cannot reach its provider returns `unreadable`, which PRINTS. That is the whole reason",
       "ci.yml's standing objection to a CI limb depending on the GlitchTip box is answered rather than ignored:",
       "a Box B outage costs one line of output and never the merge queue. Cloudflare dark costs 1, GlitchTip",
-      "dark costs 1. \u26ab THOSE PER-PROVIDER COUNTS ARE THE 2026-09-02 ONES AND ARE KEPT AS THE RECORD OF WHAT",
-   "WAS TRUE THEN; for today's, read the derivation the guard computes, which is the only copy that cannot rot.",
+      "dark costs 1. ⚫ THOSE PER-PROVIDER COUNTS ARE THE 2026-09-02 ONES AND ARE KEPT AS THE RECORD OF WHAT",
+      "WAS TRUE THEN; for today's, read the derivation the guard computes, which is the only copy that cannot rot.",
       "",
       "⚠️ GITHUB IS THE ONE PROVIDER THIS CEILING DOES NOT ABSORB: its 6 rows would break the ceiling together.",
       "That is deliberate and it is the sentence this key was written for — `FAILS the moment the last query",
@@ -398,10 +398,37 @@
       "rows disagree in either direction, so 9 against a derivation of 12 is a red build about arithmetic, not",
       "a tighter standard. The number is DERIVED, and a derived number that disagrees with its derivation is",
       "simply wrong. This is the third time it has moved (7 -> 3, 3 -> 4, 9 -> 12) and every move is recorded",
-      "here with the measurement, because the one failure this key has actually had was going stale in silence."
+      "here with the measurement, because the one failure this key has actually had was going stale in silence.",
+      "",
+      "⬜ 2026-09-09 — A DEFECT FILED AGAINST THIS CEILING DID NOT EXIST, AND IT IS RECORDED HERE SO IT IS NOT",
+      "DERIVED A THIRD TIME. Two reading passes reported \"22 unreadable duties against a ceiling of 12\" and asked",
+      "for every duty's `recordQuery` to be repointed at something CI can reach. MEASURED instead, on CI run",
+      "34299058966 (main, 2026-09-09T01:24:51Z): 27 scheduled · 22 QUERIED and inside window · 0 FAILING ·",
+      "0 unreadable (ceiling 12) · 5 declared unreachable (ceiling 5). The 22 is the QUERIED count, not the",
+      "unreadable one, and the two sat in the same sentence with the ceiling trailing the clause between them —",
+      "so assert-ops-register.mjs now labels each count at its own number. The register was NOT repointed and the",
+      "ceiling was NOT raised, because neither was wrong.",
+      "",
+      "⚠️ THE OTHER NUMBER IN THAT REPORT WAS REAL AND MEANS SOMETHING DIFFERENT. A LOCAL run showed 14",
+      "unreadable — that is the credential-absent case this key already documents four paragraphs up (\"A HOST",
+      "HOLDING NO CREDENTIALS NOW READS 0 OF 8 AND IS RED … run this guard with `.claude/secrets.env` sourced\").",
+      "Re-run on the laptop on 2026-09-09 WITH the secrets sourced it reads 22 queried / 0 unreadable, identical to",
+      "CI. So the two causes are cleanly separated and neither is a record living where CI cannot see it: rows",
+      "whose RECORD is out of reach are the 5 `reader: \"unreachable\"` rows, already at their own ceiling of 5;",
+      "rows that read as unreadable on a given host are a CREDENTIAL absent on that host, and CI holds all of them."
     ],
     "_windowMultiplier": 1.5,
-    "_windowMultiplierWhy": "The same 1.5x the absence watcher uses and for the same reason, written down once in tooling/ops/check-heartbeats.mjs: a window EQUAL to the cadence has zero margin and reports a duty dead on a single late run. One missed run is not an alarm; two are.",
+    "_windowMultiplierWhy": [
+      "BASE, not the whole window. The window a duty is measured against is DERIVED: `window = (missedRunsTolerated + _windowMultiplier) x cadence`, with the per-row budget defaulting to 0. This value is the half-cadence margin that the original reasoning bought and still buys: a window EQUAL to the cadence has zero margin, so a merely LATE run reads as a dead duty and the guard gets switched off.",
+      "",
+      "🔴 THE SENTENCE THIS REPLACES CONTRADICTED THE NUMBER IT EXPLAINED, FOR ROUGHLY A MONTH, AND THE CONTRADICTION IS ARITHMETIC RATHER THAN OPINION. It read: 'One missed run is not an alarm; two are.' Put the last success at t=0 and the runs due at t=C, 2C, 3C. At age C one run has been missed; at age 2C two have. The alarm fires when age > window, so 1.5C fires at age 1.5C — when exactly ONE run has been missed, which is the opposite of what the prose promised. For that sentence to be true the window has to sit strictly between 2C and 3C. It never did.",
+      "",
+      "⚠️ AND THE CITATION WAS STALE TOO, WHICH IS WHY BOTH HALVES ARE REWRITTEN RATHER THAN ONE PATCHED. It said 'the same 1.5x the absence watcher uses … written down once in tooling/ops/check-heartbeats.mjs'. That file ABANDONED the `1.5 x interval` staleness ceiling on 2026-08-06, on measurement: the Worker's 06:00Z cron did not fire, the newest row was ~28h old against a 36h ceiling, and ops-watch run 31091922078 went GREEN over the only absent run it has ever had to see. It now anchors on the scheduled OCCURRENCE with a fixed 2h grace. A number cited to a file that deleted it is a rationale outliving its reason.",
+      "",
+      "⬜ THE FIX WIDENED NOTHING, AND THAT IS THE POINT. 1.5 is EXACTLY the `missedRunsTolerated: 0` window — 'a LATE run is not an alarm; a MISSED one is' — so the number was right and the claim was wrong. Correcting the claim costs no strictness on any row. Adding the budget rather than multiplying by it keeps the result strictly inside ((M+1)C, (M+2)C) for every integer M, so a row's alarm fires on exactly M+1 missed runs with half a cadence of slack on each side against clock skew and queue jitter: M=0 -> 1.5x, M=1 -> 2.5x, M=4 -> 5.5x.",
+      "",
+      "🔴 WHY THE BUDGET IS PER-ROW AND NOT A BIGGER GLOBAL NUMBER. One ratio cannot serve both `duty.laptop.nikatru-watchdog` (cadence 1h, on a substrate where the routine fires only while the desktop app is open) and `duty.workflow.codeql.yml` (cadence 7d, window already 252h). The historical way that tension gets resolved is by raising the global number, which silences EVERY duty at once to quiet one. So the slack is declared on the row that needs it, PRINTED in that row's window label on every run, capped by `_maxMissedRunsTolerated`, and refused by assert-ops-register.mjs unless `missedRunsToleratedWhy` carries a measurement a later reader can re-take and shrink."
+    ],
     "glitchtip-heartbeat": {
       "queries": "GET /api/0/organizations/{org}/monitors/{id}/ then .../checks/ — the newest check with isUp = true, which IS the duty's last successful POST. A monitor that is not a Heartbeat, or a 404 on the declared id, is an ANSWERED query and a hard failure, never a print.",
       "needs": "GLITCHTIP_TOKEN in the environment (optionally GLITCHTIP_URL; it defaults to https://glitchtip.nikatru.com)",
@@ -450,7 +477,19 @@
       "queries": "nothing, and the row must say why in `mechanism.recordQuery.why`.",
       "needs": "n/a — this is the register admitting the record is on a host it cannot read",
       "unreadableOn": "always, by declaration — capped by _maxUnreachable so it cannot become the whole domain"
-    }
+    },
+    "_maxMissedRunsTolerated": 4,
+    "_maxMissedRunsToleratedWhy": [
+      "The ceiling on the per-row `recordQuery.missedRunsTolerated` budget. It is the largest budget any row is allowed to declare, and — like `_maxUnreachable` — it RATCHETS DOWN as duties move off substrates that cannot keep their own schedule. It never rises to fit a row: raising it is how every window gets widened one row at a time, which is the failure the per-row field exists to avoid.",
+      "",
+      "MEASURED, NOT CHOSEN, ON 2026-09-09 against the live GlitchTip check history — the same records `glitchtip-heartbeat` reads, so the ceiling is derived from the evidence the guard itself uses:",
+      "  monitor 30 (nikatru-watchdog, cadence 1h)     66 gaps, worst 4.98h  -> 4 missed runs, the ceiling",
+      "  monitor 29 (nikatru-ops-check, cadence 12h)    6 gaps, worst 21.14h -> 1 missed run",
+      "  monitor  6 (nikatru-daily-backup, cadence 8h) 35 gaps, worst  9.79h -> 0, inside the base window",
+      "  monitors 22 / 23 (cadence 1d)                  4 / 96 gaps, worst 24.00h / 1.00h -> 0",
+      "",
+      "⚠️ AND THE COST IS STATED RATHER THAN DISCOVERED. A budget of 4 on an hourly duty means a genuinely dead watchdog is not RED for 5.5h. That is real blindness and it is bought knowingly, because the alternative on this substrate is an alarm that fires on the laptop being closed — and an alarm that fires routinely is one somebody switches off, which costs the whole duty rather than 5.5h of it. The real close is not a bigger number: it is moving the routine off a substrate that only runs while a desktop app is open, at which point this ceiling ratchets to 0."
+    ]
   },
   "_retiredReaders": {
     "_why": [
@@ -749,14 +788,33 @@
         "job keeps, because a schedule firing with nothing watching what it did is how a backup stops."
       ],
       "watchedJobs": {
-        "supabase_keepalive": ["0 6 * * *"],
-        "backup_export": ["30 2 * * *"],
-        "analytics_liveness": ["0 6 * * *"],
-        "renewals": ["0 6 * * *"],
-        "events_rollup": ["0 6 * * *"],
-        "retention_sweep": ["0 6 * * *"],
-        "cancellation_drain": ["0 6 * * *"],
-        "github_dispatch": ["0 0 * * *", "0 6 * * *", "0 12 * * *", "0 18 * * *"]
+        "supabase_keepalive": [
+          "0 6 * * *"
+        ],
+        "backup_export": [
+          "30 2 * * *"
+        ],
+        "analytics_liveness": [
+          "0 6 * * *"
+        ],
+        "renewals": [
+          "0 6 * * *"
+        ],
+        "events_rollup": [
+          "0 6 * * *"
+        ],
+        "retention_sweep": [
+          "0 6 * * *"
+        ],
+        "cancellation_drain": [
+          "0 6 * * *"
+        ],
+        "github_dispatch": [
+          "0 0 * * *",
+          "0 6 * * *",
+          "0 12 * * *",
+          "0 18 * * *"
+        ]
       },
       "mechanism": {
         "substrate": "cloudflare-cron",
@@ -773,8 +831,8 @@
       "absenceWatcher": {
         "substrate": "github-actions",
         "what": "tooling/ops/check-heartbeats.mjs, run daily by .github/workflows/ops-watch.yml. It reads platform_db.cron_heartbeat over the D1 HTTP API from OUTSIDE Cloudflare and files or refreshes ONE durable GitHub issue, which a human closes.",
-        "signal": "Three ways to be red, and the reader treats all three as failure: ABSENT — no row for a declared job inside 1.5x its cron interval, so the timer has stopped or the job can no longer write. RED — a FRESH row whose ok column is 0 (a check asking only 'did a row land today' is green on exactly this). UNKNOWN — no token, a non-200, unparseable JSON, an unrecognised cron expression; all fail closed, because 'I could not tell' must never read as 'it is fine'.",
-        "margin": "1.5x the 24h cron interval = a 36h ceiling before absence alarms. One missed run is not an alarm; two are. The ratio is the backup chain's own and is written down once, in check-heartbeats.mjs — an interval EQUAL to the cadence would leave zero margin and report Down on a single late run.",
+        "signal": "Three ways to be red, and the reader treats all three as failure: ABSENT — the job's most recent SCHEDULED OCCURRENCE left no row and the 2 h grace on that occurrence has expired, so the timer has stopped or the job can no longer write. RED — a FRESH row whose ok column is 0 (a check asking only 'did a row land today' is green on exactly this). UNKNOWN — no token, a non-200, unparseable JSON, an unrecognised cron expression; all fail closed, because 'I could not tell' must never read as 'it is fine'.",
+        "margin": "MISSED_RUN_GRACE_HOURS = 2, anchored on the OCCURRENCE: the reader takes the most recent time the cron was DUE and asks whether a row exists at or after it, allowing 2 h for a late one. 🔴 THE SENTENCE THIS REPLACES DESCRIBED A MECHANISM check-heartbeats.mjs DELETED ON 2026-08-06, AND IT SURVIVED HERE FOR A MONTH. It read: '1.5x the 24h cron interval = a 36h ceiling before absence alarms. One missed run is not an alarm; two are. The ratio is the backup chain's own and is written down once, in check-heartbeats.mjs.' Every clause of that is now false. The ratio is not in that file; the ceiling is not 36 h; and the rule it stated was never what 1.5x bought in the first place - at age 2C two runs have been missed, so a 1.5C window fires on the FIRST miss, not the second. This row's OWN `downTransitionDrill.scope` already said 'the occurrence-anchored ABSENCE limb' while these two fields went on describing the ratio, which is the shape a stale claim takes: one field learns and its neighbours do not. WHY THE OCCURRENCE AND NOT A BIGGER RATIO, in check-heartbeats.mjs's own words and its own measurement: a ratio is measured from the LAST SUCCESS, so it drifts with whatever time the previous run happened to land, and it answers 'how stale is the newest row' when the question is 'did the run that was supposed to happen, happen'. Those come apart precisely when a schedule stops. MEASURED: on 2026-08-06 the platform Worker's 06:00Z cron did not fire, the newest row was ~28 h old against the old 36 h ceiling, and ops-watch run 31091922078 went GREEN over the only absent run this watcher has ever had to see. The grace is what keeps a LATE run from being an alarm - the property the ratio was really buying, now bought explicitly and at a tenth of the cost. ⚠️ THIS IS A DIFFERENT NUMBER FROM `_recordReaders._windowMultiplier`, DELIBERATELY, AND THE TWO MUST NOT BE HARMONISED. This field describes the ABSENCE WATCHER (check-heartbeats.mjs, which files a durable GitHub issue a human closes). `_windowMultiplier` is the [14]O-3 record-query limb, which gates the MERGE QUEUE and cannot anchor on an occurrence because a duty row carries a cadence (`1d`, `8h`), not a cron expression. Same duty, two readers, two thresholds, two audiences - and the register says so rather than letting a later reader assume one number is a copy of the other, which is exactly how the stale sentence above got written.",
         "downTransitionDrill": {
           "date": "2026-08-07",
           "how": "NOT FORCED — the transition happened on its own and was caught, which is strictly better evidence than a simulated one. The scheduled ops-watch run 31162205780 (event=schedule, 2026-08-07T08:33:36Z) failed at the step 'Read the heartbeat table from OUTSIDE Cloudflare' — check-heartbeats.mjs itself, on GitHub Actions, a DIFFERENT PROVIDER from the Cloudflare cron it watches — because analytics_liveness's newest row carried ok=0. The alert job then commented on the durable issue 29 s later. NOTHING WAS WRITTEN TO THE PRODUCTION cron_heartbeat TABLE: the drillGap's literal prescription ('force one ok=0 row … then restore') was DECLINED, because polluting a live monitoring table to test its reader trades the record's integrity for a test result, and the real transition made it unnecessary.",
@@ -1052,14 +1110,14 @@
       "kind": "duty",
       "what": "The whole extension pipeline in one workflow: the CI lane on every pull request, the end-to-end lane on the DAILY 20:53 UTC schedule, and the release lane on a `<tool>-v<x.y.z>` tag push. Arrived 2026-09-05 with the extensions subtree, replacing three workflows in a repository that is now archived. THE DUTY IS WEEKLY AND THE CRON IS DAILY, DELIBERATELY: the schedule moved from `17 4 * * 1` to `53 20 * * *` on 2026-09-07 because a Monday-only slot gave this row's 7d x 1.5 = 252h window one or two chances at a scheduler measured delivering 10.1% of scheduled slots on time, and the row still held ZERO scheduled runs. The margin is given to the EVIDENCE, not to the duty (TRAPS ci-19), which is the shape codeql.yml, trufflehog.yml and renovate.yml already take. `cadence` stays `7d` because the duty did not change; only the number of chances the evidence gets did.",
       "detector": "A red check on the pull request that caused it, attended by definition, for the CI lane. For the scheduled end-to-end lane, extensions/scripts/assert-e2e-proof-fresh.mjs on every push: the newest SCHEDULED green run must be inside the window it DERIVES from this workflow's own cron, and a workflow_dispatch deliberately does not satisfy it.",
-      "response": "Fix before merge for the CI lane. A stale scheduled proof means the extension end-to-end evidence is unproven, not that the extensions are broken \u2014 read the run history before treating it as an outage, and remember the run history for the SCHEDULED lane starts on 2026-09-05 because the previous repository holds everything before it.",
+      "response": "Fix before merge for the CI lane. A stale scheduled proof means the extension end-to-end evidence is unproven, not that the extensions are broken — read the run history before treating it as an outage, and remember the run history for the SCHEDULED lane starts on 2026-09-05 because the previous repository holds everything before it.",
       "cadence": "7d",
       "mechanism": {
         "substrate": "github-actions",
         "anchor": ".github/workflows/extensions.yml",
         "record": "GitHub Actions run history for extensions.yml",
         "failingValue": "conclusion = failure on event = schedule",
-        "readBy": "extensions/scripts/assert-e2e-proof-fresh.mjs, run by this same workflow on every pull request. Since 2026-09-05 that gate RESOLVES the workflow it reads its ceiling out of rather than assuming a file beside itself \u2014 the candidates are extensions.yml then e2e.yml, so it keeps working both here and in a tree reconstructed by `git subtree split --prefix=extensions`.",
+        "readBy": "extensions/scripts/assert-e2e-proof-fresh.mjs, run by this same workflow on every pull request. Since 2026-09-05 that gate RESOLVES the workflow it reads its ceiling out of rather than assuming a file beside itself — the candidates are extensions.yml then e2e.yml, so it keeps working both here and in a tree reconstructed by `git subtree split --prefix=extensions`.",
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "extensions.yml",
@@ -1067,7 +1125,7 @@
           "headBranch": "main",
           "firstDue": "2026-09-12T00:00:00Z",
           "_why": [
-            "\u26a0\ufe0f `firstDue` IS THE BOOTSTRAP AND IT EXPIRES BY ARITHMETIC. This workflow landed on",
+            "⚠️ `firstDue` IS THE BOOTSTRAP AND IT EXPIRES BY ARITHMETIC. This workflow landed on",
             "2026-09-05 with a Monday-only cron, so there could be no scheduled run in this",
             "repository's history before 2026-09-08 -- ONE chance, on a scheduler measured at 10.1%",
             "on-time delivery, and the record was still EMPTY on 2026-09-07. The cron fires DAILY from",
@@ -1077,16 +1135,16 @@
             "archived and which no query here reaches. Dated one cadence window out, as the schema",
             "requires, so this cannot quietly stay empty.",
             "",
-            "\ud83d\udd34 `event: schedule` STAYS, and it is not an oversight that this row has no `timer` limb.",
+            "🔴 `event: schedule` STAYS, and it is not an oversight that this row has no `timer` limb.",
             "The sibling e2e.yml row split its two claims onto two records because the Cloudflare",
             "dispatcher writes a cron_heartbeat only a timer can write. NOTHING DISPATCHES THIS",
             "WORKFLOW: services/platform/src/scheduled.ts names e2e.yml and not this one, so there is no",
             "timer record to read and an event-less run-history read would accept a hand-press as proof",
-            "the schedule is alive \u2014 the exact defect assert-platform-proof-fresh.mjs's header names.",
+            "the schedule is alive — the exact defect assert-platform-proof-fresh.mjs's header names.",
             "The event filter also carries the branch guarantee here, and `headBranch` is stated anyway",
             "so that dropping one later cannot silently widen this to a green run on any branch.",
             "",
-            "\u2b1c WHAT WOULD IMPROVE IT: add extensions.yml to GITHUB_DISPATCH_TARGETS in",
+            "⬜ WHAT WOULD IMPROVE IT: add extensions.yml to GITHUB_DISPATCH_TARGETS in",
             "services/platform/src/scheduled.ts and split this row the way e2e.yml's was split. GitHub",
             "delivers this repository's crons 10.1% on time, so a cadence read through the scheduler",
             "alone is the shakiest evidence in this register. It is deliberately NOT done in the same",
@@ -1573,7 +1631,9 @@
           "org": "nikatru",
           "monitor": 29,
           "monitorName": "Laptop routine: ops check — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; see `_recordReaders.glitchtip-heartbeat.why` for the rename that broke the file which did key by name.",
-          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner exactly as monitors 6, 22 and 23 are — which is the whole reason the heartbeat is the record and `lastRunAt` on the laptop is not. ⚠️ WHAT THE BEAT ASSERTS IS NARROWER THAN \"OPS IS FINE\": the routine beats only on a completed run, so a fresh beat says the routine ran to the end, and says nothing about whether what it FOUND was healthy. Findings it reports — a red CI run, a service down — do not withhold the beat, on purpose; only failure of the routine itself does."
+          "why": "The record is a heartbeat check-history row in GlitchTip, read with GLITCHTIP_TOKEN, so it is readable from a Linux runner exactly as monitors 6, 22 and 23 are — which is the whole reason the heartbeat is the record and `lastRunAt` on the laptop is not. ⚠️ WHAT THE BEAT ASSERTS IS NARROWER THAN \"OPS IS FINE\": the routine beats only on a completed run, so a fresh beat says the routine ran to the end, and says nothing about whether what it FOUND was healthy. Findings it reports — a red CI run, a service down — do not withhold the beat, on purpose; only failure of the routine itself does.",
+          "missedRunsTolerated": 1,
+          "missedRunsToleratedWhy": "MEASURED 2026-09-09 against monitor 29's own check history: 6 successful-beat gaps, worst 21.14h against a base window of 12h x 1.5 = 18h — so the base window has already been breached once by the substrate rather than by the duty. `nikatru-ops-check` runs `0 8,20 * * *` and fires only while the desktop app is open. 1 missed run -> a 30h window, which covers the observed 21.14h with margin and still goes RED well before a second slot is skipped. ⬜ THE ROUTINE IS ALIVE AND FIRING ON SCHEDULE: after the honest hand-run at 2026-09-08T23:50:01Z, the first AUTOMATIC beat since recreation landed at 2026-09-09T02:41:18Z — the 08:00-local slot — matching the 02:4x / 14:4x pattern of the beats before it. Re-take it: GET /api/0/organizations/nikatru/monitors/29/checks/ and difference the isUp timestamps. The base-window run that stood immediately before this budget landed is CI run 34299058966 on main."
         }
       },
       "absenceWatcher": {
@@ -1612,7 +1672,9 @@
           "org": "nikatru",
           "monitor": 30,
           "monitorName": "Laptop routine: CI watchdog — carried for a HUMAN READER ONLY. The reader keys by `monitor` and never asserts this string; see `_recordReaders.glitchtip-heartbeat.why` for the rename that broke the file which did key by name.",
-          "why": "A heartbeat check-history row read with GLITCHTIP_TOKEN, readable from a Linux runner. ⚠️ THE BEAT ASSERTS THAT THE WATCHDOG RAN, NOT THAT NOTHING IS STUCK — those are different claims and only the first is watchable from outside this laptop. A stuck run the watchdog correctly REPORTS still produces a beat."
+          "why": "A heartbeat check-history row read with GLITCHTIP_TOKEN, readable from a Linux runner. ⚠️ THE BEAT ASSERTS THAT THE WATCHDOG RAN, NOT THAT NOTHING IS STUCK — those are different claims and only the first is watchable from outside this laptop. A stuck run the watchdog correctly REPORTS still produces a beat.",
+          "missedRunsTolerated": 4,
+          "missedRunsToleratedWhy": "MEASURED 2026-09-09 against monitor 30's own check history — the record this row reads, so the budget is derived from the evidence the guard uses. 66 successful-beat gaps since the routine was recreated; worst 4.98h, three over the base 1.5h window, one over 3h. The routine is `nikatru-watchdog`, hourly, and it fires ONLY while the desktop app is open, so a gap the length of a closed lid is the substrate behaving normally rather than the duty failing. 4 missed runs -> a 5.5h window. ⚠️ THE COST, STATED: a genuinely dead watchdog is not RED for 5.5h. That is bought knowingly against the alternative — an alarm that fires whenever the laptop is shut is one somebody switches off, which costs the whole duty instead of 5.5h of it. This budget RATCHETS DOWN, and the close is moving the routine off a laptop, not a bigger number. Verified by mutation on the same date: with the beat aged past 5.5h the row still goes RED (see tooling/ci/test/ops-register.test.mjs). Re-take it: GET /api/0/organizations/nikatru/monitors/30/checks/ and difference the isUp timestamps. The base-window run that stood immediately before this budget landed is CI run 34299058966 on main. ⚠️ AND IT IS DELIBERATELY NOT THE SAME NUMBER AS THE MONITOR’S OWN WINDOW, which stays at 7200 s (2 h) — see this row’s `absenceWatcher.margin`. Two alarms watch this duty and they answer to different people: GlitchTip mails the OWNER at 2 h, which is the alarm that should be tight, and this limb gates the MERGE QUEUE at 5.5 h, which is the one that must not fire on a closed lid. Harmonising them would either page the owner less or freeze the queue more, and neither is an improvement."
         }
       },
       "absenceWatcher": {
@@ -2147,24 +2209,24 @@
     {
       "id": "revert.web.subly",
       "kind": "revert",
-      "what": "Roll the Cloudflare Pages deployment for subly.nikatru.com back to a previous build.",
-      "path": "Cloudflare Pages → Deployments → Rollback, or re-run deploy-web.yml at the previous SHA 📌 CORRECTED 2026-08-25 — APPENDED, NOTHING ABOVE REWRITTEN. AS WRITTEN, THE DISPATCH-AGAINST-A-SHA HALF OF THIS PATH IS NOT EXECUTABLE. Measured this run: `grep -n \"inputs:\" .github/workflows/deploy-web.yml .github/workflows/deploy-workers.yml` returns NOTHING — neither workflow declares a single workflow_dispatch input (deploy-workers.yml:26 and deploy-web.yml:29 are bare `workflow_dispatch:` keys — deploy-workers re-measured 2026-09-06 after its prose moved to docs/ci/deploy-workers.md; the :21 it said before landed on a comment line), and GitHub's 'Run workflow' ref picker offers BRANCHES AND TAGS ONLY, never a bare commit SHA. So there has never been a control anywhere that accepts the SHA this sentence tells the operator to type. THE FIRST HALF OF THIS SENTENCE IS THE EXECUTABLE ONE AND NEEDS NO WORKFLOW AT ALL: Cloudflare dashboard ▸ Workers & Pages ▸ the Pages project ▸ Deployments ▸ the target deployment ▸ Rollback. Confirm with /version.json's build_number, exactly as `response` already says — and note that a rollback fires NO post-deploy smoke, because no workflow runs, which is why the human comparison in `mechanism.readBy` survives the correction appended there. If a forward RE-DEPLOY of an older SHA is wanted instead of a rollback, that is revert.worker.platform's branch-cut route and it needs GitHub access; this row's `accessProviders` stay cloudflare-only on purpose, because THE ROLLBACK ITSELF needs nothing but the Cloudflare console.",
+      "what": "Roll ONE app published at https://nikatru.com/<id> back to a previous build, by rolling back that app's OWN Cloudflare Pages project. Since [ADR 075] the published address is a path on the apex and the bytes still come from a per-app Pages project, so the unit of rollback is still exactly one app - the address moved, the blast radius did not.",
+      "path": "Cloudflare Pages → Deployments → Rollback, or re-run deploy-web.yml at the previous SHA 📌 CORRECTED 2026-08-25 — APPENDED, NOTHING ABOVE REWRITTEN. AS WRITTEN, THE DISPATCH-AGAINST-A-SHA HALF OF THIS PATH IS NOT EXECUTABLE. Measured this run: `grep -n \"inputs:\" .github/workflows/deploy-web.yml .github/workflows/deploy-workers.yml` returns NOTHING — neither workflow declares a single workflow_dispatch input (deploy-workers.yml:26 and deploy-web.yml:29 are bare `workflow_dispatch:` keys — deploy-workers re-measured 2026-09-06 after its prose moved to docs/ci/deploy-workers.md; the :21 it said before landed on a comment line), and GitHub's 'Run workflow' ref picker offers BRANCHES AND TAGS ONLY, never a bare commit SHA. So there has never been a control anywhere that accepts the SHA this sentence tells the operator to type. THE FIRST HALF OF THIS SENTENCE IS THE EXECUTABLE ONE AND NEEDS NO WORKFLOW AT ALL: Cloudflare dashboard ▸ Workers & Pages ▸ the Pages project ▸ Deployments ▸ the target deployment ▸ Rollback. Confirm with /version.json's build_number, exactly as `response` already says — and note that a rollback fires NO post-deploy smoke, because no workflow runs, which is why the human comparison in `mechanism.readBy` survives the correction appended there. If a forward RE-DEPLOY of an older SHA is wanted instead of a rollback, that is revert.worker.platform's branch-cut route and it needs GitHub access; this row's `accessProviders` stay cloudflare-only on purpose, because THE ROLLBACK ITSELF needs nothing but the Cloudflare console. ⏱ 2026-09-09 - APPENDED, NOTHING ABOVE REWRITTEN, AND THE ADDRESS THIS ROW IS ABOUT HAS MOVED. [ADR 075] publishes every app at a PATH on the apex (https://nikatru.com/<id>) instead of on its own subdomain. THE ROLLBACK IS UNCHANGED IN SHAPE AND STILL NEEDS NOTHING BUT CLOUDFLARE, and the reason is a property MEASURED LIVE ON 2026-09-09 rather than read off a documentation page: EACH APP STILL HAS ITS OWN CLOUDFLARE PAGES PROJECT WITH ITS OWN DEPLOYMENT HISTORY. .github/workflows/deploy-web.yml deploys with `pages deploy build/web --project-name=<app id> --branch=main` - one project per app id - and the apex router is a SEPARATE deployable that proxies to it. So one app rolls back ALONE: `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project}/deployments/{deployment_id}/rollback`, or the console route already written above (Workers & Pages > that project > Deployments > the target deployment > Rollback). THE PROOF, and it is a proof rather than a reading: one lab app was rolled back live today and ONLY that app's path changed - the router's own deployment id was untouched and the OTHER app's path served exactly what it had served a minute earlier. 🔴 WHAT IS GENUINELY NEW, AND IT CUTS BOTH WAYS: the ROUTER is now a second thing that can be wrong, with its own deployment history and its own rollback. Rolling an app back does NOT roll the router back, and rolling the router back does NOT roll any app back. That is the good direction - one bad build cannot be undone by touching a shared surface and cannot take the other apps or the marketing site with it - but it means 'this app is serving the wrong bytes' and 'this path is being sent to the wrong place' are two different faults with two different undos, and the version check in `response` is what tells them apart: a rolled-back app serves the OLD build_number at its own path, while a broken router serves a 404, the marketing shell, or another app entirely. ⚠️ AND THE SMOKE STILL DOES NOT RUN. A rollback is a console or API act, no workflow fires, so neither the build-number probe nor the cross-origin API limb added to tooling/ops/post-deploy-smoke.mjs on 2026-09-09 executes - which is why the human comparison in `mechanism.readBy` survives this correction too, and why it now has one more thing to look at. 📌 THE ROW ID KEEPS THE APP LITERAL ON PURPOSE: it is a stable identifier for a register row, cited by name from two other rows in this file. The ADDRESSES are the things that must never be typed, and every one of them here is written as <id> and derived from apps/<id>/app.yaml wherever a machine reads it.",
       "detector": "Same cadence bound as the Worker reverts.",
-      "response": "Roll back, then confirm /version.json's build_number is the expected one.",
+      "response": "Roll back that app's Pages project, then confirm https://nikatru.com/<id>/version.json reports the expected build_number - the app's OWN path, never the apex root, which is the marketing site and answers 200 either way. Then load the app once and watch its first API call: a rollback changes the bytes and nothing else, so an app that now cannot fetch is a router or CORS fault rather than the build that was just restored.",
       "cadence": "365d",
       "lastDone": null,
       "mechanism": {
         "substrate": "cloudflare-pages",
         "anchor": ".github/workflows/deploy-web.yml",
-        "record": "the Pages deployment list + /version.json",
-        "failingValue": "version.json's build_number not matching the deployment believed to be live",
-        "readBy": "a human comparing /version.json against the deployment believed to be live. ⚠️ There is NO post-deploy smoke step in .github/workflows/deploy-web.yml — the row claimed one and it has never existed. Building it is [14]O-7 and it is not in this increment. 📌 CORRECTED 2026-08-25 — APPENDED, NOTHING ABOVE REWRITTEN, because the sequence IS the record: the row asserted a smoke that did not exist, the denial above corrected it, the smoke was then built, and the denial is now itself the stale claim. THE POST-DEPLOY SMOKE STEP EXISTS. Measured this run: `grep -n post-deploy-smoke .github/workflows/deploy-web.yml` returns TWO hits — :93 (the paths filter that makes an edit to the smoke script re-run the deploy lane) and :455 (the command itself), the latter inside the step at :452 named 'Smoke — the live site serves THIS build', which runs `node tooling/ops/post-deploy-smoke.mjs --url <site_url>/version.json --field build_number --expect ${{ github.run_number }}`. That is the same comparison the sentence above assigns to a human, performed by the deploy job itself on every run. This guard's own [14]O-7 census printed '5 deploy job(s) derived from record-deployment calls; 3 probe the surface they ship; 2 written exemption(s)' on the run that appended this line, and deploy-web's job is one of the 3 — the 2 exemptions are the two Cloudflare-Git-integration sites, which have no job to probe from. What remains true above is only that a HUMAN still has to make the comparison during a ROLLBACK, because a rollback is a console act on Cloudflare that runs no workflow and therefore fires no smoke."
+        "record": "that app's OWN Pages project deployment list - one project per app id, created by .github/workflows/deploy-web.yml - plus https://nikatru.com/<id>/version.json",
+        "failingValue": "the build_number at https://nikatru.com/<id>/version.json not matching the deployment believed to be live in that app's own Pages project - or that path not resolving to that app at all, which is the ROUTER fault rather than the app one",
+        "readBy": "a human comparing /version.json against the deployment believed to be live. ⚠️ There is NO post-deploy smoke step in .github/workflows/deploy-web.yml — the row claimed one and it has never existed. Building it is [14]O-7 and it is not in this increment. 📌 CORRECTED 2026-08-25 — APPENDED, NOTHING ABOVE REWRITTEN, because the sequence IS the record: the row asserted a smoke that did not exist, the denial above corrected it, the smoke was then built, and the denial is now itself the stale claim. THE POST-DEPLOY SMOKE STEP EXISTS. Measured this run: `grep -n post-deploy-smoke .github/workflows/deploy-web.yml` returns TWO hits — :93 (the paths filter that makes an edit to the smoke script re-run the deploy lane) and :455 (the command itself), the latter inside the step at :452 named 'Smoke — the live site serves THIS build', which runs `node tooling/ops/post-deploy-smoke.mjs --url <site_url>/version.json --field build_number --expect ${{ github.run_number }}`. That is the same comparison the sentence above assigns to a human, performed by the deploy job itself on every run. This guard's own [14]O-7 census printed '5 deploy job(s) derived from record-deployment calls; 3 probe the surface they ship; 2 written exemption(s)' on the run that appended this line, and deploy-web's job is one of the 3 — the 2 exemptions are the two Cloudflare-Git-integration sites, which have no job to probe from. What remains true above is only that a HUMAN still has to make the comparison during a ROLLBACK, because a rollback is a console act on Cloudflare that runs no workflow and therefore fires no smoke. ⏱ RE-MEASURED 2026-09-09 AND THE TWO LINE NUMBERS ABOVE ARE STALE. They are left standing because the sentence they support is still true and a silently-corrected citation teaches nobody. Today `grep -n post-deploy-smoke .github/workflows/deploy-web.yml` returns :27 (the paths filter) and :301 (the command), the latter inside the step named 'Smoke - the live site serves THIS build', which smokes `${{ steps.target.outputs.site_url }}/version.json` where site_url is resolved from catalog/apps.json by the step named 'Resolve this app's published origin from the catalogue'. Since [ADR 075] that resolves to https://nikatru.com/<id>, so the smoke followed the app to its new address with no edit to the workflow, which is the whole point of resolving it from the catalogue rather than typing it. The HUMAN half of this field is unchanged and is now LARGER: a rollback fires no workflow, so neither the build-number probe nor the cross-origin API limb runs, and both are things a person has to do by hand after one."
       },
       "accessProviders": [
         "cloudflare"
       ],
       "ownerGated": true,
-      "ownerGap": "Rolling live production back is a destructive act against a live surface.",
+      "ownerGap": "Rolling live production back is a destructive act against a live surface. Unchanged by [ADR 075]: the act is now per-app rather than portfolio-wide, which bounds the blast radius without making it somebody else's decision.",
       "source": "verified"
     },
     {
@@ -2397,7 +2459,7 @@
       "ownerGap": "DRILLED 2026-09-03 (first time) - see drillEvidence. 🔴 THE CADENCE IS NOT THE BINDING CONSTRAINT HERE. 180d puts the next run at 2027-03-02, but the CUTOVER is what makes this drill meaningful: it creates the first real auth.users rows, and the run immediately after it is the first one whose identity comparison is not vacuous. Re-drill then, not in March. ⚠️ Residual risk recorded rather than hidden: nothing reads this row, so it fails only by going stale against its own cadence - and the _supabase half of the backup set has no drill at all.",
       "source": "verified"
     },
-{
+    {
       "id": "recovery.oci-boot-volume",
       "kind": "recovery-path",
       "what": "Restore the Oracle box's boot volume.",

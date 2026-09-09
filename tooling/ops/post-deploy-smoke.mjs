@@ -22,7 +22,7 @@
 // The joinable key differs per surface, and writing the one you WISH were there
 // is how a check ends up asserting nothing:
 //
-//   WEB (Cloudflare Pages).  `subly.nikatru.com/version.json` carries
+//   WEB (Cloudflare Pages).  The app's own `version.json` carries
 //     `build_number`, and `deploy-web.yml` builds with
 //     `--build-number=${{ github.run_number }}`. The SHA is NOT in version.json
 //     — it appears only inside `main.dart.js` — so the joinable key is the RUN
@@ -102,7 +102,13 @@
 //
 // Usage:
 //   node tooling/ops/post-deploy-smoke.mjs \
-//     --url https://subly.nikatru.com/version.json --field build_number --expect 123
+//     --url https://nikatru.com/<app id>/version.json --field build_number --expect 123
+//     ⏱ 2026-09-09 — THAT URL MOVED AND SO DID TWO LIMBS BELOW. [ADR 075]
+//     publishes every app at a PATH on the apex, so deploy-web.yml now smokes
+//     `<site_url>/version.json` where `site_url` is https://nikatru.com/<id>,
+//     resolved from catalog/apps.json by the job itself. `<app id>` above is a
+//     placeholder on purpose: this script derives everything from the URL it is
+//     handed and from the catalogue, and spells no app id anywhere.
 //   node tooling/ops/post-deploy-smoke.mjs \
 //     --url https://api.nikatru.com/v1/health --field build --expect <sha> --require-ok
 //   node tooling/ops/post-deploy-smoke.mjs \
@@ -113,9 +119,11 @@
 // The third form is a DIFFERENT TRANSPORT over a store surface — see "THE PLAY
 // LIMB" further down for why it is in this file and what it reads.
 //
-// The edge cache limb runs when — and only when — the smoked URL is the WEB
-// channel's join point (`/version.json`, which is what `deploy-web.yml`
-// invokes). Worker health routes serve no Cache-Control at all and are governed
+// The edge cache limb and the cross-origin API limb run when — and only when —
+// the smoked URL is the WEB channel's join point (a `version.json`, which is
+// what `deploy-web.yml` invokes; since [ADR 075] it sits under the app's base
+// path rather than at the root, and `isWebChannelSmoke` matches the last path
+// segment for exactly that reason). Worker health routes serve no Cache-Control at all and are governed
 // by no `_headers` file, so applying the rule there would fail every Workers
 // deploy for a policy that does not apply to it. That predicate is a coupling
 // to the caller and is therefore ASSERTED AGAINST THE REAL WORKFLOW in
@@ -131,12 +139,19 @@
 // it has no network to look at. Both print a loud banner, so their presence in a
 // real CI log is unmistakable.
 //
-// Exit 0 = the live surface answered at the expected build, and the edge serves
-//          the entry points revalidating.
+// --api-fixture <file> reads a JSON array of `{status, headers}` (or `{error}`)
+// for the cross-origin API limb, one per attempt; --api-origin and --api-path
+// override what that limb derives and --catalogue points it at a different
+// catalog/apps.json. Under --fixture with no --api-fixture the limb is SKIPPED
+// and says so loudly, since there is no live API to call.
+//
+// Exit 0 = the live surface answered at the expected build, the edge serves the
+//          entry points revalidating, and the app's first cross-origin API call
+//          is refused for AUTH reasons with the CORS header present and correct.
 // Exit 1 = it did not, or could not be read.  Exit 2 = bad invocation.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSign, createHash } from 'node:crypto';
 // The ONE declaration of the SHA256SUMS format and of its name, imported rather
@@ -147,6 +162,10 @@ import { parseManifest, MANIFEST_NAME } from '../ci/release-manifest.mjs';
 const ATTEMPTS = 6;
 const GAP_MS = 10_000;
 const TIMEOUT_MS = 15_000;
+
+/** The catalogue this script resolves the deployed app from. Overridable with
+ *  --catalogue so the suite can point the limb at a tree it built. */
+const DEFAULT_CATALOGUE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'catalog', 'apps.json');
 
 /** `indexOf` returns -1 when absent, and -1 + 1 === 0 silently selects argv[0].
  *  That exact off-by-one shipped in assert-gate-passed.mjs and blocked both
@@ -252,13 +271,50 @@ export function judgeOk(body) {
  *  limb can never be entirely about URLs nobody looks at. */
 export const WEB_ENTRY_POINTS = ['/flutter_bootstrap.js', '/main.dart.js'];
 
-/** Only the WEB channel is governed by an `_headers` file. See the header. */
+/** Only the WEB channel is governed by an `_headers` file. See the header.
+ *
+ *  🔴 CORRECTED 2026-09-09, AND IT WAS ABOUT TO GO SILENT. This read
+ *  `pathname === '/version.json'`. [ADR 075] moved the app's published address
+ *  to a PATH on the apex, so `deploy-web.yml` now smokes
+ *  `https://nikatru.com/<id>/version.json` — pathname `/<id>/version.json`. The
+ *  exact-match predicate would have returned FALSE for it, and the edge cache
+ *  limb below prints "not applicable" and RETURNS on false. That is the failure
+ *  this repository keeps paying for: the [14]O-8 limb would have stopped running
+ *  on the very deploy that changed the address, said so in one cheerful line,
+ *  and exited 0. The suite's `REQUIRED COVERAGE` case asserts the workflow still
+ *  smokes a URL ending in `/version.json` — which is what this now matches. */
 export function isWebChannelSmoke(url) {
   try {
-    return new URL(url).pathname === '/version.json';
+    const segments = new URL(url).pathname.split('/');
+    return segments[segments.length - 1] === 'version.json';
   } catch {
     return false;
   }
+}
+
+/** The directory the smoked `version.json` sits in, with both slashes — `/` at
+ *  the apex root, `/<id>/` for an app published at a path. It is the app's BASE
+ *  HREF, read off the URL the deploy job actually smoked rather than composed
+ *  here, so this file needs no opinion about how an address is built and cannot
+ *  disagree with tooling/sites/apex.mjs about one. */
+export function webBasePath(url) {
+  const path = new URL(url).pathname;
+  return path.slice(0, path.lastIndexOf('/') + 1) || '/';
+}
+
+/** Every stable-named entry point, ON THE BASE PATH THE APP IS SERVED FROM.
+ *
+ *  ⚠️ THIS IS THE OTHER HALF OF THE SAME 2026-09-09 DEFECT and it fails the
+ *  opposite way round. `assertEdgeCachePolicy` used `new URL(url).origin` and
+ *  the leading-slash names above, so under a path address it would have probed
+ *  `https://nikatru.com/flutter_bootstrap.js` — which the apex Pages project
+ *  answers with its own 404, or with the marketing shell. Neither is this app's
+ *  entry point, so the limb would have reported on a file that is not the one
+ *  the force-update kill-switch travels over. */
+export function webEntryPointUrls(url) {
+  const origin = new URL(url).origin;
+  const base = webBasePath(url);
+  return WEB_ENTRY_POINTS.map((p) => `${origin}${base}${p.replace(/^\//, '')}`);
 }
 
 /**
@@ -338,13 +394,13 @@ export function judgeCacheControl({ status, contentType, cacheControl, expectTyp
   return { ok: true, actual: raw };
 }
 
-async function fetchOnce(url) {
+async function fetchOnce(url, extraHeaders = {}) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       signal: ac.signal,
-      headers: { 'user-agent': 'nikatru-post-deploy-smoke', 'cache-control': 'no-cache' },
+      headers: { 'user-agent': 'nikatru-post-deploy-smoke', 'cache-control': 'no-cache', ...extraHeaders },
       // A cached answer would prove the CDN remembers the OLD build, which is
       // the precise thing this check must not accept.
       cache: 'no-store',
@@ -402,7 +458,6 @@ async function probeCache({ url, expectType, get, canned, log }) {
  * `max-age=14400` live behind a green build.
  */
 export async function assertEdgeCachePolicy({ url, smokedHeaders, get, canned }) {
-  const origin = new URL(url).origin;
   const log = (m) => console.log(`    ${m}`);
   console.log(`--  edge cache policy [14]O-8 — the force-update kill-switch travels over these:`);
   const smoked = judgeCacheControl({
@@ -418,12 +473,252 @@ export async function assertEdgeCachePolicy({ url, smokedHeaders, get, canned })
     console.error(`✗ EDGE CACHE POLICY FAILED for ${url} — ${smoked.reason}`);
     ok = false;
   }
-  for (const path of WEB_ENTRY_POINTS) {
+  for (const entry of webEntryPointUrls(url)) {
     // eslint-disable-next-line no-await-in-loop
-    const good = await probeCache({ url: `${origin}${path}`, expectType: JS_TYPE, get, canned, log });
+    const good = await probeCache({ url: entry, expectType: JS_TYPE, get, canned, log });
     if (!good) ok = false;
   }
   return ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE CROSS-ORIGIN API LIMB — [14]O-7 for the request the app makes FIRST.
+// Added 2026-09-09 with [ADR 075].
+//
+// 🔴 WHY `version.json` IS NO LONGER ENOUGH, AND WAS ALWAYS THE WEAKER HALF.
+// Everything above this line proves that the right BYTES are being served: a
+// static JSON file carries the run number the job just built. That is a real
+// check and it stays. What it cannot see is the very next thing that happens in
+// a browser — the app's first call to its API — and the migration changed
+// exactly that: until today the page and the API agreed on an origin the
+// Worker's allowlist had carried since it shipped; from today the page is served
+// from the APEX, so every API request the app makes is a cross-origin request
+// with `Origin: https://nikatru.com`, and it is allowed or refused by a
+// comma-separated variable in a wrangler config that nothing in the deploy job
+// reads. A version.json that is perfect and an allowlist that is one entry short
+// produce the same green tick and an app that renders a shell and no data.
+//
+// ── WHAT IS PROBED, AND WHY THE ANSWER WOULD DIFFER IF IT WERE BROKEN ────────
+// One request to the app's own API host, shaped like the app's first real call:
+//   · `Origin: <the origin the page is now served from>` — taken from the URL
+//     the deploy job smoked, never typed here, so it is the app's real origin by
+//     construction.
+//   · `Authorization: Bearer <a deliberately invalid token>` — see
+//     INVALID_BEARER. No credential is read, none is needed, and nothing that
+//     could ever be one appears in this file or in any log it writes.
+// and TWO independent properties are required of the answer:
+//   1. `Access-Control-Allow-Origin` is present AND echoes that exact origin.
+//   2. the status is 401 or 403 — an AUTH refusal.
+//
+// ⚠️ THE WHOLE POINT IS THAT THOSE TWO FAILURES ARE DIFFERENT AND MUST NOT BE
+// COLLAPSED. A CORS rejection and an auth rejection look identical to a naive
+// probe — both are "the request did not succeed" — and they are opposite
+// diagnoses. An auth refusal WITH the header is the API working exactly as
+// designed: the browser hands the 401 to the app and the app sends the user to
+// sign in. An auth refusal WITHOUT the header is the browser DISCARDING the
+// response before a single line of app code sees it, so the app cannot even tell
+// the user why; and services/subly-api/src/middleware/cors.ts fails CLOSED — an
+// origin that is not on ALLOWED_ORIGINS gets no header at all rather than an
+// error anybody would notice. That is why a missing header is a failure here and
+// not a warning: it is the exact fault this address migration can introduce, it
+// is invisible to every other check in this file, and it looks like success.
+//
+// ⚠️ AND A 200 IS A FAILURE TOO, LOUDLY. The token below is invalid on purpose,
+// so a 200 means the deployed Worker accepted it — an authentication bypass
+// reported by the smoke rather than by a stranger. A 404 is a failure for the
+// weaker reason that a probe which read nothing is never a pass: the route moved
+// and this limb has been asserting CORS on the not-found handler.
+//
+// ⚠️ RETRYABLE ONLY ON 5xx AND 429. A missing allow-origin header is
+// CONFIGURATION — a wrangler var, a Worker deploy — and is identical one second
+// and one hour after the deploy, exactly like the edge cache limb's verdict.
+// Waiting could only turn a real divergence into a slower real divergence.
+//
+// Offline: --api-fixture <file> is a JSON array of {status, headers} (or
+// {error}), consumed one per attempt. --api-origin and --api-path override the
+// derived values. The fixture prints a loud banner.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 🔴 NOT A CREDENTIAL, AND SHAPED SO NOBODY CAN MISTAKE IT FOR ONE. It is not a
+ *  JWT, it has no dots-and-base64 shape, and it says what it is. The limb needs a
+ *  token the API will REJECT; a real one would make the probe assert nothing and
+ *  would put a secret in a public repository. */
+export const INVALID_BEARER = 'invalid-by-design-not-a-token.post-deploy-smoke';
+
+/** The route the probe uses. It has to be one that REQUIRES auth — an
+ *  unauthenticated route answers 200 and the limb would assert nothing about
+ *  authentication at all. `/v1/subscriptions` is mounted behind `supabaseAuth`
+ *  in services/subly-api/src/index.ts, which answers `401 {"error":
+ *  "unauthorized"}` on every failure path. Overridable with --api-path so a
+ *  second app with a different shape does not have to edit this file. */
+export const API_AUTH_PROBE_PATH = '/v1/subscriptions';
+
+/**
+ * THE DECISION, kept pure so every branch is testable without a network — the
+ * same rule `judge`, `judgeCacheControl` and `judgePlayTracks` are written to.
+ *
+ * `origin` is the browser origin the request claimed; `headers` is the response
+ * header map, lowercased by the caller.
+ */
+export function judgeApiCors({ status, headers, origin }) {
+  const h = headers ?? {};
+  if (status >= 500 || status === 429) {
+    // The only retryable shape: a Worker still rolling out, or a rate limit.
+    return { ok: false, retry: true, reason: `HTTP ${status} — the API did not answer with a verdict of its own` };
+  }
+  const raw = h['access-control-allow-origin'];
+  const allow = raw == null ? '' : String(raw).trim();
+  if (allow === '') {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        `CORS REJECTION, NOT an auth rejection: the API answered HTTP ${status} and carried NO ` +
+        `Access-Control-Allow-Origin at all. A browser on ${origin} discards this response before one line of app ` +
+        'code sees it, so the app cannot render, cannot sign the user in and cannot say why. ' +
+        'services/subly-api/src/middleware/cors.ts fails CLOSED — an origin that is not on ALLOWED_ORIGINS gets no ' +
+        `header rather than an error — so this is exactly what ${origin} being absent from that allowlist looks ` +
+        'like from outside, and it is the fault this address migration can introduce.',
+    };
+  }
+  if (allow === '*') {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        'the API answered `Access-Control-Allow-Origin: *` on a Bearer-gated user-data route. The declared policy is ' +
+        'an EXACT allowlist that fails closed; a wildcard means that allowlist stopped being applied, which is the ' +
+        'state services/subly-api/src/middleware/cors.ts and its guard both exist to prevent.',
+    };
+  }
+  if (allow !== origin) {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        `the API allows ${JSON.stringify(allow)} and the app is served from ${JSON.stringify(origin)}. An echo of a ` +
+        'DIFFERENT origin is not partial coverage — a browser compares byte for byte, so this is a total refusal that ' +
+        'happens to carry a header.',
+    };
+  }
+  if (status === 401 || status === 403) {
+    return { ok: true, status, allowOrigin: allow };
+  }
+  if (status === 200) {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        '🔴 the API answered 200 to a token this probe made up. CORS is fine and AUTHENTICATION IS NOT: a ' +
+        'deliberately invalid Bearer token was accepted on a user-data route. This is the one verdict here that is a ' +
+        'security finding rather than a deploy finding.',
+    };
+  }
+  if (status === 404) {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        'the probed route answered 404, so this limb has been asserting CORS on the not-found handler rather than on ' +
+        'an authenticated route. A probe that read nothing is a failure, never a pass — repoint it with --api-path.',
+    };
+  }
+  return { ok: false, retry: false, reason: `HTTP ${status} — neither an auth refusal (401/403) nor anything this limb can read as one` };
+}
+
+/**
+ * The limb. Fails CLOSED on every path: an unreachable API, a missing header, a
+ * header for the wrong origin, a wildcard, a 200, a 404 and any other status are
+ * ALL failures.
+ */
+export async function assertApiCorsAuth({ apiOrigin, path, origin, get, canned }) {
+  const url = `${apiOrigin}${path}`;
+  console.log('--  cross-origin API [14]O-7 — the FIRST call the app makes, from its new origin:');
+  console.log(`    ${url}   Origin: ${origin}   Authorization: Bearer <invalid by design>`);
+  let last = 'no attempt was made';
+  for (let i = 0; i < ATTEMPTS; i += 1) {
+    let res;
+    try {
+      if (canned) {
+        const c = canned[Math.min(i, canned.length - 1)] ?? {};
+        if (c.error) throw new Error(c.error);
+        res = c;
+      } else {
+        // eslint-disable-next-line no-await-in-loop
+        res = await get(url, { origin, authorization: `Bearer ${INVALID_BEARER}` });
+      }
+    } catch (e) {
+      last = `the API could not be read: ${e.message}`;
+      // eslint-disable-next-line no-await-in-loop
+      if (i < ATTEMPTS - 1 && !canned) await new Promise((r) => setTimeout(r, GAP_MS));
+      continue;
+    }
+    const lower = {};
+    for (const [k, v] of Object.entries(res.headers ?? {})) lower[String(k).toLowerCase()] = v;
+    const verdict = judgeApiCors({ status: res.status, headers: lower, origin });
+    if (verdict.ok) {
+      console.log(
+        `    ok  HTTP ${verdict.status} with Access-Control-Allow-Origin: ${verdict.allowOrigin} — the refusal is an AUTH refusal and it REACHES the app (attempt ${i + 1}/${ATTEMPTS})`,
+      );
+      return true;
+    }
+    last = verdict.reason;
+    if (!verdict.retry) break;
+    // eslint-disable-next-line no-await-in-loop
+    if (i < ATTEMPTS - 1 && !canned) await new Promise((r) => setTimeout(r, GAP_MS));
+  }
+  console.error(`✗ CROSS-ORIGIN API CHECK FAILED for ${url} — ${last}`);
+  return false;
+}
+
+/**
+ * WHICH API THIS DEPLOY'S APP TALKS TO — read from the catalogue and matched to
+ * the URL the job actually smoked. Nothing here is typed: the app is identified
+ * by the address it was just deployed to, and its API host is that catalogue
+ * row's own `api` field.
+ *
+ * Returns `{ apiOrigin, slug }` or `{ problem }`. A tree it cannot resolve an app
+ * from is a PROBLEM, never a skip: "I could not tell which app I just deployed"
+ * must not read as "the API is fine".
+ */
+export function resolveApiOrigin(catalogueText, smokedUrl) {
+  let catalogue;
+  try {
+    catalogue = JSON.parse(catalogueText);
+  } catch (e) {
+    return { problem: `catalog/apps.json does not parse (${e.message}), so the API this deploy's app calls cannot be resolved.` };
+  }
+  if (!Array.isArray(catalogue) || catalogue.length === 0) {
+    return { problem: 'catalog/apps.json declares no apps, so there is no API host to probe — and nothing would have said so.' };
+  }
+  let published;
+  try {
+    published = `${new URL(smokedUrl).origin}${webBasePath(smokedUrl)}`;
+  } catch {
+    return { problem: `the smoked URL ${JSON.stringify(smokedUrl)} will not parse.` };
+  }
+  const seen = [];
+  for (const app of catalogue) {
+    const u = typeof app?.url === 'string' ? app.url : null;
+    if (u === null) continue;
+    const normalised = `${u.replace(/\/+$/, '')}/`;
+    seen.push(normalised);
+    if (normalised !== published) continue;
+    const api = typeof app.api === 'string' ? app.api.trim() : '';
+    if (api === '') {
+      // Documented and legitimate: an app with no Worker of its own calls the
+      // shared platform Worker, and the catalogue renders `api` as the empty
+      // string. There is no per-app API origin to probe.
+      return { apiOrigin: null, slug: app.slug ?? null };
+    }
+    return { apiOrigin: api.replace(/\/+$/, ''), slug: app.slug ?? null };
+  }
+  return {
+    problem:
+      `no row in catalog/apps.json is published at ${published} (the catalogue publishes ${seen.join(', ') || 'nothing'}). ` +
+      'The smoke cannot tell which app it just deployed, so it cannot tell which API that app calls — and a limb that ' +
+      'cannot identify its subject must fail rather than skip.',
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -974,6 +1269,10 @@ async function main() {
   const requireOk = process.argv.includes('--require-ok');
   const fixture = flag(process.argv, '--fixture');
   const cacheFixture = flag(process.argv, '--cache-fixture');
+  const apiFixture = flag(process.argv, '--api-fixture');
+  const apiOriginFlag = flag(process.argv, '--api-origin');
+  const apiPathFlag = flag(process.argv, '--api-path');
+  const cataloguePath = flag(process.argv, '--catalogue') ?? DEFAULT_CATALOGUE;
   const playPackage = flag(process.argv, '--play-package');
   const playFixture = flag(process.argv, '--play-fixture');
   const releaseRepo = flag(process.argv, '--release-repo');
@@ -1071,6 +1370,21 @@ async function main() {
     }
   }
 
+  let apiCanned = null;
+  if (apiFixture) {
+    console.log('!!  OFFLINE API FIXTURE MODE — --api-fixture is set. This must NEVER appear in a real CI log.');
+    try {
+      apiCanned = JSON.parse(readFileSync(apiFixture, 'utf8'));
+    } catch (e) {
+      console.error(`✗ could not read api fixture ${apiFixture}: ${e.message}`);
+      process.exit(2);
+    }
+    if (!Array.isArray(apiCanned) || apiCanned.length === 0) {
+      console.error('✗ the api fixture must be a non-empty array of {status, headers} or {error}');
+      process.exit(2);
+    }
+  }
+
   let canned = null;
   if (fixture) {
     console.log('!!  OFFLINE FIXTURE MODE — --fixture is set. This must NEVER appear in a real CI log.');
@@ -1111,13 +1425,19 @@ async function main() {
       // report on the previous deploy's headers. By here the edge has been
       // proven to be serving THIS build.
       if (!isWebChannelSmoke(url)) {
-        console.log(`--  edge cache policy [14]O-8 — not applicable: ${url} is not the web channel's /version.json join point, and no _headers file governs it`);
+        console.log(`--  edge cache policy [14]O-8 and the cross-origin API limb — not applicable: ${url} does not smoke a version.json, so no _headers file governs it and no catalogue row publishes it`);
         return;
       }
+      // ⚠️ NEITHER LIMB MAY `return` PAST THE OTHER. Until 2026-09-09 the
+      // cache limb's skip branch returned, which was harmless while it was the
+      // only limb after the build match and is not any more: a skipped cache
+      // fixture would silently take the API limb with it, and "a run exited 0
+      // while every step inside it was skipped" is the failure this file is
+      // written against. Both limbs record into `webOk` instead.
+      let webOk = true;
       if (canned && !cacheCanned) {
         console.log('--  edge cache policy [14]O-8 — SKIPPED: --fixture is set and --cache-fixture is not, so there is no live edge to look at. This line must never appear in a real CI log.');
-        return;
-      }
+      } else {
       const get = cacheCanned
         ? async (u) => cacheCanned[new URL(u).pathname] ?? { status: 404, headers: {} }
         : fetchOnce;
@@ -1145,8 +1465,63 @@ async function main() {
         // crash standing in for an exit code is worth removing: a failure that
         // reports a garbage status is one step from a failure nobody reads.
         // The exit codes above are unchanged; only this branch unwinds.
-        process.exitCode = 1;
+        webOk = false;
       }
+      }
+
+      // ── the CROSS-ORIGIN API limb ─────────────────────────────────────
+      // Runs AFTER the build match for the same reason the cache limb does: the
+      // edge has been proven to be serving THIS build, so a refusal here is this
+      // build's refusal rather than the previous one's.
+      if (canned && !apiCanned) {
+        console.log('--  cross-origin API [14]O-7 — SKIPPED: --fixture is set and --api-fixture is not, so there is no live API to call. This line must never appear in a real CI log.');
+      } else {
+        let apiOrigin = apiOriginFlag;
+        if (apiOrigin === null || apiOrigin === undefined) {
+          let catalogueText = null;
+          try {
+            catalogueText = readFileSync(cataloguePath, 'utf8');
+          } catch (e) {
+            console.error(`✗ CROSS-ORIGIN API CHECK FAILED — ${cataloguePath} could not be read (${e.message}). It is how this script learns which app it just deployed and which API that app calls; without it the limb would range over nothing and report ok.`);
+            webOk = false;
+          }
+          if (catalogueText !== null) {
+            const resolved = resolveApiOrigin(catalogueText, url);
+            if (resolved.problem) {
+              console.error(`✗ CROSS-ORIGIN API CHECK FAILED — ${resolved.problem}`);
+              webOk = false;
+            } else if (resolved.apiOrigin === null) {
+              console.log(`--  cross-origin API [14]O-7 — the catalogue row for ${JSON.stringify(resolved.slug)} declares an EMPTY \`api\`, which is how an app with no Worker of its own is recorded. There is no per-app API origin to probe, and that is a declaration rather than an absence.`);
+            } else {
+              apiOrigin = resolved.apiOrigin;
+            }
+          }
+        }
+        if (apiOrigin) {
+          const apiOk = await assertApiCorsAuth({
+            apiOrigin,
+            path: apiPathFlag ?? API_AUTH_PROBE_PATH,
+            origin: new URL(url).origin,
+            get: fetchOnce,
+            canned: apiCanned,
+          });
+          if (!apiOk) {
+            console.error('');
+            console.error('    The bytes are live at the right build and the app STILL cannot use them. This limb');
+            console.error('    is the only one in the file that leaves the static surface: version.json is a file,');
+            console.error('    and a file proves nothing about the first request the app makes across an origin');
+            console.error('    boundary that only exists since the app moved to a path on the apex. Check');
+            console.error('    ALLOWED_ORIGINS in the app\'s services/*/wrangler.jsonc against the origin printed');
+            console.error('    above before touching anything else: an origin missing from that exact list gets');
+            console.error('    NO CORS header at all, which is a silent, total refusal that looks like an outage.');
+            webOk = false;
+          }
+        }
+      }
+
+      // ⚠️ `process.exitCode`, NOT `process.exit(1)` — the measured Windows libuv
+      // assertion documented above. Both limbs have just opened keep-alive sockets.
+      if (!webOk) process.exitCode = 1;
       return;
     }
     last = verdict.reason;

@@ -29,6 +29,7 @@ import 'package:nikatru_platform_storage/nikatru_platform_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
+import 'package:subly/core/app_config.dart';
 import 'package:subly/core/e2e_keys.dart';
 import 'package:subly/features/auth/legal_consent_fields.dart';
 import 'package:subly/features/auth/reaccept_terms_screen.dart';
@@ -555,7 +556,9 @@ void main() {
     WidgetTester tester, {
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    final PrefsKeyValueStore store = await PrefsKeyValueStore.create();
+    final PrefsKeyValueStore store = await PrefsKeyValueStore.create(
+      appId: AppConfig.appId,
+    );
     String? id;
     final int startedIn = testEpoch;
     final DateTime end = DateTime.now().add(timeout);
