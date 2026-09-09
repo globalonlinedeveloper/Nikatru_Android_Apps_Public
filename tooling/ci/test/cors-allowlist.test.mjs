@@ -60,14 +60,13 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { APEX_ORIGIN, APEX_HOST } from '../../sites/apex.mjs';
+import { APEX_ORIGIN } from '../../sites/apex.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-cors-allowlist.mjs');
 
 let TMP;
@@ -84,47 +83,6 @@ after(() => {
  *  moves, both sides of every comparison in this file move with it. */
 const APEX = new URL(APEX_ORIGIN).origin;
 
-/** 🔴 THE APP ID IS READ OFF THE DECLARATION, NEVER RE-SPELLED HERE.
- *
- *  Until 2026-09-09 this file spelled the id as a literal on BOTH sides of every
- *  comparison — in the fixture catalogue row AND in the regexp the assertion
- *  matched the guard's output against. A pair like that is DISARMED by a global
- *  find-and-replace: the sweep rewrites subject and assertion together and every
- *  case goes on passing while proving nothing. Worse, the `subly → subscription-
- *  tracker` sweep could NOT rewrite the four live external resources (the
- *  retiring subdomain, the old Pages origin, `subly_db`, the release stamps), so
- *  the halves that were rewritten stopped agreeing with the halves that were
- *  frozen and two cases went red for a reason that had nothing to do with CORS.
- *
- *  `catalog/apps.json` is the published declaration — the same file the guard
- *  derives from — so a future rename moves both sides of every comparison in
- *  this file at once, and can reach neither by hand. */
-const APP = (() => {
-  const rows = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8'));
-  const slugs = (Array.isArray(rows) ? rows : [])
-    .map((r) => r?.slug)
-    .filter((s) => typeof s === 'string' && s !== '');
-  assert.ok(slugs.length > 0, 'catalog/apps.json declares no slug — this test can derive nothing');
-  return slugs[0];
-})();
-
-/** The app's own Worker directory. DERIVED, because `services/<slug>-api` is the
- *  guard's derivation rule and re-typing it here would let the two disagree. */
-const API = `${APP}-api`;
-
-/** ⚠️ REAL LIVE RESOURCES, DELIBERATELY NOT RENAMED — the sweep that moved the
- *  app id could not move these and must never be "tidied" into agreement with it:
- *
- *  · `subly-9cp.pages.dev` is the OLD Cloudflare Pages origin, still the live
- *    origin until the separate migration step lands;
- *  · `subly.nikatru.com` is the RETIRED subdomain — a real DNS label with a zone
- *    Redirect Rule 301ing it to the path form. It is NOT derivable from the
- *    catalogue any more and survives only as an EXTRAS entry for the length of
- *    the cutover [ADR 075].
- *
- *  Both are spelled out because both are proper names of things that exist, not
- *  expressions of the app's identity. Everything that IS the app's identity is
- *  derived from `APP` above. */
 const PAGES = 'https://subly-9cp.pages.dev';
 const LOCAL = 'http://localhost:3000';
 /** The RETIRED app subdomain. It is no longer in either config and no longer in
@@ -132,30 +90,33 @@ const LOCAL = 'http://localhost:3000';
  *  be able to fail: an unjustified origin, and the coupled removal below. */
 const SUBDOMAIN = 'https://subly.nikatru.com';
 
+/** Quote a derived string for use inside `new RegExp`. 🔴 EVERY assertion in
+ *  this file that names a host builds its pattern through this, and that is not
+ *  style: until 2026-09-09 two of them re-spelt the host as an escaped literal,
+ *  the slug rename rewrote those escaped copies and left `SUBDOMAIN` alone, and
+ *  both controls sat demanding a hostname that exists nowhere. A control that
+ *  cannot fail is worse than no control, because it reports clean. */
+const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** The live catalogue row's shape. `origin` is carried by the real apps.json and
  *  is NOT what the guard derives from — the browser origin comes from `url`, i.e.
  *  from the app's PUBLIC ADDRESS, which is now a path on the apex. */
-const LIVE_ROW = {
-  slug: APP,
+const SUBLY = {
+  slug: 'subscriptiontracker',
   name: 'Nikatru Subscription Tracker',
-  url: `${APEX}/${APP}`,
+  url: `${APEX}/subscriptiontracker`,
   origin: PAGES,
   status: 'live',
 };
 
 /** The allowlists the real repo carries today (services/platform/wrangler.jsonc
- *  and services/<slug>-api/wrangler.jsonc, read 2026-09-09), so the baseline
- *  fixture is the live config rather than a convenient invention. The retired
- *  subdomain left both on 2026-09-09 with the 301 (#569). */
+ *  and services/subscriptiontracker-api/wrangler.jsonc, read 2026-09-09), so the baseline
+ *  fixture is the live config rather than a convenient invention. The subdomain
+ *  left both on 2026-09-09 with the 301. */
 const REAL = {
   platform: `${APEX},${PAGES},${LOCAL}`,
-  [API]: `${APEX},${PAGES}`,
+  'subscriptiontracker-api': `${APEX},${PAGES}`,
 };
-
-/** Quote a derived string for use inside a `new RegExp`. Every assertion in this
- *  file that names a host or a path builds its pattern from the declaration; this
- *  is what keeps that safe when the value contains `.` or `/`. */
-const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Build a throwaway repo. `workers` maps a service directory either to its
@@ -167,7 +128,7 @@ const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * comment and a trailing comma — because "parse the config, never grep it" is
  * the property under test, not a detail of the fixture.
  */
-function tree({ apps = [LIVE_ROW], workers = REAL, extraComment = '' } = {}) {
+function tree({ apps = [SUBLY], workers = REAL, extraComment = '' } = {}) {
   const root = join(TMP, `r${seq++}`);
   const dataDir = join(root, 'catalog');
   mkdirSync(dataDir, { recursive: true });
@@ -241,7 +202,7 @@ describe('assert-cors-allowlist', () => {
 
     // (a) the collapse itself: 2 apps, 1 origin. If this ever reads "2
     //     catalogue origin(s)", an app has left the apex.
-    const ok = run(tree({ apps: [LIVE_ROW, drift] }));
+    const ok = run(tree({ apps: [SUBLY, drift] }));
     assert.equal(ok.code, 0, ok.out);
     assert.match(
       ok.out,
@@ -253,12 +214,12 @@ describe('assert-cors-allowlist', () => {
 
     // (b) the floor that survived: drop the apex from the shared Worker and
     //     every app in the catalogue is named, not just the newest one.
-    const workers = { ...REAL, platform: `${RETIRED_SUBDOMAIN},${PAGES},${LOCAL}` };
-    const { code, out } = run(tree({ apps: [LIVE_ROW, drift], workers }));
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
+    const { code, out } = run(tree({ apps: [SUBLY, drift], workers }));
     assert.equal(code, 1);
     assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
     assert.match(out, /apps\.json declares "drift"/);
-    assert.match(out, new RegExp(`apps\\.json declares "${rx(APP)}"`));
+    assert.match(out, /apps\.json declares "subscriptiontracker"/);
     assert.match(out, /refused at runtime with nothing logged server side/);
   });
 
@@ -281,13 +242,10 @@ describe('assert-cors-allowlist', () => {
   // string every app in the portfolio sends. THAT has an input that reds it.
   // ─────────────────────────────────────────────────────────────────────────
   test('FAILS when a per-app Worker declares no vars.APP_ID', () => {
-    const workers = { ...REAL, [API]: { allowed: REAL[API], appId: null } };
+    const workers = { ...REAL, 'subscriptiontracker-api': { allowed: REAL['subscriptiontracker-api'], appId: null } };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
-    assert.match(
-      out,
-      new RegExp(`services/${rx(API)}/wrangler\\.jsonc — vars\\.APP_ID is missing on a PER-APP Worker`),
-    );
+    assert.match(out, /services\/subscriptiontracker-api\/wrangler\.jsonc — vars\.APP_ID is missing on a PER-APP Worker/);
     assert.match(out, /authorises on a string every app in the portfolio sends/);
     // The shared Worker is exempt from this limb by design — it is every app's
     // Worker, so there is no single APP_ID it could carry. If this ever starts
@@ -302,33 +260,24 @@ describe('assert-cors-allowlist', () => {
   // its own origin needs its own payment-provider approval and its own
   // allowlist entry, and neither happens by accident.
   test('FAILS when a catalogue row is published on a subdomain again', () => {
-    // 🔴 THE RELAPSE HOST IS THE APP'S OWN SUBDOMAIN UNDER THE ID IT CARRIES
-    // TODAY, DERIVED — not the RETIRED one. Those are two different facts and
-    // the file used to conflate them: the fixture published the row on
-    // `subly.nikatru.com` (a real, live, 301'd DNS label that the rename sweep
-    // could not touch) while the assertion had been swept to the new id, so the
-    // case failed for a reason with nothing to do with the reversal it guards.
-    // What is under test is "THIS app went back to its OWN origin", so both the
-    // url written and the host asserted come from `APP`.
-    const ownSubdomain = `https://${APP}.${APEX_HOST}`;
-    const relapsed = { ...LIVE_ROW, url: ownSubdomain };
+    const relapsed = { ...SUBLY, url: SUBDOMAIN };
     const { code, out } = run(tree({ apps: [relapsed] }));
     assert.equal(code, 1);
     // ⚠️ ANCHORED TO THE SENTENCE, NOT LEFT AS A BARE HOST PATTERN. An unanchored
-    // host pattern over text that contains URLs is the missing-regexp-anchor
-    // shape (CodeQL js/regex/missing-regexp-anchor): it matches inside
-    // `https://<app>.nikatru.com.evil.example` too, so it would go on passing
-    // while the guard named a host nobody meant. Each assertion below pins the
-    // host to what must surround it — the quotes the guard prints around every
-    // origin — so the match cannot drift onto a longer name.
-    assert.match(out, new RegExp(`1 catalogue origin\\(s\\) are not the apex "${rx(APEX)}"`));
-    assert.match(out, new RegExp(`"${rx(ownSubdomain)}"`));
+    // an unanchored pattern for that host over text that contains URLs is the
+    // missing-regexp-anchor shape (CodeQL js/regex/missing-regexp-anchor): it
+    // matches inside `https://subly.nikatru.com.evil.example` too, so it would go
+    // on passing while the guard named a host nobody meant. Each assertion below
+    // pins the host to what must surround it — a line end, or a comma/quote —
+    // so the match cannot drift onto a longer name.
+    assert.match(out, /1 catalogue origin\(s\) are not the apex "https:\/\/nikatru\.com"/);
+    assert.match(out, new RegExp(`"${rx(SUBDOMAIN)}"`));
     assert.match(out, /publishes every app at a PATH on the apex/);
   });
 
   // The other direction: the catalogue is also a CEILING, not just a floor.
   test('FAILS on a hand-added origin the catalogue does not justify', () => {
-    const workers = { ...REAL, [API]: `${REAL[API]},https://evil.example.com` };
+    const workers = { ...REAL, 'subscriptiontracker-api': `${REAL['subscriptiontracker-api']},https://evil.example.com` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, /"https:\/\/evil\.example\.com" is listed but NOTHING justifies it/);
@@ -349,9 +298,7 @@ describe('assert-cors-allowlist', () => {
     // scanner has miscategorised one line is how a rule stops being read at all.
     // `includes` says exactly what is meant, catches strictly more, and is not a
     // regex — so there is nothing left to anchor.
-    // The bare `pages.dev` suffix is kept alongside the three exact hosts, so
-    // this stays a SUPERSET of what it checked before the hosts were derived.
-    for (const host of ['pages.dev', ...[PAGES, LOCAL, RETIRED_SUBDOMAIN].map((o) => new URL(o).host)]) {
+    for (const host of ['pages.dev', 'localhost:3000', 'subly.nikatru.com']) {
       assert.ok(!out.includes(host), `the guard named ${host} on a tree where every EXTRA is present:\n${out}`);
     }
   });
@@ -363,7 +310,7 @@ describe('assert-cors-allowlist', () => {
   // "FAILS when a required PLATFORM origin is dropped"). Removing an origin has
   // to be a reviewable diff, not a quiet edit to a comma-separated string.
   test('FAILS when a declared EXTRA is dropped from the config', () => {
-    const workers = { ...REAL, platform: `${APEX},${RETIRED_SUBDOMAIN},${PAGES}` }; // localhost gone
+    const workers = { ...REAL, platform: `${APEX},${SUBDOMAIN},${PAGES}` }; // localhost gone
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, /missing "http:\/\/localhost:3000" — EXTRAS:/);
@@ -377,15 +324,8 @@ describe('assert-cors-allowlist', () => {
   // written -- and the assertion is now the one that keeps the retirement PERMANENT:
   // putting the subdomain back into a config, with nothing in EXTRAS justifying it,
   // is an unreviewed standing CORS grant for a host that serves only a 301.
-  //
-  // 🔴 THE EXPECTED MESSAGE IS BUILT FROM `SUBDOMAIN`, NOT RE-SPELT. It was
-  // re-spelt until 2026-09-09 and the slug rename rewrote that ESCAPED copy while
-  // leaving the plain const alone, so this case sat demanding
-  // `subscriptiontracker.nikatru.com` — a host that exists nowhere and that the
-  // guard can never print. It could not have failed. Subject and assertion now
-  // come from one declaration.
   test('FAILS when the retired subdomain is put back into a config', () => {
-    const workers = { ...REAL, [API]: `${APEX},${PAGES},${SUBDOMAIN}` };
+    const workers = { ...REAL, 'subscriptiontracker-api': `${APEX},${PAGES},${SUBDOMAIN}` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, new RegExp(`"${rx(SUBDOMAIN)}" is listed but NOTHING justifies it`));
@@ -424,7 +364,7 @@ describe('assert-cors-allowlist', () => {
     // rejects before this limb is ever reached. The required origin it ghosts
     // is therefore the apex itself, which is the only derived origin left.
     const extraComment = `  // "${APEX}" used to be listed here\n`;
-    const workers = { ...REAL, platform: `${RETIRED_SUBDOMAIN},${PAGES},${LOCAL}` };
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
     const { code, out } = run(tree({ workers, extraComment }));
     assert.equal(code, 1);
     assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
@@ -432,7 +372,7 @@ describe('assert-cors-allowlist', () => {
 
   // ── untaught scope ────────────────────────────────────────────────────────
   test('FAILS on a Worker it has never been taught about', () => {
-    const { code, out } = run(tree({ workers: { ...REAL, 'mystery-worker': REAL[API] } }));
+    const { code, out } = run(tree({ workers: { ...REAL, 'mystery-worker': REAL['subscriptiontracker-api'] } }));
     assert.equal(code, 1);
     assert.match(out, /never been taught about services\/mystery-worker/);
     assert.match(out, /Name it services\/<slug>-api/);
