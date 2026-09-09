@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SMOKE = join(ROOT, 'tooling', 'smoke', 'smoke-web-artifact.mjs');
-const { READY_SIGNAL, mimeFor, serveBundle } = await import(`file://${SMOKE.replaceAll('\\', '/')}`);
+const { READY_SIGNAL, mimeFor, serveBundle, basePrefix, stripBasePrefix } = await import(`file://${SMOKE.replaceAll('\\', '/')}`);
 
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-smokeharness-')); });
@@ -135,6 +135,82 @@ describe('smoke-web-artifact.mjs — the static server it serves the artifact fr
       const escape = await fetch(`${base}/..%2foutside.txt`);
       assert.equal(escape.status, 200);
       assert.equal(await escape.text(), 'INSIDE', 'a `..` in the request escaped the bundle directory');
+    } finally {
+      server.close();
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE BUNDLE IS SERVED AT ITS OWN BASE PATH — ADDED 2026-09-09 [ADR 075].
+//
+// THE REAL NEGATIVE TEST RAN IN PRODUCTION FIRST, and is the reason these exist:
+// the merge that moved the app to `nikatru.com/<id>` built it with
+// `--base-href /subly/`, this smoke served it at `/`, and the run FAILED with
+// "404 /subly/flutter_bootstrap.js, 404 /subly/manifest.json — the artifact
+// never reached flutter-first-frame". The bundle was correct and the harness was
+// wrong, and it refused to publish — which is the harness working. The fix is
+// not to relax it: it is to serve the artifact where the deploy will.
+//
+// The prefix is READ OUT OF THE ARTIFACT, so the smoke cannot be told a lie
+// about where the bundle belongs, and a bundle with no <base> keeps the old
+// root-mounted behaviour exactly.
+describe('smoke-web-artifact.mjs — a bundle compiled for a path is served at that path', () => {
+  test('basePrefix reads <base href> out of the artifact, and defaults to / safely', () => {
+    assert.equal(basePrefix(bundle({ 'index.html': '<html><head><base href="/subly/"></head></html>' })), '/subly/');
+    // No trailing slash in the tag, and no leading one: still normalised to /x/.
+    assert.equal(basePrefix(bundle({ 'index.html': '<html><head><base href="subly"></head></html>' })), '/subly/');
+    assert.equal(basePrefix(bundle({ 'index.html': '<html><head><base href="/"></head></html>' })), '/');
+    assert.equal(basePrefix(bundle({ 'index.html': '<html><head></head></html>' })), '/');
+    // An ABSOLUTE base href yields `/`: this server is loopback and cannot honour
+    // a foreign origin, so mounting under it would test a deploy nobody makes.
+    assert.equal(basePrefix(bundle({ 'index.html': '<html><head><base href="https://x.example/y/"></head></html>' })), '/');
+    // A bundle with no index.html at all is not a crash — the entry-file limb
+    // above is what reports that, and it reports it better.
+    assert.equal(basePrefix(bundle({})), '/');
+  });
+
+  test('stripBasePrefix maps a request into the bundle, and refuses what is outside it', () => {
+    assert.equal(stripBasePrefix('/subly/flutter_bootstrap.js', '/subly/'), '/flutter_bootstrap.js');
+    assert.equal(stripBasePrefix('/subly/', '/subly/'), '/');
+    // The bare prefix, which is what a browser asks for before the 301.
+    assert.equal(stripBasePrefix('/subly', '/subly/'), '/');
+    // 🔴 THE ONE THAT MATTERS: a path outside the base is NOT quietly served
+    // from the bundle root. If it were, this smoke would pass a bundle whose
+    // base href is wrong for where it is published — the exact defect the live
+    // failure was.
+    assert.equal(stripBasePrefix('/flutter_bootstrap.js', '/subly/'), null);
+    assert.equal(stripBasePrefix('/sublyx/a.js', '/subly/'), null);
+  });
+
+  test('the server mounts a path-based bundle under its prefix, and 404s outside it', async () => {
+    const dir = bundle({
+      'index.html': '<html><head><base href="/subly/"></head></html>',
+      'flutter_bootstrap.js': 'console.log(1);',
+    });
+    const server = serveBundle(dir);
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      assert.equal((await fetch(`${base}/subly/`)).status, 200);
+      // The exact request that 404'd in the live run.
+      assert.equal((await fetch(`${base}/subly/flutter_bootstrap.js`)).status, 200);
+      // GREEN CONTROL for the negative: at the root it is gone, as the edge
+      // would answer, so a wrong base href still fails this smoke.
+      assert.equal((await fetch(`${base}/flutter_bootstrap.js`)).status, 404);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('a root-mounted bundle is unchanged — the old behaviour is not disturbed', async () => {
+    const dir = bundle({ 'index.html': '<html><head><base href="/"></head></html>', 'main.dart.js': 'x' });
+    const server = serveBundle(dir);
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      assert.equal((await fetch(`${base}/`)).status, 200);
+      assert.equal((await fetch(`${base}/main.dart.js`)).status, 200);
     } finally {
       server.close();
     }
