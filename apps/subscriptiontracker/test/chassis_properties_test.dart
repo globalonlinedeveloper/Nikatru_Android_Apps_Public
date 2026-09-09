@@ -3411,7 +3411,7 @@ void main() {
     );
 
     test(
-      '[5]M-8 · a stale answer RE-LOCKS when online, and HOLDS when offline',
+      '[5]M-8 · a stale answer RE-LOCKS, and connectivity does not excuse it',
       () async {
         final ProviderContainer c = _moneyContainer(
           store: _onboardedStore(),
@@ -3431,20 +3431,29 @@ void main() {
         final DateTime far = DateTime.now().add(
           cache.stalenessCeiling + const Duration(days: 1),
         );
+        // 🔴 BOTH DIRECTIONS. Without the first, a client that ALWAYS locks
+        // passes — and always-locking is the fail-closed-and-dead shape this
+        // stage exists to stop.
+        final DateTime near = DateTime.now().add(
+          cache.stalenessCeiling - const Duration(days: 1),
+        );
+        expect(
+          (await cache.readValid(now: near)).isPro,
+          isTrue,
+          reason: 'INSIDE the ceiling ⇒ still Pro. A tunnel, a flight or a dead '
+              'router is not a refund, and a client that always locks is worse '
+              'than the hole it replaces',
+        );
         expect(
           (await cache.readValid(now: far)).isPro,
           isFalse,
-          reason: 'online and unverified past the ceiling ⇒ access stops',
-        );
-        // 🔴 BOTH DIRECTIONS. Without the second, a client that ALWAYS locks
-        // passes — and always-locking is the fail-closed-and-dead shape this
-        // stage exists to stop.
-        expect(
-          (await cache.readValid(now: far, connectivityAvailable: false)).isPro,
-          isTrue,
           reason:
-              'offline it is HELD — a deliberate loss, written down: locking a '
-              'paying user out for being in a tunnel is the larger harm',
+              'PAST the ceiling ⇒ access stops, and it now stops OFFLINE too. '
+              'This assertion used to read isTrue with a '
+              '`connectivityAvailable: false` argument, on the grounds that '
+              'holding an unverifiable grant was the smaller harm. It was not '
+              'bounded: a device that never reconnects served a refunded grant '
+              'forever. Reversed 2026-09-09 — design §2.4, invariant G9',
         );
       },
     );
