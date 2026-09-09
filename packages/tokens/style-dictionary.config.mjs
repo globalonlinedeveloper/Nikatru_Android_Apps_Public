@@ -148,7 +148,13 @@ const LIGHT_COLORS = [
   'ink', 'ink-2', 'primary', 'teal', 'bg', 'card', 'card-2',
   'text', 'strong', 'muted', 'line', 'soft',
 ];
-const DARK_COLORS = ['bg', 'card', 'card-2', 'text', 'strong', 'muted', 'line', 'soft'];
+// `primary` and `teal` joined this list on 2026-09-09. They used to be
+// light-only, on the premise that the brand hues are scheme-independent — and
+// that premise was a measured WCAG failure in both schemes at once: the shared
+// #2E6FF2 is 4.49:1 on the light card and 3.77:1 on the dark one, while every
+// page declares `a{color:var(--primary)}` and overrides `--card` inside a
+// `prefers-color-scheme` block. See contracts/tokens/dtcg/color.dark.json.
+const DARK_COLORS = ['primary', 'teal', 'bg', 'card', 'card-2', 'text', 'strong', 'muted', 'line', 'soft'];
 
 /** Where the DTCG source lives, quoted into every generated file's header so a
  *  reader who opens an output is told where to edit instead. One constant, so
@@ -335,9 +341,10 @@ function formatDart({ dictionary }) {
   lines.push('');
   lines.push('/// The NIKATRU company brand tokens, dark-scheme overrides.');
   lines.push('///');
-  lines.push('/// Only surfaces and text change; [BrandTokens.ink], [BrandTokens.ink2],');
-  lines.push('/// [BrandTokens.primary] and [BrandTokens.teal] are shared with the light');
-  lines.push('/// palette and are deliberately absent here.');
+  lines.push('/// [BrandTokens.ink] and [BrandTokens.ink2] are shared with the light palette');
+  lines.push('/// and are deliberately absent here. `primary` and `teal` were shared too');
+  lines.push('/// until 2026-09-09; they fork because no single value passes WCAG AA on');
+  lines.push('/// both a white card and a #111C33 one. See contracts/tokens/dtcg/color.dark.json.');
   lines.push('class BrandTokensDark {');
   lines.push('  BrandTokensDark._();');
   lines.push('');

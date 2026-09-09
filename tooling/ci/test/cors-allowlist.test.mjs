@@ -47,9 +47,13 @@
 // And one case was ADDED for the limb that makes the reversal itself reviewable:
 // a catalogue row back on a subdomain must go red and name the apex.
 //
-// ⚠️ THE RETIRING SUBDOMAIN IS DELIBERATELY STILL LISTED in both live configs and
-// justified in the guard's EXTRAS for the length of the cutover. The REAL fixture
-// below mirrors that on purpose; do not "fix" it. It leaves with the 301.
+// ⏱ THE RETIRING SUBDOMAIN HAS NOW LEFT, 2026-09-09. It was deliberately listed in
+// both live configs and justified in the guard's EXTRAS for the length of the
+// cutover; the note here said "it leaves with the 301". The 301 landed -- measured:
+// subly.nikatru.com/, /x, /version.json and a deep path with a query all 301 in one
+// hop to a 200 on nikatru.com/subly/ -- so nothing is served there and no browser
+// sends that Origin. Config and EXTRAS left together, which is what the case below
+// ("dropped from a config but not from EXTRAS") exists to force.
 //
 // Run:  node --test "tooling/ci/test/cors-allowlist.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,8 +85,9 @@ const APEX = new URL(APEX_ORIGIN).origin;
 
 const PAGES = 'https://subly-9cp.pages.dev';
 const LOCAL = 'http://localhost:3000';
-/** The retiring app subdomain. NOT derivable from the catalogue any more — it
- *  survives only as an EXTRAS entry for the length of the cutover [ADR 075]. */
+/** The RETIRED app subdomain. It is no longer in either config and no longer in
+ *  EXTRAS -- it is kept here only as the input for the two cases that must still
+ *  be able to fail: an unjustified origin, and the coupled removal below. */
 const SUBDOMAIN = 'https://subly.nikatru.com';
 
 /** The live catalogue row's shape. `origin` is carried by the real apps.json and
@@ -99,10 +104,10 @@ const SUBLY = {
 /** The allowlists the real repo carries today (services/platform/wrangler.jsonc
  *  and services/subly-api/wrangler.jsonc, read 2026-09-09), so the baseline
  *  fixture is the live config rather than a convenient invention. The subdomain
- *  is present in both because the cutover has not landed its 301 yet. */
+ *  left both on 2026-09-09 with the 301. */
 const REAL = {
-  platform: `${APEX},${SUBDOMAIN},${PAGES},${LOCAL}`,
-  'subly-api': `${APEX},${SUBDOMAIN},${PAGES}`,
+  platform: `${APEX},${PAGES},${LOCAL}`,
+  'subly-api': `${APEX},${PAGES}`,
 };
 
 /**
@@ -164,7 +169,7 @@ describe('assert-cors-allowlist', () => {
     // blended tally is how a hand-maintained list creeps back unnoticed. The
     // EXTRAS count is FIVE, not three, and the two it grew by are the retiring
     // subdomain in each config — the number rising is the cutover being visible.
-    assert.match(out, /2 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
+    assert.match(out, /2 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -197,7 +202,7 @@ describe('assert-cors-allowlist', () => {
     );
     // The shared Worker still carries one derived requirement PER APP — they
     // just happen to be the same string now, which is exactly the point.
-    assert.match(ok.out, /3 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
+    assert.match(ok.out, /3 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
 
     // (b) the floor that survived: drop the apex from the shared Worker and
     //     every app in the catalogue is named, not just the newest one.
@@ -304,16 +309,19 @@ describe('assert-cors-allowlist', () => {
     assert.match(out, /delete the EXTRAS entry in the same change/);
   });
 
-  // The cutover's own step: the retiring subdomain leaves the configs and the
-  // EXTRAS entry in ONE commit, or not at all. Dropping it from the config
-  // alone is a live browser tab losing its API with nothing logged.
-  test('FAILS when the retiring subdomain is dropped from a config but not from EXTRAS', () => {
-    const workers = { ...REAL, 'subly-api': `${APEX},${PAGES}` };
+  // ⏱ REWRITTEN 2026-09-09, when the cutover's last step landed. It used to assert
+  // the removal was COUPLED: with the subdomain still in EXTRAS, dropping it from a
+  // config alone had to red, because a live browser tab would lose its API with
+  // nothing logged. Both halves left in one commit, so that input can no longer be
+  // written -- and the assertion is now the one that keeps the retirement PERMANENT:
+  // putting the subdomain back into a config, with nothing in EXTRAS justifying it,
+  // is an unreviewed standing CORS grant for a host that serves only a 301.
+  test('FAILS when the retired subdomain is put back into a config', () => {
+    const workers = { ...REAL, 'subly-api': `${APEX},${PAGES},${SUBDOMAIN}` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
-    assert.match(out, /services\/subly-api\/wrangler\.jsonc — missing "https:\/\/subly\.nikatru\.com"/);
-    assert.match(out, /THE RETIRING APP SUBDOMAIN/);
-    assert.match(out, /delete the EXTRAS entry in the same change/);
+    assert.match(out, /"https:\/\/subly\.nikatru\.com" is listed but NOTHING justifies it/);
+    assert.match(out, /standing CORS grant nobody reviewed/);
   });
 
   test('FAILS when ALLOWED_ORIGINS is absent', () => {

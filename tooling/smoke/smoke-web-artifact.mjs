@@ -107,6 +107,34 @@ const MIME = new Map([
  *  which would fail the smoke for a reason that is the harness's fault. */
 export const mimeFor = (file) => MIME.get(extname(file).toLowerCase()) ?? 'application/octet-stream';
 
+/** The path prefix a bundle was COMPILED FOR, read out of its own index.html.
+ *
+ *  `flutter build web --base-href /<id>/` writes that value into
+ *  `<base href="…">`, and every other URL in the document is resolved against
+ *  it. So the artifact carries the answer; nothing has to be told.
+ *
+ *  Returns a prefix with a leading AND trailing slash (`/subly/`), or `/` when
+ *  the bundle has no `<base>` tag or was compiled for the origin root. An
+ *  absolute base href (a full URL) also yields `/`: this server is loopback and
+ *  cannot honour a foreign origin, and pretending otherwise would mount the
+ *  bundle somewhere the deploy never will. */
+export function basePrefix(dir) {
+  const index = join(dir, 'index.html');
+  if (!existsSync(index)) return '/';
+  const m = readFileSync(index, 'utf8').match(/<base\s[^>]*href\s*=\s*["']([^"']*)["']/i);
+  const href = (m?.[1] ?? '').trim();
+  if (!href || href === '/' || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')) return '/';
+  return `/${href.replace(/^\/+|\/+$/g, '')}/`;
+}
+
+/** Strip `prefix` from a request path, or null when the path is outside it.
+ *  `/subly/x` → `/x`; `/subly` → `/`; `/other` → null. */
+export function stripBasePrefix(path, prefix) {
+  if (path === prefix.slice(0, -1)) return '/';
+  if (!path.startsWith(prefix)) return null;
+  return `/${path.slice(prefix.length)}`;
+}
+
 /** A static server over `dir`, bound to loopback on an ephemeral port.
  *  Loopback and not 0.0.0.0: a CI runner is a shared network and this serves an
  *  unreleased build. */
@@ -127,7 +155,33 @@ export function serveBundle(dir, onRequest = () => {}) {
     // than none — it inflates apparent coverage — which is why the test below
     // asserts the collapse POSITIVELY (the request returns the file INSIDE the
     // bundle) instead of asserting a rejection that never happens.
-    const abs = join(dir, normalize(p).replace(/^[/\\]+/, ''));
+    // 🔴 THE BUNDLE IS SERVED AT ITS OWN BASE PATH, NOT AT `/` [ADR 075].
+    //
+    // Until 2026-09-09 this server mounted `build/web` at the root and that was
+    // right, because the app was published at the root of `<id>.nikatru.com`.
+    // The app is now published at `nikatru.com/<id>`, so `flutter build web` is
+    // given `--base-href /<id>/` and every URL in `index.html` is written
+    // relative to THAT. Served at `/`, the very first request the page makes is
+    // `/<id>/flutter_bootstrap.js`, which this directory does not contain — the
+    // engine never boots and the smoke fails on a bundle that is CORRECT.
+    //
+    // ⚠️ THIS IS NOT A WAIVER, IT IS THE SAME ASSERTION AGAINST THE RIGHT PATH.
+    // The prefix is READ OUT OF THE ARTIFACT (`<base href="…">` in its own
+    // index.html), never passed in and never assumed, so the smoke reproduces
+    // exactly what the deploy will serve. A bundle whose base href does not
+    // match where it is published is still caught — by the 404 list, from the
+    // other direction — and a bundle with no `<base>` tag keeps the old
+    // root-mounted behaviour unchanged.
+    const stripped = basePrefix(dir) === '/' ? p : stripBasePrefix(p, basePrefix(dir));
+    if (stripped === null) {
+      // Outside the bundle's own base path: a real 404 for this artifact, and
+      // exactly what the edge would answer.
+      onRequest({ path: p, status: 404 });
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('not found');
+      return;
+    }
+    const abs = join(dir, normalize(stripped).replace(/^[/\\]+/, ''));
     if (!existsSync(abs) || !statSync(abs).isFile()) {
       onRequest({ path: p, status: 404 });
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -178,8 +232,12 @@ async function run() {
     if (status === 404 || status === 403) notFound.push(`${status} ${path}`);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  const base = `http://127.0.0.1:${server.address().port}/`;
-  console.log(`serving ${BUNDLE} at ${base}`);
+  // The page is opened AT THE BUNDLE'S OWN BASE PATH, for the same reason the
+  // server mounts it there: that is the URL the deploy will serve it from, and
+  // opening it anywhere else tests a deployment nobody is going to make.
+  const prefix = basePrefix(BUNDLE);
+  const base = `http://127.0.0.1:${server.address().port}${prefix}`;
+  console.log(`serving ${BUNDLE} at ${base}${prefix === '/' ? '' : `  (base href ${prefix}, read from the artifact)`}`);
 
   const profile = mkdtempSync(join(tmpdir(), 'nikatru-smoke-'));
   let chrome = null;

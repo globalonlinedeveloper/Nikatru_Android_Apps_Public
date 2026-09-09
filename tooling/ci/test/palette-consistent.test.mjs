@@ -10,7 +10,7 @@
 //    1. sites/nikatru/pricing.html  `--text:#1E293B` → `#334155`
 //         ⇒ exit 1. "--text is declared 2 different ways in the light palette",
 //           #1e293b from 13 sources, #334155 from one, every citation file:line.
-//    2. tooling/sites/generate-discovery.mjs  STYLE `--primary` → `#2E6FF3`
+//    2. tooling/sites/generate-discovery.mjs  STYLE `--primary` → `#2563EC`
 //         ⇒ exit 1, naming `generate-discovery.mjs (STYLE):234` alone against 16
 //           agreeing sources. This is the limb that catches a palette edit BEFORE
 //           anyone re-runs the generator that would spread it.
@@ -279,7 +279,7 @@ function run(root) {
 
 /** A page whose light `:root` carries the palette, for the "added page" cases. */
 const AGREEING_PAGE = `<!DOCTYPE html><html><head><style>
-  :root{--primary:#2E6FF2;--teal:#17C3A2}
+  :root{--primary:#2563EB;--teal:#0F766E}
 </style></head><body></body></html>
 `;
 
@@ -406,19 +406,19 @@ describe('a disagreement is found and located', () => {
 
 describe('the generator constant is in the subject', () => {
   test('editing the STYLE constant alone fails, before anything is regenerated', () => {
-    const r = run(patch(fixture(), GENERATOR_REL, '--primary:#2E6FF2', '--primary:#2E6FF3'));
+    const r = run(patch(fixture(), GENERATOR_REL, '--primary:#2563EB', '--primary:#2563EC'));
     assert.equal(r.code, 1, r.all);
     assert.match(r.err, /--primary is declared 2 different ways in the light palette/);
     assert.match(r.err, /generate-discovery\.mjs \(STYLE\):\d+/);
   });
 
   test('its citation is a line number in the generator, not in the template', () => {
-    const root = patch(fixture(), GENERATOR_REL, '--primary:#2E6FF2', '--primary:#2E6FF3');
+    const root = patch(fixture(), GENERATOR_REL, '--primary:#2563EB', '--primary:#2563EC');
     const r = run(root);
     const m = r.err.match(/generate-discovery\.mjs \(STYLE\):(\d+)/);
     assert.ok(m, `no citation for the generator:\n${r.all}`);
     const line = readFileSync(join(root, GENERATOR_REL), 'utf8').split('\n')[Number(m[1]) - 1];
-    assert.match(line, /--primary:#2E6FF3/);
+    assert.match(line, /--primary:#2563EC/);
   });
 
   test('renaming the constant is COVERAGE LOST, not a quietly smaller subject', () => {
@@ -520,7 +520,7 @@ describe('it refuses rather than reporting on a subject it did not read', () => 
   test('losing one page trips the page floor', () => {
     const r = run(untrack(fixture(), 'sites/nikatru/pricing.html'));
     assert.equal(r.code, 2, r.all);
-    assert.match(r.err, /18 page\(s\) in the subject, expected at least 19/);
+    assert.match(r.err, /21 page\(s\) in the subject, expected at least 22/);
   });
 
   test('losing a NAMED source gives the named message, not the count one', () => {
@@ -544,7 +544,7 @@ describe('it refuses rather than reporting on a subject it did not read', () => 
   test('an ordinary page losing its :root trips the block floor', () => {
     const r = run(patch(fixture(), 'sites/nikatru/404.html', ':root{', 'html{'));
     assert.equal(r.code, 2, r.all);
-    assert.match(r.err, /`:root` block\(s\) parsed across .* expected at least 33/);
+    assert.match(r.err, /`:root` block\(s\) parsed across .* expected at least 39/);
   });
 
   test('a file that is tracked but missing from disk is COVERAGE LOST', () => {
@@ -580,7 +580,7 @@ describe('what is NOT in the subject', () => {
   });
 
   test('a :root inside a CSS comment contributes nothing', () => {
-    const r = run(add(fixture(), 'sites/nikatru/commented.css', '/* :root{--text:#BADBAD} */\n:root{--teal:#17C3A2}\n'));
+    const r = run(add(fixture(), 'sites/nikatru/commented.css', '/* :root{--text:#BADBAD} */\n:root{--teal:#0F766E}\n'));
     assert.equal(r.code, 0, `a commented-out palette is not a palette:\n${r.all}`);
   });
 
@@ -612,10 +612,10 @@ describe('the generated siblings (added 2026-09-05, [ADR 067] decision 1)', () =
   // directory moved away 2, with a green control before and after.
 
   test('a hand edit to a generated DART colour is a finding, citing the Dart line', () => {
-    const r = run(patch(fixture(), DART_OUT, 'Color(0xFF2E6FF2)', 'Color(0xFF2E6FF3)'));
+    const r = run(patch(fixture(), DART_OUT, 'Color(0xFF2563EB)', 'Color(0xFF2563EC)'));
     assert.equal(r.code, 1, r.all);
     assert.match(r.err, /light\.primary disagrees between the token source and a file generated from it/);
-    assert.match(r.err, /#2e6ff2 {2}— contracts\/tokens\/dtcg\/ \(the source\)/);
+    assert.match(r.err, /#2563eb {2}— contracts\/tokens\/dtcg\/ \(the source\)/);
     assert.match(r.err, /brand_tokens\.dart:\d+/);
   });
 

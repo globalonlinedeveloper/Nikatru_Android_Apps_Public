@@ -19,7 +19,7 @@ legal and tax identity is a third repo this one has no path to at all.
 `apps` · `catalog` · `contracts` · `docs` · `extensions` · `packages` · `services` · `sites` · `tooling`
 
 1 app(s) (`subly`) · 11 shared Dart packages · 3 Cloudflare Worker(s) ·
-3 static site(s) · 6 extension(s) · 163 guards in `tooling/ci/` with 180 test files.
+3 static site(s) · 6 extension(s) · 164 guards in `tooling/ci/` with 181 test files.
 
 🔴 **`sites/` is the live deploy source and the only copy.** Cloudflare Pages builds both
 domains from this repo through a binding that lives in the Cloudflare dashboard, in no file in

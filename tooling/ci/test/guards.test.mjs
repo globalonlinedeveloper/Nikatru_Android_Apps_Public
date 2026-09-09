@@ -402,17 +402,19 @@ describe('check-migrations', () => {
 // misunderstanding as the guard I write): 8 mutations, each failing with its
 // intended message and each restoring to green.
 describe('assert-cors-allowlist', () => {
-  // ⏱ MOVED TO THE APEX 2026-09-09 [ADR 075]. The DERIVED origin is now
-  // `https://nikatru.com` for every app, because every app is published at a path
-  // on it. `https://subly.nikatru.com` did not leave these lists: it stopped being
-  // catalogue-derived and became a declared EXTRA, held for the length of the
-  // cutover, and the guard requires every EXTRA to be present — so a fixture that
-  // drops it is not a simpler fixture, it is a config the guard must red.
+  // ⏱ MOVED TO THE APEX, THEN NARROWED — both on 2026-09-09 [ADR 075]. The DERIVED
+  // origin is now `https://nikatru.com` for every app, because every app is
+  // published at a path on it. `https://subly.nikatru.com` was held in these lists
+  // for the length of the cutover as a declared EXTRA (an exact allowlist fails
+  // closed and silently, so it could not be switched, only widened), and it left
+  // the configs and EXTRAS together once the zone Redirect Rule started 301ing it.
+  // So a fixture that still carries it is not a more faithful fixture — it is a
+  // config the guard must red, as an unjustified standing grant on a host that
+  // serves nothing but a redirect.
   const APEX = 'https://nikatru.com';
-  const RETIRING = 'https://subly.nikatru.com';
-  const PLATFORM = [APEX, RETIRING, 'https://subly-9cp.pages.dev', 'http://localhost:3000'];
+  const PLATFORM = [APEX, 'https://subly-9cp.pages.dev', 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = [APEX, RETIRING, 'https://subly-9cp.pages.dev'];
+  const SUBLY = [APEX, 'https://subly-9cp.pages.dev'];
 
   const config = (origins, { appId = null } = {}) =>
     `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
