@@ -186,7 +186,7 @@ import { listDir } from './tree-walk.mjs';
 // The ONE workflow parser. Four copies of it drift in the way that reports
 // "clean" — which lines they can see — so [14]O-7's deploy-job derivation goes
 // through the same one assert-release-provenance and assert-no-secret-defines use.
-import { parseAllWorkflows, RECORD_CALL, expandMatrixEnvironment } from './workflow-scan.mjs';
+import { parseAllWorkflows, workflowEvents, RECORD_CALL, expandMatrixEnvironment } from './workflow-scan.mjs';
 // The ONE comment tokenizer, for the same reason as the workflow parser above.
 import { stripSourceComments } from './text-reductions.mjs';
 
@@ -2466,6 +2466,67 @@ async function probeGithubRun(q, repo) {
 // that produced it; a red nightly proof is looked at by nobody, and that is the
 // gap this limb closes. The exclusion is named here rather than discovered.
 //
+// ⏱ APPENDED 2026-09-09 — THAT PARAGRAPH IS STILL TRUE OF `ci.yml`, AND IT WAS
+// BEING APPLIED TO THREE ROWS IT WAS NEVER ARGUED FOR. The reason above is a
+// DEADLOCK argument — "green only BY MERGING" — and it holds for exactly one
+// workflow. `deploy-web.yml` and `deploy-workers.yml` both declare
+// `workflow_dispatch:` in their own `on:` block, so a red deploy lane has an
+// exit that costs one button press and no merge at all. They were nevertheless
+// excluded, because the filter was `cadence: trigger` and not "has this row an
+// exit".
+//
+// 🔴 WHAT THAT COST, MEASURED: run 34315492291, `deploy-web.yml`, `main`, sha
+// 43ab0224, conclusion FAILURE at 2026-09-09T05:35Z. The web deploy lane went
+// red on the default branch and NOTHING alarmed. Not this limb (the row is
+// `trigger`, so it was not in the domain); not the [14]O-3 freshness limb (that
+// one ranges over `TIME_CADENCE` rows too, and a trigger row has no window to
+// age out of); not ops-watch (it files against the duties it reads, and it does
+// not read this one). The only reader was the checks on the push that produced
+// it — i.e. a human happening to look — which is precisely the "a red X is
+// looked at by nobody" gap this whole limb was built to close, one row type
+// over. TRAPS `ci-38` again, on the rows the first fix stepped around.
+//
+// ➡️ THE ADMISSION, AND IT IS DERIVED RATHER THAN LISTED. A `duty.workflow.*`
+// row on `cadence: trigger` joins this domain when — and only when — the
+// workflow file it names DECLARES `workflow_dispatch`, read out of
+// `.github/workflows/<file>` by `workflowEvents` (workflow-scan.mjs, the one
+// workflow parser). Not a hand-set boolean and not a second list: this file's
+// standing objection to a list is that a list can be SHORTENED to close an
+// alarm, and a declared `dispatchable: true` is a list of one wearing a
+// different hat. The property that makes a blocking alarm honest is "the remedy
+// is reachable without a merge", the workflow file is where that property
+// actually lives, and so that is what is read.
+//
+// ⬜ AND THE TWO ROWS THAT STAY OUT, NAMED HERE RATHER THAN INFERRED:
+//   · `ci.yml`             — `on:` is `push` + `pull_request`, NO
+//                            `workflow_dispatch`. Its newest run on `main` can
+//                            be made green only by merging, so grading it is
+//                            the deadlock the paragraph above refuses. The
+//                            derivation reaches that same answer on its own.
+//   · `site-drift-repair.yml` — `on:` is `push: branches: [main]` alone, NO
+//                            `workflow_dispatch`. Same shape, same answer: a red
+//                            run there is cleared by the next push to `main`,
+//                            which is a merge. Excluded, and it is excluded by
+//                            the DERIVATION rather than by being left off a list
+//                            somebody could put it back on.
+// The moment either file grows a `workflow_dispatch:` trigger it joins the
+// domain automatically, and the moment a deploy workflow LOSES one it leaves —
+// which is a shrink, so `evaluateRedSince` PRINTS every trigger row it did not
+// admit, with the reason, on every run. A domain that can shrink in silence is
+// the defect; a domain that shrinks in a printed sentence is a decision.
+//
+// 🔴 WHAT IS GRADED HERE IS REDNESS, NEVER STALENESS, AND THE SPLIT IS THE WHOLE
+// REASON A CLOCKLESS ROW CAN BE ADMITTED AT ALL. `classifyRedSince` asks one
+// question — is the newest failure newer than the newest success — and it is an
+// ORDERING of two timestamps with no window, no grace and no `cadenceDays()` in
+// it anywhere. `cadenceDays('trigger')` returns `null`, and every limb that
+// needs it ([14]O-3's freshness window, `missedRunsTolerated`, `firstDue`) is
+// gated behind `TIME_CADENCE` and CONTINUES to exclude these rows. A trigger row
+// has no clock, so it is never asked a question about one: "this lane has not
+// run lately" is not a claim this limb may make about a workflow that runs when
+// somebody pushes. `redSinceTriggerShape` refuses the clock fields on these rows
+// outright, so the split cannot be blurred later by adding one.
+//
 // ── AND WHY `assert-platform-proof-fresh.mjs` GETS NO COPY OF THIS ──────────
 // It reads `build-platforms.yml`'s run history independently and also asks for
 // `status=success`. A second copy of this rule is exactly what `grep-10`
@@ -2477,18 +2538,188 @@ async function probeGithubRun(q, repo) {
 // redness read.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The rows this limb grades: a `duty.workflow.*` row, ON A CLOCK, whose record
- *  is the GitHub run history of a NAMED workflow on a NAMED branch. DERIVED from
- *  the register, never listed — a hand-kept list of watched workflows is the
- *  drift this whole file exists to refuse, and a list would also have to be
- *  edited (i.e. could be shortened) to close the alarm. */
-export function redSinceDomain(reg) {
+/** The file a `duty.workflow.*` row is about: the workflow its `recordQuery`
+ *  names, or — for a row that carries no query at all — the basename of its
+ *  `mechanism.anchor` when that anchor is a workflow file. The second half
+ *  exists so the exclusion census below can give `duty.workflow.ci.yml` a REASON
+ *  ("ci.yml declares no workflow_dispatch") instead of the uselessly true
+ *  "this row names no workflow". */
+export function rowWorkflowFile(row) {
+  const named = row?.mechanism?.recordQuery?.workflow;
+  if (nonEmpty(named)) return String(named);
+  const anchor = String(row?.mechanism?.anchor ?? '');
+  return anchor.startsWith(`${WORKFLOW_DIR_REL}/`) ? anchor.split('/').pop() : null;
+}
+
+/** IMPURE, and it is the ONE impure input to the domain: which workflow files on
+ *  disk declare `workflow_dispatch`, i.e. which red lanes have an exit that is
+ *  not a merge. ⏱ 2026-09-09.
+ *
+ *  It goes through `parseAllWorkflows` + `workflowEvents` — the single workflow
+ *  parser this repository owns — rather than a regex here, for the reason stated
+ *  at the import: four copies of a workflow parse drift in the way that reports
+ *  "clean", and the first thing that drifts is which lines it can see at all.
+ *
+ *  Returned as a SET OF FILENAMES because that is what a `recordQuery.workflow`
+ *  and the GitHub API path both use. */
+export function dispatchableWorkflows(root) {
+  const out = new Set();
+  for (const wf of parseAllWorkflows(root)) {
+    if (workflowEvents(wf).has('workflow_dispatch')) out.add(String(wf.rel ?? '').split('/').pop());
+  }
+  return out;
+}
+
+/** The rows this limb grades. TWO admissions, and they are graded for the SAME
+ *  thing — REDNESS — by the same clockless comparison:
+ *
+ *    1. a `duty.workflow.*` row ON A CLOCK whose record is the run history of a
+ *       named workflow on a named branch. Unchanged since 2026-09-07.
+ *    2. ⏱ 2026-09-09 — a `duty.workflow.*` row on `cadence: trigger` with the
+ *       same shape of record, WHOSE WORKFLOW FILE DECLARES `workflow_dispatch`.
+ *       That declaration is the whole admission test: it is what makes the
+ *       freeze this limb can impose bounded, because one dispatched green run
+ *       clears it with no merge. See the header block, ⏱ 2026-09-09.
+ *
+ *  DERIVED from the register and from the workflow files, never listed — a
+ *  hand-kept list of watched workflows is the drift this whole file exists to
+ *  refuse, and a list would also have to be edited (i.e. could be shortened) to
+ *  close the alarm. `dispatchable` is that derivation, computed once by
+ *  `dispatchableWorkflows` and handed in so this function stays PURE.
+ *
+ *  🔴 IT FAILS CLOSED ON A MISSING DERIVATION. `dispatchable = null` — a caller
+ *  with no workflow tree to read — admits NO trigger row, which is exactly the
+ *  pre-2026-09-09 domain. Never a guess: a row is admitted to a BLOCKING alarm
+ *  only on evidence that its remedy is reachable. The silence that direction
+ *  costs is answered by `redSinceTriggerCensus`, which names every unadmitted
+ *  trigger row and its reason on every run. */
+export function redSinceDomain(reg, dispatchable = null) {
   return (reg?.rows ?? []).filter((r) => {
     if (r?.kind !== 'duty' || !String(r?.id ?? '').startsWith('duty.workflow.')) return false;
-    if (!TIME_CADENCE.test(String(r?.cadence ?? ''))) return false;
     const q = r?.mechanism?.recordQuery;
-    return q?.reader === 'github-run-history' && nonEmpty(q?.workflow) && nonEmpty(q?.headBranch);
+    if (!(q?.reader === 'github-run-history' && nonEmpty(q?.workflow) && nonEmpty(q?.headBranch))) return false;
+    const cadence = String(r?.cadence ?? '');
+    if (TIME_CADENCE.test(cadence)) return true;
+    if (cadence !== 'trigger') return false;
+    return dispatchable instanceof Set && dispatchable.has(String(q.workflow));
   });
+}
+
+/** PURE. Every `duty.workflow.*` row on `cadence: trigger`, split into the ones
+ *  this limb admitted and the ones it did not — each of the latter carrying the
+ *  DERIVED reason. ⏱ 2026-09-09.
+ *
+ *  🔴 THIS IS THE ANTI-SHRINK HALF AND IT IS NOT DECORATION. The admission above
+ *  is derived from a file on disk, so deleting `workflow_dispatch:` from
+ *  `deploy-web.yml` would quietly take that row out of a blocking alarm — the
+ *  same shape as shortening a list, arrived at from the other side. Printing the
+ *  exclusions with their reasons on EVERY run means that shrink is a sentence in
+ *  the log rather than a number that got smaller. */
+export function redSinceTriggerCensus(reg, dispatchable = null) {
+  const admitted = [];
+  const excluded = [];
+  for (const r of reg?.rows ?? []) {
+    if (r?.kind !== 'duty' || !String(r?.id ?? '').startsWith('duty.workflow.')) continue;
+    if (String(r?.cadence ?? '') !== 'trigger') continue;
+    const file = rowWorkflowFile(r);
+    const q = r?.mechanism?.recordQuery;
+    const hasQuery = q?.reader === 'github-run-history' && nonEmpty(q?.workflow) && nonEmpty(q?.headBranch);
+    if (!(dispatchable instanceof Set)) {
+      excluded.push(
+        `${r.id} — no workflow-dispatch derivation was supplied on this run, so NO trigger row was admitted. ` +
+          'This limb refuses to guess that a red lane has a non-merge exit; the caller must read the workflow ' +
+          'files (`dispatchableWorkflows`) and hand the answer in.',
+      );
+      continue;
+    }
+    if (file === null) {
+      excluded.push(`${r.id} — neither a \`recordQuery.workflow\` nor a \`${WORKFLOW_DIR_REL}/…\` anchor names a workflow file, so nothing on disk could be read for a \`workflow_dispatch\` trigger.`);
+      continue;
+    }
+    if (!dispatchable.has(file)) {
+      excluded.push(
+        `${r.id} — \`${WORKFLOW_DIR_REL}/${file}\` declares NO \`workflow_dispatch\`, so its newest run on its own ` +
+          'branch can be made green only by MERGING. Grading it would block merges on a state only a merge can ' +
+          'clear — the `ci-18` deadlock this repository has already paid ~46h of frozen queue for. Excluded by ' +
+          'DERIVATION from the workflow file, not by being left off a list.',
+      );
+      continue;
+    }
+    if (!hasQuery) {
+      excluded.push(
+        `${r.id} — \`${WORKFLOW_DIR_REL}/${file}\` DOES declare \`workflow_dispatch\`, so a red run there has an ` +
+          'exit that is not a merge and this row COULD be graded — but it carries no ' +
+          '`mechanism.recordQuery` naming a `github-run-history` reader, a `workflow` and a `headBranch`, so ' +
+          'there is nothing to read. Give it one, or this lane going red is watched by nobody.',
+      );
+      continue;
+    }
+    admitted.push(r.id);
+  }
+  return { admitted, excluded };
+}
+
+/** PURE. The shape a `trigger` row's `recordQuery` must have, and the split it
+ *  must not blur. ⏱ 2026-09-09.
+ *
+ *  These rows are OUTSIDE `evaluateRunRecords` — that limb ranges over
+ *  `TIME_CADENCE` rows and always will — so every rule it applies to a
+ *  `github-run-history` read would go unapplied here unless it is stated. Two of
+ *  them matter and both are carried over rather than weakened:
+ *
+ *    · `headBranch` is REQUIRED. A run-history read is a claim about a BRANCH as
+ *      well as an outcome, and the redness comparison reads both halves at
+ *      branch width.
+ *    · `event` may NEVER name `workflow_dispatch`. The redness probe drops the
+ *      event filter on both halves, so the field decides nothing here — but the
+ *      register would then be carrying the sentence "a hand-press is this row's
+ *      evidence", and a later cadence flip would move that sentence into the
+ *      freshness limb where it decides everything. Refused at both ends.
+ *
+ *  🔴 AND THE CLOCK FIELDS ARE REFUSED OUTRIGHT. `missedRunsTolerated`,
+ *  `firstDue` and `timer` are all arithmetic over `cadenceDays()`, which returns
+ *  `null` for `trigger`. On a clockless row they would be either inert (a
+ *  guarantee the row does not make) or, worse, read by a limb that later widens
+ *  its domain. What is graded here is REDNESS, never STALENESS; refusing the
+ *  staleness vocabulary is how that stays true without depending on anybody
+ *  remembering it. */
+export function redSinceTriggerShape(reg) {
+  const errors = [];
+  for (const r of reg?.rows ?? []) {
+    if (r?.kind !== 'duty' || !String(r?.id ?? '').startsWith('duty.workflow.')) continue;
+    if (String(r?.cadence ?? '') !== 'trigger') continue;
+    const q = r?.mechanism?.recordQuery;
+    if (!q) continue; // a trigger row need not carry one; the census says so out loud.
+    if (q.reader !== 'github-run-history') {
+      errors.push(
+        `${r.id} — \`cadence: trigger\` with \`recordQuery.reader: ${JSON.stringify(q.reader ?? null)}\`. The only ` +
+          'record a clockless workflow duty has is its RUN HISTORY: there is no window for a heartbeat to be ' +
+          'fresh inside, so no other reader could say anything about this row.',
+      );
+      continue;
+    }
+    if (!nonEmpty(q.workflow) || !nonEmpty(q.headBranch)) {
+      errors.push(`${r.id} — \`cadence: trigger\` with a \`github-run-history\` read that names no \`workflow\` and/or no \`headBranch\`. The redness comparison orders two runs ON ONE BRANCH; without both it would have to guess which, and a guess here freezes the merge queue over a feature branch.`);
+    }
+    if (q.event !== undefined && String(q.event).includes('workflow_dispatch')) {
+      errors.push(
+        `${r.id} — \`recordQuery.event: ${JSON.stringify(q.event)}\`. The same refusal [14]O-3 makes on a ` +
+          'scheduled row, made here so a trigger row cannot carry it in and then be flipped onto a clock: a ' +
+          'dispatched run proves somebody pressed a button, and this register may not name that as a duty\'s evidence.',
+      );
+    }
+    for (const field of ['missedRunsTolerated', 'missedRunsToleratedWhy', 'firstDue', 'firstDueWhy', 'timer']) {
+      if (q[field] !== undefined) {
+        errors.push(
+          `${r.id} — \`recordQuery.${field}\` on a \`cadence: trigger\` row. That field is arithmetic over a ` +
+            'CADENCE WINDOW and `cadenceDays("trigger")` is `null`, so nothing would apply it. This limb grades ' +
+            'REDNESS — is the newest failure newer than the newest success — and never staleness; a clockless row ' +
+            'may not carry the vocabulary of a clock.',
+        );
+      }
+    }
+  }
+  return errors;
 }
 
 /** PURE. The workflow FILE this guard is currently executing inside, or `null`
@@ -2587,10 +2818,13 @@ export function classifyRedSince(row, probe) {
  *  happened. `coverageLost` is returned SEPARATELY from `errors` because the two
  *  mean different things: an error is a branch that is red right now, coverage
  *  lost is this limb no longer being able to tell. */
-export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile()) {
+export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(), dispatchable = null) {
   const errors = [];
   const prints = [];
-  const domain = redSinceDomain(reg);
+  const domain = redSinceDomain(reg, dispatchable);
+  // ⏱ 2026-09-09. The shape rules for the `trigger` rows admitted above, which
+  // `evaluateRunRecords` cannot state because its domain is the clocked rows.
+  errors.push(...redSinceTriggerShape(reg));
 
   // 🔴 THE EMPTY DOMAIN, WHICH IS THE ONE WAY THIS LIMB COULD BE DISABLED
   // WITHOUT DELETING IT. Moving every workflow duty onto `unreachable`, onto
@@ -2644,11 +2878,32 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile())
   // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE, for the same reason [14]O-3's
   // is: `0 RED over 7 workflows` and `0 RED over 0 workflows` read identically
   // unless the domain size is stated beside the verdict.
+  // ⏱ 2026-09-09 — the domain is no longer "the scheduled proofs", so the line
+  // no longer says it is. The two admissions are counted SEPARATELY: a reader
+  // who sees only the total cannot tell a lost deploy row from a lost nightly
+  // one, and the deploy rows are the half that is derived from a file on disk.
+  const clocked = domain.filter((r) => TIME_CADENCE.test(String(r?.cadence ?? ''))).length;
+  const census = redSinceTriggerCensus(reg, dispatchable);
   prints.push(
-    `[14]O-3b — RED SINCE: ${domain.length} scheduled workflow duty(ies) graded · ${tally.green} whose newest run on their own ` +
+    `[14]O-3b — RED SINCE: ${domain.length} workflow duty(ies) graded (${clocked} on a clock · ` +
+      `${domain.length - clocked} \`trigger\` row(s) whose workflow declares \`workflow_dispatch\`, so a red lane ` +
+      `has an exit that is not a merge) · ${tally.green} whose newest run on their own ` +
       `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
       `${tally.blind} with no success to compare against · ${tally.self} NOT GRADED HERE because this run is its host`,
   );
+  // 🔴 THE SHRINK, PRINTED. The trigger half of the domain is derived from a
+  // `workflow_dispatch:` line in a file anybody may edit, so every trigger row
+  // this limb did NOT admit is named here with its reason on every run — see
+  // `redSinceTriggerCensus`. `ci.yml` and `site-drift-repair.yml` are the two
+  // that stand here permanently and legitimately, and the sentence beside them
+  // is the deadlock argument rather than an inference the next reader has to
+  // re-derive.
+  prints.push(
+    census.excluded.length
+      ? `[14]O-3b — TRIGGER ROWS NOT GRADED FOR REDNESS: ${census.excluded.length} (admitted: ${census.admitted.join(' · ') || 'none'})`
+      : `[14]O-3b — TRIGGER ROWS: every \`duty.workflow.*\` trigger row is graded for redness (${census.admitted.join(' · ') || 'there are none'}).`,
+  );
+  for (const l of census.excluded) prints.push(`[14]O-3b — NOT GRADED · ${l}`);
   // The host is named on EVERY run, so "nothing was deferred" and "one row was
   // deferred" are two different printed sentences rather than the same silence.
   // A `null` host is the ordinary off-Actions case and is also the fail-closed
@@ -2683,7 +2938,7 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile())
       ],
     };
   }
-  return { errors, prints, stats: { domain: domain.length, ...tally } };
+  return { errors, prints, stats: { domain: domain.length, clocked, trigger: domain.length - clocked, ...tally } };
 }
 
 /** Both halves of the redness comparison, at the SAME width: branch only, event
@@ -2729,10 +2984,10 @@ async function probeGithubRedSince(q, repo) {
 /** The impure orchestrator. One row per workflow by construction (the register
  *  holds `watched workflows === .github/workflows/*.yml` in both directions), so
  *  there is nothing to de-duplicate. */
-async function probeRedSince(reg) {
+async function probeRedSince(reg, dispatchable = null) {
   const probes = new Map();
   const repo = process.env.GITHUB_REPOSITORY || DEFAULT_REPO;
-  for (const r of redSinceDomain(reg)) {
+  for (const r of redSinceDomain(reg, dispatchable)) {
     if (!ghToken()) {
       probes.set(r.id, {
         unreadable: true,
@@ -3542,8 +3797,13 @@ async function main() {
   // newest success recent" but "is the newest FAILURE newer than it" — and it
   // is the only limb in this file that can notice a red branch before a
   // staleness window expires. See its header block.
-  const redProbes = await probeRedSince(reg);
-  const red = evaluateRedSince(reg, redProbes);
+  // ⏱ 2026-09-09 — the ONE impure input to the redness domain: which workflow
+  // files declare `workflow_dispatch`, i.e. which red lanes can be cleared
+  // without a merge. Read from the tree through the shared workflow parser, and
+  // a `trigger` row is admitted to this blocking alarm only on that evidence.
+  const dispatchable = dispatchableWorkflows(ROOT);
+  const redProbes = await probeRedSince(reg, dispatchable);
+  const red = evaluateRedSince(reg, redProbes, hostWorkflowFile(), dispatchable);
   prints.push(...(red.prints ?? []));
   if (red.coverageLost) {
     for (const p of prints) console.log(`⬜  ${p}`);
