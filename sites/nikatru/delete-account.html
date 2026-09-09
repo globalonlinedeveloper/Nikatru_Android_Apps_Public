@@ -13,6 +13,42 @@
 <link rel="manifest" href="/site.webmanifest">
 <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="%2317253F"/><stop offset="1" stop-color="%230A111E"/></linearGradient><linearGradient id="m" x1="0.05" y1="1" x2="0.95" y2="0"><stop offset="0" stop-color="%232E6FF2"/><stop offset="0.55" stop-color="%232AA0D8"/><stop offset="1" stop-color="%2317C3A2"/></linearGradient></defs><rect width="1024" height="1024" rx="244" fill="url(%23t)"/><path d="M 292 720 L 292 304 L 656 720 L 656 304 M 580 380 L 656 304 L 732 380" fill="none" stroke="url(%23m)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/></svg>'>
 <style>
+  :root{
+  /* CHROME:scale-css */
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:24px;
+  --space-6:32px;
+  --space-7:48px;
+  --space-gutter-sm:18px;
+  --space-gutter:24px;
+  --space-gutter-lg:32px;
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-xl:22px;
+  --radius-pill:999px;
+  --type-xs:12.5px;
+  --type-sm:13.5px;
+  --type-body:16px;
+  --type-lead:18px;
+  --type-h3:24px;
+  --type-h2:31px;
+  --type-display:clamp(34px, 5.5vw, 58px);
+  --shadow-sm:0 6px 16px rgba(11, 18, 32, .06);
+  --shadow-base:0 12px 32px rgba(11, 18, 32, .10);
+  --shadow-lg:0 16px 40px rgba(11, 18, 32, .14);
+  --motion-fast:120ms;
+  --motion-base:220ms;
+  --motion-ease:cubic-bezier(.2, .6, .3, 1);
+  --focus-ring:3px;
+  --focus-offset:3px;
+  --focus-scroll-margin:84px;
+  --container-max:1080px;
+  --container-gutter:24px;
+  /* /CHROME:scale-css */
+  }
   :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--on-accent:#FFFFFF;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC}
   @media (prefers-color-scheme: dark){
     :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2;--on-accent:#0B1220;}
@@ -35,10 +71,26 @@
   a{color:var(--primary)}
   .note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:14.5px;color:var(--muted);margin:18px 0}
   /* CHROME:a11y-css */
-  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  :focus-visible{outline:var(--focus-ring,3px) solid var(--primary,#2563EB);outline-offset:var(--focus-offset,3px);border-radius:6px}
   .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:var(--on-accent,#fff);
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
   .skip-link:focus{left:0}
+  /* WCAG 2.2 SC 2.4.11 (Focus Not Obscured, Level AA). Every page on this site
+     opens with the same STICKY nav, so following an in-page link lands the
+     target underneath it — the focused element is on screen and cannot be seen,
+     which is the failure the criterion names. One page (the homepage) carried a
+     scroll-padding of its own; the other twelve carried nothing.
+
+     scroll-padding-top ON THE SCROLL CONTAINER, not scroll-margin-top on
+     every target. The margin form needs a selector reaching every anchorable
+     element, and that selector is read by assert-discovery-surface.mjs's
+     unfilled-slot limb as a bracketed template placeholder a visitor would see.
+     It is right to: a generated page carrying square brackets is nearly always a
+     slot the generator could not fill. The padding form is one declaration,
+     needs no selector at all, and is the property actually designed for a fixed
+     header — so the two limbs never have to be traded off against each other. */
+  html{scroll-padding-top:var(--focus-scroll-margin,84px)}
+  :target{scroll-margin-top:var(--focus-scroll-margin,84px)}
   /* /CHROME:a11y-css */
   /* CHROME:footer-css */
   footer{background:var(--ink);color:#8FA0BC;text-align:center;padding:28px 24px;font-size:13px;line-height:1.9}

@@ -30,16 +30,31 @@ import {
   spliceRegion,
 } from '../../sites/chrome.mjs';
 
-/** A page carrying one valid pair for every region this module knows. */
+/**
+ * A page carrying one valid pair for every region this module knows.
+ *
+ * 🔴 DERIVED FROM `REGIONS`, NOT LISTED. The first version of this helper named
+ * the four regions by hand, which made the fixture a fifth place to remember —
+ * and `applyChrome` refuses on a MISSING pair, so adding a region to chrome.mjs
+ * turned every test in this file red for a reason that had nothing to do with
+ * what any of them was asserting. That is the same "hand-maintained copy that
+ * will differ" shape the module under test exists to end; a test fixture is not
+ * exempt from it. Regions are placed by their own `isCssRegion` verdict, so a CSS
+ * region lands inside `<style>` and a markup region lands in the body, without
+ * this file knowing which is which.
+ */
 const page = (body = 'content') => {
-  let head = '<html lang="en"><head><style>\n';
-  head += `${openMarker('a11y-css', true)}\n  /* old a11y */\n${closeMarker('a11y-css', true)}\n`;
-  head += `${openMarker('footer-css', true)}\n  /* old css */\n${closeMarker('footer-css', true)}\n`;
-  head += '</style></head><body>\n';
-  head += `${openMarker('skiplink', false)}\n<a>old skip</a>\n${closeMarker('skiplink', false)}\n`;
-  head += `${body}\n`;
-  head += `${openMarker('footer', false)}\n<footer>old</footer>\n${closeMarker('footer', false)}\n`;
-  return `${head}</body></html>\n`;
+  const css = [];
+  const markup = [];
+  for (const region of REGIONS.keys()) {
+    const inCss = isCssRegion(region);
+    const pair = `${openMarker(region, inCss)}\n${inCss ? `  /* old ${region} */` : `<span>old ${region}</span>`}\n${closeMarker(region, inCss)}\n`;
+    (inCss ? css : markup).push(pair);
+  }
+  return (
+    `<html lang="en"><head><style>\n${css.join('')}</style></head><body>\n` +
+    `${markup.join('')}${body}\n</body></html>\n`
+  );
 };
 
 describe('chrome.mjs · spliceRegion', () => {
@@ -87,7 +102,13 @@ describe('chrome.mjs · spliceRegion', () => {
   test('🔴 REFUSES reversed markers, which would eat the rest of the document', () => {
     const open = openMarker('footer', false);
     const close = closeMarker('footer', false);
-    const reversed = page().replace(`${open}\n<footer>old</footer>\n${close}`, `${close}\n<footer>old</footer>\n${open}`);
+    // Swap the two markers WHERE THEY STAND rather than rewriting a literal
+    // pair: `page()` derives its filler from REGIONS, so a literal here would
+    // quietly stop matching — and `assert.throws` failing to see its exception
+    // is how a refusal test turns into a test of nothing.
+    const HOLE = '@@SWAP@@';
+    const reversed = page().replace(open, HOLE).replace(close, open).replace(HOLE, close);
+    assert.ok(reversed.indexOf(close) < reversed.indexOf(open), 'the fixture must actually be reversed');
     assert.throws(() => spliceRegion(reversed, 'footer', 'x'), /BEFORE its opening one/);
   });
 
@@ -115,7 +136,12 @@ describe('chrome.mjs · applyChrome', () => {
   test('REGIONS is the single list both the generator and the guard iterate', () => {
     // Adding a region must not require editing three files. If this set is ever
     // read from somewhere else, the two readers can disagree about what chrome is.
-    assert.deepEqual([...REGIONS.keys()].sort(), ['a11y-css', 'footer', 'footer-css', 'skiplink']);
+    // `scale-css` joined on 2026-09-09: the non-colour token scales
+    // (contracts/tokens/dtcg/scale.json) reaching every page's `:root`, so the
+    // site has ONE spacing/type/radius language the way it already has one
+    // palette. Listed by name here on purpose — this is the assertion that makes
+    // adding a region a deliberate act rather than a side effect.
+    assert.deepEqual([...REGIONS.keys()].sort(), ['a11y-css', 'footer', 'footer-css', 'scale-css', 'skiplink']);
     for (const produce of REGIONS.values()) assert.equal(typeof produce(), 'string');
   });
 });

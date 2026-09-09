@@ -569,6 +569,20 @@ function tree(entries, opts = {}) {
     typeof entries === 'string' ? entries : JSON.stringify(entries, null, 2),
   );
   writeFileSync(join(root, 'sites', 'nikatru', 'sitemap.xml'), opts.sitemap ?? SITEMAP_BASE);
+  // 🔴 THE SERVED-CHANNEL REGISTER. Since 2026-09-09 every landing renders its
+  // availability row from `tooling/channel-register.json` ∩ the entry's
+  // `listings`, and the generator REFUSES a tree without one rather than
+  // emitting a page that says "no channel is published" about a live app. So the
+  // fixture ships one — two rows, one served and one merely submittable, which
+  // is the smallest register that can express both tile states. `opts.register`
+  // lets a case take it away or reshape it.
+  if (opts.register !== false) {
+    mkdirSync(join(root, 'tooling'), { recursive: true });
+    writeFileSync(
+      join(root, 'tooling', 'channel-register.json'),
+      JSON.stringify(opts.register ?? { channels: REGISTER_ROWS }, null, 2) + '\n',
+    );
+  }
   // 🔴 The fixture homepage carries the APPS-GRID sentinel pair because the REAL
   // one does: since 2026-09-09 the generator splices the app grid into that span
   // instead of the browser building it from a `const APPS = [...]` literal, and
@@ -632,6 +646,17 @@ function guard(root) {
 // `app-routes.json` from them, and a LIVE row with no https `origin` is a real
 // problem (the router would have nowhere to send `/<slug>`), so a fixture
 // without one is not a smaller fixture — it is a catalogue the router cannot use.
+/**
+ * The fixture's served-channel register: one SERVED row and one merely
+ * SUBMITTABLE row, which is the smallest pair that renders both tile states.
+ * `kind` is `store` on the second so the guard's anti-hardcode limb has a store
+ * name to range over, exactly as the real register gives it nine.
+ */
+const REGISTER_ROWS = [
+  { id: 'web', name: 'Web (Cloudflare Pages)', kind: 'web', storefrontKey: 'web', served: true, submittable: false },
+  { id: 'android-play', name: 'Google Play', kind: 'store', storefrontKey: 'play', served: false, submittable: true },
+];
+
 const SUBLY = {
   slug: 'subscriptiontracker',
   name: 'Subly',
@@ -639,6 +664,13 @@ const SUBLY = {
   url: 'https://nikatru.com/subscriptiontracker',
   origin: 'https://subly-9cp.pages.dev',
   platforms: ['web'],
+  // 🔴 `listings` IS NOT OPTIONAL DECORATION. `availabilityOf` treats an ABSENT
+  // storefront key as COVERAGE LOST — deliberately, because absent is not null:
+  // null says "declared, nothing published yet" and draws a coming-soon tile,
+  // while absent says nobody has decided, and drawing a tile on a missing field
+  // would advertise a channel on the strength of an omission. The real catalogue
+  // carries the same two keys with the same two values.
+  listings: { web: 'https://nikatru.com/subly', play: null },
   status: 'live',
 };
 
@@ -669,6 +701,11 @@ const chromed = (body) =>
   '<meta property="og:image:alt" content="Nikatru">\n' +
   '<style>\n' +
   '  /* CHROME:a11y-css */\n  :focus-visible{outline:2px}\n  /* /CHROME:a11y-css */\n' +
+  // The non-colour scale tokens, spliced like every other region since
+  // 2026-09-09. A fixture page without the pair is not a smaller fixture: it is
+  // a page `applyChrome` correctly refuses, because a region that silently does
+  // nothing is the failure the whole splice exists to prevent.
+  '  :root{\n  /* CHROME:scale-css */\n  /* /CHROME:scale-css */\n  }\n' +
   '  /* CHROME:footer-css */\n  /* /CHROME:footer-css */\n' +
   '</style></head><body>\n' +
   '<!-- CHROME:skiplink -->\n<a class="skip-link" href="#main">Skip</a>\n<!-- /CHROME:skiplink -->\n' +

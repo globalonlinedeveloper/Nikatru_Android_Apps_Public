@@ -59,6 +59,15 @@
 // refuses, and `chrome-splice.test.mjs` has the failing case recorded.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+/** The repository root, from this file's own location — not from `process.cwd()`.
+ *  `applyChrome` is called by the generator, by the guard and by three test files,
+ *  each with a different working directory. */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
 /** The deploy root this chrome belongs to. `sites/rajasekarselvam` is a separate
  *  brochure site with its own identity and is deliberately NOT a member — it is
  *  a different legal person's shop window, not a second Nikatru page. */
@@ -210,6 +219,73 @@ export function skipLink() {
 }
 
 /**
+ * THE NON-COLOUR SCALE TOKENS, on every page, read out of the ONE file that
+ * emits them.
+ *
+ * ── THE DEFECT ───────────────────────────────────────────────────────────────
+ * The colour palette has been one language since PR #322 — thirteen tokens, an
+ * inline `:root` per page, and `assert-palette-consistent.mjs` holding the copies
+ * equal. Everything that is NOT a colour had no such treatment: measured
+ * 2026-09-09 across the served pages, NINE distinct corner radii were in use
+ * (8, 10, 11, 12, 13, 14, 16, 18, 999), spacing was a per-page literal, and the
+ * type sizes existed only as numbers inside rules. A palette guard is structurally
+ * blind to all of it, because a literal is not a custom property — so the drift
+ * could not be seen, let alone measured.
+ *
+ * `contracts/tokens/dtcg/scale.json` gives those values names. This function is
+ * what puts the names on the pages, which is the half that makes them real: a
+ * token nothing declares is a token nothing can use.
+ *
+ * ── WHY IT READS THE GENERATED CSS AND NOT THE DTCG JSON ─────────────────────
+ * 🔴 SO THAT THE `--group-name` RULE LIVES IN EXACTLY ONE PLACE. The obvious
+ * implementation reads `scale.json` and joins the path with a hyphen — and that
+ * would be a SECOND implementation of the naming rule, sitting beside
+ * `packages/tokens/style-dictionary.config.mjs`'s, free to disagree with it. The
+ * repository has paid for that shape before (see this file's own header on six
+ * hand-maintained footers, and the config's on the deleted `--brand-ink` rename).
+ *
+ * So the emitter stays the emitter: this reads its OUTPUT and re-emits the
+ * declarations whose property name begins with one of the scale groups. The group
+ * names come from the contract; the property names and the values come from the
+ * build. A token renamed in the config is renamed on every page by the next run,
+ * and neither file can drift from the other because only one of them decides.
+ *
+ * ── AND IT REFUSES OVER AN EMPTY SET ─────────────────────────────────────────
+ * If `tokens.css` is missing, or carries no `--space-*` line, the honest outcome
+ * is a hard failure and not an empty region: an empty region splices cleanly,
+ * every count in the generator still includes the page, the byte-diff in CI
+ * compares the stale page against itself and agrees — and every `var(--space-5)`
+ * on the site silently falls back to nothing. That is the exact "quietly stops
+ * covering what it covers" shape this file exists to prevent, so it throws.
+ */
+export function scaleCss() {
+  const groups = Object.keys(JSON.parse(readFileSync(join(REPO_ROOT, 'contracts/tokens/dtcg/scale.json'), 'utf8')));
+  if (groups.length === 0) {
+    throw new Error(
+      'contracts/tokens/dtcg/scale.json declares no token groups, so the scale region would emit nothing while ' +
+        'every page went on referencing var(--space-*). An empty region is indistinguishable from a correct one ' +
+        'in a byte diff, so this refuses.',
+    );
+  }
+  const css = readFileSync(join(REPO_ROOT, 'sites/_shared/assets/tokens.css'), 'utf8');
+  const wanted = new RegExp(`^\\s*(--(?:${groups.join('|')})-[a-z0-9-]+)\\s*:\\s*([^;]+);`);
+  const lines = [];
+  for (const line of css.split('\n')) {
+    const m = wanted.exec(line);
+    if (m) lines.push(`  ${m[1]}:${m[2].trim()};`);
+  }
+  if (lines.length === 0) {
+    throw new Error(
+      `sites/_shared/assets/tokens.css carries no declaration for any of the ${groups.length} scale group(s) ` +
+        `(${groups.join(', ')}). Either the tokens build has not been run since scale.json landed, or the emit ` +
+        'order in packages/tokens/style-dictionary.config.mjs dropped them. Regenerate with ' +
+        '`cd packages/tokens && npm run build`.',
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
  * The accessibility chrome that has to be present on every page to be worth
  * anything: a visible focus ring, and the skip link's own styling.
  *
@@ -224,10 +300,26 @@ export function skipLink() {
  * one way to write a skip link that cannot be used at all.
  */
 export function a11yCss() {
-  return `  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  return `  :focus-visible{outline:var(--focus-ring,3px) solid var(--primary,#2563EB);outline-offset:var(--focus-offset,3px);border-radius:6px}
   .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:var(--on-accent,#fff);
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
-  .skip-link:focus{left:0}`;
+  .skip-link:focus{left:0}
+  /* WCAG 2.2 SC 2.4.11 (Focus Not Obscured, Level AA). Every page on this site
+     opens with the same STICKY nav, so following an in-page link lands the
+     target underneath it — the focused element is on screen and cannot be seen,
+     which is the failure the criterion names. One page (the homepage) carried a
+     scroll-padding of its own; the other twelve carried nothing.
+
+     scroll-padding-top ON THE SCROLL CONTAINER, not scroll-margin-top on
+     every target. The margin form needs a selector reaching every anchorable
+     element, and that selector is read by assert-discovery-surface.mjs's
+     unfilled-slot limb as a bracketed template placeholder a visitor would see.
+     It is right to: a generated page carrying square brackets is nearly always a
+     slot the generator could not fill. The padding form is one declaration,
+     needs no selector at all, and is the property actually designed for a fixed
+     header — so the two limbs never have to be traded off against each other. */
+  html{scroll-padding-top:var(--focus-scroll-margin,84px)}
+  :target{scroll-margin-top:var(--focus-scroll-margin,84px)}`;
 }
 
 // ── THE SPLICE ───────────────────────────────────────────────────────────────
@@ -236,6 +328,7 @@ export function a11yCss() {
  *  region means adding it here and nowhere else; the generator and the guard both
  *  iterate this map rather than naming regions of their own. */
 export const REGIONS = new Map([
+  ['scale-css', scaleCss],
   ['a11y-css', a11yCss],
   ['skiplink', skipLink],
   ['footer', footer],
@@ -249,7 +342,7 @@ export const openMarker = (region, css) => (css ? `  /* CHROME:${region} */` : `
 export const closeMarker = (region, css) => (css ? `  /* /CHROME:${region} */` : `<!-- /CHROME:${region} -->`);
 
 /** Regions written in CSS comment syntax because they live inside `<style>`. */
-const CSS_REGIONS = new Set(['footer-css', 'a11y-css']);
+const CSS_REGIONS = new Set(['footer-css', 'a11y-css', 'scale-css']);
 export const isCssRegion = (region) => CSS_REGIONS.has(region);
 
 /**
