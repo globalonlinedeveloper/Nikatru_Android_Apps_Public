@@ -714,6 +714,41 @@ for (const root of siteRoots) {
     );
   })();
 
+  //  3. A LINK TO AN APEX ROUTE RESOLVES. 🔴 THE `_redirects` MAP ABOVE STOPPED
+  //     BEING THE WHOLE ANSWER ON 2026-09-09. [ADR 075] moved the running app to
+  //     `nikatru.com/<id>`, and the two `/subly …` lines this limb's own comment
+  //     cites were DELETED in that change — `_redirects` cannot proxy, so the
+  //     prefix is now owned by `functions/_middleware.js`, whose route table is
+  //     `app-routes.json`. `checkout-return.html`'s link to `/subly` still
+  //     resolves and now resolves to something better (the application, not a
+  //     redirect to a marketing page), but the map that made it legal is gone.
+  //
+  //     ⚠️ SO THIS IS NOT A WAIVER, IT IS THE SAME RULE READING THE NEW MAP. Every
+  //     apex route is put under the identical "it resolves" obligation a file and
+  //     a redirect source already carry, and a link to `/<id>` for an app that is
+  //     NOT in the route table stays a hard failure — which is the case that
+  //     matters, because that link would land on the marketing 404 while looking
+  //     exactly like a link to a shipped app.
+  const routedPrefixes = (() => {
+    const f = join(root, 'app-routes.json');
+    if (!existsSync(f)) return new Set();
+    try {
+      const rows = JSON.parse(readFileSync(f, 'utf8'));
+      if (!Array.isArray(rows)) return new Set();
+      return new Set(rows.map((r) => r?.path).filter((p) => typeof p === 'string' && p.startsWith('/')));
+    } catch {
+      // Unparseable is NOT an empty map: it would silently narrow this limb's
+      // domain to the redirect sources and every apex-route link would start
+      // failing for the wrong reason. Say so, once, and let the link checks below
+      // report against what is left.
+      problems.push(
+        `sites/${name}/app-routes.json is not parseable JSON. It is the apex router's only input, so this ` +
+          'run cannot tell a link to a shipped app from a link to nothing.',
+      );
+      return new Set();
+    }
+  })();
+
   /** A reference that is actually a path. `_template.html`'s placeholder slots
    *  (`[WEB APP URL]`) are not links in any form, and a limb that scolds them for
    *  being document-relative is reporting on a token nobody ever meant as a URL. */
@@ -735,6 +770,7 @@ for (const root of siteRoots) {
 
       if (path.startsWith('/') && last !== '' && !last.includes('.')) {
         if (redirectSources.has(path)) continue;
+        if (routedPrefixes.has(path) || routedPrefixes.has(`/${path.split('/')[1]}`)) continue;
         if (!existsSync(join(root, `${path.slice(1).split('/').join(sep)}.html`))
           && !existsSync(join(root, path.slice(1).split('/').join(sep), 'index.html'))) {
           problems.push(

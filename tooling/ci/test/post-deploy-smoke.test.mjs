@@ -23,7 +23,21 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { judge, judgeOk, flag, judgeCacheControl, isWebChannelSmoke, WEB_ENTRY_POINTS } from '../../ops/post-deploy-smoke.mjs';
+import {
+  judge,
+  judgeOk,
+  flag,
+  judgeCacheControl,
+  isWebChannelSmoke,
+  WEB_ENTRY_POINTS,
+  webBasePath,
+  webEntryPointUrls,
+  judgeApiCors,
+  assertApiCorsAuth,
+  resolveApiOrigin,
+  INVALID_BEARER,
+  API_AUTH_PROBE_PATH,
+} from '../../ops/post-deploy-smoke.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = resolve(HERE, '..', '..', 'ops', 'post-deploy-smoke.mjs');
@@ -1755,6 +1769,376 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the release limb', () => {
       gate,
       /ref_type\s*==\s*'tag'/,
       `the release read-back step is no longer gated on a tag (its \`if:\` reads ${JSON.stringify(gate)})`,
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [ADR 075] — THE ADDRESS MOVED TO A PATH, AND TWO LIMBS WOULD HAVE GONE QUIET.
+//
+// Until 2026-09-09 an app was published on its own hostname and `version.json`
+// sat at the ROOT, so `isWebChannelSmoke` matched `pathname === '/version.json'`
+// and the edge cache limb composed entry points from `new URL(url).origin`. The
+// app is now published at `https://nikatru.com/<id>`, so the deploy job smokes
+// `/<id>/version.json` — and BOTH of those broke in the worst possible
+// direction:
+//   · the predicate returned FALSE, so the [14]O-8 limb printed "not
+//     applicable" and RETURNED. Exit 0, one cheerful line, and the only check on
+//     the force-update kill-switch's transport stopped running on the very
+//     deploy that moved it.
+//   · the entry-point URLs would have been `https://nikatru.com/main.dart.js`,
+//     which is the APEX Pages project's 404 or the marketing shell — a limb
+//     reporting on a file that is not the one it exists to watch.
+// Both are asserted here against the shape the deploy job now really produces.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The address the deploy job smokes since [ADR 075] — composed the way the job
+ *  composes it, `<site_url>/version.json`, rather than typed as a literal here
+ *  and hoped over. */
+const PATH_URL = 'https://nikatru.com/subly/version.json';
+const PATH_WEB = ['--url', PATH_URL, '--field', 'build_number', '--expect', '482'];
+
+describe('post-deploy-smoke — the web channel under a PATH address [ADR 075]', () => {
+  test('🔴 the predicate matches a version.json under an app base path', () => {
+    // The regression case. With the old `=== '/version.json'` this is FALSE and
+    // both limbs below never run.
+    assert.equal(isWebChannelSmoke(PATH_URL), true);
+  });
+
+  test('the predicate still matches the root shape, and still refuses a Worker route', () => {
+    assert.equal(isWebChannelSmoke('https://subly.nikatru.com/version.json'), true);
+    assert.equal(isWebChannelSmoke('https://api.nikatru.com/v1/health'), false);
+    assert.equal(isWebChannelSmoke('https://nikatru.com/subly/'), false);
+    assert.equal(isWebChannelSmoke('not a url'), false);
+  });
+
+  test('the base path is READ OFF the smoked URL, never composed here', () => {
+    assert.equal(webBasePath(PATH_URL), '/subly/');
+    assert.equal(webBasePath('https://subly.nikatru.com/version.json'), '/');
+    assert.equal(webBasePath('https://nikatru.com/a/b/version.json'), '/a/b/');
+  });
+
+  test('🔴 the entry points are on the APP base path, not on the apex root', () => {
+    assert.deepEqual(webEntryPointUrls(PATH_URL), [
+      'https://nikatru.com/subly/flutter_bootstrap.js',
+      'https://nikatru.com/subly/main.dart.js',
+    ]);
+  });
+
+  test('the root shape is unchanged, so the old deploys are not re-pointed', () => {
+    assert.deepEqual(webEntryPointUrls('https://subly.nikatru.com/version.json'), [
+      'https://subly.nikatru.com/flutter_bootstrap.js',
+      'https://subly.nikatru.com/main.dart.js',
+    ]);
+  });
+
+  test('🔴 END TO END: the cache limb FIRES on a path address and reads the path entry points', () => {
+    // The whole point. Under the old predicate this run exits 0 having probed
+    // NOTHING; here the fixture serves the historical bad header on the app's
+    // own main.dart.js and the run must go red naming that exact URL.
+    const r = runCache(
+      [{ status: 200, body: '{"build_number":482}' }],
+      [...PATH_WEB, '--api-fixture', apiFixtureFile([{ status: 401, headers: { 'access-control-allow-origin': 'https://nikatru.com' } }])],
+      {
+        '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+        '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+        '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_BAD } },
+      },
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/nikatru\.com\/subly\/main\.dart\.js/);
+    assert.match(r.out, /max-age=14400/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE CROSS-ORIGIN API LIMB — the failure `version.json` cannot see.
+//
+// `version.json` is a STATIC FILE. It proves the right bytes are being served
+// and says nothing at all about the first request the app makes, which since
+// [ADR 075] crosses an origin boundary that did not exist before: the page is on
+// the apex, the API is on api.nikatru.com, and whether that call is allowed is
+// decided by a comma-separated variable in a wrangler config no deploy step
+// reads.
+//
+// 🔴 EVERY CASE BELOW EXISTS TO KEEP TWO FAILURES APART. A CORS rejection and an
+// auth rejection are both "the request did not succeed" and they are opposite
+// diagnoses — one is the API working as designed, the other is the browser
+// discarding the answer before the app sees it. services/subly-api's CORS fails
+// CLOSED (no header at all rather than an error), so the bad case is SILENT from
+// every other vantage point in this file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORIGIN = 'https://nikatru.com';
+const ACAO = 'access-control-allow-origin';
+
+/** Writes an --api-fixture and returns its path. */
+function apiFixtureFile(responses) {
+  const f = join(TMP, `api-${(seq += 1)}.json`);
+  writeFileSync(f, JSON.stringify(responses));
+  return f;
+}
+
+describe('post-deploy-smoke — the cross-origin API decision', () => {
+  test('PASSES on the shape a healthy deploy produces: 401 WITH the exact origin echoed', () => {
+    const v = judgeApiCors({ status: 401, headers: { [ACAO]: ORIGIN }, origin: ORIGIN });
+    assert.equal(v.ok, true);
+    assert.equal(v.status, 401);
+    assert.equal(v.allowOrigin, ORIGIN);
+  });
+
+  test('403 is an auth refusal too', () => {
+    assert.equal(judgeApiCors({ status: 403, headers: { [ACAO]: ORIGIN }, origin: ORIGIN }).ok, true);
+  });
+
+  test('🔴 THE CASE THIS LIMB EXISTS FOR: a 401 with NO allow-origin header is a CORS failure, and says so', () => {
+    // Identical status to the passing case above. The ONLY difference is the
+    // header, and it is the difference between "the app shows a sign-in screen"
+    // and "the app shows nothing and cannot say why".
+    const v = judgeApiCors({ status: 401, headers: {}, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.equal(v.retry, false, 'a missing allow-origin is configuration; waiting cannot fix it');
+    assert.match(v.reason, /CORS REJECTION, NOT an auth rejection/);
+    assert.match(v.reason, /ALLOWED_ORIGINS/);
+  });
+
+  test('🔴 an empty allow-origin header is the same failure as an absent one', () => {
+    const v = judgeApiCors({ status: 401, headers: { [ACAO]: '   ' }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /CORS REJECTION/);
+  });
+
+  test('🔴 an allow-origin for a DIFFERENT origin is a total refusal, not partial coverage', () => {
+    // What a half-done migration looks like: the allowlist still carries the
+    // retired subdomain and not the apex.
+    const v = judgeApiCors({ status: 401, headers: { [ACAO]: 'https://subly.nikatru.com' }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.equal(v.retry, false);
+    assert.match(v.reason, /byte for byte/);
+  });
+
+  test('🔴 a WILDCARD is a failure on a Bearer-gated route, not a convenience', () => {
+    const v = judgeApiCors({ status: 401, headers: { [ACAO]: '*' }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /allowlist stopped being applied/);
+  });
+
+  test('🔴 a 200 to an invalid token is a SECURITY finding, and is reported as one', () => {
+    const v = judgeApiCors({ status: 200, headers: { [ACAO]: ORIGIN }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.equal(v.retry, false);
+    assert.match(v.reason, /AUTHENTICATION IS NOT/);
+  });
+
+  test('🔴 a 404 is a failure — a probe that read nothing is never a pass', () => {
+    const v = judgeApiCors({ status: 404, headers: { [ACAO]: ORIGIN }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.equal(v.retry, false);
+    assert.match(v.reason, /not-found handler/);
+  });
+
+  test('a 5xx and a 429 RETRY — they are the only shapes propagation produces here', () => {
+    assert.equal(judgeApiCors({ status: 503, headers: {}, origin: ORIGIN }).retry, true);
+    assert.equal(judgeApiCors({ status: 429, headers: {}, origin: ORIGIN }).retry, true);
+  });
+
+  test('🔴 a 5xx is never a PASS, however many times it is retried', () => {
+    assert.equal(judgeApiCors({ status: 502, headers: {}, origin: ORIGIN }).ok, false);
+  });
+
+  test('any other status is a failure this limb refuses to interpret', () => {
+    const v = judgeApiCors({ status: 302, headers: { [ACAO]: ORIGIN }, origin: ORIGIN });
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /HTTP 302/);
+  });
+
+  test('the invalid token is not, and cannot be mistaken for, a credential', () => {
+    // It has to be REJECTED for the limb to assert anything, and it must never
+    // be a real token in a public repository.
+    assert.match(INVALID_BEARER, /invalid-by-design/);
+    assert.equal(INVALID_BEARER.split('.').length < 3, true, 'a three-segment token would read as a JWT');
+  });
+});
+
+describe('post-deploy-smoke — which API this deploy talks to, resolved from the catalogue', () => {
+  const CAT = JSON.stringify([
+    { slug: 'subly', url: 'https://nikatru.com/subly', api: 'https://api.nikatru.com' },
+  ]);
+
+  test('the app is identified by the ADDRESS it was just deployed to', () => {
+    const r = resolveApiOrigin(CAT, PATH_URL);
+    assert.equal(r.apiOrigin, 'https://api.nikatru.com');
+    assert.equal(r.slug, 'subly');
+  });
+
+  test('a trailing slash on either side is not a second fact', () => {
+    assert.equal(resolveApiOrigin(JSON.stringify([{ slug: 's', url: 'https://nikatru.com/s/', api: 'https://a.test/' }]), 'https://nikatru.com/s/version.json').apiOrigin, 'https://a.test');
+  });
+
+  test('🔴 an app the catalogue does not publish at this address is a PROBLEM, never a skip', () => {
+    const r = resolveApiOrigin(CAT, 'https://nikatru.com/other/version.json');
+    assert.ok(r.problem);
+    assert.match(r.problem, /cannot identify its subject must fail rather than skip/);
+  });
+
+  test('🔴 an unparseable catalogue is a problem, not an empty expectation', () => {
+    assert.match(resolveApiOrigin('{[', PATH_URL).problem, /does not parse/);
+  });
+
+  test('🔴 an EMPTY catalogue is a problem — an empty expectation is satisfied by anything', () => {
+    assert.match(resolveApiOrigin('[]', PATH_URL).problem, /declares no apps/);
+  });
+
+  test('an app with an EMPTY `api` resolves to no origin, which is a declaration and not an absence', () => {
+    const r = resolveApiOrigin(JSON.stringify([{ slug: 'x', url: 'https://nikatru.com/x', api: '' }]), 'https://nikatru.com/x/version.json');
+    assert.equal(r.apiOrigin, null);
+    assert.equal(r.slug, 'x');
+  });
+});
+
+describe('post-deploy-smoke — the cross-origin API limb end to end', () => {
+  /** Runs the real script with the build fixture, a cache fixture and an API
+   *  fixture, so the limb is exercised through the real exit codes. */
+  function runApi(apiResponses, { url = PATH_URL, cache = null } = {}) {
+    const cacheMap = cache ?? {
+      '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+      '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+      '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+    };
+    const cat = join(TMP, `cat-${(seq += 1)}.json`);
+    writeFileSync(cat, JSON.stringify([{ slug: 'subly', url: 'https://nikatru.com/subly', api: 'https://api.nikatru.com' }]));
+    return runCache(
+      [{ status: 200, body: '{"build_number":482}' }],
+      ['--url', url, '--field', 'build_number', '--expect', '482', '--api-fixture', apiFixtureFile(apiResponses), '--catalogue', cat],
+      cacheMap,
+    );
+  }
+
+  test('EXIT 0 on a healthy deploy, and it NAMES what it saw', () => {
+    const r = runApi([{ status: 401, headers: { [ACAO]: ORIGIN } }]);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /the refusal is an AUTH refusal and it REACHES the app/);
+    assert.match(r.out, /Origin: https:\/\/nikatru\.com/);
+  });
+
+  test('🔴 EXIT 1 when the response carries no Access-Control-Allow-Origin', () => {
+    const r = runApi([{ status: 401, headers: {} }]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /CROSS-ORIGIN API CHECK FAILED/);
+    assert.match(r.out, /CORS REJECTION, NOT an auth rejection/);
+    assert.match(r.out, /ALLOWED_ORIGINS/);
+  });
+
+  test('🔴 EXIT 1 when the API accepts the deliberately invalid token', () => {
+    const r = runApi([{ status: 200, headers: { [ACAO]: ORIGIN } }]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /AUTHENTICATION IS NOT/);
+  });
+
+  test('a TRANSIENT 503 followed by a good answer is a PASS — the retry loop runs', () => {
+    const r = runApi([{ status: 503, headers: {} }, { status: 401, headers: { [ACAO]: ORIGIN } }]);
+    assert.equal(r.code, 0, r.out);
+  });
+
+  test('🔴 a 503 on EVERY attempt EXITS 1 — "could not tell" is not "it is fine"', () => {
+    const r = runApi([{ status: 503, headers: {} }]);
+    assert.equal(r.code, 1, r.out);
+  });
+
+  test('🔴 an API that cannot be reached at all EXITS 1', () => {
+    const r = runApi([{ error: 'socket hang up' }]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /could not be read/);
+  });
+
+  test('🔴 EXIT 1 when the catalogue cannot say which app was deployed', () => {
+    // The limb must not shrug. A smoke that cannot identify its subject reports
+    // a failure rather than skipping — otherwise the day the catalogue changes
+    // shape is the day this limb quietly stops running.
+    const cat = join(TMP, `cat-empty-${(seq += 1)}.json`);
+    writeFileSync(cat, '[]');
+    const r = runCache(
+      [{ status: 200, body: '{"build_number":482}' }],
+      ['--url', PATH_URL, '--field', 'build_number', '--expect', '482', '--api-fixture', apiFixtureFile([{ status: 401, headers: { [ACAO]: ORIGIN } }]), '--catalogue', cat],
+      {
+        '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+        '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+        '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+      },
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /declares no apps/);
+  });
+
+  test('EXIT 2 on an --api-fixture that will not read', () => {
+    const r = spawnSync(process.execPath, [SCRIPT, ...PATH_WEB, '--api-fixture', join(TMP, 'nope-api.json')], { encoding: 'utf8' });
+    assert.equal(r.status, 2, `${r.stdout ?? ''}${r.stderr ?? ''}`);
+  });
+
+  test('EXIT 2 on an --api-fixture that is not a non-empty array', () => {
+    const bad = join(TMP, `api-bad-${(seq += 1)}.json`);
+    writeFileSync(bad, '[]');
+    const r = spawnSync(process.execPath, [SCRIPT, ...PATH_WEB, '--api-fixture', bad], { encoding: 'utf8' });
+    assert.equal(r.status, 2, `${r.stdout ?? ''}${r.stderr ?? ''}`);
+  });
+
+  test('🔴 the SKIP is loud, and it does not take the other limb with it', () => {
+    // Two properties in one case, and the second is the bug that was fixed on
+    // 2026-09-09: the cache limb's skip branch used to `return`, so a run with
+    // no --cache-fixture would have silently skipped the API limb as well.
+    const r = run([{ status: 200, body: '{"build_number":482}' }], PATH_WEB);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /edge cache policy \[14\]O-8 — SKIPPED/);
+    assert.match(r.out, /cross-origin API \[14\]O-7 — SKIPPED/);
+    assert.match(r.out, /must never appear in a real CI log/);
+  });
+
+  test('a Worker health smoke runs NEITHER limb, and says which URL made it inapplicable', () => {
+    const r = run([{ status: 200, body: '{"build":"abc123","ok":true}' }], API);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /not applicable/);
+  });
+});
+
+describe('post-deploy-smoke — REQUIRED COVERAGE of the cross-origin API limb', () => {
+  test('the limb is still exported and this file still imports it', () => {
+    assert.equal(typeof judgeApiCors, 'function');
+    assert.equal(typeof assertApiCorsAuth, 'function');
+    assert.equal(typeof resolveApiOrigin, 'function');
+    const self = readFileSync(join(ROOT, 'tooling', 'ci', 'test', 'post-deploy-smoke.test.mjs'), 'utf8');
+    assert.match(self, /assertApiCorsAuth/);
+  });
+
+  test('the script still declares the limb and its flags', () => {
+    const src = readFileSync(SCRIPT, 'utf8');
+    for (const flagName of ['--api-fixture', '--api-origin', '--api-path', '--catalogue']) {
+      assert.ok(src.includes(flagName), `the script no longer declares ${flagName}`);
+    }
+    assert.match(src, /assertApiCorsAuth\(/);
+  });
+
+  test('🔴 REQUIRED COVERAGE: the probed route is one that REQUIRES auth', () => {
+    // The limb asserts "an invalid token is refused". Pointed at an
+    // unauthenticated route it would assert nothing at all and still print ok —
+    // so the route it defaults to is checked against the service that mounts it.
+    const index = readFileSync(join(ROOT, 'services', 'subly-api', 'src', 'index.ts'), 'utf8');
+    assert.match(index, /api\.use\('\*', supabaseAuth\)/, 'the protected group no longer mounts supabaseAuth');
+    const [, group, leaf] = API_AUTH_PROBE_PATH.match(/^\/([^/]+)\/([^/]+)$/) ?? [];
+    assert.equal(group, 'v1');
+    assert.ok(
+      index.includes(`api.route('/${leaf}'`),
+      `${API_AUTH_PROBE_PATH} is not mounted inside the supabaseAuth-protected group in services/subly-api/src/index.ts, so the limb would be probing an unauthenticated route`,
+    );
+  });
+
+  test('🔴 REQUIRED COVERAGE: the origin the app is served from is on the API allowlist', () => {
+    // The offline half of what the limb checks live. This is the file the live
+    // failure comes FROM, so a wrangler config that drops the apex fails here
+    // before a deploy ever reaches the smoke.
+    const wrangler = readFileSync(join(ROOT, 'services', 'subly-api', 'wrangler.jsonc'), 'utf8');
+    assert.ok(
+      wrangler.includes('https://nikatru.com'),
+      'services/subly-api ALLOWED_ORIGINS no longer carries the apex, which is the origin every app page is served from since [ADR 075]',
     );
   });
 });

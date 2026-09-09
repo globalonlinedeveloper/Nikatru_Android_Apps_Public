@@ -140,6 +140,21 @@
   },
   {
     "claims": [
+      "ADR 038",
+      "ADR 075"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-app-address-shape.mjs",
+    "references": [
+      "ADR 055"
+    ],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "C-6",
       "N-2",
       "N-3",
@@ -323,6 +338,7 @@
   {
     "claims": [
       "ADR 006",
+      "ADR 075",
       "D-11",
       "D-2b",
       "S-7",
@@ -474,6 +490,7 @@
   },
   {
     "claims": [
+      "ADR 075",
       "B-2",
       "D-8",
       "F-10",
@@ -1058,6 +1075,19 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-no-hardcoded-strings.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 020",
+      "F-10"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-no-origin-authz.mjs",
     "references": [],
     "state": "WIRED"
   },
@@ -1925,6 +1955,7 @@
   {
     "claims": [
       "ADR 023",
+      "ADR 075",
       "C-6",
       "R-9"
     ],
@@ -1933,6 +1964,18 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-web-cache-policy.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 075"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-well-known-shape.mjs",
     "references": [],
     "state": "WIRED"
   },
@@ -2045,6 +2088,7 @@
   },
   {
     "claims": [
+      "ADR 075",
       "C-6",
       "F-9",
       "INC-12",
@@ -2404,6 +2448,7 @@
   {
     "claims": [
       "ADR 023",
+      "ADR 075",
       "D-9",
       "O-7",
       "O-8",
@@ -2504,6 +2549,7 @@
   },
   {
     "claims": [
+      "ADR 075",
       "E-9"
     ],
     "invokedBy": [
@@ -2671,7 +2717,9 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 075"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#sites"
     ],
@@ -2683,6 +2731,7 @@
   {
     "claims": [
       "ADR 015",
+      "ADR 075",
       "D-11",
       "M-11",
       "M-8",

@@ -134,6 +134,20 @@ jobs:
         run: node tooling/ci/assert-ceiling-budget.mjs
       - name: CORS allowlist is derived from the app catalogue
         run: node tooling/ci/assert-cors-allowlist.mjs
+      # Since [ADR 075] every app shares one origin, so `Origin` can no longer tell
+      # one app's caller from another's. This is the guard that keeps the CORS
+      # middleware the ONLY place that reads it.
+      - name: Origin decides CORS headers and nothing else
+        run: node tooling/ci/assert-no-origin-authz.mjs
+      # The app's public address is a path on the apex, and the route table, the
+      # catalogue and the base href all say the same thing.
+      - name: An app is published at a path on the apex, never on a subdomain
+        run: node tooling/ci/assert-app-address-shape.mjs
+      # One AASA and one assetlinks.json now serve every app on the shared apex, so a
+      # hand-written entry for one app breaks deep linking for all of them. Today both
+      # files are ABSENT and the guard asserts that absence as a measured pair.
+      - name: The origin-wide association files are generated, or absent for a reason
+        run: node tooling/ci/assert-well-known-shape.mjs
       - name: Every deployable unit is claimed by a lane
         run: node tooling/ci/assert-lane-coverage.mjs
       - name: Every deployed hostname is declared, and its monitor gap is visible

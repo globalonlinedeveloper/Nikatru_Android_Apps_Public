@@ -66,10 +66,10 @@ const String kPasswordResetMarkerValue = 'reset';
 ///     then being moved.
 ///   · THE MARKER, because the fragment is the one part that does NOT survive a
 ///     FAILURE. Measured live rather than reasoned about: an expired link
-///     answers `303` with `Location: <redirect_to>#error=access_denied&
-///     error_code=otp_expired&…` — the query intact, the fragment REPLACED by
-///     the error parameters. So on the commonest real failure the route is gone
-///     and only the query can say what this arrival was.
+///     answers `303` with a `Location:` of the redirect it was handed, suffixed
+///     `#error=access_denied&error_code=otp_expired&…` — the query intact, the
+///     fragment REPLACED by the error parameters. So on the commonest real
+///     failure the route is gone and only the query can say what this was.
 ///     [passwordResetArrivalOf] reads it.
 ///
 /// ⚠️ THIS EXACT PREFIX MUST BE ON THE SUPABASE REDIRECT ALLOW-LIST, AND SCOPED

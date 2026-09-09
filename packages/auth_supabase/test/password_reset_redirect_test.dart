@@ -46,7 +46,7 @@ void main() {
     // this screen rather than on home; and the MARKER is the part that survives
     // a FAILURE, where gotrue replaces the fragment with its own error
     // parameters — measured live, not assumed.
-    test('on web it is the ORIGIN, the BASE PATH, the MARKER and the ROUTE', () {
+    test('on web: the ORIGIN, the BASE PATH, the MARKER and the ROUTE', () {
       expect(
         passwordResetRedirectUrl(
           isWeb: true,

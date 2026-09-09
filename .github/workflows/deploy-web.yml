@@ -129,9 +129,26 @@ jobs:
       # the residue is, and it is carried in phase3-cutover-blockers.md 8.6 (residue
       # R10). Corrected 2026-09-07: this line said 8.2, which is the empty-sitekey
       # section, not the twelve-lane residue.
+      # 🔴 THE BASE HREF, RESOLVED FROM THE CATALOGUE AND NOT WRITTEN HERE.
+      # [ADR 075] publishes every app at a PATH on the apex, so this build must be
+      # compiled for `/<id>/` rather than for `/`. This job is a MATRIX over the
+      # workspace app set, so the value cannot be a literal; it comes from the same
+      # guard, and the same catalogue row, that the deploy target below comes from,
+      # so the address and the base href are one parse and cannot disagree.
+      #
+      # ⚠️ A WRONG BASE HREF IS SILENT. It does not fail the build and it does not
+      # 500: index.html answers 200 and every asset 404s, so the visitor gets a
+      # WHITE PAGE. The emitter fails loudly on every "I could not tell" case for
+      # exactly that reason.
+      - name: Resolve this app's base href from the catalogue
+        id: base
+        working-directory: .
+        run: node tooling/ci/assert-catalog-reachable.mjs --emit-base-href ${{ matrix.app }} >> "$GITHUB_OUTPUT"
+
       - name: Build web (release, no service worker)
         run: >
           flutter build web --release --pwa-strategy=none --source-maps
+          --base-href ${{ steps.base.outputs.base_href }}
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --build-number=${{ github.run_number }}
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}

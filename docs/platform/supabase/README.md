@@ -3,11 +3,52 @@
 One Supabase project authenticates every app in the portfolio. Branding it once brands all apps.
 
 ## What's configured via the Management API (session-applied, re-runnable)
-- **Site URL:** `https://subly.nikatru.com` (app #1's web home; OAuth/email links default here).
-- **Redirect allow-list:** `https://subly.nikatru.com/**`, `https://subly.pages.dev/**`,
-  `http://localhost:3000/**`, `http://localhost:8080/**` (web + local dev). Add per-app web
-  origins as apps ship; add a custom-scheme deep link (e.g. `subly://auth-callback`) once the
-  desktop/mobile apps register one.
+- **Site URL — TARGET:** `https://nikatru.com/subly` (app #1's web home; OAuth/email links
+  default here). The web build is compiled with `--base-href /<app id>/`, so the app is served
+  under a **path prefix on the shared apex**, not at an origin of its own — and the Site URL is
+  the app's base path, not `https://nikatru.com`. ⬜ **Not yet applied:** read live on
+  **2026-09-09** it still holds `https://subly.nikatru.com`. The cutover PATCHes it; this file
+  says what it is being PATCHed to.
+- **Redirect allow-list — TARGET:** `https://nikatru.com/subly/**`,
+  `https://subly-9cp.pages.dev/**`, `http://localhost:3000/**`, `http://localhost:8080/**`
+  (web + local dev). Add per-app web paths as apps ship; add a custom-scheme deep link
+  (e.g. `subly://auth-callback`) once the desktop/mobile apps register one.
+  - 🔴 **PER APP, `/<app id>/**` — NEVER the bare apex `https://nikatru.com/**`.** Every app now
+    shares ONE origin, and one Supabase project authenticates all of them. An apex wildcard
+    would make **every path on nikatru.com** a legal post-auth redirect target: any other app,
+    the marketing pages, and anything a future deploy puts there. The wildcard is the boundary
+    between apps, so it has to be drawn where the boundary now is — at the path, not the host.
+  - Live on **2026-09-09** the list reads `https://subly.nikatru.com/**`,
+    `https://subly-9cp.pages.dev/**`, `http://localhost:3000/**`, `http://localhost:8080/**` —
+    the two localhost entries and the Pages entry are already correct and are carried over
+    unchanged; only the first entry moves.
+  - 📌 **Correction, 2026-09-09:** this file used to say `https://subly.pages.dev/**`. The LIVE
+    config was right and the DOC was wrong — the Cloudflare Pages project is named `subly` and
+    its production alias is **`subly-9cp.pages.dev`**. A reader who "fixed" the live list to
+    match this file would have deleted the only entry that lets a preview deployment complete a
+    sign-in.
+
+### 🔴 gotrue does not reject a bad redirect. It SILENTLY SUBSTITUTES the Site URL.
+A `redirect_to` that is not on the allow-list produces **no error and no warning**: gotrue
+answers with the project's **Site URL** instead. Mail sends, the link resolves, a page loads —
+so a wrong list, an absent entry and a correct one are indistinguishable from inside the app.
+Under the old per-app subdomain the substitute was the same host, which made it invisible;
+under path routing it lands the user on the **apex** instead of in the app.
+
+**Operational rule — the read-back, and it is the only evidence there is:**
+
+1. `PATCH` the config (whole `smtp_*` block and all `mailer_*` fields — see "THAT ENDPOINT
+   REPLACES" below).
+2. **`GET https://api.supabase.com/v1/projects/{ref}/config/auth` and compare `site_url` and
+   `uri_allow_list` string-for-string against the target above.** Not "spot-check" — compare.
+3. Only then treat the change as applied.
+
+⚠️ **"The reset flow works" is NEVER evidence that the list is correct** — a substituted redirect
+still completes a working-looking flow. The only way to tell an ACCEPTED redirect from a
+SUBSTITUTED one from outside is that the accepted one comes back carrying the query and fragment
+it was handed (measured 2026-08-11: `…/?nk_auth=reset#/reset-password` accepted vs. the bare Site
+URL substituted). The composition of that URL, and the same warning at the point of use, is
+`packages/auth_supabase/lib/src/password_reset_redirect.dart`.
 - **Email templates** (`email-templates/*.html`): Nikatru-branded confirm-signup, magic-link,
   reset-password. Inline-CSS table layout (email-client-safe), no remote images (no logo
   hosting dependency, no tracking flags). Variables: `{{ .ConfirmationURL }}`, `{{ .Email }}`.

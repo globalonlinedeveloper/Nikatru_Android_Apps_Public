@@ -12,7 +12,7 @@
 - Status: shipping; the catalogue below is the complete list of released apps
 
 ## Apps
-- Nikatru Subscription Tracker — Track every subscription in one place — https://subly.nikatru.com (web)
+- Nikatru Subscription Tracker — Track every subscription in one place — https://nikatru.com/subly (web)
 
 ## Key pages
 - Home: https://nikatru.com/
