@@ -1316,8 +1316,13 @@ describe('apple-signing — the endings, run as a process', () => {
     assert.match(out(r), /carries leading or trailing whitespace, and it is being REFUSED rather than trimmed/);
     // The DIAGNOSIS is the whole value of this failure over the macOS one.
     assert.match(out(r), /openssl rand` writes CRLF/);
-    // Lengths, never the value.
-    assert.match(out(r), /character\(s\); \d+ survive trimming/);
+    // ⏱ TIGHTENED 2026-09-09 after CodeQL flagged the first version as
+    // `js/clear-text-logging` (high). That version printed the raw and trimmed
+    // LENGTHS. A length is not the secret — but the alert is right in spirit,
+    // and the message now draws only from a fixed allowlist of literals, so
+    // NOTHING derived from the password can reach a log through this path.
+    assert.match(out(r), /Found: a trailing carriage return/);
+    assert.doesNotMatch(out(r), /character\(s\)/, 'not even a length is derived from the secret any more');
     assert.ok(!out(r).includes(full[ROLE_ENV.p12Password]), 'the passphrase itself must not be printed');
   });
 

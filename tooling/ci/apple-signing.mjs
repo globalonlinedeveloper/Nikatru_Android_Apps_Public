@@ -131,7 +131,7 @@
 //          arranged, the keychain / plist / team paths the export steps read.
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
@@ -567,6 +567,29 @@ export function keychainPlan({ keychain, keychainPassword, p12Path, p12Password,
       argv: ['security', 'list-keychains', '-d', 'user', '-s', keychain, ...existingKeychains],
     },
   ];
+}
+
+/** Describe the whitespace around a secret WITHOUT quoting any of it.
+ *
+ *  Every element of the return value is a literal written here, so no part of
+ *  the input — not a character, not a length — can travel into a log through
+ *  this function. That is the property that makes it safe to call on a
+ *  passphrase, and it is why the caller reports "a trailing carriage return"
+ *  rather than a count.
+ *
+ *  The CR case is named FIRST and separately because it is the one that actually
+ *  happened, and the one nobody sees: `openssl rand` on Windows emits CRLF, so a
+ *  `tr -d '\n'` leaves a CR that every local tool then round-trips happily. */
+export function whitespaceShape(raw) {
+  const s = String(raw ?? '');
+  const found = [];
+  if (/^\s/.test(s)) found.push('leading whitespace');
+  if (/\r\n$/.test(s)) found.push('a trailing CRLF — the Windows `openssl rand` case');
+  else if (/\r$/.test(s)) found.push('a trailing carriage return — the Windows `openssl rand` case');
+  else if (/\n$/.test(s)) found.push('a trailing newline');
+  else if (/[ \t]$/.test(s)) found.push('a trailing space or tab');
+  else if (/\s$/.test(s)) found.push('trailing whitespace');
+  return found.length === 0 ? ['whitespace this check does not name individually'] : found;
 }
 
 /** Where Xcode SCANS for provisioning profiles, newest location first.
@@ -1115,7 +1138,21 @@ function die(lines) {
 
 function main() {
   const ROOT = resolve(opt('repo-root') ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
-  const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', tmpdir()));
+  // 🔴 THE BARE `tmpdir()` FALLBACK WROTE PREDICTABLY-NAMED FILES INTO A
+  // WORLD-WRITABLE DIRECTORY, and CodeQL called it (`js/insecure-temporary-file`,
+  // high). In CI this path is never taken — `RUNNER_TEMP` is set and is private
+  // to the job — but the fallback is what a developer running this by hand gets,
+  // and `/tmp/subly-distribution.p12` is a name anyone can pre-create as a
+  // symlink. The file that lands there is a PKCS#12 holding a real private key.
+  //
+  // `mkdtempSync` creates a fresh directory with a random suffix, owned by this
+  // user, mode 0700. It is the documented remedy rather than a way to quiet the
+  // rule, and the two explicit paths — `--out` and `RUNNER_TEMP` — are untouched
+  // because both are already private and both are chosen by the caller.
+  //
+  // `envOr` is kept for the empty-string case: RUNNER_TEMP set to '' must fall
+  // through to the private directory, not resolve to the process's cwd.
+  const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', null) ?? mkdtempSync(join(tmpdir(), 'apple-signing-')));
   const GITHUB_ENV = opt('github-env') ?? envOr('GITHUB_ENV', null);
   const METHOD = opt('method') ?? 'app-store-connect';
 
@@ -1316,7 +1353,15 @@ function main() {
   if (rawPassword !== values[ROLE_ENV.p12Password]) {
     die([
       `FAIL ${ROLE_ENV.p12Password} carries leading or trailing whitespace, and it is being REFUSED rather than trimmed.`,
-      `     The value is ${rawPassword.length} character(s); ${values[ROLE_ENV.p12Password].length} survive trimming.`,
+      // 🔴 NOTHING DERIVED FROM THE PASSWORD REACHES THIS MESSAGE — not even its
+      // length. The first version printed both lengths, and CodeQL flagged it as
+      // `js/clear-text-logging` (high). A length is not the secret, but the flag
+      // is right in spirit: the shortest path from "print a harmless projection"
+      // to "print the value" is one careless edit, and a rule that has to
+      // distinguish them is a rule that eventually gets it wrong. What is
+      // printed instead is drawn from the fixed allowlist below, so the only
+      // strings that can appear are ones written here.
+      `     Found: ${whitespaceShape(rawPassword).join(', ')}.`,
       '     A .p12 is encrypted with the EXACT bytes it was given, so a stray CR or newline in this secret and',
       '     not in the archive (or the reverse) makes `security import` report "the passphrase you entered is',
       '     not correct" — which is true, and points nowhere near the cause.',
