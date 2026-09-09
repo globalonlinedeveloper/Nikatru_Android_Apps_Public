@@ -144,7 +144,7 @@ after(() => { rmSync(BASE, { recursive: true, force: true }); });
 test('it WRITES a card, and the card is inside the 4 KiB the cap allows', () => {
   const r = run(ROOT);
   assert.equal(r.code, 0, `the generator must succeed over a tree above every floor: ${r.out}`);
-  assert.match(r.out, /gen-start-here — \d+ tracked file\(s\), \d+ top dir\(s\), \d+ guard\(s\), ci-gate needs \d+ job\(s\)/);
+  assert.match(r.out, /gen-start-here — \d+ tracked file\(s\), \d+ top dir\(s\), \d+ guard\(s\) with \d+ test file\(s\), ci-gate needs \d+ job\(s\)/);
   const card = readFileSync(join(ROOT, 'START-HERE.md'), 'utf8');
   assert.ok(Buffer.byteLength(card, 'utf8') <= 4096, `the card must fit the cap check-agent-docs enforces; it is ${Buffer.byteLength(card, 'utf8')} bytes`);
   /* The counts are INTERPOLATED, not narrated: the card must carry the same
@@ -174,25 +174,97 @@ test('--check EXITS 1 on a hand edit, and says the file is generated', () => {
   assert.equal(run(ROOT, '--check').code, 0, 'restored, the check must be green again');
 });
 
-test('--check EXITS 1 when the TREE moved and the card did not', () => {
+test('--check EXITS 1 when the SHAPE moved and the card did not', () => {
   /* The other half, and the one a hand-edit test alone would miss: nobody typed
      into the file, the repository grew, and the card is now describing a tree
-     that no longer exists. This is how `NOW.md` came to claim 73 rows over 107. */
+     that no longer exists. This is how `NOW.md` came to claim 73 rows over 107.
+
+     ⏱ THE DRIFT IS A NEW PACKAGE, NOT A NEW GUARD, SINCE 2026-09-09. This case
+     used to stage `tooling/ci/assert-fixture-new-guard.mjs`, which drifted the
+     guard COUNT — a figure the card no longer carries, so the same edit is now
+     correctly a no-op and this case would have passed while proving nothing.
+     A package moves `pkgs`, which the card does carry, so the property under
+     test — a card describing a tree that has moved must go red — is the same
+     property, asserted through a figure that is still there. The case below
+     (`the card carries NO per-file inventory count`) owns the other half. */
   const abs = join(ROOT, 'START-HERE.md');
   const keep = readFileSync(abs, 'utf8');
-  const added = join(ROOT, 'tooling', 'ci', 'assert-fixture-new-guard.mjs');
-  writeFileSync(added, '// a guard that arrived after the card was written\n');
-  git(ROOT, 'add', '--', 'tooling/ci/assert-fixture-new-guard.mjs');
+  const addedDir = join(ROOT, 'packages', 'p-fixture-new');
+  mkdirSync(addedDir, { recursive: true });
+  writeFileSync(join(addedDir, 'pubspec.yaml'), 'name: p_fixture_new\n');
+  git(ROOT, 'add', '--', 'packages/p-fixture-new/pubspec.yaml');
   try {
     const r = run(ROOT, '--check');
     assert.equal(r.code, 1, `a card describing a stale tree must FAIL, or it can go stale silently: ${r.out}`);
     assert.match(r.out, /differs from what the tree generates/);
   } finally {
-    git(ROOT, 'rm', '-q', '-f', '--cached', '--', 'tooling/ci/assert-fixture-new-guard.mjs');
-    rmSync(added, { force: true });
+    git(ROOT, 'rm', '-q', '-f', '--cached', '--', 'packages/p-fixture-new/pubspec.yaml');
+    rmSync(addedDir, { recursive: true, force: true });
     writeFileSync(abs, keep);
   }
   assert.equal(run(ROOT, '--check').code, 0, 'restored, the check must be green again');
+});
+
+test('🔴 the card carries NO per-file inventory count, so adding a guard or a test does NOT red it', () => {
+  /* THE REGRESSION GUARD FOR THE WHOLE CLASS, and the reason this file changed on
+     2026-09-09. `guards` and `guardTests` are counts of files in one directory,
+     and adding one is the most ordinary thing a branch here does — measured over
+     the last 30 commits on `main`, those two moved on 6 of them while every other
+     card figure was constant. Under `strict` protection the correct value is the
+     count of the UNION of the branch and `main`, so it is only computable AFTER
+     the branch is updated, and every queued pull request paid it again on every
+     rebase. Three pull requests went red on it on 2026-09-09 alone.
+
+     Both halves are asserted, because either alone is weak. FIRST: staging a new
+     guard AND a new guard test must leave `--check` GREEN — that is the tax being
+     gone, and it is the only assertion that would fail if the counts came back.
+     SECOND: the card must not contain the count as a NUMBER either, which catches
+     the same figure returning under different wording. */
+  const abs = join(ROOT, 'START-HERE.md');
+  const keep = readFileSync(abs, 'utf8');
+  assert.equal(run(ROOT, '--check').code, 0, 'green control, or this case proves nothing');
+
+  const newGuard = join(ROOT, 'tooling', 'ci', 'assert-fixture-new-guard.mjs');
+  const newTest = join(ROOT, 'tooling', 'ci', 'test', 'fixture-new.test.mjs');
+  writeFileSync(newGuard, '// a guard that arrived after the card was written\n');
+  writeFileSync(newTest, '// a guard test that arrived after the card was written\n');
+  git(ROOT, 'add', '--', 'tooling/ci/assert-fixture-new-guard.mjs', 'tooling/ci/test/fixture-new.test.mjs');
+  try {
+    const r = run(ROOT, '--check');
+    assert.equal(
+      r.code,
+      0,
+      'a branch that adds a guard and a guard test must NOT red the card check — that recurring, ' +
+        `unwinnable drift is exactly what removing the inventory counts fixed: ${r.out}`,
+    );
+  } finally {
+    git(ROOT, 'rm', '-q', '-f', '--cached', '--', 'tooling/ci/assert-fixture-new-guard.mjs', 'tooling/ci/test/fixture-new.test.mjs');
+    rmSync(newGuard, { force: true });
+    rmSync(newTest, { force: true });
+    writeFileSync(abs, keep);
+  }
+  assert.equal(run(ROOT, '--check').code, 0, 'restored, the check must be green again');
+
+  /* The generator still MEASURES both, and says so on the run line — dropping the
+     measurement rather than the card entry would have been the other mistake. */
+  const written = run(ROOT);
+  assert.equal(written.code, 0, written.out);
+  const m = written.out.match(/(\d+) guard\(s\) with (\d+) test file\(s\)/);
+  assert.ok(m, `the run line must still report both inventory counts: ${written.out}`);
+
+  /* Matched on the PHRASING rather than on the bare integer, deliberately. A
+     `\b<n>\b` search over the card collides with prose the card legitimately
+     carries — `Private/TRAPS.md` is described as "another 105 KiB" and the
+     fixture's own guard count is 105 — so a bare-number test would fail for a
+     reason that has nothing to do with this property. Measured while writing it. */
+  const card = readFileSync(abs, 'utf8');
+  for (const [what, re] of [['guard count', /\d+\s+guards?\b/i], ['guard-test count', /\d+\s+test files?\b/i]]) {
+    assert.ok(
+      !re.test(card),
+      `the card must not carry the ${what} — it is the figure that reddened three pull requests on ` +
+        `2026-09-09, and it is reported on the run line instead. Card:\n${card}`,
+    );
+  }
 });
 
 test('a tree under the floors is COVERAGE LOST — exit 2, never a pass and never a card', () => {
