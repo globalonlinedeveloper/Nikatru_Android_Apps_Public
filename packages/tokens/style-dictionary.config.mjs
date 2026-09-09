@@ -162,6 +162,50 @@ const LIGHT_COLORS = [
 // how a contrast repair trades a light failure for a dark one.
 const DARK_COLORS = ['primary', 'teal', 'on-accent', 'bg', 'card', 'card-2', 'text', 'strong', 'muted', 'line', 'soft'];
 
+/**
+ * THE NON-COLOUR SCALES, added 2026-09-09 from contracts/tokens/dtcg/scale.json.
+ *
+ * ── WHY THEY EXIST ──────────────────────────────────────────────────────────
+ * Before this, the contract held FIFTEEN tokens: thirteen colours, two fonts and
+ * one radius. Every spacing value, every type size, every shadow and every
+ * corner on nikatru.com was therefore a page-local literal, across thirteen
+ * divergent inline stylesheets — which is how the served pages accumulated NINE
+ * different corner radii (8, 10, 11, 12, 13, 14, 16, 18, 999) with no name
+ * between them. A palette guard cannot see any of that: it compares custom
+ * properties, and a literal is not one.
+ *
+ * ── WHY THEY ARE EMITTED TO CSS AND JSON AND *NOT* TO DART ──────────────────
+ * 🔴 THIS IS THE HEADER'S OWN RULE, APPLIED, NOT AN EXCEPTION TO IT. The note
+ * above says outright: "Genuinely cross-app values that are NOT colour (spacing,
+ * type scale) live in `packages/design_system` as hand-written Dart constants and
+ * belong there." They do — `AppSpacing` and `AppRadius` are those constants, and
+ * `space.*` and `radius.*` here are MIRRORS of them, value for value.
+ *
+ * Emitting a second Dart copy would hand the Flutter apps two spacing scales
+ * with no comparison between them, which is the "two palettes that nothing
+ * compares" shape this file already declines once for `app_colors.dart`. So the
+ * scales reach the two targets that have no scale today (the websites' CSS, the
+ * build-free extensions) and stop at the boundary of the target that already has
+ * one. `assertEmitsEveryToken` still covers them on both emitted platforms, so a
+ * scale token added to the JSON and forgotten here fails the build rather than
+ * disappearing.
+ *
+ * The cost, stated: `AppSpacing` and `scale.json` can drift, because nothing
+ * compares a Dart literal with a JSON one. That is the SAME exposure the tree
+ * had before this file existed, not a new one — and the alternative (generate
+ * AppSpacing) repaints every Flutter screen from a file the app team does not
+ * own, for a duplication that is currently ten numbers.
+ */
+const SCALE_GROUPS = {
+  space: ['1', '2', '3', '4', '5', '6', '7', 'gutter-sm', 'gutter', 'gutter-lg'],
+  radius: ['sm', 'md', 'xl', 'pill'],
+  type: ['xs', 'sm', 'body', 'lead', 'h3', 'h2', 'display'],
+  shadow: ['sm', 'base', 'lg'],
+  motion: ['fast', 'base', 'ease'],
+  focus: ['ring', 'offset', 'scroll-margin'],
+  container: ['max', 'gutter'],
+};
+
 /** Where the DTCG source lives, quoted into every generated file's header so a
  *  reader who opens an output is told where to edit instead. One constant, so
  *  the three headers cannot disagree with each other or with `source` below. */
@@ -219,10 +263,56 @@ function assertEmitsEveryToken(map, order, group) {
       `[@nikatru/tokens] token(s) defined in "${group}" but absent from the emit order, ` +
         `so they would be silently dropped from tokens.css: ` +
         missing.map((k) => `"${group}.${k}"`).join(', ') +
-        `. Add them to ${group === 'dark' ? 'DARK_COLORS' : 'LIGHT_COLORS'} in style-dictionary.config.mjs.`,
+        `. Add them to ${
+          group === 'dark' ? 'DARK_COLORS' : group === 'color' ? 'LIGHT_COLORS' : `SCALE_GROUPS.${group}`
+        } in style-dictionary.config.mjs.`,
     );
   }
 }
+
+/**
+ * Read every scale group out of the dictionary, asserting completeness in BOTH
+ * directions exactly as the colour groups are: `must()` catches a name listed
+ * here and absent from the JSON, `assertEmitsEveryToken` catches a token in the
+ * JSON that this file would silently drop.
+ *
+ * 🔴 AND IT ASSERTS THE GROUP ITSELF EXISTS. A `scale.json` deleted or renamed
+ * would otherwise make every group map empty, every completeness check pass over
+ * nothing, and the build emit a `:root` with the colours and no scales — green,
+ * and missing half its subject. `groups` is checked against the dictionary's own
+ * top-level paths, so losing the file is a build failure and not a shrink.
+ *
+ * @returns {Map<string, Map<string,string>>} group -> (name -> value)
+ */
+function scaleMaps(dictionary) {
+  const present = new Set(dictionary.allTokens.map((t) => t.path[0]));
+  const out = new Map();
+  for (const [group, order] of Object.entries(SCALE_GROUPS)) {
+    if (!present.has(group)) {
+      throw new Error(
+        `[@nikatru/tokens] the token group "${group}" is declared in SCALE_GROUPS but no token in ` +
+          `${SOURCE_REL} has that path root. Either contracts/tokens/dtcg/scale.json was removed or the group ` +
+          `was renamed — and without this check the build would emit a :root carrying the colours and none of ` +
+          `the scales, which is a green build missing half its output.`,
+      );
+    }
+    const map = groupMap(dictionary, group);
+    assertEmitsEveryToken(map, order, group);
+    out.set(group, map);
+  }
+  return out;
+}
+
+/** `space.1` -> `--space-1`. The token path IS the property name; see the
+ *  no-rename note above. */
+const scaleCssLines = (maps) => {
+  const lines = [];
+  for (const [group, order] of Object.entries(SCALE_GROUPS)) {
+    const map = maps.get(group);
+    for (const name of order) lines.push(`  --${group}-${name}: ${dimToCss(must(map, name, group))};`);
+  }
+  return lines;
+};
 
 /*
  * NOTE: there is deliberately NO name-mapping function here. A `cssVar()` that
@@ -254,6 +344,11 @@ function formatCss({ dictionary }) {
   lines.push(`  --radius: ${dimToCss(must(size, 'radius', 'size'))};`);
   lines.push(`  --font-display: "${must(font, 'display', 'font')}";`);
   lines.push(`  --font-body: "${must(font, 'body', 'font')}";`);
+  // The non-colour scales. They are scheme-INDEPENDENT by construction — a
+  // spacing step or a type size that changed with prefers-color-scheme would be
+  // a layout that reflows when the user switches themes — so they are emitted
+  // once, in the light block, and are deliberately absent from the dark override.
+  lines.push(...scaleCssLines(scaleMaps(dictionary)));
   lines.push('}', '', '@media (prefers-color-scheme: dark) {', '  :root {');
   for (const name of DARK_COLORS) {
     lines.push(`    --${name}: ${must(dark, name, 'dark')};`);
@@ -393,6 +488,18 @@ function formatJson({ dictionary }) {
     dark: Object.fromEntries(DARK_COLORS.map((n) => [n, must(dark, n, 'dark')])),
     font: { display: must(font, 'display', 'font'), body: must(font, 'body', 'font') },
     size: { radius: dimToCss(must(size, 'radius', 'size')) },
+    // The non-colour scales, under their own key so a reader can tell a brand
+    // colour from a layout measure without consulting this config. Emitted here
+    // and to the CSS, and NOT to Dart — see the SCALE_GROUPS note above.
+    scale: Object.fromEntries(
+      (() => {
+        const maps = scaleMaps(dictionary);
+        return Object.entries(SCALE_GROUPS).map(([group, order]) => [
+          group,
+          Object.fromEntries(order.map((n) => [n, dimToCss(must(maps.get(group), n, group))])),
+        ]);
+      })(),
+    ),
   };
   return JSON.stringify(out, null, 2) + '\n';
 }
