@@ -766,6 +766,18 @@
     "state": "NOT-CI-RUNNABLE"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-glitchtip-project.mjs",
+    "references": [
+      "D-2b"
+    ],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "R-5"
     ],

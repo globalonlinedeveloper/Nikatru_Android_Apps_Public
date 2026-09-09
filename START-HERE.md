@@ -19,7 +19,7 @@ legal and tax identity is a third repo this one has no path to at all.
 `apps` · `catalog` · `contracts` · `docs` · `extensions` · `packages` · `services` · `sites` · `tooling`
 
 1 app(s) (`subscriptiontracker`) · 11 shared Dart packages · 3 Cloudflare Worker(s) ·
-3 static site(s) · 6 extension(s) · 164 guards in `tooling/ci/` with 181 test files.
+3 static site(s) · 6 extension(s) · 165 guards in `tooling/ci/` with 182 test files.
 
 🔴 **`sites/` is the live deploy source and the only copy.** Cloudflare Pages builds both
 domains from this repo through a binding that lives in the Cloudflare dashboard, in no file in
@@ -29,7 +29,7 @@ or `pnpm-lock.yaml`.
 ## What the merge gate enforces
 
 `ci-gate` is the ONE required check and it needs 14 job(s) green; `.github/workflows/ci.yml`
-decides which lane runs what, across 16 workflow(s). Reproduce it locally with
+decides which lane runs what, across 24 workflow(s). Reproduce it locally with
 `node tooling/scripts/preflight.mjs` — verifying a subset, or outside CI's environment, passes
 while CI fails. The **spec guards** run from the git hooks instead, because their subject is
 the private corpus and no CI job can read it: `node tooling/scripts/spec-guards.mjs --fast`.
