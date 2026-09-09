@@ -4,12 +4,17 @@ import 'models/entitlement.dart';
 import 'storage/secure_store.dart';
 
 /// Persists the user's last-known [Entitlements] to a [SecureStore] so a paid
-/// user stays unlocked across restarts and offline.
+/// user stays unlocked across restarts and through a spell offline.
 ///
-/// A lifetime entitlement (no `expires_at`) is always honoured offline; a
-/// subscription is honoured until `expires_at` + [grace], after which the client
-/// falls back to not-Pro until the server reconciles on reconnect (ADR 005). The
-/// server is always the source of truth; this cache is the offline stand-in.
+/// TWO BOUNDS, AND BOTH APPLY ONLINE AND OFFLINE:
+///  - a subscription is honoured until `expires_at` + [grace] (ADR 005);
+///  - NO answer is honoured once it is older than [stalenessCeiling] — that
+///    includes a lifetime grant (no `expires_at`), which the grace window
+///    never touches, so the ceiling is the only thing that ever stops it.
+///
+/// After either bound the client falls back to not-Pro until the server
+/// reconciles. The server is always the source of truth; this cache is the
+/// offline stand-in, never a second source of truth.
 class EntitlementCache {
   EntitlementCache({
     required SecureStore store,
@@ -30,6 +35,8 @@ class EntitlementCache {
   Duration get grace => _grace;
 
   /// How long an unverified answer keeps being honoured — [pipeline 5]M-8.
+  ///
+  /// Applies REGARDLESS OF CONNECTIVITY. See [readValid].
   Duration get stalenessCeiling => _stalenessCeiling;
 
   /// Persist [entitlements] as the new last-known value.
@@ -92,35 +99,52 @@ class EntitlementCache {
   }
 
   /// The offline entitlement decision at [now] (defaults to the current time):
-  /// the cached entitlements when still Pro-valid within [grace], otherwise the
-  /// same appId downgraded to not-Pro. Returns [Entitlements.none] when nothing
-  /// is cached. The gate should still refresh from the server when online.
+  /// the cached entitlements when they are still Pro-valid within [grace] AND
+  /// were confirmed by the server within [stalenessCeiling]; otherwise the same
+  /// appId downgraded to not-Pro. Returns [Entitlements.none] when nothing is
+  /// cached. The gate should still refresh from the server when online.
   ///
-  /// ## [pipeline 5]M-8 — the revocation bound, and the loss taken on purpose
+  /// ## [pipeline 5]M-8 — the revocation bound, applied UNCONDITIONALLY
   /// A refund revokes on the server; this client learns of it only by asking.
   /// So access is bounded by how long an UNRE-VERIFIED answer keeps being
-  /// honoured, and that bound is [stalenessCeiling].
+  /// honoured, and that bound is [stalenessCeiling] — seven days, online or
+  /// offline, subscription or lifetime.
   ///
-  /// [connectivityAvailable] is what makes the bound a relationship rather than
-  /// a countdown, and it points in exactly one direction:
-  /// - **online and stale ⇒ RE-LOCK.** The refresh had every chance to happen
-  ///   and did not, so we stop honouring an answer nobody will confirm.
-  /// - **offline and stale ⇒ KEEP PRO.** This is a LOSS, WRITTEN DOWN rather
-  ///   than discovered: a user who is refunded and then never reconnects keeps
-  ///   access indefinitely. Locking a paying user out of an app they paid for
-  ///   because their train went into a tunnel is the larger harm, and it is the
-  ///   one that happens thousands of times more often.
+  /// ### 🔄 REVERSED 2026-09-09 — this doc comment used to argue the opposite
+  /// Until 2026-09-09 the line below read
+  /// `stale = connectivityAvailable && isStaleAt(cached, at)`, and the prose
+  /// here defended it as "the loss taken on purpose": offline-and-stale kept
+  /// Pro so a user in a tunnel was never locked out. The loss was never
+  /// bounded. A device that never regains connectivity served the cached answer
+  /// FOREVER, and a cached lifetime-shaped grant (`expires_at == null`, which
+  /// the server's rule 3 legitimately produces) did not even reach the grace
+  /// window. A refunded user who stayed offline kept Pro indefinitely — that is
+  /// revenue leaking through a documented decision, not through an accident.
   ///
-  /// The default is `true` — the LOCKING side — because a caller that has not
-  /// thought about connectivity must get the fail-closed answer.
-  Future<Entitlements> readValid({
-    DateTime? now,
-    bool connectivityAvailable = true,
-  }) async {
+  /// Reversed by design: `research/2026-09-09/bundle-entitlement-design-2026-09-09.md`
+  /// §2.4 and invariant **G9** in §6 ("`readValid` denies when `verifiedAt` is
+  /// older than the staleness ceiling regardless of connectivity"). Its named
+  /// failing input — a 400-day-old cache read while offline — is asserted in
+  /// `packages/core/test/cache_test.dart`.
+  ///
+  /// ### BOTH DIRECTIONS STILL MATTER
+  /// A client that always locks is the fail-closed-and-dead shape this bound
+  /// exists to stop, so the reversal narrows exactly one half of it:
+  /// - **within the ceiling ⇒ STILL PRO**, offline included. An hour in a
+  ///   tunnel, a flight, a dead router must not lock a paying user out.
+  /// - **past the ceiling ⇒ RE-LOCK**, offline included. Nobody is going to
+  ///   confirm an answer this old, and honouring it has no end.
+  ///
+  /// There is deliberately NO `connectivityAvailable` parameter any more. After
+  /// the reversal it changed no outcome, and a parameter whose name promises
+  /// leniency while deciding nothing is how the next caller re-opens the hole.
+  /// `tooling/ci/assert-purchase-path.mjs` fails the build if any conjunction
+  /// reappears in front of [isStaleAt].
+  Future<Entitlements> readValid({DateTime? now}) async {
     final Entitlements? cached = await readRaw();
     if (cached == null) return Entitlements.none;
     final DateTime at = now ?? DateTime.now();
-    final bool stale = connectivityAvailable && isStaleAt(cached, at);
+    final bool stale = isStaleAt(cached, at);
     if (!stale && cached.isProAt(at, grace: _grace)) return cached;
     return Entitlements(
       appId: cached.appId,

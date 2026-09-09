@@ -2473,6 +2473,18 @@
   },
   {
     "claims": [
+      "ADR 075"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#pages-deployments"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-pages-deployments.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 057",
       "B-17"
     ],

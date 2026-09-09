@@ -188,6 +188,53 @@ jobs:
           fi
           exit "$code"
 
+  pages-deployments:
+    name: The Cloudflare Pages builds nobody else can see actually landed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # why: fetch-depth 0 IS LOAD-BEARING AND IT IS THE ONE THING THAT MAKES
+          # THIS JOB DIFFERENT FROM ITS SIBLINGS. The freshness limb asks
+          # `git log -1 origin/main -- sites/<name>` for the commit Cloudflare
+          # SHOULD be serving. A shallow clone has no origin/main, so that read
+          # returns null and every git-connected project reports exit 2 — which
+          # fails loudly rather than passing, but reports "I could not look" for
+          # a checkout flag instead of for anything about Cloudflare.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-node
+
+      # why: the Cloudflare Git integration deploys sites/nikatru ON THE MERGE
+      # PUSH, on Cloudflare's side of the wire. It posts NO commit status, opens
+      # NO GitHub Deployment and appears in NO Actions run — so on the Actions
+      # page a build that FAILED is indistinguishable from one that was never
+      # needed. Since [ADR 075] that project is the ROUTER for the app's public
+      # address, so a stuck router serves 404s at nikatru.com/<id>/ while
+      # deploy-web.yml, the app's own Pages project and the post-deploy smoke are
+      # all three green. This step is the only observer that failure has.
+      - name: Every Pages project's newest PRODUCTION deployment succeeded, at the commit main names
+        if: ${{ !cancelled() }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          node tooling/ops/check-pages-deployments.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            # NO BACKTICKS ANYWHERE IN THESE STRINGS: they are double-quoted, so
+            # a backtick opens a command substitution and the annotation would
+            # silently execute part of itself.
+            echo "::error title=Cloudflare Pages deployments are UNKNOWN — nothing was graded::No credential, a non-200, unparseable JSON, a preview row returned for a production query, or a project set that derived to EMPTY. NOTHING was judged. An empty sweep prints the same ok as a complete one, and this is the one rail with no second witness anywhere — no commit status, no GitHub Deployment, no Actions run."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=A Cloudflare Pages project is RED or STALE::Its newest production deployment failed, or it succeeded at a commit older than the newest one on main touching its source directory. Production is serving the PREVIOUS build, which answers 200 with older bytes. For the nikatru project this is the ROUTER for nikatru.com/<id>/, so the app can be perfectly deployed and still unreachable. The step log names the project, the deployment id and both commits."
+          fi
+          exit "$code"
+
   runner-budget:
     name: Actions quota cannot silently stop the scheduled proofs
     runs-on: ubuntu-24.04
@@ -256,7 +303,7 @@ jobs:
   alert:
     name: Open or refresh the ops-watch issue
     needs:
-      [heartbeats, status, supabase-drift, prod-provenance, runner-budget, glitchtip]
+      [heartbeats, status, supabase-drift, prod-provenance, pages-deployments, runner-budget, glitchtip]
     # why: schedule only, and the issue is REUSED rather than reopened -- later
     # failures arrive as comments and it is never closed automatically, so closing it
     # is the acknowledgement that a human looked.
