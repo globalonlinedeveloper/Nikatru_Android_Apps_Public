@@ -249,7 +249,12 @@
       "mutation": {
         "symbol": "lib/features/add/add_subscription_sheet.dart:_save catch → setState(() => _saving = false)",
         "observedRed": "add sheet: a failed save re-arms the button and says so",
-        "date": "2026-08-08"
+        "date": "2026-09-09",
+        "edit": {
+          "find": "setState(() => _saving = false);",
+          "replace": "setState(() => _saving = true);"
+        },
+        "codeHash": "585fbadcfb159694f59aec23da14d16275f633c4e45068f7e61ff0b65a32ca22"
       }
     },
     {
@@ -260,7 +265,12 @@
       "mutation": {
         "symbol": "lib/features/cancel/cancel_sheet.dart:_confirm catch → _step stays 0",
         "observedRed": "cancel sheet: a failed cancel never claims success",
-        "date": "2026-08-08"
+        "date": "2026-09-09",
+        "edit": {
+          "find": "setState(() => _busy = false);",
+          "replace": "setState(() { _busy = false; _step = 1; });"
+        },
+        "codeHash": "81d50936bfcd7064c9f863ad9d9008c0263e214ac7a0fab7b0c35caa4ab26521"
       }
     }
   ],

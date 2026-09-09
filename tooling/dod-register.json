@@ -715,7 +715,7 @@
       "floor — a visible, committed artefact a test points at, never an invisible argument. That is",
       "the same reasoning assert-case-count-honest.mjs gives for refusing a `--partial` flag."
     ],
-    "unprovenFloor": 20,
+    "unprovenFloor": 18,
     "measuredOn": "2026-09-09",
     "measuredBy": "node tooling/ci/assert-mutation-proofs.mjs"
   },
