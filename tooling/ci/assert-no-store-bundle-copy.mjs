@@ -32,9 +32,10 @@
 // Usage:  node tooling/ci/assert-no-store-bundle-copy.mjs [repoRoot]
 // Exit 0 = no store surface promises what cannot be delivered, 1 = one does.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { listDir } from './tree-walk.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -127,7 +128,7 @@ function storeTrees() {
   for (const root of PRODUCT_ROOTS) {
     const abs = join(ROOT, root);
     if (!existsSync(abs)) continue;
-    for (const entry of readdirSync(abs)) {
+    for (const entry of listDir(abs)) {
       const s = join(abs, entry, 'store');
       if (existsSync(s) && statSync(s).isDirectory()) out.push(s);
     }
@@ -146,7 +147,7 @@ if (trees.length === 0) {
 
 let filesRead = 0;
 function scan(dir, label) {
-  for (const entry of readdirSync(dir)) {
+  for (const entry of listDir(dir)) {
     const p = join(dir, entry);
     const st = statSync(p);
     if (st.isDirectory()) {
