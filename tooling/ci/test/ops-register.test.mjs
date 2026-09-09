@@ -160,6 +160,13 @@ import {
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-ops-register.mjs');
 
+/** Escape EVERY RegExp metacharacter, backslash included. A class of `[.\/]`
+ *  reads as complete and is not — it leaves `\` unescaped, which is the whole
+ *  of `js/incomplete-sanitization`. These inputs are constants in this tree, so
+ *  nothing here was exploitable; the rule is still right, and a half-escape
+ *  copied out of a test is how the real one gets written. */
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-ops-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
@@ -4087,7 +4094,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
       const why = r.prints.filter((p) => /WHY THIS RED IS A PRINT HERE/.test(p));
       assert.equal(why.length, 1, 'the reason must be printed beside the verdict, not inferred');
       assert.match(why[0], /SELF-GATED/);
-      assert.match(why[0], new RegExp(GATE_SCRIPT_REL.replace(/[.\/]/g, '\\$&')), 'the reason must name the step that makes the remedy unreachable');
+      assert.match(why[0], new RegExp(reEscape(GATE_SCRIPT_REL)), 'the reason must name the step that makes the remedy unreachable');
       assert.match(why[0], /UNREACHABLE from this host/);
       assert.match(why[0], /BLOCKING in every other host/, 'or a reader cannot tell this from a waiver');
 
@@ -4106,7 +4113,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
       assert.equal(both.stats.deadlockExempt, 2);
       const why = both.prints.filter((p) => /WHY THIS RED IS A PRINT HERE: SECOND LAP/.test(p));
       assert.equal(why.length, 1);
-      assert.match(why[0], new RegExp(GUARD_SCRIPT_REL.replace(/[.\/]/g, '\\$&')), 'the reason must name the guard whose output the conclusion is');
+      assert.match(why[0], new RegExp(reEscape(GUARD_SCRIPT_REL)), 'the reason must name the guard whose output the conclusion is');
       assert.match(why[0], /build-platforms\.yml is RED and self-gated/);
       assert.match(why[0], /blocking here the moment build-platforms\.yml is green again/, 'the exemption must state its own expiry');
     });
