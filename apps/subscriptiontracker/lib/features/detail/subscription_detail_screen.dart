@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 import '../../state/subscriptions_controller.dart';
 import '../cancel/cancel_sheet.dart';
+import '../shared/async_gate.dart';
 import '../shared/due.dart';
 import '../shared/widgets.dart';
 
@@ -103,9 +104,43 @@ class SubscriptionDetailScreen extends ConsumerWidget {
     final Color ink = isLight ? AppColors.ink : scheme.onSurface;
     final Color muted = isLight ? AppColors.muted : scheme.onSurfaceVariant;
     final MoneyFormatter money = MoneyFormatter(l10n.localeName);
-    final List<Subscription> subs =
-        ref.watch(subscriptionsControllerProvider).valueOrNull ??
-        const <Subscription>[];
+    // 🔴 THIS SCREEN READ `valueOrNull ?? const []` AND THEN SEARCHED THE
+    // EMPTY LIST, so a fetch in flight and a fetch that FAILED both fell
+    // through to the not-found branch below and told the user this
+    // subscription does not exist. That is the worst arm of the family defect:
+    // on the other four screens a failure claimed the user owns nothing, and
+    // here it claimed one named record had been deleted — a statement alarming
+    // enough to act on, about a record that is sitting safely on the server.
+    //
+    // 🔴 THE APP BAR STAYS IN BOTH REPLACEMENT STATES. This route is reachable
+    // by a bookmarked or reloaded URL (web is on the hash strategy — see
+    // `_dismiss`), so on a cold load there is no in-app chrome anywhere else on
+    // screen. A bare `DataStateView` with no `Scaffold` around it would be a
+    // failure message with no way back, which is the dead end `_dismiss` and
+    // `home_screen.dart:363` both exist to prevent.
+    // 🔴 THE APP BAR STAYS IN EVERY REPLACEMENT STATE. This route is reachable
+    // by a bookmarked or reloaded URL (web is on the hash strategy — see
+    // `_dismiss`), so on a cold load there is no in-app chrome anywhere else on
+    // screen. A bare `DataStateView` with no `Scaffold` around it would be a
+    // failure message with no way back, which is the dead end `_dismiss` and
+    // `home_screen.dart:363` both exist to prevent.
+    //
+    // ⚠️ `subscriptionNotFound` IS PASSED AS THE **EMPTY** TITLE, so a user
+    // holding zero subscriptions who opens a detail URL is told the record is
+    // missing rather than that their account is. It is the same sentence the
+    // branch below prints for an id that is absent from a NON-empty list, and
+    // deliberately so: from the reader's side the two are one fact.
+    final Widget? state = subscriptionsState(
+      ref,
+      l10n: l10n,
+      emptyTitle: l10n.subscriptionNotFound,
+    );
+    if (state != null) {
+      return Scaffold(appBar: AppBar(elevation: 0), body: state);
+    }
+    final List<Subscription> subs = ref
+        .watch(subscriptionsControllerProvider)
+        .requireValue;
     Subscription? sub;
     for (final Subscription s in subs) {
       if (s.id == id) {
@@ -114,13 +149,16 @@ class SubscriptionDetailScreen extends ConsumerWidget {
       }
     }
     if (sub == null) {
-      // The NOT-FOUND branch stays exactly what it was — a bare Scaffold with
-      // an empty AppBar and a centred line — because the route resolved and
-      // only the record is missing. (`subscriptionNotFound`, deliberately NOT
-      // the chassis `notFoundTitle`, which is the router's "page not found".)
+      // 🔴 NOW REACHED ONLY ON A SUCCESSFUL FETCH, which is what makes the
+      // sentence true. The copy is unchanged — `subscriptionNotFound`,
+      // deliberately NOT the chassis `notFoundTitle`, which is the router's
+      // "page not found" — but the treatment is now the shared empty one, so
+      // this state and the failure state above are told apart by their KEYS
+      // (`DataStateView.emptyKey` vs `.failedKey`) rather than by copy a
+      // translator is free to change.
       return Scaffold(
         appBar: AppBar(elevation: 0),
-        body: Center(child: Text(l10n.subscriptionNotFound)),
+        body: DataStateView.empty(title: l10n.subscriptionNotFound),
       );
     }
     final Subscription s = sub;

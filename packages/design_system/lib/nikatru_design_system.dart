@@ -21,6 +21,7 @@ export 'src/widgets/app_scaffold.dart';
 export 'src/widgets/brand_lockup.dart';
 export 'src/widgets/auth_field.dart';
 export 'src/widgets/content_pane.dart';
+export 'src/widgets/data_state.dart';
 export 'src/widgets/destructive_confirm_dialog.dart';
 export 'src/widgets/destructive_outcome_notice.dart';
 export 'src/widgets/system_screens.dart';

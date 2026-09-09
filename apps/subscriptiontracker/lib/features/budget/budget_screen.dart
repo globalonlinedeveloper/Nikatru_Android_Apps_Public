@@ -13,6 +13,7 @@ import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
+import '../shared/async_gate.dart';
 import '../shared/neutrals.dart';
 import '../shared/painters.dart';
 import '../shared/widgets.dart';
@@ -134,14 +135,61 @@ class BudgetScreen extends ConsumerWidget {
       l10n.localeName,
       emptyCurrencyCode: currencyCode,
     );
-    final List<Subscription> subs =
-        ref.watch(subscriptionsControllerProvider).valueOrNull ??
-        const <Subscription>[];
-    final BudgetInfo? rawBudget = ref.watch(budgetProvider).valueOrNull;
-    if (rawBudget == null) {
-      return const Center(child: CircularProgressIndicator());
+    // 🔴 THIS SCREEN CARRIED THE FAMILY DEFECT **TWICE**, in two different
+    // spellings, and the second one was the more misleading of the pair.
+    //
+    //   · `subscriptionsControllerProvider…valueOrNull ?? const []` — a fetch
+    //     in flight and a FAILED fetch both rendered as "you have no
+    //     subscriptions", the defect all five screens shared.
+    //   · `budgetProvider…valueOrNull == null` → a bare
+    //     `Center(CircularProgressIndicator)`. `valueOrNull` is null for a
+    //     failure too, so a budget request that FAILED spun forever. A spinner
+    //     that never resolves is the one error state a user cannot even
+    //     recognise AS an error: nothing says the wait is over, so nobody
+    //     retries, and the screen is simply abandoned.
+    //
+    // ⚠️ RETURNING A BARE `DataStateView` HERE IS SAFE, AND IT IS NOT SAFE ON
+    // EVERY SCREEN. This is a shell TAB: `AppScaffold` owns the navigation and
+    // this build only ever supplies the body, so the rail, bar and drawer all
+    // survive every state below. `notifications` and `detail` are pushed routes
+    // that own their own chrome, and both keep it explicitly for that reason.
+    final Widget? state = subscriptionsState(
+      ref,
+      l10n: l10n,
+      emptyTitle: l10n.dataEmptyTitle,
+      emptyBody: l10n.dataEmptyBody,
+    );
+    if (state != null) return state;
+    final List<Subscription> subs = ref
+        .watch(subscriptionsControllerProvider)
+        .requireValue;
+
+    // ── THE SECOND SOURCE, GATED IN THE SAME THREE WAYS ──────────────────────
+    // 🔴 SEQUENCED AFTER THE LIST RATHER THAN MERGED WITH IT, and the order is
+    // the argument: the list is what the page is ABOUT, so if it is missing
+    // there is nothing to say about a budget either. Merging both into one
+    // "anything unresolved" test would report a broken budget endpoint and a
+    // broken subscription endpoint identically, and only one of those is
+    // retried by re-fetching the list.
+    //
+    // There is no `subscriptionsState` equivalent for this provider because
+    // there is no THIRD state to tell apart: `BudgetInfo` is a single record,
+    // so "loaded but empty" does not exist for it — only loading and failed.
+    final AsyncValue<BudgetInfo> budgetAsync = ref.watch(budgetProvider);
+    if (!budgetAsync.hasValue) {
+      return budgetAsync.hasError
+          ? DataStateView.failed(
+              title: l10n.dataFailedTitle,
+              body: l10n.dataFailedBody,
+              retryLabel: l10n.retry,
+              // ONLY the budget is invalidated: the list above is already
+              // resolved and good, and re-fetching it would throw away data the
+              // user can see in order to repair data they cannot.
+              onRetry: () => ref.invalidate(budgetProvider),
+            )
+          : DataStateView.loading(label: l10n.dataLoading);
     }
-    final BudgetInfo budget = rawBudget.inCurrency(currencyCode);
+    final BudgetInfo budget = budgetAsync.requireValue.inCurrency(currencyCode);
 
     final DateTime now = DateTime.now();
     // 🔴 TWO FIGURES, AND THEY ARE NOT THE SAME FIGURE. `spent` is every

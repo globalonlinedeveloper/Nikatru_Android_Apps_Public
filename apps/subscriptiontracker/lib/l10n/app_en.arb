@@ -763,6 +763,26 @@
       }
     }
   },
+  "dataLoading": "Loading your subscriptions…",
+  "@dataLoading": {
+    "description": "Announced while the subscription list is being fetched. Consumed via subscriptionsGate in features/shared/async_gate.dart."
+  },
+  "dataFailedTitle": "We couldn’t load your subscriptions",
+  "@dataFailedTitle": {
+    "description": "Headline when the subscription fetch FAILED. Deliberately carries no exception text — see DataStateView's class doc."
+  },
+  "dataFailedBody": "Check your connection and try again.",
+  "@dataFailedBody": {
+    "description": "Second line of the failed-fetch state, beside the Retry control."
+  },
+  "dataEmptyTitle": "No subscriptions yet",
+  "@dataEmptyTitle": {
+    "description": "Headline when the fetch SUCCEEDED and the user genuinely has no subscriptions."
+  },
+  "dataEmptyBody": "Add your first subscription to see it here.",
+  "@dataEmptyBody": {
+    "description": "Second line of the genuinely-empty state. Never shown for a failed fetch."
+  },
   "calendarEmpty": "No renewals this month.",
   "@calendarEmpty": {
     "description": "Consumed by calendar_screen.dart:243."

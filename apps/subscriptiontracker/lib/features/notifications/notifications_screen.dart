@@ -8,7 +8,7 @@ import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
-import '../../state/subscriptions_controller.dart';
+import '../shared/async_gate.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   /// Closing this screen, guarded the way `subscription_detail_screen.dart`'s
@@ -42,10 +42,6 @@ class NotificationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final MoneyFormatter money = MoneyFormatter(l10n.localeName);
-    final List<Subscription> subs =
-        ref.watch(subscriptionsControllerProvider).valueOrNull ??
-        const <Subscription>[];
-    final MoneyBag savings = SubMath.savings(subs);
 
     final ThemeData theme = Theme.of(context);
     final bool isLight = theme.brightness == Brightness.light;
@@ -86,74 +82,6 @@ class NotificationsScreen extends ConsumerWidget {
       Localizations.localeOf(context).toString(),
     );
 
-    // 2026-07-27 - this list was FIVE HARDCODED entries naming real brands and
-    // inventing facts about the user's own accounts: "Adobe CC and Disney+
-    // haven't been opened in weeks", "Netflix price increased from 13.99 to
-    // 15.49", renewals for plans the user may not even track. It rendered
-    // identically for everyone, because none of it came from their data.
-    //
-    // The app has no usage tracking and no price history, so neither claim could
-    // ever have been derived. Every row below is now computed from the
-    // subscriptions actually held, and anything that cannot be computed is not
-    // shown at all.
-    final DateTime now = DateTime.now();
-
-    final List<Subscription> dueSoon =
-        subs.where((Subscription x) {
-          final int d = x.daysUntil(now);
-          return d >= 0 && d <= 7;
-        }).toList()..sort(
-          (Subscription a, Subscription b) =>
-              a.daysUntil(now).compareTo(b.daysUntil(now)),
-        );
-
-    final List<Subscription> flaggedUnused = subs
-        .where((Subscription x) => x.unused)
-        .toList();
-
-    // 🔴 THE PLURAL ARMS CARRY WHOLE CLAUSES, NOT A NOUN.
-    //
-    // What was here glued fragments together with inline ternaries:
-    //   '${n} ${n == 1 ? "plan is" : "plans are"} marked unused'
-    //   'Cancelling ${n == 1 ? "it" : "them"} would save …'
-    // Both are English grammar written as Dart. The first agrees a VERB with a
-    // count, the second swaps a PRONOUN — and neither agreement is a property of
-    // the number, it is a property of the language. Tamil inflects the noun in a
-    // different position and does not have the pronoun split at all, so a
-    // translator handed the fragments "plan is" / "plans are" has been handed a
-    // puzzle rather than a sentence.
-    //
-    // So each arm of `notifUnusedCount` and `notifCancellingSaves` is a complete
-    // clause. The count still selects the arm; the arm is what a translator
-    // rewrites freely.
-    final List<_Notif> items = <_Notif>[
-      for (final Subscription x in dueSoon)
-        _Notif(
-          Icons.notifications_none,
-          AppColors.accent,
-          const Color.fromRGBO(100, 89, 245, 0.12),
-          x.daysUntil(now) == 0
-              ? l10n.notifRenewsToday(x.name)
-              // (name, count) — gen-l10n orders the parameters by the arb's
-              // placeholder map, and the plural SELECTOR is the second one here.
-              : l10n.notifRenewsInDays(x.name, x.daysUntil(now)),
-          l10n.notifChargeOn(
-            money.format(x.price),
-            renewalDate.format(x.nextRenewal),
-          ),
-        ),
-      if (flaggedUnused.isNotEmpty)
-        _Notif(
-          Icons.priority_high,
-          AppColors.warn,
-          const Color.fromRGBO(245, 158, 11, 0.13),
-          l10n.notifUnusedCount(flaggedUnused.length),
-          l10n.notifCancellingSaves(
-            flaggedUnused.length,
-            money.formatBag(savings),
-          ),
-        ),
-    ];
 
     return Scaffold(
       // Light byte-identical (the literal AppColors.bg); dark takes
@@ -251,43 +179,129 @@ class NotificationsScreen extends ConsumerWidget {
                 color: isLight ? AppColors.line : scheme.outlineVariant,
               ),
               Expanded(
-                child: items.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            l10n.notifNothingDue,
-                            textAlign: TextAlign.center,
-                            // ⚠️ THIS ONE CARRIED A `color:` AND WAS STILL THE
-                            // SAME BUG. `AppColors.muted` is a light-mode
-                            // literal, so the empty state was mid-grey on a dark
-                            // sheet whichever way the theme went. `body` +
-                            // `AppColors.muted` and `muted` are the SAME
-                            // TextStyle by value — Manrope, w500, muted — so
-                            // naming the muted style instead of re-colouring the
-                            // body one changes no pixel in light and picks up
-                            // `scheme.onSurfaceVariant` in dark.
-                            style: text.muted,
+                // 🔴 THE GATE IS INSIDE THE CHROME, NOT AROUND IT, AND THAT
+                // PLACEMENT IS THE WHOLE POINT ON THIS SCREEN. The title row
+                // above carries the ONLY close control, and `_close` is the only
+                // way back to /home from a URL a user can reload directly (see
+                // its own note on GoError). Wrapping the `Scaffold` instead would
+                // take that control away for the entire duration of a failed
+                // fetch — a dead end reached precisely when the user most needs
+                // out. Header, rule and close button therefore survive all three
+                // states; only the list region below changes.
+                child: subscriptionsGate(
+                  ref,
+                  l10n: l10n,
+                  emptyTitle: l10n.dataEmptyTitle,
+                  emptyBody: l10n.dataEmptyBody,
+                  builder: (List<Subscription> subs) {
+                    final MoneyBag savings = SubMath.savings(subs);
+                    // 2026-07-27 - this list was FIVE HARDCODED entries naming real brands and
+                    // inventing facts about the user's own accounts: "Adobe CC and Disney+
+                    // haven't been opened in weeks", "Netflix price increased from 13.99 to
+                    // 15.49", renewals for plans the user may not even track. It rendered
+                    // identically for everyone, because none of it came from their data.
+                    //
+                    // The app has no usage tracking and no price history, so neither claim could
+                    // ever have been derived. Every row below is now computed from the
+                    // subscriptions actually held, and anything that cannot be computed is not
+                    // shown at all.
+                    final DateTime now = DateTime.now();
+
+                    final List<Subscription> dueSoon =
+                        subs.where((Subscription x) {
+                          final int d = x.daysUntil(now);
+                          return d >= 0 && d <= 7;
+                        }).toList()..sort(
+                          (Subscription a, Subscription b) =>
+                              a.daysUntil(now).compareTo(b.daysUntil(now)),
+                        );
+
+                    final List<Subscription> flaggedUnused = subs
+                        .where((Subscription x) => x.unused)
+                        .toList();
+
+                    // 🔴 THE PLURAL ARMS CARRY WHOLE CLAUSES, NOT A NOUN.
+                    //
+                    // What was here glued fragments together with inline ternaries:
+                    //   '${n} ${n == 1 ? "plan is" : "plans are"} marked unused'
+                    //   'Cancelling ${n == 1 ? "it" : "them"} would save …'
+                    // Both are English grammar written as Dart. The first agrees a VERB with a
+                    // count, the second swaps a PRONOUN — and neither agreement is a property of
+                    // the number, it is a property of the language. Tamil inflects the noun in a
+                    // different position and does not have the pronoun split at all, so a
+                    // translator handed the fragments "plan is" / "plans are" has been handed a
+                    // puzzle rather than a sentence.
+                    //
+                    // So each arm of `notifUnusedCount` and `notifCancellingSaves` is a complete
+                    // clause. The count still selects the arm; the arm is what a translator
+                    // rewrites freely.
+                    final List<_Notif> items = <_Notif>[
+                      for (final Subscription x in dueSoon)
+                        _Notif(
+                          Icons.notifications_none,
+                          AppColors.accent,
+                          const Color.fromRGBO(100, 89, 245, 0.12),
+                          x.daysUntil(now) == 0
+                              ? l10n.notifRenewsToday(x.name)
+                              // (name, count) — gen-l10n orders the parameters by the arb's
+                              // placeholder map, and the plural SELECTOR is the second one here.
+                              : l10n.notifRenewsInDays(x.name, x.daysUntil(now)),
+                          l10n.notifChargeOn(
+                            money.format(x.price),
+                            renewalDate.format(x.nextRenewal),
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        // Rebased onto the chassis gutter, matching home: the
-                        // horizontal 18 was already `AppSpacing.gutterCompact`
-                        // by value and is now so by name, and the bottom grows
-                        // to `AppSpacing.xl` so the last card is not flush
-                        // against the safe-area edge.
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.gutterCompact,
-                          AppSpacing.gutterCompact,
-                          AppSpacing.gutterCompact,
-                          AppSpacing.xl,
+                      if (flaggedUnused.isNotEmpty)
+                        _Notif(
+                          Icons.priority_high,
+                          AppColors.warn,
+                          const Color.fromRGBO(245, 158, 11, 0.13),
+                          l10n.notifUnusedCount(flaggedUnused.length),
+                          l10n.notifCancellingSaves(
+                            flaggedUnused.length,
+                            money.formatBag(savings),
+                          ),
                         ),
-                        itemCount: items.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (BuildContext context, int i) =>
-                            _card(context, items[i]),
-                      ),
+                    ];
+                    return items.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Text(
+                                l10n.notifNothingDue,
+                                textAlign: TextAlign.center,
+                                // ⚠️ THIS ONE CARRIED A `color:` AND WAS STILL THE
+                                // SAME BUG. `AppColors.muted` is a light-mode
+                                // literal, so the empty state was mid-grey on a dark
+                                // sheet whichever way the theme went. `body` +
+                                // `AppColors.muted` and `muted` are the SAME
+                                // TextStyle by value — Manrope, w500, muted — so
+                                // naming the muted style instead of re-colouring the
+                                // body one changes no pixel in light and picks up
+                                // `scheme.onSurfaceVariant` in dark.
+                                style: text.muted,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            // Rebased onto the chassis gutter, matching home: the
+                            // horizontal 18 was already `AppSpacing.gutterCompact`
+                            // by value and is now so by name, and the bottom grows
+                            // to `AppSpacing.xl` so the last card is not flush
+                            // against the safe-area edge.
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.gutterCompact,
+                              AppSpacing.gutterCompact,
+                              AppSpacing.gutterCompact,
+                              AppSpacing.xl,
+                            ),
+                            itemCount: items.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (BuildContext context, int i) =>
+                                _card(context, items[i]),
+                          );
+                  },
+                ),
               ),
             ],
           ),
