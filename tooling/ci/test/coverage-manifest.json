@@ -30,7 +30,7 @@
   "catalog-contract.test.mjs": 39,
   "catalog-reachable.test.mjs": 21,
   "ceiling-budget.test.mjs": 73,
-  "channel-arming.test.mjs": 26,
+  "channel-arming.test.mjs": 27,
   "channel-claims.test.mjs": 45,
   "channel-register.test.mjs": 208,
   "chassis-delegation.test.mjs": 47,

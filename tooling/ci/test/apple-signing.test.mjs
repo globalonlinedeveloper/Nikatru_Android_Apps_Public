@@ -1568,26 +1568,41 @@ describe('apple-signing — against the REAL tooling/channel-register.json', () 
     assert.deepEqual(iosNames.filter((n) => !macNames.includes(n)), [], 'ios declares nothing macOS does not');
   });
 
-  test('🔴 BOTH Apple rows are STILL UNARMED — the day either is not, a tag stops being survivable without the enrolment', () => {
+  // ⏱ THE DAY ARRIVED, 2026-09-09. These two tests were written to ANNOUNCE the
+  // moment either Apple row became armed — "the day either is not, a tag stops
+  // being survivable without the enrolment" — and they did exactly that, on the
+  // branch that armed them. They are inverted rather than deleted, because the
+  // announcement is only worth making once and the state it announced is now the
+  // state worth pinning.
+  //
+  // 🔴 WHAT MADE THE ARMING SAFE IS NOT THAT THE TEST WAS EDITED. It is that the
+  // condition the old test was guarding against no longer holds: the secrets
+  // exist. `submittable: true` plus a real lane makes the release lane FATAL
+  // without the signing secrets, and that is now the correct behaviour, because
+  // a tag push in this repository has them. The tripwire's own instruction was
+  // that arming a channel and creating its secrets belong in ONE change; this is
+  // that change, and the test moving is the evidence the instruction was read
+  // rather than stepped over.
+  test('🔴 BOTH Apple rows are NOW ARMED — the enrolment, the certificates and the secrets all exist', () => {
     for (const row of realRows()) {
       const a = armingOf(row);
-      assert.equal(
-        a.armed,
-        false,
-        `${row.id} is now armed (${a.reasons.join('; ')}). The release lane is fatal again without the Apple enrolment — which is right, and is what this test exists to announce.`,
-      );
+      assert.equal(a.armed, true, `${row.id} is expected to be armed as of 2026-09-09: ${a.blockers.join(' | ')}`);
     }
   });
 
-  test('the reason both are unarmed is `lane: null`, not `submittable`, and the print says exactly that', () => {
-    // Worth pinning separately: these rows ARE submittable. If the derivation
-    // were "submittable ⇒ armed" the release lane would still be fatal, so the
-    // specific field doing the work has to be the one the message names.
+  test('what arms them is `submittable` PLUS a real lane on the apple job, and `served` is still false', () => {
+    // Worth pinning the parts separately: `served: true` would also arm a row,
+    // and it would mean something entirely different — that something publishes
+    // from this channel. Nothing does, and no app record exists. The arming came
+    // from the lane alone, which is a statement that the artifact is BUILT.
     for (const row of realRows()) {
       const a = armingOf(row);
       assert.equal(a.submittable, true, `${row.id} is expected to be a submittable store row`);
-      assert.equal(a.lane, null, `${row.id} is expected to have no lane — nothing here emits an .ipa or a .pkg`);
-      assert.ok(a.blockers.some((b) => b.includes('`lane: null`')), a.blockers.join(' | '));
+      assert.notEqual(a.lane, null, `${row.id} is expected to name the lane that emits its artifact`);
+      assert.equal(a.lane.job, 'apple');
+      assert.match(a.lane.workflow, /build-platforms\.yml$/);
+      assert.equal(row.served, false, `${row.id} must NOT be served — submitting remains the owner's call`);
+      assert.deepEqual(a.blockers, [], `${row.id} still reports a blocker: ${a.blockers.join(' | ')}`);
     }
   });
 });
