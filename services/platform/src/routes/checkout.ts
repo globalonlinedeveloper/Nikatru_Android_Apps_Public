@@ -245,6 +245,71 @@ export const PADDLE_PRICE_IDS: Readonly<Record<string, Readonly<Record<string, s
 };
 
 /**
+ * WHAT EACH MAPPED PRICE ACTUALLY COSTS **ON PADDLE**, in minor units of the
+ * currency the Paddle price carries. Measured live 2026-08-11 and recorded in
+ * [ADR 044] §7; NOT re-derived from `app-config-data.json`.
+ *
+ * 🔴 IT IS A SECOND COPY OF A PRICE ON PURPOSE, WHICH THIS REPOSITORY OTHERWISE
+ * FORBIDS. The rule that a price lives in exactly one place
+ * (`assert-no-price-literals.mjs`, [pipeline 5]M-11) is about OUR price. This is
+ * not ours — it is a fact about a row in a vendor's catalogue that we cannot
+ * read at build time and cannot change from this repository. The choice is
+ * between recording it here where it can be compared, and not recording it at
+ * all, in which case `app-config-data.json` can be moved to any number while
+ * `POST /v1/checkout` goes on resolving a `pri_` that charges the old one. The
+ * page would quote $34.99 and the transaction would bill $19.99, and NOTHING in
+ * this repository could see it — the same shape as the defect M-11 is named
+ * after, one layer further out.
+ *
+ * ⚠️ SO THE ONLY LEGITIMATE WAY TO EDIT THIS MAP IS TO READ PADDLE. Never edit
+ * it to match `app-config-data.json`. The two disagreeing is the signal.
+ */
+export const RAIL_PRICE_AMOUNTS_MINOR: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  subscriptiontracker: {
+    pro_monthly: 499,
+    pro_yearly: 1999,
+  },
+};
+
+/**
+ * OFFERINGS THE SERVED CONFIG DECLARES THAT THE RAIL CANNOT SELL AT THAT PRICE
+ * TODAY, each with the reason and the owner action that clears it.
+ *
+ * 🔴 THIS IS NOT AN EXEMPTION LIST AND IT MUST NOT BECOME ONE. The invariant it
+ * encodes is narrow and is the honest one: **a price may be DECIDED before the
+ * rail carries it, but nothing may be SOLD at a price the rail does not carry.**
+ * `test/checkout.test.ts` enforces both halves — an entry here is required to
+ * carry a non-empty reason, and this map must be EMPTY for any app whose
+ * `paywall.enabled` is true. Flipping that switch with an entry standing is the
+ * failure, not the entry.
+ *
+ * The runtime already refuses safely either way: an offering with no `pri_` id
+ * answers **503 `offering_not_available`** at :477 below and logs the drift by
+ * name. What this map adds is that the drift is DECLARED rather than discovered.
+ *
+ * ⚠️ CLEARING AN ENTRY IS A VENDOR ACT, NOT A CODE CHANGE — somebody with the
+ * Paddle dashboard has to create or re-price the catalogue row and then the two
+ * maps above get the measured values. No agent may do it: it is a write to a
+ * live merchant account.
+ */
+export const RAIL_PRICE_PENDING: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  subscriptiontracker: {
+    pro_monthly:
+      'OWNER — Paddle price pri_01kzew6dqmtv3jg33dy9m23g31 still carries 499 USD/month. The owner ' +
+      'moved monthly to 599 on 2026-09-09 (unit-economics 2026-09-09 §4.1: monthly is the decoy that ' +
+      'makes 12 x $5.99 = $71.88 read against $34.99). Re-price or replace the Paddle price.',
+    pro_yearly:
+      'OWNER — Paddle price pri_01kzew6e0yec2rfvk561hmzbbz still carries 1999 USD/year. The owner ' +
+      'moved annual to 3499 on 2026-09-09 (just under the NA median $39.99, just over the global ' +
+      '$34.80; nets $31.23 = 89.2% through Paddle). Re-price or replace the Paddle price.',
+    pro_lifetime:
+      'OWNER — no Paddle price exists for a one-time SKU at all. The owner kept lifetime on ' +
+      '2026-09-09 at 8900 USD; it nets $80.27 = 2.57 years of annual net against a ~1.4-year ' +
+      'expected annual life. Create the Paddle price, then record its pri_ id and amount above.',
+  },
+};
+
+/**
  * The statuses a CREATE is allowed to come back as.
  *
  * `draft` and nothing else, because that is what the request shape below
