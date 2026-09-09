@@ -136,7 +136,7 @@ function tree({
 function run(root, args, env = {}) {
   const r = spawnSync(process.execPath, [SCRIPT, ...args, '--repo-root', root], {
     encoding: 'utf8',
-    env: { ...process.env, MS_STORE_TENANT_ID: '', MS_STORE_CLIENT_ID: '', MS_STORE_CLIENT_SECRET: '', MS_STORE_PRODUCT_ID: '', ...env },
+    env: { ...process.env, MS_STORE_TENANT_ID: '', MS_STORE_CLIENT_ID: '', MS_STORE_CLIENT_SECRET: '', MS_STORE_PRODUCT_ID: '', MS_STORE_SELLER_ID: '', ...env },
   });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
@@ -166,12 +166,13 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     MS_STORE_CLIENT_ID: 'client-fixture',
     MS_STORE_CLIENT_SECRET: 'the-actual-secret',
     MS_STORE_PRODUCT_ID: 'product-fixture',
+    MS_STORE_SELLER_ID: 'seller-fixture',
   };
 
   test('--submit FAILS CLOSED with no credentials, NAMING the empty secrets', () => {
     const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subly', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE']);
     assert.equal(code, 1, out);
-    assert.match(out, /4 of 4 Microsoft Store credential\(s\) are EMPTY: MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET, MS_STORE_PRODUCT_ID/);
+    assert.match(out, /5 of 5 Microsoft Store credential\(s\) are EMPTY: MS_STORE_TENANT_ID, MS_STORE_CLIENT_ID, MS_STORE_CLIENT_SECRET, MS_STORE_PRODUCT_ID, MS_STORE_SELLER_ID/);
     assert.match(out, /green tick over a store that received nothing/);
   });
 
@@ -346,7 +347,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   test('PRINTS which credentials are absent and never their values', () => {
     const { code, out } = run(tree({ withArtifact: true }), ['--dry-run']);
     assert.equal(code, 0, out);
-    assert.match(out, /CREDENTIALS NOT CONFIGURED — 4 of 4 absent/);
+    assert.match(out, /CREDENTIALS NOT CONFIGURED — 5 of 5 absent/);
   });
 
   test('reports credentials as present without printing them', () => {
@@ -355,9 +356,10 @@ describe('submit-windows-store — the submission path is walkable, and --submit
       MS_STORE_CLIENT_ID: 'client-secret-value',
       MS_STORE_CLIENT_SECRET: 'the-actual-secret',
       MS_STORE_PRODUCT_ID: 'product-secret-value',
+      MS_STORE_SELLER_ID: 'seller-secret-value',
     });
     assert.equal(code, 0, out);
-    assert.match(out, /credentials — all 4 environment variable\(s\) present/);
+    assert.match(out, /credentials — all 5 environment variable\(s\) present/);
     assert.doesNotMatch(out, /the-actual-secret/);
   });
 

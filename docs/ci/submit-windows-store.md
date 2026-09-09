@@ -101,10 +101,21 @@ with a green control first.
 
 Two `UNSOURCED` entries survive and each names the limb it costs:
 
-1. whether `msstore reconfigure` **requires `--sellerId`** in CI. The options
-   table marks nothing required and no page says. The lane passes tenant, client
-   and secret only; if the CLI needs a seller id it fails with its own message
-   and the lane fails **closed**. No fifth `MS_STORE_*` name was invented.
+1. whether `msstore reconfigure` strictly **requires `--sellerId`** in CI. The
+   options table still marks nothing required and no page says, so the
+   *requirement* stays unsourced — but as of **2026-09-09 it no longer gates
+   anything**, because the question that decides the code is not "is it required"
+   but "is it correct", and that one is sourced: the commands page names SellerId
+   as one of the account-identifying parameters and **both** of its CI/CD examples
+   pass it. The lane now passes `--sellerId` from `MS_STORE_SELLER_ID`, the fifth
+   `MS_STORE_*` secret. The asymmetry is what decided it — passing a documented
+   identifier costs nothing if it is optional and is the whole lane if it is not.
+
+   ⚠️ **This account has carried TWO seller ids that differ by three digits.** The
+   retired one authenticates against nothing and looks entirely plausible in a
+   log, so the live value is read from
+   `Private/runbooks/store-submission-windows.md` and never from memory or from an
+   old workflow run. The value is not written into this public tree.
 2. the **raw-HTTP transport** — the exact Azure Blob request for the ZIP (the
    documentation demonstrates it only through .NET's `CloudBlockBlob`) and the
    field-by-field submission body. So no request in the script reaches
@@ -118,7 +129,7 @@ Two `UNSOURCED` entries survive and each names the limb it costs:
 * `if: inputs.confirm == 'SUBMIT-TO-MICROSOFT-STORE'` — a typed phrase, default empty
 * `environment: store-publish` — the owner-approval pause, one environment for the whole factory
 * a `listing_url` input, refused unless it is `https://…`, so the `[10]D-9` record has an address
-* a secret preflight that **ends the job** when any `MS_STORE_*` is empty (the `e2e.yml:56-63` shape `assert-green-means-ran` section B counts)
+* a secret preflight over all **five** `MS_STORE_*` names that **ends the job** when any is empty (the `e2e.yml:56-63` shape `assert-green-means-ran` section B counts)
 * the CLI installed at an exact version, then
   `submit-windows-store.mjs --submit --app subly --confirm SUBMIT-TO-MICROSOFT-STORE`
 * `record-deployment.mjs subly-windows-store --state in_review --listing-url "$LISTING_URL"`
