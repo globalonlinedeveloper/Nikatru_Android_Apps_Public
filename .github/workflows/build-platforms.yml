@@ -288,6 +288,38 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-flutter
+      # why: MAX_PATH, and on this lane it binds GIT ONLY — measured, not assumed.
+      # `flutter build windows` has CMake FetchContent clone sentry-native, which
+      # recurses into external/crashpad -> third_party/mini_chromium, and GIT writes
+      #   D:/a/<repo>/<repo>/apps/<app>/build/windows/x64/_deps/sentry-native-src/
+      #     .git/modules/external/crashpad/modules/third_party/mini_chromium/
+      #     mini_chromium/objects/pack/pack-<40hex>.keep
+      # 262 characters for `subscriptiontracker`, 248 for the retired `subly`, against
+      # a 260 ceiling. So the slug rename — and nothing else in it — crossed the line:
+      # run 34351523027 on main, job 102465811905, 2026-09-09:
+      #   "fatal: cannot write keep file '...': Filename too long".
+      # 🔴 THE OS REGISTRY SWITCH IS NOT THE FIX, and that is a measurement rather than
+      # an argument. On a Windows 11 host whose
+      # HKLM/SYSTEM/CurrentControlSet/Control/FileSystem/LongPathsEnabled reads 1,
+      # `git -c core.longpaths=false clone` into a 270-character pack path still exits
+      # 128 with "Filename too long"; the identical clone with core.longpaths=true exits
+      # 0 and leaves a checked-out tree. Git for Windows does its own MAX_PATH handling
+      # and consults THIS setting, so LongPathsEnabled on the image would not have saved
+      # this build, and its absence is not what broke it.
+      # ⬜ AND IT IS SIZED RATHER THAN SPRAYED. The longest path this build touches that
+      # git does NOT create is 254 characters —
+      #   .../sentry-native-src/external/breakpad/src/processor/testdata/symbols/
+      #   microdump/breakpad_unittests/<32hex>/breakpad_unittests.sym
+      # — still under the ceiling. So MSBuild, CMake and the Node tooling need nothing
+      # here, and moving the checkout to a shorter root would be a larger change than
+      # the defect. --global, because CMake clones sentry-native into a NEW repository
+      # and this repository's own config cannot reach that one.
+      # ⚠️ The value is READ BACK on the next line: a `git config` that silently wrote
+      # nothing would leave this step green over a build that then fails the same way.
+      - name: Git may write paths past MAX_PATH
+        run: |
+          git config --global core.longpaths true
+          git config --global --get core.longpaths
       - name: Resolve the workspace
         run: flutter pub get --enforce-lockfile
       - name: Derive the release line from pubspec
