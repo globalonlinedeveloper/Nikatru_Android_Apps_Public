@@ -45,9 +45,10 @@
 // Usage:  node tooling/ci/assert-no-null-entitlement-key.mjs [repoRoot]
 // Exit 0 = no writer can strand a NULL in a key column, 1 = one can.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listDir } from './tree-walk.mjs';
 import { stripSourceComments } from './text-reductions.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
@@ -96,7 +97,7 @@ if (!existsSync(migDir)) {
   coverageLost(`${MIGRATIONS} does not exist, so there is no DDL to replay and no key column to check. Every limb below would range over nothing.`);
   done();
 }
-const migFiles = readdirSync(migDir)
+const migFiles = listDir(migDir)
   .filter((f) => f.endsWith('.sql'))
   .sort();
 if (migFiles.length === 0) {
@@ -206,7 +207,7 @@ const migrationSql = migFiles.map((f) => readFileSync(join(migDir, f), 'utf8'));
   } else {
     const files = [];
     const walk = (dir) => {
-      for (const e of readdirSync(dir)) {
+      for (const e of listDir(dir)) {
         if (e === 'node_modules' || e === '.wrangler' || e === 'dist') continue;
         const p = join(dir, e);
         const st = statSync(p);
