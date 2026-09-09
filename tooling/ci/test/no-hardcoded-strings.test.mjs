@@ -327,6 +327,12 @@ const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-no-hardcoded-strings.mjs');
 
+/** Escape a LITERAL string for `new RegExp(...)`. COMPLETE metacharacter set.
+ *  BRICK is a path carrying `{{...}}`, and the old class `[{}]` escaped the
+ *  braces but not `\` — the same incomplete-sanitization defect CodeQL flagged
+ *  in ops-register.test.mjs on 2026-09-09, swept here in the same pass. */
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-strings-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
@@ -663,7 +669,7 @@ describe('assert-no-hardcoded-strings', () => {
   test('passes when the brick reads everything from l10n', () => {
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
-    assert.match(out, new RegExp(`${BRICK.replace(/[{}]/g, '\\$&')} shows no hardcoded user-facing strings`));
+    assert.match(out, new RegExp(`${reEscape(BRICK)} shows no hardcoded user-facing strings`));
     assert.match(out, /matchers verified against a known-dirty tree/);
     assert.match(out, /matcher families are exactly those/);
     assert.match(out, /exemptions still exempt/);
@@ -900,7 +906,7 @@ const b = Text('Hardcoded right after a URL');
       assert.equal(code, 1);
       assert.match(out, new RegExp(`COVERAGE LOST — the matchers found only 0 hardcoded string\\(s\\) in ${FIXTURE}/dirty`));
       // …and the enforcement half still said "clean", which is the point.
-      assert.match(out, new RegExp(`${BRICK.replace(/[{}]/g, '\\$&')} shows no hardcoded user-facing strings`));
+      assert.match(out, new RegExp(`${reEscape(BRICK)} shows no hardcoded user-facing strings`));
     });
 
     test('FAILS when the fixture canary is deleted outright', () => {
@@ -947,7 +953,7 @@ const b = Text('Hardcoded right after a URL');
       assert.equal(code, 1, 'a 30-hit total hid a family that matched nothing');
       assert.match(out, /COVERAGE LOST — the "a labelling parameter" matcher found NOTHING/);
       // …and the enforcement half still said "clean", which is the point.
-      assert.match(out, new RegExp(`${BRICK.replace(/[{}]/g, '\\$&')} shows no hardcoded user-facing strings`));
+      assert.match(out, new RegExp(`${reEscape(BRICK)} shows no hardcoded user-facing strings`));
     });
 
     // 🔴 THE MEASUREMENT THE RETIREMENT RESTS ON, taken against the REAL repo
@@ -1625,7 +1631,7 @@ const b = Text('Hardcoded right after a URL');
       test('FAILS when an enforced tree has no app_en.arb', () => {
         const { code, out } = run(tree({ brickArb: null }));
         assert.equal(code, 1, 'the reverse limb read no keys and called the tree clean');
-        assert.match(out, new RegExp(`COVERAGE LOST — ${BRICK.replace(/[{}]/g, '\\$&')}/l10n/app_en.arb does not exist`));
+        assert.match(out, new RegExp(`COVERAGE LOST — ${reEscape(BRICK)}/l10n/app_en.arb does not exist`));
       });
 
       // 🔴 THE `arbsRead === 0` BRANCH, WHICH IS AN EMPTY BLOCK AND THEREFORE

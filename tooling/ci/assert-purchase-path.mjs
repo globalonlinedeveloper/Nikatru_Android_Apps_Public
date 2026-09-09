@@ -389,18 +389,56 @@ let registerChannels = []; // the register's channel rows, whole
       }
     }
 
-    // The bound has to be CONSULTED, not merely declared. A constant nothing
-    // reads is the shape this whole file exists to reject.
-    // 🔴 THE CONJUNCTION, NOT THE TWO WORDS. The first version tested
-    // `/isStaleAt\(/` and `/connectivityAvailable/` separately — and
-    // `connectivityAvailable` is a PARAMETER NAME, so it stayed present when the
-    // `&&` that actually consults it was deleted. Mutation-proven on the real
-    // tree: the ceiling became an unconditional countdown that locks a paying
-    // user out for being in a tunnel, and this printed ok.
-    if (!/connectivityAvailable\s*&&\s*isStaleAt\s*\(/.test(code(cacheRaw))) {
+    // ── The bound has to be CONSULTED, and consulted UNCONDITIONALLY ────────
+    //
+    // 🔄 THIS LIMB WAS INVERTED ON 2026-09-09. It used to REQUIRE the
+    // conjunction `connectivityAvailable && isStaleAt(` and fail without it,
+    // because the client deliberately kept a stale answer alive while offline —
+    // "the loss taken on purpose". That loss had no bound: a device that never
+    // regains connectivity served the cached answer forever, and a cached
+    // lifetime-shaped grant (`expires_at == null`) never even reached the grace
+    // window, so a refunded user who stayed offline kept Pro indefinitely. The
+    // guard was therefore ENFORCING the defect.
+    //
+    // Reversed by design — research/2026-09-09/bundle-entitlement-design-2026-09-09.md
+    // §2.4 and invariant G9 (§6): "readValid denies when verifiedAt is older
+    // than the staleness ceiling REGARDLESS of connectivity."
+    //
+    // Two properties, both kept, because dropping either brings a hole back:
+    //   1. `isStaleAt` is actually CALLED. A named constant nothing reads is
+    //      the shape this whole file exists to reject, and the original limb's
+    //      real contribution was proving the bound is consulted at all.
+    //   2. NOTHING GATES IT. A conjunction in front of `isStaleAt(` is exactly
+    //      how the unbounded-offline behaviour comes back, and it comes back
+    //      looking innocent because the gate reads like a kindness.
+    //
+    // 🔴 The gate is matched by SHAPE, not by the old parameter's name. Testing
+    // for the literal string `connectivityAvailable` would be the same mistake
+    // in the other direction: renaming the flag to `isOffline` would restore
+    // the defect with the guard still printing ok.
+    //
+    // 🔴 SCOPED TO `readValid`'S BODY, NOT TO THE FILE — the lesson §F already
+    // carries about `_restore`. `isStaleAt` is also DECLARED in this file, so a
+    // file-level match for it stays satisfied when the only CALL is deleted.
+    const readValidBody =
+      new RegExp(String.raw`Future<Entitlements>\s+readValid\([\s\S]{0,900}?\n  \}`).exec(code(cacheRaw))?.[0] ?? '';
+    if (readValidBody === '') {
       problems.push(
-        `${CACHE} declares the ceiling but does not apply it through \`isStaleAt\` gated on \`connectivityAvailable\`. Without the connectivity half the bound is a countdown, and it locks a paying user out for being in a tunnel.`,
+        `COVERAGE LOST — ${CACHE} has no readable \`readValid\` body, so the staleness ceiling was checked against nothing.`,
       );
+    } else if (!/isStaleAt\s*\(/.test(readValidBody)) {
+      problems.push(
+        `${CACHE} declares the ceiling but \`readValid\` never applies it — no call to \`isStaleAt(\`. A bound nothing consults is a constant, and a refunded user keeps access until the app is reinstalled.`,
+      );
+    } else {
+      const staleGate = readValidBody.match(/([A-Za-z_$][\w$]*)\s*&&\s*isStaleAt\s*\(/);
+      if (staleGate) {
+        problems.push(
+          `${CACHE} gates the staleness ceiling on \`${staleGate[1]}\` — \`${staleGate[1]} && isStaleAt(\`. The ceiling must be consulted REGARDLESS of connectivity (design 2026-09-09 §2.4, invariant G9). With a gate in front of it, offline grace is UNBOUNDED: a device that never reconnects serves a refunded grant forever, and a cached lifetime-shaped grant never reaches the grace window at all.`,
+        );
+      } else {
+        ok('the staleness ceiling is consulted unconditionally (no connectivity gate)');
+      }
     }
   }
 }
