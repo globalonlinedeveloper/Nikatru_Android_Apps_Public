@@ -145,7 +145,7 @@
 /* Canonical ordering - locked so output is deterministic and reviewable. */
 
 const LIGHT_COLORS = [
-  'ink', 'ink-2', 'primary', 'teal', 'bg', 'card', 'card-2',
+  'ink', 'ink-2', 'primary', 'teal', 'on-accent', 'bg', 'card', 'card-2',
   'text', 'strong', 'muted', 'line', 'soft',
 ];
 // `primary` and `teal` joined this list on 2026-09-09. They used to be
@@ -154,7 +154,13 @@ const LIGHT_COLORS = [
 // #2E6FF2 is 4.49:1 on the light card and 3.77:1 on the dark one, while every
 // page declares `a{color:var(--primary)}` and overrides `--card` inside a
 // `prefers-color-scheme` block. See contracts/tokens/dtcg/color.dark.json.
-const DARK_COLORS = ['primary', 'teal', 'bg', 'card', 'card-2', 'text', 'strong', 'muted', 'line', 'soft'];
+// `on-accent` joined both lists on 2026-09-09, one commit after the primary/teal
+// fork above. The fork changed the FILL and nothing changed the FOREGROUND, so
+// 15 pages went on painting `color:#fff` over a dark-scheme fill that is only
+// 2.69:1 (primary) and 2.24:1 (teal) behind white. A colour used as a fill and a
+// colour used on top of it are one decision; splitting one and not the other is
+// how a contrast repair trades a light failure for a dark one.
+const DARK_COLORS = ['primary', 'teal', 'on-accent', 'bg', 'card', 'card-2', 'text', 'strong', 'muted', 'line', 'soft'];
 
 /** Where the DTCG source lives, quoted into every generated file's header so a
  *  reader who opens an output is told where to edit instead. One constant, so

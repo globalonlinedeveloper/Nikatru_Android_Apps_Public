@@ -38,9 +38,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
 <link rel="manifest" href="/site.webmanifest">
 <style>
-  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
+  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--on-accent:#FFFFFF;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
   @media (prefers-color-scheme: dark){
-    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2;}
+    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2;--on-accent:#0B1220;}
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
@@ -62,7 +62,7 @@
   .stores{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
   .store{display:inline-flex;align-items:center;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.16)}
   .store:hover{background:rgba(255,255,255,.15)}
-  .store.primary{background:linear-gradient(90deg,var(--primary),var(--teal));border:0}
+  .store.primary{background:linear-gradient(90deg,var(--primary),var(--teal));color:var(--on-accent);border:0}
   .store.primary:hover{filter:brightness(1.08)}
   section{padding:56px 0}
   h2{font-size:24px;font-weight:800;color:var(--strong);letter-spacing:-.01em;margin-bottom:14px}
