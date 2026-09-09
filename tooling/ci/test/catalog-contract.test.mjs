@@ -395,13 +395,19 @@ describe('assert-catalog-contract.mjs — `listings` [ADR 055]', () => {
 
   // 🔴 the anti-duplication limb. `listings[web]` and `url` are one fact with two
   // spellings and two disjoint sets of readers.
+  const BAD_LISTING = 'https://subscriptiontracker-old.nikatru.com';
+
   test('a `listings` web entry that disagrees with `url` is refused', () => {
-    const { code, out } = run(tree([listings({ [WEB_KEY]: 'https://subscriptiontracker-old.nikatru.com' })]));
+    const { code, out } = run(tree([listings({ [WEB_KEY]: BAD_LISTING })]));
     assert.equal(code, 1, out);
     // Containment, not a pattern: an unanchored host regex also matches
     // `subscriptiontracker-old.nikatru.com.evil.example`
     // (CodeQL js/regex/missing-regexp-anchor, new on this branch).
-    assert.ok(out.includes('subscriptiontracker-old.nikatru.com'), out);
+    // The FULL url, scheme included -- not the bare host. A bare-host substring
+    // check is both weaker (any host containing it satisfies it) and flagged as
+    // js/incomplete-url-substring-sanitization; asserting the exact string the
+    // fixture wrote is narrower and says what the case actually means.
+    assert.ok(out.includes(BAD_LISTING), out);
     assert.match(out, /SAME fact/);
   });
 
