@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiny typed helpers over D1 + time/uuid utils (shared with the app workers).
 //
-// ⚠️ "SHARED" MEANS DUPLICATED, NOT IMPORTED — services/subly-api carries its own
+// ⚠️ "SHARED" MEANS DUPLICATED, NOT IMPORTED — services/subscriptiontracker-api carries its own
 // copy, because the two Workers are separate npm packages with separate deploys
 // (see that copy's error-sink.ts header for the measurement behind the choice).
 // `test/twinned-worker-modules.test.ts` holds the four functions below identical
 // across every copy THAT CARRIES THEM. It also records why this copy is SHORTER:
-// subly-api adds `firstRow` and `run`, which nothing here calls — platform uses
+// subscriptiontracker-api adds `firstRow` and `run`, which nothing here calls — platform uses
 // `stmt.first<T>()` and `stmt.run()` directly — so adding them would ship two
 // exported functions with zero callers rather than close a gap.
 //
@@ -24,7 +24,7 @@
  *  `E2E (live)` was red on roughly half its nights — 08-29 fail, 08-30 pass,
  *  08-31 fail, 09-01 fail, 09-02 pass — and the failure was a real production
  *  500, not a test defect. Root-caused 2026-09-02 from three independent
- *  sources (the CI logs, GlitchTip issues 24 and 25 tagged `service=subly-api`
+ *  sources (the CI logs, GlitchTip issues 24 and 25 tagged `service=subscriptiontracker-api`
  *  with two events 10 ms apart, and Supabase auth logs):
  *
  *      D1_ERROR: D1 DB storage operation exceeded timeout which caused

@@ -28,7 +28,7 @@ void main() {
   // [authTokenProvider] — which only READS the repository, so no ancestor edge is
   // registered. That two-hop shape is why the brick never had defect #258.
   //
-  // 🔴 apps/subly DID, because its platform client was written by hand
+  // 🔴 apps/subscriptiontracker DID, because its platform client was written by hand
   // afterwards with `ref.watch(authRepositoryProvider).currentAccessToken`, and
   // Riverpod's `ref.read` walks the TARGET's watch/listen ancestors and throws
   // `CircularDependencyError` when it finds the reader. The delete button threw

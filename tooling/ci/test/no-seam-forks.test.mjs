@@ -44,12 +44,12 @@ let seq = 0;
  *  point of that limb, and is why they are defaults here rather than opt-in.
  *  A case overrides either one by writing the same path into `extra`. */
 const CHASSIS = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/auth/sign_in_screen.dart';
-const FORK = 'apps/subly/lib/features/auth/login_screen.dart';
+const FORK = 'apps/subscriptiontracker/lib/features/auth/login_screen.dart';
 
 /** The other two DECIDABLE pairs, added 2026-08-12. Same shape, different seam:
  *  both gate on `caps.canSchedule` off NotificationCapabilities. */
 const BRICK_F = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features';
-const SUBLY_F = 'apps/subly/lib/features';
+const SUBLY_F = 'apps/subscriptiontracker/lib/features';
 const SETTINGS_CHASSIS = `${BRICK_F}/settings/settings_screen.dart`;
 const SETTINGS_FORK = `${SUBLY_F}/settings/settings_screen.dart`;
 const HOME_CHASSIS = `${BRICK_F}/home/home_screen.dart`;
@@ -249,7 +249,7 @@ describe('parse structure, not prose', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // A WAIVER THAT MATCHES NOTHING (limb added 2026-08-10, with the cut-1 reversal)
 //
-// The reversal deleted `apps/subly/lib/data/auth/supabase_auth_repository.dart`
+// The reversal deleted `apps/subscriptiontracker/lib/data/auth/supabase_auth_repository.dart`
 // and its violation entry stayed behind — matching nothing, printing nothing,
 // failing nothing, because the waiver loop only ever speaks when a suspect is
 // FOUND. Stale is silent by construction, which is this repository's recurring
@@ -566,7 +566,7 @@ describe('[ADR 042] an accepted fork must follow the chassis it forked', () => {
     // Printed, not silent: an operator can see the limb is alive without
     // reading the source, which is the difference between this and a check
     // that quietly stopped checking.
-    assert.match(out, /\[ADR 042\] parity — apps\/subly\/lib\/features\/auth\/login_screen\.dart follows all 1 chassis/);
+    assert.match(out, /\[ADR 042\] parity — apps\/subscriptiontracker\/lib\/features\/auth\/login_screen\.dart follows all 1 chassis/);
     assert.match(out, /3 accepted fork\(s\) at parity, 9 watched/);
   });
 
@@ -582,7 +582,7 @@ describe('[ADR 042] an accepted fork must follow the chassis it forked', () => {
       },
     }));
     assert.equal(code, 1, out);
-    assert.match(out, /apps\/subly\/lib\/features\/auth\/login_screen\.dart/);
+    assert.match(out, /apps\/subscriptiontracker\/lib\/features\/auth\/login_screen\.dart/);
     assert.match(out, /does NOT read `caps\.secureSessionStorage`/);
     assert.match(out, /fallen behind the chassis screen they forked/);
   });
@@ -763,7 +763,7 @@ describe('[ADR 042] the SETTINGS pair — decidable, and therefore enforced', ()
       },
     }));
     assert.equal(code, 1, out);
-    assert.match(out, /apps\/subly\/lib\/features\/settings\/settings_screen\.dart/);
+    assert.match(out, /apps\/subscriptiontracker\/lib\/features\/settings\/settings_screen\.dart/);
     assert.match(out, /does NOT read `caps\.canNotify`/);
     assert.match(out, /chassis reads \{canNotify, canSchedule\} · fork reads \{canSchedule\}/);
   });
@@ -798,7 +798,7 @@ describe('[ADR 042] the HOME pair — the one no ADR listed', () => {
       },
     }));
     assert.equal(code, 1, out);
-    assert.match(out, /apps\/subly\/lib\/features\/home\/home_screen\.dart/);
+    assert.match(out, /apps\/subscriptiontracker\/lib\/features\/home\/home_screen\.dart/);
     assert.match(out, /does NOT read `caps\.canNotify`/);
   });
 
@@ -1004,7 +1004,7 @@ describe('a caps gate that moved into the chassis is still compared', () => {
   // D7 AND D8 — THE EXPLOIT, REPRODUCED AS A TEST.
   //
   // 2026-09-05, measured on the real tree by an independent reviewer:
-  //   1. `apps/subly/.../login_screen.dart`, `caps.oauthRedirect` gate deleted
+  //   1. `apps/subscriptiontracker/.../login_screen.dart`, `caps.oauthRedirect` gate deleted
   //      → EXIT 1, "1 accepted fork(s) have fallen behind the chassis screen".
   //   2. ONE line added — `import 'package:nikatru_chassis_screens/sign_in.dart';`
   //      — with the target merely MENTIONING `caps.oauthRedirect`, nothing in

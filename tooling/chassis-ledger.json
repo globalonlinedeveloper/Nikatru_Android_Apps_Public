@@ -155,7 +155,7 @@
       "path": "lib/features/home/home_screen.dart",
       "lines": 595,
       "verdict": "STAYS",
-      "why": "MEASURED: the second most pinned file here — deleting it reddens ten guards including assert-ads-declarations and assert-sworn-store-files, because apps/subly/store/android-play/ads-declaration.json cites it by path. Must keep the PaywallGate wiring, `const UpgradePromoCard()`, the promo gate decision and impression, the nudge mount, a `caps.<field>` read and a `context.go` to /settings. About half is reachable."
+      "why": "MEASURED: the second most pinned file here — deleting it reddens ten guards including assert-ads-declarations and assert-sworn-store-files, because apps/subscriptiontracker/store/android-play/ads-declaration.json cites it by path. Must keep the PaywallGate wiring, `const UpgradePromoCard()`, the promo gate decision and impression, the nudge mount, a `caps.<field>` read and a `context.go` to /settings. About half is reachable."
     },
     {
       "path": "lib/features/monetization/manage_plan_screen.dart",
@@ -684,7 +684,7 @@
       "path": "src/lib/health.ts",
       "lines": 5,
       "verdict": "MOVES",
-      "why": "[ADR 067] decision 2 / unit worker-shared-chassis, LEDGERED 2026-09-07 by unit app-shell - MEASURED: 334 -> 5 lines, callSiteDelta -329. The file is now a five-line `export * from '../../../_shared/src/health'`; the three-state design, the cache reasoning and the measured refusal to carry a bare import all live once in services/_shared/src/health.ts (356 lines), which services/platform, services/subly-api and every stamped Worker carry from.",
+      "why": "[ADR 067] decision 2 / unit worker-shared-chassis, LEDGERED 2026-09-07 by unit app-shell - MEASURED: 334 -> 5 lines, callSiteDelta -329. The file is now a five-line `export * from '../../../_shared/src/health'`; the three-state design, the cache reasoning and the measured refusal to carry a bare import all live once in services/_shared/src/health.ts (356 lines), which services/platform, services/subscriptiontracker-api and every stamped Worker carry from.",
       "target": "services/_shared/src/health.ts",
       "callSiteDelta": -329
     },

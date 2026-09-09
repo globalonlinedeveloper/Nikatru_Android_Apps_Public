@@ -2193,7 +2193,7 @@
       ".github/workflows/build-platforms.yml#release",
       ".github/workflows/deploy-web.yml#deploy-web",
       ".github/workflows/deploy-workers.yml#platform",
-      ".github/workflows/deploy-workers.yml#subly-api",
+      ".github/workflows/deploy-workers.yml#subscriptiontracker-api",
       ".github/workflows/extensions.yml#release",
       ".github/workflows/submit-play.yml#submit",
       ".github/workflows/submit-snap.yml#submit",
@@ -2425,7 +2425,7 @@
     ],
     "invokedBy": [
       ".github/workflows/deploy-workers.yml#platform",
-      ".github/workflows/deploy-workers.yml#subly-api",
+      ".github/workflows/deploy-workers.yml#subscriptiontracker-api",
       ".github/workflows/ops-watch.yml#heartbeats"
     ],
     "kind": "script",
@@ -2472,7 +2472,7 @@
       ".github/workflows/build-platforms.yml#release",
       ".github/workflows/deploy-web.yml#deploy-web",
       ".github/workflows/deploy-workers.yml#platform",
-      ".github/workflows/deploy-workers.yml#subly-api",
+      ".github/workflows/deploy-workers.yml#subscriptiontracker-api",
       ".github/workflows/extensions.yml#release",
       ".github/workflows/submit-play.yml#submit"
     ],

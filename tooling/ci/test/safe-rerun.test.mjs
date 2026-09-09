@@ -594,7 +594,7 @@ describe('decide() — the judgement, without a network or a token', () => {
 // 0 push runs of that workflow (all measured 2026-08-27) — which is why
 // `releaseLaneProblem()` has cases here: inert and sound look identical outside.
 describe('🔴 the release refusal — a published tag cannot be re-run', () => {
-  const TAG = 'subly-v1.0.0';
+  const TAG = 'subscriptiontracker-v1.0.0';
   const RELEASED = { tag_name: TAG, html_url: 'https://example.invalid/releases/tag' };
 
   /** The shape of `build-platforms.yml`, reduced to the two facts read here. */
@@ -636,7 +636,7 @@ jobs:
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /REFUSED/);
     assert.match(r.out, /gh release create/);
-    assert.match(r.out, /subly-v1\.0\.0/);
+    assert.match(r.out, /subscriptiontracker-v1\.0\.0/);
     assert.match(r.out, /cut a NEW version tag/);
     // The claim is "it did NOT re-run". Exit 1 alone would also be produced by
     // a version that refused loudly and POSTed anyway.
@@ -836,7 +836,7 @@ jobs:
 // jobs API reports step names but never a step's `run:`, and it renames a matrix
 // leg to `<job> (<value>)`, so a job-name match would be a guess.
 describe('🔴 `--failed` lifts the release refusal ONLY on a measured job conclusion', () => {
-  const TAG = 'subly-v1.0.0';
+  const TAG = 'subscriptiontracker-v1.0.0';
   const RELEASED = { tag_name: TAG, html_url: 'https://example.invalid/releases/tag' };
   const BP = '.github/workflows/build-platforms.yml';
 
@@ -847,7 +847,7 @@ describe('🔴 `--failed` lifts the release refusal ONLY on a measured job concl
 
   const jobs = (over = {}) => [
     {
-      name: 'Durable release artifacts (subly)',
+      name: 'Durable release artifacts (subscriptiontracker)',
       conclusion: 'success',
       status: 'completed',
       steps: [{ name: 'Re-verify every asset against the manifest', conclusion: 'success' }, { name: STEP, conclusion: 'success' }],
@@ -894,7 +894,7 @@ describe('🔴 `--failed` lifts the release refusal ONLY on a measured job concl
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /REFUSED/);
     assert.match(r.out, /did not conclude `success`/);
-    assert.match(r.out, /Durable release artifacts \(subly\)/);
+    assert.match(r.out, /Durable release artifacts \(subscriptiontracker\)/);
     assert.equal(r.reran, false, `it REFUSED and re-ran anyway: ${r.log}`);
   });
 
@@ -935,7 +935,7 @@ describe('🔴 `--failed` lifts the release refusal ONLY on a measured job concl
     // stopped at the first match would clear a run whose SECOND leg failed —
     // and that leg re-runs `gh release create` on the same tag.
     const legs = [
-      { name: 'Durable release artifacts (subly)', conclusion: 'success', status: 'completed', steps: [{ name: STEP }] },
+      { name: 'Durable release artifacts (subscriptiontracker)', conclusion: 'success', status: 'completed', steps: [{ name: STEP }] },
       { name: 'Durable release artifacts (other)', conclusion: 'failure', status: 'completed', steps: [{ name: STEP }] },
     ];
     const r = cli(tagPush({ jobs: { 16000000001: legs } }), ['16000000001', '--failed']);
@@ -947,7 +947,7 @@ describe('🔴 `--failed` lifts the release refusal ONLY on a measured job concl
     assert.equal(releaseRerunClearance(legs.map((j) => ({ ...j, conclusion: 'success' })), REAL).cleared, true);
   });
 
-  const legA = () => ({ name: 'Durable release artifacts (subly)', conclusion: 'success', status: 'completed', steps: [{ name: STEP }] });
+  const legA = () => ({ name: 'Durable release artifacts (subscriptiontracker)', conclusion: 'success', status: 'completed', steps: [{ name: STEP }] });
   const legB = (over) => ({ name: 'Durable release artifacts (other)', conclusion: 'failure', status: 'completed', ...over });
 
   test('🔴 an UNREADABLE step list is an UNKNOWN, never "this job does not publish"', () => {
@@ -1061,7 +1061,7 @@ jobs:
     const r = cli(fx, ['16000000001', '--failed', '--workflows', dir]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /publish CLEARED/); // the release limb DID let it past
-    assert.match(r.out, /pub-refs\/heads\/subly-v1\.0\.0/);
+    assert.match(r.out, /pub-refs\/heads\/subscriptiontracker-v1\.0\.0/);
     assert.equal(r.reran, false, `it REFUSED and re-ran anyway: ${r.log}`);
   });
 

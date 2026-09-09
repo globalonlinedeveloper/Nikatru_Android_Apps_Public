@@ -1,0 +1,106 @@
+{
+  // ───────────────────────────────────────────────────────────────────────────
+  // Cloudflare Worker — subscriptiontracker-api. Wrangler v4 / jsonc (migrated from v3 toml).
+  // CLONE CONTRACT: APP_DB is PER-APP; PLATFORM_DB + JWKS_CACHE +
+  // SUPABASE_URL are SHARED across every NIKATRU app (one entitlements table,
+  // one identity project). Matches tooling/bricks/app __brick__ services template.
+  //
+  // Migrations: APP_DB only (services/subscriptiontracker-api/migrations = subly_db). The
+  // shared platform_db (entitlements) is owned + migrated by services/platform.
+  // Cron: the nightly scheduler is CONSOLIDATED into services/platform (Supabase
+  // keep-alive + per-app renewals fan-out) — subscriptiontracker-api no longer carries a cron.
+  //
+  // Secrets are NOT set here (never committed): set with `wrangler secret put`.
+  //   wrangler secret put SUPABASE_JWT_SECRET       # optional HS256 legacy fallback
+  //   wrangler secret put REVENUECAT_WEBHOOK_SECRET  # RevenueCat webhook auth
+  // ───────────────────────────────────────────────────────────────────────────
+  "name": "subscriptiontracker-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ID": "subscriptiontracker",
+    // Shared Supabase identity project (Cross_Platform_Auth, ap-south-1).
+    "SUPABASE_URL": "https://lcrkiurkvzhkonjwhpiv.supabase.co",
+    "API_VERSION": "v1",
+    // This app's web origins only (comma-separated). Empty/absent ⇒ '*'.
+    // NARROWED 2026-09-09 -- the subdomain now 301s and serves no page, so nothing
+    // sends that Origin. See the longer note in services/platform/wrangler.jsonc.
+    // WIDENED BEFORE THE MOVE [ADR 075] -- see the longer note in
+    // services/platform/wrangler.jsonc. Apex first; the subdomain is held only
+    // until the 301 lands, then removed.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev",
+    // [5]M-12 — this deploy's money world. The RevenueCat webhook ignores
+    // events from the other world and /v1/entitlements grants nothing from it.
+    // Absent/unrecognised ⇒ 503 on both (fail closed, src/lib/money.ts).
+    // Mirrors services/platform/wrangler.jsonc.
+    "MONEY_ENVIRONMENT": "live"
+  },
+  "d1_databases": [
+    {
+      // Per-app SQLite database (this app's private data). One per app.
+      "binding": "APP_DB",
+      "database_name": "subly_db",
+      "database_id": "88da9026-f72a-4cda-823d-431148fa8112",
+      "migrations_dir": "migrations"
+    },
+    {
+      // SHARED platform database (entitlements across the whole portfolio).
+      // Same id in every app's config. Migrated by services/platform (sole
+      // applier) — NO migrations_dir here.
+      "binding": "PLATFORM_DB",
+      "database_name": "platform_db",
+      "database_id": "9d1c5c63-97fe-4f82-bc7d-f3fd22e9b351"
+    }
+  ],
+  "kv_namespaces": [
+    // Caches the Supabase JWKS document (cuts JWT-verify latency). Shared.
+    { "binding": "JWKS_CACHE", "id": "bcfcb1618d1a4bfd8d02f87d3d21010d" }
+  ],
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // [pipeline B-15] THE ROUTE THIS WORKER HAS ANSWERED ON SINCE LAUNCH, FINALLY
+  // WRITTEN DOWN.
+  //
+  // 🔴 `api.nikatru.com` WAS BOUND ONLY IN THE DASHBOARD. It served live traffic
+  // while this file said nothing about it, so the deployable config and the
+  // deployed reality disagreed and no guard could see the gap — the same shape
+  // as the `EXPORTS` bucket that was live for two weeks with every check green.
+  // A hostname that exists only in a dashboard cannot be reviewed in a diff, is
+  // not reproducible from the repo, and disappears silently if anyone clicks the
+  // wrong thing.
+  //
+  // ✅ DECLARING IT IS IDEMPOTENT, AND THAT WAS VERIFIED BEFORE WRITING IT rather
+  // than assumed. Read back from the live account 2026-08-03 via
+  // GET /accounts/:id/workers/domains: `api.nikatru.com` is already a CUSTOM
+  // DOMAIN attached to `subscriptiontracker-api`, and GET /zones/:id/workers/routes for
+  // nikatru.com returns an EMPTY list. So this declares exactly what is already
+  // there. Had it been a pattern-based Route instead, `custom_domain: true`
+  // would have fought the existing binding on the next deploy — which is why the
+  // check came first.
+  // ───────────────────────────────────────────────────────────────────────────
+  "routes": [
+    { "pattern": "api.nikatru.com", "custom_domain": true }
+  ]
+
+  // 🔴 NO "r2_buckets". The per-app `EXPORTS` → `subscriptiontracker-exports` binding was
+  // REMOVED on 2026-08-01 ([4]B-18, [4]B-1 limb 3). It had been bound since
+  // 2026-07-17 and its ONLY occurrence in the entire TypeScript tree was its own
+  // declaration in src/types.ts — no writer, no reader, on the live app. It is
+  // also the exact per-app bucket `39-CHASSIS` cut 20 removed from the brick on
+  // 2026-07-25: the template was fixed and the live app was not, and no guard
+  // could see it because assert-clone-contract.mjs only ever inspects the
+  // throwaway CI probe stamp. tooling/ci/assert-platform-register.mjs now
+  // enumerates every binding in every wrangler config in the repo — this one and
+  // the brick template included — and fails on any with no resolved reader.
+  //
+  // WHEN OBJECT STORAGE IS ACTUALLY NEEDED: ONE portfolio bucket, bound in
+  // `services/platform`, addressed with an `<app_id>/` key prefix. Per-app
+  // buckets multiply buckets, lifecycle rules and CORS policies by the number of
+  // apps to store the same kind of blob.
+  //
+  // ⚠️ THE BUCKET ITSELF IS STILL IN THE ACCOUNT. Removing the binding is the
+  // reversible half and is agent work; deleting `subscriptiontracker-exports` is destructive
+  // and is the owner's (it holds nothing — no writer has ever existed — but
+  // "nothing" is a claim about a live resource, not a fact this repo can check).
+}

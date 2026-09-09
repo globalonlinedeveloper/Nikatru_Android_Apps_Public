@@ -11,9 +11,9 @@
 // for the seam it owns: "is the analytics on-switch dead code". It is the wrong
 // question for withdrawal, and the difference is not academic —
 //
-//   · apps/subly/lib/app.dart's `_ConsentPrompt._answer` is a caller — the
+//   · apps/subscriptiontracker/lib/app.dart's `_ConsentPrompt._answer` is a caller — the
 //     FIRST-RUN prompt, shown once and never again.
-//   · apps/subly/lib/features/settings/settings_screen.dart is another.
+//   · apps/subscriptiontracker/lib/features/settings/settings_screen.dart is another.
 //     (Until 2026-08-10 the first example here was the dialog-shaped
 //     `ConsentGate` in features/consent/consent_prompt.dart. That widget had
 //     stopped being mounted months earlier and was deleted; the argument is
@@ -27,7 +27,7 @@
 // deletes the only place a user can turn analytics OFF — and no guard goes red.
 //
 // 🔴 NO TEST CATCHES IT EITHER, which is the part that decided this guard.
-// apps/subly/test/consent_withdrawal_test.dart looks like the protection and is
+// apps/subscriptiontracker/test/consent_withdrawal_test.dart looks like the protection and is
 // not: at :59 it pumps its own two-button harness widget, never the real
 // SettingsScreen. It would keep passing against an app with no settings row at
 // all. (Contrast delete-account, which IS protected —
@@ -880,7 +880,7 @@ if (promoRailBearing >= 2 && promoCallsFound === 0 && problems.length === 0) {
 try {
   const consentSrc = readFileSync(join(ROOT, 'packages/core/lib/src/analytics/consent.dart'), 'utf8');
   const liPurposes = [...consentSrc.matchAll(/ConsentPurpose\s*\(\s*'([a-z_]+)'[^)]*ConsentBasis\.legitimateInterest/g)].map((m) => m[1]);
-  const versionSrc = readFileSync(join(ROOT, 'apps/subly/lib/state/analytics_providers.dart'), 'utf8');
+  const versionSrc = readFileSync(join(ROOT, 'apps/subscriptiontracker/lib/state/analytics_providers.dart'), 'utf8');
   const version = versionSrc.match(/kPrivacyPolicyVersion\s*=\s*'([^']+)'/)?.[1];
   // The extractor losing its grip and the tree genuinely having no
   // legitimate-interest purpose print IDENTICALLY unless this is asked. The

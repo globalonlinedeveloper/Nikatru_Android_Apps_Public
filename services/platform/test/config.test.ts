@@ -13,9 +13,9 @@ import configData from '../src/app-config-data.json';
 
 describe('CFG-1 config resolution', () => {
   it('returns compiled defaults for a known app', () => {
-    const cfg = baseConfig('subly');
+    const cfg = baseConfig('subscriptiontracker');
     expect(cfg).not.toBeNull();
-    expect(cfg!.app_id).toBe('subly');
+    expect(cfg!.app_id).toBe('subscriptiontracker');
     expect(cfg!.api_base_url).toBe('https://api.nikatru.com/v1');
     expect(cfg!.features.renewals).toBe(true);
     expect(cfg!.paywall.enabled).toBe(false);
@@ -29,12 +29,12 @@ describe('CFG-1 config resolution', () => {
   });
 
   it('resolves to defaults when there is no KV override', () => {
-    expect(resolveConfig('subly', null)).toEqual(baseConfig('subly'));
+    expect(resolveConfig('subscriptiontracker', null)).toEqual(baseConfig('subscriptiontracker'));
   });
 
   it('deep-merges a KV override over defaults (override wins, siblings kept)', () => {
     const merged = resolveConfig(
-      'subly',
+      'subscriptiontracker',
       JSON.stringify({
         paywall: { enabled: true, plan: 'pro' },
         features: { exports: false },
@@ -53,18 +53,18 @@ describe('CFG-1 config resolution', () => {
   });
 
   it('ignores malformed KV JSON and falls back to defaults (never takes an app down)', () => {
-    expect(resolveConfig('subly', '{not valid json')).toEqual(baseConfig('subly'));
+    expect(resolveConfig('subscriptiontracker', '{not valid json')).toEqual(baseConfig('subscriptiontracker'));
   });
 
   it('does not mutate the shared defaults across calls', () => {
-    const a = resolveConfig('subly', JSON.stringify({ paywall: { enabled: true } }))!;
+    const a = resolveConfig('subscriptiontracker', JSON.stringify({ paywall: { enabled: true } }))!;
     expect(a.paywall.enabled).toBe(true);
     // a second, override-free resolve must still see the pristine default
-    expect(resolveConfig('subly', null)!.paywall.enabled).toBe(false);
+    expect(resolveConfig('subscriptiontracker', null)!.paywall.enabled).toBe(false);
   });
 
   it('mergeConfig with a nullish override returns the base unchanged', () => {
-    const base = baseConfig('subly')!;
+    const base = baseConfig('subscriptiontracker')!;
     expect(mergeConfig(base, null)).toEqual(base);
     expect(mergeConfig(base, undefined)).toEqual(base);
   });
@@ -114,7 +114,7 @@ describe('an inherited member of Object.prototype is not an app', () => {
   it('isKnownApp answers from the registry, not from a hardcoded list', () => {
     for (const id of Object.keys(DEFAULT_CONFIGS)) expect(isKnownApp(id), id).toBe(true);
     expect(isKnownApp('nope')).toBe(false);
-    for (const notAString of [null, undefined, 42, {}, ['subly']]) {
+    for (const notAString of [null, undefined, 42, {}, ['subscriptiontracker']]) {
       expect(isKnownApp(notAString), String(notAString)).toBe(false);
     }
   });
@@ -159,7 +159,7 @@ describe('the served app set comes from the catalogue, not from this Worker', ()
     for (const k of Object.keys(configData.defaults)) expect(Object.keys(cfg)).toContain(k);
     expect(cfg.min_supported_version).toBe('1.0.0');
     // And it inherits the portfolio default rather than another app's product
-    // data — subly's two SKUs must not follow it.
+    // data — subscriptiontracker's two SKUs must not follow it.
     expect(cfg.paywall.offerings).toEqual([]);
     expect(cfg.features).toEqual({});
   });
@@ -173,13 +173,13 @@ describe('the served app set comes from the catalogue, not from this Worker', ()
     expect(reg2.withapi.api_base_url).toBe('https://api-withapi.nikatru.com/v1');
   });
 
-  it('subly is served BYTE-IDENTICALLY to the literal this replaced', () => {
+  it('subscriptiontracker is served BYTE-IDENTICALLY to the literal this replaced', () => {
     // The refactor changed WHERE the set comes from, never what is served. The
     // whole document is pinned, key ORDER included: these are the exact bytes a
     // client caches for five minutes, and `toEqual` on a subset would not have
     // caught the key reordering a spread introduces.
-    expect(JSON.stringify(baseConfig('subly'))).toBe(
-      '{"app_id":"subly","api_base_url":"https://api.nikatru.com/v1",' +
+    expect(JSON.stringify(baseConfig('subscriptiontracker'))).toBe(
+      '{"app_id":"subscriptiontracker","api_base_url":"https://api.nikatru.com/v1",' +
         '"features":{"renewals":true,"budgets":true,"exports":true},"flags":{},' +
         '"paywall":{"enabled":false,"offerings":[' +
         '{"product_id":"pro_monthly","amount_minor":499,"currency_code":"USD","term":"month","trial_days":30},' +
@@ -230,11 +230,11 @@ describe('APP_ID_PATTERN is a FILTER on the catalogue, and it can fail', () => {
   });
 
   it('the grammar accepts what the brick stamps and rejects what it never would', () => {
-    for (const id of ['subly', 'a', 'my_app2', 'a'.repeat(32)]) {
+    for (const id of ['subscriptiontracker', 'a', 'my_app2', 'a'.repeat(32)]) {
       expect(isValidAppId(id), id).toBe(true);
     }
     for (const id of [
-      'config:subly', // would make the KV key ambiguous
+      'config:subscriptiontracker', // would make the KV key ambiguous
       'My App',
       '2fast', // leading digit
       '',
@@ -254,7 +254,7 @@ describe('a KV override document cannot reshape the object it overlays', () => {
   // of storing a key.
   it('ignores __proto__ / constructor / prototype keys in the override', () => {
     const merged = resolveConfig(
-      'subly',
+      'subscriptiontracker',
       '{"__proto__":{"polluted":true},"constructor":{"polluted":true},"prototype":{"polluted":true},"min_supported_version":"9.9.9"}',
     )!;
     // The legitimate sibling key still merged — this is not a blanket refusal.
@@ -267,7 +267,7 @@ describe('a KV override document cannot reshape the object it overlays', () => {
 
   it('nested overrides are filtered at every depth, not only the top', () => {
     const merged = resolveConfig(
-      'subly',
+      'subscriptiontracker',
       '{"paywall":{"__proto__":{"polluted":true},"plan":"pro"}}',
     )!;
     expect(merged.paywall.plan).toBe('pro');
@@ -343,10 +343,10 @@ describe('AppConfig contract (mirrors packages/core AppConfig)', () => {
   });
 
   it('flags is a typed percentage map that a KV override can set', () => {
-    expect(baseConfig('subly')!.flags).toEqual({});
-    const merged = resolveConfig('subly', JSON.stringify({ flags: { new_home: 25 } }))!;
+    expect(baseConfig('subscriptiontracker')!.flags).toEqual({});
+    const merged = resolveConfig('subscriptiontracker', JSON.stringify({ flags: { new_home: 25 } }))!;
     expect(merged.flags.new_home).toBe(25);
     // and the default stays pristine for the next resolve
-    expect(baseConfig('subly')!.flags).toEqual({});
+    expect(baseConfig('subscriptiontracker')!.flags).toEqual({});
   });
 });

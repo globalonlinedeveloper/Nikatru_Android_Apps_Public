@@ -48,9 +48,9 @@ Security reports go to the address in [`SECURITY.md`](SECURITY.md).
 
 | Path | What it holds |
 |---|---|
-| `apps/` | Flutter applications. Today: **`apps/subly`**, a subscription tracker. |
+| `apps/` | Flutter applications. Today: **`apps/subscriptiontracker`**, a subscription tracker. |
 | `packages/` | The shared Dart chassis every app is built from — `core`, `api_client`, `auth_supabase`, `design_system`, `notifications`, `platform_storage`, `purchases`, `telemetry`, `tokens`, `analysis`. |
-| `services/` | Cloudflare Workers — `platform` (shared) and `subly-api` (per-app), each with its own D1 migrations. |
+| `services/` | Cloudflare Workers — `platform` (shared) and `subscriptiontracker-api` (per-app), each with its own D1 migrations. |
 | `sites/` | Static sites: `nikatru`, `rajasekarselvam`, and the `_shared` component set they both build from. |
 | `tooling/` | The factory itself: `bricks/` (Mason templates that stamp a new app), `ci/` (the guards), `ops/`, `release/`, `store/`, `content_pipeline/`, and the JSON registers that are the single declaration of platforms, channels, screens and versions. |
 | `.github/workflows/` | Thirteen workflows. `ci.yml` is the gate; `build-platforms.yml` builds all six targets; the four `submit-*.yml` are the store lanes. `.github/actions/` holds the two composite setup actions. How they are shaped, and the rules they obey, is `docs/ci/README.md`. |

@@ -9,7 +9,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'services/subly-api/**'
+      - 'services/subscriptiontracker-api/**'
       - 'services/platform/**'
       # why: services/_shared is a BUILD INPUT of both Workers and lives outside
       # both service directories — the incident-#155 shape if it went unnamed.
@@ -43,7 +43,7 @@ jobs:
     # 1200 s default; this job's longest recorded run is 20m06s. [pipeline F-5b]
     timeout-minutes: 25
     outputs:
-      subly_api: ${{ steps.decide.outputs.subly_api }}
+      subscriptiontracker_api: ${{ steps.decide.outputs.subscriptiontracker_api }}
       platform: ${{ steps.decide.outputs.platform }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -69,17 +69,17 @@ jobs:
         if: github.event_name == 'push'
         with:
           filters: |
-            subly_api:
-              - 'services/subly-api/**'
+            subscriptiontracker_api:
+              - 'services/subscriptiontracker-api/**'
               - 'services/_shared/**'
               - '.github/workflows/deploy-workers.yml'
             platform:
               - 'services/platform/**'
               - 'services/_shared/**'
-              # why: the inlined app catalogue — see the trigger list. subly-api
+              # why: the inlined app catalogue — see the trigger list. subscriptiontracker-api
               # does not read it.
               - 'catalog/apps.json'
-              # why: subly-api deliberately does NOT claim contracts/entitlement
+              # why: subscriptiontracker-api deliberately does NOT claim contracts/entitlement
               # — it imports nothing from contracts/ and restates its own money
               # environment in src/lib/money.ts.
               - 'contracts/entitlement/*.js'
@@ -89,17 +89,17 @@ jobs:
         # why: manual dispatch has no diff to filter on → deploy both.
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "subly_api=true"  >> "$GITHUB_OUTPUT"
+            echo "subscriptiontracker_api=true"  >> "$GITHUB_OUTPUT"
             echo "platform=true"   >> "$GITHUB_OUTPUT"
           else
-            echo "subly_api=${{ steps.filter.outputs.subly_api }}" >> "$GITHUB_OUTPUT"
+            echo "subscriptiontracker_api=${{ steps.filter.outputs.subscriptiontracker_api }}" >> "$GITHUB_OUTPUT"
             echo "platform=${{ steps.filter.outputs.platform }}"   >> "$GITHUB_OUTPUT"
           fi
 
-  subly-api:
-    name: Deploy subly-api
+  subscriptiontracker-api:
+    name: Deploy subscriptiontracker-api
     needs: detect
-    if: needs.detect.outputs.subly_api == 'true'
+    if: needs.detect.outputs.subscriptiontracker_api == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # why: job-level, so `detect` does not inherit write access it never uses.
@@ -113,7 +113,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
       - run: npm ci
-        working-directory: services/subly-api
+        working-directory: services/subscriptiontracker-api
       # why: MIGRATIONS BEFORE DEPLOY. The schema standard is additive-only, so
       # new columns are harmless to code that predates them; deploying code that
       # reads a column the database lacks is an outage. Expand, then deploy.
@@ -123,7 +123,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: '4.129.0'   # why: package.json says ^4.0.0, which floats. [F-2]
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: services/subly-api
+          workingDirectory: services/subscriptiontracker-api
           command: d1 migrations apply APP_DB --remote
       # why: [pipeline K-7] a statement's legality is a property of the ENGINE.
       # D1's authorizer refused the erasure routes' `pragma_table_info` join at
@@ -144,7 +144,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: '4.129.0'   # why: package.json says ^4.0.0, which floats. [F-2]
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: services/subly-api
+          workingDirectory: services/subscriptiontracker-api
           command: deploy --var GLITCHTIP_DSN:${{ secrets.GLITCHTIP_DSN }} --var RELEASE:${{ github.sha }}
       # why: `build` is a separate field from `version` on /v1/health — `version`
       # is the literal "v1" and a smoke joined to it would pass forever.
@@ -162,7 +162,7 @@ jobs:
         if: always() && steps.deploy.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node tooling/ci/record-deployment.mjs subly-api https://api.nikatru.com
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-api https://api.nikatru.com
 
   platform:
     name: Deploy platform
@@ -182,7 +182,7 @@ jobs:
       - uses: ./.github/actions/setup-node
       - run: npm ci
         working-directory: services/platform
-      # why: MIGRATIONS BEFORE DEPLOY — see the subly-api job. platform is the
+      # why: MIGRATIONS BEFORE DEPLOY — see the subscriptiontracker-api job. platform is the
       # SOLE applier of platform_db migrations.
       - name: Apply PLATFORM_DB migrations (before deploy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
@@ -192,7 +192,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: services/platform
           command: d1 migrations apply PLATFORM_DB --remote
-      # why: [pipeline K-7] see the subly-api job. This Worker binds subly_db as
+      # why: [pipeline K-7] see the subscriptiontracker-api job. This Worker binds subly_db as
       # well as platform_db, so the check executes against both — a route reads
       # the databases it reads, not the ones its Worker binds.
       - name: The deployed SQL is SQL live D1 will run
@@ -218,7 +218,7 @@ jobs:
         env:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-      # why: see the identical step in the subly-api job. Until this line
+      # why: see the identical step in the subscriptiontracker-api job. Until this line
       # nothing ever asked this Worker whether it had actually come up.
       - name: Smoke — the live Worker answers at THIS commit
         run: >
@@ -226,7 +226,7 @@ jobs:
           --url https://platform.nikatru.com/v1/health
           --field build --expect ${{ github.sha }} --require-ok
 
-      # why: conditioned on the DEPLOY, not on the smoke — see the subly-api
+      # why: conditioned on the DEPLOY, not on the smoke — see the subscriptiontracker-api
       # job. "Which sha is live on platform" is the first question of every
       # incident, and it must not be lost because a health probe was red.
       - name: Record the deployed SHA

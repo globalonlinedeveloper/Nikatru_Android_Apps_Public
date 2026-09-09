@@ -24,7 +24,7 @@
 // ── THE HOLE THIS EXISTS FOR, AND WHY NOTHING ELSE COVERED IT ────────────────
 // `assert-stamp-properties.mjs` already enforces `account-deletion-works` — for
 // THE BRICK AND EVERY STAMPED APP. Its domain carries `EXEMPT_APPS =
-// {'apps/subly'}`, correctly: Subly predates the brick, was never stamped, and
+// {'apps/subscriptiontracker'}`, correctly: Subly predates the brick, was never stamped, and
 // has no inherited property test to keep. The consequence went unnoticed for
 // months — THE ONLY APP IN THE FIELD was the one app no deletion guard reached.
 // It shipped with `deleteAccount()` an unconditional throw and no control at
@@ -60,7 +60,7 @@
 // green over a confirmation that no longer had any of the properties limb 3
 // stands for. Coverage of a screen is not coverage of its rules.
 //
-// It is about to widen, not narrow: chassis step 4 deletes `apps/subly`'s own
+// It is about to widen, not narrow: chassis step 4 deletes `apps/subscriptiontracker`'s own
 // hand-rolled copy (`settings_screen.dart:1591+` today) and points it at the
 // same shared widget. An app that keeps a `showDialog` and delegates every
 // property to a tree nobody guards is the dead-seam shape this file's own
@@ -88,7 +88,7 @@
 //      argument list and requires ONE of them to both set
 //      `barrierDismissible: false` and name the deletion. MEASURED 2026-09-05:
 //      `barrierDismissible` occurs EXACTLY ONCE in each settings tree — brick
-//      `:595`, `apps/subly` `:1186` — and both times inside the delete flow's
+//      `:595`, `apps/subscriptiontracker` `:1186` — and both times inside the delete flow's
 //      own `showDialog`. Neither of the other two dialogs sets it.
 //   4. AND IT MUST RE-AUTHENTICATE. Deletion is irreversible, so a borrowed or
 //      unattended device must not be enough to destroy an account.
@@ -115,13 +115,13 @@
 //        property in its own settings tree.
 //
 //    WHICH BRANCH EACH ROOT TOOK IS PRINTED on every run, pass or fail, so
-//    chassis step 4 flipping `apps/subly` from one to the other is visible in
-//    the log rather than inferred. Today: the brick delegates, `apps/subly`
+//    chassis step 4 flipping `apps/subscriptiontracker` from one to the other is visible in
+//    the log rather than inferred. Today: the brick delegates, `apps/subscriptiontracker`
 //    does not.
 //
 //    🔴 AND THE CHASSIS SUBJECT IS CHECKED UNCONDITIONALLY, not only when some
 //    root delegates to it. If it were gated on usage, the one state that
-//    matters most — the widget rotting while `apps/subly` still has its own
+//    matters most — the widget rotting while `apps/subscriptiontracker` still has its own
 //    copy, so step 4 migrates onto rotten foundations — would be the state
 //    nothing checked. Its absence, its emptiness and its falling below its own
 //    line floor are all COVERAGE LOST, never a quiet pass.
@@ -148,13 +148,13 @@
 //   stub the shared widget below its line floor                       0 → 1  COVERAGE LOST
 //   remove the brick's delete `showDialog`, leave the other two       0 → 1
 //   drop `barrierDismissible: false` from the delete `showDialog`     0 → 1
-//   flip apps/subly's own `PopScope(canPop: !_busy)` to `true`        0 → 1
-//   ungate apps/subly's own confirm button                            0 → 1
-//   step 4 WRONG — empty subly's copy, delegate to nothing            0 → 1
-//   step 4 RIGHT — empty subly's copy AND delegate to the chassis     0 → 0
+//   flip apps/subscriptiontracker's own `PopScope(canPop: !_busy)` to `true`        0 → 1
+//   ungate apps/subscriptiontracker's own confirm button                            0 → 1
+//   step 4 WRONG — empty subscriptiontracker's copy, delegate to nothing            0 → 1
+//   step 4 RIGHT — empty subscriptiontracker's copy AND delegate to the chassis     0 → 0
 //
 // The last two rows are the point of the whole design: when chassis step 4
-// takes `apps/subly`'s own dialog away, enforcement MOVES WITH THE BEHAVIOUR
+// takes `apps/subscriptiontracker`'s own dialog away, enforcement MOVES WITH THE BEHAVIOUR
 // instead of going quiet, and taking it away without delegating is red.
 //
 // 🔴 TWO OF THOSE ROWS WERE GREEN ON THE FIRST DRAFT OF THIS FILE, AND ONLY
@@ -242,7 +242,7 @@ const IS_FULL_CHECKOUT = existsSync(join(ROOT, 'tooling', 'ci', 'assert-deletion
  *
  *   the shared widget declares the gate first  `final bool ready = !_busy && value.text.isNotEmpty;`
  *                          and uses it after   `onPressed: ready ? _run : null,`
- *   apps/subly writes it inline                `onPressed: (_busy || widget.password.text.isEmpty) ? null : _run,`
+ *   apps/subscriptiontracker writes it inline                `onPressed: (_busy || widget.password.text.isEmpty) ? null : _run,`
  *
  * 🔴 IT IS ONE REGEX AND NOT TWO INDEPENDENT ONES, AND THAT WAS MEASURED. The
  * first draft asked separately for `.text.isEmpty` anywhere and for an

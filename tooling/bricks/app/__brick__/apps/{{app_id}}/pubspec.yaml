@@ -52,7 +52,7 @@ dependencies:
   # [pipeline C-2] Had ZERO consumers despite 21 passing tests. Wired into the
   # template so every stamped app inherits the seam rather than growing a fork —
   # which is exactly how three NotificationService implementations came to exist.
-  # NOTE apps/subly deliberately does NOT get this: it is a frozen legacy
+  # NOTE apps/subscriptiontracker deliberately does NOT get this: it is a frozen legacy
   # rail-prover (cut list item 1) and keeps its own fork, which is also why
   # flutter_local_notifications stays pinned at 17.x for now.
   nikatru_auth_supabase:
@@ -113,7 +113,7 @@ flutter:
 # windows,linux` AFTER the stamp — and that command writes FLUTTER'S DEFAULT
 # LOGO into every one of them.
 #
-# That is not hypothetical. Measured on apps/subly 2026-08-04: 29 native icon
+# That is not hypothetical. Measured on apps/subscriptiontracker 2026-08-04: 29 native icon
 # files, on four platforms, ALL byte-identical to `flutter create` output, while
 # its web icons carried the real brand mark. Nobody chose it; it arrived by
 # doing nothing, and it sat there for months because nothing looked.

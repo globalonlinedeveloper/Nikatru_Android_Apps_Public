@@ -217,17 +217,17 @@ const REPO = resolve(CI_DIR, '..', '..');
 const LIMB5_FILES = [
   'tooling/platform-register.json',
   'services/platform/src/index.ts',
-  'services/subly-api/src/index.ts',
+  'services/subscriptiontracker-api/src/index.ts',
   '.github/workflows/deploy-workers.yml',
   'services/platform/test/config.test.ts',
-  'apps/subly/test/config_default_test.dart',
+  'apps/subscriptiontracker/test/config_default_test.dart',
   // The config route's client half, in the BRICK's test tree — [4]B-14's last
   // open clause. Copied, not written: the whole point of the clause is that the
   // pin a STAMPED app inherits is the real one.
   'tooling/bricks/app/__brick__/apps/{{app_id}}/test/config_contract_test.dart',
   'packages/core/lib/src/config/app_config.dart',
   'services/platform/src/routes/account.ts',
-  'services/subly-api/src/routes/account.ts',
+  'services/subscriptiontracker-api/src/routes/account.ts',
   'packages/core/lib/src/auth/account_deletion.dart',
   'services/platform/src/routes/entitlements.ts',
   'packages/core/lib/src/models/entitlement.dart',
@@ -258,7 +258,7 @@ function makeRepo(edit = (f) => f) {
     'services/platform/src/routes/events.ts': ROUTE,
     'packages/core/lib/src/analytics/analytics.dart': ANALYTICS_DART,
     'packages/api_client/lib/src/dio_event_transport.dart': TRANSPORT_DART,
-    'apps/subly/lib/state/analytics_providers.dart': APP_PROVIDERS,
+    'apps/subscriptiontracker/lib/state/analytics_providers.dart': APP_PROVIDERS,
     [BRICK_REL.replaceAll('\\', '/')]: BRICK_PROVIDERS,
     ...realFiles(),
   });
@@ -503,8 +503,8 @@ describe('assert-analytics-contract — coverage self-checks', () => {
   test('COVERAGE LOST when a client source loses the literal this guard reads', () => {
     const r = run(makeRepo((f) => ({
       ...f,
-      'apps/subly/lib/state/analytics_providers.dart':
-        f['apps/subly/lib/state/analytics_providers.dart']
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart':
+        f['apps/subscriptiontracker/lib/state/analytics_providers.dart']
           .replace('envelope: <String, Object?>', 'envelope: buildEnvelope'),
     })));
     assert.equal(r.code, 1, r.out);
@@ -656,10 +656,10 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
 
   test('and the OTHER health handler is pinned too — one Worker renaming it is enough', () => {
     const r = run(makeRepo((f) =>
-      mutate(f, 'services/subly-api/src/index.ts',
+      mutate(f, 'services/subscriptiontracker-api/src/index.ts',
         'build: c.env.RELEASE ?? null,', 'release: c.env.RELEASE ?? null,')));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /services\/subly-api\/src\/index\.ts does not answer field\(s\)/);
+    assert.match(r.out, /services\/subscriptiontracker-api\/src\/index\.ts does not answer field\(s\)/);
   });
 
   test('COVERAGE LOST when the workflow stops smoking /v1/health at all', () => {
@@ -746,8 +746,8 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
   //
   //   MB1  the brick test file moved out of the brick     -> COVERAGE LOST: "the inherited
   //        test tree entirely                                 client half … does not exist"
-  //   MB2  the SAME pin, rendered for subly, placed in    -> COVERAGE LOST: "is declared at
-  //        apps/subly/test/ and the pointer moved to it       apps/subly/test/… which is not
+  //   MB2  the SAME pin, rendered for subscriptiontracker, placed in    -> COVERAGE LOST: "is declared at
+  //        apps/subscriptiontracker/test/ and the pointer moved to it       apps/subscriptiontracker/test/… which is not
   //        — i.e. exactly the state B-14 was held at         under tooling/bricks/…/test/"
   //        🔴 THE POINTER RESOLVED AND THE MARKER WAS FOUND. That is the state this
   //           clause exists to reject: `pinned` printed for eight routes while a

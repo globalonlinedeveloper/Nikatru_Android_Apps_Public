@@ -54,7 +54,7 @@ function tree({ mutate = (r) => r, dropBuildFile = false, extraPkgs = [], dropPk
   const G = (detail) => ({ reason: 'GRANDFATHERED', declaredOn: '2026-07-28', detail });
 
   let register = {
-    consumerRoots: ['apps/subly'],
+    consumerRoots: ['apps/subscriptiontracker'],
     packageEarnReasons: {
       _why: ['fixture'],
       'packages/platform_storage': { reason: 'native-binary', evidence: { dependency: 'flutter_secure_storage' }, detail: 'five native keystores behind one Dart call' },

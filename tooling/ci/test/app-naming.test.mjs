@@ -5,7 +5,7 @@
 // that its own scan still reaches everything it claims to cover."
 //
 // ── THE FOUR REDS WERE PROVED ON THE REAL TREE FIRST ─────────────────────────
-// Before any of this existed, each rule was mutated into `apps/subly/app.yaml`
+// Before any of this existed, each rule was mutated into `apps/subscriptiontracker/app.yaml`
 // itself and the guard was run — green control, then four reds, then the file
 // restored and re-hashed with sha256 to prove the restore was byte-exact. That
 // is the evidence; these cases are what keeps it true, and they are written so

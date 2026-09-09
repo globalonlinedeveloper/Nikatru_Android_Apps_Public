@@ -8,7 +8,7 @@
 // 🔴 THE REAL-TREE RUN CAME FIRST. Four mutations against a full COPY of this
 // repository, 2026-08-03, all four caught and restored byte-identically:
 //
-//   1. subly's `tagline` emptied ⇒ exit 1. Writable TODAY, because
+//   1. subscriptiontracker's `tagline` emptied ⇒ exit 1. Writable TODAY, because
 //      `brick.yaml`'s `description` still defaults to "".
 //   2. THE VACUOUS-AT-n=1 CASE: a SECOND catalogue entry whose tagline differs
 //      only in case and punctuation ⇒ exit 1. `apps.json` has exactly one entry
@@ -54,7 +54,7 @@ const REGISTER = {
   ],
 };
 
-const SUBLY = { slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' };
+const SUBLY = { slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' };
 
 function fixture({ apps = [SUBLY], ledger = null } = {}) {
   const root = join(TMP, `f${seq++}`);
@@ -106,7 +106,7 @@ describe('assert-submission-safety — the tagline limb', () => {
   // The case that stops being vacuous the day app #2 exists.
   test('FAILS on two apps whose taglines differ only in case and punctuation', () => {
     const { code, out } = run(
-      fixture({ apps: [SUBLY, { ...SUBLY, slug: 'subly2', tagline: 'TRACK  EVERY  SUBSCRIPTION,  IN ONE PLACE!' }] }),
+      fixture({ apps: [SUBLY, { ...SUBLY, slug: 'subscriptiontracker2', tagline: 'TRACK  EVERY  SUBSCRIPTION,  IN ONE PLACE!' }] }),
     );
     assert.equal(code, 1);
     assert.match(out, /share a tagline \(normalised: "track every subscription in one place"\)/);
@@ -129,14 +129,14 @@ describe('assert-submission-safety — the web-prove-first rule', () => {
   });
 
   test('FAILS in --submitting mode when the app is not live', () => {
-    const { code, out } = run(fixture({ apps: [{ ...SUBLY, status: 'planned' }] }), ['--submitting', '--app', 'subly']);
+    const { code, out } = run(fixture({ apps: [{ ...SUBLY, status: 'planned' }] }), ['--submitting', '--app', 'subscriptiontracker']);
     assert.equal(code, 1);
     assert.match(out, /only "live" may be submitted to a store/);
     assert.match(out, /charged to all of them/);
   });
 
   test('PASSES in --submitting mode when the app IS live', () => {
-    const { code, out } = run(fixture(), ['--submitting', '--app', 'subly']);
+    const { code, out } = run(fixture(), ['--submitting', '--app', 'subscriptiontracker']);
     assert.equal(code, 0, out);
     assert.match(out, /passed the web-prove-first rule/);
   });
@@ -176,7 +176,7 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
 
   test('a ledger inside the cap PRINTS the count', () => {
     const ledger = [
-      { environment: 'subly-windows-store', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12345 listing=https://a/x' },
+      { environment: 'subscriptiontracker-windows-store', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12345 listing=https://a/x' },
     ];
     const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
     assert.equal(code, 0, out);
@@ -185,7 +185,7 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
 
   // The limb becoming build-failing the moment a real ledger exists.
   test('FAILS over the cap, and names the rule as OURS rather than a store policy', () => {
-    const at = (d) => ({ environment: 'subly-windows-store', createdAt: `2026-08-0${d}T00:00:00Z`, description: `nk1 state=live sha=abc1234${d} listing=https://a/x` });
+    const at = (d) => ({ environment: 'subscriptiontracker-windows-store', createdAt: `2026-08-0${d}T00:00:00Z`, description: `nk1 state=live sha=abc1234${d} listing=https://a/x` });
     const { code, out } = run(fixture({ ledger: [at(1), at(2), at(3)] }), ['--ledger', 'ledger.json']);
     assert.equal(code, 1);
     assert.match(out, /3 store submission\(s\) recorded in 2026-08/);
@@ -194,9 +194,9 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
 
   test('a web deploy in the ledger is not a submission and does not count', () => {
     const ledger = [
-      { environment: 'subly-web', createdAt: '2026-08-01T00:00:00Z', description: 'nk1 state=live sha=abc12345' },
-      { environment: 'subly-web', createdAt: '2026-08-02T00:00:00Z', description: 'nk1 state=live sha=abc12346' },
-      { environment: 'subly-web', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12347' },
+      { environment: 'subscriptiontracker-web', createdAt: '2026-08-01T00:00:00Z', description: 'nk1 state=live sha=abc12345' },
+      { environment: 'subscriptiontracker-web', createdAt: '2026-08-02T00:00:00Z', description: 'nk1 state=live sha=abc12346' },
+      { environment: 'subscriptiontracker-web', createdAt: '2026-08-03T00:00:00Z', description: 'nk1 state=live sha=abc12347' },
     ];
     const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
     assert.equal(code, 0, out);
@@ -211,21 +211,21 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
   // records nobody submitted.
   test('a `pending_manual_publish` row is PRINTED and does not count towards the cadence', () => {
     const at = (d) => ({
-      environment: `subly-windows-store`,
+      environment: `subscriptiontracker-windows-store`,
       createdAt: `2026-08-0${d}T00:00:00Z`,
       description: `nk1 state=pending_manual_publish sha=abc1234${d}`,
     });
     const { code, out } = run(fixture({ ledger: [at(1), at(2), at(3)] }), ['--ledger', 'ledger.json']);
     assert.equal(code, 0, out);
-    assert.match(out, /LEDGER ROW NOT A SUBMISSION: subly-windows-store — state=pending_manual_publish/);
+    assert.match(out, /LEDGER ROW NOT A SUBMISSION: subscriptiontracker-windows-store — state=pending_manual_publish/);
     assert.match(out, /CADENCE: 0 store submission\(s\) on record/);
     assert.doesNotMatch(out, /3 store submission\(s\) recorded/);
   });
 
   test('and a real submission beside them is still counted — the exclusion is one state, not a mood', () => {
     const ledger = [
-      { environment: 'subly-windows-store', createdAt: '2026-08-01T00:00:00Z', description: 'nk1 state=pending_manual_publish sha=abc12341' },
-      { environment: 'subly-windows-store', createdAt: '2026-08-02T00:00:00Z', description: 'nk1 state=in_review sha=abc12342 listing=https://a/x' },
+      { environment: 'subscriptiontracker-windows-store', createdAt: '2026-08-01T00:00:00Z', description: 'nk1 state=pending_manual_publish sha=abc12341' },
+      { environment: 'subscriptiontracker-windows-store', createdAt: '2026-08-02T00:00:00Z', description: 'nk1 state=in_review sha=abc12342 listing=https://a/x' },
     ];
     const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
     assert.equal(code, 0, out);
@@ -233,7 +233,7 @@ describe('assert-submission-safety — the cadence limb is OURS and says so', ()
   });
 
   test('an UNREADABLE ledger row is printed, never silently dropped', () => {
-    const ledger = [{ environment: 'subly-windows-store', createdAt: '2026-08-03T00:00:00Z', description: 'live at abc12345' }];
+    const ledger = [{ environment: 'subscriptiontracker-windows-store', createdAt: '2026-08-03T00:00:00Z', description: 'live at abc12345' }];
     const { code, out } = run(fixture({ ledger }), ['--ledger', 'ledger.json']);
     assert.equal(code, 0, out);
     assert.match(out, /LEDGER ROW UNREADABLE/);

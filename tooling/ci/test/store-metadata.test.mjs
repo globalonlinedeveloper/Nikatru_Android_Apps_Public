@@ -11,7 +11,7 @@
 // (2026-08-01, 19 mutations): 18 caught, 1 PRINTED by design, restore verified
 // green before and after every case, and no case "caught" by a crash. That run
 // found a real hole these fixtures would not have: deleting the whole
-// `msix_config:` block from apps/subly/pubspec.yaml exited 0, because the guard
+// `msix_config:` block from apps/subscriptiontracker/pubspec.yaml exited 0, because the guard
 // treated "no packaging block" as the stamped-app case rather than as a
 // regression on an app that already carries the channel's metadata tree. The
 // asymmetry that fixed it is the same one the trees use — creating is
@@ -123,7 +123,7 @@ const contract = () => ({
     supportUrl: 'https://nikatru.com/contact.html',
     agreesWithAppConfigConst: { privacyUrl: 'privacyUrl' },
   },
-  // BOTH layouts, ordered. apps/subly keeps its config under lib/core/config/
+  // BOTH layouts, ordered. apps/subscriptiontracker keeps its config under lib/core/config/
   // and the brick stamps lib/core/ — a single template reached only the first,
   // which is how every app the factory produces fell through to a print.
   appConfigPaths: ['apps/{app}/lib/core/config/app_config.dart', 'apps/{app}/lib/core/app_config.dart'],
@@ -153,7 +153,7 @@ const pubspec = (over = {}) => {
     store: 'true',
     ...over,
   };
-  return ['name: subly', 'version: 1.0.0+1', '', 'msix_config:', ...Object.entries(cfg).map(([k, v]) => `  ${k}: ${v}`), ''].join('\n');
+  return ['name: subscriptiontracker', 'version: 1.0.0+1', '', 'msix_config:', ...Object.entries(cfg).map(([k, v]) => `  ${k}: ${v}`), ''].join('\n');
 };
 
 const appConfig = () =>
@@ -220,7 +220,7 @@ function tree({
   omitBrickTree = false,
   brandAssetsDart = BRAND_ASSETS_DART,
   postGenDart = POST_GEN_DART,
-  apps = [{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] }],
+  apps = [{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] }],
 } = {}) {
   const root = join(TMP, `r${seq++}`);
   const write = (rel, body) => {
@@ -264,7 +264,7 @@ function tree({
   for (const app of apps) {
     write(`apps/${app.slug}/lib/core/config/app_config.dart`, appConfig());
     if (!omitPubspec) {
-      write(`apps/${app.slug}/pubspec.yaml`, noMsixConfig ? 'name: subly\nversion: 1.0.0+1\n' : pubspec(pubspecOver));
+      write(`apps/${app.slug}/pubspec.yaml`, noMsixConfig ? 'name: subscriptiontracker\nversion: 1.0.0+1\n' : pubspec(pubspecOver));
     }
     if (omitTree) continue;
     for (const rel of [...REQUIRED, 'search-terms.txt']) {
@@ -385,7 +385,7 @@ describe('assert-store-metadata — the listing exists, is complete, and is deri
       }),
     );
     assert.equal(code, 0, out);
-    assert.match(out, /NO TREE \(deferred\): apps\/subly\/store\/linux-snap/);
+    assert.match(out, /NO TREE \(deferred\): apps\/subscriptiontracker\/store\/linux-snap/);
     assert.match(out, /= 2 expected tree\(s\)/);
   });
 
@@ -397,7 +397,7 @@ describe('assert-store-metadata — the listing exists, is complete, and is deri
     );
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /is SERVED and app "subly" carries no metadata tree/);
+    assert.match(out, /is SERVED and app "subscriptiontracker" carries no metadata tree/);
   });
 
   test('FAILS when a store row contributes NO expected tree (no storeMetadataDir)', () => {
@@ -576,7 +576,7 @@ describe('assert-store-metadata — the listing exists, is complete, and is deri
     const { code, out } = run(tree({ noMsixConfig: true }));
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /declares no `msix_config:` block while app "subly" carries channel/);
+    assert.match(out, /declares no `msix_config:` block while app "subscriptiontracker" carries channel/);
   });
 
   // The other side of that asymmetry: an app that never had either is the
@@ -584,7 +584,7 @@ describe('assert-store-metadata — the listing exists, is complete, and is deri
   test('PRINTS for a stamped app with no tree and no msix_config, while the real app stays checked', () => {
     const root = tree({
       apps: [
-        { slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] },
+        { slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] },
       ],
     });
     // Add a second app with a pubspec but no msix_config and no store tree.
@@ -593,7 +593,7 @@ describe('assert-store-metadata — the listing exists, is complete, and is deri
     writeFileSync(
       join(root, 'catalog', 'apps.json'),
       JSON.stringify([
-        { slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] },
+        { slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] },
         { slug: 'probe', name: 'Probe', tagline: 'A probe', platforms: ['web'] },
       ]),
     );
@@ -695,15 +695,15 @@ function appleTree({ mutateRegister = null, fields = {} } = {}) {
   };
   if (mutateRegister) mutateRegister(register);
 
-  const apps = [{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] }];
+  const apps = [{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'] }];
   write('catalog/apps.json', JSON.stringify(apps, null, 2));
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
-  write('apps/subly/lib/core/config/app_config.dart', appConfig());
-  write('apps/subly/pubspec.yaml', 'name: subly\nversion: 1.0.0+1\n');
+  write('apps/subscriptiontracker/lib/core/config/app_config.dart', appConfig());
+  write('apps/subscriptiontracker/pubspec.yaml', 'name: subscriptiontracker\nversion: 1.0.0+1\n');
 
   const body = { ...FIELD, 'subtitle.txt': 'Every subscription, one list\n', 'keywords.txt': 'subscription,tracker\n' };
   for (const rel of [...REQUIRED, 'subtitle.txt', 'keywords.txt']) {
-    write(`apps/subly/store/ios-appstore/${rel}`, fields[rel] ?? body[rel]);
+    write(`apps/subscriptiontracker/store/ios-appstore/${rel}`, fields[rel] ?? body[rel]);
   }
   // The FACTORY half, so these limit cases exercise the limits rather than
   // tripping over an absent brick. `fields` deliberately does NOT reach here:
@@ -784,7 +784,7 @@ describe('assert-store-metadata — maxChars, the Apple limit kind', () => {
 
   test('FAILS when an Apple-only additionalFile is deleted', () => {
     const root = appleTree();
-    rmSync(join(root, 'apps/subly/store/ios-appstore/subtitle.txt'), { force: true });
+    rmSync(join(root, 'apps/subscriptiontracker/store/ios-appstore/subtitle.txt'), { force: true });
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assertComplained(out);
@@ -815,7 +815,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
   test('PRINTS, and does not fail, when the deferred row has NO tree at all', () => {
     const { code, out } = run(tree({ withPlay: true, omitPlayTree: true }));
     assert.equal(code, 0, out);
-    assert.match(out, /NO TREE \(deferred\): apps\/subly\/store\/android-play/);
+    assert.match(out, /NO TREE \(deferred\): apps\/subscriptiontracker\/store\/android-play/);
     assert.match(out, /OWNER_QUEUE A-3/);
   });
 
@@ -823,7 +823,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
     const { code, out } = run(tree({ withPlay: true, omitPlayFiles: ['title.txt'] }));
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /apps\/subly\/store\/android-play\/title\.txt is missing/);
+    assert.match(out, /apps\/subscriptiontracker\/store\/android-play\/title\.txt is missing/);
   });
 
   test('FAILS when the android-play screenshot slot README is deleted', () => {
@@ -852,7 +852,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
         withPlay: true,
         playFields: { 'title.txt': `${name}\n` },
         fields: { 'title.txt': `${name}\n` },
-        apps: [{ slug: 'subly', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
+        apps: [{ slug: 'subscriptiontracker', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
       }),
     );
     assert.equal(code, 1, out);
@@ -866,7 +866,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
         withPlay: true,
         playFields: { 'short-description.txt': `${tagline}\n` },
         fields: { 'short-description.txt': `${tagline}\n` },
-        apps: [{ slug: 'subly', name: 'Subly', tagline, platforms: ['web'] }],
+        apps: [{ slug: 'subscriptiontracker', name: 'Subly', tagline, platforms: ['web'] }],
       }),
     );
     assert.equal(code, 1, out);
@@ -886,7 +886,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
         withPlay: true,
         playFields: { 'title.txt': `${name}\n` },
         fields: { 'title.txt': `${name}\n` },
-        apps: [{ slug: 'subly', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
+        apps: [{ slug: 'subscriptiontracker', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
       }),
     );
     assert.equal(code, 0, out);
@@ -900,7 +900,7 @@ describe('assert-store-metadata — android-play (Google Play)', () => {
         withPlay: true,
         playFields: { 'title.txt': `${name}\n` },
         fields: { 'title.txt': `${name}\n` },
-        apps: [{ slug: 'subly', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
+        apps: [{ slug: 'subscriptiontracker', name, tagline: 'Track every subscription in one place', platforms: ['web'] }],
       }),
     );
     assert.equal(code, 0, out);
@@ -1119,7 +1119,7 @@ describe('assert-store-metadata — THE FACTORY: a stamped app gets a listing no
   test('FAILS when an app_config disagrees with the register it publishes from', () => {
     const root = tree();
     writeFileSync(
-      join(root, 'apps/subly/lib/core/config/app_config.dart'),
+      join(root, 'apps/subscriptiontracker/lib/core/config/app_config.dart'),
       "class AppConfig {\n  static const String privacyUrl = 'https://nikatru.com/policy.html';\n}\n",
     );
     const { code, out } = run(root);

@@ -622,7 +622,7 @@ describe('coverage self-checks', () => {
 
     test("a bundle of ONE app does not report ANOTHER app's rows as orphaned", () => {
       // The recorded CI failure: the lane walks apps/probe (a throwaway stamp
-      // with no brand assets) and the guard reported all three of apps/subly's
+      // with no brand assets) and the guard reported all three of apps/subscriptiontracker's
       // brand rows as "no such asset is shipped". They ARE shipped — by a
       // different app. A single bundle has no standing to say a row is orphaned.
       const root = fixture();

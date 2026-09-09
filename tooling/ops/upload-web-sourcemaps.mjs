@@ -7,7 +7,7 @@
 //
 // ── THE DEFECT, MEASURED 2026-09-03 ──────────────────────────────────────────
 // `GET /api/0/organizations/nikatru/releases/{version}/files/` answered 200 with
-// a ZERO-LENGTH list for all TWELVE releases GlitchTip holds for `subly`, and
+// a ZERO-LENGTH list for all TWELVE releases GlitchTip holds for `subscriptiontracker`, and
 // `dsyms` was `[]`. Nothing had ever been uploaded, because nothing had ever
 // tried and because `flutter build web --release` emits no maps to upload. Two
 // OPEN, UNRESOLVED production issues are unreadable as a result:
@@ -72,8 +72,8 @@
 //
 // Usage:
 //   node tooling/ops/upload-web-sourcemaps.mjs \
-//     --dir apps/subly/build/web --release 'subly@1.0.75+e509a26' \
-//     --org nikatru --project subly [--dist web] [--url-prefix '~'] [--timeout 180]
+//     --dir apps/subscriptiontracker/build/web --release 'subly@1.0.75+e509a26' \
+//     --org nikatru --project subscriptiontracker [--dist web] [--url-prefix '~'] [--timeout 180]
 // Env: SENTRY_URL (server origin), SENTRY_AUTH_TOKEN.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, readdirSync } from 'node:fs';

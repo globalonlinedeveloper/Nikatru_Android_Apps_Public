@@ -67,11 +67,11 @@ export const RENEWALS_JOB = 'renewals';
 export const ANALYTICS_LIVENESS_WINDOW_HOURS = 24;
 
 /**
- * Apps the scheduler fans out to. Static today (subly only); as more apps ship,
+ * Apps the scheduler fans out to. Static today (subscriptiontracker only); as more apps ship,
  * add their APP_DB binding here (or drive it from a platform_db registry).
  */
 export function appTargets(env: Env): AppTarget[] {
-  return [{ appId: 'subly', db: env.SUBLY_DB }];
+  return [{ appId: 'subscriptiontracker', db: env.SUBLY_DB }];
 }
 
 /**

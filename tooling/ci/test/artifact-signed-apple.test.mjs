@@ -62,7 +62,7 @@ after(() => { if (TMP) rmSync(TMP, { recursive: true, force: true }); });
 
 /** A correctly signed Mac App Store / App Store build. */
 const DISTRIBUTION = `Executable=/Users/runner/work/app/build/macos/Build/Products/Release/Subly.app/Contents/MacOS/Subly
-Identifier=com.nikatru.subly
+Identifier=com.nikatru.subscriptiontracker
 Format=app bundle with Mach-O universal (x86_64 arm64)
 CodeDirectory v=20500 size=48213 flags=0x10000(runtime) hashes=1497+7 location=embedded
 Signature size=8967
@@ -88,7 +88,7 @@ const LEGACY_MAS = DISTRIBUTION.replace(
  *  locally valid, verifying happily, with NOBODY behind it. Xcode falls back to
  *  it, "is it signed?" answers yes, and App Store Connect refuses it. */
 const ADHOC = `Executable=/Users/runner/work/app/build/macos/Build/Products/Release/Subly.app/Contents/MacOS/Subly
-Identifier=com.nikatru.subly
+Identifier=com.nikatru.subscriptiontracker
 Format=app bundle with Mach-O thin (arm64)
 CodeDirectory v=20400 size=48120 flags=0x2(adhoc) hashes=1497+7 location=embedded
 Signature=adhoc
@@ -138,7 +138,7 @@ describe('assert-artifact-signed-apple — the parser', () => {
     assert.equal(p.signed, true);
     assert.equal(p.adhoc, false);
     assert.equal(p.teamId, TEAM);
-    assert.equal(p.identifier, 'com.nikatru.subly');
+    assert.equal(p.identifier, 'com.nikatru.subscriptiontracker');
     assert.equal(leafAuthority(p), `Apple Distribution: Rajasekar Selvam (${TEAM})`);
   });
 
@@ -171,7 +171,7 @@ describe('assert-artifact-signed-apple — the parser', () => {
   });
 
   test('a value containing "=" survives — only the FIRST separator splits', () => {
-    const p = parseCodesign('Identifier=com.nikatru.subly\nFormat=app bundle with Mach-O thin (arm64)\nTeamIdentifier=A1B2C3D4E5\n');
+    const p = parseCodesign('Identifier=com.nikatru.subscriptiontracker\nFormat=app bundle with Mach-O thin (arm64)\nTeamIdentifier=A1B2C3D4E5\n');
     assert.equal(p.format, 'app bundle with Mach-O thin (arm64)');
   });
 });

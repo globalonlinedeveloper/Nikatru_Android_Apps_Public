@@ -510,7 +510,7 @@ describe('[13]T-12 — the demand gate', () => {
 //   FORK_SCAN_ROOTS[0].floor 30 → 200                      → EXIT 1 "73 .dart file(s), below its floor of 200"
 //   FORK_SCAN_DELEGATED emptied                            → EXIT 1 unlisted brick root
 //   the delegate re-pointed at tooling/ci/assert-gone.mjs  → EXIT 1 "which does not exist"
-//   apps/subly/lib moved aside (TREE, not guard)           → EXIT 1 "holds 1 app dir(s) and not one .dart"
+//   apps/subscriptiontracker/lib moved aside (TREE, not guard)           → EXIT 1 "holds 1 app dir(s) and not one .dart"
 //
 // And the measurement that decided the DOMAIN rather than the floor: a
 // `class NotificationService` planted in the brick's per-app template left this

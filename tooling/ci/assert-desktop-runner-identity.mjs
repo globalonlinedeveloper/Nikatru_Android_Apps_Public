@@ -4,9 +4,9 @@
 // reverse-DNS application id where a human name belongs.
 //
 // 🔴 WHY THIS EXISTS — two shipped defects, found 2026-08-04.
-//   apps/subly/windows/runner/Runner.rc          CompanyName    = "com.nikatru"
-//   apps/subly/windows/runner/Runner.rc          LegalCopyright = "... com.nikatru ..."
-//   apps/subly/macos/Runner/Configs/AppInfo.xcconfig  PRODUCT_COPYRIGHT = "... com.nikatru ..."
+//   apps/subscriptiontracker/windows/runner/Runner.rc          CompanyName    = "com.nikatru"
+//   apps/subscriptiontracker/windows/runner/Runner.rc          LegalCopyright = "... com.nikatru ..."
+//   apps/subscriptiontracker/macos/Runner/Configs/AppInfo.xcconfig  PRODUCT_COPYRIGHT = "... com.nikatru ..."
 //
 // Those are not internal strings. Windows shows CompanyName and LegalCopyright in
 // the file's Properties → Details tab, and macOS shows NSHumanReadableCopyright
@@ -89,7 +89,7 @@ function copyrightHolder(line) {
 
 /**
  * Every reverse-DNS prefix of an id, longest first, that is specific enough to
- * be evidence. `com.nikatru.subly` → ["com.nikatru.subly", "com.nikatru"].
+ * be evidence. `com.nikatru.subscriptiontracker` → ["com.nikatru.subscriptiontracker", "com.nikatru"].
  *
  * The single leading segment is EXCLUDED on purpose: "com" on its own appears
  * inside ordinary English ("com" in a URL, "Telecom") and matching it would fire

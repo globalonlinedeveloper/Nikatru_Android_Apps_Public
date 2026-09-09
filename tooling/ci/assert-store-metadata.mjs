@@ -45,7 +45,7 @@
 //   EVERY expected tree gone      -> COVERAGE LOST
 //
 // 🔴 THE THIRD LINE IS THE POINT. A guard that only printed would let anyone
-// delete apps/subly/store/windows-store/title.txt and stay green — "PRINT
+// delete apps/subscriptiontracker/store/windows-store/title.txt and stay green — "PRINT
 // everything" is how an owner-gated exemption eats the check it was meant to
 // scope. What is owner-gated is CREATING a tree, not KEEPING one.
 //
@@ -58,7 +58,7 @@
 //
 // Measured on `main` @ 26c2303: `find tooling/bricks/app -ipath "*store*"`
 // returned ZERO FILES, and this guard exited 0 reporting "5 present and
-// complete" — because every subject it had was `apps/subly/store/`, which a
+// complete" — because every subject it had was `apps/subscriptiontracker/store/`, which a
 // human wrote by hand. Real guard, running, green, pointed one artifact away
 // from the behaviour the requirement names. The seventh recorded instance of
 // this corpus's signature defect.
@@ -67,7 +67,7 @@
 // removing a store template from `tooling/bricks/app` turns this guard RED. That
 // is the mutation the previous version slept through.
 //
-// ── WHAT HAPPENS TO apps/subly/store/, AND WHY ──────────────────────────────
+// ── WHAT HAPPENS TO apps/subscriptiontracker/store/, AND WHY ──────────────────────────────
 // It STAYS, byte for byte, and it is NOT regenerated from the new templates.
 // Three reasons, in order of weight:
 //
@@ -147,7 +147,7 @@ const channels = Array.isArray(register.channels) ? register.channels : [];
 // browser add-on stores whose listing trees live under
 // extensions/Extension/<tool>/store/<store> and whose products are not in
 // apps.json at all. Multiplying them by the app set would have demanded
-// `apps/subly/store/chrome-webstore/`, a directory that should never exist: it
+// `apps/subscriptiontracker/store/chrome-webstore/`, a directory that should never exist: it
 // would be a Chrome Web Store listing for a Flutter app that will never be
 // submitted to it.
 //
@@ -230,7 +230,7 @@ if (requiredFiles.length === 0) {
 }
 const urlFiles = new Set(Array.isArray(contract.urlFiles) ? contract.urlFiles : []);
 const derived = contract.derivedFields ?? {};
-/** ORDERED CANDIDATES, not one path. `apps/subly` keeps its config at
+/** ORDERED CANDIDATES, not one path. `apps/subscriptiontracker` keeps its config at
  *  `lib/core/config/app_config.dart` and the BRICK stamps `lib/core/
  *  app_config.dart`; the single template that used to live here matched only the
  *  first, so every app the factory produces fell through to a `CANNOT DERIVE`
@@ -540,7 +540,7 @@ if (treesChecked > 0 && Object.keys(derived).filter((k) => k !== '_why').length 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── THE FACTORY: does a NEW app get a listing without anybody typing one? ────
 // ─────────────────────────────────────────────────────────────────────────────
-// 🔴 EVERYTHING ABOVE THIS LINE READS `apps/subly/store/`, WHICH WAS HAND-MADE.
+// 🔴 EVERYTHING ABOVE THIS LINE READS `apps/subscriptiontracker/store/`, WHICH WAS HAND-MADE.
 // D-5's sentence is "store listing metadata is GENERATED from the app's spec
 // fields". The observation that makes it false is: STAMP A FRESH APP AND YOU GET
 // NO `store/` TREE. Measured on `main` @ 26c2303 — `find tooling/bricks/app
@@ -631,7 +631,7 @@ for (const row of storeRows) {
 
   if (!isDir(dir)) {
     problems.push(
-      `THE BRICK EMITS NO STORE LISTING for channel "${row.id}": ${dir} does not exist. [10]D-5 is that listing metadata is GENERATED from the app's spec — stamp app #2 today and its ${row.id} listing has to be hand-typed into a console, which is the one outcome D-5 names. This is the failure the previous version of this guard could not see, because its only subject was apps/subly/store, which a human wrote.`,
+      `THE BRICK EMITS NO STORE LISTING for channel "${row.id}": ${dir} does not exist. [10]D-5 is that listing metadata is GENERATED from the app's spec — stamp app #2 today and its ${row.id} listing has to be hand-typed into a console, which is the one outcome D-5 names. This is the failure the previous version of this guard could not see, because its only subject was apps/subscriptiontracker/store, which a human wrote.`,
     );
     continue;
   }
@@ -843,7 +843,7 @@ for (const row of storeRows) {
       // packaging keeps succeeding. An app with no tree never had one — that is
       // the brick work D-5 still owes — and prints.
       // Mutation-proven 2026-08-01: before this split, deleting the whole
-      // msix_config block from apps/subly/pubspec.yaml exited 0.
+      // msix_config block from apps/subscriptiontracker/pubspec.yaml exited 0.
       const committed = isDir(String(row.storeMetadataDir ?? '').replace('{app}', app.slug));
       const msg = `${pubspecRel} declares no \`msix_config:\` block while app "${app.slug}" carries channel "${row.id}"'s metadata tree. \`msix\` then packages under its fallback identity \`com.flutter.<name>\` — which belongs to nobody, cannot be submitted, and makes [13]T-5's Windows cancelAll a no-op — and the build still succeeds.`;
       if (committed) problems.push(msg);

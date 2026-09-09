@@ -127,8 +127,8 @@ class NikatruApp extends StatelessWidget {
       // `catalog/apps.json` (`assert-listing-assets.mjs:156`) and reads
       // `apps/<slug>/lib/app.dart` plus what THAT file delegates to; the brick
       // template, where the delegation lives, is not in its domain. The
-      // catalogue holds one app, `apps/subly`, and it does not delegate — it
-      // sets the flag inline at `apps/subly/lib/app.dart:44` ([ADR 065]: Subly
+      // catalogue holds one app, `apps/subscriptiontracker`, and it does not delegate — it
+      // sets the flag inline at `apps/subscriptiontracker/lib/app.dart:44` ([ADR 065]: Subly
       // does not adopt the packages this phase). Measured, not read: deleting
       // this line from THIS file (land-check `grep -c` 1 → 0) left
       // `assert-listing-assets` at EXIT 0. Registered as an `open.json` row

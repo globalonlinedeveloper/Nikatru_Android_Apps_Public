@@ -67,7 +67,7 @@ dependencies:
   # tooling/capability-register.json and names no evidence.dependency, so its
   # pubspec is never read by that guard.
   #
-  # Constraints are pinned to whatever apps/subly already resolves (its pubspec
+  # Constraints are pinned to whatever apps/subscriptiontracker already resolves (its pubspec
   # is the source, not a guess) so the workspace resolution is unchanged.
   #
   # THE STANDING RULE THIS CREATES: what may live here is domain-FREE state and
@@ -89,12 +89,12 @@ dependencies:
   # derives the adapter set from the tree at `:190` and `continue`s on exactly
   # two names, `core` and `design_system`; any OTHER package declaring `intl`
   # would record it as a WRAPPED vendor and `:288-298` would then fail the 16
-  # tracked `apps/subly` files that import `package:intl` directly. Limb B
+  # tracked `apps/subscriptiontracker` files that import `package:intl` directly. Limb B
   # (`:154-158`) forbids this package only `nikatru_*` dependencies, and neither
   # of these is one.
   #
-  # 🔴 THE CONSTRAINT IS WHAT apps/subly ALREADY RESOLVES, COPIED, NOT CHOSEN.
-  # `apps/subly/pubspec.yaml:106` carries `intl: ">=0.19.0 <0.21.0"` with its own
+  # 🔴 THE CONSTRAINT IS WHAT apps/subscriptiontracker ALREADY RESOLVES, COPIED, NOT CHOSEN.
+  # `apps/subscriptiontracker/pubspec.yaml:106` carries `intl: ">=0.19.0 <0.21.0"` with its own
   # note on why: every stamped app pulls `flutter_localizations`, and that SDK
   # package HARD-PINS `intl`. A tighter constraint here would fail the workspace
   # resolution against the SDK pin; a looser one would let the two drift. The

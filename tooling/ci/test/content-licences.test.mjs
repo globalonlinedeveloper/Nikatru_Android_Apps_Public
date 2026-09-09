@@ -174,7 +174,7 @@ describe('the brick template is IN the domain', () => {
   test('the same dependency in an APP pubspec fails too — the brick is not a special case', () => {
     // The control for the case above: if this one were green the redness there
     // would be evidence about the tripwire limb, not about the brick's reach.
-    withTree({}, (root) => append(root, 'apps/subly/pubspec.yaml', `\n  ${TRIPWIRE_TOKEN}: ^0.10.0\n`), (r) => {
+    withTree({}, (root) => append(root, 'apps/subscriptiontracker/pubspec.yaml', `\n  ${TRIPWIRE_TOKEN}: ^0.10.0\n`), (r) => {
       assert.equal(r.status, 1, r.out);
       assert.match(r.stderr, /is now IN A PUBSPEC and the row is not cleared/, r.out);
     });

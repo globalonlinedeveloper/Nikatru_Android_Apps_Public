@@ -241,7 +241,7 @@ describe('the proof COMMIT is graded, not only its age', () => {
       const hits = changedProofInputs([
         '.github/workflows/build-platforms.yml',
         'tooling/versions.json',
-        'apps/subly/pubspec.yaml',
+        'apps/subscriptiontracker/pubspec.yaml',
         'packages/core/pubspec.lock',
       ]);
       assert.equal(hits.length, 4);
@@ -250,7 +250,7 @@ describe('the proof COMMIT is graded, not only its age', () => {
 
     test('ordinary source drift is NOT an input change — a rule that fires on every commit gets switched off', () => {
       assert.deepEqual(
-        changedProofInputs(['apps/subly/lib/features/home/home_screen.dart', 'docs/architecture.md', 'sites/nikatru/index.html']),
+        changedProofInputs(['apps/subscriptiontracker/lib/features/home/home_screen.dart', 'docs/architecture.md', 'sites/nikatru/index.html']),
         [],
       );
     });
@@ -268,7 +268,7 @@ describe('the proof COMMIT is graded, not only its age', () => {
 
     test('every declared input pattern has an input that reaches it', () => {
       for (const { re } of PROOF_INPUT_PATHS) {
-        const sample = ['.github/workflows/build-platforms.yml', 'tooling/versions.json', 'apps/subly/pubspec.yaml'].find((p) => re.test(p));
+        const sample = ['.github/workflows/build-platforms.yml', 'tooling/versions.json', 'apps/subscriptiontracker/pubspec.yaml'].find((p) => re.test(p));
         assert.ok(sample, `no sample path reaches ${re} — an exemption or a matcher nobody can write the input for`);
       }
     });
@@ -385,7 +385,7 @@ describe('the proof COMMIT is graded, not only its age', () => {
         'b'.repeat(40),
         decidable({
           [stale]: { drift: 17, inputs: [{ file: 'tooling/versions.json', why: 'x' }] },
-          [older]: { drift: 40, inputs: [{ file: 'apps/subly/pubspec.yaml', why: 'y' }, { file: 'tooling/versions.json', why: 'x' }] },
+          [older]: { drift: 40, inputs: [{ file: 'apps/subscriptiontracker/pubspec.yaml', why: 'y' }, { file: 'tooling/versions.json', why: 'x' }] },
         }),
       );
       assert.equal(v.kind, 'inputsChanged');

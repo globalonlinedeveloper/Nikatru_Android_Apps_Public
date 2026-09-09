@@ -13,7 +13,7 @@
 // repository, from never having written the file, which is precisely why it
 // needs a machine to notice.
 //
-// apps/subly/{ios,macos}/Runner.xcodeproj carries `objectVersion = 54` and NO
+// apps/subscriptiontracker/{ios,macos}/Runner.xcodeproj carries `objectVersion = 54` and NO
 // `PBXFileSystemSynchronizedRootGroup` (measured 2026-08-20), so membership is
 // NOT automatic: a resource reaches the bundle only through an explicit
 // PBXBuildFile in the PBXResourcesBuildPhase. Newer Xcode projects synchronise

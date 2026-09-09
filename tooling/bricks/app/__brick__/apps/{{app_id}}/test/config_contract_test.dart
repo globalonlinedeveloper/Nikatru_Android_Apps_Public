@@ -9,13 +9,13 @@ import 'package:{{app_id.snakeCase()}}/state/providers.dart';
 /// IN THE BRICK.
 ///
 /// 🔴 WHY IT IS HERE AND NOT IN AN APP. The pair that pins this route used to be
-/// `services/platform/test/config.test.ts` ↔ `apps/subly/test/config_default_test.dart`.
+/// `services/platform/test/config.test.ts` ↔ `apps/subscriptiontracker/test/config_default_test.dart`.
 /// Subly is ONE stamped app: a pin living there proves the contract holds for
 /// Subly and for nothing the factory stamps next, so every new app was born
 /// outside the one contract stage 4 had actually built. B-14's replacement
 /// acceptance says so in as many words — *"the client half of each pair must
 /// live where a stamped app inherits it — the brick's test tree — not in
-/// `apps/subly`"*. This file is that half, and `assert-analytics-contract.mjs`
+/// `apps/subscriptiontracker`"*. This file is that half, and `assert-analytics-contract.mjs`
 /// limb 5 now REFUSES a client half that resolves anywhere else.
 ///
 /// 🔒 [kConfigWireKeys] MUST EQUAL `REQUIRED_KEYS` in

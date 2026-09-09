@@ -218,7 +218,7 @@ const OFFERING_ID_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
  * days with `requires_payment_method: true`.
  *
  * 🔴 THE JOIN IS `custom_data.offering_id` ON PADDLE'S OWN PRICE, not a
- * coincidence of naming: both live prices carry `custom_data { app_id: "subly",
+ * coincidence of naming: both live prices carry `custom_data { app_id: "subscriptiontracker",
  * offering_id: "pro_monthly" | "pro_yearly" }`, which is what makes these two
  * lines checkable against the rail rather than asserted. [ADR 044] §7 records
  * that NO `pri_` id existed anywhere in this repo before now, so the app could
@@ -238,7 +238,7 @@ const OFFERING_ID_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
  * names, and fails the moment a third SKU is added to one and not the other.
  */
 export const PADDLE_PRICE_IDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  subly: {
+  subscriptiontracker: {
     pro_monthly: 'pri_01kzew6dqmtv3jg33dy9m23g31',
     pro_yearly: 'pri_01kzew6e0yec2rfvk561hmzbbz',
   },

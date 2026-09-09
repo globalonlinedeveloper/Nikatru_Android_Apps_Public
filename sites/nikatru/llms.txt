@@ -12,7 +12,7 @@
 - Status: shipping; the catalogue below is the complete list of released apps
 
 ## Apps
-- Nikatru Subscription Tracker — Track every subscription in one place — https://nikatru.com/subly (web)
+- Nikatru Subscription Tracker — Track every subscription in one place — https://nikatru.com/subscriptiontracker (web)
 
 ## Key pages
 - Home: https://nikatru.com/
@@ -22,7 +22,7 @@
 - Refund & Cancellation Policy: https://nikatru.com/refund
 - Contact: https://nikatru.com/contact
 - FullShot Privacy Policy: https://nikatru.com/fullshot/privacy — the browser extension; all capture is processed locally and nothing is transmitted
-- Nikatru Subscription Tracker — what the app collects: https://nikatru.com/subly/privacy — the per-app notice, itemised from the app's own privacy declaration; the policy a user agrees to is /privacy
+- Nikatru Subscription Tracker — what the app collects: https://nikatru.com/subscriptiontracker/privacy — the per-app notice, itemised from the app's own privacy declaration; the policy a user agrees to is /privacy
 - Developer site: https://rajasekarselvam.com/
 
 ## Contact

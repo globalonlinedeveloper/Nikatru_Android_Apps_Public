@@ -5,7 +5,7 @@
 // answer.
 //
 // ⚠️ REAL-TREE NEGATIVE TESTS FIRST (2026-07-29, four, against the live wildcard):
-//   N1 subly's url repointed at zzz-nonexistent-app.nikatru.com -> FAILED, 522
+//   N1 subscriptiontracker's url repointed at zzz-nonexistent-app.nikatru.com -> FAILED, 522
 //   N2 the only entry marked `preview`                          -> passed, and
 //      PRINTED "1 entry(ies) not probed" (the shrink must be visible)
 //   N3 the catalogue emptied                                    -> COVERAGE LOST

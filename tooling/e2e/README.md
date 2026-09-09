@@ -35,7 +35,7 @@ If `SUPABASE_SERVICE_ROLE_KEY` is absent the workflow green-skips.
 
 ## Run locally
 ```bash
-cd apps/subly && flutter pub get
+cd apps/subscriptiontracker && flutter pub get
 chromedriver --port=4444 &
 # provision a user (needs the two SUPABASE_* env vars), then:
 flutter drive \

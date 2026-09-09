@@ -130,7 +130,7 @@ describe('§A — an aggregating job cannot go green over a lane that did not ru
   });
 
   test('a `needs` entry naming a job that does not exist fails', () => {
-    const root = mutant([['ci.yml', '      - worker-subly-api\n', '      - worker-subly-api\n      - ghost-lane\n']]);
+    const root = mutant([['ci.yml', '      - worker-subscriptiontracker-api\n', '      - worker-subscriptiontracker-api\n      - ghost-lane\n']]);
     caught(run(root), /needs "ghost-lane", which \.github\/workflows\/ci\.yml does not declare/);
   });
 

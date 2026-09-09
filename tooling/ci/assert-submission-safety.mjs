@@ -189,15 +189,15 @@
 //     the one of the four a test would close. Proved with a real input this run
 //     rather than argued, and the fixture is given WHOLE because an elided one
 //     does not reproduce — a one-row ledger file holding exactly
-//     `[{"environment":"subly-windows-store","createdAt":"not-a-date",`
+//     `[{"environment":"subscriptiontracker-windows-store","createdAt":"not-a-date",`
 //     `"description":"nk1 state=in_review sha=0123abcd"}]`, passed as
-//     `--ledger`, printed `⬜ LEDGER ROW UNDATED: subly-windows-store carries no
+//     `--ledger`, printed `⬜ LEDGER ROW UNDATED: subscriptiontracker-windows-store carries no
 //     usable timestamp, so it counts towards no month.` at EXIT 0. ⚠️ BOTH other
 //     fields are load-bearing: the row needs an `environment` the register
 //     resolves to a `kind: 'store'` channel AND a `description` that
 //     `decodeDescription` accepts, or `readSubmissions` reports it UNREADABLE
 //     and this branch is never reached. Measured: dropping the `description`
-//     yields `⬜ LEDGER ROW UNREADABLE: subly-windows-store — empty description`
+//     yields `⬜ LEDGER ROW UNREADABLE: subscriptiontracker-windows-store — empty description`
 //     instead — which is exactly what the first attempt at this proof produced,
 //     and it looked like an unreachable branch rather than a bad fixture.
 // ⚠️ ALL FOUR ARE PRE-EXISTING. The 2026-08-21 change that added this block

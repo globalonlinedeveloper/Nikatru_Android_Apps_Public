@@ -26,7 +26,7 @@ class TelemetryConfig {
   /// trace can be read at all.
   ///
   /// 🔴 THIS WAS UNSET EVERYWHERE UNTIL 2026-09-03, AND THE COST WAS MEASURED,
-  /// NOT SUSPECTED. GlitchTip held twelve releases for project `subly` and
+  /// NOT SUSPECTED. GlitchTip held twelve releases for project `subscriptiontracker` and
   /// `GET /api/0/organizations/nikatru/releases/{version}/files/` answered 200
   /// with a ZERO-LENGTH list for every one of them, so two open, unresolved
   /// production issues — `minified:a0X: GoError: There is nothing to pop`

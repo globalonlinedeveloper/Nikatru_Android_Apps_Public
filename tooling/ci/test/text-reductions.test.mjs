@@ -152,7 +152,7 @@ describe('stripSourceComments — NEVER DELETES CODE IT DID NOT COMMENT OUT', ()
   // deleted from the reduction handed to the guards. None of them failed.
 
   test('a `//` line mentioning a path glob is not a block-comment opener', () => {
-    // services/subly-api/src/middleware/cors.ts, verbatim in shape. The old
+    // services/subscriptiontracker-api/src/middleware/cors.ts, verbatim in shape. The old
     // block-comment regex read the `/*` in this line comment as an opener and
     // ran to the next close delimiter — the end of the doc comment on the
     // `allowlist` function, sixty lines down — deleting the imports and the
@@ -176,7 +176,7 @@ describe('stripSourceComments — NEVER DELETES CODE IT DID NOT COMMENT OUT', ()
   });
 
   test('`//` inside a template literal is not a line comment', () => {
-    // services/{platform,subly-api}/src/lib/error-sink.ts. The `[^:]` hack only
+    // services/{platform,subscriptiontracker-api}/src/lib/error-sink.ts. The `[^:]` hack only
     // spared `https://`; the character before `//` here is `}`, so the endpoint
     // the Worker posts to was blanked out of the guard's view.
     const ts = 'const endpoint = `${u.protocol}//${u.host}/api/${id}/envelope/`; // build it\n';

@@ -53,7 +53,7 @@ class AppConfig {
 const ALL = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'API_BASE_URL'];
 
 /** The two layouts an app_config lives in, in the register order — the SAME
- *  declaration assert-store-metadata.mjs reads. apps/subly kept
+ *  declaration assert-store-metadata.mjs reads. apps/subscriptiontracker kept
  *  `lib/core/config/app_config.dart`; the brick stamps `lib/core/app_config.dart`.
  *  The guard used to hard-code the first, which made a de-duplicated app
  *  COVERAGE LOST while being perfectly correct. */
@@ -84,13 +84,13 @@ function makeRoot({
   mkdirSync(join(root, 'tooling'), { recursive: true });
   mkdirSync(join(root, 'catalog'), { recursive: true });
   mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
-  mkdirSync(join(root, 'apps', 'subly', 'lib', 'core', 'config'), { recursive: true });
+  mkdirSync(join(root, 'apps', 'subscriptiontracker', 'lib', 'core', 'config'), { recursive: true });
 
-  writeFileSync(join(root, 'catalog', 'apps.json'), JSON.stringify([{ slug: 'subly' }]));
+  writeFileSync(join(root, 'catalog', 'apps.json'), JSON.stringify([{ slug: 'subscriptiontracker' }]));
   if (config !== null) {
     const rel = configLayout === 'stamp'
-      ? join('apps', 'subly', 'lib', 'core', 'app_config.dart')
-      : join('apps', 'subly', 'lib', 'core', 'config', 'app_config.dart');
+      ? join('apps', 'subscriptiontracker', 'lib', 'core', 'app_config.dart')
+      : join('apps', 'subscriptiontracker', 'lib', 'core', 'config', 'app_config.dart');
     writeFileSync(join(root, rel), config);
   }
 

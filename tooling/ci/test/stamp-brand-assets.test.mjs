@@ -27,7 +27,7 @@
 // misunderstanding as the guard.
 //
 // Proven on the REAL tree, not here: the stock `Icon-maskable-512.png` copied
-// over apps/subly's left the guard AT HEAD printing ok / exit 0, and the
+// over apps/subscriptiontracker's left the guard AT HEAD printing ok / exit 0, and the
 // repaired guard exits 1.
 //
 // These fixtures now supply a FAKE `flutter` executable (FLUTTER_ROOT is
@@ -190,7 +190,7 @@ describe('assert-stamp-brand-assets', () => {
   // 2026-08-04. `Icon-maskable-*` comes from an `.img.tmpl`, which is EMPTY in
   // the SDK — so the comparison was against a zero-byte buffer and could not
   // match whatever the stamp shipped. Confirmed by counterfactual on the REAL
-  // tree, not here: the stock maskable-512 copied over apps/subly's left the
+  // tree, not here: the stock maskable-512 copied over apps/subscriptiontracker's left the
   // guard AT HEAD printing `ok … 5 stock asset(s) compared`, exit 0.
   test('FAILS when a MASKABLE asset is byte-identical to stock', () => {
     const { code, out } = run(world({ useStock: ['web/icons/Icon-maskable-512.png'] }));

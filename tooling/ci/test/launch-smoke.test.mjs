@@ -59,12 +59,12 @@ const BUILD_STEP = `      - name: Build web
         run: flutter build web --release
 `;
 const SMOKE_STEP = `      - name: Launch the built bundle once, before it is published
-        run: node ${SMOKE} apps/subly/build/web
+        run: node ${SMOKE} apps/subscriptiontracker/build/web
 `;
 const DEPLOY_STEP = `      - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
-          command: pages deploy build/web --project-name=subly
+          command: pages deploy build/web --project-name=subscriptiontracker
 `;
 
 const webRow = (over = {}) => ({
@@ -137,7 +137,7 @@ describe('assert-launch-smoke.mjs — (a) the build-failing half', () => {
 
   test('a smoke commented out inside the run body is prose, not a step', () => {
     const commented = `      - name: Launch
-        run: echo nope # node ${SMOKE} apps/subly/build/web
+        run: echo nope # node ${SMOKE} apps/subscriptiontracker/build/web
 `;
     const r = run(fixture({ channels: [webRow()], workflow: LANE(BUILD_STEP + commented + DEPLOY_STEP) }));
     assert.equal(r.code, 1, r.out);
@@ -151,7 +151,7 @@ describe('assert-launch-smoke.mjs — (a) the build-failing half', () => {
     const multi = `      - name: Launch
         run: |
           echo starting # a note about the launch
-          node ${SMOKE} apps/subly/build/web
+          node ${SMOKE} apps/subscriptiontracker/build/web
 `;
     const r = run(fixture({ channels: [webRow()], workflow: LANE(BUILD_STEP + multi + DEPLOY_STEP) }));
     assert.equal(r.code, 0, r.out);

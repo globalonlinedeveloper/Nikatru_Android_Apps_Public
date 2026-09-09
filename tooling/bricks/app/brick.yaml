@@ -141,7 +141,7 @@ vars:
       remembering to unblock it, and a status flipped to `implemented` without a
       real artefact still cannot buy a pass.
       ⚠️ NOTHING IN A REPOSITORY CAN DERIVE AN INTENDED AUDIENCE — the same
-      question in apps/subly/store/android-play/content-rating.json says so of
+      question in apps/subscriptiontracker/store/android-play/content-rating.json says so of
       itself. This value is a human's declaration; what is mechanical is that it
       cannot outrun the surface it obliges.
     prompt: Audience (general | children)

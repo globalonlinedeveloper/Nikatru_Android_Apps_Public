@@ -146,7 +146,7 @@ async function check() {
   }
 
   // 🔴 KEY BY SLUG, NEVER BY NAME. The monitor payload carries projectName, not
-  // projectSlug, and for `ops`/`subly` the two are identical — so the first
+  // projectSlug, and for `ops`/`subscriptiontracker` the two are identical — so the first
   // version of this script used the name in the alerts URL and worked by pure
   // coincidence. --self-test created a throwaway project called "TEMP alarm-chain
   // selftest", whose slug is not its name, and limb B reported "ALERTS
@@ -278,7 +278,7 @@ async function check() {
     // uptime notifications come from a different task that never consults those
     // fields.
     //
-    // 🔴 THAT IS EXACTLY HOW `subly` SPENT ITS WHOLE LIFE. Its rule existed, was
+    // 🔴 THAT IS EXACTLY HOW `subscriptiontracker` SPENT ITS WHOLE LIFE. Its rule existed, was
     // enabled, had an email recipient and `uptime: true` — and both nulls. So the
     // uptime chain worked and was proven, while not one crash notification had
     // EVER been created for the project that receives every app crash: measured
@@ -430,14 +430,14 @@ async function selfTest() {
     if (tmpProject) await api(`projects/${ORG}/${tmpProject.slug}/`, { method: 'DELETE' });
   }
 
-  // E — the issue path made ineligible again. This is the state `subly` was
+  // E — the issue path made ineligible again. This is the state `subscriptiontracker` was
   // actually in, live, for the whole life of the instance: a rule that is
   // enabled, has a recipient, and works for uptime, while being invisible to
   // issue alerts because quantity/timespan are null.
-  const alertUrl = `projects/${ORG}/subly/alerts/1/`;
+  const alertUrl = `projects/${ORG}/subscriptiontracker/alerts/1/`;
   let savedAlert = null;
   try {
-    savedAlert = (await api(`projects/${ORG}/subly/alerts/`));
+    savedAlert = (await api(`projects/${ORG}/subscriptiontracker/alerts/`));
     savedAlert = Array.isArray(savedAlert) ? savedAlert[0] : savedAlert;
     const put = (quantity, timespanMinutes) =>
       api(alertUrl, {
@@ -452,10 +452,10 @@ async function selfTest() {
       });
     const broken = await put(null, null);
     if (broken.quantity !== null) throw new Error('could not reproduce the null-quantity state; this test would be meaningless');
-    await expectRed('limb E: an alert invisible to ISSUE alerts is caught (subly’s real historical state)');
+    await expectRed('limb E: an alert invisible to ISSUE alerts is caught (subscriptiontracker’s real historical state)');
     const restored = await put(savedAlert.quantity ?? 1, savedAlert.timespanMinutes ?? 1);
     if (restored.quantity == null || restored.timespanMinutes == null) {
-      console.error('🔴 RESTORE FAILED — subly alert 1 is still not issue-capable. FIX BY HAND NOW.');
+      console.error('🔴 RESTORE FAILED — subscriptiontracker alert 1 is still not issue-capable. FIX BY HAND NOW.');
       return 2;
     }
   } catch (err) {

@@ -179,19 +179,19 @@ describe('the producers still produce what this parses', () => {
   const REPORT_FIELD = 'consent_anon_id';
 
   test(`the E2E writes \`${REPORT_FIELD}\` into reportData`, () => {
-    const suite = readFileSync(join(REPO, 'apps/subly/integration_test/app_test.dart'), 'utf8');
+    const suite = readFileSync(join(REPO, 'apps/subscriptiontracker/integration_test/app_test.dart'), 'utf8');
     assert.ok(
       suite.includes(`reportData!['${REPORT_FIELD}']`),
-      `apps/subly/integration_test/app_test.dart no longer writes \`${REPORT_FIELD}\` into binding.reportData. ` +
+      `apps/subscriptiontracker/integration_test/app_test.dart no longer writes \`${REPORT_FIELD}\` into binding.reportData. ` +
         'The nightly would still be green and the consent artifact it uploads would be unfindable.',
     );
   });
 
   test(`the driver prints \`${ANON_ID_TOKEN}\` on the host`, () => {
-    const driver = readFileSync(join(REPO, 'apps/subly/test_driver/integration_test.dart'), 'utf8');
+    const driver = readFileSync(join(REPO, 'apps/subscriptiontracker/test_driver/integration_test.dart'), 'utf8');
     assert.ok(
       driver.includes(ANON_ID_TOKEN),
-      `apps/subly/test_driver/integration_test.dart no longer prints \`${ANON_ID_TOKEN}\`. That token is ` +
+      `apps/subscriptiontracker/test_driver/integration_test.dart no longer prints \`${ANON_ID_TOKEN}\`. That token is ` +
         'the only copy of the id that survives when the response file was never written, which is exactly ' +
         'the case a red night produces.',
     );

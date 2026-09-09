@@ -4,7 +4,7 @@
 //
 // [pipeline F-4] The factory claims a specific platform set, and build-platforms.yml
 // proves that set builds. The proof half was real. The FRESHNESS half was not:
-// the workflow ran only on `workflow_dispatch` or a `subly-v*` tag, so the green
+// the workflow ran only on `workflow_dispatch` or a `subscriptiontracker-v*` tag, so the green
 // tick in the spec was undated. It was found EIGHT COMMITS STALE, and it was
 // fresh again only because a human dispatched it by hand.
 //

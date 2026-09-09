@@ -272,7 +272,7 @@ void main() {
 }
 
 /// A repository that implements the ONE stream member and inherits everything
-/// else — the shape every test double in `apps/subly/test` has.
+/// else — the shape every test double in `apps/subscriptiontracker/test` has.
 ///
 /// `extends`, not `implements`, on purpose: that is what makes the default
 /// bodies reach it, and it is the difference this whole seam is written around.

@@ -103,7 +103,7 @@ const file = (root, rel, body = 'x') => {
 /** A repo root carrying a register and an apps/<app> tree. `build` is a map of
  *  repo-relative-to-the-app path → contents; a `null` body makes a directory
  *  with nothing in it, which is the shape a union `path:` is satisfied by. */
-function fixture({ register = REGISTER, app = 'subly', build = {}, withApp = true } = {}) {
+function fixture({ register = REGISTER, app = 'subscriptiontracker', build = {}, withApp = true } = {}) {
   const root = join(TMP, `f${seq++}`);
   mkdirSync(root, { recursive: true });
   if (register !== null) {
@@ -138,8 +138,8 @@ const run = (root, args, env = {}) => {
 
 // ── the shapes a complete lane produces ──────────────────────────────────────
 const WINDOWS_OK = {
-  'build/windows/msix/subly.msix': 'MSIX-BYTES',
-  'build/windows/x64/runner/Release/subly.exe': 'PE-BYTES',
+  'build/windows/msix/subscriptiontracker.msix': 'MSIX-BYTES',
+  'build/windows/x64/runner/Release/subscriptiontracker.exe': 'PE-BYTES',
   'build/windows/x64/runner/Release/flutter_windows.dll': 'DLL',
   'build/windows/x64/runner/Release/data/app.so': 'AOT',
 };
@@ -147,7 +147,7 @@ const WINDOWS_OK = {
 const ANDROID_OK = {
   'build/app/outputs/bundle/release/app-release.aab': 'AAB-BYTES',
   'build/app/outputs/flutter-apk/app-release.apk': 'APK-BYTES',
-  'build/linux/x64/release/bundle/subly': 'ELF',
+  'build/linux/x64/release/bundle/subscriptiontracker': 'ELF',
   'build/linux/x64/release/bundle/lib/libapp.so': 'AOT',
   'build/web/index.html': '<html>',
   'build/web/main.dart.js': 'js',
@@ -166,10 +166,10 @@ const APPLE_OK = {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-artifact-shape — the union-upload trap, per lane', () => {
   test('a complete windows lane passes', () => {
-    const { code, out } = run(fixture({ build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 0, out);
     assert.match(out, /assert-artifact-shape: ok/);
-    assert.match(out, /build\/windows\/msix\/subly\.msix/);
+    assert.match(out, /build\/windows\/msix\/subscriptiontracker\.msix/);
     assert.match(out, /1 channel row\(s\) bound to this lane job/);
   });
 
@@ -178,8 +178,8 @@ describe('assert-artifact-shape — the union-upload trap, per lane', () => {
   // matches. It must go red HERE, and it must NAME the msix path.
   test('THE CASE THAT IS GREEN TODAY: the .msix is gone and Release/ is intact', () => {
     const build = { ...WINDOWS_OK };
-    delete build['build/windows/msix/subly.msix'];
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    delete build['build/windows/msix/subscriptiontracker.msix'];
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /build\/windows\/msix\/\*\.msix/);
     assert.match(out, /if-no-files-found/);
@@ -189,43 +189,43 @@ describe('assert-artifact-shape — the union-upload trap, per lane', () => {
 
   test('the msix directory exists and holds no .msix', () => {
     const build = { ...WINDOWS_OK };
-    delete build['build/windows/msix/subly.msix'];
+    delete build['build/windows/msix/subscriptiontracker.msix'];
     build['build/windows/msix'] = null;
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /NO \.msix at this path/);
   });
 
   test('a ZERO-BYTE .msix is not an artifact', () => {
-    const build = { ...WINDOWS_OK, 'build/windows/msix/subly.msix': '' };
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    const build = { ...WINDOWS_OK, 'build/windows/msix/subscriptiontracker.msix': '' };
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /ZERO BYTES/);
-    assert.match(out, /subly\.msix/);
+    assert.match(out, /subscriptiontracker\.msix/);
   });
 
   test('the runner bundle exists and is empty', () => {
     const build = { ...WINDOWS_OK };
-    delete build['build/windows/x64/runner/Release/subly.exe'];
+    delete build['build/windows/x64/runner/Release/subscriptiontracker.exe'];
     delete build['build/windows/x64/runner/Release/flutter_windows.dll'];
     delete build['build/windows/x64/runner/Release/data/app.so'];
     build['build/windows/x64/runner/Release'] = null;
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /exists and is EMPTY/);
   });
 
   test('the runner bundle has files but no .exe', () => {
     const build = { ...WINDOWS_OK };
-    delete build['build/windows/x64/runner/Release/subly.exe'];
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    delete build['build/windows/x64/runner/Release/subscriptiontracker.exe'];
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /NO "\.exe"/);
   });
 
   test('a ZERO-BYTE .exe in the bundle is caught', () => {
-    const build = { ...WINDOWS_OK, 'build/windows/x64/runner/Release/subly.exe': '' };
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'windows']);
+    const build = { ...WINDOWS_OK, 'build/windows/x64/runner/Release/subscriptiontracker.exe': '' };
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /ZERO BYTES/);
   });
@@ -233,7 +233,7 @@ describe('assert-artifact-shape — the union-upload trap, per lane', () => {
 
 describe('assert-artifact-shape — the same trap on the Android lane', () => {
   test('a complete linux_web_android lane passes', () => {
-    const { code, out } = run(fixture({ build: ANDROID_OK }), ['--app', 'subly', '--platform', 'linux_web_android']);
+    const { code, out } = run(fixture({ build: ANDROID_OK }), ['--app', 'subscriptiontracker', '--platform', 'linux_web_android']);
     assert.equal(code, 0, out);
     assert.match(out, /app-release\.aab/);
     assert.match(out, /app-release\.apk/);
@@ -243,7 +243,7 @@ describe('assert-artifact-shape — the same trap on the Android lane', () => {
   test('the .aab is gone and the .apk is present — the union upload accepts it', () => {
     const build = { ...ANDROID_OK };
     delete build['build/app/outputs/bundle/release/app-release.aab'];
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'linux_web_android']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'linux_web_android']);
     assert.equal(code, 1, out);
     assert.match(out, /build\/app\/outputs\/bundle\/release\/\*\.aab/);
     assert.doesNotMatch(out, /flutter-apk/);
@@ -251,10 +251,10 @@ describe('assert-artifact-shape — the same trap on the Android lane', () => {
 
   test('the linux bundle directory is empty', () => {
     const build = { ...ANDROID_OK };
-    delete build['build/linux/x64/release/bundle/subly'];
+    delete build['build/linux/x64/release/bundle/subscriptiontracker'];
     delete build['build/linux/x64/release/bundle/lib/libapp.so'];
     build['build/linux/x64/release/bundle'] = null;
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'linux_web_android']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'linux_web_android']);
     assert.equal(code, 1, out);
     assert.match(out, /build\/linux\/x64\/release\/bundle\/ — the directory exists and is EMPTY/);
   });
@@ -263,7 +263,7 @@ describe('assert-artifact-shape — the same trap on the Android lane', () => {
     const build = { ...ANDROID_OK };
     delete build['build/web/index.html'];
     delete build['build/web/main.dart.js'];
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'linux_web_android']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'linux_web_android']);
     assert.equal(code, 1, out);
     assert.match(out, /build\/web\/ — the directory does not exist/);
   });
@@ -271,7 +271,7 @@ describe('assert-artifact-shape — the same trap on the Android lane', () => {
 
 describe('assert-artifact-shape — the apple lane asserts what it produces, and prints what it does not', () => {
   test('BOTH apple bundles pass, and the gap that remains is the .ipa alone', () => {
-    const { code, out } = run(fixture({ build: APPLE_OK }), ['--app', 'subly', '--platform', 'apple']);
+    const { code, out } = run(fixture({ build: APPLE_OK }), ['--app', 'subscriptiontracker', '--platform', 'apple']);
     assert.equal(code, 0, out);
     assert.match(out, /Subly\.app\//);
     // The iOS half must appear as a SATISFIED artifact, not merely as prose. A
@@ -353,7 +353,7 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
   test('an EMPTY .app directory is not a build — size on a directory says nothing', () => {
     const { code, out } = run(
       fixture({ build: { 'build/macos/Build/Products/Release/Subly.app': null } }),
-      ['--app', 'subly', '--platform', 'apple'],
+      ['--app', 'subscriptiontracker', '--platform', 'apple'],
     );
     assert.equal(code, 1, out);
     assert.match(out, /the \.app bundle exists and is EMPTY/);
@@ -362,7 +362,7 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
   test('no .app at all', () => {
     const { code, out } = run(
       fixture({ build: { 'build/macos/Build/Products/Release/Runner.txt': 'not a bundle' } }),
-      ['--app', 'subly', '--platform', 'apple'],
+      ['--app', 'subscriptiontracker', '--platform', 'apple'],
     );
     assert.equal(code, 1, out);
     assert.match(out, /no "\.app" bundle at this path/);
@@ -377,7 +377,7 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     const build = { ...APPLE_OK };
     delete build['build/ios/iphoneos/Runner.app/Runner'];
     delete build['build/ios/iphoneos/Runner.app/Info.plist'];
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'apple']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'apple']);
     assert.equal(code, 1, out);
     assert.match(out, /build\/ios\/iphoneos\/\*\.app — the containing directory does not exist/);
     assert.doesNotMatch(out, /build\/macos.*does not exist/, 'the macOS half is intact and must not be blamed');
@@ -388,7 +388,7 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     delete build['build/ios/iphoneos/Runner.app/Runner'];
     delete build['build/ios/iphoneos/Runner.app/Info.plist'];
     build['build/ios/iphoneos/Runner.app'] = null;
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'apple']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'apple']);
     assert.equal(code, 1, out);
     assert.match(out, /the \.app bundle exists and is EMPTY/);
   });
@@ -398,7 +398,7 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
     delete build['build/ios/iphoneos/Runner.app/Runner'];
     delete build['build/ios/iphoneos/Runner.app/Info.plist'];
     build['build/ios/iphoneos/Runner.txt'] = 'not a bundle';
-    const { code, out } = run(fixture({ build }), ['--app', 'subly', '--platform', 'apple']);
+    const { code, out } = run(fixture({ build }), ['--app', 'subscriptiontracker', '--platform', 'apple']);
     assert.equal(code, 1, out);
     assert.match(out, /no "\.app" bundle at this path/);
   });
@@ -406,14 +406,14 @@ describe('assert-artifact-shape — the apple lane asserts what it produces, and
 
 describe('assert-artifact-shape — COVERAGE LOST: the derivation, not the tree', () => {
   test('the register is missing entirely', () => {
-    const { code, out } = run(fixture({ register: null, build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ register: null, build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /tooling\/channel-register\.json does not exist/);
   });
 
   test('the register is unparseable', () => {
-    const { code, out } = run(fixture({ register: '{ not json', build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ register: '{ not json', build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /is not valid JSON/);
@@ -422,7 +422,7 @@ describe('assert-artifact-shape — COVERAGE LOST: the derivation, not the tree'
   // An extension set derived from an EMPTY register would "cover" every
   // expectation by containing nothing to contradict it.
   test('the register declares no channel at all', () => {
-    const { code, out } = run(fixture({ register: { channels: [] }, build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ register: { channels: [] }, build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     // `.apk` is EXTRA_INSTALLABLE, so the set is never truly empty — what fails
@@ -443,14 +443,14 @@ describe('assert-artifact-shape — COVERAGE LOST: the derivation, not the tree'
       platforms: ['windows'],
       lane: { workflow: '.github/workflows/build-platforms.yml', job: 'windows' },
     });
-    const { code, out } = run(fixture({ register, build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows']);
+    const { code, out } = run(fixture({ register, build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows']);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /channel "windows-sideload" declares lane job "windows" and accepts "\.zip"/);
   });
 
   test('an unknown --platform is a renamed job, not a clean lane', () => {
-    const { code, out } = run(fixture({ build: WINDOWS_OK }), ['--app', 'subly', '--platform', 'windows_2026']);
+    const { code, out } = run(fixture({ build: WINDOWS_OK }), ['--app', 'subscriptiontracker', '--platform', 'windows_2026']);
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /no output layout is declared for lane job "windows_2026"/);
@@ -467,7 +467,7 @@ describe('assert-artifact-shape — COVERAGE LOST: the derivation, not the tree'
     const a = run(TMP, ['--platform', 'windows']);
     assert.equal(a.code, 1);
     assert.match(a.out, /--app <id> is required/);
-    const b = run(TMP, ['--app', 'subly']);
+    const b = run(TMP, ['--app', 'subscriptiontracker']);
     assert.equal(b.code, 1);
     assert.match(b.out, /--platform <lane job> is required/);
   });
@@ -484,7 +484,7 @@ describe('assert-artifact-shape — against the real repository', () => {
       ['linux_web_android', /build\/app\/outputs\/bundle\/release\/\*\.aab/],
       ['apple', /build\/macos\/Build\/Products\/Release/],
     ]) {
-      const r = spawnSync(process.execPath, [GUARD, '--app', 'subly', '--platform', platform], {
+      const r = spawnSync(process.execPath, [GUARD, '--app', 'subscriptiontracker', '--platform', platform], {
         encoding: 'utf8',
         cwd: REPO,
       });

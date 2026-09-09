@@ -26,7 +26,7 @@
 // they derive it from `import.meta.url`. Measured 2026-08-17 on this tree: with
 // only an argv root, the four signing guards, assert-deploy-triggers-deploy and
 // four tooling/scripts executables all sailed past the empty root and re-scanned
-// THE REAL REPOSITORY — android-signing printed `app "subly"`, and
+// THE REAL REPOSITORY — android-signing printed `app "subscriptiontracker"`, and
 // assert-deploy-triggers-deploy printed `11 workflow(s) scanned`, from a root
 // that contained not one file. Twenty passed that way. Copying the executables
 // into the tree moves `import.meta.url` with them, and the same probe leaves
@@ -170,7 +170,7 @@ const MIN_PROBED = 110;
  *  ⚠️ `catalog` is listed because it is where the app catalogue lives since the
  *  inversion (`catalog/apps.json`). A catalogue surviving into the probe tree
  *  would hand every guard below a real app to find, so each would report on
- *  subly instead of refusing — and this file would print `ok` unchanged. A new
+ *  subscriptiontracker instead of refusing — and this file would print `ok` unchanged. A new
  *  top-level directory that holds product data belongs here the day it is
  *  created, not the day a refusal is discovered to be measuring the wrong tree. */
 const PRODUCT_ROOTS = ['apps', 'catalog', 'packages', 'services', 'sites', 'docs', '.github', 'content'];

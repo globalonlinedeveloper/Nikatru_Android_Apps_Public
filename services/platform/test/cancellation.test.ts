@@ -110,7 +110,7 @@ function seedLive(
     )
     .run(
       o.userId,
-      o.appId ?? 'subly',
+      o.appId ?? 'subscriptiontracker',
       'pro',
       null,
       null,
@@ -131,7 +131,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness();
     seedLive(h.db, { userId: USER });
 
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     // 🔴 202, not 200. A 200 reads as "done" to every client that does not
     // inspect the body, and the client would then tell a paying user their
@@ -149,7 +149,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const rows = h.db.rows('SELECT * FROM cancellation_requests');
     expect(rows).toHaveLength(1);
     expect(rows[0].user_id).toBe(USER);
-    expect(rows[0].app_id).toBe('subly');
+    expect(rows[0].app_id).toBe('subscriptiontracker');
     expect(rows[0].environment).toBe('live');
     expect(rows[0].provider).toBe('paddle');
     expect(rows[0].provider_subscription_id).toBe('sub_123');
@@ -162,8 +162,8 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     seedLive(h.db, { userId: USER });
     const authz = `Bearer ${await token(USER)}`;
 
-    await h.post({ app_id: 'subly' }, authz);
-    await h.post({ app_id: 'subly' }, authz);
+    await h.post({ app_id: 'subscriptiontracker' }, authz);
+    await h.post({ app_id: 'subscriptiontracker' }, authz);
 
     // An upsert here would erase the evidence that nothing happened the first
     // time, which is precisely the complaint this table exists to substantiate.
@@ -174,7 +174,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness();
     seedLive(h.db, { userId: USER, provider: null });
 
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     expect(res.status).toBe(202);
     const body = (await res.json()) as { not_executed_reason: string };
@@ -183,7 +183,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
 
   it('NOTHING to cancel is 404 and writes NO row — never manufactured evidence', async () => {
     const h = harness();
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({
@@ -200,7 +200,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness();
     seedLive(h.db, { userId: OTHER });
 
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     expect(res.status).toBe(404);
     expect(h.db.count('cancellation_requests')).toBe(0);
@@ -210,7 +210,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness({ environment: 'live' });
     seedLive(h.db, { userId: USER, environment: 'sandbox' });
 
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     expect(res.status).toBe(404);
     expect(h.db.count('cancellation_requests')).toBe(0);
@@ -220,7 +220,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness();
     seedLive(h.db, { userId: USER });
 
-    const res = await h.post({ app_id: 'subly' });
+    const res = await h.post({ app_id: 'subscriptiontracker' });
 
     expect(res.status).toBe(401);
     expect(h.db.count('cancellation_requests')).toBe(0);
@@ -237,7 +237,7 @@ describe('[5]M-9 · cancelling is a real server call, and it tells the truth', (
     const h = harness({ environment: null });
     seedLive(h.db, { userId: USER });
 
-    const res = await h.post({ app_id: 'subly' }, `Bearer ${await token(USER)}`);
+    const res = await h.post({ app_id: 'subscriptiontracker' }, `Bearer ${await token(USER)}`);
 
     expect(res.status).toBe(503);
     expect(h.db.count('cancellation_requests')).toBe(0);

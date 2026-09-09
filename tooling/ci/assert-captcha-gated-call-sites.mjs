@@ -7,7 +7,7 @@
 // [pipeline C-6] — the measured false-green, 2026-09-04.
 //
 // ── THE DEFECT, MEASURED ────────────────────────────────────────────────────
-// `apps/subly/lib/features/settings/settings_screen.dart` re-authenticated
+// `apps/subscriptiontracker/lib/features/settings/settings_screen.dart` re-authenticated
 // the user before deleting their account:
 //
 //     await auth.signInWithEmail(email: user.email, password: password);
@@ -94,7 +94,7 @@
 //    refused loudly instead of being scored, because a mis-parsed call list
 //    silently satisfies R1.
 //
-// ⚠️ TWO OF THE EIGHT TEXTUAL HITS IN apps/subly ARE DOC COMMENTS —
+// ⚠️ TWO OF THE EIGHT TEXTUAL HITS IN apps/subscriptiontracker ARE DOC COMMENTS —
 // `check_inbox_screen.dart:28` and `login_screen.dart:235` both mention a gated
 // method in prose. A grep-shaped version of this guard reports two violations
 // that do not exist, which is why the reduction is mandatory and not tidy.
@@ -127,7 +127,7 @@ const BRICK_LIB = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib';
 // Named literally, so a pathspec that stops matching is COVERAGE LOST rather
 // than a clean run over an empty set.
 const REQUIRED_COVERAGE = [
-  { root: 'apps/subly/lib', label: 'the flagship app — the only app that exists today, and the one carrying the defect' },
+  { root: 'apps/subscriptiontracker/lib', label: 'the flagship app — the only app that exists today, and the one carrying the defect' },
   { root: BRICK_LIB, label: 'the chassis every future app is stamped from — five gated call sites, no Turnstile' },
 ];
 

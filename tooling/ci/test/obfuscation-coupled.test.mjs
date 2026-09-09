@@ -134,7 +134,7 @@ function run(root) {
 const wf = ({
   buildFlags = '',
   extraSteps = '',
-  uploadPaths = 'apps/subly/build/linux/x64/release/bundle',
+  uploadPaths = 'apps/subscriptiontracker/build/linux/x64/release/bundle',
   comment = '',
   target = 'linux',
   release = ' --release',
@@ -150,13 +150,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 ${beforeBuild}${comment}      - name: Build ${target}
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build ${target}${release}${buildFlags}
           --dart-define=GLITCHTIP_DSN=x
 ${sinkStep}${extraSteps}      - uses: actions/upload-artifact@v4
         with:
-          name: subly-${target}
+          name: subscriptiontracker-${target}
           path: |
             ${uploadPaths}
           retention-days: 7
@@ -168,7 +168,7 @@ ${sinkStep}${extraSteps}      - uses: actions/upload-artifact@v4
  *  the fixture and nothing about the tree. */
 const SINK_STEP =
   '      - name: Upload the native debug symbols to GlitchTip\n' +
-  '        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/linux --org nikatru --project subly\n';
+  '        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/linux --org nikatru --project subscriptiontracker\n';
 
 /** A second job that clears the floor on its own, so a fixture can be about the
  *  COUPLING limb without the floor's own COVERAGE LOST getting there first.
@@ -180,18 +180,18 @@ const FLOOR_ANCHOR = `
     runs-on: ubuntu-24.04
     steps:
       - name: Build macos
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build macos --release
           --obfuscate --split-debug-info=build/symbols/macos
       - uses: actions/upload-artifact@v4
         with:
-          name: symbols-subly-macos
+          name: symbols-subscriptiontracker-macos
           path: |
-            apps/subly/build/symbols/macos
+            apps/subscriptiontracker/build/symbols/macos
           retention-days: 90
       - name: Upload the native debug symbols to GlitchTip
-        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/macos --org nikatru --project subly
+        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols/macos --org nikatru --project subscriptiontracker
 `;
 
 /** The state the tree is IN after 2026-09-07: obfuscating, retaining AND
@@ -199,7 +199,7 @@ const FLOOR_ANCHOR = `
  *  then this constant retained only, which the SINK limb now refuses. */
 const COMPLIANT = wf({
   buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
-  uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+  uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            apps/subscriptiontracker/build/symbols/linux',
   sinkStep: SINK_STEP,
 });
 
@@ -238,7 +238,7 @@ describe('assert-obfuscation-coupled', () => {
     runs-on: ubuntu-24.04
     steps:
       - name: Build web
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build web --release
           --dart-define=GLITCHTIP_DSN=x
@@ -270,7 +270,7 @@ describe('assert-obfuscation-coupled', () => {
     const compliantNoFlag = wf({
       release: '',
       buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
-      uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+      uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            apps/subscriptiontracker/build/symbols/linux',
       sinkStep: SINK_STEP,
     });
     const { code, out } = run(fixture({ 'build.yml': `${compliantNoFlag}${FLOOR_ANCHOR}` }));
@@ -400,7 +400,7 @@ jobs:
     const root = fixture({
       'build.yml': wf({
         buildFlags: ' --obfuscate --split-debug-info=build/symbols',
-        extraSteps: '      - name: Upload symbols\n        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols --org nikatru --project subly\n',
+        extraSteps: '      - name: Upload symbols\n        run: node tooling/ops/upload-native-symbols.mjs --dir build/symbols --org nikatru --project subscriptiontracker\n',
       }),
     });
     const { code, out } = run(root);
@@ -432,7 +432,7 @@ jobs:
       'build.yml': `${wf({
         release: ' --profile',
         buildFlags: ' --obfuscate --split-debug-info=build/symbols',
-        uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            build/symbols',
+        uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            build/symbols',
       })}${FLOOR_ANCHOR}`,
     });
     const { code, out } = run(root);
@@ -444,7 +444,7 @@ jobs:
     const root = fixture({
       'build.yml': wf({
         buildFlags: ' --obfuscate --split-debug-info=build/symbols',
-        uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            build/coverage',
+        uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            build/coverage',
       }),
     });
     const { code, out } = run(root);
@@ -515,7 +515,7 @@ jobs:
     // runner before this build ran, at exit 0.
     const moved = wf({
       buildFlags: ' --obfuscate --split-debug-info=build/symbols/linux',
-      uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            apps/subly/build/symbols/linux',
+      uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            apps/subscriptiontracker/build/symbols/linux',
       beforeBuild: SINK_STEP,
     });
     assert.match(moved, /upload-native-symbols\.mjs/, 'the mutation must keep the step, only move it');
@@ -529,7 +529,7 @@ jobs:
       'build.yml': `${wf({
         release: ' --profile',
         buildFlags: ' --obfuscate --split-debug-info=build/symbols',
-        uploadPaths: 'apps/subly/build/linux/x64/release/bundle\n            build/symbols',
+        uploadPaths: 'apps/subscriptiontracker/build/linux/x64/release/bundle\n            build/symbols',
       })}${FLOOR_ANCHOR}`,
     });
     const { code, out } = run(root);
@@ -601,8 +601,8 @@ jobs:
   // ── the two false-alarm surfaces that really live in this tree ────────────
   test('`app.*.symbols` in a .gitignore is not a build command', () => {
     const root = fixture({ 'build.yml': COMPLIANT });
-    mkdirSync(join(root, 'apps', 'subly'), { recursive: true });
-    writeFileSync(join(root, 'apps', 'subly', '.gitignore'), 'app.*.symbols\napp.*.map.json\n');
+    mkdirSync(join(root, 'apps', 'subscriptiontracker'), { recursive: true });
+    writeFileSync(join(root, 'apps', 'subscriptiontracker', '.gitignore'), 'app.*.symbols\napp.*.map.json\n');
     const { code, out } = run(root);
     assert.equal(code, 0, out);
   });

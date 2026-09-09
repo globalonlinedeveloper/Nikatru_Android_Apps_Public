@@ -19,7 +19,7 @@
 //
 // TWO PARTS:
 //   A · THE FOUR EVENTS HAVE REAL CALLERS, resolved BY SYMBOL, never by path.
-//       `analytics_funnel.dart` is scheduled to move out of apps/subly under
+//       `analytics_funnel.dart` is scheduled to move out of apps/subscriptiontracker under
 //       [2]C-3, and a path-hardcoded guard passes trivially the day it moves.
 //   B · NOTHING PAIRS THE TWO IDS, in Dart, in TypeScript, or in SQL.
 //
@@ -148,8 +148,8 @@ if (dartFiles.length < MIN_DART) {
 // ── COVERAGE, PER ROOT ──────────────────────────────────────────────────────
 // 🔴 THE FLOOR ABOVE IS ONE NUMBER OVER A UNION, AND A UNION FLOOR IS NOT A
 // COVERAGE CHECK. It answers "did I see enough files somewhere"; the question is
-// "did I see every root I am supposed to see". `apps/subly` and the brick each
-// call all four REQUIRED_EVENTS, so `apps/subly` can leave the scan entirely,
+// "did I see every root I am supposed to see". `apps/subscriptiontracker` and the brick each
+// call all four REQUIRED_EVENTS, so `apps/subscriptiontracker` can leave the scan entirely,
 // part A still resolves four symbols against the brick's copy, and part B stops
 // looking at app code for a pairing while printing ok.
 //

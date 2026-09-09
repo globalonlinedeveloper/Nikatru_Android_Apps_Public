@@ -88,7 +88,7 @@ class AppConfig {
   ///
   /// AND THE SIX SIT IN TWO WIDGET TESTS, NOT ONE. The record above names a
   /// single widget test; there are two, 3 hits each:
-  ///   `apps/subly/test/chassis_properties_test.dart`
+  ///   `apps/subscriptiontracker/test/chassis_properties_test.dart`
   ///   `tooling/bricks/app/__brick__/apps/{{app_id}}/test/chassis_properties_test.dart`
   /// The brick copy was never mentioned. It is the same test stamped into every
   /// app the factory makes, so it is the copy that MULTIPLIES.

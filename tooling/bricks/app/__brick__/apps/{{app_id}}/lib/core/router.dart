@@ -36,7 +36,7 @@ String? _pendingAddress(GoRouterState state) =>
 /// redirect sends that straight home again.
 ///
 /// 🔴 A DENYLIST ON PURPOSE, AND [signedOutMayStay] IS THE WRONG SET. An app is
-/// free to put a REAL destination on its signed-out allowlist — apps/subly does
+/// free to put a REAL destination on its signed-out allowlist — apps/subscriptiontracker does
 /// exactly that with `/scan`, which is where its sign-in form navigates — and
 /// such a location must still be reachable after a gate. Deriving this from
 /// "everything the signed-out rule tolerates" makes the capture a no-op for the
@@ -267,7 +267,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       //
       // 🔴 `next`, NOT A HARD-CODED HOME. A gate must give back the destination
       // it took. Substituting one is invisible to every test that asserts only
-      // that the user reached the INTERSTITIAL — apps/subly shipped exactly
+      // that the user reached the INTERSTITIAL — apps/subscriptiontracker shipped exactly
       // that in #280 and the nightly E2E was the first thing to notice, three
       // weeks later, when a signed-in user bound for /scan kept arriving home.
       if (state.matchedLocation == '/verify-email') {
@@ -304,7 +304,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       // ever banked for them — which the signed-out rule turns into '/sign-in'
       // on the next pass. It terminates.
       //
-      // 🔴 THE STAMPED TWIN OF THE LINE THAT ATE apps/subly's DESTINATION.
+      // 🔴 THE STAMPED TWIN OF THE LINE THAT ATE apps/subscriptiontracker's DESTINATION.
       // #280 (a6a0646) put this gate in front of everything, and the hard-coded
       // home here meant a user signing in and navigating to their own landing
       // screen was silently delivered to the home tab instead. See
@@ -376,7 +376,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       //     that guard, so a branch shell would make the measured navigation
       //     graph a subset of the real one.
       //   · `StatefulShellBranch` mints a `GlobalKey` per branch, which is why
-      //     apps/subly's route list has to be a function rather than a shared
+      //     apps/subscriptiontracker's route list has to be a function rather than a shared
       //     value (`lib/core/router/routes.dart:6-11`) — a cost worth paying for
       //     five stateful tabs and not for three leaves.
       // The day a stamped app grows a stack inside a tab, `StatefulShellRoute`
@@ -488,7 +488,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           //
           // NOT a gate — the only chrome-free route that is not. A purchase flow
           // with a navigation bar underneath it is a way out of a funnel
-          // mid-transaction, which is apps/subly's reading too
+          // mid-transaction, which is apps/subscriptiontracker's reading too
           // (`lib/core/router/routes.dart:154`). It is not a dead end: the
           // screen carries its own way back (`paywall_screen.dart:251`).
           //

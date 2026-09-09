@@ -47,7 +47,7 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 let seq = 0;
 
 // SIX since 2026-08-01: `purchases` joined on url_launcher when [pipeline 5]M-13
-// moved the money rail out of apps/subly. The list has to track the guard's
+// moved the money rail out of apps/subscriptiontracker. The list has to track the guard's
 // MIN_ADAPTERS floor, or every case below runs against a COVERAGE LOST.
 const ADAPTERS = [
   'api_client',

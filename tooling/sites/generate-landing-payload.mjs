@@ -9,12 +9,12 @@
 //                     ──(this script)──▶  catalog/apps-landing.json
 //
 // ── WHY THIS FILE EXISTS AT ALL ──────────────────────────────────────────────
-// `sites/nikatru/apps/subly.html` is 9,789 bytes of indexed landing page and
+// `sites/nikatru/apps/subscriptiontracker.html` is 9,789 bytes of indexed landing page and
 // about 2,000 of them — the About lede, the "What you get" list, and the whole
 // Pricing block with REAL PRICES — are rendered from two sources that are NOT
 // the catalogue: the rail config and the app's store listing. Measured
 // 2026-08-18: run `generate-discovery.mjs` in a tree that has the catalogue but
-// neither of those two and it produces subly.html at 7,782 bytes with
+// neither of those two and it produces subscriptiontracker.html at 7,782 bytes with
 // `problems: []`. It does not complain. `readRailConfig` returns null on a
 // missing file by explicit design and `storeLede` returns null when no channel
 // file exists, so both degrade to a shorter, valid-looking page and exit 0.

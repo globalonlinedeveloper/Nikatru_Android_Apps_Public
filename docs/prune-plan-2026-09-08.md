@@ -48,7 +48,7 @@ There is no "top 10" to pick from — **the entire proposed set is eight files**
 | 8 | `extensions/.github/ISSUE_TEMPLATE/config.yml` | 1 093 | DEAD | same — and it is purely the GitHub issue *chooser*, which no non-root path can produce |
 | | **total** | **82 185 B** (~80 KB) | | |
 
-*Not in the set, and deliberately:* `apps/subly/dod-flip-draft.json` (44 231 B) would have been the
+*Not in the set, and deliberately:* `apps/subscriptiontracker/dod-flip-draft.json` (44 231 B) would have been the
 single largest file removed. It was retracted — §1.5 and Q7.
 
 ### Why the numbers are this small, proven rather than asserted
@@ -176,7 +176,7 @@ are not grepped by that step or by any other.
 `config.yml`'s only content is the GitHub issue *chooser* (`blank_issues_enabled: false` + two
 `contact_links`), which no non-root path can produce.
 
-### ~~1.5 `apps/subly/dod-flip-draft.json`~~ — RETRACTED IN THIS PASS, see Q7
+### ~~1.5 `apps/subscriptiontracker/dod-flip-draft.json`~~ — RETRACTED IN THIS PASS, see Q7
 
 🔴 **This was classified DEAD on the first reading and the classification was WRONG.** It is recorded
 here rather than quietly dropped, because the mistake is the instructive part: *a file that says
@@ -191,7 +191,7 @@ grep -n  "dod-flip" tooling/scripts/check-dod-sync.mjs       # → (no output)
 grep -n  "REGISTER_REL\|/dod\.json" tooling/ci/assert-app-dod.mjs
 # 174: const REGISTER_REL = 'tooling/dod-register.json'
 # 683:   const recRel = `${appDir}/dod.json`;      ← a FIXED path; a sibling file is invisible
-sed -n '5,6p' apps/subly/dod-flip-draft.json
+sed -n '5,6p' apps/subscriptiontracker/dod-flip-draft.json
 # "🔴 THIS FILE IS NOT A DONE-RECORD AND NOTHING READS IT."
 ```
 
@@ -200,8 +200,8 @@ What was missed: its step 9 (*"DELETE THIS FILE … in the same commit"*) is **s
 happened**:
 
 ```bash
-grep -n '"status"' apps/subly/dod.json          # → 66:  "status": "stamped"     (not "claiming-done")
-grep -n "apps/subly" tooling/ci/assert-app-dod.mjs | grep -i exempt   # → still exempt
+grep -n '"status"' apps/subscriptiontracker/dod.json          # → 66:  "status": "stamped"     (not "claiming-done")
+grep -n "apps/subscriptiontracker" tooling/ci/assert-app-dod.mjs | grep -i exempt   # → still exempt
 ```
 
 Deleting it now destroys 44 KB of measured draft strings the owner is supposed to sign, and the two
@@ -352,10 +352,10 @@ One line each on *why*, so a later reader does not re-litigate it.
 | Every JSON register under `tooling/` | 34 | All 34 have ≥1 real reader, verified by `grep -n "REGISTER_REL\|DECL_REL\|LEDGER_REL" tooling/ci/*.mjs` plus `tooling/ops/check-prod-provenance.mjs:558` and `tooling/content_pipeline/src/sign.mjs:71`. |
 | `tooling/scripts/install-hooks.mjs:162`, `tooling/ops/safe-rerun.mjs:267` | — | Both name a dead repo **deliberately**: `install-hooks.mjs` keeps `PRIVATE_WAS` as evidence for its leftover test and installs nothing into it (lines 155-159); `safe-rerun.mjs` reads the **live vault key** `Project_Cross_Platform_Apps_GITHUB_PAT`, protected by `dead-repos.json → allowedSuffixes`. Renaming either breaks `gh` auth or a test. |
 | `.ignore` (207 lines) | 1 | ripgrep-only overrides. 205 lines are dated narrative and one line (`!CLAUDE.md`) is active — but see Q6. |
-| `packages/**` + `services/**` Dart/TS source | 262 + 135 | **Zero unimported files.** Every basename with no static importer resolves: four are conditional-import arms (`grep -n "if (dart.library" packages/notifications/lib/src/local_notification_service.dart`), `nikatru_lints.dart` is a package entry whose payload is `lib/analysis_options.yaml` (10 `package:nikatru_lints/analysis_options.yaml` hits), `gen_pack_keypair.dart` is cited by `pack_verifier.dart:24`, `c6_consent_live_probe.dart` by `assert-no-gate-weakening.mjs:189`. Minimum inbound-import count across `apps/subly/lib` is **1**, never 0. |
-| `apps/subly/store/**` | 66 | All 66 covered. The nine files with no by-path reference (the eight Play screenshots + `screenshots-tablet/CAPTURE.json`) are reached **per directory** by `store-screenshots.yml:89,105` and `assert-play-device-coverage.mjs`; `assert-listing-assets.mjs` additionally reads their **pixels**. Deleting one turns the device-coverage guard red. |
+| `packages/**` + `services/**` Dart/TS source | 262 + 135 | **Zero unimported files.** Every basename with no static importer resolves: four are conditional-import arms (`grep -n "if (dart.library" packages/notifications/lib/src/local_notification_service.dart`), `nikatru_lints.dart` is a package entry whose payload is `lib/analysis_options.yaml` (10 `package:nikatru_lints/analysis_options.yaml` hits), `gen_pack_keypair.dart` is cited by `pack_verifier.dart:24`, `c6_consent_live_probe.dart` by `assert-no-gate-weakening.mjs:189`. Minimum inbound-import count across `apps/subscriptiontracker/lib` is **1**, never 0. |
+| `apps/subscriptiontracker/store/**` | 66 | All 66 covered. The nine files with no by-path reference (the eight Play screenshots + `screenshots-tablet/CAPTURE.json`) are reached **per directory** by `store-screenshots.yml:89,105` and `assert-play-device-coverage.mjs`; `assert-listing-assets.mjs` additionally reads their **pixels**. Deleting one turns the device-coverage guard red. |
 | The twinned Worker modules and forked screens | — | **Every apparent duplicate in `services/`, `packages/` and `apps/` is an ENFORCED copy**, each with its own guard: `services/platform/test/twinned-worker-modules.test.ts` (shared-home + compared-twin limbs, with floors), `assert-lint-inheritance.mjs` (nine identical `analysis_options.yaml`), `assert-no-seam-forks.mjs` (*"3 accepted fork(s) at parity, 9 watched"*, `MIN_ACCOUNTED_PAIRS = 12`), `assert-entitlement-contract.mjs:228,1073` (`contracts/entitlement/contract.js` ≡ `extensions/core/v1/entitlement-contract.js`, mutation-tested). |
-| `packages/chassis_screens/**` | 32 | 🔴 **No app imports it** (`grep -c nikatru_chassis_screens apps/subly/pubspec.yaml` → 0) — and that is **by design**: it ships to every app stamped from `tooling/bricks/app`, while subly predates the chassis and carries *declared forks* held at parity. Listed here so nobody later reads "no app imports it" as a deletion licence. |
+| `packages/chassis_screens/**` | 32 | 🔴 **No app imports it** (`grep -c nikatru_chassis_screens apps/subscriptiontracker/pubspec.yaml` → 0) — and that is **by design**: it ships to every app stamped from `tooling/bricks/app`, while subscriptiontracker predates the chassis and carries *declared forks* held at parity. Listed here so nobody later reads "no app imports it" as a deletion licence. |
 | `contracts/**`, `catalog/**` | 17 + 4 | All three consumer families verified: Workers (`services/platform/src/lib/mor/contract.ts:69`), Dart (`generate-dart.mjs` → `entitlement_contract.g.dart`, drift-checked `--check`), extensions (byte-identical mirror). `contracts/tokens/dtcg/*.json` are consumed by a **glob** — `packages/tokens/style-dictionary.config.mjs:392` `source: ['../../contracts/tokens/dtcg/**/*.json']` — with the emitted artefacts diff-gated at `ci.yml:518-550`. |
 | Fixtures under `packages/core/test/`, `services/*/test/` | — | Every one is glob-loaded with a **COVERAGE-LOST assertion if the glob empties** — e.g. `services/platform/test/insights-equivalence.test.ts:77` + `:388`, `insights-queries.test.ts:91` + `:371`. Deleting a fixture is caught, not silently absorbed. |
 
@@ -388,8 +388,8 @@ should imitate rather than replace. The floor (`files: 8`, `repos: 11`) has ampl
 | **Q4** | `extensions/README.md:85`, `extensions/CONTRIBUTING.md:82` | Both instruct `git config core.hooksPath .githooks`, which from the repo root now selects the **root** hook. Correct the instruction, or delete it? (Independent of Q3.) |
 | **Q5** | Tag naming | `pre-prune-2026-09-08` (matches the sister repo, one idiom across both) or `ref/pre-prune-2026-09-08` (matches this repo's existing two tags)? |
 | **Q6** | `.ignore` | 207 lines, of which **one** (`!CLAUDE.md`) is active; the rest is a dated narrative of five superseded negations. It is a working config file whose own text argues that an inert rule left in place is worse than none. Trim to the active line plus a pointer, or keep the record inline? (No file-count change either way.) |
-| **Q7** | `apps/subly/dod-flip-draft.json` (44 KB) | **Has the subly DoD flip happened?** `dod.json` still reads `"status": "stamped"` and both `EXEMPT` sets still name `apps/subly`, so **no** — steps 1–8 of the file's own checklist are outstanding and step 9 (delete) is not yet due. Does the owner still intend to run the flip (→ KEEP until then, and the file is doing its job), or is the flip abandoned (→ delete the draft **and** say so in `dod.json`, so the record does not silently keep pointing at a plan nobody will execute)? <br><br>✅ **ANSWERED 2026-09-08 — OWNER RULING: KEEP THE FLIP, TO BE DATED LATER.** The first branch: the flip is *intended*, not abandoned, and the date is the owner's to set. So `apps/subly/dod-flip-draft.json` and `apps/subly/dod.json` are both **KEEP, untouched** — the draft is a live input to work that has not run, not a leftover, and neither file may be edited to "tidy" the open state. Steps 1–8 remain outstanding and step 9 (delete) is still not due. Q7 is **CLOSED**; it needs no further owner input, and the retraction in §1.5 stands as correct. |
-| **Q8** | `apps/subly/assets/icon/app_icon_maskable.svg` | Its two siblings are consumed by `tooling/store/render-play-graphics.mjs:124-125`; this one is not. `flutter_launcher_icons` reads only `app_icon_1024.png`, and `web:` is `generate: false` (`pubspec.yaml:235-242`), stating the web maskable master lives at `nikatru/logo/nikatru-icon-maskable.svg` — **outside this repository**. Is this the hand-regenerated vector master for `apps/subly/web/icons/Icon-maskable-{192,512}.png` (→ KEEP; no automated consumer is correct for a design source), or a stray copy of the brand-corpus master? ⚠️ It is also enumerated in a **WCAG 1.4.9 evidence record** at `tooling/dod-register.json:615`, so removing it edits an accessibility claim. |
+| **Q7** | `apps/subscriptiontracker/dod-flip-draft.json` (44 KB) | **Has the subscriptiontracker DoD flip happened?** `dod.json` still reads `"status": "stamped"` and both `EXEMPT` sets still name `apps/subscriptiontracker`, so **no** — steps 1–8 of the file's own checklist are outstanding and step 9 (delete) is not yet due. Does the owner still intend to run the flip (→ KEEP until then, and the file is doing its job), or is the flip abandoned (→ delete the draft **and** say so in `dod.json`, so the record does not silently keep pointing at a plan nobody will execute)? <br><br>✅ **ANSWERED 2026-09-08 — OWNER RULING: KEEP THE FLIP, TO BE DATED LATER.** The first branch: the flip is *intended*, not abandoned, and the date is the owner's to set. So `apps/subscriptiontracker/dod-flip-draft.json` and `apps/subscriptiontracker/dod.json` are both **KEEP, untouched** — the draft is a live input to work that has not run, not a leftover, and neither file may be edited to "tidy" the open state. Steps 1–8 remain outstanding and step 9 (delete) is still not due. Q7 is **CLOSED**; it needs no further owner input, and the retraction in §1.5 stands as correct. |
+| **Q8** | `apps/subscriptiontracker/assets/icon/app_icon_maskable.svg` | Its two siblings are consumed by `tooling/store/render-play-graphics.mjs:124-125`; this one is not. `flutter_launcher_icons` reads only `app_icon_1024.png`, and `web:` is `generate: false` (`pubspec.yaml:235-242`), stating the web maskable master lives at `nikatru/logo/nikatru-icon-maskable.svg` — **outside this repository**. Is this the hand-regenerated vector master for `apps/subscriptiontracker/web/icons/Icon-maskable-{192,512}.png` (→ KEEP; no automated consumer is correct for a design source), or a stray copy of the brand-corpus master? ⚠️ It is also enumerated in a **WCAG 1.4.9 evidence record** at `tooling/dod-register.json:615`, so removing it edits an accessibility claim. |
 | **Q9** | `contracts/entitlement/contract.schema.json` | `contracts/entitlement/README.md` says it *grades* `contract.json`, but **no validator ever loads it** — the only two occurrences of the name are the `$schema` string `generate.mjs:33` writes into the output and the same string in a test fixture; `grep -n schema tooling/ci/assert-entitlement-contract.mjs` returns prose only. Is it an editor/IDE affordance (→ KEEP as-is, and correct the README's claim), or was a validation limb intended and never wired (→ the repair is a **validation step, not a deletion**)? |
 | **Q10** | `tooling/dead-repos.json → scan.globs` | The scan set is `.github/workflows/**/*.yml`, `**/*.yaml`, `tooling/**/*.json`, `renovate.json`, `**/package.json`, `catalog/**/*.json`, `extensions/catalog/**/*.json`. **`.mjs` is not in it** — so a dead repo name hard-coded on a live executable line (exactly the `install-hooks.mjs:162` shape) is invisible to the guard, while `_globsWhy` argues *"every one of these is READ BY A MACHINE"* and a `.mjs` is **executed** by one. Was `.mjs` excluded deliberately, or is this the same hole the guard was written to close? *(Widening it needs an allowlist for the two deliberate cases first — see §3.)* |
 | **Q11** | `tooling/ci/assert-app-dod.mjs:276`, `tooling/ci/assert-green-means-ran.mjs:117` | Both hand-roll `parseWorkflow` beside `tooling/ci/workflow-scan.mjs`, whose header says it exists to abolish exactly that: *"the alternative is four copies that drift, and the FIRST thing that drifts in a workflow parser is which lines it can see at all — a failure that reports 'clean'."* 21 guards + 3 release scripts already import it; these two are the holdouts, and both carry the *same* comment about a past divergence. **This is a consolidation, not a deletion** — approve it as its own unit, re-running `walks-bounded` and `guard-coverage` after. *(`safe-rerun.mjs:449` also exports a `parseWorkflow`, but it parses top-level `concurrency:`/`name:` — a different subject, not a duplicate.)* |
@@ -452,7 +452,7 @@ tooling/scripts/assert-public-citations.mjs:604  r = repoGitRaw(PRIVATE, ['cat-f
 
 A path *inside this repo* that appears in tracked prose is checked by **no guard at all**. So:
 
-- deleting `apps/subly/dod-flip-draft.json` leaves `apps/subly/dod.json:46,143` naming a path that no
+- deleting `apps/subscriptiontracker/dod-flip-draft.json` leaves `apps/subscriptiontracker/dod.json:46,143` naming a path that no
   longer exists, and **nothing goes red** — the failure the Private repo's rule 1 exists to prevent,
   arriving through the door of a *missing* guard rather than a broken one;
 - the same applies to every prose mention of `extensions/MIGRATION.md`, `extensions/SECURITY.md` and
@@ -479,7 +479,7 @@ Each step is one green commit. Private rules 3 and 4 are what fix the order.
 4. **The three inert issue forms** (`config.yml`, `feature.yml`, `new-tool.yml`) deleted alone —
    *after* Q1 resolves the fate of `bad-page.yml`/`bug.yml`, and if Q1 chooses (b), the
    `extensions.yml` step retires **in the same commit** as its subject.
-5. **`apps/subly/dod-flip-draft.json` is NOT in this sequence.** It leaves the tree only as step 9 of
+5. **`apps/subscriptiontracker/dod-flip-draft.json` is NOT in this sequence.** It leaves the tree only as step 9 of
    its own flip checklist, in the flip's own commit — Q7.
 6. **The four archive-then-delete files**, each with its fold-forward done first: Q2 for
    `SECURITY.md`, Q3 for the hook's regex blocks, the network checkbox into the root PR template for
@@ -527,9 +527,9 @@ would have deleted**, and they are worth stating because they are the failure mo
 |---|---|
 | 109 files under `Full_Screen_Shot/i18n/{tm,backtranslations}/` are unreferenced | They are the translation **source**, read by directory walk at `_locales/make-locales.mjs:80-81` |
 | `test/pixel-sim/history-harness.js` is referenced by nothing | `pixel-sim/run.js:28` does `require('./history-harness')` — **extensionless**, so it matches no tracked path |
-| 48 Flutter/Dart tests and all of `apps/subly/{ios,android,macos,windows}` are unreferenced | Discovered by `flutter test` / Gradle / Xcode **by convention**; no reference will ever exist |
+| 48 Flutter/Dart tests and all of `apps/subscriptiontracker/{ios,android,macos,windows}` are unreferenced | Discovered by `flutter test` / Gradle / Xcode **by convention**; no reference will ever exist |
 | `chassis_localizations.dart` is a broken import | Deliberately **gitignored gen-l10n output** (`.gitignore:226`), regenerated and byte-compared in `ci.yml`'s `workspace-gate` |
-| `apps/subly/dod-flip-draft.json` says *"NOTHING READS IT"* and orders its own deletion | Step **9 of 9**; steps 1–8 have not run |
+| `apps/subscriptiontracker/dod-flip-draft.json` says *"NOTHING READS IT"* and orders its own deletion | Step **9 of 9**; steps 1–8 have not run |
 
 **"Nothing greps this file" is not evidence.** In this repository the only sound evidence of death is
 either a resolver-level answer from `assert-no-dead-files.mjs --why`, or a demonstration that the

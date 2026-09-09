@@ -22,7 +22,7 @@
 // the matchers are proven against trees known to be full of violations.
 //
 // ── 2026-08-08 · SEVEN MORE MUTATIONS, ALL AGAINST THE REAL TREE ────────────
-// The canary moved off `apps/subly/lib` and onto a fixture this guard owns
+// The canary moved off `apps/subscriptiontracker/lib` and onto a fixture this guard owns
 // (`tooling/ci/test/fixtures/dirty-strings`), because Subly's l10n retrofit was
 // about to clean the canary and turn the guard RED BY IMPROVEMENT. Everything
 // added in that change was mutation-proven on the real repository, not on a
@@ -49,16 +49,16 @@
 // guard I wrote — this repo has already shipped a guard whose six fixture tests
 // all passed against a broken version.
 //
-// ── 2026-08-08 · THE apps/subly CANARY IS RETIRED (P4 L0) ───────────────────
-// The guard's second canary was the product tree `apps/subly/lib`, and its own
+// ── 2026-08-08 · THE apps/subscriptiontracker CANARY IS RETIRED (P4 L0) ───────────────────
+// The guard's second canary was the product tree `apps/subscriptiontracker/lib`, and its own
 // entry named the increment that would remove it: Subly's l10n retrofit, which
 // is the change this edit ships with. Three cases below changed rather than
 // vanished, because "the tree is no longer a canary" is itself a claim that
 // needs a failing input:
 //   · the two-canary output assertion became a ONE-canary assertion that also
-//     requires apps/subly to be absent from the output entirely;
-//   · "FAILS when the apps/subly canary stops looking dirty" became "PASSES when
-//     apps/subly/lib is clean" — RED BY IMPROVEMENT was the whole failure mode
+//     requires apps/subscriptiontracker to be absent from the output entirely;
+//   · "FAILS when the apps/subscriptiontracker canary stops looking dirty" became "PASSES when
+//     apps/subscriptiontracker/lib is clean" — RED BY IMPROVEMENT was the whole failure mode
 //     being removed, so the input that used to fail must now pass, and against
 //     the pre-retirement guard this case fails;
 //   · "a family missing from ONE canary while the other still has it" has no
@@ -295,7 +295,7 @@
 //   6. three ALTERNATIVES inside IS_TEST_PATH — `integration_test`, the `s?` in
 //      `tests?`, and the `\.` in `(_|\.)`. → `the non-render sweep drops every
 //      path shape IS_TEST_PATH names`.
-//   7. both operands of `tree()`'s own `subly !== null || allowlisted !== null`,
+//   7. both operands of `tree()`'s own `subscriptiontracker !== null || allowlisted !== null`,
 //      a FIXTURE-side condition neither earlier block looked at. → `the Subly
 //      arb is planted when EITHER of that tree’s two files is`.
 //   8. DELETED, not pinned: `breakAccessorMatcher`'s
@@ -334,7 +334,7 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 let seq = 0;
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib';
-const SUBLY = 'apps/subly/lib';
+const SUBLY = 'apps/subscriptiontracker/lib';
 // The third enforced root, added 2026-09-04. [ADR 065] moved the chassis into
 // packages/ and this guard's domain followed it there - so every synthetic tree
 // below has to carry it, or the guard reports that domain as GONE, which is a
@@ -428,8 +428,8 @@ class Q extends StatelessWidget {
 const FAMILIES =
   '# comments and blanks are ignored\n\nText(…)\na labelling parameter\na defaulted copy parameter\n';
 
-// ⚠️ THE `subly` PARAMETER IS BACK, and it means the OPPOSITE of what it meant
-// before 2026-08-08. It used to plant a DIRTY `apps/subly/lib` because the guard
+// ⚠️ THE `subscriptiontracker` PARAMETER IS BACK, and it means the OPPOSITE of what it meant
+// before 2026-08-08. It used to plant a DIRTY `apps/subscriptiontracker/lib` because the guard
 // needed a known-dirty canary there; from 2026-08-11 that tree is ENFORCED, so
 // the default is CLEAN and a dirty one is a failure. Same directory, opposite
 // obligation — which is why the cases below assert on both.
@@ -469,7 +469,7 @@ const SHELF_ALLOWLISTED = "const probe = Text('debug: $detail');\n";
 // than becoming two half-states.
 //
 // 🔴 THE TWO DEFAULT ARBs ARE DISJOINT ON PURPOSE. The real trees overlap
-// heavily — the brick's 155 keys are a subset of subly's 309 — and the union
+// heavily — the brick's 155 keys are a subset of subscriptiontracker's 309 — and the union
 // domain is what makes that safe. Overlapping them HERE would hide the opposite
 // failure: a default fixture where every key is declared in both trees cannot
 // tell a per-root scan from a union scan, so the union decision would be
@@ -500,14 +500,14 @@ const CONSUMERS = { [CONSENT_GUARD]: "const POLICY_LINK_KEY = 'consentReadPolicy
 
 function tree({
   brick = CLEAN_BRICK,
-  subly = CLEAN_SUBLY,
+  subscriptiontracker = CLEAN_SUBLY,
   allowlisted = ALLOWLISTED,
   fixture = dirtyTree(),
   quiet = QUIET,
   families = FAMILIES,
   omitBrick = false,
   brickArb = BRICK_ARB,
-  sublyArb = SUBLY_ARB,
+  subscriptiontrackerArb = SUBLY_ARB,
   consumers = CONSUMERS,
   shelf = CLEAN_SHELF,
   shelfAllowlisted = SHELF_ALLOWLISTED,
@@ -542,13 +542,13 @@ function tree({
     }
   };
   if (!omitBrick && brick !== null) fillRoot(BRICK);
-  if (subly !== null || allowlisted !== null) fillRoot(SUBLY);
+  if (subscriptiontracker !== null || allowlisted !== null) fillRoot(SUBLY);
   if (shelf !== null || shelfAllowlisted !== null) fillRoot(SHELF);
   if (!omitBrick) {
     if (brick !== null) files[`${BRICK}/features/home/home_screen.dart`] = brick;
     if (brickArb !== null) files[`${BRICK}/l10n/app_en.arb`] = arb(brickArb);
   }
-  if (subly !== null) files[`${SUBLY}/features/home/home_screen.dart`] = subly;
+  if (subscriptiontracker !== null) files[`${SUBLY}/features/home/home_screen.dart`] = subscriptiontracker;
   if (shelf !== null) files[`${SHELF}/src/widgets/force_update_gate.dart`] = shelf;
   if (shelfArb !== null) files[`${SHELF}/l10n/app_en.arb`] = arb(shelfArb);
   if (l10nYaml !== null) files[`${l10nYaml.pkg}/l10n.yaml`] = l10nYaml.body;
@@ -558,8 +558,8 @@ function tree({
   // The arb belongs to the ROOT, so it is planted whenever the root will exist
   // at all — otherwise "the enforced tree is gone" and "its arb is gone" become
   // two different inputs and every existing case would have to say which it meant.
-  if ((subly !== null || allowlisted !== null) && sublyArb !== null) {
-    files[`${SUBLY}/l10n/app_en.arb`] = arb(sublyArb);
+  if ((subscriptiontracker !== null || allowlisted !== null) && subscriptiontrackerArb !== null) {
+    files[`${SUBLY}/l10n/app_en.arb`] = arb(subscriptiontrackerArb);
   }
   for (const [rel, body] of Object.entries(consumers ?? {})) files[rel] = body;
   if (fixture !== null) files[`${FIXTURE}/dirty/legacy_screen.dart`] = fixture;
@@ -672,13 +672,13 @@ describe('assert-no-hardcoded-strings', () => {
   // The canary list is down to one entry, and "one" is a claim with two halves:
   // the surviving canary reports, and the retired one is GONE rather than
   // quietly still being read. Asserting only the first half would pass against a
-  // guard that still scanned apps/subly and merely stopped printing about it.
+  // guard that still scanned apps/subscriptiontracker and merely stopped printing about it.
   //
-  // ⚠️ `apps/subly` IS in the output again since 2026-08-11 — on the other side
+  // ⚠️ `apps/subscriptiontracker` IS in the output again since 2026-08-11 — on the other side
   // of the ledger. So the assertion is not "it is absent" but "it is not a
   // canary", which is the distinction that actually matters and the one a plain
   // absence check could never express.
-  test('reports one canary, and apps/subly is an ENFORCED tree rather than one', () => {
+  test('reports one canary, and apps/subscriptiontracker is an ENFORCED tree rather than one', () => {
     const { out } = run(tree());
     assert.match(out, new RegExp(`known-dirty tree: \\d+ literal\\(s\\) found in ${FIXTURE}/dirty`));
     assert.equal([...out.matchAll(/known-dirty tree:/g)].length, 1, out);
@@ -687,12 +687,12 @@ describe('assert-no-hardcoded-strings', () => {
   });
 
   // ── THE DOMAIN, 2026-08-11 ────────────────────────────────────────────────
-  // apps/subly was excluded wholesale, then a canary, then nothing at all — and
+  // apps/subscriptiontracker was excluded wholesale, then a canary, then nothing at all — and
   // "nothing at all" is what its own DoD §4-E note recorded: "no guard counts
   // literals here". These cases are the claim that it is counted now.
-  describe('apps/subly is enforced, not merely mentioned', () => {
+  describe('apps/subscriptiontracker is enforced, not merely mentioned', () => {
     test('FAILS on an English literal in a Subly screen', () => {
-      const { code, out } = run(tree({ subly: `${CLEAN_SUBLY}\nconst probe = Text('Renewal calendar');\n` }));
+      const { code, out } = run(tree({ subscriptiontracker: `${CLEAN_SUBLY}\nconst probe = Text('Renewal calendar');\n` }));
       assert.equal(code, 1, 'a new literal landed in a Subly screen and nothing said so');
       assert.match(out, new RegExp(`${SUBLY}/features/home/home_screen.dart shows a hardcoded string in Text\\(…\\): "Renewal calendar"`));
       // The remedy has to name THIS app's arb pair — the brick's advice would
@@ -701,13 +701,13 @@ describe('assert-no-hardcoded-strings', () => {
     });
 
     test('FAILS on a hardcoded label parameter in a Subly screen', () => {
-      const { code, out } = run(tree({ subly: `${CLEAN_SUBLY}\nconst probe = AppTile(label: 'Budget & goals');\n` }));
+      const { code, out } = run(tree({ subscriptiontracker: `${CLEAN_SUBLY}\nconst probe = AppTile(label: 'Budget & goals');\n` }));
       assert.equal(code, 1);
       assert.match(out, /a labelling parameter: "Budget & goals"/);
     });
 
     test('FAILS when the enforced Subly tree is gone — a domain that can vanish is not a domain', () => {
-      const { code, out } = run(tree({ subly: null, allowlisted: null }));
+      const { code, out } = run(tree({ subscriptiontracker: null, allowlisted: null }));
       assert.equal(code, 1);
       assert.match(out, new RegExp(`COVERAGE LOST — ${SUBLY} does not exist`));
     });
@@ -723,7 +723,7 @@ describe('assert-no-hardcoded-strings', () => {
 
     // 🔴 THE FAILURE A PATH-KEYED WAIVER COULD NOT HAVE. The waived file gains a
     // second literal; a directory or file exclusion would have covered it in
-    // silence, which is precisely how `$2.99` sat in apps/subly for months.
+    // silence, which is precisely how `$2.99` sat in apps/subscriptiontracker for months.
     test('a NEW literal in the waived file still counts', () => {
       const { code, out } = run(tree({ allowlisted: `${ALLOWLISTED}const oops = Text('Sign in failed');\n` }));
       assert.equal(code, 1, 'a waiver keyed to a path would have swallowed this');
@@ -748,7 +748,7 @@ describe('assert-no-hardcoded-strings', () => {
       ['a bare interpolation', '${subs.length}'],
     ]) {
       test(`stays quiet on ${label}`, () => {
-        const { code, out } = run(tree({ subly: `${CLEAN_SUBLY}\nconst x = Text('${literal}');\n` }));
+        const { code, out } = run(tree({ subscriptiontracker: `${CLEAN_SUBLY}\nconst x = Text('${literal}');\n` }));
         assert.equal(code, 0, `fired on ${label}: ${out}`);
       });
     }
@@ -762,7 +762,7 @@ describe('assert-no-hardcoded-strings', () => {
       ['a debug prefix', 'trace: $detail'],
     ]) {
       test(`FAILS on ${label} — one letter outside an interpolation and it counts`, () => {
-        const { code, out } = run(tree({ subly: `${CLEAN_SUBLY}\nconst x = Text('${literal}');\n` }));
+        const { code, out } = run(tree({ subscriptiontracker: `${CLEAN_SUBLY}\nconst x = Text('${literal}');\n` }));
         assert.equal(code, 1, `the interpolation exemption swallowed ${label}`);
         assert.match(out, /shows a hardcoded string/);
       });
@@ -911,16 +911,16 @@ const b = Text('Hardcoded right after a URL');
 
     // 🔴 RED BY IMPROVEMENT, AS A TEST CASE. This exact input — a product tree
     // that somebody has just cleaned — used to fail the build with
-    // `COVERAGE LOST … 0 hardcoded string(s) in apps/subly/lib`, which is a guard
+    // `COVERAGE LOST … 0 hardcoded string(s) in apps/subscriptiontracker/lib`, which is a guard
     // punishing the work it exists to encourage. It must now pass, and it fails
     // against the pre-retirement guard, so it is a real negative test of the
     // retirement rather than a restatement of it.
     // ⚠️ The second half of this assertion changed on 2026-08-11: a cleaned
-    // apps/subly must still pass, but it is no longer ABSENT from the output —
+    // apps/subscriptiontracker must still pass, but it is no longer ABSENT from the output —
     // it is reported clean as an enforced tree. "Passes" and "is not read at
     // all" were indistinguishable while the tree was excluded, and they are the
     // difference between the guard covering this app and not.
-    test('PASSES once apps/subly/lib is cleaned — the retrofit must not turn this red', () => {
+    test('PASSES once apps/subscriptiontracker/lib is cleaned — the retrofit must not turn this red', () => {
       const root = tree();
       const p = join(root, `${SUBLY}/legacy_screen.dart`);
       mkdirSync(dirname(p), { recursive: true });
@@ -998,11 +998,11 @@ const b = Text('Hardcoded right after a URL');
 
     // 🔴 THE REAL-TREE MUTATION, and the reason this whole limb exists. Deleting
     // a matcher family clears every floor — measured on the real repo when this
-    // was written: 22 fixture hits and 58 subly hits, both far above 20 — and the
+    // was written: 22 fixture hits and 58 subscriptiontracker hits, both far above 20 — and the
     // per-family loop cannot see it, because it iterates over the list that
     // shrank. Before this change the same mutation exited 0.
     //
-    // ⚠️ The count below is 1, not 2, since the apps/subly canary was retired
+    // ⚠️ The count below is 1, not 2, since the apps/subscriptiontracker canary was retired
     // (2026-08-08). That is not a weakened assertion: it is the claim that the
     // SURVIVING canary still clears the floor with a whole matcher family gone,
     // which is precisely why a floor cannot be the thing catching this. Re-run on
@@ -1099,7 +1099,7 @@ const b = Text('Hardcoded right after a URL');
     });
 
     test('PRINTS an unrendered key as an owner gap and still exits 0', () => {
-      const { code, out } = run(tree({ sublyArb: GHOST }));
+      const { code, out } = run(tree({ subscriptiontrackerArb: GHOST }));
       assert.equal(code, 0, `an owner judgement reddened the build:\n${out}`);
       assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /NOTHING IN THE TREE NAMES THE KEY AT ALL \(1\)/);
@@ -1136,7 +1136,7 @@ const b = Text('Hardcoded right after a URL');
     // the only place the input exists.
     test('does NOT treat a _test.dart under an enforced tree as a render surface', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           [`${SUBLY}/features/home/home_screen_test.dart`]: 'const probe = Text(l10n.ghostKey);\n',
@@ -1156,7 +1156,7 @@ const b = Text('Hardcoded right after a URL');
     // measurement, and it would never stop printing once the owner acted.
     test('DROPS the key the moment a screen renders it', () => {
       const rendered = `${CLEAN_SUBLY}\nconst probe = Text(l10n.ghostKey);\n`;
-      const { code, out } = run(tree({ sublyArb: GHOST, subly: rendered }));
+      const { code, out } = run(tree({ subscriptiontrackerArb: GHOST, subscriptiontracker: rendered }));
       assert.equal(code, 0, out);
       assert.doesNotMatch(out, /ghostKey/);
       assert.doesNotMatch(out, /👤 OWNER/);
@@ -1165,7 +1165,7 @@ const b = Text('Hardcoded right after a URL');
 
     test('files a key with a NON-render reader separately, and names the reader', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: { ...CONSUMERS, 'tooling/ci/assert-something.mjs': "const KEY = 'ghostKey';\n" },
       }));
       assert.equal(code, 0, out);
@@ -1180,7 +1180,7 @@ const b = Text('Hardcoded right after a URL');
     // owner answers and the print must not hide which one is on the table.
     test('names the file where an unrendered key’s copy already ships as a literal', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: { ...CONSUMERS, 'packages/notifications/lib/fallback.dart': "const t = 'Ghost copy';\n" },
       }));
       assert.equal(code, 0, out);
@@ -1214,7 +1214,7 @@ const b = Text('Hardcoded right after a URL');
     // written in this repo most likely will.
     test('names the file where a DOUBLE-QUOTED English copy ships', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           'tooling/sites/discovery-copy.ts': 'export const fallback = "Ghost copy";\n',
@@ -1237,8 +1237,8 @@ const b = Text('Hardcoded right after a URL');
     test('stops crediting the other guard once the key IS rendered', () => {
       const wired = { ...GHOST, consentReadPolicy: 'Read the privacy policy' };
       const { code, out } = run(tree({
-        sublyArb: wired,
-        subly: `${CLEAN_SUBLY}\nconst probe = Text(l10n.consentReadPolicy);\n`,
+        subscriptiontrackerArb: wired,
+        subscriptiontracker: `${CLEAN_SUBLY}\nconst probe = Text(l10n.consentReadPolicy);\n`,
       }));
       assert.equal(code, 0, out);
       assert.doesNotMatch(out, /deliberately NOT listed above/);
@@ -1264,7 +1264,7 @@ const b = Text('Hardcoded right after a URL');
     test('stops crediting a guard that names the key only in a COMMENT', () => {
       const orphaned = { ...SUBLY_ARB, consentReadPolicy: 'Read the privacy policy' };
       const { code, out } = run(tree({
-        sublyArb: orphaned,
+        subscriptiontrackerArb: orphaned,
         consumers: { [CONSENT_GUARD]: "// the limb that printed 'consentReadPolicy' was deleted; this note is dated\nconst UNRELATED = 1;\n" },
       }));
       assert.equal(code, 0, out);
@@ -1284,7 +1284,7 @@ const b = Text('Hardcoded right after a URL');
     test('stops crediting a guard that names only a LONGER key starting with it', () => {
       const orphaned = { ...SUBLY_ARB, consentReadPolicy: 'Read the privacy policy' };
       const { code, out } = run(tree({
-        sublyArb: orphaned,
+        subscriptiontrackerArb: orphaned,
         consumers: { [CONSENT_GUARD]: "const POLICY_LINK_KEY = 'consentReadPolicyV2';\n" },
       }));
       assert.equal(code, 0, out);
@@ -1302,7 +1302,7 @@ const b = Text('Hardcoded right after a URL');
     // printable today.
     test('PRINTS the crediting line even when the suppressed key is the ONLY unread one', () => {
       const onlyCredited = { ...SUBLY_ARB, consentReadPolicy: 'Read the privacy policy' };
-      const { code, out } = run(tree({ sublyArb: onlyCredited }));
+      const { code, out } = run(tree({ subscriptiontrackerArb: onlyCredited }));
       assert.equal(code, 0, out);
       assert.doesNotMatch(out, /every declared l10n key reaches a screen/);
       assert.match(
@@ -1327,7 +1327,7 @@ const b = Text('Hardcoded right after a URL');
     // that ships: dropping the clause is RED against this case.
     test('does NOT treat a hand-written file under lib/l10n/ as a render surface', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           [`${SUBLY}/l10n/l10n_extensions.dart`]: 'String probe(l10n) => l10n.ghostKey;\n',
@@ -1361,7 +1361,7 @@ const b = Text('Hardcoded right after a URL');
     // bias exists to prevent.
     test('does NOT treat a non-.dart file under an enforced tree as a render surface', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           [`${SUBLY}/features/home/home_copy.json`]: '{ "note": "l10n.ghostKey" }\n',
@@ -1384,7 +1384,7 @@ const b = Text('Hardcoded right after a URL');
     // measured the pre-fix suite green, and dropping the `\b` is RED here.
     test('a key is NOT rendered by a LONGER accessor that merely starts with it', () => {
       const nearMiss = `${CLEAN_SUBLY}\nconst probe = Text(l10n.ghostKeySuffix);\n`;
-      const { code, out } = run(tree({ sublyArb: GHOST, subly: nearMiss }));
+      const { code, out } = run(tree({ subscriptiontrackerArb: GHOST, subscriptiontracker: nearMiss }));
       assert.equal(code, 0, out);
       assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
@@ -1402,7 +1402,7 @@ const b = Text('Hardcoded right after a URL');
     // limb's whole bias exists to prevent.
     test('a key is NOT rendered by a bare mention with no accessor dot', () => {
       const named = `${CLEAN_SUBLY}\nfinal ghostKey = 1;\n`;
-      const { code, out } = run(tree({ sublyArb: GHOST, subly: named }));
+      const { code, out } = run(tree({ subscriptiontrackerArb: GHOST, subscriptiontracker: named }));
       assert.equal(code, 0, out);
       assert.match(out, /👤 OWNER l10n render direction — 1 translated, reviewed key\(s\) of 6 reach NO surface/);
       assert.match(out, /ghostKey \[declared in 1 of 3 enforced tree\(s\)\]/);
@@ -1425,7 +1425,7 @@ const b = Text('Hardcoded right after a URL');
     test('a consumer that names only a LONGER key is not filed as a reader', () => {
       const nearMiss = "const ghostKeySuffix = 1;\nconst copy = 'Ghost copy';\n";
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: { ...CONSUMERS, 'tooling/ci/assert-near-miss.mjs': nearMiss },
       }));
       assert.equal(code, 0, out);
@@ -1445,7 +1445,7 @@ const b = Text('Hardcoded right after a URL');
     // guard is RED here (re-measured 2026-08-21).
     test('a key with an EMPTY English value reports no literal echo', () => {
       const { code, out } = run(tree({
-        sublyArb: { ...SUBLY_ARB, blankKey: '' },
+        subscriptiontrackerArb: { ...SUBLY_ARB, blankKey: '' },
         consumers: { ...CONSUMERS, 'tooling/ci/assert-something.mjs': "const nothing = '';\n" },
       }));
       assert.equal(code, 0, out);
@@ -1466,7 +1466,7 @@ const b = Text('Hardcoded right after a URL');
     test('the non-render sweep is narrowed only in ways that have a failing input', () => {
       const names = "const KEY = 'ghostKey';\n";
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           'node_modules/some-pkg/reader.mjs': names, // CONSUMER_PRUNE
@@ -1504,11 +1504,11 @@ const b = Text('Hardcoded right after a URL');
     // `integration_test`, dropping the `s?` from `tests?`, and dropping the `\.`
     // from `(_|\.)` all left EXIT 0, tests 84, pass 84, fail 0 — three
     // narrowings nothing could redden.
-    // Each is live rather than hypothetical. apps/subly/integration_test holds
+    // Each is live rather than hypothetical. apps/subscriptiontracker/integration_test holds
     // three tracked files today, and one of them —
-    // apps/subly/integration_test/store_capture_guard.dart — does NOT end in
+    // apps/subscriptiontracker/integration_test/store_capture_guard.dart — does NOT end in
     // `_test.dart`, so it is held out of the sweep by the `integration_test`
-    // branch alone; it sits outside `apps/subly/lib`, so `inEnforced` does not
+    // branch alone; it sits outside `apps/subscriptiontracker/lib`, so `inEnforced` does not
     // catch it either. The pin is a fixture rather than that file, because a
     // real-tree count is a moving number.
     // The direction that bites is MANUFACTURING a reader: a key named only by a
@@ -1517,7 +1517,7 @@ const b = Text('Hardcoded right after a URL');
     test('the non-render sweep drops every path shape IS_TEST_PATH names', () => {
       const names = "const KEY = 'ghostKey';\n";
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: {
           ...CONSUMERS,
           'tests/reader.mjs': names, // the `s?` in `tests?`
@@ -1540,7 +1540,7 @@ const b = Text('Hardcoded right after a URL');
     test('names one reader site and counts the rest', () => {
       const names = "const KEY = 'ghostKey';\n";
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: { ...CONSUMERS, 'tooling/ci/assert-one.mjs': names, 'tooling/ci/assert-two.mjs': names },
       }));
       assert.equal(code, 0, out);
@@ -1558,7 +1558,7 @@ const b = Text('Hardcoded right after a URL');
     // is that the evidence is inspectable and complete.
     test('names a single reader site without inventing a count', () => {
       const { code, out } = run(tree({
-        sublyArb: GHOST,
+        subscriptiontrackerArb: GHOST,
         consumers: { ...CONSUMERS, 'tooling/ci/assert-one.mjs': "const KEY = 'ghostKey';\n" },
       }));
       assert.equal(code, 0, out);
@@ -1579,7 +1579,7 @@ const b = Text('Hardcoded right after a URL');
       test('a key declared in the brick and rendered only by Subly is NOT reported', () => {
         const { code, out } = run(tree({
           brickArb: SHARED_BRICK,
-          subly: `${CLEAN_SUBLY}\nconst probe = Text(l10n.sharedChassisKey);\n`,
+          subscriptiontracker: `${CLEAN_SUBLY}\nconst probe = Text(l10n.sharedChassisKey);\n`,
         }));
         assert.equal(code, 0, out);
         assert.doesNotMatch(out, /sharedChassisKey/);
@@ -1595,10 +1595,10 @@ const b = Text('Hardcoded right after a URL');
     });
 
     // ── 2026-08-24 · A CONDITION IN THE FIXTURE BUILDER, NOT IN THE GUARD ────
-    // `tree()` plants the Subly arb when `subly !== null || allowlisted !== null`
+    // `tree()` plants the Subly arb when `subscriptiontracker !== null || allowlisted !== null`
     // — the arb belongs to the ROOT, and the root exists through EITHER of the
     // two files planted under it. Neither operand had an input: every case that
-    // removed one of those files removed both (`{ brick: null, subly: null,
+    // removed one of those files removed both (`{ brick: null, subscriptiontracker: null,
     // allowlisted: null }` is the only one), so on 2026-08-24 each operand was
     // dropped alone and this file stayed at EXIT 0, tests 81, pass 81, fail 0.
     // A fixture-side condition that cannot fail is the worse kind: it does not
@@ -1611,7 +1611,7 @@ const b = Text('Hardcoded right after a URL');
     // — the waiver written for that file's literal then matches nothing — and a
     // `code === 0` here would be measuring the allowlist check, not the arb.
     test('the Subly arb is planted when EITHER of that tree’s two files is', () => {
-      const viaAllowlistedFile = run(tree({ subly: null }));
+      const viaAllowlistedFile = run(tree({ subscriptiontracker: null }));
       assert.match(viaAllowlistedFile.out, /3 tracked template arb file\(s\)/, viaAllowlistedFile.out);
       assert.doesNotMatch(viaAllowlistedFile.out, new RegExp(`${SUBLY}/l10n/app_en.arb does not exist`));
 
@@ -1639,7 +1639,7 @@ const b = Text('Hardcoded right after a URL');
       // with [ADR 067] decision 2, so nulling the two app arbs no longer empties
       // the domain and this case would have stopped reaching the branch it names.
       test('FAILS when NO enforced tree has a template arb, and prints no clean zero', () => {
-        const { code, out } = run(tree({ brickArb: null, sublyArb: null, shelfArb: null }));
+        const { code, out } = run(tree({ brickArb: null, subscriptiontrackerArb: null, shelfArb: null }));
         assert.equal(code, 1, 'the reverse direction read no keys at all and still called the tree clean');
         assert.equal(
           (out.match(/does not exist, so the reverse direction read no keys/g) ?? []).length,
@@ -1698,7 +1698,7 @@ const b = Text('Hardcoded right after a URL');
       // any of the three removals alone turns it odd and flips this case to
       // EXIT 1.
       test('accepts a legal Dart identifier that is not lowerCamelCase', () => {
-        const { code, out } = run(tree({ sublyArb: { ...SUBLY_ARB, 'Legacy_$Key': 'Legacy copy' } }));
+        const { code, out } = run(tree({ subscriptiontrackerArb: { ...SUBLY_ARB, 'Legacy_$Key': 'Legacy copy' } }));
         assert.equal(code, 0, out);
         assert.doesNotMatch(out, /not Dart identifiers/);
         // …and it was CHECKED rather than merely not-rejected: it is inside the
@@ -1714,7 +1714,7 @@ const b = Text('Hardcoded right after a URL');
         // become "two .dart files", which is a different input and would stop
         // exercising the refusal this case exists for.
         const { code, out } = run(
-          tree({ brick: null, subly: null, allowlisted: null, shelf: null, shelfAllowlisted: null }),
+          tree({ brick: null, subscriptiontracker: null, allowlisted: null, shelf: null, shelfAllowlisted: null }),
         );
         assert.equal(code, 1, 'every key would read as unrendered, which is a broken scan');
         assert.match(out, /ZERO non-test \.dart file\(s\) to look for accessors in/);
@@ -1782,7 +1782,7 @@ const b = Text('Hardcoded right after a URL');
         // a root that should have one, and a domain that has quietly emptied. A
         // fourth root with no arb would be a legitimate tree and must not redden
         // this case; an arb dropping out of one of the three must.
-        assert.equal(arbs, 3, 'a tracked arb vanished — the brick, apps/subly and the design system each carry one');
+        assert.equal(arbs, 3, 'a tracked arb vanished — the brick, apps/subscriptiontracker and the design system each carry one');
         // …and the PATHS are printed, so a root silently re-pointed at another
         // root's arb cannot hide behind the count.
         assert.match(arbPaths, /lib\/l10n\/app_en\.arb/);
@@ -1898,7 +1898,7 @@ const b = Text('Hardcoded right after a URL');
               "  String get ghostKey => 'Ghost copy';\n" +
               '}\n',
           },
-          { sublyArb: { ...SUBLY_ARB, ghostKey: 'Ghost copy' } },
+          { subscriptiontrackerArb: { ...SUBLY_ARB, ghostKey: 'Ghost copy' } },
         ),
       );
       assert.equal(code, 0, out);
@@ -2150,7 +2150,7 @@ const b = Text('Hardcoded right after a URL');
   // 🔴 [ADR 065]'s FINDING, WORD FOR WORD: "Nothing compares the two trees. Not
   // one of the 148 guards diffs them." The chassis-l10n unit moved 149 keys into
   // `packages/design_system` and left all 149 declared in
-  // `apps/subly/lib/l10n/app_*.arb` as well, read at 222 sites in 29 Subly
+  // `apps/subscriptiontracker/lib/l10n/app_*.arb` as well, read at 222 sites in 29 Subly
   // files. Measured on the branch before this limb existed: THREE English values
   // and FOUR Tamil ones already disagreed — deleteAccountConfirmTitle,
   // deleteAccountConfirmBody, deleteAccountReauthHint, and authEnterBoth in
@@ -2165,7 +2165,7 @@ const b = Text('Hardcoded right after a URL');
       const { code, out } = run(
         tree({
           brickArb: { ...BRICK_ARB, shared: 'One sentence' },
-          sublyArb: { ...SUBLY_ARB, shared: 'One sentence' },
+          subscriptiontrackerArb: { ...SUBLY_ARB, shared: 'One sentence' },
         }),
       );
       assert.equal(code, 0, out);
@@ -2176,7 +2176,7 @@ const b = Text('Hardcoded right after a URL');
       const { code, out } = run(
         tree({
           brickArb: { ...BRICK_ARB, shared: 'Delete account?' },
-          sublyArb: { ...SUBLY_ARB, shared: 'Delete your account?' },
+          subscriptiontrackerArb: { ...SUBLY_ARB, shared: 'Delete your account?' },
         }),
       );
       assert.equal(code, 1, 'a wording fix in one tree reached only one of the apps that ship it');
@@ -2192,7 +2192,7 @@ const b = Text('Hardcoded right after a URL');
       const { code, out } = run(
         tree({
           brickArb: { ...BRICK_ARB, shared: 'One sentence' },
-          sublyArb: { ...SUBLY_ARB, shared: 'One sentence' },
+          subscriptiontrackerArb: { ...SUBLY_ARB, shared: 'One sentence' },
           extra: {
             [BRICK_TA]: arb({ '@@locale': 'ta', shared: 'ஒரு வாக்கியம்' }),
             [SUBLY_TA]: arb({ '@@locale': 'ta', shared: 'வேறு வாக்கியம்' }),
@@ -2212,7 +2212,7 @@ const b = Text('Hardcoded right after a URL');
       const { code, out } = run(
         tree({
           brickArb: { ...BRICK_ARB, shared: '{{{display_name_json}}}' },
-          sublyArb: { ...SUBLY_ARB, shared: 'Subly — Subscription Tracker' },
+          subscriptiontrackerArb: { ...SUBLY_ARB, shared: 'Subly — Subscription Tracker' },
         }),
       );
       assert.equal(code, 0, out);
@@ -2236,7 +2236,7 @@ const b = Text('Hardcoded right after a URL');
       const { code, out } = run(
         tree({
           brickArb: { '@@locale': 'en', appTitle: 'Demo', navHome: 'Home', welcomeTo: 'Welcome to {name}' },
-          sublyArb: { '@@locale': 'fr', homeTitle: 'Vos abonnements' },
+          subscriptiontrackerArb: { '@@locale': 'fr', homeTitle: 'Vos abonnements' },
           shelfArb: { '@@locale': 'de', shelfNotice: 'Ein Hinweis' },
         }),
       );
@@ -2247,7 +2247,7 @@ const b = Text('Hardcoded right after a URL');
     test('COVERAGE LOST when a locale arb does not parse', () => {
       const { code, out } = run(tree({ extra: { [SUBLY_TA]: '{ not json\n' } }));
       assert.equal(code, 1, out);
-      assert.match(out, /COVERAGE LOST — apps\/subly\/lib\/l10n\/app_ta\.arb did not parse as JSON/);
+      assert.match(out, /COVERAGE LOST — apps\/subscriptiontracker\/lib\/l10n\/app_ta\.arb did not parse as JSON/);
     });
 
     test('COVERAGE LOST when a locale arb declares no @@locale', () => {

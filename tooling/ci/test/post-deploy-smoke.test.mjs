@@ -230,7 +230,7 @@ describe('post-deploy-smoke — end to end, through the real script', () => {
 // THE EDGE CACHE LIMB — [14]O-8, `revert.mitigation.force-update`.
 //
 // The row was DEGRADED on exactly this: `assert-web-cache-policy.mjs` reads the
-// DECLARED policy in `apps/subly/web/_headers` and nothing in this repository
+// DECLARED policy in `apps/subscriptiontracker/web/_headers` and nothing in this repository
 // read the header the EDGE returns. The measured failure was the nikatru.com
 // zone's Browser Cache TTL of 14400 stamping `public, max-age=14400,
 // must-revalidate` over a correct origin header on `.js` — four hours in which
@@ -424,7 +424,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/main.dart.js'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/subly\.nikatru\.com\/main\.dart\.js/);
+    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/subscriptiontracker\.nikatru\.com\/main\.dart\.js/);
     assert.match(r.out, /max-age=14400/);
     assert.match(r.out, /kill-switch cannot see/);
   });
@@ -450,7 +450,7 @@ describe('post-deploy-smoke — the edge cache limb, end to end', () => {
     m['/version.json'].headers['cache-control'] = LIVE_BAD;
     const r = runCache([{ status: 200, body: '{"build_number":482}' }], WEB, m);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /FAILED for https:\/\/subly\.nikatru\.com\/version\.json/);
+    assert.match(r.out, /FAILED for https:\/\/subscriptiontracker\.nikatru\.com\/version\.json/);
   });
 
   test('a Worker deploy is NOT failed by a policy that does not govern it', () => {
@@ -514,7 +514,7 @@ import {
 } from '../../ops/post-deploy-smoke.mjs';
 import { generateKeyPairSync } from 'node:crypto';
 
-const PLAY_PKG = 'com.nikatru.subly';
+const PLAY_PKG = 'com.nikatru.subscriptiontracker';
 /** The versionCode "this job just uploaded" in every fixture below. */
 const CODE = '4242';
 
@@ -643,7 +643,7 @@ describe('post-deploy-smoke — the Play limb end to end, through the real scrip
   test('🔴 exit 1 when no track carries it, and the FAILURE PRINTS THE TRACK LIST', () => {
     const r = runPlay([{ tracks: [trk('internal', ['4241']), trk('production', ['4200'])] }]);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /PLAY TRACK SMOKE FAILED for com\.nikatru\.subly/);
+    assert.match(r.out, /PLAY TRACK SMOKE FAILED for com\.nikatru\.subscriptiontracker/);
     assert.match(r.out, /internal=4241, production=4200/);
   });
 
@@ -1210,8 +1210,8 @@ import { createHash } from 'node:crypto';
 const R_REPO = 'nikatru/Nikatru_Platform_Public';
 const R_TAG = 'v9.9.9-fixture';
 
-const A_LINUX = 'subly-linux-x64.AppImage';
-const A_WIN = 'subly-windows-x64.exe';
+const A_LINUX = 'subscriptiontracker-linux-x64.AppImage';
+const A_WIN = 'subscriptiontracker-windows-x64.exe';
 /** sha256 of the empty byte string. */
 const H_LINUX = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 /** sha256 of the five bytes `hello\n`. */
@@ -1428,14 +1428,14 @@ describe('post-deploy-smoke — the release asset decision [14]O-7', () => {
     // Both directions or it is not an integrity check: a file in the release that
     // nothing checksummed is a file no downloader can verify.
     const v = judgeReleaseAssets({
-      assets: [...rGood(), rAsset('subly-installer-UNSIGNED.exe', H_WIN)],
+      assets: [...rGood(), rAsset('subscriptiontracker-installer-UNSIGNED.exe', H_WIN)],
       manifestText: MANIFEST_TEXT,
       manifestDigest: MANIFEST_DIGEST,
     });
     assert.equal(v.ok, false);
     assert.equal(v.retry, false, 'an asset nobody staged does not appear by propagation');
     assert.ok(v.reason.includes('the release carries asset(s) the manifest does not name'), v.reason);
-    assert.ok(v.reason.includes('subly-installer-UNSIGNED.exe'), v.reason);
+    assert.ok(v.reason.includes('subscriptiontracker-installer-UNSIGNED.exe'), v.reason);
   });
 
   test('a MISMATCH alongside a MISSING asset stays NON-retryable — divergence outranks propagation', () => {
@@ -1800,7 +1800,7 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the release limb', () => {
 /** The address the deploy job smokes since [ADR 075] — composed the way the job
  *  composes it, `<site_url>/version.json`, rather than typed as a literal here
  *  and hoped over. */
-const PATH_URL = 'https://nikatru.com/subly/version.json';
+const PATH_URL = 'https://nikatru.com/subscriptiontracker/version.json';
 const PATH_WEB = ['--url', PATH_URL, '--field', 'build_number', '--expect', '482'];
 
 describe('post-deploy-smoke — the web channel under a PATH address [ADR 075]', () => {
@@ -1813,20 +1813,20 @@ describe('post-deploy-smoke — the web channel under a PATH address [ADR 075]',
   test('the predicate still matches the root shape, and still refuses a Worker route', () => {
     assert.equal(isWebChannelSmoke('https://subly.nikatru.com/version.json'), true);
     assert.equal(isWebChannelSmoke('https://api.nikatru.com/v1/health'), false);
-    assert.equal(isWebChannelSmoke('https://nikatru.com/subly/'), false);
+    assert.equal(isWebChannelSmoke('https://nikatru.com/subscriptiontracker/'), false);
     assert.equal(isWebChannelSmoke('not a url'), false);
   });
 
   test('the base path is READ OFF the smoked URL, never composed here', () => {
-    assert.equal(webBasePath(PATH_URL), '/subly/');
+    assert.equal(webBasePath(PATH_URL), '/subscriptiontracker/');
     assert.equal(webBasePath('https://subly.nikatru.com/version.json'), '/');
     assert.equal(webBasePath('https://nikatru.com/a/b/version.json'), '/a/b/');
   });
 
   test('🔴 the entry points are on the APP base path, not on the apex root', () => {
     assert.deepEqual(webEntryPointUrls(PATH_URL), [
-      'https://nikatru.com/subly/flutter_bootstrap.js',
-      'https://nikatru.com/subly/main.dart.js',
+      'https://nikatru.com/subscriptiontracker/flutter_bootstrap.js',
+      'https://nikatru.com/subscriptiontracker/main.dart.js',
     ]);
   });
 
@@ -1845,13 +1845,13 @@ describe('post-deploy-smoke — the web channel under a PATH address [ADR 075]',
       [{ status: 200, body: '{"build_number":482}' }],
       [...PATH_WEB, '--api-fixture', apiFixtureFile([{ status: 401, headers: { 'access-control-allow-origin': 'https://nikatru.com' } }])],
       {
-        '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
-        '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
-        '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_BAD } },
+        '/subscriptiontracker/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+        '/subscriptiontracker/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+        '/subscriptiontracker/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_BAD } },
       },
     );
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/nikatru\.com\/subly\/main\.dart\.js/);
+    assert.match(r.out, /EDGE CACHE POLICY FAILED for https:\/\/nikatru\.com\/subscriptiontracker\/main\.dart\.js/);
     assert.match(r.out, /max-age=14400/);
   });
 });
@@ -1869,7 +1869,7 @@ describe('post-deploy-smoke — the web channel under a PATH address [ADR 075]',
 // 🔴 EVERY CASE BELOW EXISTS TO KEEP TWO FAILURES APART. A CORS rejection and an
 // auth rejection are both "the request did not succeed" and they are opposite
 // diagnoses — one is the API working as designed, the other is the browser
-// discarding the answer before the app sees it. services/subly-api's CORS fails
+// discarding the answer before the app sees it. services/subscriptiontracker-api's CORS fails
 // CLOSED (no header at all rather than an error), so the bad case is SILENT from
 // every other vantage point in this file.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1967,13 +1967,13 @@ describe('post-deploy-smoke — the cross-origin API decision', () => {
 
 describe('post-deploy-smoke — which API this deploy talks to, resolved from the catalogue', () => {
   const CAT = JSON.stringify([
-    { slug: 'subly', url: 'https://nikatru.com/subly', api: 'https://api.nikatru.com' },
+    { slug: 'subscriptiontracker', url: 'https://nikatru.com/subscriptiontracker', api: 'https://api.nikatru.com' },
   ]);
 
   test('the app is identified by the ADDRESS it was just deployed to', () => {
     const r = resolveApiOrigin(CAT, PATH_URL);
     assert.equal(r.apiOrigin, 'https://api.nikatru.com');
-    assert.equal(r.slug, 'subly');
+    assert.equal(r.slug, 'subscriptiontracker');
   });
 
   test('a trailing slash on either side is not a second fact', () => {
@@ -2006,12 +2006,12 @@ describe('post-deploy-smoke — the cross-origin API limb end to end', () => {
    *  fixture, so the limb is exercised through the real exit codes. */
   function runApi(apiResponses, { url = PATH_URL, cache = null } = {}) {
     const cacheMap = cache ?? {
-      '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
-      '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
-      '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+      '/subscriptiontracker/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+      '/subscriptiontracker/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+      '/subscriptiontracker/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
     };
     const cat = join(TMP, `cat-${(seq += 1)}.json`);
-    writeFileSync(cat, JSON.stringify([{ slug: 'subly', url: 'https://nikatru.com/subly', api: 'https://api.nikatru.com' }]));
+    writeFileSync(cat, JSON.stringify([{ slug: 'subscriptiontracker', url: 'https://nikatru.com/subscriptiontracker', api: 'https://api.nikatru.com' }]));
     return runCache(
       [{ status: 200, body: '{"build_number":482}' }],
       ['--url', url, '--field', 'build_number', '--expect', '482', '--api-fixture', apiFixtureFile(apiResponses), '--catalogue', cat],
@@ -2066,9 +2066,9 @@ describe('post-deploy-smoke — the cross-origin API limb end to end', () => {
       [{ status: 200, body: '{"build_number":482}' }],
       ['--url', PATH_URL, '--field', 'build_number', '--expect', '482', '--api-fixture', apiFixtureFile([{ status: 401, headers: { [ACAO]: ORIGIN } }]), '--catalogue', cat],
       {
-        '/subly/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
-        '/subly/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
-        '/subly/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+        '/subscriptiontracker/version.json': { status: 200, headers: { 'content-type': 'application/json', 'cache-control': LIVE_OK } },
+        '/subscriptiontracker/flutter_bootstrap.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
+        '/subscriptiontracker/main.dart.js': { status: 200, headers: { 'content-type': JS, 'cache-control': LIVE_OK } },
       },
     );
     assert.equal(r.code, 1, r.out);
@@ -2126,13 +2126,13 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the cross-origin API limb',
     // The limb asserts "an invalid token is refused". Pointed at an
     // unauthenticated route it would assert nothing at all and still print ok —
     // so the route it defaults to is checked against the service that mounts it.
-    const index = readFileSync(join(ROOT, 'services', 'subly-api', 'src', 'index.ts'), 'utf8');
+    const index = readFileSync(join(ROOT, 'services', 'subscriptiontracker-api', 'src', 'index.ts'), 'utf8');
     assert.match(index, /api\.use\('\*', supabaseAuth\)/, 'the protected group no longer mounts supabaseAuth');
     const [, group, leaf] = API_AUTH_PROBE_PATH.match(/^\/([^/]+)\/([^/]+)$/) ?? [];
     assert.equal(group, 'v1');
     assert.ok(
       index.includes(`api.route('/${leaf}'`),
-      `${API_AUTH_PROBE_PATH} is not mounted inside the supabaseAuth-protected group in services/subly-api/src/index.ts, so the limb would be probing an unauthenticated route`,
+      `${API_AUTH_PROBE_PATH} is not mounted inside the supabaseAuth-protected group in services/subscriptiontracker-api/src/index.ts, so the limb would be probing an unauthenticated route`,
     );
   });
 
@@ -2146,7 +2146,7 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the cross-origin API limb',
     // sanitisation shape (CodeQL js/incomplete-url-substring-sanitization), and a
     // genuinely wrong assertion in a test whose whole subject is an allowlist.
     // The list is comma-separated, so split it and compare each entry's ORIGIN.
-    const wrangler = readFileSync(join(ROOT, 'services', 'subly-api', 'wrangler.jsonc'), 'utf8');
+    const wrangler = readFileSync(join(ROOT, 'services', 'subscriptiontracker-api', 'wrangler.jsonc'), 'utf8');
     const listed = (wrangler.match(/"ALLOWED_ORIGINS"\s*:\s*"([^"]*)"/) ?? [, ''])[1]
       .split(',')
       .map((s) => s.trim())
@@ -2160,7 +2160,7 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the cross-origin API limb',
       });
     assert.ok(
       listed.includes(APEX_ORIGIN_BARE),
-      `services/subly-api ALLOWED_ORIGINS no longer carries ${APEX_ORIGIN_BARE}, which is the origin every app page is served from since [ADR 075]. It lists: ${listed.join(', ')}`,
+      `services/subscriptiontracker-api ALLOWED_ORIGINS no longer carries ${APEX_ORIGIN_BARE}, which is the origin every app page is served from since [ADR 075]. It lists: ${listed.join(', ')}`,
     );
   });
 });

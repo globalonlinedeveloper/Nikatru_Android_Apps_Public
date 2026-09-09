@@ -15,7 +15,7 @@
   // than a Worker per job.
   //
   // Sole applier of platform_db migrations (entitlements). Per-app APP_DBs are
-  // bound read/write here ONLY for the renewals fan-out (subly today; add more
+  // bound read/write here ONLY for the renewals fan-out (subscriptiontracker today; add more
   // as apps ship). Secrets via `wrangler secret put` (never committed).
   // ───────────────────────────────────────────────────────────────────────────
   "name": "platform",
@@ -48,12 +48,12 @@
     //
     //   subly.nikatru.com  — the live Subly web app
     //   subly-9cp.pages.dev — its Cloudflare Pages preview domain (mirrors the
-    //                         same pair in services/subly-api)
+    //                         same pair in services/subscriptiontracker-api)
     //   localhost:3000      — the local Subly web dev server (.claude/launch.json).
     //                         It fetches config.nikatru.com cross-origin from the
     //                         browser, so omitting it breaks local web dev.
     //
-    // ⚠️ THIS LIST IS DELIBERATELY NOT A MIRROR OF services/subly-api's, AND THE
+    // ⚠️ THIS LIST IS DELIBERATELY NOT A MIRROR OF services/subscriptiontracker-api's, AND THE
     // ASYMMETRY IS ONE LINE LONG. A review on 2026-09-08 read the two lists as
     // drift — `http://localhost:3000` here, absent there, beside the "mirrors"
     // note above — so the reason is written HERE, next to the value, rather than
@@ -62,7 +62,7 @@
     //   · the PAIR the note above claims is mirrored (subly.nikatru.com +
     //     subly-9cp.pages.dev) IS mirrored, exactly, in both configs.
     //   · localhost is NOT, because it is not the same question in the two
-    //     Workers. services/subly-api/src/middleware/cors.ts:38,57 allows ANY
+    //     Workers. services/subscriptiontracker-api/src/middleware/cors.ts:38,57 allows ANY
     //     localhost origin BY REGEX — a recorded per-app trade, because
     //     `flutter drive -d web-server` picks a random port that cannot be named
     //     in advance — so listing one here would assert something that config
@@ -74,7 +74,7 @@
     // 🔴 AND THE ASYMMETRY IS ENFORCED, IN BOTH DIRECTIONS, so this paragraph is
     // not the thing holding it up: tooling/ci/assert-cors-allowlist.mjs derives
     // each Worker's required origins from catalog/apps.json and requires the
-    // declared set to EQUAL derived ∪ EXTRAS. Adding localhost to subly-api to
+    // declared set to EQUAL derived ∪ EXTRAS. Adding localhost to subscriptiontracker-api to
     // "re-sync" the two files fails the build as an unjustified origin; removing
     // it from here fails as a missing EXTRA. Do not hand-sync these two lines.
     // NARROWED 2026-09-09, THE LAST STEP OF THE MIGRATION [ADR 075]. This list was
@@ -82,7 +82,7 @@
     // allowlist fails CLOSED and silently, so a browser still holding the app open
     // at subly.nikatru.com would have lost its API the moment this Worker deployed.
     // That window is over: the zone Redirect Rule now 301s every request on that
-    // host to https://nikatru.com/subly/ (measured: /, /x, /version.json and a deep
+    // host to https://nikatru.com/subscriptiontracker/ (measured: /, /x, /version.json and a deep
     // path with a query all 301 in one hop to a 200), so no page is served there and
     // no browser sends that Origin any more. The entry justifying it in
     // assert-cors-allowlist.mjs EXTRAS is removed in this same change.
@@ -108,7 +108,7 @@
     // Subly user could delete their account and leave every subscription, budget
     // and payment they had entered in subly_db, behind a login that no longer
     // existed. The shared route now relays the caller's own bearer token to each
-    // app's own DELETE /v1/account (services/subly-api/src/routes/account.ts),
+    // app's own DELETE /v1/account (services/subscriptiontracker-api/src/routes/account.ts),
     // AFTER the service-role precondition and BEFORE the identity is deleted.
     //
     // ⚠️ EVERY NEW APP WITH ITS OWN DATABASE MUST BE ADDED HERE. Binding an app's
@@ -116,7 +116,7 @@
     // (tooling/ci/assert-erasure-reach.mjs) rather than silently orphaning that
     // app's rows on every deletion. `https://` is required: the relay forwards a
     // live session token.
-    "APP_ERASURE_ENDPOINTS": "subly=https://api.nikatru.com"
+    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://api.nikatru.com"
   },
   "d1_databases": [
     {
@@ -128,7 +128,7 @@
     },
     {
       // Subly's per-app DB — bound for the nightly renewals fan-out only.
-      // (subly-api owns subly_db's own migrations; NO migrations_dir here.)
+      // (subscriptiontracker-api owns subly_db's own migrations; NO migrations_dir here.)
       "binding": "SUBLY_DB",
       "database_name": "subly_db",
       "database_id": "88da9026-f72a-4cda-823d-431148fa8112"
@@ -139,7 +139,7 @@
     { "binding": "CONFIG_KV", "id": "33e4e58abb644d0e917a159227c6c134" },
     // Warm cache for the Supabase JWKS document, so an ES256 verify on
     // DELETE /v1/account does not fetch it on every cold isolate. The SAME
-    // namespace services/subly-api binds: there is one identity project for the
+    // namespace services/subscriptiontracker-api binds: there is one identity project for the
     // whole portfolio, so a second namespace would be a second copy of one
     // public document, doubling the KV writes that cache costs against a Free
     // budget of 1,000/day account-wide (tooling/ceilings.json → kv.writesPerDay).

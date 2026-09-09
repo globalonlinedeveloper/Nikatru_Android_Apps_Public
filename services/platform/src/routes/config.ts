@@ -37,7 +37,7 @@ app.get('/:app', async (c) => {
   //
   // WHY THIS ROUTE NEEDS ONE AT ALL, now that unknown apps are free: a KNOWN app
   // still costs a KV read, and `Cache-Control: s-maxage=300` only collapses
-  // requests that share a cache key. `GET /config/subly?cb=<random>` does not —
+  // requests that share a cache key. `GET /config/subscriptiontracker?cb=<random>` does not —
   // the query string is part of the cache key and Hono routes on the path — so a
   // caller can bust the edge cache at will and turn one KV read per five minutes
   // into one per request, against the same shared free-tier allowance the

@@ -23,7 +23,7 @@ dart run flutter_launcher_icons          # <- do not skip this
 ```
 
 `flutter create` writes **Flutter's default logo** into every native platform it
-adds. That is how `apps/subly` came to ship the stock icon on Android, iOS,
+adds. That is how `apps/subscriptiontracker` came to ship the stock icon on Android, iOS,
 macOS and Windows simultaneously while its web icons were correct — 29
 byte-identical files, found 2026-08-04. `tooling/ci/assert-launcher-icons.mjs`
 fails the build if a shipped icon is Flutter's, so CI will catch it, but the

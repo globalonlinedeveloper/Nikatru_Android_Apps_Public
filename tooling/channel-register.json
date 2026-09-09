@@ -201,7 +201,7 @@
     "portfolioUrls": {
       "_why": [
         "🔴 THESE TWO WERE `appConfig` FIELDS AND THE SCAN DID NOT REACH A STAMPED APP. The lookup was",
-        "`apps/{app}/lib/core/config/app_config.dart` — apps/subly's layout. The BRICK stamps",
+        "`apps/{app}/lib/core/config/app_config.dart` — apps/subscriptiontracker's layout. The BRICK stamps",
         "`lib/core/app_config.dart`, so for every app the factory produces the file was simply not",
         "there and the guard PRINTED `CANNOT DERIVE` instead of comparing. A print is the quiet half of",
         "this repository's signature defect: the check reported healthy about a file it never opened.",
@@ -277,7 +277,7 @@
           "",
           "🔴 `privacy-manifest.json` IS THE FOURTH SWORN DECLARATION IN THIS CONTRACT, AND THE FIRST",
           "THAT IS NOT A PLAY ARTEFACT. It landed 2026-08-31 as the repo-native source of truth for BOTH",
-          "Apple channels' PrivacyInfo.xcprivacy (apps/subly/ios/Runner/ and apps/subly/macos/Runner/),",
+          "Apple channels' PrivacyInfo.xcprivacy (apps/subscriptiontracker/ios/Runner/ and apps/subscriptiontracker/macos/Runner/),",
           "which tooling/store/render-apple-privacy-manifest.mjs generates and tooling/ci/",
           "assert-apple-privacy-manifest.mjs re-derives and compares on every run. G-49 left stage 8's",
           "cut list the day Apple enrolment completed, and Apple enforces the manifest AT UPLOAD rather",
@@ -334,8 +334,8 @@
           "carries two rows rather than one. The limits are the same page and the same fetch.",
           "",
           "🔴 THE PRIVACY MANIFEST IS THE ONE APPLE ARTEFACT THAT IS NOT PER-PLATFORM, AND THIS ROW",
-          "CARRIES NO COPY OF IT ON PURPOSE. apps/subly/macos/Runner/PrivacyInfo.xcprivacy is generated",
-          "from apps/subly/store/ios-appstore/privacy-manifest.json — the SAME audit file that generates",
+          "CARRIES NO COPY OF IT ON PURPOSE. apps/subscriptiontracker/macos/Runner/PrivacyInfo.xcprivacy is generated",
+          "from apps/subscriptiontracker/store/ios-appstore/privacy-manifest.json — the SAME audit file that generates",
           "the iOS one, and a file that names both channels in its own `channels` field. Two copies of one",
           "identity is how the wrong one ships: it is the argument this register already makes about the",
           "MSIX identity block, and it applies harder here, because the two platforms are two renderings",
@@ -419,7 +419,7 @@
           "🔴 WHAT IT DOES CARRY IS THE THREE SWORN DECLARATIONS, AND THEY ARE HERE FOR THE SAME REASON THE",
           "LISTING TEXT IS. `data-safety.json` and `content-rating.json` are the Data safety form and the",
           "IARC content-rating questionnaire — Console artefacts that until 2026-08-04 had NO representation",
-          "in this repository at all, which apps/subly/store/android-play/README.md recorded in prose as a",
+          "in this repository at all, which apps/subscriptiontracker/store/android-play/README.md recorded in prose as a",
           "blocking gap. They are not listing copy, so they carry no character limit and no `derivedFields`",
           "entry; they are declarations ABOUT THE CODE, and tooling/ci/assert-play-declarations.mjs is what",
           "compares them to it.",
@@ -468,7 +468,7 @@
           "_why": [
             "🔴 THE THIRD THING A PLAY LISTING NEEDS, AND THE ONE THAT HAD NO REPO REPRESENTATION AT ALL.",
             "The listing TEXT has had a guard on every field since [10]D-5; the two SWORN DECLARATIONS got",
-            "theirs on 2026-08-04. The GRAPHICS had neither an artefact nor a number — apps/subly/store/",
+            "theirs on 2026-08-04. The GRAPHICS had neither an artefact nor a number — apps/subscriptiontracker/store/",
             "android-play/screenshots/README.md carried a table with six rows all marked UNVERIFIED and the",
             "instruction 'do not fill a number in from memory'. This block is that table, fetched.",
             "",
@@ -558,7 +558,7 @@
               "_why": [
                 "🔴 PLAY'S MINIMUM IS NOT A COUNT OF FILES, IT IS A COUNT OF DEVICE TYPES, AND THIS TREE HAD",
                 "ONLY EVER COUNTED FILES. `minCount: 2` above is satisfied by four phone screenshots, which is",
-                "exactly what apps/subly/store/android-play/screenshots/ holds — 4 files, every one 1080x1920,",
+                "exactly what apps/subscriptiontracker/store/android-play/screenshots/ holds — 4 files, every one 1080x1920,",
                 "zero tablet and zero Chromebook. Measured 2026-08-20 by reading the four IHDR chunks. Every",
                 "other listing asset PASSES, so this is the single most likely cause of a first-submission",
                 "bounce, and nothing in the repository could see it: assert-listing-assets.mjs asks how many,",
@@ -1160,8 +1160,8 @@
       "notes": [
         "The only served channel, and deliberately so — 39-CHASSIS §4 cut 5 defers native platform",
         "folders, the per-platform deploy workflows and tooling/release/ until an app proves it converts.",
-        "Verified live: apps.json carries subly platforms:[\"web\"] status:\"live\"; the deployment ledger",
-        "holds subly-web.",
+        "Verified live: apps.json carries subscriptiontracker platforms:[\"web\"] status:\"live\"; the deployment ledger",
+        "holds subscriptiontracker-web.",
         "⚠️ deploy-web.yml builds with --pwa-strategy=none, so there is no service worker and no offline",
         "support on the one platform the $0 desktop story rests on.",
         "🔒 THAT IS [ADR 023] (Private/decisions/023-web-pwa-strategy.md, LOCKED 2026-07-31), NOT AN",
@@ -1170,7 +1170,7 @@
         "over-encoding, so no guard asserts `--pwa-strategy=none` and none should be re-derived.",
         "🔴 WHAT IT LEAVES BEHIND IS REAL AND IS NOW COVERED: with no service worker there is no",
         "client-side update machinery at all, so the HTTP CACHE is the entire update mechanism on the only",
-        "served channel. apps/subly/web/_headers declares that policy and tooling/ci/",
+        "served channel. apps/subscriptiontracker/web/_headers declares that policy and tooling/ci/",
         "assert-web-cache-policy.mjs holds the stable-named entry points (/, /index.html,",
         "/flutter_bootstrap.js) to a revalidating Cache-Control. Before it, nothing in the repository chose",
         "one, so a returning visitor could run the PREVIOUS build while reporting the previous version",
@@ -1235,7 +1235,7 @@
           "sha256": "43:C8:4D:11:62:C4:D1:9C:0F:A0:C5:E0:01:90:5B:89:52:3D:C0:82:A6:80:83:C9:93:06:9B:86:3C:28:A6:16",
           "alias": "nikatru-upload",
           "asOf": "2026-08-04",
-          "_aliasNote": "Renamed from `subly` on 2026-08-04 by [ADR 030] — ONE SHARED UPLOAD KEY FOR THE WHOLE FACTORY, so a per-app alias was the wrong name. This field kept saying `subly` afterwards and NOTHING NOTICED, because `keytool -changealias` leaves the SHA-256 byte-identical (that identity is the proof it was a rename and not a regeneration) and no guard reads this field — assert-artifact-signed.mjs consumes only `.sha256`. A value with no reader drifts silently and its `asOf` date goes on looking fresh. The repo secret ANDROID_KEY_ALIAS is the authority.",
+          "_aliasNote": "Renamed from `subscriptiontracker` on 2026-08-04 by [ADR 030] — ONE SHARED UPLOAD KEY FOR THE WHOLE FACTORY, so a per-app alias was the wrong name. This field kept saying `subscriptiontracker` afterwards and NOTHING NOTICED, because `keytool -changealias` leaves the SHA-256 byte-identical (that identity is the proof it was a rename and not a regeneration) and no guard reads this field — assert-artifact-signed.mjs consumes only `.sha256`. A value with no reader drifts silently and its `asOf` date goes on looking fresh. The repo secret ANDROID_KEY_ALIAS is the authority.",
           "source": "owner-supplied, from the keystore generated 2026-08-04 (RSA 4096, PKCS12, CN=Nikatru, valid to 2053)"
         },
         "ciSecrets": {
@@ -1385,7 +1385,7 @@
           "[10]D-3 — one app_id derives every store identity, and this is where the ANDROID one is",
           "declared. Until 2026-08-03 the path and the expected value lived INSIDE",
           "tooling/release/submit-play.mjs, so the only thing that checked the package name was the",
-          "submission script, and only when somebody ran it with --app subly.",
+          "submission script, and only when somebody ran it with --app subscriptiontracker.",
           "",
           "🔴 PLAY BINDS THE PACKAGE NAME AT THE FIRST UPLOAD AND IT CAN NEVER BE CHANGED. A wrong value",
           "here is not a bug that gets patched — it is a second app in the store, with its own reviews,",
@@ -1409,7 +1409,7 @@
         ],
         "status": "verified",
         "asOf": "2026-08-04",
-        "note": "Play ORGANIZATION account, VERIFIED 2026-08-04 11:12 IST — Organization ✅ and Authorized representative ✅, website verified, $25 paid, OWNER_QUEUE A-3 CLOSED. ⚠️ THIS FIELD SAID \"none — No Play Console account\" AND WAS FALSE FOR TWO DAYS, in the PUBLIC repo, while three other files in this same tree already said the opposite (apps/subly/store/android-play/content-rating.json, tooling/ci/assert-play-declarations.mjs, and ci.yml's own comment). And it was NOT unguarded — assert-channel-register printed 'ACCOUNT NONE: android-play … as of 2026-08-03 · No Play Console account' on EVERY CI run for two days after it became false. That is the sharper lesson: the gap-printer worked perfectly and printed a gap that had closed, in a message identical to the one it had printed correctly for weeks. A print that repeats an expected line is wallpaper, and a `verified` row printed NOTHING at all — so the freshness of the claim was never surfaced in either state. `accountStatus` also only FAILS on `served: true`, and this row is deliberately not served. Exactly the defect fixed one channel over for windows-store; found the same way, by reviewing a vendor file against the artefacts. The account record is nikatru/vendors/google.md."
+        "note": "Play ORGANIZATION account, VERIFIED 2026-08-04 11:12 IST — Organization ✅ and Authorized representative ✅, website verified, $25 paid, OWNER_QUEUE A-3 CLOSED. ⚠️ THIS FIELD SAID \"none — No Play Console account\" AND WAS FALSE FOR TWO DAYS, in the PUBLIC repo, while three other files in this same tree already said the opposite (apps/subscriptiontracker/store/android-play/content-rating.json, tooling/ci/assert-play-declarations.mjs, and ci.yml's own comment). And it was NOT unguarded — assert-channel-register printed 'ACCOUNT NONE: android-play … as of 2026-08-03 · No Play Console account' on EVERY CI run for two days after it became false. That is the sharper lesson: the gap-printer worked perfectly and printed a gap that had closed, in a message identical to the one it had printed correctly for weeks. A print that repeats an expected line is wallpaper, and a `verified` row printed NOTHING at all — so the freshness of the claim was never surfaced in either state. `accountStatus` also only FAILS on `served: true`, and this row is deliberately not served. Exactly the defect fixed one channel over for windows-store; found the same way, by reviewing a vendor file against the artefacts. The account record is nikatru/vendors/google.md."
       },
       "submission": {
         "_why": [
@@ -2860,14 +2860,14 @@
   "_serviceEnvironmentsWhy": [
     "🔴 A BACKEND WORKER IS NOT A RELEASE CHANNEL, and record-deployment.mjs used to insist it was.",
     "Since [10]D-9 (commit 3a16272) that script resolved EVERY environment against `channels` and",
-    "hard-failed when none matched — so `deploy-workers.yml` went red on `subly-api` and `platform`",
+    "hard-failed when none matched — so `deploy-workers.yml` went red on `subscriptiontracker-api` and `platform`",
     "from 2026-08-02, five consecutive runs, AFTER both Workers had uploaded successfully.",
     "",
     "The matcher was right and the register was the wrong authority. A `channels` row carries",
     "`platforms`, `artifactFormats`, `signing.keyKind`, `minimumToolchain`, `lane` and",
     "`storeMetadataDir`; a Worker has none of them. Worse, `channels` is the derived right-hand side",
     "for assert-channel-register.mjs, assert-release-lane-generic.mjs, assert-store-identity.mjs and",
-    "assert-store-metadata.mjs, all of which quantify over {served rows} × {apps} — a fake `subly-api`",
+    "assert-store-metadata.mjs, all of which quantify over {served rows} × {apps} — a fake `subscriptiontracker-api`",
     "row would corrupt every one. And `platform` is not app-scoped at all: the only template that",
     "could match it is a bare \"{app}\", whose head and tail are both empty, so it would swallow EVERY",
     "environment string and destroy the matcher for real channels.",
@@ -2884,12 +2884,12 @@
   ],
   "serviceEnvironments": [
     {
-      "id": "subly-api",
-      "deploymentEnvironment": "subly-api",
+      "id": "subscriptiontracker-api",
+      "deploymentEnvironment": "subscriptiontracker-api",
       "kind": "service",
       "name": "Subly backend Worker",
       "url": "https://api.nikatru.com",
-      "source": "services/subly-api",
+      "source": "services/subscriptiontracker-api",
       "notes": "App-scoped Worker. Deployed by .github/workflows/deploy-workers.yml."
     },
     {

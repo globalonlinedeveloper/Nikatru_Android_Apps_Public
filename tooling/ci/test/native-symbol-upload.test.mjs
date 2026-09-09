@@ -77,7 +77,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
     // and fails THERE. That is the proof the argument, credential and directory
     // limbs all passed: the failure names the spawn, not any of them.
     const dir = symbolsDir(['app.linux-x64.symbols']);
-    const { code, out } = run(['--cli', join(TMP, 'no-such-cli'), '--dir', dir, '--org', 'nikatru', '--project', 'subly']);
+    const { code, out } = run(['--cli', join(TMP, 'no-such-cli'), '--dir', dir, '--org', 'nikatru', '--project', 'subscriptiontracker']);
     assert.equal(code, 1, out);
     assert.match(out, /1 debug file\(s\) in /);
     assert.doesNotMatch(out, /SENTRY_AUTH_TOKEN is empty/);
@@ -87,7 +87,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
   test('FAILS CLOSED, naming GLITCHTIP_TOKEN, when the auth token is absent', () => {
     const dir = symbolsDir(['app.linux-x64.symbols']);
     const { code, out } = run(
-      ['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subly'],
+      ['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subscriptiontracker'],
       { SENTRY_AUTH_TOKEN: '' },
     );
     assert.equal(code, 1, out);
@@ -98,7 +98,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
 
   test('FAILS when the split-debug-info directory does not exist — the build did not obfuscate', () => {
     const { code, out } = run([
-      '--cli', 'glitchtip-cli', '--dir', join(TMP, 'never-written'), '--org', 'nikatru', '--project', 'subly',
+      '--cli', 'glitchtip-cli', '--dir', join(TMP, 'never-written'), '--org', 'nikatru', '--project', 'subscriptiontracker',
     ]);
     assert.equal(code, 1, out);
     assert.match(out, /is not a directory/);
@@ -107,7 +107,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
 
   test('FAILS when the directory exists and is EMPTY — the CLI would call that a green upload', () => {
     const dir = symbolsDir([]);
-    const { code, out } = run(['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subly']);
+    const { code, out } = run(['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subscriptiontracker']);
     assert.equal(code, 1, out);
     assert.match(out, /holds no non-empty file/);
     assert.match(out, /No debug information files found/);
@@ -116,7 +116,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
   test('FAILS on a DSN that does not parse, and does not print the value', () => {
     const dir = symbolsDir(['app.linux-x64.symbols']);
     const { code, out } = run(
-      ['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subly'],
+      ['--cli', 'glitchtip-cli', '--dir', dir, '--org', 'nikatru', '--project', 'subscriptiontracker'],
       { GLITCHTIP_DSN: 'this-is-not-a-dsn' },
     );
     assert.equal(code, 1, out);
@@ -132,7 +132,7 @@ describe('upload-native-symbols — the refusals that happen before the CLI runs
   });
 
   test('FAILS on a flag given no value — TRAPS shell-13, the eaten next argument', () => {
-    const { code, out } = run(['--cli', 'glitchtip-cli', '--dir', '--org', 'nikatru', '--project', 'subly']);
+    const { code, out } = run(['--cli', 'glitchtip-cli', '--dir', '--org', 'nikatru', '--project', 'subscriptiontracker']);
     assert.equal(code, 1, out);
     assert.match(out, /--dir was given no value/);
   });

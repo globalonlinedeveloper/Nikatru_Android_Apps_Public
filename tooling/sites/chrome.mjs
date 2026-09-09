@@ -10,7 +10,7 @@
 // `<footer>` element, before this file existed:
 //
 //     e98b2a71  apps/_template.html
-//     ae6331b0  apps/index.html · apps/subly.html
+//     ae6331b0  apps/index.html · apps/subscriptiontracker.html
 //     19aceea8  checkout-return.html · contact.html · delete-account.html · pricing.html
 //     e8fb5136  index.html
 //     ce153a78  privacy.html
@@ -22,7 +22,7 @@
 //
 //   1. THE LINK SET. `privacy.html` was the ONE page whose footer did not link
 //      `/delete-account` — and it is the page a Play reviewer opens to verify the
-//      deletion route that `apps/subly/store/android-play/data-safety.json`
+//      deletion route that `apps/subscriptiontracker/store/android-play/data-safety.json`
 //      declares as `webDeletionUrl`. The claim and the way to reach it had been
 //      separated by nothing more than a footer someone edited in isolation.
 //   2. THE LEGAL IDENTITY LINE. The four `apps/*` footers carried no UDYAM

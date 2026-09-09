@@ -112,7 +112,7 @@ AnalyticsRecorder _recorder({
   Duration flushInterval = kWindow,
 }) =>
     AnalyticsRecorder(
-      appId: 'subly',
+      appId: 'subscriptiontracker',
       anonId: 'install-1',
       transport: transport,
       consent: consent,

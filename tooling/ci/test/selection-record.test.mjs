@@ -26,7 +26,7 @@
 //   T2  HEAD state, the private tree removed   => exit 0, + "THE PRIVATE TREE IS NOT IN THIS CHECKOUT"
 // (that tree was `Private/company/` (deleted 2026-08-15) when T1/T2 were run; the flatten
 //  merged company/ and knowledge/ into the single `Private/` the fixtures below build.)
-//   T3  apps/subly renamed to apps/sublite (workspace AND disk)
+//   T3  apps/subscriptiontracker renamed to apps/sublite (workspace AND disk)
 //                                      => exit 1, "EXEMPT name(s) are not workspace members"
 //   T4  apps/ghost created on disk only => exit 1, "not in the root pubspec.yaml `workspace:` block"
 //   T5  restored                        => exit 0
@@ -60,11 +60,11 @@ const PUBSPEC = (apps) => `name: nikatru_workspace\n\nenvironment:\n  sdk: ^3.9.
 
 /**
  * A tree with a root pubspec, the apps it names, and optionally a Private/.
- * `EXEMPT` in the script names `apps/subly`, so a fixture that wants the empty
+ * `EXEMPT` in the script names `apps/subscriptiontracker`, so a fixture that wants the empty
  * domain has to carry that app — which is the point: the exemption is a claim
  * about a specific app, and a fixture that fakes it would be testing nothing.
  */
-function tree({ workspace = ['apps/subly'], onDisk = null, company = {}, dod = {} } = {}) {
+function tree({ workspace = ['apps/subscriptiontracker'], onDisk = null, company = {}, dod = {} } = {}) {
   const root = join(TMP, `r${seq++}`);
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, 'pubspec.yaml'), PUBSPEC(workspace));
@@ -105,7 +105,7 @@ describe('N-9 · a legitimately empty domain PRINTS and does not redden CI', () 
   });
 
   test('the print names the exemption it is relying on, so the claim is auditable', () => {
-    assert.match(run(tree()).out, /exempt by name \(apps\/subly\)/);
+    assert.match(run(tree()).out, /exempt by name \(apps\/subscriptiontracker\)/);
   });
 });
 
@@ -114,11 +114,11 @@ describe('N-9 · the floors that make "empty" mean empty', () => {
     const { code, out } = run(tree({ workspace: ['apps/sublite'] }));
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
-    assert.match(out, /EXEMPT name\(s\) are not workspace members: apps\/subly/);
+    assert.match(out, /EXEMPT name\(s\) are not workspace members: apps\/subscriptiontracker/);
   });
 
   test('🔴 an app on disk the workspace does not list is COVERAGE LOST — it would enter ungated', () => {
-    const { code, out } = run(tree({ workspace: ['apps/subly'], onDisk: ['apps/subly', 'apps/ghost'] }));
+    const { code, out } = run(tree({ workspace: ['apps/subscriptiontracker'], onDisk: ['apps/subscriptiontracker', 'apps/ghost'] }));
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /apps\/ghost/);
@@ -143,7 +143,7 @@ describe('N-9 · the sha256 half, which is the only reason this script is local'
   const SHA = createHash('sha256').update(Buffer.from(RECORD)).digest('hex');
   const withApp = (selection) =>
     tree({
-      workspace: ['apps/subly', 'apps/lingo'],
+      workspace: ['apps/subscriptiontracker', 'apps/lingo'],
       company: { 'selection/lingo.md': RECORD },
       dod: { 'apps/lingo/dod.json': { status: 'done', selection } },
     });
@@ -167,7 +167,7 @@ describe('N-9 · the sha256 half, which is the only reason this script is local'
   });
 
   test('an app with no done-record at all FAILS', () => {
-    const root = tree({ workspace: ['apps/subly', 'apps/lingo'] });
+    const root = tree({ workspace: ['apps/subscriptiontracker', 'apps/lingo'] });
     const { code, out } = run(root);
     assert.equal(code, 1);
     assert.match(out, /no done-record at apps\/lingo\/dod\.json/);
@@ -175,7 +175,7 @@ describe('N-9 · the sha256 half, which is the only reason this script is local'
 
   test('a stamped app that has not linked one yet is a NOTE, not a failure', () => {
     const root = tree({
-      workspace: ['apps/subly', 'apps/lingo'],
+      workspace: ['apps/subscriptiontracker', 'apps/lingo'],
       dod: { 'apps/lingo/dod.json': { status: 'stamped', selection: { record: '', sha256: '' } } },
     });
     const { code, out } = run(root);
@@ -186,7 +186,7 @@ describe('N-9 · the sha256 half, which is the only reason this script is local'
 
 describe('N-9 · a checkout with no Private/ reports what it could not do', () => {
   test('🔴 PRINTS and exits 0 — this is the CI shape, and failing it would make the lane permanently red', () => {
-    const root = tree({ workspace: ['apps/subly'] });
+    const root = tree({ workspace: ['apps/subscriptiontracker'] });
     rmSync(join(root, 'Private'), { recursive: true, force: true });
     const { code, out } = run(root);
     assert.equal(code, 0, out);
@@ -197,7 +197,7 @@ describe('N-9 · a checkout with no Private/ reports what it could not do', () =
     // Without this, wiring the script into CI would fail every run the moment
     // one app carried a selection link — punishing the correct state.
     const root = tree({
-      workspace: ['apps/subly', 'apps/lingo'],
+      workspace: ['apps/subscriptiontracker', 'apps/lingo'],
       dod: { 'apps/lingo/dod.json': { status: 'done', selection: { record: 'company/selection/lingo.md', sha256: 'a'.repeat(64) } } },
     });
     rmSync(join(root, 'Private'), { recursive: true, force: true });

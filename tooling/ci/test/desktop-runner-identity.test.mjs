@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-desktop-runner-identity.mjs');
 
-const APP = 'apps/subly';
+const APP = 'apps/subscriptiontracker';
 const RC = `${APP}/windows/runner/Runner.rc`;
 const XC = `${APP}/macos/Runner/Configs/AppInfo.xcconfig`;
 const GRADLE = `${APP}/android/app/build.gradle.kts`;
@@ -65,7 +65,7 @@ const edit = (root, rel, fn) => {
 
 // 🔴 THE MUTATION READS THE ID OUT OF THE FILE; IT DOES NOT SPELL IT. Until
 // 2026-09-09 the three "id source gone" mutations below searched for the
-// literal `com.nikatru.subly`, and the rename to `com.nikatru.subscriptiontracker`
+// literal `com.nikatru.subscriptiontracker`, and the rename to `com.nikatru.subscriptiontracker`
 // made every one of them an anchor that matches nothing. `edit`'s land-check
 // turns that into a LOUD failure rather than a silent pass — which is the only
 // reason this was a re-spelling job and not seven dead controls — but a control
@@ -159,7 +159,7 @@ describe('limb 1 — no application id in a field a human reads', () => {
   });
 
   test('the org prefix alone is enough — the full bundle id need not appear', () => {
-    // The real defect was `com.nikatru`, a PREFIX of `com.nikatru.subly`.
+    // The real defect was `com.nikatru`, a PREFIX of `com.nikatru.subscriptiontracker`.
     // Matching only the whole id would have missed the bug that motivated this.
     withTree(
       (root) => edit(root, RC, (s) => s.replace('VALUE "CompanyName", "Nikatru"', 'VALUE "CompanyName", "com.nikatru"')),

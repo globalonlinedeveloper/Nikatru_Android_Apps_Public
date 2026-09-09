@@ -15,7 +15,7 @@
 //
 // ── ⚠️ "SHARED" USED TO MEAN DUPLICATED. IT NO LONGER DOES ───────────────────
 // Until [ADR 067] this file existed THREE TIMES — `services/platform`,
-// `services/subly-api` and the brick's Worker template — at 333, 333 and 334
+// `services/subscriptiontracker-api` and the brick's Worker template — at 333, 333 and 334
 // lines and three different sha256s, held equal only by
 // `services/platform/test/twinned-worker-modules.test.ts`. The three bodies
 // were byte-identical; the three headers were not, which is the whole of what
@@ -27,7 +27,7 @@
 // specifier by walking up from the FILE that writes it, and there is no
 // `node_modules` at `services/_shared/`, at `services/` or at the repo root —
 // each Worker runs its own `npm ci` in its own directory (`ci.yml` jobs
-// `worker-subly-api` and `worker-platform`). Measured on 2026-09-06 with a
+// `worker-subscriptiontracker-api` and `worker-platform`). Measured on 2026-09-06 with a
 // probe module importing `jose`:
 //     services/platform $ npx tsc --noEmit
 //     ../_shared/src/_probe.ts(1,27): error TS2307: Cannot find module 'jose'

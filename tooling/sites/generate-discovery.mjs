@@ -738,7 +738,7 @@ ${buttons.map((b) => `      ${b}`).join('\n')}
   // The layout degrades to no screenshot block rather than shipping three broken
   // <img> tags." So the block is emitted for the files that ARE there and for no
   // others, and an app with none still gets no section. What changed on
-  // 2026-09-09 is only that the art now exists: `apps/subly/store/android-play/
+  // 2026-09-09 is only that the art now exists: `apps/subscriptiontracker/store/android-play/
   // screenshots/` had carried four real captures since 2026-08-04 and not one of
   // them appeared anywhere on the site.
   const shots = screenshotsFor(ctx.repoRoot, app.slug);
@@ -781,7 +781,7 @@ ${features.map((f) => `        <li><b>${esc(f.title)}.</b> ${esc(f.blurb)}</li>`
   // ⚠️ `offerings.length` IS PART OF THE CONDITION, NOT AN ACCIDENT OF THE CALLER.
   // This string is built eagerly and only USED inside the pricing section, so
   // relying on that section's own `offerings.length` guard left
-  // `offerings[0].code` dereferencing undefined. Found by emptying subly's
+  // `offerings[0].code` dereferencing undefined. Found by emptying subscriptiontracker's
   // `offerings` array in the rail config, which crashed the generator outright
   // (TypeError, no page written) — a configuration a live app can be in the day
   // its paywall entry is edited.
@@ -1050,7 +1050,7 @@ export function renderSitemap(entries) {
 // the same hand maintenance, one indirection deeper, and harder to audit.
 //
 // What the `## Apps` block IS is a pure function of the registry, and it is the
-// section that measurably lied: it named no app while `subly` was live and
+// section that measurably lied: it named no app while `subscriptiontracker` was live and
 // answering (`check-site-integrity.mjs`'s W-3c limb caught the resulting
 // contradiction). Generating it means a registry entry that is deleted, renamed,
 // re-tagged or taken off `live` moves this file on the next run, and the drift
@@ -1521,7 +1521,7 @@ export function planDiscovery(repoRoot) {
       problems.push(
         `${LLMS} has no \`## ${LLMS_SECTION}\` heading, and that section is the one this generator owns. ` +
           'Renaming it would silently return the app catalogue to hand maintenance — the state in which it ' +
-          'named no app while subly was live and answering.',
+          'named no app while subscriptiontracker was live and answering.',
       );
     } else {
       files.set(LLMS, next);

@@ -92,7 +92,7 @@ let seq = 0;
  *  the thing it could not parse. */
 const SECRET = 'THIS-IS-A-PRIVATE-KEY-DO-NOT-PRINT';
 const CONFIRM = 'SUBMIT-TO-PLAY';
-const PACKAGE = 'com.nikatru.subly';
+const PACKAGE = 'com.nikatru.subscriptiontracker';
 
 const FILES = {
   'README.md': 'derivation map\n',
@@ -142,14 +142,14 @@ const gradle = ({ appId = PACKAGE, envMap = true, debugFallback = true } = {}) =
  *  the submit step. Each knob below removes exactly one of those properties, so
  *  every PG-4 limb has an input that makes it fire. */
 const submitWorkflow = ({ environment = true, signature = true, signatureAfter = false } = {}) => {
-  const sig = '      - name: signature\n        run: node tooling/ci/assert-artifact-signed.mjs apps/subly/build/app/outputs/bundle/release/app-release.aab\n';
-  const sub = '      - name: submit\n        run: node tooling/release/submit-play.mjs --submit --app subly --confirm "$CONFIRM"\n';
+  const sig = '      - name: signature\n        run: node tooling/ci/assert-artifact-signed.mjs apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab\n';
+  const sub = '      - name: submit\n        run: node tooling/release/submit-play.mjs --submit --app subscriptiontracker --confirm "$CONFIRM"\n';
   return [
     'name: fixture submission lane\n',
     'on:\n  workflow_dispatch:\n',
     'jobs:\n',
     '  dry-run:\n    runs-on: ubuntu-24.04\n    steps:\n',
-    '      - name: dry run\n        run: node tooling/release/submit-play.mjs --dry-run --app subly\n',
+    '      - name: dry run\n        run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker\n',
     '  submit:\n    runs-on: ubuntu-24.04\n',
     environment ? '    environment: store-publish\n' : '',
     '    steps:\n',
@@ -214,18 +214,18 @@ function tree({
   };
   if (mutateRegister) mutateRegister(register);
 
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }], null, 2));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', name: 'Subly', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }], null, 2));
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
-  if (!omitGradle) write('apps/subly/android/app/build.gradle.kts', gradle(gradleOver));
-  if (withKeyProperties) write('apps/subly/android/key.properties', 'storeFile=x.jks\n');
+  if (!omitGradle) write('apps/subscriptiontracker/android/app/build.gradle.kts', gradle(gradleOver));
+  if (withKeyProperties) write('apps/subscriptiontracker/android/key.properties', 'storeFile=x.jks\n');
   if (!omitWorkflow) write('.github/workflows/submit-play.yml', submitWorkflow(workflow));
   if (!omitTree) {
     for (const [rel, body] of Object.entries(FILES)) {
       if (omitFiles.includes(rel)) continue;
-      write(`apps/subly/store/android-play/${rel}`, fields[rel] ?? body);
+      write(`apps/subscriptiontracker/store/android-play/${rel}`, fields[rel] ?? body);
     }
   }
-  if (withArtifact) write('apps/subly/build/app/outputs/bundle/release/app-release.aab', 'x'.repeat(artifactBytes));
+  if (withArtifact) write('apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab', 'x'.repeat(artifactBytes));
   return root;
 }
 
@@ -255,7 +255,7 @@ const cleanEnv = (env) => {
   return { ...base, ...env };
 };
 
-function run(root, { args = ['--dry-run', '--app', 'subly', '--allow-missing-artifact'], env = {} } = {}) {
+function run(root, { args = ['--dry-run', '--app', 'subscriptiontracker', '--allow-missing-artifact'], env = {} } = {}) {
   const r = spawnSync(process.execPath, [SCRIPT, ...args, '--repo-root', root], { encoding: 'utf8', env: cleanEnv(env) });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
@@ -446,7 +446,7 @@ const submitEnv = (origin, over = {}) => ({
   ...over,
 });
 
-const SUBMIT_ARGS = ['--submit', '--app', 'subly', '--confirm', CONFIRM];
+const SUBMIT_ARGS = ['--submit', '--app', 'subscriptiontracker', '--confirm', CONFIRM];
 
 /** Start the server, run the script against it, always close. */
 async function submit(treeOpts = { withArtifact: true }, { apiOpts = {}, args = SUBMIT_ARGS, env = {} } = {}) {
@@ -464,7 +464,7 @@ describe('submit-play — the submission path is walkable', () => {
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
     assert.match(out, /DRY RUN OK — nothing was sent to Google/);
-    assert.match(out, /metadata tree apps\/subly\/store\/android-play — 8 field\(s\) present and non-empty, 3 within a SOURCED Play limit/);
+    assert.match(out, /metadata tree apps\/subscriptiontracker\/store\/android-play — 8 field\(s\) present and non-empty, 3 within a SOURCED Play limit/);
   });
 
   test('names the runbook the console-only steps live in', () => {
@@ -492,13 +492,13 @@ describe('submit-play — the submission path is walkable', () => {
   });
 
   test('refuses when neither --dry-run nor --submit is given', () => {
-    const { code, out } = run(tree(), { args: ['--app', 'subly'] });
+    const { code, out } = run(tree(), { args: ['--app', 'subscriptiontracker'] });
     assert.equal(code, 1, out);
     assert.match(out, /exactly one of --dry-run and --submit is required/);
   });
 
   test('refuses when BOTH modes are given', () => {
-    const { code, out } = run(tree(), { args: ['--dry-run', '--submit', '--app', 'subly'] });
+    const { code, out } = run(tree(), { args: ['--dry-run', '--submit', '--app', 'subscriptiontracker'] });
     assert.equal(code, 1, out);
     assert.match(out, /exactly one of --dry-run and --submit is required/);
   });
@@ -508,7 +508,7 @@ describe('submit-play — the submission path is walkable', () => {
     const { code, out } = run(tree({ omitTree: true }));
     assert.equal(code, 1, out);
     assertComplained(out);
-    assert.match(out, /the store metadata tree apps\/subly\/store\/android-play does not exist/);
+    assert.match(out, /the store metadata tree apps\/subscriptiontracker\/store\/android-play does not exist/);
   });
 
   test('FAILS on a missing listing field', () => {
@@ -563,7 +563,7 @@ describe('submit-play — the submission path is walkable', () => {
 
   // ── the package name: immutable after the first upload ────────────────────
   test('FAILS when applicationId is not the canonical com.nikatru.<app_id>', () => {
-    const { code, out } = run(tree({ gradleOver: { appId: 'com.example.subly' } }));
+    const { code, out } = run(tree({ gradleOver: { appId: 'com.example.subscriptiontracker' } }));
     assert.equal(code, 1, out);
     assert.match(out, /Play binds the package name at the FIRST upload/);
   });
@@ -632,19 +632,19 @@ describe('submit-play — the submission path is walkable', () => {
 
   // ── the artifact ──────────────────────────────────────────────────────────
   test('FAILS when the .aab is absent and --allow-missing-artifact was NOT passed', () => {
-    const { code, out } = run(tree(), { args: ['--dry-run', '--app', 'subly'] });
+    const { code, out } = run(tree(), { args: ['--dry-run', '--app', 'subscriptiontracker'] });
     assert.equal(code, 1, out);
     assert.match(out, /app-release\.aab does not exist/);
   });
 
   test('validates a real .aab when one is on disk', () => {
-    const { code, out } = run(tree({ withArtifact: true }), { args: ['--dry-run', '--app', 'subly'] });
+    const { code, out } = run(tree({ withArtifact: true }), { args: ['--dry-run', '--app', 'subscriptiontracker'] });
     assert.equal(code, 0, out);
-    assert.match(out, /artifact apps\/subly\/build\/app\/outputs\/bundle\/release\/app-release\.aab/);
+    assert.match(out, /artifact apps\/subscriptiontracker\/build\/app\/outputs\/bundle\/release\/app-release\.aab/);
   });
 
   test('FAILS on a zero-byte .aab — it uploads and costs a version code', () => {
-    const { code, out } = run(tree({ withArtifact: true, artifactBytes: 0 }), { args: ['--dry-run', '--app', 'subly'] });
+    const { code, out } = run(tree({ withArtifact: true, artifactBytes: 0 }), { args: ['--dry-run', '--app', 'subscriptiontracker'] });
     assert.equal(code, 1, out);
     assert.match(out, /is ZERO bytes/);
   });
@@ -715,7 +715,7 @@ describe('submit-play — the publish gate refuses', () => {
   const gated = { withArtifact: true };
 
   test('PG-1 · --submit with NO --confirm refuses, and names the dispatch input', () => {
-    const { code, out } = run(tree(gated), { args: ['--submit', '--app', 'subly'] });
+    const { code, out } = run(tree(gated), { args: ['--submit', '--app', 'subscriptiontracker'] });
     assert.equal(code, 1, out);
     assertComplained(out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-PLAY/);
@@ -723,13 +723,13 @@ describe('submit-play — the publish gate refuses', () => {
   });
 
   test('PG-1 · a NEARLY-right confirmation refuses too', () => {
-    const { code, out } = run(tree(gated), { args: ['--submit', '--app', 'subly', '--confirm', 'submit-to-play'] });
+    const { code, out } = run(tree(gated), { args: ['--submit', '--app', 'subscriptiontracker', '--confirm', 'submit-to-play'] });
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-PLAY; got "submit-to-play"/);
   });
 
   test('PG-1 · the gate fires BEFORE any validation runs', () => {
-    const { out } = run(tree(gated), { args: ['--submit', '--app', 'subly'] });
+    const { out } = run(tree(gated), { args: ['--submit', '--app', 'subscriptiontracker'] });
     assert.doesNotMatch(out, /^ok   metadata tree/m, out);
   });
 

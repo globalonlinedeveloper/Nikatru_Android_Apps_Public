@@ -82,7 +82,7 @@
 //   · The domain goes from 349 sites / 79 files / 2 roots to 412 / 118 / 8.
 //
 // 🔬 AND THE ROOT LIST WAS ALREADY LEAKING BEFORE `packages/` EXISTED. Same
-// scratch copy, same day: delete the single line `  - apps/subly` from the root
+// scratch copy, same day: delete the single line `  - apps/subscriptiontracker` from the root
 // `pubspec.yaml` and nothing else, and this guard printed
 //     ok   modal detection — 80 `find.byType(` site(s) in 7 suite file(s) …
 // and exited 0. 269 sites and 72 files — 77% of the corpus — left the scan in
@@ -105,7 +105,7 @@
 //     `  - packages/design_system` cut from the workspace list    0 → 1
 //     `flutter_test:` cut from design_system's pubspec            0 → 1
 //     9 of design_system's 17 suites deleted (8 left, floor 10)   0 → 1
-//     `  - apps/subly` cut from the workspace list                0 → 1
+//     `  - apps/subscriptiontracker` cut from the workspace list                0 → 1
 //     the brick's app directory renamed away                      1 → 1
 //     the whole tree, unmutated, read as a PARTIAL checkout       0 → 0
 // The last row is the one that keeps the harness alive: a scratch tree that is
@@ -124,7 +124,7 @@
 //
 // 📏 MEASURED FIRST, AND THE MEASUREMENT CHOSE THE RULE. Every `find.byType(` in
 // the suite corpus was enumerated and classified before a line of this was
-// written. On 2026-08-26, across apps/subly/test, apps/subly/integration_test and
+// written. On 2026-08-26, across apps/subscriptiontracker/test, apps/subscriptiontracker/integration_test and
 // the brick's test/: 329 sites in 72 files across 2 roots, spanning 58 distinct
 // widget types — 155 assertions, 161 inspections, 1 screen-state branch, 12 bare.
 // (330/13-bare stood here until 2026-08-26 and was one too many in both: the
@@ -144,7 +144,7 @@
 // prose rots — assert-guard-coverage.mjs carries an entry that undercounted its
 // own blast radius by a factor of four while claiming in the same sentence to be
 // derived. The live counts are printed on every run, and they are the ones that
-// are true. A first pass at these numbers, taken with `grep -c` over apps/subly
+// are true. A first pass at these numbers, taken with `grep -c` over apps/subscriptiontracker
 // ALONE and a narrower matcher, said 273 — short by the whole brick and by every
 // second occurrence on a shared line, which is exactly how a number like this
 // goes wrong. If you need the count, run the guard.
@@ -309,7 +309,7 @@ const SUITE_RUNNER_RE = /^\s+flutter_test:\s*$/m;
  * Neither half is sufficient and the file has a measurement for each.
  *
  * Derivation alone loses a root the moment it stops being derived: cutting
- * `  - apps/subly` from the root pubspec took the scan from 349 sites / 79 files
+ * `  - apps/subscriptiontracker` from the root pubspec took the scan from 349 sites / 79 files
  * to 80 / 7 with an "ok" on the end (2026-09-05, header). A root that is never
  * derived is never empty, so no emptyRoots limb can see it go.
  *
@@ -332,7 +332,7 @@ const SUITE_RUNNER_RE = /^\s+flutter_test:\s*$/m;
  */
 const REQUIRED_COVERAGE = [
   { dir: BRICK, floor: 4, label: 'the template every stamped app inherits (7 suite file(s) today)' },
-  { dir: 'apps/subly', floor: 40, label: 'the app all three recorded outages happened in (72 suite file(s) today)' },
+  { dir: 'apps/subscriptiontracker', floor: 40, label: 'the app all three recorded outages happened in (72 suite file(s) today)' },
   {
     dir: 'packages/design_system',
     floor: 10,
@@ -1131,7 +1131,7 @@ if (!occurrences) {
     'had before [ADR 065 step 3] added the shared chassis). Either every suite stopped using it on the same',
     'day, or the matcher — or the comment/literal reduction it runs on — has stopped matching. (283 stood',
     'here and matched nothing on record: not the 412 this scan counts, not the 329 it counted over two',
-    'roots, not the 273 a first grep over apps/subly alone produced, not the 330 the double-counting alias',
+    'roots, not the 273 a first grep over apps/subscriptiontracker alone produced, not the 330 the double-counting alias',
     'limb printed before 2026-08-26. A number in an operator-facing line is checked or it is deleted.)',
   ]);
 }
@@ -1189,8 +1189,8 @@ if (problems.length) {
   lines.push('  scrim in `MaterialApp.builder`; the answer control — "No thanks" — was the same throughout.');
   lines.push('');
   lines.push('  Key on the control: `find.text(…)`, `find.byKey(…)`, `find.byIcon(…)`. See the corrected');
-  lines.push('  helpers in apps/subly/integration_test/app_test.dart (`answerConsentIfPrompted`) and the');
-  lines.push('  device-free reproduction in apps/subly/test/first_run_destination_test.dart.');
+  lines.push('  helpers in apps/subscriptiontracker/integration_test/app_test.dart (`answerConsentIfPrompted`) and the');
+  lines.push('  device-free reproduction in apps/subscriptiontracker/test/first_run_destination_test.dart.');
   lines.push('');
   lines.push('  If the file above surprised you: this scan covers the brick template, every `apps/` workspace');
   lines.push('  member, and every `packages/` member whose pubspec declares a flutter_test dev-dependency —');

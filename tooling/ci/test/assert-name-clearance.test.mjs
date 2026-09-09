@@ -42,12 +42,12 @@ const SEEDED = [
   'tooling/channel-register.json',
   'catalog/apps.json',
   'contracts/name-clearance.schema.json',
-  'apps/subly/app.yaml',
-  'apps/subly/name-clearance.json',
-  'apps/subly/android/app/build.gradle.kts',
-  'apps/subly/ios/Runner.xcodeproj/project.pbxproj',
-  'apps/subly/macos/Runner/Configs/AppInfo.xcconfig',
-  'apps/subly/linux/CMakeLists.txt',
+  'apps/subscriptiontracker/app.yaml',
+  'apps/subscriptiontracker/name-clearance.json',
+  'apps/subscriptiontracker/android/app/build.gradle.kts',
+  'apps/subscriptiontracker/ios/Runner.xcodeproj/project.pbxproj',
+  'apps/subscriptiontracker/macos/Runner/Configs/AppInfo.xcconfig',
+  'apps/subscriptiontracker/linux/CMakeLists.txt',
 ];
 
 let TMP;
@@ -87,7 +87,7 @@ function run(root, args = []) {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-const RECORD = 'apps/subly/name-clearance.json';
+const RECORD = 'apps/subscriptiontracker/name-clearance.json';
 
 describe('assert-name-clearance — the green control', () => {
   // 🔴 THIS CONTROL ASSERTS THE GUARD'S BEHAVIOUR, NOT TODAY'S VERDICTS. It used to
@@ -107,11 +107,11 @@ describe('assert-name-clearance — the green control', () => {
 
 describe('assert-name-clearance — the mutation matrix', () => {
   test('M1 a MISSING record is a finding, and it names the command that makes one', () => {
-    const root = fixture(({ root: r }) => rmSync(join(r, 'apps', 'subly', 'name-clearance.json')));
+    const root = fixture(({ root: r }) => rmSync(join(r, 'apps', 'subscriptiontracker', 'name-clearance.json')));
     const r = run(root);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /no apps\/subly\/name-clearance\.json/);
-    assert.match(r.out, /name-clearance\.mjs "<Name>" --app subly --execute/);
+    assert.match(r.out, /no apps\/subscriptiontracker\/name-clearance\.json/);
+    assert.match(r.out, /name-clearance\.mjs "<Name>" --app subscriptiontracker --execute/);
   });
 
   // 🔴 THE DECLARED NAME IS REWRITTEN, NOT SPELLED. `^name: Subly$` matched nothing
@@ -122,14 +122,14 @@ describe('assert-name-clearance — the mutation matrix', () => {
   // the record actually clears out of the guard's own message.
   test('M2 a record for a DIFFERENT name than app.yaml declares is a finding', () => {
     const root = fixture(({ readText, writeText }) => {
-      const before = readText('apps/subly/app.yaml');
+      const before = readText('apps/subscriptiontracker/app.yaml');
       const after = before.replace(/^name: .*$/m, 'name: Renamed');
       assert.notEqual(after, before, 'the app.yaml `name:` line must exist for this mutation to mean anything');
-      writeText('apps/subly/app.yaml', after);
+      writeText('apps/subscriptiontracker/app.yaml', after);
     });
     const r = run(root);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /clears the name "[^"]+" while apps\/subly\/app\.yaml declares "Renamed"/);
+    assert.match(r.out, /clears the name "[^"]+" while apps\/subscriptiontracker\/app\.yaml declares "Renamed"/);
   });
 
   // 🔴 THE WALL IS SEEDED HERE, and that is the whole repair. This case used to rely
@@ -244,14 +244,14 @@ ${before.out}`);
 
   test('M7 IDENTITY DRIFT — an applicationId the tree no longer declares is a finding', () => {
     // The `applicationId` LINE, not the first occurrence of the string: this
-    // file also carries `namespace = "com.nikatru.subly"` above it, and a bare
+    // file also carries `namespace = "com.nikatru.subscriptiontracker"` above it, and a bare
     // `.replace()` mutates that one instead and leaves the identity the guard
     // actually reads untouched — a mutation that changes nothing, which reads
     // exactly like a guard that cannot fail. It did, on the first run.
     const root = fixture(({ readText, writeText }) =>
       writeText(
-        'apps/subly/android/app/build.gradle.kts',
-        readText('apps/subly/android/app/build.gradle.kts').replace(/^(\s*applicationId\s*=\s*)"[^"]+"/m, '$1"com.nikatru.renamed"'),
+        'apps/subscriptiontracker/android/app/build.gradle.kts',
+        readText('apps/subscriptiontracker/android/app/build.gradle.kts').replace(/^(\s*applicationId\s*=\s*)"[^"]+"/m, '$1"com.nikatru.renamed"'),
       ),
     );
     const r = run(root);

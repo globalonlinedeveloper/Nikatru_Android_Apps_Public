@@ -36,13 +36,13 @@
 //   was verified green.
 //
 // 🔴 AND THE RED THIS GUARD WAS BUILT TO RECORD, on the tree as it stood:
-//   services/subly-api bound `EXPORTS` -> `subly-exports` (created 2026-07-17)
+//   services/subscriptiontracker-api bound `EXPORTS` -> `subscriptiontracker-exports` (created 2026-07-17)
 //   whose ONLY occurrence in the whole TypeScript tree was its own declaration
 //   in src/types.ts. Run against that tree the guard said, verbatim:
 //     "EXPORTS — declared as a `r2_buckets` binding in
-//      services/subly-api/wrangler.jsonc and absent from the register."
+//      services/subscriptiontracker-api/wrangler.jsonc and absent from the register."
 //   and, once EXPORTS was registered honestly:
-//     "EXPORTS — bound by services/subly-api/wrangler.jsonc and read by NOTHING."
+//     "EXPORTS — bound by services/subscriptiontracker-api/wrangler.jsonc and read by NOTHING."
 //   and, when types.ts was offered as its reader:
 //     "A types.ts declares the binding's TYPE; it never reads it."
 //   The binding and its type line were then removed, which is what turned the
@@ -160,7 +160,7 @@ const PLATFORM_CFG = `{
   // declare the host it answers on. Present in the PASSING fixture because the
   // real services/platform/wrangler.jsonc has always had it — a fixture missing
   // what the real tree has cannot notice the omission, which is the exact defect
-  // that let check-migrations' own fixture bless a tree with no subly-api.
+  // that let check-migrations' own fixture bless a tree with no subscriptiontracker-api.
   "routes": [{ "pattern": "platform.nikatru.com", "custom_domain": true }],
 }`;
 
@@ -472,7 +472,7 @@ describe('assert-platform-register', () => {
   // ── [pipeline B-15] the host limb ─────────────────────────────────────────
   // Mutation-proven against the REAL tree 2026-08-03, both directions:
   //   · brick template `"routes": []`            -> exit 1 naming the brick config
-  //   · subly-api `{ "pattern": "…" }` (no       -> exit 1 naming subly-api
+  //   · subscriptiontracker-api `{ "pattern": "…" }` (no       -> exit 1 naming subscriptiontracker-api
   //     custom_domain)
   // Both restored from memory and byte-compared; the guard returned to exit 0.
   test('FAILS when a Worker declaring `main` has NO routes at all', () => {
@@ -771,12 +771,12 @@ describe('assert-platform-register', () => {
 // against a guard that failed for an unrelated reason, and this guard has 45
 // distinct problem messages — so that is not a hypothetical.
 //
-// The app-Worker fixture mirrors the SHAPE of services/subly-api, the Worker
+// The app-Worker fixture mirrors the SHAPE of services/subscriptiontracker-api, the Worker
 // whose twelve mounts were invisible before 6d67631:
 //   · a route declared inline in the entrypoint             (GET /v1/health)
 //   · an IN-FILE `new Hono` group mounted with app.route()   (GET /v1/whoami)
 //   · an imported sub-router whose leaf is '/'               (GET /v1/subscriptions)
-//     — five of subly-api's twelve declare their leaf that way, and that is the
+//     — five of subscriptiontracker-api's twelve declare their leaf that way, and that is the
 //       case `joinPath`'s trailing-slash strip exists for
 //   · a second leaf under the same sub-router                (POST …/cancel)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,10 +806,10 @@ export default subscriptions;
 `;
 
 const SUBLY_CFG = `{
-  "name": "subly-api",
+  "name": "subscriptiontracker-api",
   "main": "src/index.ts",
   // The shared VALUES a per-app Worker carries, mirroring the real
-  // services/subly-api: the one identity project, the one API-contract version
+  // services/subscriptiontracker-api: the one identity project, the one API-contract version
   // and the one entitlements database, bound here WITHOUT a migrations_dir.
   // Present in the PASSING fixture because limb 5's whole subject is more than
   // one config — a second Worker that carried none of them would let the limb
@@ -822,7 +822,7 @@ const SUBLY_CFG = `{
   "routes": [{ "pattern": "api.nikatru.com", "custom_domain": true }],
 }`;
 
-/** The app Worker's caller tree, deliberately OUTSIDE services/subly-api. Two of
+/** The app Worker's caller tree, deliberately OUTSIDE services/subscriptiontracker-api. Two of
  *  the three expressions carry only the path BELOW `/v1` — that is what
  *  `clientBasePath` buys, and it is why the prefix constraint on it is
  *  load-bearing rather than decorative. */
@@ -845,80 +845,80 @@ class DioSublyTransport {
 `;
 
 const SUBLY_FILES = {
-  'services/subly-api/src/index.ts': SUBLY_INDEX_TS,
-  'services/subly-api/src/routes/subscriptions.ts': SUBLY_SUBSCRIPTIONS_TS,
-  'services/subly-api/src/lib/auth.ts': 'export const supabaseAuth = async (c, next) => next();\n',
-  'services/subly-api/wrangler.jsonc': SUBLY_CFG,
-  'packages/api_client/lib/src/dio_subly_transport.dart': SUBLY_CLIENT_DART,
+  'services/subscriptiontracker-api/src/index.ts': SUBLY_INDEX_TS,
+  'services/subscriptiontracker-api/src/routes/subscriptions.ts': SUBLY_SUBSCRIPTIONS_TS,
+  'services/subscriptiontracker-api/src/lib/auth.ts': 'export const supabaseAuth = async (c, next) => next();\n',
+  'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG,
+  'packages/api_client/lib/src/dio_subscriptiontracker_transport.dart': SUBLY_CLIENT_DART,
 };
 
-const SUBLY_CLIENT = 'packages/api_client/lib/src/dio_subly_transport.dart';
+const SUBLY_CLIENT = 'packages/api_client/lib/src/dio_subscriptiontracker_transport.dart';
 
-const sublyRoutes = () => [
+const subscriptiontrackerRoutes = () => [
   {
-    id: 'subly-health',
+    id: 'subscriptiontracker-health',
     method: 'GET',
     path: '/v1/health',
     auth: 'required',
-    owningFile: 'services/subly-api/src/index.ts',
+    owningFile: 'services/subscriptiontracker-api/src/index.ts',
     purpose: 'Deploy verification for the app backend.',
     unconsumedReason: 'Human/monitor endpoint; no programmatic caller today.',
   },
   {
-    id: 'subly-whoami',
+    id: 'subscriptiontracker-whoami',
     method: 'GET',
     path: '/v1/whoami',
     auth: 'required',
-    owningFile: 'services/subly-api/src/index.ts',
+    owningFile: 'services/subscriptiontracker-api/src/index.ts',
     purpose: 'Echoes the authenticated identity.',
     client: { file: SUBLY_CLIENT, expression: "'$_base/whoami'" },
   },
   {
-    id: 'subly-list',
+    id: 'subscriptiontracker-list',
     method: 'GET',
     path: '/v1/subscriptions',
     auth: 'required',
-    owningFile: 'services/subly-api/src/routes/subscriptions.ts',
+    owningFile: 'services/subscriptiontracker-api/src/routes/subscriptions.ts',
     purpose: 'Lists the caller’s subscriptions.',
     client: { file: SUBLY_CLIENT, expression: "'$_base/subscriptions'" },
   },
   {
-    id: 'subly-cancel',
+    id: 'subscriptiontracker-cancel',
     method: 'POST',
     path: '/v1/subscriptions/cancel',
     auth: 'required',
-    owningFile: 'services/subly-api/src/routes/subscriptions.ts',
+    owningFile: 'services/subscriptiontracker-api/src/routes/subscriptions.ts',
     purpose: 'Cancels one subscription.',
     client: { file: SUBLY_CLIENT, expression: "'$_base/subscriptions/cancel'" },
   },
 ];
 
-const sublyWorker = () => ({
-  name: 'subly-api',
-  config: 'services/subly-api/wrangler.jsonc',
-  entrypoint: 'services/subly-api/src/index.ts',
+const subscriptiontrackerWorker = () => ({
+  name: 'subscriptiontracker-api',
+  config: 'services/subscriptiontracker-api/wrangler.jsonc',
+  entrypoint: 'services/subscriptiontracker-api/src/index.ts',
   clientBasePath: '/v1',
-  routes: sublyRoutes(),
+  routes: subscriptiontrackerRoutes(),
 });
 
 /** baseRegister() + the app Worker, its config and its binding. `edit` runs last
  *  so a case can break exactly one thing. */
 function appRegister(edit = () => {}) {
   const reg = baseRegister();
-  reg.appWorkers = [sublyWorker()];
-  reg.bindingSources.configs.push('services/subly-api/wrangler.jsonc');
+  reg.appWorkers = [subscriptiontrackerWorker()];
+  reg.bindingSources.configs.push('services/subscriptiontracker-api/wrangler.jsonc');
   reg.bindings.push({
     binding: 'SUBLY_DB',
     kind: 'd1_databases',
     purpose: 'The app backend database.',
-    readers: ['services/subly-api/src/routes/subscriptions.ts'],
+    readers: ['services/subscriptiontracker-api/src/routes/subscriptions.ts'],
   });
   // CONFIG_KV is the SHARED host's namespace and a per-app Worker binds none —
   // so this is a real absence with a real reason, and it makes the PASSING case
   // exercise the `absentFrom` branch rather than leaving it fixture-only.
   reg.sharedValues.values.find((v) => v.at === 'kv_namespaces[CONFIG_KV].id').absentFrom = [
     {
-      config: 'services/subly-api/wrangler.jsonc',
+      config: 'services/subscriptiontracker-api/wrangler.jsonc',
       why: 'CONFIG_KV holds per-app config overrides and is read only by the shared host; a per-app Worker binds no config namespace at all.',
     },
   ];
@@ -961,7 +961,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /services\/subly-api\/wrangler\.jsonc — declares `main`, so it is a Worker that answers requests, and the register declares/,
+      /services\/subscriptiontracker-api\/wrangler\.jsonc — declares `main`, so it is a Worker that answers requests, and the register declares/,
     );
     assert.match(out, /✗ platform register — 1 problem\(s\)/, 'the missing Worker must be the only complaint');
   });
@@ -972,13 +972,13 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     // register says it is.
     const { code, out } = run(
       appTree({
-        files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"main": "src/index.ts",\n  ', '') },
+        files: { 'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace('"main": "src/index.ts",\n  ', '') },
       }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /appWorkers\[0\] names `services\/subly-api\/wrangler\.jsonc`, which is not a `services\/\*` wrangler config declaring `main`/,
+      /appWorkers\[0\] names `services\/subscriptiontracker-api\/wrangler\.jsonc`, which is not a `services\/\*` wrangler config declaring `main`/,
     );
     assert.match(out, /✗ platform register — 1 problem\(s\)/);
   });
@@ -987,26 +987,26 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         files: {
-          'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"main": "src/index.ts"', '"main": "src/worker.ts"'),
-          'services/subly-api/src/worker.ts': SUBLY_INDEX_TS,
+          'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace('"main": "src/index.ts"', '"main": "src/worker.ts"'),
+          'services/subscriptiontracker-api/src/worker.ts': SUBLY_INDEX_TS,
         },
       }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /appWorkers\[0\] — declares entrypoint `services\/subly-api\/src\/index\.ts`, but `services\/subly-api\/wrangler\.jsonc`'s `main` resolves to `services\/subly-api\/src\/worker\.ts`/,
+      /appWorkers\[0\] — declares entrypoint `services\/subscriptiontracker-api\/src\/index\.ts`, but `services\/subscriptiontracker-api\/wrangler\.jsonc`'s `main` resolves to `services\/subscriptiontracker-api\/src\/worker\.ts`/,
     );
   });
 
   test('FAILS when the register calls the Worker something the config does not deploy it as', () => {
     const { code, out } = run(
-      appTree({ files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"subly-api"', '"subly-backend"') } }),
+      appTree({ files: { 'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace('"subscriptiontracker-api"', '"subscriptiontracker-backend"') } }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /appWorkers\[0\] — calls this Worker `subly-api`; `services\/subly-api\/wrangler\.jsonc` deploys it as `subly-backend`/,
+      /appWorkers\[0\] — calls this Worker `subscriptiontracker-api`; `services\/subscriptiontracker-api\/wrangler\.jsonc` deploys it as `subscriptiontracker-backend`/,
     );
   });
 
@@ -1031,7 +1031,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.push({ ...sublyRoutes()[1], id: 'subly-whoami-dup', purpose: 'A duplicate.' });
+          r.appWorkers[0].routes.push({ ...subscriptiontrackerRoutes()[1], id: 'subscriptiontracker-whoami-dup', purpose: 'A duplicate.' });
         }),
       }),
     );
@@ -1049,14 +1049,14 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.find((x) => x.id === 'subly-list').owningFile = 'services/subly-api/src/index.ts';
+          r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-list').owningFile = 'services/subscriptiontracker-api/src/index.ts';
         }),
       }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /GET \/v1\/subscriptions — register says `services\/subly-api\/src\/index\.ts` owns it; the parser found it declared in `services\/subly-api\/src\/routes\/subscriptions\.ts`/,
+      /GET \/v1\/subscriptions — register says `services\/subscriptiontracker-api\/src\/index\.ts` owns it; the parser found it declared in `services\/subscriptiontracker-api\/src\/routes\/subscriptions\.ts`/,
     );
     assert.match(out, /✗ platform register — 1 problem\(s\)/, 'a wrong owningFile must be the only complaint');
   });
@@ -1067,14 +1067,14 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.find((x) => x.id === 'subly-health').owningFile = 'services/platform/src/index.ts';
+          r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-health').owningFile = 'services/platform/src/index.ts';
         }),
       }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /GET \/v1\/health — register says `services\/platform\/src\/index\.ts` owns it; the parser found it declared in `services\/subly-api\/src\/index\.ts`/,
+      /GET \/v1\/health — register says `services\/platform\/src\/index\.ts` owns it; the parser found it declared in `services\/subscriptiontracker-api\/src\/index\.ts`/,
     );
   });
 
@@ -1159,12 +1159,12 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes = r.appWorkers[0].routes.filter((x) => x.id !== 'subly-whoami');
+          r.appWorkers[0].routes = r.appWorkers[0].routes.filter((x) => x.id !== 'subscriptiontracker-whoami');
         }),
       }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /GET \/v1\/whoami — MOUNTED by services\/subly-api\/src\/index\.ts and absent from the register/);
+    assert.match(out, /GET \/v1\/whoami — MOUNTED by services\/subscriptiontracker-api\/src\/index\.ts and absent from the register/);
     assert.match(out, /✗ platform register — 1 problem\(s\)/);
   });
 
@@ -1175,13 +1175,13 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.find((x) => x.id === 'subly-list').path = '/v1/subscriptions/';
+          r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-list').path = '/v1/subscriptions/';
         }),
       }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /GET \/v1\/subscriptions\/ \(register id `subly-list`\) — registered but NOT mounted/);
-    assert.match(out, /GET \/v1\/subscriptions — MOUNTED by services\/subly-api\/src\/routes\/subscriptions\.ts/);
+    assert.match(out, /GET \/v1\/subscriptions\/ \(register id `subscriptiontracker-list`\) — registered but NOT mounted/);
+    assert.match(out, /GET \/v1\/subscriptions — MOUNTED by services\/subscriptiontracker-api\/src\/routes\/subscriptions\.ts/);
   });
 
   // ── limbs 1, 2 and 4 now range over the app Worker too ────────────────────
@@ -1189,7 +1189,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         files: {
-          'services/subly-api/src/routes/subscriptions.ts': SUBLY_SUBSCRIPTIONS_TS.replace(
+          'services/subscriptiontracker-api/src/routes/subscriptions.ts': SUBLY_SUBSCRIPTIONS_TS.replace(
             "subscriptions.get('/', async (c) => c.json(await c.env.SUBLY_DB.prepare('SELECT 1').all()));",
             "const _unused = async (c) => c.json(await c.env.SUBLY_DB.prepare('SELECT 1').all());",
           ),
@@ -1199,7 +1199,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /GET \/v1\/subscriptions \(register id `subly-list`\) — registered but NOT mounted by services\/subly-api\/src\/index\.ts/,
+      /GET \/v1\/subscriptions \(register id `subscriptiontracker-list`\) — registered but NOT mounted by services\/subscriptiontracker-api\/src\/index\.ts/,
     );
   });
 
@@ -1209,8 +1209,8 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.find((x) => x.id === 'subly-list').client = {
-            file: 'services/subly-api/src/routes/subscriptions.ts',
+          r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-list').client = {
+            file: 'services/subscriptiontracker-api/src/routes/subscriptions.ts',
             expression: "'/v1/subscriptions'",
           };
         }),
@@ -1219,7 +1219,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /GET \/v1\/subscriptions — client file `services\/subly-api\/src\/routes\/subscriptions\.ts` is inside the serving Worker \(services\/subly-api\)/,
+      /GET \/v1\/subscriptions — client file `services\/subscriptiontracker-api\/src\/routes\/subscriptions\.ts` is inside the serving Worker \(services\/subscriptiontracker-api\)/,
     );
   });
 
@@ -1227,7 +1227,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          r.appWorkers[0].routes.find((x) => x.id === 'subly-health').auth = 'public';
+          r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-health').auth = 'public';
         }),
       }),
     );
@@ -1242,20 +1242,20 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         register: appRegister((r) => {
-          const rt = r.appWorkers[0].routes.find((x) => x.id === 'subly-health');
+          const rt = r.appWorkers[0].routes.find((x) => x.id === 'subscriptiontracker-health');
           rt.auth = 'public';
           rt.noLimiterReason = 'Static 200; does no I/O at all.';
         }),
       }),
     );
     assert.equal(code, 0, out);
-    assert.match(out, /⚠ {2}GET \/v1\/health — PUBLIC AND UNLIMITED\. · subly-api Static 200/);
+    assert.match(out, /⚠ {2}GET \/v1\/health — PUBLIC AND UNLIMITED\. · subscriptiontracker-api Static 200/);
   });
 
   test('🔴 the printed gaps are attributed to the right Worker — two Workers mount GET /v1/health', () => {
     const { code, out } = run(appTree());
     assert.equal(code, 0, out);
-    assert.match(out, /⚠ {2}GET \/v1\/health — NO CLIENT\. · subly-api /);
+    assert.match(out, /⚠ {2}GET \/v1\/health — NO CLIENT\. · subscriptiontracker-api /);
     assert.match(out, /⚠ {2}GET \/v1\/health — NO CLIENT\. · platform /);
   });
 
@@ -1263,22 +1263,22 @@ describe('assert-platform-register — every deployable Worker is the subject [6
   test('COVERAGE LOST names the FIELD when an app Worker entrypoint does not exist', () => {
     const { code, out } = run(
       appTree({
-        register: appRegister((r) => { r.appWorkers[0].entrypoint = 'services/subly-api/src/nowhere.ts'; }),
+        register: appRegister((r) => { r.appWorkers[0].entrypoint = 'services/subscriptiontracker-api/src/nowhere.ts'; }),
       }),
     );
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /COVERAGE LOST — servingWorker\.entrypoint `services\/subly-api\/src\/nowhere\.ts` \(appWorkers\[0\]\) does not exist/,
+      /COVERAGE LOST — servingWorker\.entrypoint `services\/subscriptiontracker-api\/src\/nowhere\.ts` \(appWorkers\[0\]\) does not exist/,
     );
   });
 
   test('COVERAGE LOST when the APP Worker entrypoint mounts nothing the parser can see', () => {
     const { code, out } = run(
-      appTree({ files: { 'services/subly-api/src/index.ts': 'export default { fetch: () => new Response() };\n' } }),
+      appTree({ files: { 'services/subscriptiontracker-api/src/index.ts': 'export default { fetch: () => new Response() };\n' } }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — parsed services\/subly-api\/src\/index\.ts and found ZERO mounted routes/);
+    assert.match(out, /COVERAGE LOST — parsed services\/subscriptiontracker-api\/src\/index\.ts and found ZERO mounted routes/);
   });
 
   test('COVERAGE LOST when the APP Worker parse follows no app.route() into a sub-router file', () => {
@@ -1288,7 +1288,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     const { code, out } = run(
       appTree({
         files: {
-          'services/subly-api/src/index.ts': SUBLY_INDEX_TS.replace(
+          'services/subscriptiontracker-api/src/index.ts': SUBLY_INDEX_TS.replace(
             "app.route('/v1/subscriptions', subscriptions);",
             '',
           ),
@@ -1298,7 +1298,7 @@ describe('assert-platform-register — every deployable Worker is the subject [6
     assert.equal(code, 1, out);
     assert.match(
       out,
-      /COVERAGE LOST — every route the parser found is declared inline in services\/subly-api\/src\/index\.ts/,
+      /COVERAGE LOST — every route the parser found is declared inline in services\/subscriptiontracker-api\/src\/index\.ts/,
     );
   });
 });
@@ -1465,7 +1465,7 @@ describe('the guard runs when it is the entrypoint, and ONLY then', () => {
 // In a one-config tree "this config does not carry the value" and "the value
 // resolves in zero configs" are the SAME observation, and the second is COVERAGE
 // LOST. Only a tree with a second Worker can tell them apart — which is also the
-// real shape: services/platform, services/subly-api and the brick template all
+// real shape: services/platform, services/subscriptiontracker-api and the brick template all
 // carry the same four values by hand, and it was the hand that this limb exists
 // to take out of the loop.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1475,7 +1475,7 @@ describe('assert-platform-register — limb 5 across two Workers', () => {
     // equally consistent with a limb that rejects any two-config tree.
     const { code, out } = run(appTree());
     assert.equal(code, 0, out);
-    assert.match(out, /kv_namespaces\[CONFIG_KV\]\.id — ABSENT FROM services\/subly-api\/wrangler\.jsonc/);
+    assert.match(out, /kv_namespaces\[CONFIG_KV\]\.id — ABSENT FROM services\/subscriptiontracker-api\/wrangler\.jsonc/);
     // FOUR declared values over TWO configs is eight cells; CONFIG_KV is exempt
     // in one of them, so SEVEN comparisons were really made. The tally is printed
     // rather than implied precisely so that gap is visible as a number.
@@ -1486,7 +1486,7 @@ describe('assert-platform-register — limb 5 across two Workers', () => {
     const { code, out } = run(
       appTree({
         files: {
-          'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace(
+          'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace(
             '"database_id": "11111111-1111-1111-1111-111111111111"',
             '"database_id": "33333333-3333-3333-3333-333333333333"',
           ),
@@ -1494,15 +1494,15 @@ describe('assert-platform-register — limb 5 across two Workers', () => {
       }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /services\/subly-api\/wrangler\.jsonc — `d1_databases\[PLATFORM_DB\]\.database_id` is/);
+    assert.match(out, /services\/subscriptiontracker-api\/wrangler\.jsonc — `d1_databases\[PLATFORM_DB\]\.database_id` is/);
   });
 
   test('FAILS when the second Worker simply DROPS a shared value and nothing exempts it', () => {
     const { code, out } = run(
-      appTree({ files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') } }),
+      appTree({ files: { 'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') } }),
     );
     assert.equal(code, 1, out);
-    assert.match(out, /services\/subly-api\/wrangler\.jsonc — declares no `vars\.API_VERSION`/);
+    assert.match(out, /services\/subscriptiontracker-api\/wrangler\.jsonc — declares no `vars\.API_VERSION`/);
   });
 
   test('an `absentFrom` row with a reason turns that same absence into a PRINTED gap', () => {
@@ -1510,14 +1510,14 @@ describe('assert-platform-register — limb 5 across two Workers', () => {
       appTree({
         register: appRegister((reg) => {
           reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').absentFrom = [
-            { config: 'services/subly-api/wrangler.jsonc', why: 'this fixture backend serves no versioned API.' },
+            { config: 'services/subscriptiontracker-api/wrangler.jsonc', why: 'this fixture backend serves no versioned API.' },
           ];
         }),
-        files: { 'services/subly-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') },
+        files: { 'services/subscriptiontracker-api/wrangler.jsonc': SUBLY_CFG.replace('"API_VERSION": "v1"', '"X": "y"') },
       }),
     );
     assert.equal(code, 0, out);
-    assert.match(out, /vars\.API_VERSION — ABSENT FROM services\/subly-api\/wrangler\.jsonc/);
+    assert.match(out, /vars\.API_VERSION — ABSENT FROM services\/subscriptiontracker-api\/wrangler\.jsonc/);
   });
 
   test('🔴 FAILS on an `absentFrom` row for a config that DOES carry the value', () => {
@@ -1528,7 +1528,7 @@ describe('assert-platform-register — limb 5 across two Workers', () => {
       appTree({
         register: appRegister((reg) => {
           reg.sharedValues.values.find((v) => v.at === 'vars.API_VERSION').absentFrom = [
-            { config: 'services/subly-api/wrangler.jsonc', why: 'stale — it was restored and nobody removed this row.' },
+            { config: 'services/subscriptiontracker-api/wrangler.jsonc', why: 'stale — it was restored and nobody removed this row.' },
           ];
         }),
       }),

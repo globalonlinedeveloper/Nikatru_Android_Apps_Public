@@ -61,7 +61,7 @@ const DOC = 'privacy.html';
  *  stop describing the same thing. */
 const VERSION_SOURCES = [
   { path: LIVE_POLICY, re: /data-policy-version="(\d{4}-\d{2}-\d{2})"/g },
-  { path: 'apps/subly/lib/state/analytics_providers.dart', re: /kPrivacyPolicyVersion\s*=\s*'(\d{4}-\d{2}-\d{2})'/g },
+  { path: 'apps/subscriptiontracker/lib/state/analytics_providers.dart', re: /kPrivacyPolicyVersion\s*=\s*'(\d{4}-\d{2}-\d{2})'/g },
   {
     path: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart',
     re: /kPrivacyPolicyVersion\s*=\s*'(\d{4}-\d{2}-\d{2})'/g,

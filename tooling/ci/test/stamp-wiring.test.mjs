@@ -147,7 +147,7 @@ function tree({
   pubspec = GOOD_PUBSPEC,
   opts = GOOD_OPTS,
   caps = CAPS,
-  consumerRoots = ['apps/subly', BRICK],
+  consumerRoots = ['apps/subscriptiontracker', BRICK],
   pkgs = PKGS,
 } = {}) {
   const root = join(TMP, `r${seq++}`);
@@ -252,13 +252,13 @@ describe('assert-stamp-wiring', () => {
 
   // ── the anti-vacuity family: a scan that stopped scanning ──────────────────
   test('COVERAGE LOST when the brick consumerRoot does not resolve', () => {
-    const { code, out } = run(tree({ consumerRoots: ['apps/subly', `${BRICK}_BROKEN`] }));
+    const { code, out } = run(tree({ consumerRoots: ['apps/subscriptiontracker', `${BRICK}_BROKEN`] }));
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
   });
 
   test('COVERAGE LOST when no consumerRoot names the brick at all', () => {
-    const { code, out } = run(tree({ consumerRoots: ['apps/subly'] }));
+    const { code, out } = run(tree({ consumerRoots: ['apps/subscriptiontracker'] }));
     assert.equal(code, 1);
     assert.match(out, /expected exactly ONE consumerRoot/);
   });
@@ -266,7 +266,7 @@ describe('assert-stamp-wiring', () => {
   // The original S-2 defect in its purest form: quantifying over an empty set.
   test('COVERAGE LOST when no capability claims the brick', () => {
     const { code, out } = run(tree({
-      caps: CAPS.map((c) => ({ ...c, consumers: ['apps/subly'] })),
+      caps: CAPS.map((c) => ({ ...c, consumers: ['apps/subscriptiontracker'] })),
     }));
     assert.equal(code, 1, 'an empty set makes "every capability is wired" vacuously true');
     assert.match(out, /no capability lists the brick as a consumer/);
@@ -292,7 +292,7 @@ describe('assert-stamp-wiring', () => {
   // out of every check.
   test('FAILS when a capability sharing a package loses the brick from its consumers', () => {
     const { code, out } = run(tree({
-      caps: CAPS.map((c) => (c.id === 'review' ? { ...c, consumers: ['apps/subly'] } : c)),
+      caps: CAPS.map((c) => (c.id === 'review' ? { ...c, consumers: ['apps/subscriptiontracker'] } : c)),
     }));
     assert.equal(code, 1, 'the stamp still calls InAppReviewPrompter');
     assert.match(out, /review — the stamp CALLS `InAppReviewPrompter`/);

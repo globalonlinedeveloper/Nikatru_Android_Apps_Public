@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Renewals recompute — relocated from subly-api's cron into the platform
+// Renewals recompute — relocated from subscriptiontracker-api's cron into the platform
 // scheduler's per-app fan-out. The date math is a PURE core (unit tested); the
 // D1 pass wraps it. Generic over any app DB with subscriptions + payment_history.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export function advance(dateYmd: string, cycle: 'monthly' | 'yearly', anchorDay?
  *
  * ⬜ KNOWN RESIDUAL, documented rather than silent: the anchor cannot survive
  * BETWEEN cron runs, because `subscriptions` stores only `next_renewal` and no
- * anchor column (services/subly-api/migrations/0001_init.sql:7-22) — so a 31st
+ * anchor column (services/subscriptiontracker-api/migrations/0001_init.sql:7-22) — so a 31st
  * subscription whose stored value is the clamped 2026-02-28 comes back as a 28th
  * anchor on the next night's pass. That costs at most three days once a year and
  * never skips a cycle; recovering it fully needs an additive `renewal_anchor_day`

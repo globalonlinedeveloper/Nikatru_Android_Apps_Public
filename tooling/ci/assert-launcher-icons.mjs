@@ -3,7 +3,7 @@
 // assert-launcher-icons.mjs — a SHIPPED app must not carry Flutter's icon.
 //
 // 🔴 WHY THIS EXISTS — measured on the real tree 2026-08-04, not read anywhere.
-// Every native launcher icon in `apps/subly` was BYTE-IDENTICAL to what
+// Every native launcher icon in `apps/subscriptiontracker` was BYTE-IDENTICAL to what
 // `flutter create` emits. All of them, on four platforms at once:
 //
 //     android   5/5 mipmap ic_launcher.png     identical to stock

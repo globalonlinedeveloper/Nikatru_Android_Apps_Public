@@ -96,7 +96,7 @@ const WEB_KEY = REGISTER_CHANNELS.find((c) => c.kind === 'web')?.storefrontKey;
  *  that differs from the real catalogue in several ways at once cannot tell you
  *  which difference the guard reacted to. */
 const ROW = () => ({
-  slug: 'subly',
+  slug: 'subscriptiontracker',
   name: 'Subly',
   tagline: 'Track every subscription in one place',
   url: 'https://subly.nikatru.com',
@@ -153,7 +153,7 @@ describe('assert-catalog-contract.mjs — the positive controls', () => {
     assert.equal(code, 0, `an empty api must not be confused with a missing one:\n${out}`);
   });
 
-  test('`markets`/`audience` are NOT required — the real subly row carries neither', () => {
+  test('`markets`/`audience` are NOT required — the real subscriptiontracker row carries neither', () => {
     const { code, out } = run(tree([ROW()]));
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /markets/, 'absent markets must not even be mentioned as a problem');
@@ -218,7 +218,7 @@ describe('assert-catalog-contract.mjs — the file shape', () => {
   });
 
   test('a top-level object refuses', () => {
-    const { code, out } = run(tree({ slug: 'subly' }));
+    const { code, out } = run(tree({ slug: 'subscriptiontracker' }));
     assert.equal(code, 1, out);
     assert.match(out, /not a JSON array/);
   });
@@ -281,7 +281,7 @@ describe('assert-catalog-contract.mjs — the row contract', () => {
   test('a duplicate slug is refused and BOTH indices are named', () => {
     const { code, out } = run(tree([ROW(), ROW()]));
     assert.equal(code, 1, out);
-    assert.match(out, /repeats slug "subly"/);
+    assert.match(out, /repeats slug "subscriptiontracker"/);
     assert.match(out, /\[0\]/);
   });
 
@@ -332,7 +332,7 @@ describe('assert-catalog-contract.mjs — the row contract', () => {
   });
 
   test('a row that is not an object is refused', () => {
-    const { code, out } = run(tree([ROW(), 'subly']));
+    const { code, out } = run(tree([ROW(), 'subscriptiontracker']));
     assert.equal(code, 1, out);
     assert.match(out, /not an object/);
   });
@@ -396,9 +396,9 @@ describe('assert-catalog-contract.mjs — `listings` [ADR 055]', () => {
   // 🔴 the anti-duplication limb. `listings[web]` and `url` are one fact with two
   // spellings and two disjoint sets of readers.
   test('a `listings` web entry that disagrees with `url` is refused', () => {
-    const { code, out } = run(tree([listings({ [WEB_KEY]: 'https://subly-old.nikatru.com' })]));
+    const { code, out } = run(tree([listings({ [WEB_KEY]: 'https://subscriptiontracker-old.nikatru.com' })]));
     assert.equal(code, 1, out);
-    assert.match(out, /subly-old\.nikatru\.com/);
+    assert.match(out, /subscriptiontracker-old\.nikatru\.com/);
     assert.match(out, /SAME fact/);
   });
 

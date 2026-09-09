@@ -29,7 +29,7 @@ import '../../state/providers.dart';
 /// navigation.
 ///
 /// ⚠️ IT LIVES IN `features/home/` BECAUSE THE NAV CHROME ALREADY DID, NOT
-/// BECAUSE IT BELONGS TO HOME. `apps/subly` keeps its equivalent in
+/// BECAUSE IT BELONGS TO HOME. `apps/subscriptiontracker` keeps its equivalent in
 /// `features/shell/app_shell.dart`, which is the right address; moving this one
 /// there is a file the change that introduced it was not allowed to create, and
 /// it is the next tidy-up rather than a decision.
@@ -150,7 +150,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // The app bar is the SCREEN's, not the shell's: `AppScaffold` renders one
     // of its own when given a `title`, and a shell title over a screen title is
-    // two stacked bars at every width. Same division apps/subly settled on.
+    // two stacked bars at every width. Same division apps/subscriptiontracker settled on.
     return Scaffold(
       appBar: AppBar(title: const Text(AppConfig.appName)),
       body: Column(
@@ -194,7 +194,7 @@ class HomeScreen extends StatelessWidget {
 /// ⚠️ THE LOCK USED TO READ `_index == 1 && locked`, i.e. the gate was decided
 /// by a TAB INDEX held in the home screen's State. It is now decided by the
 /// route being on screen at all, which is the same rule with nothing to
-/// disagree with it. `apps/subly` reached the identical shape from the other
+/// disagree with it. `apps/subscriptiontracker` reached the identical shape from the other
 /// direction (`_GatedInsights`, `lib/core/router/shell.dart:78`).
 ///
 /// It shows [WelcomePanel] because the chassis ships exactly one content

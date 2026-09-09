@@ -6,7 +6,7 @@ import '../tokens/app_text.dart';
 /// One labelled field on a hand-painted form — and the label reaches a SCREEN
 /// READER, which it did not.
 ///
-/// MOVED HERE FROM `apps/subly/lib/features/auth/login_screen.dart` on
+/// MOVED HERE FROM `apps/subscriptiontracker/lib/features/auth/login_screen.dart` on
 /// 2026-09-04 ([ADR 065], chassis step 2), where it was the private `_field`
 /// helper of a single screen. Nothing in it is app-specific: it paints a
 /// caption, a box and the semantics that tie them together. The reason it had
@@ -29,13 +29,13 @@ import '../tokens/app_text.dart';
 /// signed-out user sees, and the password box is the one where "which box am
 /// I in" cannot be answered by listening to the value.
 ///
-/// Measured by `apps/subly/test/a11y_semantics_test.dart`'s naked-controls
+/// Measured by `apps/subscriptiontracker/test/a11y_semantics_test.dart`'s naked-controls
 /// sweep, which reported two «» NO NAME nodes once the case typed into them —
 /// and passed on the pristine form, which is why the typed-in case exists.
 ///
 /// ⚠️ FIXED WITH `MergeSemantics`, NOT WITH `labelText`. Moving the name into
 /// the decoration would repaint the box with a floating Material label, and
-/// apps/subly is the frozen legacy rail-prover the owner eyeballs. This
+/// apps/subscriptiontracker is the frozen legacy rail-prover the owner eyeballs. This
 /// changes no pixels: the visible capitals are excluded from the tree (a
 /// layout compromise has no business in the audio channel — the same rule the
 /// calendar's narrow weekday letters are held to) and the sentence-case word
@@ -47,7 +47,7 @@ import '../tokens/app_text.dart';
 /// paints both boxes on a sign-in form, and the two want opposite answers — the
 /// email box advances, the password box submits — so a default on this widget
 /// would be right for one caller and silently wrong for the other. They are
-/// also exactly what `apps/subly/test/login_chassis_parity_test.dart` reads off
+/// also exactly what `apps/subscriptiontracker/test/login_chassis_parity_test.dart` reads off
 /// the `TextField`, so dropping one at a call site goes red rather than merely
 /// un-autofilling the live form, which is how they were missing in the first
 /// place.
@@ -55,7 +55,7 @@ import '../tokens/app_text.dart';
 /// 🔴 [label] AND [hint] ARE REQUIRED STRINGS WITH NO ENGLISH DEFAULT, AND THAT
 /// IS A COVERAGE DECISION RATHER THAN AN API PREFERENCE.
 /// `tooling/ci/assert-no-hardcoded-strings.mjs` scans exactly two roots — the
-/// brick and `apps/subly/lib` (`:120-131`) — and does **not** scan `packages/`.
+/// brick and `apps/subscriptiontracker/lib` (`:120-131`) — and does **not** scan `packages/`.
 /// A default sentence living here would therefore be a user-visible string that
 /// left the guard's domain by moving house: the literal would still ship, and
 /// the check that exists to catch it would go quiet rather than red. Every

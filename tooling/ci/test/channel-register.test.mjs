@@ -233,7 +233,7 @@ const packageWorkflow = ({ invoked = true } = {}) =>
     '  package:',
     '    runs-on: ubuntu-24.04',
     '    steps:',
-    invoked ? `      - run: node ${RECIPE_SCRIPT} --app subly` : `      # - run: node ${RECIPE_SCRIPT} --app subly`,
+    invoked ? `      - run: node ${RECIPE_SCRIPT} --app subscriptiontracker` : `      # - run: node ${RECIPE_SCRIPT} --app subscriptiontracker`,
     invoked ? '' : '      - run: echo nothing',
     '',
   ]
@@ -602,7 +602,7 @@ function tree({
     ? (register.channels.find((c) => c.id === ANDROID_ID)?.signing?.ciSecrets?.names ?? []).filter((n) => typeof n === 'string')
     : [];
 
-  write('catalog/apps.json', JSON.stringify([{ slug: 'subly', platforms, status: 'live' }]));
+  write('catalog/apps.json', JSON.stringify([{ slug: 'subscriptiontracker', platforms, status: 'live' }]));
   write('tooling/versions.json', JSON.stringify({ flutter: '3.44.8', wrangler: '4.114.0', java: '17' }));
   if (withExtension) {
     // The subtree the extension row's `storeMetadataDir` template must resolve
@@ -633,7 +633,7 @@ function tree({
           'name: extensions',
           'on:',
           '  push:',
-          '    tags: [subly-v1]',
+          '    tags: [subscriptiontracker-v1]',
           'jobs:',
           '  release:',
           '    runs-on: ubuntu-24.04',
@@ -650,7 +650,7 @@ function tree({
   // at a deleted grader reads as covered. A stub is enough: nothing here runs it.
   write('tooling/ci/assert-store-metadata.mjs', '// fixture stub — presence is the only property asserted');
   write(LANE_WORKFLOW, laneWorkflow({ laneBuilds, releaseChannel, laneSecrets: [...laneSecrets, ...androidNames] }));
-  if (withAndroid && !omitGradleFile) write(GRADLE_TEMPLATE.split('{app}').join('subly'), gradleFile(gradle));
+  if (withAndroid && !omitGradleFile) write(GRADLE_TEMPLATE.split('{app}').join('subscriptiontracker'), gradleFile(gradle));
   write(BUILD_WORKFLOW, buildWorkflow({ needs, verdicts, verdictStyle, exitOne, extraJob, windowsRun }));
   if (harnessPresent) {
     // The harness root exists even when the cited ADR does not — that is the
@@ -839,7 +839,7 @@ describe('assert-channel-register — what SERVED obliges a row to carry', () =>
   });
 
   test('FAILS when a served channel loses its {app} deployment-environment template', () => {
-    const { code, out } = run(servedMutation((c) => { c.deploymentEnvironment = 'subly-web'; }));
+    const { code, out } = run(servedMutation((c) => { c.deploymentEnvironment = 'subscriptiontracker-web'; }));
     assert.equal(code, 1, out);
     assert.match(out, /deploymentEnvironment/);
   });
@@ -1376,7 +1376,7 @@ describe('assert-channel-register — the lane\'s output vs the formats its chan
       '      - uses: actions/upload-artifact@v4',
       '        with:',
       '          path: |',
-      '            apps/subly/build/app/outputs/flutter-apk/*.apk',
+      '            apps/subscriptiontracker/build/app/outputs/flutter-apk/*.apk',
     ].join('\n');
     const { code, out } = run(
       tree({
@@ -1937,7 +1937,7 @@ describe('assert-channel-register — [9]R-3 limb 2: only declared secrets may b
 //
 // ⚠️ SECOND LINE OF EVIDENCE, AS EVER. The first is 10 mutations of the REAL
 // tree, each restored and SHA-256-verified byte-identical: renaming a value in
-// apps/subly/android/app/build.gradle.kts, renaming one in
+// apps/subscriptiontracker/android/app/build.gradle.kts, renaming one in
 // tooling/channel-register.json, deleting a real assignment from the signing
 // config, unwiring the release build type, commenting the map out, going stale
 // on `transport.substitutes`, deleting `gradleContract`, pointing `declaredIn`
@@ -2066,7 +2066,7 @@ describe('assert-channel-register — [9]R-3: the register agrees with the real 
     assert.equal(code, 1, out);
     assert.match(out, /FAIL COVERAGE LOST/);
     assert.match(out, /`declaredIn` template reached 0 file\(s\) on disk; REQUIRED_COVERAGE is 1/);
-    assert.match(out, /Tried: apps\/subly\/android\/app\/build\.gradle\.kts/);
+    assert.match(out, /Tried: apps\/subscriptiontracker\/android\/app\/build\.gradle\.kts/);
   });
 
   test('COVERAGE LOST when `envMap` names a symbol the build file does not declare', () => {
@@ -2148,7 +2148,7 @@ describe('assert-channel-register — [9]R-3: the register agrees with the real 
       tree({
         withAndroid: true,
         mutate: (r) => {
-          contract(r).declaredIn = 'apps/subly/android/app/build.gradle.kts';
+          contract(r).declaredIn = 'apps/subscriptiontracker/android/app/build.gradle.kts';
         },
       }),
     );
@@ -2748,7 +2748,7 @@ describe('assert-channel-register — the extension lane is COMPARED, not assume
           'name: extensions',
           'on:',
           '  push:',
-          '    tags: [subly-v1]',
+          '    tags: [subscriptiontracker-v1]',
           'jobs:',
           '  release:',
           '    runs-on: ubuntu-24.04',

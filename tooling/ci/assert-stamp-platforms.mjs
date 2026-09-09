@@ -17,7 +17,7 @@
 // ── WHY S-4 LIVES HERE TOO ─────────────────────────────────────────────────
 // They are the same failure seen twice: a check that ranges over something the
 // stamp never populated. `melos run gate` iterates the root `workspace:` list,
-// `apps/subly` is on it because a human typed it there, and the stamper added
+// `apps/subscriptiontracker` is on it because a human typed it there, and the stamper added
 // nothing — so the newest and least-tested app in the repo was the one thing the
 // one-command check did not check. Green tick, nothing examined.
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -132,7 +132,7 @@ function runBlocks(lines) {
  *  match to command position was still only half the check: the guard asked
  *  WHETHER the command exists and never WHICH APP it builds. Mutation-proven on
  *  the real workflow — flipping this step's `working-directory` from the freshly
- *  stamped probe to `apps/subly` left the guard printing `ok every claimed
+ *  stamped probe to `apps/subscriptiontracker` left the guard printing `ok every claimed
  *  platform is stamped and built in CI`, while the thing being built was the
  *  hand-maintained legacy app that has compiled for a year. "A fresh stamp
  *  really builds" was then proven by building something that was never stamped. */
@@ -378,7 +378,7 @@ if (postGen !== null && ci !== null) {
     );
   } else if (!declaresWorkspaceResolution(tmpl)) {
     problems.push(
-      `${BRICK_PUBSPEC} does not declare \`resolution: workspace\`, but the stamp adds \`apps/<id>\` to the root \`workspace:\` list. Dart refuses the whole workspace when a listed member omits it — \`flutter pub get\` at the repo root exits 1 for EVERY package, so \`melos run gate\` stops working the day the first stamped app is committed. Add the line beside \`publish_to\`, matching apps/subly/pubspec.yaml.`,
+      `${BRICK_PUBSPEC} does not declare \`resolution: workspace\`, but the stamp adds \`apps/<id>\` to the root \`workspace:\` list. Dart refuses the whole workspace when a listed member omits it — \`flutter pub get\` at the repo root exits 1 for EVERY package, so \`melos run gate\` stops working the day the first stamped app is committed. Add the line beside \`publish_to\`, matching apps/subscriptiontracker/pubspec.yaml.`,
     );
   } else {
     ok('the stamped pubspec declares `resolution: workspace`');

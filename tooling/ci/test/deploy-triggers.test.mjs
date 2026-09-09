@@ -74,7 +74,7 @@ jobs:
 `;
 
 const ALL_PATHS = `    paths:
-      - 'apps/subly/**'
+      - 'apps/subscriptiontracker/**'
       - 'packages/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -96,7 +96,7 @@ describe('assert-deploy-triggers.mjs', () => {
     const r = run(
       fixture({
         'deploy-web.yml': lane(`    paths:
-      - 'apps/subly/**'
+      - 'apps/subscriptiontracker/**'
       - 'packages/**'
       - '.github/workflows/deploy-web.yml'
 `),
@@ -137,7 +137,7 @@ describe('assert-deploy-triggers.mjs', () => {
         'deploy-web.yml': lane(`    # The build also depends on pubspec.yaml, pubspec.lock and
     # tooling/versions.json — the workspace resolution inputs.
     paths:
-      - 'apps/subly/**'
+      - 'apps/subscriptiontracker/**'
       - 'packages/**'
       - '.github/workflows/deploy-web.yml'
 `),
@@ -187,7 +187,7 @@ describe('assert-deploy-triggers.mjs', () => {
     const r = run(
       fixture({
         'deploy-web.yml': lane(`    paths:
-      - 'apps/subly/**'
+      - 'apps/subscriptiontracker/**'
       - 'packages/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -263,7 +263,7 @@ jobs:
           extra: '',
         }).replace(
           '      - run: flutter build web --release\n',
-          '      - run: node tooling/ci/assert-app-versioning.mjs --emit apps/subly\n' +
+          '      - run: node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker\n' +
             '      - run: flutter build web --release\n',
         ),
       }),
@@ -278,7 +278,7 @@ jobs:
         'deploy-web.yml': lane(`${ALL_PATHS}      - 'tooling/ci/assert-app-versioning.mjs'\n`)
           .replace(
             '      - run: flutter build web --release\n',
-            '      - run: node tooling/ci/assert-app-versioning.mjs --emit apps/subly\n' +
+            '      - run: node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker\n' +
               '      - run: flutter build web --release\n',
           ),
       }),

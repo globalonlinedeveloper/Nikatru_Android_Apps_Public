@@ -30,7 +30,7 @@ typedef DeviceUtcOffset = Duration Function();
 /// drives every runtime guard in the notification adapter.
 ///
 /// The matrix is tied to the **pinned `flutter_local_notifications` 17.x** (shared
-/// with apps/subly); re-review it on any version bump:
+/// with apps/subscriptiontracker); re-review it on any version bump:
 /// - **Android / iOS / macOS** — immediate display + repeating daily schedule.
 /// - **Linux** — shows immediately, but `zonedSchedule` is unimplemented (the
 ///   Linux backend can't schedule, in 17.x–19.x alike) → show yes, schedule no.

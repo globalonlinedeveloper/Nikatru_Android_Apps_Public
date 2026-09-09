@@ -36,7 +36,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-captcha-gated-call-sites.mjs');
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
-const SUBLY = 'apps/subly';
+const SUBLY = 'apps/subscriptiontracker';
 const INTERFACE = 'packages/core/lib/src/auth/auth_repository.dart';
 const SUBLY_SETTINGS = `${SUBLY}/lib/features/settings/settings_screen.dart`;
 const SUBLY_LOGIN = `${SUBLY}/lib/features/auth/login_screen.dart`;
@@ -101,7 +101,7 @@ describe('the real tree', () => {
       () => {},
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /ok {3}apps\/subly\/lib — adopted TurnstileGate/);
+        assert.match(r.stdout, /ok {3}apps\/subscriptiontracker\/lib — adopted TurnstileGate/);
         assert.match(r.stdout, /TurnstileGate not adopted in this tree/);
       },
     );
@@ -288,7 +288,7 @@ describe('coverage — a scanner that scans nothing prints perfectly', () => {
       (r) => {
         assert.equal(r.status, 1, `expected a failure; stdout was:\n${r.stdout}`);
         assert.match(r.stderr, /COVERAGE LOST/);
-        assert.match(r.stderr, /apps\/subly\/lib/);
+        assert.match(r.stderr, /apps\/subscriptiontracker\/lib/);
       },
     );
   });

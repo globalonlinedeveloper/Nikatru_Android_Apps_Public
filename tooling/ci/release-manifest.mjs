@@ -184,7 +184,7 @@ export const EXTRA_INSTALLABLE = new Map([
 /**
  * 🔴 INSTALLABLE IS NOT THE SAME AS SELF-CONTAINED, and the first local dry run
  * of the release lane (2026-08-06) is what found the difference. `--stage` lifted
- * `subly.exe` out of `build/windows/x64/runner/Release/` and produced TWO broken
+ * `subscriptiontracker.exe` out of `build/windows/x64/runner/Release/` and produced TWO broken
  * things at once: a loose .exe with none of its DLLs or `data/` beside it, and an
  * archive of the bundle with its executable removed. Neither would run.
  *
@@ -229,12 +229,12 @@ export const BUNDLE_MEMBERS = new Map([
  * ⚠️ WHAT WENT WRONG WITHOUT IT, MEASURED 2026-09-05 ON THE BRANCH THAT ADDED THE
  * EXTENSION ROWS. `.zip` is declared only by the three extension channels, and
  * `installableExtensions()` ranged over every row with no surface question — so a
- * `subly` release carrying any `.zip` staged it as an APP installable, where main
+ * `subscriptiontracker` release carrying any `.zip` staged it as an APP installable, where main
  * had refused with "no installable artifact found". `originEnvironments()` had the
  * mirror defect one level worse: it emitted a row on `c.surface === 'extension'`
  * without ever asking whether `--app <id>` was an extension at all, so a Flutter
- * app's release emitted `subly-amo`, `subly-chrome-webstore` and
- * `subly-edge-addons` — three [10]D-9 records of browser-store origins for a
+ * app's release emitted `subscriptiontracker-amo`, `subscriptiontracker-chrome-webstore` and
+ * `subscriptiontracker-edge-addons` — three [10]D-9 records of browser-store origins for a
  * product that ships to no browser store. main's honest refusal became three false
  * environments. Both are one question, asked once, here.
  *
@@ -372,10 +372,10 @@ export function missingReleaseFormats(expected, assetNames) {
  *
  * THE DEFECT THIS ANSWERS, MEASURED 2026-08-21 RATHER THAN REASONED ABOUT.
  * Two fake files staged into a scratch directory (`…-app-release.aab` and
- * `…-subly.msix`, one line of text each) and then the release job's literal
+ * `…-subscriptiontracker.msix`, one line of text each) and then the release job's literal
  * command:
- *     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subly
- *       → EXIT 0, stdout `subly-windows-direct`
+ *     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subscriptiontracker
+ *       → EXIT 0, stdout `subscriptiontracker-windows-direct`
  * `build-platforms.yml:457-459` feeds that stdout, unfiltered, into
  * `record-deployment.mjs` — so the first tag writes a [10]D-9 deployment record
  * for `windows-direct` while that row's `signing.codeSigningCertificate` still
@@ -607,7 +607,7 @@ export function signingPosture(channel) {
   //   · `===` (shipped) → 'undeclared', and originEnvironments returns
   //     `{ environments: [], omitted: [that row] }` — the [10]D-9 row is WITHHELD.
   //   · `==`  (mutant)  → 'none', which IS in RECORDABLE_POSTURES, so
-  //     `{ environments: ['subly-x'], omitted: [] }` — the [10]D-9 row IS WRITTEN,
+  //     `{ environments: ['subscriptiontracker-x'], omitted: [] }` — the [10]D-9 row IS WRITTEN,
   //     through a `keyKind` no reader in this repository can interpret.
   // Neither spelling is a widening of the other, so the shipped reading needed a
   // case rather than a note. Pinned in "signingPosture reads the register's own
@@ -760,7 +760,7 @@ export function originEnvironments(register, app, assetNames, surface) {
     // submission by [10]D-6's cadence.
     // 🔴 THE SURFACE OF THE RELEASE COMES FIRST, BEFORE `kind` IS EVEN READ.
     // Without this line the branch below asked "is this row an extension row?"
-    // and never "is this release an extension release?", so `--app subly`
+    // and never "is this release an extension release?", so `--app subscriptiontracker`
     // emitted three browser-store environments. See `channelIsOnSurface`.
     if (!channelIsOnSurface(c, surface)) continue;
     const isExtension = c?.surface === 'extension';
@@ -1050,10 +1050,10 @@ function main() {
         const ext = [...exts].find((x) => e.name.toLowerCase().endsWith(x.toLowerCase()));
         if (!ext) continue;
         // `<tag>-<basename>`, and NOT `<app>-<tag>-…`: the tag already carries
-        // the app (`subly-v1.0.0`, from the `*-v*` trigger glob), so prefixing
-        // the app again produced `subly-subly-v1.0.0-app-release.apk`. What the
+        // the app (`subscriptiontracker-v1.0.0`, from the `*-v*` trigger glob), so prefixing
+        // the app again produced `subscriptiontracker-subscriptiontracker-v1.0.0-app-release.apk`. What the
         // name has to survive is a year in a downloads folder —
-        // `subly-v1.0.0-app-release.apk` does; `app-release.apk`, which is what
+        // `subscriptiontracker-v1.0.0-app-release.apk` does; `app-release.apk`, which is what
         // every Flutter build emits for every app, does not.
         let name = `${tag}-${basename(e.name)}`;
         // upload-artifact names are per-app already, but two platform artifacts
@@ -1202,8 +1202,8 @@ function main() {
     const app = flag('app') ?? die('--emit-environments needs --app <id>');
     // The surface is resolved from the TREE, not from the register: the register
     // says which channels exist on each surface, and the tree says which surface
-    // this product is on. Reading the first for the second is how `--app subly`
-    // emitted `subly-chrome-webstore`.
+    // this product is on. Reading the first for the second is how `--app subscriptiontracker`
+    // emitted `subscriptiontracker-chrome-webstore`.
     const emitSurface = requireSurface(resolve(flag('repo-root') ?? DEFAULT_ROOT), app, '--emit-environments');
     const { names } = assetFiles(dir);
     const { environments, omitted } = originEnvironments(loadRegister(), app, names, emitSurface);

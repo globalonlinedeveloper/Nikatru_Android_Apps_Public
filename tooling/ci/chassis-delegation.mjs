@@ -45,11 +45,11 @@
 // strength of an IMPORT LINE ALONE. An independent review demonstrated, on the
 // real tree, that ONE UNUSED IMPORT plus a package file merely CONTAINING the
 // token turned two deleted controls from EXIT 1 into EXIT 0:
-//   · `apps/subly/.../settings_screen.dart` with its `recordAnalyticsConsent(`
+//   · `apps/subscriptiontracker/.../settings_screen.dart` with its `recordAnalyticsConsent(`
 //     call deleted — `assert-consent-withdrawal-surface.mjs`, the DPDP §6(3)
 //     guard — went green because a never-rendered free function in a package
 //     file said the words.
-//   · `apps/subly/.../login_screen.dart` with its `caps.oauthRedirect` gate
+//   · `apps/subscriptiontracker/.../login_screen.dart` with its `caps.oauthRedirect` gate
 //     deleted — `assert-no-seam-forks.mjs`'s parity limb, one of the three
 //     constraints [ADR 066] names as NOT escapable — went green the same way.
 // An import is a claim about where behaviour went; a REFERENCE is evidence.
@@ -212,7 +212,7 @@ const NESTED_DECL_PATTERNS = [
 // parameters of every `Widget build(BuildContext context, WidgetRef ref)` in
 // the tree, so a chassis file whose only top-level name was `final context = 0;`
 // survived the subtraction and was referenced bare by every screen. Measured:
-// `apps/subly/.../settings_screen.dart` DECLARES 54 names and references 238
+// `apps/subscriptiontracker/.../settings_screen.dart` DECLARES 54 names and references 238
 // bare identifiers it does not declare; `login_screen.dart`, 21 against 146.
 // With the deleted `recordAnalyticsConsent(` control in the tree,
 // `assert-consent-withdrawal-surface` went EXIT 1 → EXIT 0 on that one line,
@@ -407,11 +407,11 @@ export function referencedSymbol(rawAdapterSource, symbols, { prefix = null } = 
 // `child:`, `padding:`, `title:`, `onTap:`. It is not a reference to an imported
 // top-level name — it is a slot name belonging to the constructor being called,
 // and Dart resolves it against THAT constructor's parameters, never against the
-// import scope. `apps/subly/.../settings_screen.dart` spells `child:` 51 times.
+// import scope. `apps/subscriptiontracker/.../settings_screen.dart` spells `child:` 51 times.
 //
 // Measured, exploit R8, every mutation reverted afterwards:
 //   · R1 (green control) — delete the `recordAnalyticsConsent(` call at
-//     `apps/subly/lib/features/settings/settings_screen.dart:601`.
+//     `apps/subscriptiontracker/lib/features/settings/settings_screen.dart:601`.
 //     `assert-consent-withdrawal-surface` → EXIT 1.
 //   · R8 — the same tree, plus ONE unused
 //     `import 'package:nikatru_chassis_screens/settings.dart';` and a package

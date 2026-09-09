@@ -6,10 +6,10 @@
 // carrier re-exports or imports it instead of copying it.
 //
 // ── 🔴 WHAT IS HERE, AND WHY IT IS NOT THE WHOLE MIDDLEWARE ──────────────────
-// `services/platform/src/middleware/auth.ts` (253 lines), `services/subly-api`'s
+// `services/platform/src/middleware/auth.ts` (253 lines), `services/subscriptiontracker-api`'s
 // (373) and the brick's Worker template (287) are a REAL FORK, not three copies
 // of one file: platform has no HS256 fallback and exports `platformAuth`;
-// subly-api and the template have one and export `supabaseAuth` (permissive,
+// subscriptiontracker-api and the template have one and export `supabaseAuth` (permissive,
 // labelled) plus `erasureAuth` (asymmetric only). Collapsing that is a security
 // change, not a refactor, so it is not collapsed.
 //
@@ -24,7 +24,7 @@
 // may carry a bare import. Node, tsc and esbuild all resolve a bare specifier by
 // walking up from the FILE that writes it, and there is no `node_modules` at
 // `services/_shared/`, at `services/`, or at the repo root — each Worker runs
-// its own `npm ci` in its own directory (`ci.yml` jobs `worker-subly-api` and
+// its own `npm ci` in its own directory (`ci.yml` jobs `worker-subscriptiontracker-api` and
 // `worker-platform`; `pnpm-workspace.yaml` lists neither). Measured 2026-09-06
 // with a probe module importing `jose`:
 //     services/platform $ npx tsc --noEmit
@@ -41,7 +41,7 @@
 // ── 🔴 A CARRIER'S SECRET EXPOSURE IS NOW A PROPERTY OF ITS IMPORTS ──────────
 // THIS FILE NAMES NO SECRET. `SUPABASE_JWT_SECRET` appears nowhere in it and
 // must not: `services/platform`'s whole argument for having no fallback is that
-// the secret is not in scope, and `services/subly-api`'s `erasureAuth` rests on
+// the secret is not in scope, and `services/subscriptiontracker-api`'s `erasureAuth` rests on
 // the same property one function deeper. Both are now checkable by reading what
 // each Worker's `middleware/auth.ts` imports, which is what
 // `tooling/ci/assert-erasure-reach.mjs` limb 3 walks.
@@ -108,7 +108,7 @@ export const verifyOptions = (supabaseUrl: string) => ({
  * Cloudflare Tunnel, and a tunnel with no origin behind it answers 502/530. So
  * the commonest real outage fell straight through this predicate and 401'd.
  *
- * 🔴 ON `services/subly-api` THAT MISS WAS NOT MERELY A 401. A primary failure
+ * 🔴 ON `services/subscriptiontracker-api` THAT MISS WAS NOT MERELY A 401. A primary failure
  * there falls through to the LEGACY HS256 SHARED SECRET, so the commonest outage
  * shape would have silently downgraded every request from a signature to a
  * shared string. Widening the predicate correctly is what closes that.

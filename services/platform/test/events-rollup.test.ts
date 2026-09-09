@@ -40,7 +40,7 @@ function seedDays(db: RealDb, n: number, startDay = '2026-07-01'): void {
   const rows: string[] = [];
   for (let i = 0; i < n; i++) {
     const day = new Date(Date.parse(`${startDay}T00:00:00.000Z`) + i * 86400000).toISOString().slice(0, 10);
-    rows.push(`('e-${i}', 'subly', 'a1', 'app_launch', '${day}T09:00:00.000Z')`);
+    rows.push(`('e-${i}', 'subscriptiontracker', 'a1', 'app_launch', '${day}T09:00:00.000Z')`);
   }
   db.db.exec(`INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES ${rows.join(',')}`);
 }
@@ -139,10 +139,10 @@ describe('the rollup is IDEMPOTENT — the property the whole table rests on', (
     const db = realPlatformDb();
     db.db.exec(
       `INSERT INTO events (event_id, app_id, anon_id, event, server_ts, params) VALUES
-         ('f-1', 'subly', 'a1', 'feature_used', '2026-08-01T09:00:00.000Z', '{"name":"export"}'),
-         ('f-2', 'subly', 'a1', 'feature_used', '2026-08-01T10:00:00.000Z', '{"name":"export"}'),
-         ('f-3', 'subly', 'a1', 'feature_used', '2026-08-01T11:00:00.000Z', '{"name":"sync"}'),
-         ('f-4', 'subly', 'a1', 'feature_used', '2026-08-01T12:00:00.000Z', '{}')`,
+         ('f-1', 'subscriptiontracker', 'a1', 'feature_used', '2026-08-01T09:00:00.000Z', '{"name":"export"}'),
+         ('f-2', 'subscriptiontracker', 'a1', 'feature_used', '2026-08-01T10:00:00.000Z', '{"name":"export"}'),
+         ('f-3', 'subscriptiontracker', 'a1', 'feature_used', '2026-08-01T11:00:00.000Z', '{"name":"sync"}'),
+         ('f-4', 'subscriptiontracker', 'a1', 'feature_used', '2026-08-01T12:00:00.000Z', '{}')`,
     );
     await eventsRollup(envOf(db), NOW);
     await eventsRollup(envOf(db), NOW);
@@ -180,8 +180,8 @@ describe('catch-up — falling behind is safe, and resuming is stateless', () =>
     const db = realPlatformDb();
     db.db.exec(
       `INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES
-         ('yesterday', 'subly', 'a1', 'app_launch', '2026-08-10T09:00:00.000Z'),
-         ('today',     'subly', 'a1', 'app_launch', '2026-08-11T09:00:00.000Z')`,
+         ('yesterday', 'subscriptiontracker', 'a1', 'app_launch', '2026-08-10T09:00:00.000Z'),
+         ('today',     'subscriptiontracker', 'a1', 'app_launch', '2026-08-11T09:00:00.000Z')`,
     );
     await eventsRollup(envOf(db), NOW);
     expect(daily(db).map((r) => r.day)).toEqual(['2026-08-10']);
@@ -216,7 +216,7 @@ function seedDays2(db: RealDb, n: number, startDay: string): void {
   const rows: string[] = [];
   for (let i = 0; i < n; i++) {
     const day = new Date(Date.parse(`${startDay}T00:00:00.000Z`) + i * 86400000).toISOString().slice(0, 10);
-    rows.push(`('g-${i}', 'subly', 'a1', 'app_launch', '${day}T09:00:00.000Z')`);
+    rows.push(`('g-${i}', 'subscriptiontracker', 'a1', 'app_launch', '${day}T09:00:00.000Z')`);
   }
   db.db.exec(`INSERT INTO events (event_id, app_id, anon_id, event, server_ts) VALUES ${rows.join(',')}`);
 }
@@ -255,8 +255,8 @@ describe('events_daily is itself swept, on age alone', () => {
     const db = realPlatformDb();
     db.db.exec(
       `INSERT INTO events_daily (day, app_id, anon_id, event, feature, n_rows) VALUES
-         ('2020-01-01', 'subly', 'a1', 'app_launch', '', 3),
-         ('2026-08-01', 'subly', 'a1', 'app_launch', '', 4)`,
+         ('2020-01-01', 'subscriptiontracker', 'a1', 'app_launch', '', 3),
+         ('2026-08-01', 'subscriptiontracker', 'a1', 'app_launch', '', 4)`,
     );
     const periods: RetentionPeriods = { events: null, events_daily: 30, provider_notifications: null };
     await retentionSweep(envOf(db), periods, NOW);

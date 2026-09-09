@@ -69,8 +69,8 @@
 //
 // Usage:
 //   node tooling/release/generate-snapcraft.mjs \
-//     --app subly --bundle apps/subly/build/linux/x64/release/bundle \
-//     --out build/snap/subly --version 1.0.75
+//     --app subscriptiontracker --bundle apps/subscriptiontracker/build/linux/x64/release/bundle \
+//     --out build/snap/subscriptiontracker --version 1.0.75
 //   node tooling/release/generate-snapcraft.mjs --emit-build-deps
 //     → the Linux lane's apt list, space-separated on stdout, for a second job
 //       that must install the same toolchain (see the CLI block at the bottom)
@@ -604,10 +604,10 @@ export function deriveSnapcraftFacts({ root, app, bundle, out, version }) {
   // ── the icon the SNAP layer will carry ────────────────────────────────────
   // 🔴 THE SECOND THING THE FIRST REAL PACK FOUND (run 31294305898, 2026-08-09):
   //
-  //     Icon 'com.nikatru.subly' specified in desktop file … not found in
+  //     Icon 'com.nikatru.subscriptiontracker' specified in desktop file … not found in
   //     prime directory
   //
-  // The bundle's entry says `Icon=com.nikatru.subly` — a BARE THEME NAME, which
+  // The bundle's entry says `Icon=com.nikatru.subscriptiontracker` — a BARE THEME NAME, which
   // is correct freedesktop and is what makes one entry serve deb, flatpak and
   // AppImage (render-linux-icons.mjs says so at the line that writes it). Snap is
   // the layer that does not do theme lookup: its `Icon` must be "the absolute

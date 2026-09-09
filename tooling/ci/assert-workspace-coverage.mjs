@@ -134,7 +134,7 @@ if (onDisk.length < MIN_EXPECTED_PACKAGES) {
 // comfortably satisfied.
 //
 // MEASURED on a copy of this repository, 2026-08-17: with `apps/` emptied (the
-// directory kept) AND `- apps/subly` dropped from the `workspace:` block, this
+// directory kept) AND `- apps/subscriptiontracker` dropped from the `workspace:` block, this
 // guard exited 0 and printed "ok  workspace coverage — 9 dart package(s) on
 // disk, all gated". Section 4's two directions are both relationships between
 // the declaration and the disk, so when a root leaves BOTH of them at once
@@ -146,7 +146,7 @@ if (onDisk.length < MIN_EXPECTED_PACKAGES) {
 // declares nothing contributes zero here without tripping this floor. In a
 // fixture tree that is correct — no `apps/` directory is a legitimately smaller
 // subject. In THIS repository it is unreachable: the `workspace:` block names
-// `apps/subly`, so deleting `apps/` leaves a declared member with nothing on
+// `apps/subscriptiontracker`, so deleting `apps/` leaves a declared member with nothing on
 // disk and section 4's "listed but missing" direction fails first. Absence is
 // therefore covered by the declaration, and this floor covers the case the
 // declaration cannot see — a root that empties on BOTH sides at once.

@@ -174,8 +174,8 @@ class AppConfig {
   // AND THERE IS NO COMPARISON THAT REPAIRS IT, because there is nothing left to
   // compare against: for a stamped app the compiled-in default IS the
   // production host. Nor can [_phApiBase] be turned into the self-describing
-  // fake that `apps/subly` uses — subly is hand-maintained and its sentinel
-  // (`https://subly-api.YOUR_SUBDOMAIN.workers.dev`) is a string no build ever
+  // fake that `apps/subscriptiontracker` uses — subscriptiontracker is hand-maintained and its sentinel
+  // (`https://subscriptiontracker-api.YOUR_SUBDOMAIN.workers.dev`) is a string no build ever
   // passes, whereas here `assert-clone-contract.mjs` and
   // `assert-stamp-text-fidelity.mjs` both require the stamped literal to be
   // exactly the derived host, and `config/defaults.json` carries the same value

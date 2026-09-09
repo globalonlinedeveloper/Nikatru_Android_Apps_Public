@@ -1,6 +1,6 @@
 // Minimal ambient declaration for node:sqlite, used ONLY by test/harness.ts.
 //
-// Mirrors services/subly-api/test/node-sqlite.d.ts, and for the same reason:
+// Mirrors services/subscriptiontracker-api/test/node-sqlite.d.ts, and for the same reason:
 // this Worker's tsconfig exposes ["@cloudflare/workers-types"] and nothing else
 // on purpose, so production code cannot reach for a Node API the Workers runtime
 // does not have. The tests need a REAL SQL engine — a hand-written double cannot

@@ -154,16 +154,16 @@ describe('the window is DERIVED from the cron cadence, not chosen', () => {
 describe('analyticsLiveness records what it measured', () => {
   it('writes ONE row per app plus an unconditional portfolio row', async () => {
     const db = realPlatformDb();
-    insertEvent(db, 'subly', hours(1), 'e1');
-    insertEvent(db, 'subly', hours(2), 'e2');
+    insertEvent(db, 'subscriptiontracker', hours(1), 'e1');
+    insertEvent(db, 'subscriptiontracker', hours(2), 'e2');
     insertEvent(db, 'other', hours(3), 'e3');
 
     await analyticsLiveness(envWith(db));
 
     const rows = liveness(db);
-    expect(rows.map((r) => r.target)).toEqual(['(portfolio)', 'other', 'subly']);
+    expect(rows.map((r) => r.target)).toEqual(['(portfolio)', 'other', 'subscriptiontracker']);
     expect(rows.every((r) => r.ok === 1)).toBe(true);
-    expect(String(rows.find((r) => r.target === 'subly')!.detail)).toContain('2 event(s)');
+    expect(String(rows.find((r) => r.target === 'subscriptiontracker')!.detail)).toContain('2 event(s)');
     expect(String(rows.find((r) => r.target === '(portfolio)')!.detail)).toContain('events=3 apps=2');
   });
 
@@ -244,7 +244,7 @@ describe('analyticsLiveness records what it measured', () => {
     // derivable answer in this repository to "how many events is too few", and
     // nothing here may invent one.
     const db = realPlatformDb();
-    insertEvent(db, 'subly', hours(1), 'only-one');
+    insertEvent(db, 'subscriptiontracker', hours(1), 'only-one');
     await analyticsLiveness(envWith(db));
     expect(liveness(db).every((r) => r.ok === 1)).toBe(true);
     expect(String(liveness(db).find((r) => r.target === '(portfolio)')!.detail)).toContain('events=1 apps=1');
@@ -266,8 +266,8 @@ describe('analyticsLiveness records what it measured', () => {
 
   it('counts only the trailing window, on the EDGE clock', async () => {
     const db = realPlatformDb();
-    insertEvent(db, 'subly', hours(1), 'recent');
-    insertEvent(db, 'subly', hours(ANALYTICS_LIVENESS_WINDOW_HOURS + 5), 'stale');
+    insertEvent(db, 'subscriptiontracker', hours(1), 'recent');
+    insertEvent(db, 'subscriptiontracker', hours(ANALYTICS_LIVENESS_WINDOW_HOURS + 5), 'stale');
 
     await analyticsLiveness(envWith(db));
 
@@ -275,7 +275,7 @@ describe('analyticsLiveness records what it measured', () => {
     // offline-queued, so grouping on it would put an event in whichever window
     // the device's clock felt like.
     expect(db.sql.some((s) => s.includes('server_ts >='))).toBe(true);
-    expect(String(liveness(db).find((r) => r.target === 'subly')!.detail)).toContain('1 event(s)');
+    expect(String(liveness(db).find((r) => r.target === 'subscriptiontracker')!.detail)).toContain('1 event(s)');
   });
 
   it('states the gap it cannot close, in the data', async () => {
@@ -293,7 +293,7 @@ describe('analyticsLiveness records what it measured', () => {
 
   it('records NO THRESHOLD — there is no count it calls too low', async () => {
     const db = realPlatformDb();
-    insertEvent(db, 'subly', hours(1), 'e1');
+    insertEvent(db, 'subscriptiontracker', hours(1), 'e1');
     await analyticsLiveness(envWith(db));
     // A single event is not "unhealthy" here. Deciding what number is too few
     // has no derivable answer in this repository, so this job measures and
@@ -317,7 +317,7 @@ describe('analyticsLiveness records what it measured', () => {
 //
 // 🔴 IT IS TRUE IN PRODUCTION TODAY, WHICH IS WHY THIS IS NOT A HYPOTHETICAL
 // FIXTURE. platform_db holds THREE granted `consent_artifacts` rows (newest
-// 2026-08-07T17:57:28Z, app subly, source web) and `SELECT COUNT(*) FROM events`
+// 2026-08-07T17:57:28Z, app subscriptiontracker, source web) and `SELECT COUNT(*) FROM events`
 // = 0. `consents>0 && events=0` is the live state, so the failing case below is
 // the system's actual condition rather than a shape somebody imagined.
 //
@@ -331,10 +331,10 @@ describe('analyticsLiveness records what it measured', () => {
 describe('the portfolio row carries the independent consent signal', () => {
   it('consent AND events — all four counts, ok=1, nothing red', async () => {
     const db = realPlatformDb();
-    insertEvent(db, 'subly', hours(1), 'e1');
+    insertEvent(db, 'subscriptiontracker', hours(1), 'e1');
     insertEvent(db, 'other', hours(2), 'e2');
-    insertConsent(db, 'subly', hours(3), 'c1');
-    insertConsent(db, 'subly', hours(4), 'c2');
+    insertConsent(db, 'subscriptiontracker', hours(3), 'c1');
+    insertConsent(db, 'subscriptiontracker', hours(4), 'c2');
 
     await analyticsLiveness(envWith(db));
 
@@ -349,9 +349,9 @@ describe('the portfolio row carries the independent consent signal', () => {
     // and the events rail produced nothing. A reader can decide that from
     // `consents=3` next to `events=0` without interpreting one word of English.
     const db = realPlatformDb();
-    insertConsent(db, 'subly', hours(1), 'c1');
-    insertConsent(db, 'subly', hours(2), 'c2');
-    insertConsent(db, 'subly', hours(3), 'c3');
+    insertConsent(db, 'subscriptiontracker', hours(1), 'c1');
+    insertConsent(db, 'subscriptiontracker', hours(2), 'c2');
+    insertConsent(db, 'subscriptiontracker', hours(3), 'c3');
 
     await analyticsLiveness(envWith(db));
 
@@ -391,7 +391,7 @@ describe('the portfolio row carries the independent consent signal', () => {
     // read as evidence that events ought to be arriving — an alarm that fires
     // hardest on the person who opted out.
     const db = realPlatformDb();
-    insertConsent(db, 'subly', hours(1), 'withdrawn', 0);
+    insertConsent(db, 'subscriptiontracker', hours(1), 'withdrawn', 0);
 
     await analyticsLiveness(envWith(db));
 
@@ -428,8 +428,8 @@ describe('the portfolio row carries the independent consent signal', () => {
     // which the same window records as `analytics granted=0`, and accepts the
     // clickwrap. Zero events was the CORRECT behaviour.
     const db = realPlatformDb();
-    insertConsent(db, 'subly', hours(1), 'p1', 1, 'terms');
-    insertConsent(db, 'subly', hours(2), 'p2', 1, 'sync_backup');
+    insertConsent(db, 'subscriptiontracker', hours(1), 'p1', 1, 'terms');
+    insertConsent(db, 'subscriptiontracker', hours(2), 'p2', 1, 'sync_backup');
 
     await analyticsLiveness(envWith(db));
 
@@ -452,8 +452,8 @@ describe('the portfolio row carries the independent consent signal', () => {
     // `terms` for the same reason as the case above: it is the purpose that
     // really sat beside the analytics rows on the day.
     const db = realPlatformDb();
-    insertConsent(db, 'subly', hours(1), 'p1', 1, 'terms');
-    insertConsent(db, 'subly', hours(2), 'a1');
+    insertConsent(db, 'subscriptiontracker', hours(1), 'p1', 1, 'terms');
+    insertConsent(db, 'subscriptiontracker', hours(2), 'a1');
 
     await analyticsLiveness(envWith(db));
 
@@ -468,8 +468,8 @@ describe('the portfolio row carries the independent consent signal', () => {
     // Two windows that drift apart would compare a year of consent against a day
     // of events and call every quiet day an outage.
     const db = realPlatformDb();
-    insertConsent(db, 'subly', hours(1), 'recent');
-    insertConsent(db, 'subly', hours(ANALYTICS_LIVENESS_WINDOW_HOURS + 5), 'stale');
+    insertConsent(db, 'subscriptiontracker', hours(1), 'recent');
+    insertConsent(db, 'subscriptiontracker', hours(ANALYTICS_LIVENESS_WINDOW_HOURS + 5), 'stale');
 
     await analyticsLiveness(envWith(db));
 
@@ -503,13 +503,13 @@ describe('the portfolio row carries the independent consent signal', () => {
     const cases: Record<string, unknown>[] = [];
 
     const both = realPlatformDb();
-    insertEvent(both, 'subly', hours(1), 'e1');
-    insertConsent(both, 'subly', hours(1), 'c1');
+    insertEvent(both, 'subscriptiontracker', hours(1), 'e1');
+    insertConsent(both, 'subscriptiontracker', hours(1), 'c1');
     await analyticsLiveness(envWith(both));
     cases.push(portfolio(both));
 
     const silentWithConsent = realPlatformDb();
-    insertConsent(silentWithConsent, 'subly', hours(1), 'c1');
+    insertConsent(silentWithConsent, 'subscriptiontracker', hours(1), 'c1');
     await analyticsLiveness(envWith(silentWithConsent));
     cases.push(portfolio(silentWithConsent));
 

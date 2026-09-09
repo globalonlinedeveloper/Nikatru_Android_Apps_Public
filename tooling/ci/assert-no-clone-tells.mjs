@@ -12,7 +12,7 @@
 // 🔴 COMMENTS ARE EXEMPT, CODE IS SCANNED — and that is not a loophole, it is the
 // difference between a guard that survives and one that gets switched off. Real
 // measurement 2026-07-28: shared code mentions "Subly" EIGHT times and every
-// single one is a comment, including one that records that a hardcoded 'subly'
+// single one is a comment, including one that records that a hardcoded 'subscriptiontracker'
 // value WAS found and removed. Scanning comments would fire 8 false alarms on
 // day one, all correct-as-written; a guard that cries wolf is disabled within a
 // week, and then you believe you are protected when you are not.
@@ -231,7 +231,7 @@ if (IS_FULL_CHECKOUT) {
 }
 
 /** Comments carry history and rationale and are legitimately allowed to name an
- *  app. Only executable code is scanned. Strings ARE code: a hardcoded 'subly'
+ *  app. Only executable code is scanned. Strings ARE code: a hardcoded 'subscriptiontracker'
  *  config key was a real defect here, so string literals stay in scope. */
 /*  🔴 AND IT WAS THREE REGEXES, WHICH IS NOT A TOKENIZER (fixed 2026-08-07).
  *  The block pattern ran FIRST, so a `/*` inside a `//` line comment opened a
@@ -254,24 +254,24 @@ function stripComments(src) {
   return stripSourceComments(src, '.dart');
 }
 
-/** ⚠️ A trailing `\b` MISSES camelCase. `\bsubly\b` does not match `SublyThing`,
+/** ⚠️ A trailing `\b` MISSES camelCase. `\bsubscriptiontracker\b` does not match `SublyThing`,
  *  because the boundary needs a non-word character and `T` is one — so a class
  *  named after the app would sail through. Caught by a fixture, not by reading.
  *  Instead: match the name at a word start, in any of its normal casings, and
  *  require that what follows is not a lowercase letter. `SublyThing` and
- *  `SUBLY_KEY` match; `sublyx` (a longer, unrelated word) does not.
+ *  `SUBLY_KEY` match; `subscriptiontrackerx` (a longer, unrelated word) does not.
  *  The `i` flag cannot be used here — it would make `[a-z]` match `T` too.
  *
  *  🔴 AND THE LEADING `\b` MISSED THE PRIVATE HALF (2026-08-01 corpus triage).
- *  `_` is a WORD character, so there is no word boundary in `_subly…` — which
- *  means `_sublyLegacyLimit` and `class _SublyMigration` appended to
+ *  `_` is a WORD character, so there is no word boundary in `_subscriptiontracker…` — which
+ *  means `_subscriptiontrackerLegacyLimit` and `class _SublyMigration` appended to
  *  packages/core were scanned and the guard printed "no clone tells". That is
  *  not a corner case: in Dart the underscore prefix is how you spell "private",
  *  so the entire private surface of every shared package was out of scope while
- *  the PUBLIC `sublyLegacyLimit` was caught. Mutation-proven on the real tree.
+ *  the PUBLIC `subscriptiontrackerLegacyLimit` was caught. Mutation-proven on the real tree.
  *  The left edge is therefore "not preceded by a letter or digit" — `_` and `$`
  *  separate, exactly as they do to a human reading the identifier — while
- *  `mysubly` still does not match.
+ *  `mysubscriptiontracker` still does not match.
  *
  *  🔴 The word's OWN spelling is a variant too. The list was lower/Capital/UPPER
  *  only, so `billingCycle` — a camelCase entry in cloneTells.domainNouns —

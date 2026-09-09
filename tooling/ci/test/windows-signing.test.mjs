@@ -97,7 +97,7 @@ function makeRoot({
   channelId = CHANNEL_ID,
   register = true,
   names = [B64_ENV, PW_ENV],
-  apps = [{ slug: 'subly' }],
+  apps = [{ slug: 'subscriptiontracker' }],
   submissionWorkflow = null,
   storeRow = true,
   // ── THE ARMING FIELDS ──────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ function makeRoot({
 
 const out = (r) => `${r.stdout ?? ''}${r.stderr ?? ''}`;
 
-function runPrepare(root, env = {}, { app = 'subly', args = [] } = {}) {
+function runPrepare(root, env = {}, { app = 'subscriptiontracker', args = [] } = {}) {
   const outDir = join(TMP, `out${seq++}`);
   const ghEnv = join(TMP, `ghenv${seq++}.txt`);
   const r = spawnSync(
@@ -174,7 +174,7 @@ function runPrepare(root, env = {}, { app = 'subly', args = [] } = {}) {
 }
 
 const FULL = () => ({ [B64_ENV]: PFX_B64, [PW_ENV]: PW });
-const ON_TAG = { GITHUB_REF: 'refs/tags/subly-v1.0.0' };
+const ON_TAG = { GITHUB_REF: 'refs/tags/subscriptiontracker-v1.0.0' };
 const SUBMIT_WF = '.github/workflows/submit-windows-direct.yml';
 
 // ═════ the decision law — pure, no process, no tool ══════════════════════════
@@ -202,7 +202,7 @@ describe('windows-signing · the secret-set law', () => {
 
 describe('windows-signing · a release lane is DERIVED, not declared in YAML', () => {
   test('a TAG push requires signing and names the signal', () => {
-    const d = decideRelease({ gitRef: 'refs/tags/subly-v1.0.0' });
+    const d = decideRelease({ gitRef: 'refs/tags/subscriptiontracker-v1.0.0' });
     assert.equal(d.required, true);
     assert.match(d.reasons.join(' '), /TAG push/);
   });
@@ -305,24 +305,24 @@ describe('windows-signing · 🔴 the sentinel rule', () => {
 
 describe('windows-signing · the constructed commands', () => {
   test('the sign command carries /fd SHA256 and an RFC 3161 timestamp', () => {
-    const c = buildSignCommand({ pfxPath: 'C:/t/subly.pfx', password: PW, artifact: 'subly.exe' });
+    const c = buildSignCommand({ pfxPath: 'C:/t/subscriptiontracker.pfx', password: PW, artifact: 'subscriptiontracker.exe' });
     assert.deepEqual(c.args.slice(0, 2), ['sign', '/f']);
     assert.equal(c.args[c.args.indexOf('/fd') + 1], 'SHA256');
     assert.equal(c.args[c.args.indexOf('/tr') + 1], DEFAULT_TIMESTAMP_URL);
     assert.equal(c.args[c.args.indexOf('/td') + 1], 'SHA256');
-    assert.equal(c.args[c.args.length - 1], 'subly.exe');
+    assert.equal(c.args[c.args.length - 1], 'subscriptiontracker.exe');
   });
 
   test('🔴 the REDACTED form does not carry the password and the real one does', () => {
-    const c = buildSignCommand({ pfxPath: 'C:/t/subly.pfx', password: PW, artifact: 'subly.exe' });
+    const c = buildSignCommand({ pfxPath: 'C:/t/subscriptiontracker.pfx', password: PW, artifact: 'subscriptiontracker.exe' });
     assert.ok(c.args.includes(PW), 'the real argv must carry the password or signtool cannot open the .pfx');
     assert.ok(!c.redacted.includes(PW), 'the printable argv leaked the password');
     assert.ok(c.redacted.includes('***'));
   });
 
   test('the verify command uses /pa — the Authenticode policy, not the driver policy', () => {
-    const c = buildVerifyCommand({ artifact: 'subly.exe' });
-    assert.deepEqual(c.args, ['verify', '/pa', '/v', 'subly.exe']);
+    const c = buildVerifyCommand({ artifact: 'subscriptiontracker.exe' });
+    assert.deepEqual(c.args, ['verify', '/pa', '/v', 'subscriptiontracker.exe']);
   });
 
   test('both refuse to build a command with nothing to act on', () => {
@@ -333,7 +333,7 @@ describe('windows-signing · the constructed commands', () => {
 
 // ── transcribed signtool output ──────────────────────────────────────────────
 // Root-first, increasing indentation, leaf LAST and most indented.
-const verifiedOutput = (leafSha) => `Verifying: subly.exe
+const verifiedOutput = (leafSha) => `Verifying: subscriptiontracker.exe
 
 Signature Index: 0 (Primary Signature)
 Hash of file (sha256): 8E9F0A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7
@@ -358,14 +358,14 @@ Signing Certificate Chain:
             SHA256 hash: ${leafSha}
 
 The signature is timestamped: Sat Aug 08 12:00:00 2026
-Successfully verified: subly.exe
+Successfully verified: subscriptiontracker.exe
 
 Number of files successfully Verified: 1
 Number of warnings: 0
 Number of errors: 0
 `;
 
-const UNSIGNED_OUTPUT = `Verifying: subly.exe
+const UNSIGNED_OUTPUT = `Verifying: subscriptiontracker.exe
 SignTool Error: No signature found.
 
 Number of files successfully Verified: 0
@@ -373,7 +373,7 @@ Number of warnings: 0
 Number of errors: 1
 `;
 
-const UNTRUSTED_OUTPUT = `Verifying: subly.exe
+const UNTRUSTED_OUTPUT = `Verifying: subscriptiontracker.exe
 
 Signing Certificate Chain:
     Issued to: Somebody Else
@@ -591,13 +591,13 @@ describe('windows-signing · the three endings', () => {
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /THE CERTIFICATE PIN AND THE POSTURE DISAGREE/);
     assert.match(out(r), /CODE-SIGNING-CERT-NOT-PURCHASED/);
-    assert.ok(!existsSync(join(outDir, 'subly-codesign.pfx')), 'a certificate was left on disk by a run that failed');
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-codesign.pfx')), 'a certificate was left on disk by a run that failed');
   });
 
   test('both secrets against a REAL pin materialise the .pfx and export three variables', () => {
     const { r, outDir, exported } = runPrepare(makeRoot({ pin: PIN }), { ...FULL(), ...ON_TAG });
     assert.equal(r.status, 0, out(r));
-    const written = join(outDir, 'subly-codesign.pfx');
+    const written = join(outDir, 'subscriptiontracker-codesign.pfx');
     assert.ok(existsSync(written), out(r));
     assert.deepEqual(readFileSync(written), derBlob());
     const names = exported.trim().split('\n').map((l) => l.split('=')[0]).sort();
@@ -635,7 +635,7 @@ describe('windows-signing · the secret is never printed and never half-written'
     const { r, outDir } = runPrepare(makeRoot({ pin: PIN }), { ...FULL(), [PW_ENV]: `${PW}\nPATH=/evil` });
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /contains a line break/);
-    assert.ok(!existsSync(join(outDir, 'subly-codesign.pfx')), 'a certificate was left on disk by a run that failed');
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-codesign.pfx')), 'a certificate was left on disk by a run that failed');
   });
 
   test('the .pfx is written OUTSIDE the repository tree', () => {
@@ -651,7 +651,7 @@ describe('windows-signing · the secret is never printed and never half-written'
     const ghEnv = join(TMP, `ghenv-rt${seq++}.txt`);
     const r = spawnSync(
       process.execPath,
-      [PREPARE, '--app', 'subly', '--repo-root', makeRoot({ pin: PIN }), '--github-env', ghEnv],
+      [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({ pin: PIN }), '--github-env', ghEnv],
       {
         encoding: 'utf8',
         cwd: TMP,
@@ -664,7 +664,7 @@ describe('windows-signing · the secret is never printed and never half-written'
   });
 
   test('an EMPTY $GITHUB_ENV is treated as unset, not as a file named ""', () => {
-    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subly', '--repo-root', makeRoot({})], {
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({})], {
       encoding: 'utf8',
       env: { ...process.env, GITHUB_ENV: '', GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', [B64_ENV]: '', [PW_ENV]: '' },
     });
@@ -744,7 +744,7 @@ describe('windows-signing · coverage self-checks', () => {
   test('an unknown --app fails and lists the apps it knows', () => {
     const { r } = runPrepare(makeRoot({}), {}, { app: 'notanapp' });
     assert.equal(r.status, 1, out(r));
-    assert.match(out(r), /Known: subly/);
+    assert.match(out(r), /Known: subscriptiontracker/);
   });
 
   test('every run prints the ONE line saying the Store path is out of scope, read from the register', () => {

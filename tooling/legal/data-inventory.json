@@ -19,7 +19,7 @@
     "    that matched the comment explaining why a binding did NOT exist;",
     "  · every d1_databases / kv_namespaces / r2_buckets entry in EVERY wrangler config in the repo,",
     "    PARSED as JSONC rather than grepped. ⚠️ Repo-wide on purpose: assert-clone-contract.mjs reads",
-    "    only services/<app>-api/wrangler.jsonc, so services/subly-api is invisible to it. Borrowing",
+    "    only services/<app>-api/wrangler.jsonc, so services/subscriptiontracker-api is invisible to it. Borrowing",
     "    that walk would have inherited the blind spot and reported full coverage of a subset;",
     "  · every KV binding a Pages Function calls (`env.SIGNUPS.put(...)`). These are bound in the",
     "    Cloudflare dashboard and appear in NO wrangler config, so a wrangler-only walk would miss the",
@@ -134,7 +134,7 @@
         "reason": "A container. See the table rows below."
       },
       "writtenBy": [
-        "services/subly-api/wrangler.jsonc"
+        "services/subscriptiontracker-api/wrangler.jsonc"
       ]
     },
     {
@@ -169,7 +169,7 @@
       },
       "writtenBy": [
         "services/platform/migrations/0001_entitlements.sql",
-        "services/subly-api/src/routes/webhooks.ts"
+        "services/subscriptiontracker-api/src/routes/webhooks.ts"
       ],
       "disclosure": {
         "page": "privacy.html",
@@ -423,16 +423,16 @@
       "holds": "The subscriptions a Subly user tracks — service name, cost, renewal date. USER-ENTERED CONTENT about the person's own finances, keyed on their user id.",
       "retention": {
         "kind": "keep",
-        "reason": "This is the user's own data and the entire point of the app; it exists until they delete it or delete their account. The in-app deletion control exists in BOTH trees and is asserted — the `account-deletion-works` coverage key on the brick, and tooling/ci/assert-deletion-control.mjs over apps/subly with no exemption ([ADR 027]) — and since 2026-08-04 that control REACHES THESE ROWS. See `erasure` below."
+        "reason": "This is the user's own data and the entire point of the app; it exists until they delete it or delete their account. The in-app deletion control exists in BOTH trees and is asserted — the `account-deletion-works` coverage key on the brick, and tooling/ci/assert-deletion-control.mjs over apps/subscriptiontracker with no exemption ([ADR 027]) — and since 2026-08-04 that control REACHES THESE ROWS. See `erasure` below."
       },
       "erasure": {
         "kind": "purge",
-        "route": "services/subly-api/src/routes/account.ts",
-        "reason": "🔴 THE GAP THIS ROW USED TO DECLARE, CLOSED 2026-08-04. Until then these four rows read `no-route`: DELETE /v1/account lived only on the shared platform Worker, which sweeps PLATFORM_DB, so a Subly user could delete their account, lose their login, and leave every subscription, budget and payment they had ever entered in a database no login could ever reach again.\n\nTHE OBJECTION THAT HELD IT UP WAS REAL AND IS ANSWERED RATHER THAN WAIVED. services/subly-api/src/middleware/auth.ts accepts a token signed with the shared HS256 secret when the asymmetric path fails, and an irreversible route must not sit behind a symmetric secret — one leaked environment variable would mint a token for any user of any app. So the route was NOT put behind that middleware. `erasureAuth` (same file) verifies ES256 against the PUBLIC JWKS and is not even given the environment, so the secret is out of scope by the shape of the function signature; src/index.ts mounts DELETE /v1/account behind it; and the route ADDITIONALLY refuses any request whose `tokenAssurance` is not 'asymmetric'. Two independent limbs, because a mounting is one line somebody can move in a tidy-up and a refusal inside the handler is not. Both are recorded failing inputs in services/subly-api/test/erasure.test.ts, which drives the REAL Worker and proves the SAME HS256 token is ACCEPTED by GET /v1/subscriptions and REFUSED here — so the refusal is about the boundary, not about an invalid token.\n\nThe table set is DERIVED from the schema (every table carrying a `user_id`), so a fifth user-owned table is covered by its own migration with no edit to the route, and an EMPTY derivation is a 503 refusal rather than a fast path.\n\n⚠️ THIS ROUTE ERASES NOTHING BUT subly_db. The identity record and platform_db stay the shared Worker’s: services/platform/src/routes/account.ts relays the caller’s own bearer token to this route AFTER its service-role precondition and BEFORE it deletes the identity, so a failure here stops the erasure while the user still has a login to retry with. Ordering, not duplication — exactly one piece of code destroys the identity."
+        "route": "services/subscriptiontracker-api/src/routes/account.ts",
+        "reason": "🔴 THE GAP THIS ROW USED TO DECLARE, CLOSED 2026-08-04. Until then these four rows read `no-route`: DELETE /v1/account lived only on the shared platform Worker, which sweeps PLATFORM_DB, so a Subly user could delete their account, lose their login, and leave every subscription, budget and payment they had ever entered in a database no login could ever reach again.\n\nTHE OBJECTION THAT HELD IT UP WAS REAL AND IS ANSWERED RATHER THAN WAIVED. services/subscriptiontracker-api/src/middleware/auth.ts accepts a token signed with the shared HS256 secret when the asymmetric path fails, and an irreversible route must not sit behind a symmetric secret — one leaked environment variable would mint a token for any user of any app. So the route was NOT put behind that middleware. `erasureAuth` (same file) verifies ES256 against the PUBLIC JWKS and is not even given the environment, so the secret is out of scope by the shape of the function signature; src/index.ts mounts DELETE /v1/account behind it; and the route ADDITIONALLY refuses any request whose `tokenAssurance` is not 'asymmetric'. Two independent limbs, because a mounting is one line somebody can move in a tidy-up and a refusal inside the handler is not. Both are recorded failing inputs in services/subscriptiontracker-api/test/erasure.test.ts, which drives the REAL Worker and proves the SAME HS256 token is ACCEPTED by GET /v1/subscriptions and REFUSED here — so the refusal is about the boundary, not about an invalid token.\n\nThe table set is DERIVED from the schema (every table carrying a `user_id`), so a fifth user-owned table is covered by its own migration with no edit to the route, and an EMPTY derivation is a 503 refusal rather than a fast path.\n\n⚠️ THIS ROUTE ERASES NOTHING BUT subly_db. The identity record and platform_db stay the shared Worker’s: services/platform/src/routes/account.ts relays the caller’s own bearer token to this route AFTER its service-role precondition and BEFORE it deletes the identity, so a failure here stops the erasure while the user still has a login to retry with. Ordering, not duplication — exactly one piece of code destroys the identity."
       },
       "writtenBy": [
-        "services/subly-api/migrations/0001_init.sql",
-        "services/subly-api/src/routes/subscriptions.ts"
+        "services/subscriptiontracker-api/migrations/0001_init.sql",
+        "services/subscriptiontracker-api/src/routes/subscriptions.ts"
       ],
       "disclosure": {
         "page": "privacy.html",
@@ -451,12 +451,12 @@
       },
       "erasure": {
         "kind": "purge",
-        "route": "services/subly-api/src/routes/account.ts",
+        "route": "services/subscriptiontracker-api/src/routes/account.ts",
         "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budgets` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
-        "services/subly-api/migrations/0001_init.sql",
-        "services/subly-api/src/routes/budget.ts"
+        "services/subscriptiontracker-api/migrations/0001_init.sql",
+        "services/subscriptiontracker-api/src/routes/budget.ts"
       ],
       "disclosure": {
         "page": "privacy.html",
@@ -475,12 +475,12 @@
       },
       "erasure": {
         "kind": "purge",
-        "route": "services/subly-api/src/routes/account.ts",
+        "route": "services/subscriptiontracker-api/src/routes/account.ts",
         "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budget_categories` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
-        "services/subly-api/migrations/0001_init.sql",
-        "services/subly-api/src/routes/budget.ts"
+        "services/subscriptiontracker-api/migrations/0001_init.sql",
+        "services/subscriptiontracker-api/src/routes/budget.ts"
       ],
       "disclosure": {
         "page": "privacy.html",
@@ -499,12 +499,12 @@
       },
       "erasure": {
         "kind": "purge",
-        "route": "services/subly-api/src/routes/account.ts",
+        "route": "services/subscriptiontracker-api/src/routes/account.ts",
         "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `payment_history` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
-        "services/subly-api/migrations/0001_init.sql",
-        "services/subly-api/src/routes/subscriptions.ts"
+        "services/subscriptiontracker-api/migrations/0001_init.sql",
+        "services/subscriptiontracker-api/src/routes/subscriptions.ts"
       ],
       "disclosure": {
         "page": "privacy.html",
@@ -536,7 +536,7 @@
         "reason": "A cache of public keys, refreshed on rotation. Nothing here identifies anyone."
       },
       "writtenBy": [
-        "services/subly-api/wrangler.jsonc"
+        "services/subscriptiontracker-api/wrangler.jsonc"
       ],
       "note": "The brick's backend variant binds the SAME namespace id, so this row covers both. Deduplicated by id, not by binding name — two Workers sharing a cache is one store."
     },
@@ -545,7 +545,7 @@
       "kind": "kv-namespace",
       "name": "SIGNUPS",
       "personalData": true,
-      "holds": "🔴 THE SAME PHYSICAL NAMESPACE AS `kv:nikatru-signups` BELOW — the launch-notification signup list, `sub:<email>` → { email, ts }, plus the `rl:` rate-limit prefix. It holds the only plain-text email address anywhere in this repository. This row exists because services/platform bound it on 2026-09-05 so the nightly export could back it up, and the two walks that find it derive DIFFERENT ids for one store: the Pages walk uses the id the register supplies (`kv:nikatru-signups`, chosen before the namespace id was to hand), and the wrangler walk uses the real namespace id. Merging them onto one row would mean changing the Pages row's id, and apps/subly/store/android-play/data-safety.json cites that id verbatim in `inventory.notFromThisApp` — so the id stays and the duplication is written down instead. Everything substantive lives on the row below; this one must not drift from it.",
+      "holds": "🔴 THE SAME PHYSICAL NAMESPACE AS `kv:nikatru-signups` BELOW — the launch-notification signup list, `sub:<email>` → { email, ts }, plus the `rl:` rate-limit prefix. It holds the only plain-text email address anywhere in this repository. This row exists because services/platform bound it on 2026-09-05 so the nightly export could back it up, and the two walks that find it derive DIFFERENT ids for one store: the Pages walk uses the id the register supplies (`kv:nikatru-signups`, chosen before the namespace id was to hand), and the wrangler walk uses the real namespace id. Merging them onto one row would mean changing the Pages row's id, and apps/subscriptiontracker/store/android-play/data-safety.json cites that id verbatim in `inventory.notFromThisApp` — so the id stays and the duplication is written down instead. Everything substantive lives on the row below; this one must not drift from it.",
       "retention": {
         "kind": "ttl",
         "reason": "Identical to `kv:nikatru-signups` below, because it is the same namespace: 400 days, fixed at WRITE time by `const SIGNUP_RETENTION_DAYS = 400;` in sites/nikatru/functions/api/subscribe.js, with three cohorts already written (no TTL before 2026-08-09, 365 until 2026-08-13, 400 since). ⚠️ THE PLATFORM WORKER CANNOT AFFECT ANY OF THAT. It holds this binding to LIST and GET, once a night, into the R2 backup bucket; it never writes a key, so it can neither set nor extend an expiry. If that ever stops being true, this row and the one below are both false and must move together."
@@ -586,7 +586,7 @@
         "page": "privacy.html",
         "quote": "We keep information only for as long as necessary for the purposes described here or as required by"
       },
-      "note": "🔴 THE QUOTED SENTENCE IS THE RETENTION SENTENCE, AND IT IS THE HONEST ONE AVAILABLE TODAY - NOT THE ONE THIS STORE DESERVES. This bucket introduces no new CATEGORY of personal data: every byte is a copy of something already disclosed elsewhere on the same page (the signup email in sec 1, the purchase information in sec 1), and sec 6 is the published sentence about how long information is kept. What the page does NOT yet say is that backup copies exist and are bounded at 30 days. 👤 OWNER ITEM, AND IT IS A RELEASE EVENT, NOT AN EDIT: adding that sentence bumps `data-policy-version`, and assert-seams-wired.mjs pins that string to `kPrivacyPolicyVersion` in the shipped apps, so a wording change re-dates every consent artifact and needs a build. A drafted sentence is in the wave-1 report. ⚠️ THE GAP IS ALSO OLDER AND WIDER THAN THIS BUCKET: the Box A Postgres dumps on Drive and Box B hold the same categories and have never been disclosed either, because no tree walk can see them and so no guard ever asked. This row is simply where it first became visible. ONE portfolio bucket, addressed by key prefix. The per-app `<app>-exports` buckets were removed from the brick on 2026-07-25 for multiplying lifecycle rules by the number of apps; `subly-exports` is still in the account, empty and unbound, as the reminder. ⚠️ There is no row for this bucket in tooling/ops/register.json: assert-retention-coverage.mjs's `enumerateStores` reads `kv_namespaces` and `d1_databases` only, so an r2 store would be a rule for a store it cannot see and would fail its own both-directions limb. Teaching that walk `r2_buckets` is the fix; it is a tooling/ci change and was out of this change's scope."
+      "note": "🔴 THE QUOTED SENTENCE IS THE RETENTION SENTENCE, AND IT IS THE HONEST ONE AVAILABLE TODAY - NOT THE ONE THIS STORE DESERVES. This bucket introduces no new CATEGORY of personal data: every byte is a copy of something already disclosed elsewhere on the same page (the signup email in sec 1, the purchase information in sec 1), and sec 6 is the published sentence about how long information is kept. What the page does NOT yet say is that backup copies exist and are bounded at 30 days. 👤 OWNER ITEM, AND IT IS A RELEASE EVENT, NOT AN EDIT: adding that sentence bumps `data-policy-version`, and assert-seams-wired.mjs pins that string to `kPrivacyPolicyVersion` in the shipped apps, so a wording change re-dates every consent artifact and needs a build. A drafted sentence is in the wave-1 report. ⚠️ THE GAP IS ALSO OLDER AND WIDER THAN THIS BUCKET: the Box A Postgres dumps on Drive and Box B hold the same categories and have never been disclosed either, because no tree walk can see them and so no guard ever asked. This row is simply where it first became visible. ONE portfolio bucket, addressed by key prefix. The per-app `<app>-exports` buckets were removed from the brick on 2026-07-25 for multiplying lifecycle rules by the number of apps; `subscriptiontracker-exports` is still in the account, empty and unbound, as the reminder. ⚠️ There is no row for this bucket in tooling/ops/register.json: assert-retention-coverage.mjs's `enumerateStores` reads `kv_namespaces` and `d1_databases` only, so an r2 store would be a rule for a store it cannot see and would fail its own both-directions limb. Teaching that walk `r2_buckets` is the fix; it is a tooling/ci change and was out of this change's scope."
     },
     {
       "id": "kv:nikatru-signups",

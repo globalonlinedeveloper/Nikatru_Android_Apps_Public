@@ -26,7 +26,7 @@
 // `flutter-first-frame` is dispatched on `window` by the Flutter web engine once
 // the first frame has been rasterized — which requires main() to have run to
 // completion AND runApp to have produced a frame. VERIFIED 2026-08-03 against a
-// real `flutter build web --release --pwa-strategy=none` of apps/subly, headless
+// real `flutter build web --release --pwa-strategy=none` of apps/subscriptiontracker, headless
 // Chrome, CDP: the event fired at ~1.5 s. It is preferred over a DOM node on
 // purpose: `<flutter-view>` and `<flt-glass-pane>` are created during ENGINE
 // bootstrap, before any app code renders, so an app whose first build threw
@@ -65,7 +65,7 @@ export const READY_SIGNAL = {
   why:
     'the Flutter web engine dispatches `flutter-first-frame` on window once the first frame has been ' +
     'rasterized, so it is true only after main() completed and runApp produced a frame. Observed at ' +
-    '~1.5s against a real release build of apps/subly on 2026-08-03.',
+    '~1.5s against a real release build of apps/subscriptiontracker on 2026-08-03.',
 };
 
 const args = process.argv.slice(2);
@@ -113,7 +113,7 @@ export const mimeFor = (file) => MIME.get(extname(file).toLowerCase()) ?? 'appli
  *  `<base href="…">`, and every other URL in the document is resolved against
  *  it. So the artifact carries the answer; nothing has to be told.
  *
- *  Returns a prefix with a leading AND trailing slash (`/subly/`), or `/` when
+ *  Returns a prefix with a leading AND trailing slash (`/subscriptiontracker/`), or `/` when
  *  the bundle has no `<base>` tag or was compiled for the origin root. An
  *  absolute base href (a full URL) also yields `/`: this server is loopback and
  *  cannot honour a foreign origin, and pretending otherwise would mount the
@@ -128,7 +128,7 @@ export function basePrefix(dir) {
 }
 
 /** Strip `prefix` from a request path, or null when the path is outside it.
- *  `/subly/x` → `/x`; `/subly` → `/`; `/other` → null. */
+ *  `/subscriptiontracker/x` → `/x`; `/subscriptiontracker` → `/`; `/other` → null. */
 export function stripBasePrefix(path, prefix) {
   if (path === prefix.slice(0, -1)) return '/';
   if (!path.startsWith(prefix)) return null;

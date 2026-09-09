@@ -32,14 +32,14 @@
 // The ENFORCED domain was the brick template, and only the brick template. That
 // was not modesty about the rule; it is where the rule is nearly free. A literal
 // fixed there never reaches the 50 apps the factory will stamp, and a literal
-// fixed in one stamped app fixes one app. `apps/subly/lib` joined it on
+// fixed in one stamped app fixes one app. `apps/subscriptiontracker/lib` joined it on
 // 2026-08-11 for the other reason a rule becomes free — the tree ran out of
 // literals (see the 2026-08-11 note below).
 //
 // ── 2026-08-08 · THE CANARY IS A FIXTURE NOW, NOT A PRODUCT TREE ────────────
 // The brick is clean, so this guard's coverage claim rests entirely on a tree
 // KNOWN to be dirty coming back dirty (see the canary section below). That tree
-// was `apps/subly/lib`, and the arrangement had a fault line running straight
+// was `apps/subscriptiontracker/lib`, and the arrangement had a fault line running straight
 // through it: the canary's dirtiness was a PRODUCT property, owned by nobody
 // here, and scheduled for deletion. Subly's l10n retrofit — Phase 4 of
 // `Private/pre-minimal-2026-09-08:plans/subly-restamp-execution.md` — cleans precisely the literals
@@ -49,7 +49,7 @@
 // started as a check that fired on a correct change.
 //
 // So the primary canary is now `tooling/ci/test/fixtures/dirty-strings`, which
-// this guard owns and which no product work can tidy. `apps/subly/lib` was kept
+// this guard owns and which no product work can tidy. `apps/subscriptiontracker/lib` was kept
 // alongside it as a SECOND canary — a real tree is better evidence than a
 // written one, and it was free until the retrofit landed. The canary is a LIST
 // for that reason: canaries arrive and leave, and neither should require
@@ -59,20 +59,20 @@
 // P4 L0 of `Private/pre-minimal-2026-09-08:plans/subly-restamp-execution.md` is the increment the
 // entry named as its own expiry, and this is that increment: the .arb now holds
 // every key Subly's screens need, so the waves that follow will empty
-// `apps/subly/lib` of the literals this guard was counting there. Removing the
+// `apps/subscriptiontracker/lib` of the literals this guard was counting there. Removing the
 // entry BEFORE the cleaning is deliberate — the alternative is a build that goes
 // red because somebody did the right thing, and the rational response to that is
 // to weaken the guard. Every switched-off check in this repo's history started as
 // a check that fired on a correct change.
 //
 // Measured the day it was removed, so the claim that the fixture alone carries
-// the floor is a number rather than a hope: `apps/subly/lib` 59 hits (49 `Text(…)`
+// the floor is a number rather than a hope: `apps/subscriptiontracker/lib` 59 hits (49 `Text(…)`
 // + 10 labelling), the fixture 32 (23 + 9). MIN_CANARY is 20, and BOTH matcher
 // families still have their own evidence in the fixture — which is the property
 // the per-family check below actually needs, and the one a total would hide.
 // `expected-families.txt` is untouched: it declares matchers, not canaries.
 //
-// ── 2026-08-11 · apps/subly IS ENFORCED NOW, AND THE WINDOW IS WHY ───────────
+// ── 2026-08-11 · apps/subscriptiontracker IS ENFORCED NOW, AND THE WINDOW IS WHY ───────────
 // Retiring the canary above left this app scanned by NOTHING: its own DoD §4-E
 // note said so in as many words — "no guard counts literals here". The retrofit
 // then did its job, and the tree that measured 59 hits on the day it stopped
@@ -81,7 +81,7 @@
 // Five is the whole argument. A guard is adopted at the moment the tree is clean
 // and the cost of the last mile is a handful of lines; every month it waits, the
 // screens grow new literals nobody counted and the adoption cost climbs back out
-// of reach. That is how apps/subly came to be excluded in the first place, and
+// of reach. That is how apps/subscriptiontracker came to be excluded in the first place, and
 // how a `$2.99` sat in shipping code for months while the owner had decided
 // $4.99 — assert-no-price-literals.mjs exists because the obvious guard was
 // looking somewhere else.
@@ -188,7 +188,7 @@ const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib';
  * domain somebody actually grows.
  *
  * The brick is where the rule is nearly free — a literal fixed there never
- * reaches the 50 apps the factory will stamp. `apps/subly/lib` is where the rule
+ * reaches the 50 apps the factory will stamp. `apps/subscriptiontracker/lib` is where the rule
  * is nearly free RIGHT NOW, which is a different and perishable reason, so it is
  * recorded next to the entry rather than left to be re-derived later.
  */
@@ -199,9 +199,9 @@ const ENFORCED_ROOTS = [
     remedy: 'Move it to lib/l10n/app_en.arb and read it through AppLocalizations. Every app the factory stamps inherits this file, and retrofitting l10n across 50 shipped apps is the expensive path (architecture.md §16).',
   },
   {
-    root: 'apps/subly/lib',
+    root: 'apps/subscriptiontracker/lib',
     why: "the factory's first app, and the tree the retrofit just emptied — adopted at 5 remaining literals, because the cost of adopting this rule only ever goes up",
-    remedy: "Add the key to apps/subly/lib/l10n/app_en.arb (and app_ta.arb — l10n_parity_test.dart asserts parity in BOTH directions), run `flutter gen-l10n`, and read it through AppLocalizations.",
+    remedy: "Add the key to apps/subscriptiontracker/lib/l10n/app_en.arb (and app_ta.arb — l10n_parity_test.dart asserts parity in BOTH directions), run `flutter gen-l10n`, and read it through AppLocalizations.",
   },
   {
     // 🔴 THE SHARED SHELF, ADDED 2026-09-04 AFTER IT SHIPPED AN ENGLISH SCREEN
@@ -369,7 +369,7 @@ const GENERATED_SKIPPED = new Map(); // repo-relative path -> absolute path
  * ⚠️ THE ONLY WAIVER, AND IT IS KEYED TO AN EXACT LITERAL AT AN EXACT PATH.
  *
  * A waiver by DIRECTORY or by file would silently cover the next literal that
- * lands beside it — which is precisely how `apps/subly` came to be excluded
+ * lands beside it — which is precisely how `apps/subscriptiontracker` came to be excluded
  * wholesale and how a wrong price hid inside the exclusion. Keyed this narrowly,
  * a new literal at the same path is still a failure.
  *
@@ -379,7 +379,7 @@ const GENERATED_SKIPPED = new Map(); // repo-relative path -> absolute path
  */
 const ALLOWED = [
   {
-    file: 'apps/subly/lib/features/auth/login_screen.dart',
+    file: 'apps/subscriptiontracker/lib/features/auth/login_screen.dart',
     literal: 'debug: $detail',
     why: 'guarded by `if (kDebugMode && detail != null)`. kDebugMode is a const, so the tree-shaker removes this whole branch from every release artifact — it is E2E diagnostic output (E2EKeys.accountDeletionNoticeDetail), read by `flutter drive`, never by a user. [ADR 027]',
   },
@@ -415,7 +415,7 @@ const FIXTURE_QUIET = `${FIXTURE}/quiet`;
 const FIXTURE_FAMILIES = `${FIXTURE}/expected-families.txt`;
 
 // 🔴 THERE IS NO EXCLUSION LIST ANY MORE, and its removal is the point rather
-// than tidying. `EXCLUDED_ROOTS` held exactly one dated entry — `apps/subly`,
+// than tidying. `EXCLUDED_ROOTS` held exactly one dated entry — `apps/subscriptiontracker`,
 // frozen as a legacy rail-prover by 39-CHASSIS cut 1 — and it never filtered
 // anything: nothing below ever scanned outside the brick, the fixture and the
 // canary list, so the map's only effect was the ⬜ EXCLUDED notice it printed at
@@ -447,7 +447,7 @@ const SHOWN_TO_A_PERSON = [
   // ⚠️ IT NEEDS NO WAIVERS TODAY, AND THAT IS MEASURED RATHER THAN HOPED. Across
   // the three enforced trees this family matches SIX literals and
   // `NOT_USER_FACING` already excludes every one: three empty strings in
-  // apps/subly's `subscription.dart`, the two `assets/…` paths in
+  // apps/subscriptiontracker's `subscription.dart`, the two `assets/…` paths in
   // `brand_lockup.dart`, and one `'{}'`. So it lands green and stands as a
   // tripwire for the NEXT default — which is the shape a new rule should have,
   // rather than a green bought with an exemption list.
@@ -475,7 +475,7 @@ const NOT_USER_FACING = [
   { re: /^(?:https?:|mailto:|tel:|package:|asset|assets\/)/i, why: 'a URL or asset path' },
   { re: /^\{\{.*\}\}$/, why: 'a mustache token — substituted at stamp time' },
   { re: /^[^a-zA-Z]*$/, why: 'no letters at all (punctuation, digits, symbols)' },
-  // 🔴 THE EXEMPTION THAT LET apps/subly BE ENFORCED (2026-08-11). Every one of
+  // 🔴 THE EXEMPTION THAT LET apps/subscriptiontracker BE ENFORCED (2026-08-11). Every one of
   // that tree's five surviving hits is a composition of values — `'${s.category}
   // · $usage'`, `'$_pct%'` — where the literal parts carry no letters at all.
   // There is no prose to translate; the words come from the data and were
@@ -582,7 +582,7 @@ function readDartTree(dir) {
       // trap (its own header records it for JSONC's `"https://…"`), and the
       // string-awareness is the whole reason the reduction is shared rather than
       // re-typed per guard. Measured on the real trees the day it was swapped in:
-      // brick 0→0, apps/subly 59→59, fixture 32→32 — identical hits, so the
+      // brick 0→0, apps/subscriptiontracker 59→59, fixture 32→32 — identical hits, so the
       // defect was latent rather than active, which is precisely when it is
       // cheap to remove. Found by the canary fixture below, on its first run.
       // (Those two totals read 71 and 31 until 2026-08-08. They were the counts
@@ -635,7 +635,7 @@ const scanFiles = (rels) => {
  * next honest deletion, and a floor that fails on honest work gets raised, which
  * is how a floor becomes a formality.
  *   · the brick                  19 files
- *   · apps/subly/lib             73
+ *   · apps/subscriptiontracker/lib             73
  *   · packages/design_system/lib 25
  * Raising this number to make a run green is the move ADR 066 forbids: a tree
  * that has genuinely shrunk below a dozen render files is a tree this guard was
@@ -714,7 +714,7 @@ for (const { root, why, remedy } of ENFORCED_ROOTS) {
 
 // A waiver that matches nothing is an exemption with no visible input — the same
 // defect the quiet fixture exists to prevent one level down, and the reason the
-// old wholesale `apps/subly` exclusion could sit in this file printing a notice
+// old wholesale `apps/subscriptiontracker` exclusion could sit in this file printing a notice
 // while filtering nothing.
 for (const a of ALLOWED) {
   if (!waived.has(a)) {
@@ -744,7 +744,7 @@ const CANARY_ROOTS = [
     root: FIXTURE_DIRTY,
     why: "this guard's own fixture: dirty on purpose, owned here, and unreachable by product work. It is the canary that stays.",
   },
-  // `apps/subly/lib` sat here until 2026-08-08 and was removed by the increment
+  // `apps/subscriptiontracker/lib` sat here until 2026-08-08 and was removed by the increment
   // its own entry named — P4 L0 of Private/pre-minimal-2026-09-08:plans/subly-restamp-execution.md.
   // It stays a LIST with one element on purpose: the shape is what let a canary
   // be retired by deleting an object rather than by rewriting the loop below,
@@ -776,7 +776,7 @@ for (const { root, why } of CANARY_ROOTS) {
   // assert-guard-coverage. But a total floor is also blind in the other
   // direction: 23 of the fixture's 32 hits come from the `Text(…)` matcher, so
   // BREAKING THE LABELLING MATCHER still clears any total floor by a wide margin
-  // and prints "matchers verified". (The retired apps/subly canary was worse on
+  // and prints "matchers verified". (The retired apps/subscriptiontracker canary was worse on
   // this axis, not better: 49 of its 59 were `Text(…)`.)
   //
   // So the real coverage claim is derived from the matcher list itself: every
@@ -922,13 +922,13 @@ if (!existsSync(join(ROOT, FIXTURE_QUIET))) {
 //
 // ── WHY THE READER DOMAIN IS THE UNION OF THE ENFORCED TREES, NOT EACH TREE ──
 // Measured 2026-08-21, and it is the difference between 5 findings and 23. The
-// brick's 155 keys are a strict SUBSET of apps/subly's 309 — 0 brick keys are
-// absent from subly's arb — because subly was stamped FROM the brick and then
+// brick's 155 keys are a strict SUBSET of apps/subscriptiontracker's 309 — 0 brick keys are
+// absent from subscriptiontracker's arb — because subscriptiontracker was stamped FROM the brick and then
 // diverged: it rewrote `login_screen.dart` while keeping the inherited chassis
 // keys, so `navExplore`, `signInTitle`, `homeTagline`, `needAccount` and TEN
-// more (14 keys in all) sit in subly's .arb and are rendered only by the brick's
+// more (14 keys in all) sit in subscriptiontracker's .arb and are rendered only by the brick's
 // screens — and `legalMustAcceptTerms` sits in the BRICK's .arb and is rendered
-// only by subly's. Asked per-tree, this limb reports 19 + 4 = 23 keys, of which
+// only by subscriptiontracker's. Asked per-tree, this limb reports 19 + 4 = 23 keys, of which
 // FIFTEEN — those 14 plus `legalMustAcceptTerms` — are rendered by the sibling
 // tree in the same lineage; the natural owner answer ("delete it") would then
 // break the other tree. The other 8 per-tree lines are the 5 union findings
@@ -951,7 +951,7 @@ if (!existsSync(join(ROOT, FIXTURE_QUIET))) {
 //    closed the first time somebody writes one. DOMAIN OF THE SECOND ZERO, since
 //    a zero without one is not a measurement: `noSuchMethod` occurs 20 times
 //    across 14 `.dart` files in the two enforced app trees (1 file in the
-//    brick's `test/`, 13 under `apps/subly/test/`, `build/` excluded), and 0 of
+//    brick's `test/`, 13 under `apps/subscriptiontracker/test/`, `build/` excluded), and 0 of
 //    those files sit under any `lib/` path — which is what puts every one of
 //    them outside the render domain.
 //    (This read "the one `noSuchMethod` in either tree is a mock in the brick's
@@ -966,7 +966,7 @@ if (!existsSync(join(ROOT, FIXTURE_QUIET))) {
 //    distinct files, 0 of them under any `lib/` path. 20 is the matching-line
 //    count — a unit the sentence does not state — and the 20th line is not an
 //    override at all but a `///` doc-comment mention at
-//    apps/subly/test/width_calendar_test.dart:629. The subject two lines up is
+//    apps/subscriptiontracker/test/width_calendar_test.dart:629. The subject two lines up is
 //    "0 `noSuchMethod` overrides", so the figure that belongs beside it is 19.
 //    The unit matters here more than it would anywhere else: this is the guard
 //    whose whole thesis is that you strip comments before you count a name, and
@@ -981,13 +981,13 @@ if (!existsSync(join(ROOT, FIXTURE_QUIET))) {
 //    file:line beside it that the owner dismisses in seconds.
 //  · IT READS THE ENGLISH TEMPLATE ONLY. Nothing here says anything about
 //    app_ta.arb. That is also why the owner answer "delete it" means BOTH sides:
-//    apps/subly/test/l10n_parity_test.dart:46 takes the whole key set and :161
+//    apps/subscriptiontracker/test/l10n_parity_test.dart:46 takes the whole key set and :161
 //    and :186 loop over it, so deleting only the English half turns that suite
 //    red.
 //  · TWO ENFORCED TREES, NOT FIFTY. A key the brick declares and some future
 //    stamped app renders is outside this union until that app joins
 //    ENFORCED_ROOTS — the same perishable-window argument the 2026-08-11 note
-//    above makes for why apps/subly was adopted when it was.
+//    above makes for why apps/subscriptiontracker was adopted when it was.
 // Where each tree's template arb sits is DERIVED from that tree's own
 // `l10n.yaml` — see `l10nConfigOf` at the top of this file.
 // `DEFAULT_TEMPLATE_ARB` there is the fallback for a root that declares no
@@ -1194,7 +1194,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
   //    only `app_localizations`, while the consumer sweep applies IS_TEST_PATH
   //    explicitly — so the two halves of what the print calls ONE domain were
   //    using two different rules for the same word. What it forecloses is a
-  //    `_test.dart` landing under `apps/subly/lib` and counting as a render
+  //    `_test.dart` landing under `apps/subscriptiontracker/lib` and counting as a render
   //    surface: a test that merely NAMES a key would then delete an owner line,
   //    while the byte-identical file one directory up is correctly excluded from
   //    the consumer sweep. Pinned by `does NOT treat a _test.dart under an
@@ -1430,7 +1430,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
 // 🔴 [ADR 065]'s FINDING, WORD FOR WORD: "Nothing compares the two trees. Not one
 // of the 148 guards diffs them." The chassis-l10n unit moved 149 shared keys out
 // of the brick and into `packages/design_system/lib/src/l10n/chassis_*.arb`, and
-// all 149 stayed declared in `apps/subly/lib/l10n/app_*.arb` too, read at 222
+// all 149 stayed declared in `apps/subscriptiontracker/lib/l10n/app_*.arb` too, read at 222
 // sites in 29 Subly files. Subly does not adopt the package delegate in this
 // increment (scope §4), which is a defensible cost decision — 222 call sites —
 // and it is NOT a decision that the second copy may drift unwatched. Measured on
@@ -1532,7 +1532,7 @@ const ALREADY_PRINTED_ELSEWHERE = [
   // 🔴 THE FLOOR IS THE DOMAIN, NOT THE FINDING COUNT, AND THAT IS DELIBERATE.
   // "Zero shared keys" is the state this limb wants to reach — it is what Subly
   // adopting `ChassisLocalizations` looks like — so failing on it would be RED BY
-  // IMPROVEMENT, the exact failure mode the apps/subly canary retirement above
+  // IMPROVEMENT, the exact failure mode the apps/subscriptiontracker canary retirement above
   // was written about. What must never be zero is the number of tree/locale pairs
   // this limb could compare AT ALL: that goes to zero when an arb moves, is
   // renamed, or stops declaring `@@locale`, and then the silence is a broken

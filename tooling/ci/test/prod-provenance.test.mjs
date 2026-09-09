@@ -15,7 +15,7 @@
 // the one thing a test must not do is write to production — which is the very
 // requirement under test. Its behaviour against REAL production data is recorded
 // separately: on 2026-08-06 it read 25 rows across 9 tables, and bumping the
-// release line in apps/subly/pubspec.yaml made it print the real
+// release line in apps/subscriptiontracker/pubspec.yaml made it print the real
 // `consent_artifacts` row as unattributable.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
@@ -340,7 +340,7 @@ describe('check-prod-provenance — the monitor limb', () => {
   });
 
   test('the real production consent row resolves — it is a shipped build, not residue', () => {
-    // 1.0.101+e138f5b: release line 1.0 (apps/subly/pubspec.yaml), run 101 of the
+    // 1.0.101+e138f5b: release line 1.0 (apps/subscriptiontracker/pubspec.yaml), run 101 of the
     // served lane, head e138f5b. Read from platform_db on 2026-08-06.
     const r = run({ consent_artifacts: [{ marker: '1.0.101+e138f5b', n: 1 }] });
     assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -611,10 +611,10 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
   test('`{app}` expands over EVERY app — a second app is a second environment', () => {
     const r = emit((root) => {
       write(root, CHANNELS, { channels: [{ id: 'web', served: true, deploymentEnvironment: '{app}-web' }] });
-      write(root, CATALOGUE, [{ slug: 'subly' }, { slug: 'drift' }]);
+      write(root, CATALOGUE, [{ slug: 'subscriptiontracker' }, { slug: 'drift' }]);
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.deepEqual(r.stdout.trim().split('\n').sort(), ['drift-web', 'subly-web']);
+    assert.deepEqual(r.stdout.trim().split('\n').sort(), ['drift-web', 'subscriptiontracker-web']);
   });
 
   test('THE NEGATIVE CASE: a register that expands to NOTHING is exit 2, never an empty ledger', () => {
@@ -623,7 +623,7 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
     // a failed run would be called unattributable and nothing would say why.
     const r = emit((root) => {
       write(root, CHANNELS, { channels: [{ id: 'web', served: true }] });
-      write(root, CATALOGUE, [{ slug: 'subly' }]);
+      write(root, CATALOGUE, [{ slug: 'subscriptiontracker' }]);
     });
     assert.equal(r.status, 2, r.stdout + r.stderr);
     assert.match(r.stderr, /COULD NOT LOOK/);
@@ -650,25 +650,25 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
           { id: 'windows-store', served: false, deploymentEnvironment: '{app}-windows-store' },
         ],
       });
-      write(root, CATALOGUE, [{ slug: 'subly' }]);
+      write(root, CATALOGUE, [{ slug: 'subscriptiontracker' }]);
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.deepEqual(r.stdout.trim().split('\n'), ['subly-web']);
+    assert.deepEqual(r.stdout.trim().split('\n'), ['subscriptiontracker-web']);
   });
 
   test('with no catalogue the apps/ directory is the floor — the reader still works', () => {
     const r = emit((root) => {
       write(root, CHANNELS, { channels: [{ id: 'web', served: true, deploymentEnvironment: '{app}-web' }] });
-      mkdirSync(join(root, 'apps', 'subly'), { recursive: true });
+      mkdirSync(join(root, 'apps', 'subscriptiontracker'), { recursive: true });
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.deepEqual(r.stdout.trim().split('\n'), ['subly-web']);
+    assert.deepEqual(r.stdout.trim().split('\n'), ['subscriptiontracker-web']);
   });
 
   test('a channel whose environment names no app is taken literally, not dropped', () => {
     const r = emit((root) => {
       write(root, CHANNELS, { channels: [{ id: 'web', served: true, deploymentEnvironment: 'the-one-site' }] });
-      write(root, CATALOGUE, [{ slug: 'subly' }]);
+      write(root, CATALOGUE, [{ slug: 'subscriptiontracker' }]);
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.deepEqual(r.stdout.trim().split('\n'), ['the-one-site']);

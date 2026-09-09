@@ -5,7 +5,7 @@ import 'package:nikatru_core/nikatru_core.dart' as core;
 /// [13]T-9 — THE INBOUND HALF OF THE NOTIFICATION SEAM, IN THE CHASSIS.
 ///
 /// 🔴 WHAT THIS EXISTS TO FIX, AND WHY IT IS IN THE BRICK. The tap loop was
-/// wired into `apps/subly` and **only** there. Every app this factory stamps
+/// wired into `apps/subscriptiontracker` and **only** there. Every app this factory stamps
 /// inherited the OUTBOUND half in full — `notificationServiceProvider`,
 /// `applyReminderChoice`, `resyncOnStart`, the whole reminder rail — and NOTHING
 /// on the way back: `core.NotificationService.notificationTaps()` had no

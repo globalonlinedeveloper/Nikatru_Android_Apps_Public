@@ -104,7 +104,7 @@ function makeRoot({
   channelId = CHANNEL_ID,
   register = true,
   names = [B64_ENV],
-  apps = [{ slug: 'subly' }],
+  apps = [{ slug: 'subscriptiontracker' }],
   submissionWorkflow = null,
   // ── THE ARMING FIELDS ──────────────────────────────────────────────────────
   // The REAL register's values for this row: submittable: false, served: false,
@@ -146,7 +146,7 @@ function makeRoot({
 
 const out = (r) => `${r.stdout ?? ''}${r.stderr ?? ''}`;
 
-function runPrepare(root, env = {}, { app = 'subly', args = [] } = {}) {
+function runPrepare(root, env = {}, { app = 'subscriptiontracker', args = [] } = {}) {
   const outDir = join(TMP, `out${seq++}`);
   const ghEnv = join(TMP, `ghenv${seq++}.txt`);
   const r = spawnSync(
@@ -166,7 +166,7 @@ function runPrepare(root, env = {}, { app = 'subly', args = [] } = {}) {
   return { r, outDir, ghEnv, exported: existsSync(ghEnv) ? readFileSync(ghEnv, 'utf8') : '' };
 }
 
-const ON_TAG = { GITHUB_REF: 'refs/tags/subly-v1.0.0' };
+const ON_TAG = { GITHUB_REF: 'refs/tags/subscriptiontracker-v1.0.0' };
 
 // ═════ the decision law ══════════════════════════════════════════════════════
 describe('appimage-signing · the secret-set law', () => {
@@ -191,7 +191,7 @@ describe('appimage-signing · the secret-set law', () => {
 
 describe('appimage-signing · a release lane is DERIVED, not declared in YAML', () => {
   test('a TAG push requires signing', () => {
-    assert.equal(decideRelease({ gitRef: 'refs/tags/subly-v1.0.0' }).required, true);
+    assert.equal(decideRelease({ gitRef: 'refs/tags/subscriptiontracker-v1.0.0' }).required, true);
   });
   test('a branch push does not', () => {
     assert.equal(decideRelease({ gitRef: 'refs/heads/main' }).required, false);
@@ -340,14 +340,14 @@ describe('appimage-signing · the pin comparison', () => {
 
 describe('appimage-signing · the constructed commands', () => {
   test('the sign command uses -rawin, which is Ed25519\'s path through pkeyutl', () => {
-    const c = buildSignCommand({ keyPath: '/t/k.pem', artifact: '/t/subly.AppImage' });
+    const c = buildSignCommand({ keyPath: '/t/k.pem', artifact: '/t/subscriptiontracker.AppImage' });
     assert.deepEqual(c.args.slice(0, 2), ['pkeyutl', '-sign']);
     assert.ok(c.args.includes('-rawin'));
-    assert.equal(c.signaturePath, '/t/subly.AppImage.sig');
+    assert.equal(c.signaturePath, '/t/subscriptiontracker.AppImage.sig');
   });
 
   test('the verify command uses the PUBLIC key, never the private one', () => {
-    const c = buildVerifyCommand({ publicKeyPath: '/t/k.pub.pem', artifact: '/t/subly.AppImage' });
+    const c = buildVerifyCommand({ publicKeyPath: '/t/k.pub.pem', artifact: '/t/subscriptiontracker.AppImage' });
     assert.ok(c.args.includes('-pubin'));
     assert.equal(c.args[c.args.indexOf('-inkey') + 1], '/t/k.pub.pem');
     assert.ok(c.args.includes('-sigfile'));
@@ -375,7 +375,7 @@ describe('appimage-signing · the verify-output parser', () => {
     // An UNSIGNED artifact makes openssl complain about the missing sigfile, and
     // that text says nothing about a signature at all. Reading it as "not
     // verified" would hide a parser that had stopped understanding the tool.
-    const p = parseOpensslVerify('Could not open file or uri for loading signature file: subly.AppImage.sig');
+    const p = parseOpensslVerify('Could not open file or uri for loading signature file: subscriptiontracker.AppImage.sig');
     assert.equal(p.recognised, false);
     assert.equal(p.verified, false);
   });
@@ -482,21 +482,21 @@ describe('appimage-signing · the three endings', () => {
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /THE PUBLIC-KEY PIN AND THE POSTURE DISAGREE/);
     assert.match(out(r), /APPIMAGE-SIGNING-KEY-NOT-GENERATED/);
-    assert.ok(!existsSync(join(outDir, 'subly-appimage-signing.pem')), 'a private key was left on disk by a run that failed');
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-appimage-signing.pem')), 'a private key was left on disk by a run that failed');
   });
 
   test('🔴 a DIFFERENT valid key against a REAL pin FAILS before anything is written', () => {
     const { r, outDir } = runPrepare(makeRoot({ pin: KEY.publicB64 }), { [B64_ENV]: OTHER.seedB64 });
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /not the pinned one/);
-    assert.ok(!existsSync(join(outDir, 'subly-appimage-signing.pem')), 'a private key was left on disk by a run that failed');
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-appimage-signing.pem')), 'a private key was left on disk by a run that failed');
   });
 
   test('the RIGHT key against a REAL pin materialises both halves and exports three variables', () => {
     const { r, outDir, exported } = runPrepare(makeRoot({ pin: KEY.publicB64 }), { [B64_ENV]: KEY.seedB64, ...ON_TAG });
     assert.equal(r.status, 0, out(r));
-    const priv = join(outDir, 'subly-appimage-signing.pem');
-    const pub = join(outDir, 'subly-appimage-signing.pub.pem');
+    const priv = join(outDir, 'subscriptiontracker-appimage-signing.pem');
+    const pub = join(outDir, 'subscriptiontracker-appimage-signing.pub.pem');
     assert.ok(existsSync(priv), out(r));
     assert.ok(existsSync(pub), out(r));
     // The materialised private key really is the one that was supplied.
@@ -543,7 +543,7 @@ describe('appimage-signing · execution is guarded on the tool, and asserts in B
     const probe = spawnSync('openssl', ['version'], { encoding: 'utf8' });
     const hasOpenssl = !probe.error && probe.status === 0;
 
-    const artifact = join(TMP, `subly-${seq++}.AppImage`);
+    const artifact = join(TMP, `subscriptiontracker-${seq++}.AppImage`);
     writeFileSync(artifact, Buffer.alloc(4096, 0x5a));
     const { r } = runPrepare(makeRoot({ pin: KEY.publicB64 }), { [B64_ENV]: KEY.seedB64, ...ON_TAG }, { args: ['--artifact', artifact] });
 
@@ -601,7 +601,7 @@ describe('appimage-signing · the secret is never printed and never half-written
     const ghEnv = join(TMP, `ghenv-rt${seq++}.txt`);
     const r = spawnSync(
       process.execPath,
-      [PREPARE, '--app', 'subly', '--repo-root', makeRoot({ pin: KEY.publicB64 }), '--github-env', ghEnv],
+      [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({ pin: KEY.publicB64 }), '--github-env', ghEnv],
       {
         encoding: 'utf8',
         cwd: TMP,
@@ -614,7 +614,7 @@ describe('appimage-signing · the secret is never printed and never half-written
   });
 
   test('an EMPTY $GITHUB_ENV is treated as unset, not as a file named ""', () => {
-    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subly', '--repo-root', makeRoot({})], {
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({})], {
       encoding: 'utf8',
       env: { ...process.env, GITHUB_ENV: '', GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', [B64_ENV]: '' },
     });
@@ -667,7 +667,7 @@ describe('appimage-signing · coverage self-checks', () => {
   test('an unknown --app fails and lists the apps it knows', () => {
     const { r } = runPrepare(makeRoot({}), {}, { app: 'notanapp' });
     assert.equal(r.status, 1, out(r));
-    assert.match(out(r), /Known: subly/);
+    assert.match(out(r), /Known: subscriptiontracker/);
   });
 
   test('FAILS when the secret is valid base64 of something that is not a key', () => {

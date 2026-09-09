@@ -422,7 +422,7 @@ const workerSets = (o = {}) => {
 };
 
 /**
- * services/subly-api/src/routes/webhooks.ts — the bearer-gated legacy writer.
+ * services/subscriptiontracker-api/src/routes/webhooks.ts — the bearer-gated legacy writer.
  *
  * ⚠️ ITS HEADER COMMENT CARRIES THE CLAUSE VERBATIM, exactly as the real file
  * does. That is the fixture's whole point in the `only in a comment` case below:
@@ -456,8 +456,8 @@ function run(o = {}) {
   const root = join(TMP, `case-${(seq += 1)}`);
   const migrations = join(root, 'services', 'platform', 'migrations');
   const mor = join(root, 'services', 'platform', 'src', 'lib', 'mor');
-  const routes = join(root, 'services', 'subly-api', 'src', 'routes');
-  const lib = join(root, 'services', 'subly-api', 'src', 'lib');
+  const routes = join(root, 'services', 'subscriptiontracker-api', 'src', 'routes');
+  const lib = join(root, 'services', 'subscriptiontracker-api', 'src', 'lib');
   mkdirSync(migrations, { recursive: true });
   mkdirSync(mor, { recursive: true });
   mkdirSync(routes, { recursive: true });
@@ -782,7 +782,7 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
     // SAME event, and the two writers now disagree about what a tie means.
     const r = run({ rcTail: CLAUSE.replace('> entitlements', '>= entitlements') });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /services\/subly-api\/src\/routes\/webhooks\.ts — the UPSERT's ordering clause is not the shared one/);
+    assert.match(r.out, /services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts — the UPSERT's ordering clause is not the shared one/);
     assert.match(r.out, /found: +WHERE entitlements\.occurred_at IS NULL OR excluded\.occurred_at >= entitlements\.occurred_at/);
     assert.match(r.out, /required: +WHERE entitlements\.occurred_at IS NULL OR excluded\.occurred_at > entitlements\.occurred_at/);
   });
@@ -806,13 +806,13 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
     // The real-tree form of this is mutation O6 in the header.
     const r = run({ rcTail: null });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /services\/subly-api\/src\/routes\/webhooks\.ts — the UPSERT into `entitlements` is UNCONDITIONAL/);
+    assert.match(r.out, /services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts — the UPSERT into `entitlements` is UNCONDITIONAL/);
   });
 
   test('COVERAGE LOST when a required writer loses its ON CONFLICT entirely', () => {
     const r = run({ rcUpsert: false });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /COVERAGE LOST — no conditional UPSERT into `entitlements` was parsed out of services\/subly-api\/src\/routes\/webhooks\.ts/);
+    assert.match(r.out, /COVERAGE LOST — no conditional UPSERT into `entitlements` was parsed out of services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts/);
   });
 
   test('COVERAGE LOST when a required writer file is gone — a missing writer is not a compliant one', () => {
@@ -852,7 +852,7 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
   test('a test-directory fixture is not treated as a writer of production truth', () => {
     const r = run({
       extraFile: {
-        dir: 'services/subly-api/test',
+        dir: 'services/subscriptiontracker-api/test',
         name: 'webhooks.test.ts',
         body: `const q = \`${upsertSql({ tail: null })}\`;\n`,
       },
@@ -863,7 +863,7 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
   test('FAILS when a canonicaliser stops ending in toISOString()', () => {
     const r = run({ rcCanonical: 'new Date(ms).toUTCString()' });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /isoFromEpochMs in services\/subly-api\/src\/lib\/validate\.ts never produces `new Date\(…\)\.toISOString\(\)`/);
+    assert.match(r.out, /isoFromEpochMs in services\/subscriptiontracker-api\/src\/lib\/validate\.ts never produces `new Date\(…\)\.toISOString\(\)`/);
     assert.match(r.out, /sorts lexicographically/);
   });
 
@@ -899,13 +899,13 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
   test('COVERAGE LOST when a canonicaliser is renamed', () => {
     const r = run({ rcFnName: 'toIsoInstant' });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /COVERAGE LOST — no `export function isoFromEpochMs` in services\/subly-api\/src\/lib\/validate\.ts/);
+    assert.match(r.out, /COVERAGE LOST — no `export function isoFromEpochMs` in services\/subscriptiontracker-api\/src\/lib\/validate\.ts/);
   });
 
   test('COVERAGE LOST when a canonicaliser file is gone', () => {
     const r = run({ validate: null });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /COVERAGE LOST — services\/subly-api\/src\/lib\/validate\.ts does not exist/);
+    assert.match(r.out, /COVERAGE LOST — services\/subscriptiontracker-api\/src\/lib\/validate\.ts does not exist/);
   });
 
   test('FAILS when a canonicaliser is called from nowhere else — a dead seam reports healthy', () => {
@@ -947,7 +947,7 @@ describe('assert-entitlement-contract limb 5 — the two writers of the shared r
     const r = run({
       rcUncalled: true,
       extraFile: {
-        dir: 'services/subly-api/src/lib',
+        dir: 'services/subscriptiontracker-api/src/lib',
         name: 'time.ts',
         body: 'export function isoFromEpochMs(ms: number): string {\n  return new Date(ms).toISOString();\n}\n',
       },
@@ -1174,7 +1174,7 @@ describe('assert-entitlement-contract limb 6 — the RevenueCat event map is one
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-entitlement-contract limb 7 — the one runtime that already reads a RevenueCat event', () => {
-  // services/subly-api/src/routes/webhooks.ts serves POST /revenuecat today and
+  // services/subscriptiontracker-api/src/routes/webhooks.ts serves POST /revenuecat today and
   // imports nothing from contracts/: it carries ACTIVE_TYPES / INACTIVE_TYPES /
   // GRACE_TYPES as literal sets. So limb 6's four guarded copies are the four
   // nothing consumes, and the unguarded fifth takes the money decisions. This
@@ -1252,7 +1252,7 @@ describe('assert-entitlement-contract limb 7 — the one runtime that already re
   test('COVERAGE LOST when that Worker file is gone entirely', () => {
     const r = run({ webhooks: null });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /COVERAGE LOST — services\/subly-api\/src\/routes\/webhooks\.ts does not exist/);
+    assert.match(r.out, /COVERAGE LOST — services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts does not exist/);
   });
 
   test('THE INTENDED FIX SATISFIES THIS LIMB BY DELETION — the Worker imports the contract', () => {
@@ -1339,7 +1339,7 @@ describe('assert-entitlement-contract limb 7b — the SWEEP, so a THIRD copy is 
     // exactly like a tree with no duplication left in it.
     const r = run({ webhooks: 'export const nothing = 1;\n' });
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /did not recognise services\/subly-api\/src\/routes\/webhooks\.ts as a\s+RevenueCat transcription/);
+    assert.match(r.out, /did not recognise services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts as a\s+RevenueCat transcription/);
   });
 });
 

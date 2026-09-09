@@ -94,13 +94,13 @@ function workflow({
   emitStep = true,
   stepId = 'ver',
   flutterBuild = true,
-  deployMarker = 'pages deploy build/web --project-name=subly',
+  deployMarker = 'pages deploy build/web --project-name=subscriptiontracker',
 } = {}) {
   const derive = emitStep
     ? `      - name: Derive the release line from pubspec\n` +
       (stepId ? `        id: ${stepId}\n` : '') +
       `        working-directory: .\n` +
-      `        run: node tooling/ci/${GUARD} --emit apps/subly >> "$GITHUB_OUTPUT"\n`
+      `        run: node tooling/ci/${GUARD} --emit apps/subscriptiontracker >> "$GITHUB_OUTPUT"\n`
     : '';
   const build = flutterBuild
     ? `      - name: Build web\n        run: >\n          flutter build web --release --pwa-strategy=none\n` +
@@ -116,12 +116,12 @@ function workflow({
   );
 }
 
-const pubspec = (version = '1.0.0+1') => `name: subly\n${version === null ? '' : `version: ${version}\n`}`;
+const pubspec = (version = '1.0.0+1') => `name: subscriptiontracker\n${version === null ? '' : `version: ${version}\n`}`;
 
 function lane(name, { wf = {}, version = '1.0.0+1', extra = {} } = {}) {
   return fixture(name, {
     '.github/workflows/deploy-web.yml': workflow(wf),
-    'apps/subly/pubspec.yaml': pubspec(version),
+    'apps/subscriptiontracker/pubspec.yaml': pubspec(version),
     ...extra,
   });
 }
@@ -238,7 +238,7 @@ describe('assert-app-versioning — the version must be DERIVED, not typed', () 
   test('FAILS when the --emit derive step is absent', () => {
     const { code, out } = run({ args: [lane('emit-missing', { wf: { emitStep: false } })] });
     assert.equal(code, 1);
-    assert.match(out, /never derives the version from apps\/subly\/pubspec\.yaml/);
+    assert.match(out, /never derives the version from apps\/subscriptiontracker\/pubspec\.yaml/);
   });
 
   test('FAILS when the derive step has no id, so nothing can read its outputs', () => {
@@ -281,7 +281,7 @@ describe('assert-app-versioning — the pubspec declaration', () => {
   test('FAILS when `version:` survives only inside a comment', () => {
     const dir = fixture('ps-comment', {
       '.github/workflows/deploy-web.yml': workflow(),
-      'apps/subly/pubspec.yaml': 'name: subly\n# version: 1.0.0+1\n',
+      'apps/subscriptiontracker/pubspec.yaml': 'name: subscriptiontracker\n# version: 1.0.0+1\n',
     });
     const { code, out } = run({ args: [dir] });
     assert.equal(code, 1);
@@ -291,7 +291,7 @@ describe('assert-app-versioning — the pubspec declaration', () => {
   test('a trailing comment on a real declaration does NOT break the parse', () => {
     const dir = fixture('ps-trailing', {
       '.github/workflows/deploy-web.yml': workflow(),
-      'apps/subly/pubspec.yaml': 'name: subly\nversion: 2.7.0+1 # local-dev placeholder\n',
+      'apps/subscriptiontracker/pubspec.yaml': 'name: subscriptiontracker\nversion: 2.7.0+1 # local-dev placeholder\n',
     });
     const { code, out } = run({ args: [dir] });
     assert.equal(code, 0, out);
@@ -334,7 +334,7 @@ describe('assert-app-versioning — coverage self-check', () => {
   test('FAILS when a declared lane names a workflow that does not exist', () => {
     const dir = fixture('cov-nowf', {
       '.github/workflows/other.yml': 'name: Other\npermissions:\n  contents: read\n',
-      'apps/subly/pubspec.yaml': pubspec(),
+      'apps/subscriptiontracker/pubspec.yaml': pubspec(),
     });
     const { code, out } = run({ args: [dir] });
     assert.equal(code, 1);
@@ -382,7 +382,7 @@ describe('assert-app-versioning — the lane set is derived from the channel reg
     ]),
     workflow:
       'name: Build all\npermissions:\n  contents: read\njobs:\n  linux_web_android:\n    runs-on: ubuntu-24.04\n' +
-      '    steps:\n      - name: Build android\n        working-directory: apps/subly\n        run: >\n' +
+      '    steps:\n      - name: Build android\n        working-directory: apps/subscriptiontracker\n        run: >\n' +
       '          flutter build appbundle --release\n' +
       (buildNumber ? '          --build-number=${{ github.run_number }}\n' : '') +
       '      - uses: actions/upload-artifact@abc\n',
@@ -480,14 +480,14 @@ describe('assert-app-versioning — the lane set is derived from the channel reg
 describe('assert-app-versioning — --emit is the build step\'s source of truth', () => {
   test('emits the release line and the raw pubspec version', () => {
     const dir = lane('emit-ok');
-    const { code, out } = run({ cwd: dir, args: ['--emit', 'apps/subly'] });
+    const { code, out } = run({ cwd: dir, args: ['--emit', 'apps/subscriptiontracker'] });
     assert.equal(code, 0, out);
     assert.match(out, /^release_line=1\.0$/m);
     assert.match(out, /^pubspec_version=1\.0\.0\+1$/m);
   });
 
-  test('emits the release line the REAL apps/subly declares', () => {
-    const { code, out } = run({ cwd: REPO, args: ['--emit', 'apps/subly'] });
+  test('emits the release line the REAL apps/subscriptiontracker declares', () => {
+    const { code, out } = run({ cwd: REPO, args: ['--emit', 'apps/subscriptiontracker'] });
     assert.equal(code, 0, out);
     assert.match(out, /^release_line=\d+\.\d+$/m);
   });
@@ -495,7 +495,7 @@ describe('assert-app-versioning — --emit is the build step\'s source of truth'
   // A deploy must never proceed on a guessed version.
   test('--emit FAILS rather than inventing a version when pubspec is unreadable', () => {
     const dir = lane('emit-bad', { version: null });
-    const { code, out } = run({ cwd: dir, args: ['--emit', 'apps/subly'] });
+    const { code, out } = run({ cwd: dir, args: ['--emit', 'apps/subscriptiontracker'] });
     assert.equal(code, 1);
     assert.match(out, /no parseable `version: X\.Y\.Z`/);
   });
@@ -508,37 +508,37 @@ describe('assert-app-versioning — --emit is the build step\'s source of truth'
 // (`git tag` → 0, measured 2026-08-27), so in CI this mode is UNEXECUTED CODE
 // that reports nothing at all. These offline cases are the entire evidence that
 // it can fail. A skip written one notch too broadly ("skip whenever the ref does
-// not parse") reads `subly-untagged-abc1234` and `subly-vFOO` identically and
+// not parse") reads `subscriptiontracker-untagged-abc1234` and `subscriptiontracker-vFOO` identically and
 // swallows the exact tag the mode exists to catch. That variant was built and
-// measured: it exits 0 on all four of `subly-vFOO`, `subly-v1.0`,
-// `subly-v9.9.9.1` and `subly-nightly`, where the shipped guard exits 1 on
+// measured: it exits 0 on all four of `subscriptiontracker-vFOO`, `subscriptiontracker-v1.0`,
+// `subscriptiontracker-v9.9.9.1` and `subscriptiontracker-nightly`, where the shipped guard exits 1 on
 // every one.
 describe('assert-app-versioning — --tag: the tag must name the declared version', () => {
   test('PASSES when the tag names the build name pubspec declares', () => {
-    const { code, out } = run({ args: ['--tag', 'subly-v1.0.0', lane('tag-ok')] });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-v1.0.0', lane('tag-ok')] });
     assert.equal(code, 0, out);
     assert.match(out, /ok\s+tag ↔ pubspec/);
     assert.match(out, /build name 1\.0\.0/);
   });
 
-  // The tree as it stands: the tag apps/subly's own pubspec implies must pass.
+  // The tree as it stands: the tag apps/subscriptiontracker's own pubspec implies must pass.
   test('PASSES against the REAL repository for the tag its pubspec implies', () => {
-    const emitted = run({ cwd: REPO, args: ['--emit', 'apps/subly'] });
+    const emitted = run({ cwd: REPO, args: ['--emit', 'apps/subscriptiontracker'] });
     assert.equal(emitted.code, 0, emitted.out);
     const raw = /^pubspec_version=(\S+)$/m.exec(emitted.out)[1];
-    const { code, out } = run({ cwd: REPO, args: ['--tag', `subly-v${raw.split('+')[0]}`] });
+    const { code, out } = run({ cwd: REPO, args: ['--tag', `subscriptiontracker-v${raw.split('+')[0]}`] });
     assert.equal(code, 0, out);
   });
 
   test('FAILS naming BOTH versions when the tag names a different one', () => {
-    const { code, out } = run({ args: ['--tag', 'subly-v9.9.9', lane('tag-mismatch')] });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-v9.9.9', lane('tag-mismatch')] });
     assert.equal(code, 1);
     assert.match(out, /names version 9\.9\.9/);
     assert.match(out, /declares "1\.0\.0\+1"/);
   });
 
   test('is a NO-OP on the <app>-untagged-<sha> value a non-tag run synthesises', () => {
-    const { code, out } = run({ args: ['--tag', 'subly-untagged-659380f', lane('tag-untagged')] });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-untagged-659380f', lane('tag-untagged')] });
     assert.equal(code, 0, out);
     assert.match(out, /claims no version/);
     assert.doesNotMatch(out, /ok\s+tag ↔ pubspec/);
@@ -546,10 +546,10 @@ describe('assert-app-versioning — --tag: the tag must name the declared versio
 
   // ── the six anti-swallow cases ─────────────────────────────────────────────
   for (const [name, tag, expected] of [
-    ['a version claim that is not a number', 'subly-vFOO', /claims version "FOO"/],
-    ['a two-part version', 'subly-v1.0', /claims version "1\.0"/],
-    ['a four-part version', 'subly-v9.9.9.1', /claims version "9\.9\.9\.1"/],
-    ['a tag that names no version at all', 'subly-nightly', /names no version/],
+    ['a version claim that is not a number', 'subscriptiontracker-vFOO', /claims version "FOO"/],
+    ['a two-part version', 'subscriptiontracker-v1.0', /claims version "1\.0"/],
+    ['a four-part version', 'subscriptiontracker-v9.9.9.1', /claims version "9\.9\.9\.1"/],
+    ['a tag that names no version at all', 'subscriptiontracker-nightly', /names no version/],
     ['an app that apps/ does not hold', 'probe-v1.0.0', /names app "probe"/],
     // 🔴 THE CASEFOLD SEAM. Measured, not assumed: the variant without the
     // exact directory-listing match exits 0 on this host and 1 under WSL2 ext4.
@@ -565,30 +565,30 @@ describe('assert-app-versioning — --tag: the tag must name the declared versio
   }
 
   test('compares the build NAME only — a tag carrying +N still passes', () => {
-    const { code, out } = run({ args: ['--tag', 'subly-v1.0.0+7', lane('tag-plusn')] });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-v1.0.0+7', lane('tag-plusn')] });
     assert.equal(code, 0, out);
   });
 
   test('FAILS rather than inventing a version when the pubspec is unreadable', () => {
     const dir = lane('tag-badspec', { version: null });
-    const { code, out } = run({ args: ['--tag', 'subly-v1.0.0', dir] });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-v1.0.0', dir] });
     assert.equal(code, 1);
     assert.match(out, /no parseable `version: X\.Y\.Z`/);
   });
 
   // 🔴 `--app` RELOCATES THE APP; UNTIL 2026-08-27 IT DISARMED TWO OF THE SIX ABOVE.
   test('an explicit --app RELOCATES which pubspec is read', () => {
-    const dir = lane('tag-app-relocate', { extra: { 'packages/subly/pubspec.yaml': pubspec('2.3.4+1') } });
-    const { code, out } = run({ args: ['--tag', 'subly-v2.3.4', '--app', 'packages/subly', dir] });
+    const dir = lane('tag-app-relocate', { extra: { 'packages/subscriptiontracker/pubspec.yaml': pubspec('2.3.4+1') } });
+    const { code, out } = run({ args: ['--tag', 'subscriptiontracker-v2.3.4', '--app', 'packages/subscriptiontracker', dir] });
     assert.equal(code, 0, out);
     assert.match(out, /ok\s+tag ↔ pubspec/);
-    assert.match(out, /packages\/subly\/pubspec\.yaml \("2\.3\.4\+1"\)/);
+    assert.match(out, /packages\/subscriptiontracker\/pubspec\.yaml \("2\.3\.4\+1"\)/);
   });
 
   test('--app pointing at a DIFFERENT app does NOT excuse the slug', () => {
-    const { code, out } = run({ args: ['--tag', 'probe-v1.0.0', '--app', 'apps/subly', lane('tag-app-probe')] });
+    const { code, out } = run({ args: ['--tag', 'probe-v1.0.0', '--app', 'apps/subscriptiontracker', lane('tag-app-probe')] });
     assert.equal(code, 1, `expected a RED, got ${code}: ${out}`);
-    assert.match(out, /--app points at apps\/subly/);
+    assert.match(out, /--app points at apps\/subscriptiontracker/);
   });
 
   test('--app does NOT excuse the casefold seam', () => {
@@ -613,8 +613,8 @@ describe('assert-app-versioning — --tag: the tag must name the declared versio
   // 🔴 THE SAME FAILURE ONE LEVEL UP, MEASURED 2026-08-27: `--emit` answers and exits
   // above the --tag block, so both flags together exited 0 over a tag alone worth a 1.
   for (const [name, args] of [
-    ['--emit then --tag', ['--emit', 'apps/subly', '--tag', 'subly-v9.9.9']],
-    ['--tag then --emit', ['--tag', 'subly-v9.9.9', '--emit', 'apps/subly']],
+    ['--emit then --tag', ['--emit', 'apps/subscriptiontracker', '--tag', 'subscriptiontracker-v9.9.9']],
+    ['--tag then --emit', ['--tag', 'subscriptiontracker-v9.9.9', '--emit', 'apps/subscriptiontracker']],
   ]) {
     test(`REFUSES ${name} rather than answering for the flag it read first`, () => {
       const { code, out } = run({ cwd: lane('mode-collision'), args });
@@ -625,8 +625,8 @@ describe('assert-app-versioning — --tag: the tag must name the declared versio
   }
 
   for (const [name, args] of [
-    ['with --emit', ['--emit', 'apps/subly', '--app', 'apps/subly']],
-    ['with neither mode', ['--app', 'apps/subly']],
+    ['with --emit', ['--emit', 'apps/subscriptiontracker', '--app', 'apps/subscriptiontracker']],
+    ['with neither mode', ['--app', 'apps/subscriptiontracker']],
   ]) {
     test(`REFUSES --app ${name} rather than dropping it`, () => {
       const { code, out } = run({ cwd: lane('app-dropped'), args });

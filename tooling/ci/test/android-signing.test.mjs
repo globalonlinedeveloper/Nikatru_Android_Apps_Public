@@ -97,7 +97,7 @@ before(() => {
   // stored (uncompressed) entry, local header + central directory + EOCD.
   writeFileSync(join(TMP, 'unsigned.zip'), minimalZip('hello.txt', 'nikatru fixture'));
 
-  makeKeystore('release', 'CN=Nikatru, OU=Apps, O=NIKATRU, L=Chennai, ST=Tamil Nadu, C=IN', 'subly');
+  makeKeystore('release', 'CN=Nikatru, OU=Apps, O=NIKATRU, L=Chennai, ST=Tamil Nadu, C=IN', 'subscriptiontracker');
   makeKeystore('other', 'CN=Somebody Else, O=Elsewhere, C=US', 'other');
   // The DN Android Studio and AGP have always generated for a debug keystore.
   makeKeystore('debug', 'CN=Android Debug, O=Android, C=US', 'androiddebugkey');
@@ -110,7 +110,7 @@ before(() => {
   // misses, and this fixture is what makes that direction testable.
   makeKeystore('comma', 'CN=Android Debug\\, Inc, O=NIKATRU, C=IN', 'comma');
 
-  makeArchive('release-signed', join(TMP, 'release.keystore'), 'subly');
+  makeArchive('release-signed', join(TMP, 'release.keystore'), 'subscriptiontracker');
   makeArchive('other-signed', join(TMP, 'other.keystore'), 'other');
   makeArchive('debug-signed', join(TMP, 'debug.keystore'), 'androiddebugkey');
   makeArchive('comma-signed', join(TMP, 'comma.keystore'), 'comma');
@@ -167,7 +167,7 @@ val releaseSigningEnv = mapOf(
     "keyAlias" to "ANDROID_KEY_ALIAS",
     "keyPassword" to "ANDROID_KEY_PASSWORD",
 )
-android { defaultConfig { applicationId = "com.nikatru.subly" } }
+android { defaultConfig { applicationId = "com.nikatru.subscriptiontracker" } }
 `;
 
 const SUBMIT_WF = '.github/workflows/submit-play.yml';
@@ -177,7 +177,7 @@ function makeRoot({
   channelId = 'android-play',
   register = true,
   gradle = GRADLE,
-  apps = [{ slug: 'subly' }],
+  apps = [{ slug: 'subscriptiontracker' }],
   submissionWorkflow = SUBMIT_WF,
 } = {}) {
   const root = join(TMP, `root${seq++}`);
@@ -190,8 +190,8 @@ function makeRoot({
   }
   if (apps !== null) writeFileSync(join(root, 'catalog', 'apps.json'), JSON.stringify(apps));
   if (gradle !== null) {
-    mkdirSync(join(root, 'apps', 'subly', 'android', 'app'), { recursive: true });
-    writeFileSync(join(root, 'apps', 'subly', 'android', 'app', 'build.gradle.kts'), gradle);
+    mkdirSync(join(root, 'apps', 'subscriptiontracker', 'android', 'app'), { recursive: true });
+    writeFileSync(join(root, 'apps', 'subscriptiontracker', 'android', 'app', 'build.gradle.kts'), gradle);
   }
   return root;
 }
@@ -374,7 +374,7 @@ describe('assert-artifact-signed — coverage self-checks', () => {
 // ═════ android-signing.mjs ═══════════════════════════════════════════════════
 const b64Of = (p) => readFileSync(p).toString('base64');
 
-function runPrepare(root, env, { app = 'subly' } = {}) {
+function runPrepare(root, env, { app = 'subscriptiontracker' } = {}) {
   const outDir = join(TMP, `out${seq++}`);
   const ghEnv = join(TMP, `ghenv${seq++}.txt`);
   const r = spawnSync(
@@ -404,12 +404,12 @@ function runPrepare(root, env, { app = 'subly' } = {}) {
 const FULL = () => ({
   ANDROID_KEYSTORE_BASE64: b64Of(join(TMP, 'release.keystore')),
   ANDROID_KEYSTORE_PASSWORD: PW,
-  ANDROID_KEY_ALIAS: 'subly',
+  ANDROID_KEY_ALIAS: 'subscriptiontracker',
   ANDROID_KEY_PASSWORD: PW,
 });
 
 /** The two signals that make a lane a release lane, as GitHub sets them. */
-const ON_TAG = { GITHUB_REF: 'refs/tags/subly-v1.0.0' };
+const ON_TAG = { GITHUB_REF: 'refs/tags/subscriptiontracker-v1.0.0' };
 const ON_SUBMISSION_WF = { GITHUB_WORKFLOW_REF: `globalonlinedeveloper/repo/${SUBMIT_WF}@refs/heads/main` };
 
 describe('android-signing — a release lane is DERIVED, not declared in YAML', () => {
@@ -491,7 +491,7 @@ describe('android-signing — the three endings', () => {
   test('all four materialise the keystore BYTE-FOR-BYTE and export five variables', () => {
     const { r, outDir, exported } = runPrepare(makeRoot({}), { ...FULL(), ...ON_TAG });
     assert.equal(r.status, 0, out(r));
-    const written = join(outDir, 'subly-upload.keystore');
+    const written = join(outDir, 'subscriptiontracker-upload.keystore');
     assert.ok(existsSync(written), out(r));
     assert.deepEqual(readFileSync(written), readFileSync(join(TMP, 'release.keystore')));
     const names = exported.trim().split('\n').map((l) => l.split('=')[0]).sort();
@@ -507,7 +507,7 @@ describe('android-signing — the three endings', () => {
     const written = exported.match(/^ANDROID_KEYSTORE_PATH=(.+)$/m)[1];
     const archive = join(outDir, 'chain.aab');
     copyFileSync(join(TMP, 'unsigned.zip'), archive);
-    const signed = spawnSync(JARSIGNER, ['-keystore', written, '-storepass', PW, '-keypass', PW, archive, 'subly'], { encoding: 'utf8' });
+    const signed = spawnSync(JARSIGNER, ['-keystore', written, '-storepass', PW, '-keypass', PW, archive, 'subscriptiontracker'], { encoding: 'utf8' });
     assert.equal(signed.status, 0, `${signed.stdout}${signed.stderr}`);
     const g = runGuard(makeRoot({ pin: fingerprints.get('release') }), [archive], 'release-signed');
     assert.equal(g.status, 0, out(g));
@@ -524,10 +524,10 @@ describe('android-signing — the secret is never printed and never half-written
   });
 
   test('a value carrying a newline is refused BEFORE any key is written to disk', () => {
-    const { r, outDir } = runPrepare(makeRoot({}), { ...FULL(), ANDROID_KEY_ALIAS: 'subly\nPATH=/evil' });
+    const { r, outDir } = runPrepare(makeRoot({}), { ...FULL(), ANDROID_KEY_ALIAS: 'subscriptiontracker\nPATH=/evil' });
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /contains a line break/);
-    assert.ok(!existsSync(join(outDir, 'subly-upload.keystore')), 'a keystore was left on disk by a run that failed');
+    assert.ok(!existsSync(join(outDir, 'subscriptiontracker-upload.keystore')), 'a keystore was left on disk by a run that failed');
   });
 
   test('the keystore is written OUTSIDE the repository tree', () => {
@@ -542,7 +542,7 @@ describe('android-signing — the secret is never printed and never half-written
     // Found by mutation, not by design: `?? null` cannot tell an empty string
     // from an unset variable, and the script crashed with ENOENT AFTER printing
     // a successful posture.
-    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subly', '--repo-root', makeRoot({})], {
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({})], {
       encoding: 'utf8',
       env: {
         ...process.env, GITHUB_ENV: '', GITHUB_REF: '', GITHUB_WORKFLOW_REF: '',
@@ -558,7 +558,7 @@ describe('android-signing — the secret is never printed and never half-written
     // `resolve('')` is the cwd, which for a CI job is the repository — the one
     // place this file exists to keep a private key out of.
     const ghEnv = join(TMP, `ghenv-rt${seq++}.txt`);
-    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subly', '--repo-root', makeRoot({}), '--github-env', ghEnv], {
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({}), '--github-env', ghEnv], {
       encoding: 'utf8',
       cwd: TMP,
       env: { ...process.env, RUNNER_TEMP: '', GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', ...FULL() },
@@ -613,7 +613,7 @@ describe('android-signing — coverage self-checks', () => {
   });
 
   test('COVERAGE LOST when the Gradle signing env map is deleted — the names come from there', () => {
-    const { r } = runPrepare(makeRoot({ gradle: 'android { defaultConfig { applicationId = "com.nikatru.subly" } }' }), FULL());
+    const { r } = runPrepare(makeRoot({ gradle: 'android { defaultConfig { applicationId = "com.nikatru.subscriptiontracker" } }' }), FULL());
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /declares no release-signing environment map/);
   });
@@ -634,7 +634,7 @@ describe('android-signing — coverage self-checks', () => {
   test('an unknown --app fails and lists the apps it knows', () => {
     const { r } = runPrepare(makeRoot({}), FULL(), { app: 'notanapp' });
     assert.equal(r.status, 1, out(r));
-    assert.match(out(r), /Known: subly/);
+    assert.match(out(r), /Known: subscriptiontracker/);
   });
 
   test('the env-var names really are read from Gradle, not hard-coded here', () => {

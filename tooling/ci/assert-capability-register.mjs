@@ -42,7 +42,7 @@
 // ⚠️ VIOLATIONS AND MISSING SEAM METHODS ARE PRINTED ON EVERY RUN, pass or fail —
 // the posture assert-seams-wired.mjs takes for owner-gated gaps. A known gap
 // nobody sees becomes permanent. They do NOT fail the build: both current entries
-// are blocked by 39-CHASSIS cut 1's freeze on apps/subly, which is an agreed cut
+// are blocked by 39-CHASSIS cut 1's freeze on apps/subscriptiontracker, which is an agreed cut
 // the agent may not reverse. Undeclared ones DO fail.
 //
 // Usage:  node tooling/ci/assert-capability-register.mjs [repoRoot]
@@ -289,7 +289,7 @@ const WIRED_SURFACES_THAT_MAY_NOT_REGRESS = [
     seamMethod: 'notificationTaps',
     adapter: 'packages/notifications/lib/src/local_notification_service_io.dart',
     adapterPattern: /onDidReceiveNotificationResponse|onDidReceiveBackgroundNotificationResponse/,
-    emitter: { file: 'apps/subly/lib/state/analytics_funnel.dart', call: 'onNotificationOpened(' },
+    emitter: { file: 'apps/subscriptiontracker/lib/state/analytics_funnel.dart', call: 'onNotificationOpened(' },
     why:
       'a scheduled reminder that opens nothing when tapped is a dead feature that reports healthy, and ' +
       'the `notification_opened` event goes back to zero emitters with no test red anywhere.',
@@ -799,7 +799,7 @@ function dartFilesUnder(dir, rel, out) {
 //
 // ⚠️ WHAT WAS HOLDING IT UP INSTEAD, AND WHY THAT IS NOT A FLOOR. Emptying
 // apps/*/lib on today's tree does go red — but only through three ACCIDENTS of
-// the current register: the two declared violations at apps/subly/lib/… stop
+// the current register: the two declared violations at apps/subscriptiontracker/lib/… stop
 // existing (the stale-waiver limb of this very check), and the [13]T-9 emitter
 // pin names a third file under the same tree. Every one of those is a thing the
 // de-forking increment (OWNER_QUEUE D-8) exists to REMOVE. The protection would
@@ -1056,7 +1056,7 @@ for (const cap of capabilities) {
 //     spec file to hold one boolean puts app metadata in a fourth place beside
 //     pubspec.yaml, catalog/apps.json and the registers, which is
 //     the [C-1] "one declared home" argument turned on itself. Worse, it would
-//     be a domain that EXCLUDES THE ONLY SHIPPED APP: apps/subly was never
+//     be a domain that EXCLUDES THE ONLY SHIPPED APP: apps/subscriptiontracker was never
 //     stamped by this brick and would carry no such field. A scan whose domain
 //     silently omits the real app is this repo's recurring failure with a new
 //     name — it prints ok over the set it can see.
@@ -1107,9 +1107,9 @@ for (const cap of capabilities) {
 //      ALONE. That is the proof this limb is not redundant with what
 //      was already here: the tree was correct by every pre-existing
 //      rule and still had a capability nobody asked for.
-//   3. `declaredBy: ["apps/subly"]` with no module                  → RED (iii)
+//   3. `declaredBy: ["apps/subscriptiontracker"]` with no module                  → RED (iii)
 //   4. the `habit` row deleted / the whole key deleted           → COVERAGE LOST
-//   5. `class StreakService` under apps/subly/lib                    → RED (i)
+//   5. `class StreakService` under apps/subscriptiontracker/lib                    → RED (i)
 //   6. the scanner's `class` regex broken to `clazz`              → COVERAGE LOST
 //      while the module verdict still read "not built" — the exact false
 //      negative (b) exists to catch.

@@ -11,7 +11,7 @@ import 'app_scaffold.dart' show AppBreakpoints;
 ///
 /// 🔴 THE COPY IS REQUIRED, AND UNTIL 2026-09-04 IT WAS DEFAULTED TO ENGLISH —
 /// WHICH IS WHAT EVERY APP SHIPPED. Measured on that date: both call sites in
-/// the portfolio — `apps/subly/lib/app.dart` and the brick's `app.dart` — passed
+/// the portfolio — `apps/subscriptiontracker/lib/app.dart` and the brick's `app.dart` — passed
 /// `mustUpdate`, `onUpdate` and `child` and NOTHING ELSE, so all three sentences
 /// came from the defaults that used to sit here. And no key for them had ever
 /// existed in any arb, in either tree, in either locale: `grep` for
@@ -25,7 +25,7 @@ import 'app_scaffold.dart' show AppBreakpoints;
 /// to be silently used.
 ///
 /// ⚠️ AND NO CHECK COULD HAVE NOTICED. `tooling/ci/assert-no-hardcoded-strings.mjs`
-/// scans exactly two roots — the brick and `apps/subly/lib` (`:119-131`) — and
+/// scans exactly two roots — the brick and `apps/subscriptiontracker/lib` (`:119-131`) — and
 /// not `packages/`. A user-visible English literal living here is outside the
 /// only guard that hunts for one. Making the copy REQUIRED is what puts the
 /// string back inside a scanned tree: the caller must supply it, and the caller

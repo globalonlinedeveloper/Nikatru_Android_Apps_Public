@@ -94,14 +94,14 @@ const workflowWith = (packages, { runner = 'ubuntu-24.04', extraInstallStep = fa
 
 const CMAKE = [
   '# The binary name. Change this to change the on-disk name of the executable.',
-  'set(BINARY_NAME "subly")',
+  'set(BINARY_NAME "subscriptiontracker")',
   '# The application id GTK registers under.',
-  'set(APPLICATION_ID "com.nikatru.subly")',
+  'set(APPLICATION_ID "com.nikatru.subscriptiontracker")',
   '',
 ].join('\n');
 
 const LISTING = {
-  'snap-name.txt': 'subly\n',
+  'snap-name.txt': 'subscriptiontracker\n',
   'title.txt': 'Subly\n',
   'short-description.txt': 'Track every subscription in one place\n',
   'long-description.txt': 'Subly keeps every subscription in one list.\n\nIt does the arithmetic and the remembering.\n',
@@ -165,17 +165,17 @@ function tree({
   if (!omitWorkflow) {
     write('.github/workflows/build-platforms.yml', workflowWith(packages, { runner, extraInstallStep, buildsLinux }));
   }
-  if (!omitCmake) write('apps/subly/linux/CMakeLists.txt', CMAKE);
+  if (!omitCmake) write('apps/subscriptiontracker/linux/CMakeLists.txt', CMAKE);
   if (!omitStoreTree) {
     for (const [rel, body] of Object.entries(LISTING)) {
       if (omitListing.includes(rel)) continue;
       const name = rel === 'snap-name.txt' && renameSnapName ? 'snapname.txt' : rel;
-      write(`apps/subly/store/linux-snap/${name}`, emptyListing.includes(rel) ? '   \n' : (listing[rel] ?? body));
+      write(`apps/subscriptiontracker/store/linux-snap/${name}`, emptyListing.includes(rel) ? '   \n' : (listing[rel] ?? body));
     }
   } else {
     // The app directory still exists — otherwise the guard would be complaining
     // about a missing app rather than about a missing listing.
-    write('apps/subly/pubspec.yaml', 'name: subly\n');
+    write('apps/subscriptiontracker/pubspec.yaml', 'name: subscriptiontracker\n');
   }
   return root;
 }
@@ -191,8 +191,8 @@ function tree({
  *  lives. `withIcon: false` still builds the iconless bundle, on purpose: both
  *  branches are real and both are now exercised. */
 function bundle(
-  binary = 'subly',
-  applicationId = 'com.nikatru.subly',
+  binary = 'subscriptiontracker',
+  applicationId = 'com.nikatru.subscriptiontracker',
   { omitBinary = false, withIcon = true, iconSize = 512, iconBytes = 'stand-in for the primed icon\n' } = {},
 ) {
   const dir = join(TMP, `b${seq++}`);
@@ -214,7 +214,7 @@ const run = (script, args) => {
 const guard = (root, extra = []) => run(GUARD, [root, ...extra]);
 const generate = (root, extra) => {
   const out = join(TMP, `o${seq++}`);
-  const r = run(GENERATOR, ['--repo-root', root, '--app', 'subly', '--out', out, '--version', '1.2.3.4', ...extra]);
+  const r = run(GENERATOR, ['--repo-root', root, '--app', 'subscriptiontracker', '--out', out, '--version', '1.2.3.4', ...extra]);
   return { ...r, out_dir: out, recipe: join(out, 'snap', 'snapcraft.yaml') };
 };
 
@@ -231,7 +231,7 @@ describe('generate-snapcraft — the recipe is derived, and refuses when it cann
     assert.equal(g.code, 0, g.out);
     assert.ok(existsSync(g.recipe), g.out);
     const yaml = readFileSync(g.recipe, 'utf8');
-    assert.match(yaml, /^name: subly$/m);
+    assert.match(yaml, /^name: subscriptiontracker$/m);
     assert.match(yaml, /^grade: stable$/m);
     assert.match(yaml, /^confinement: strict$/m);
     assert.match(yaml, /^\s+plugin: dump$/m);
@@ -306,15 +306,15 @@ describe('generate-snapcraft — the recipe is derived, and refuses when it cann
   });
 
   test('REFUSES a bundle directory that does not hold the BINARY_NAME file', () => {
-    const g = generate(tree(), ['--bundle', bundle('subly', 'com.nikatru.subly', { omitBinary: true })]);
+    const g = generate(tree(), ['--bundle', bundle('subscriptiontracker', 'com.nikatru.subscriptiontracker', { omitBinary: true })]);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /contains no file named "subly"/);
+    assert.match(g.out, /contains no file named "subscriptiontracker"/);
   });
 
   test('REFUSES without --version rather than minting a second version', () => {
     const out = join(TMP, `o${seq++}`);
-    const r = run(GENERATOR, ['--repo-root', tree(), '--app', 'subly', '--out', out, '--bundle', bundle()]);
+    const r = run(GENERATOR, ['--repo-root', tree(), '--app', 'subscriptiontracker', '--out', out, '--bundle', bundle()]);
     assert.equal(r.code, 1, r.out);
     assertComplained(r.out);
     assert.match(r.out, /--version is required/);
@@ -343,7 +343,7 @@ describe('generate-snapcraft — the recipe is derived, and refuses when it cann
 
   test('the listing is the SOURCE: change the file, the recipe follows', () => {
     const root = tree();
-    writeFileSync(join(root, 'apps/subly/store/linux-snap/short-description.txt'), 'A different tagline entirely\n');
+    writeFileSync(join(root, 'apps/subscriptiontracker/store/linux-snap/short-description.txt'), 'A different tagline entirely\n');
     const g = generate(root, ['--bundle', bundle()]);
     assert.equal(g.code, 0, g.out);
     assert.match(readFileSync(g.recipe, 'utf8'), /^summary: "A different tagline entirely"$/m);
@@ -422,7 +422,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const root = tree();
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 0, g.out);
   });
 
@@ -434,12 +434,12 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
     // green first, so the redness below is attributable to the mutation alone
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0);
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0);
 
     const shorter = FIXTURE_PACKAGES.filter((p) => p !== 'liblzma-dev');
     writeFileSync(join(root, '.github/workflows/build-platforms.yml'), workflowWith(shorter));
 
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /`stage-packages` and .* apt list disagree/);
@@ -451,7 +451,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
     writeFileSync(join(root, '.github/workflows/build-platforms.yml'), workflowWith([...FIXTURE_PACKAGES, 'libsecret-1-dev']));
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assert.match(g.out, /1 in the workflow and not the recipe \(libsecret-1-dev\)/);
   });
@@ -461,7 +461,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^ {6}- .*$/gm, '').replace(/\n{2,}/g, '\n'));
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /stage-packages/);
@@ -473,7 +473,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, `# TODO: fill in the real summary\n${readFileSync(gen.recipe, 'utf8')}`);
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /placeholder text "TODO"/);
@@ -484,7 +484,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^title: .*$/m, 'title: "<app title>"'));
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /placeholder text/);
@@ -495,7 +495,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, `# staged from /home/runner/work/repo/build/linux\n${readFileSync(gen.recipe, 'utf8')}`);
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /absolute host path/);
@@ -505,11 +505,11 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const root = tree();
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
-    writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^name: subly$/m, 'name: sublyy'));
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^name: subscriptiontracker$/m, 'name: subscriptiontrackery'));
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /`name` is "sublyy"; the tree says "subly"/);
+    assert.match(g.out, /`name` is "subscriptiontrackery"; the tree says "subscriptiontracker"/);
   });
 
   test('FAILS an emitted recipe that quietly relaxes confinement', () => {
@@ -517,7 +517,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^confinement: strict$/m, 'confinement: classic'));
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /`confinement` is "classic"/);
@@ -528,7 +528,7 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
     const gen = generate(root, ['--bundle', bundle()]);
     const doctored = join(TMP, `d${seq++}.yaml`);
     writeFileSync(doctored, readFileSync(gen.recipe, 'utf8').replace(/^ {6}- wayland\n/m, ''));
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /DESKTOP_PLUGS declares/);
@@ -537,8 +537,8 @@ describe('assert-snapcraft-generable — it runs the generator and grades the re
   test('FAILS an emitted recipe that is not readable YAML', () => {
     const root = tree();
     const doctored = join(TMP, `d${seq++}.yaml`);
-    writeFileSync(doctored, 'name: subly\n  this line belongs nowhere\n');
-    const g = guard(root, ['--emitted', doctored, '--app', 'subly']);
+    writeFileSync(doctored, 'name: subscriptiontracker\n  this line belongs nowhere\n');
+    const g = guard(root, ['--emitted', doctored, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /does not parse/);
@@ -568,7 +568,7 @@ describe('assert-snapcraft-generable — the base must match the host that packs
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
     assert.match(readFileSync(gen.recipe, 'utf8'), /^base: core24$/m);
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly', '--pack-runner', 'ubuntu-24.04']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker', '--pack-runner', 'ubuntu-24.04']);
     assert.equal(g.code, 0, g.out);
     assert.match(g.out, /packed on ubuntu-24\.04 whose base is core24/);
   });
@@ -582,8 +582,8 @@ describe('assert-snapcraft-generable — the base must match the host that packs
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
     // green without the argument first, so the redness is attributable to it alone
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0);
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly', '--pack-runner', 'ubuntu-24.04']);
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker', '--pack-runner', 'ubuntu-24.04']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /`base` is "core22" and this recipe is about to be packed on a host whose base is "core24"/);
@@ -592,7 +592,7 @@ describe('assert-snapcraft-generable — the base must match the host that packs
   test('--pack-runner REFUSES an unmapped label rather than treating it as a match', () => {
     const root = tree();
     const gen = generate(root, ['--bundle', bundle()]);
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly', '--pack-runner', 'ubuntu-latest']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker', '--pack-runner', 'ubuntu-latest']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /--pack-runner ubuntu-latest has no snapcraft base recorded/);
@@ -623,17 +623,17 @@ describe('assert-snapcraft-generable — `source:` resolves from the PROJECT dir
       resolve(b),
       `source ${JSON.stringify(source)} resolved from the project directory must BE the bundle`,
     );
-    assert.ok(existsSync(join(resolve(gen.out_dir, source), 'subly')), 'and the resolved directory holds the binary');
+    assert.ok(existsSync(join(resolve(gen.out_dir, source), 'subscriptiontracker')), 'and the resolved directory holds the binary');
   });
 
   test('--emitted FAILS a recipe whose source does not resolve to this app\'s bundle', () => {
     const root = tree();
     const gen = generate(root, ['--bundle', bundle()]);
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0);
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0);
     // The exact shape of the old bug: one extra `..` in front of the path.
     const yaml = readFileSync(gen.recipe, 'utf8').replace(/^( {4}source: )(.+)$/m, '$1../$2');
     writeFileSync(gen.recipe, yaml);
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /resolves from the snapcraft project directory to .* which is not a directory/);
@@ -647,7 +647,7 @@ describe('assert-snapcraft-generable — `source:` resolves from the PROJECT dir
     const root = tree();
     const good = generate(root, ['--bundle', bundle()]);
     assert.equal(good.code, 0, good.out);
-    assert.equal(guard(root, ['--emitted', good.recipe, '--app', 'subly']).code, 0);
+    assert.equal(guard(root, ['--emitted', good.recipe, '--app', 'subscriptiontracker']).code, 0);
 
     const emptyName = `e${seq++}`;
     mkdirSync(join(TMP, emptyName), { recursive: true });
@@ -655,10 +655,10 @@ describe('assert-snapcraft-generable — `source:` resolves from the PROJECT dir
       good.recipe,
       readFileSync(good.recipe, 'utf8').replace(/^( {4}source: ).+$/m, `$1../${emptyName}`),
     );
-    const g = guard(root, ['--emitted', good.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', good.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /is a directory but holds no file named "subly"/);
+    assert.match(g.out, /is a directory but holds no file named "subscriptiontracker"/);
   });
 
   test('a recipe NOT at snap/snapcraft.yaml has no project directory, and says so', () => {
@@ -666,7 +666,7 @@ describe('assert-snapcraft-generable — `source:` resolves from the PROJECT dir
     const gen = generate(root, ['--bundle', bundle()]);
     const elsewhere = join(TMP, `x${seq++}.yaml`);
     writeFileSync(elsewhere, readFileSync(gen.recipe, 'utf8'));
-    const g = guard(root, ['--emitted', elsewhere, '--app', 'subly']);
+    const g = guard(root, ['--emitted', elsewhere, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 0, g.out);
     assert.match(g.out, /is not at \.\.\.\/snap\/snapcraft\.yaml/);
     assert.match(g.out, /stated gap, not a pass/);
@@ -707,9 +707,9 @@ describe('the licence: SPDX-valid, or no key at all', () => {
   test('the guard FAILS an emitted recipe that carries the licence snapcraft rejects', () => {
     const root = tree();
     const gen = generate(root, ['--bundle', bundle()]);
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0);
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0);
     writeFileSync(gen.recipe, readFileSync(gen.recipe, 'utf8').replace(/^# NO `license:` KEY.*$/m, 'license: "proprietary"'));
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /`license` is present as "proprietary"/);
@@ -721,9 +721,9 @@ describe('the licence: SPDX-valid, or no key at all', () => {
   test('the guard FAILS an emitted recipe that drops an SPDX licence it could have carried', () => {
     const root = tree({ listing: { 'license.txt': 'MIT\n' } });
     const gen = generate(root, ['--bundle', bundle()]);
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0);
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0);
     writeFileSync(gen.recipe, readFileSync(gen.recipe, 'utf8').replace(/^license: "MIT"$/m, '# licence quietly dropped'));
-    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    const g = guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /`license` is ABSENT/);
@@ -746,15 +746,15 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
   test('the generator writes the launcher pair beside the recipe', () => {
     const g = generate(tree(), ['--bundle', bundle()]);
     assert.equal(g.code, 0, g.out);
-    const desktop = join(g.out_dir, 'snap', 'gui', 'subly.desktop');
-    const icon = join(g.out_dir, 'snap', 'gui', 'subly.png');
+    const desktop = join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop');
+    const icon = join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.png');
     assert.ok(existsSync(desktop), g.out);
     assert.ok(existsSync(icon), g.out);
     const text = readFileSync(desktop, 'utf8');
     // The absolute installed path, which is what snapcraft could not derive from
     // a bare theme name. `${SNAP}` is snapd's own variable, not a template slot.
-    assert.match(text, /^Icon=\$\{SNAP\}\/meta\/gui\/subly\.png$/m);
-    assert.match(text, /^Exec=subly$/m, 'inside a snap the command is the snap name, not a path');
+    assert.match(text, /^Icon=\$\{SNAP\}\/meta\/gui\/subscriptiontracker\.png$/m);
+    assert.match(text, /^Exec=subscriptiontracker$/m, 'inside a snap the command is the snap name, not a path');
     // …and the fields that must NOT be re-invented come from the maintained entry.
     assert.match(text, /^Name=Subly$/m);
     assert.match(text, /^Comment=Track every subscription in one place$/m);
@@ -785,30 +785,30 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
   });
 
   test('a bundle with NO primed icon drops the Icon line rather than dangling it', () => {
-    const g = generate(tree(), ['--bundle', bundle('subly', 'com.nikatru.subly', { withIcon: false })]);
+    const g = generate(tree(), ['--bundle', bundle('subscriptiontracker', 'com.nikatru.subscriptiontracker', { withIcon: false })]);
     assert.equal(g.code, 0, g.out);
-    const text = readFileSync(join(g.out_dir, 'snap', 'gui', 'subly.desktop'), 'utf8');
+    const text = readFileSync(join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop'), 'utf8');
     assert.doesNotMatch(text, /^Icon=/m, 'a path to a file that will not exist is worse than no line');
-    assert.ok(!existsSync(join(g.out_dir, 'snap', 'gui', 'subly.png')));
+    assert.ok(!existsSync(join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.png')));
     assert.match(g.out, /primed no hicolor icon/);
     assert.match(g.out, /NO ICON/);
   });
 
   test('the LARGEST primed size wins — meta/gui carries exactly one file', () => {
-    const b = bundle('subly', 'com.nikatru.subly', { withIcon: true, iconSize: 512, iconBytes: 'five-twelve\n' });
+    const b = bundle('subscriptiontracker', 'com.nikatru.subscriptiontracker', { withIcon: true, iconSize: 512, iconBytes: 'five-twelve\n' });
     // a smaller one alongside it, which must NOT be the one chosen
     mkdirSync(join(b, 'share', 'icons', 'hicolor', '64x64', 'apps'), { recursive: true });
-    writeFileSync(join(b, 'share', 'icons', 'hicolor', '64x64', 'apps', 'com.nikatru.subly.png'), 'sixty-four\n');
+    writeFileSync(join(b, 'share', 'icons', 'hicolor', '64x64', 'apps', 'com.nikatru.subscriptiontracker.png'), 'sixty-four\n');
     const g = generate(tree(), ['--bundle', b]);
     assert.equal(g.code, 0, g.out);
-    assert.equal(readFileSync(join(g.out_dir, 'snap', 'gui', 'subly.png'), 'utf8'), 'five-twelve\n');
+    assert.equal(readFileSync(join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.png'), 'utf8'), 'five-twelve\n');
   });
 
   test('a smaller size is used when the largest was not primed', () => {
-    const b = bundle('subly', 'com.nikatru.subly', { iconSize: 128, iconBytes: 'one-two-eight\n' });
+    const b = bundle('subscriptiontracker', 'com.nikatru.subscriptiontracker', { iconSize: 128, iconBytes: 'one-two-eight\n' });
     const g = generate(tree(), ['--bundle', b]);
     assert.equal(g.code, 0, g.out);
-    assert.equal(readFileSync(join(g.out_dir, 'snap', 'gui', 'subly.png'), 'utf8'), 'one-two-eight\n');
+    assert.equal(readFileSync(join(g.out_dir, 'snap', 'gui', 'subscriptiontracker.png'), 'utf8'), 'one-two-eight\n');
   });
 
   // ── the guard's side, every limb with a failing input ─────────────────────
@@ -816,35 +816,35 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
     const root = tree(listingOverrides);
     const gen = generate(root, ['--bundle', bundle()]);
     assert.equal(gen.code, 0, gen.out);
-    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subly']).code, 0, 'green before the mutation');
+    assert.equal(guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']).code, 0, 'green before the mutation');
     mutate(gen);
-    return guard(root, ['--emitted', gen.recipe, '--app', 'subly']);
+    return guard(root, ['--emitted', gen.recipe, '--app', 'subscriptiontracker']);
   };
 
   test('FAILS when `apps.<name>.desktop` is put back', () => {
     const g = mutated((gen) =>
       writeFileSync(
         gen.recipe,
-        readFileSync(gen.recipe, 'utf8').replace(/^ {4}# The launcher lives in.*$/m, '    desktop: share/applications/com.nikatru.subly.desktop'),
+        readFileSync(gen.recipe, 'utf8').replace(/^ {4}# The launcher lives in.*$/m, '    desktop: share/applications/com.nikatru.subscriptiontracker.desktop'),
       ),
     );
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /`apps\.subly\.desktop` is present/);
+    assert.match(g.out, /`apps\.subscriptiontracker\.desktop` is present/);
     assert.match(g.out, /not found in prime directory/);
   });
 
   test('FAILS when the launcher entry is missing from snap/gui', () => {
-    const g = mutated((gen) => rmSync(join(gen.out_dir, 'snap', 'gui', 'subly.desktop'), { force: true }));
+    const g = mutated((gen) => rmSync(join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop'), { force: true }));
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /snap\/gui\/subly\.desktop does not exist beside the recipe/);
+    assert.match(g.out, /snap\/gui\/subscriptiontracker\.desktop does not exist beside the recipe/);
   });
 
   test('FAILS when the Icon line is a bare theme name — the exact shape snapcraft refused', () => {
     const g = mutated((gen) => {
-      const p = join(gen.out_dir, 'snap', 'gui', 'subly.desktop');
-      writeFileSync(p, readFileSync(p, 'utf8').replace(/^Icon=.*$/m, 'Icon=com.nikatru.subly'));
+      const p = join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop');
+      writeFileSync(p, readFileSync(p, 'utf8').replace(/^Icon=.*$/m, 'Icon=com.nikatru.subscriptiontracker'));
     });
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
@@ -852,14 +852,14 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
   });
 
   test('FAILS when the Icon line points at a PNG that is not there', () => {
-    const g = mutated((gen) => rmSync(join(gen.out_dir, 'snap', 'gui', 'subly.png'), { force: true }));
+    const g = mutated((gen) => rmSync(join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.png'), { force: true }));
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
-    assert.match(g.out, /snap\/gui\/subly\.png does not exist/);
+    assert.match(g.out, /snap\/gui\/subscriptiontracker\.png does not exist/);
   });
 
   test('FAILS on a ZERO-BYTE icon, which satisfies "the file exists"', () => {
-    const g = mutated((gen) => writeFileSync(join(gen.out_dir, 'snap', 'gui', 'subly.png'), ''));
+    const g = mutated((gen) => writeFileSync(join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.png'), ''));
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
     assert.match(g.out, /is ZERO bytes/);
@@ -867,8 +867,8 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
 
   test('FAILS when Exec is the freedesktop answer rather than the snap command', () => {
     const g = mutated((gen) => {
-      const p = join(gen.out_dir, 'snap', 'gui', 'subly.desktop');
-      writeFileSync(p, readFileSync(p, 'utf8').replace(/^Exec=.*$/m, 'Exec=/usr/bin/subly'));
+      const p = join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop');
+      writeFileSync(p, readFileSync(p, 'utf8').replace(/^Exec=.*$/m, 'Exec=/usr/bin/subscriptiontracker'));
     });
     assert.equal(g.code, 1, g.out);
     assertComplained(g.out);
@@ -878,7 +878,7 @@ describe('the launcher: snap/gui, an absolute Icon, and no `desktop:` key', () =
   // The OTHER direction of the one fact: an icon shipped that nothing points at.
   test('FAILS when an icon is primed and the entry carries no Icon line', () => {
     const g = mutated((gen) => {
-      const p = join(gen.out_dir, 'snap', 'gui', 'subly.desktop');
+      const p = join(gen.out_dir, 'snap', 'gui', 'subscriptiontracker.desktop');
       writeFileSync(p, readFileSync(p, 'utf8').replace(/^Icon=.*\n/m, ''));
     });
     assert.equal(g.code, 1, g.out);

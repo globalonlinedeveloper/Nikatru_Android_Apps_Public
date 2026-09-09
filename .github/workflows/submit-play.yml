@@ -75,9 +75,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: node tooling/ci/android-signing.mjs --app subly
+        run: node tooling/ci/android-signing.mjs --app subscriptiontracker
       - name: Build the app bundle
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build appbundle --release
           --obfuscate --split-debug-info=build/symbols/android-aab
@@ -100,8 +100,8 @@ jobs:
       # tooling/ci/assert-obfuscation-coupled.mjs refuses the build without it.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-android-play-dry-run
-          path: apps/subly/build/symbols/android-aab
+          name: symbols-subscriptiontracker-android-play-dry-run
+          path: apps/subscriptiontracker/build/symbols/android-aab
           retention-days: 7
           if-no-files-found: error
       # why: pinned by version AND by digest, byte-identical to the step
@@ -140,27 +140,27 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
-          --dir apps/subly/build/symbols/android-aab
-          --org nikatru --project subly
+          --dir apps/subscriptiontracker/build/symbols/android-aab
+          --org nikatru --project subscriptiontracker
       - name: The .aab must be signed by the upload key, not the debug key
         run: >
           node tooling/ci/assert-artifact-signed.mjs
-          apps/subly/build/app/outputs/bundle/release/app-release.aab
+          apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab
       - name: The Play screenshot set spans enough device types
         run: node tooling/ci/assert-play-device-coverage.mjs --for-submission
       - name: Every native library is aligned for a 16 KB memory page
         run: >
           node tooling/ci/assert-elf-page-alignment.mjs
-          apps/subly/build/app/outputs/bundle/release/app-release.aab
+          apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab
       - name: Dry-run the Google Play submission
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           PLAY_TRACK: ${{ vars.PLAY_TRACK }}
-        run: node tooling/release/submit-play.mjs --dry-run --app subly
+        run: node tooling/release/submit-play.mjs --dry-run --app subscriptiontracker
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-android-play-aab-${{ env.ANDROID_SIGNING_POSTURE }}
-          path: apps/subly/build/app/outputs/bundle/release/app-release.aab
+          name: subscriptiontracker-android-play-aab-${{ env.ANDROID_SIGNING_POSTURE }}
+          path: apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab
           retention-days: 7
           if-no-files-found: error
 
@@ -225,9 +225,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: node tooling/ci/android-signing.mjs --app subly
+        run: node tooling/ci/android-signing.mjs --app subscriptiontracker
       - name: Build the app bundle
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: >
           flutter build appbundle --release
           --obfuscate --split-debug-info=build/symbols/android-aab
@@ -238,13 +238,13 @@ jobs:
       - name: The .aab must be signed by the upload key, not the debug key
         run: >
           node tooling/ci/assert-artifact-signed.mjs
-          apps/subly/build/app/outputs/bundle/release/app-release.aab
+          apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab
       - name: The Play screenshot set spans enough device types
         run: node tooling/ci/assert-play-device-coverage.mjs --for-submission
       - name: Every native library is aligned for a 16 KB memory page
         run: >
           node tooling/ci/assert-elf-page-alignment.mjs
-          apps/subly/build/app/outputs/bundle/release/app-release.aab
+          apps/subscriptiontracker/build/app/outputs/bundle/release/app-release.aab
       # why: BEFORE the upload, not after. This is the only copy of the mapping
       # for a bundle that is about to reach real users, and a step that runs
       # after a store upload does not run when the store upload fails — which is
@@ -252,8 +252,8 @@ jobs:
       # 90 days, not 7: this bundle ships.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: symbols-subly-android-play
-          path: apps/subly/build/symbols/android-aab
+          name: symbols-subscriptiontracker-android-play
+          path: apps/subscriptiontracker/build/symbols/android-aab
           retention-days: 90
           if-no-files-found: error
       # why: pinned by version AND by digest, byte-identical to the step
@@ -294,8 +294,8 @@ jobs:
         run: >
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
-          --dir apps/subly/build/symbols/android-aab
-          --org nikatru --project subly
+          --dir apps/subscriptiontracker/build/symbols/android-aab
+          --org nikatru --project subscriptiontracker
       - name: Upload to Google Play
         id: upload
         env:
@@ -305,7 +305,7 @@ jobs:
           CONFIRM: ${{ inputs.confirm }}
           GITHUB_TOKEN: ${{ github.token }}
         run: >
-          node tooling/release/submit-play.mjs --submit --app subly
+          node tooling/release/submit-play.mjs --submit --app subscriptiontracker
           --confirm "$CONFIRM" --status "$RELEASE_STATUS"
       # why: read-after-upload on the versionCode, which androidpublisher returns per
       # track and which the upload itself produced. The snap lane deliberately has no
@@ -316,11 +316,11 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
-          PUBSPEC_VERSION="$(node tooling/ci/assert-app-versioning.mjs --emit apps/subly | sed -n 's/^pubspec_version=//p')"
+          PUBSPEC_VERSION="$(node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker | sed -n 's/^pubspec_version=//p')"
           case "${PUBSPEC_VERSION}" in
             *+*) VERSION_CODE="${PUBSPEC_VERSION##*+}" ;;
             *)
-              echo "FAIL apps/subly/pubspec.yaml declares version ${PUBSPEC_VERSION} with no +<build number> suffix." >&2
+              echo "FAIL apps/subscriptiontracker/pubspec.yaml declares version ${PUBSPEC_VERSION} with no +<build number> suffix." >&2
               echo "     Flutter would default the versionCode to 1 and this probe would assert a number nobody" >&2
               echo "     chose. Refusing to guess is the only honest answer here." >&2
               exit 1
@@ -329,7 +329,7 @@ jobs:
           APPLICATION_ID="$(node --input-type=module -e '
           import { readFileSync } from "node:fs";
           import { readGradleApplicationId } from "./tooling/ci/read-identity.mjs";
-          const rel = "apps/subly/android/app/build.gradle.kts";
+          const rel = "apps/subscriptiontracker/android/app/build.gradle.kts";
           const id = readGradleApplicationId(readFileSync(rel, "utf8"), rel);
           if (!id.value) { console.error(id.missing ?? id.lost); process.exit(1); }
           process.stdout.write(id.value);
@@ -342,4 +342,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           LISTING_URL: ${{ inputs.listing_url }}
-        run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listing-url "$LISTING_URL"
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listing-url "$LISTING_URL"

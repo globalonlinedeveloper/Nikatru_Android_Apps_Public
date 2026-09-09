@@ -11,7 +11,7 @@ import 'focusable_tap.dart';
 ///
 /// ── WHY THEY MOVED [backlog P-3] ────────────────────────────────────────────
 /// These were `NikatruWordmark` and `PoweredByNikatru` in
-/// `apps/subly/lib/features/shared/widgets.dart`, and that file's own doc said
+/// `apps/subscriptiontracker/lib/features/shared/widgets.dart`, and that file's own doc said
 /// of them *"Company name + URLs come from `AppConfig` so every portfolio app
 /// inherits"*. Measured on 2026-09-04:
 /// `grep -rn "PoweredByNikatru" tooling/bricks/` returned NOTHING, and
@@ -37,7 +37,7 @@ import 'focusable_tap.dart';
 /// ── WHAT THE MOVE COULD NOT BRING, AND WHY ──────────────────────────────────
 /// EVERY USER-VISIBLE STRING IS A REQUIRED PARAMETER WITH NO ENGLISH DEFAULT.
 /// `tooling/ci/assert-no-hardcoded-strings.mjs` scans exactly two roots — the
-/// brick and `apps/subly/lib` (:119-131) — and NOT `packages/`. A default
+/// brick and `apps/subscriptiontracker/lib` (:119-131) — and NOT `packages/`. A default
 /// sentence here would therefore be a shipped literal that escaped the guard by
 /// moving house, so the copy stays in the app and arrives as an argument. Same
 /// rule the `AuthField` move set (commit 4e4b1a50).
@@ -126,7 +126,7 @@ class BrandFooter extends StatelessWidget {
 
   /// The whole publisher sentence, ALREADY RESOLVED by the caller.
   ///
-  /// 🔴 A SENTENCE, NOT TWO NAMES TO CONCATENATE. `apps/subly`'s arb carries
+  /// 🔴 A SENTENCE, NOT TWO NAMES TO CONCATENATE. `apps/subscriptiontracker`'s arb carries
   /// this as a placeholder message because the Tamil value reads
   /// "{company} வழங்கும் {app}" — the two names SWAP PLACES. Taking `appName`
   /// and `companyName` here and building `'$app by $company'` would have
@@ -179,10 +179,10 @@ class BrandFooter extends StatelessWidget {
   /// link · link · link — separators BETWEEN, never trailing.
   ///
   /// Built from the list rather than hand-written, which is the one structural
-  /// change the move makes: `apps/subly` hard-coded exactly three links and two
+  /// change the move makes: `apps/subscriptiontracker` hard-coded exactly three links and two
   /// dots, and a stamped app with two legal pages would have shipped a dangling
   /// middot. For three links this emits the identical five children, which is
-  /// what `apps/subly/test/brand_footer_parity_test.dart` pins.
+  /// what `apps/subscriptiontracker/test/brand_footer_parity_test.dart` pins.
   List<Widget> _row(Color color) {
     final List<Widget> out = <Widget>[];
     for (int i = 0; i < links.length; i++) {
@@ -221,7 +221,7 @@ class _BrandFooterLink extends StatelessWidget {
     //
     // 🔴 AND `FocusableTap`, NOT `Semantics(link: true)` — THESE WERE
     // KEYBOARD-DEAD ON TWO SCREENS AT ONCE in the app they came from.
-    // `apps/subly/test/keyboard_traversal_test.dart` found them among login's
+    // `apps/subscriptiontracker/test/keyboard_traversal_test.dart` found them among login's
     // four unreachable controls AND among settings' eighteen, because this
     // footer renders on both: one shared defect counted twice, which is the
     // argument for fixing it in a shared primitive rather than per screen.

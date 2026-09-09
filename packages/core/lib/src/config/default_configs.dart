@@ -5,7 +5,7 @@ import 'app_config.dart';
 ///
 /// 🔒 **DELIBERATELY EMPTY, and it must stay that way. [pipeline C-10]**
 ///
-/// This map used to carry a hardcoded `'subly'` entry — an app-specific value in
+/// This map used to carry a hardcoded `'subscriptiontracker'` entry — an app-specific value in
 /// the shared core, exported from the barrel that *every* stamped app imports.
 /// That is the "clone tell" the chassis charter exists to prevent: core must not
 /// know the name of any app, or app #7 inherits app #1's vocabulary.
@@ -18,7 +18,7 @@ import 'app_config.dart';
 /// )
 /// ```
 /// The brick template has always done this (`kAppDefaultConfig` in its
-/// `providers.dart`); `apps/subly` now does too (`kSublyDefaultConfig`), and the
+/// `providers.dart`); `apps/subscriptiontracker` now does too (`kSublyDefaultConfig`), and the
 /// server-contract test that pinned these values moved there with them.
 ///
 /// The MECHANISM is kept rather than deleted: `ConfigCache.get` still falls

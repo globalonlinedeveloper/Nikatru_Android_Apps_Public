@@ -307,7 +307,7 @@ async function main() {
       // DEPLOYMENT's description, and `readSubmissions` (the reader D-6's
       // cadence limb and D-10 limb (iii) both consume) decodes exactly that
       // field. Verified live 2026-08-06: every deployment read
-      // `"subly-web deploy"` and every status read `nk1 state=live sha=6525fb7d`
+      // `"subscriptiontracker-web deploy"` and every status read `nk1 state=live sha=6525fb7d`
       // — so the documented ledger source decoded as UNPARSEABLE on every row,
       // and a cadence count over it was a count of zero that looked like
       // compliance. Reading statuses instead would be one extra API call per

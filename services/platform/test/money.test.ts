@@ -163,7 +163,7 @@ function adjustmentBody(o: {
 const FUTURE = '2027-01-01T00:00:00.000Z';
 const PAST = '2020-01-01T00:00:00.000Z';
 const USER = 'user-abc';
-const APP = 'subly';
+const APP = 'subscriptiontracker';
 
 const entRow = (db: RealDb) =>
   db.rows('SELECT * FROM entitlements WHERE user_id = ? AND app_id = ?', USER, APP)[0];
@@ -454,7 +454,7 @@ describe('[5]M-3 · the entitlement record is complete', () => {
       revoked_at: null,
       revocation_reason: null,
     });
-    // The legacy reader (services/subly-api/src/routes/entitlements.ts) knows only
+    // The legacy reader (services/subscriptiontracker-api/src/routes/entitlements.ts) knows only
     // is_active + expires_at. It must reach the same answer as the new columns.
     expect(row.expires_at).toBe(FUTURE);
   });
@@ -614,7 +614,7 @@ describe('refunds, chargebacks and the one path that gives access back', () => {
     // Link the subscription without ever granting: a refund then arrives first.
     db.db.exec(
       "INSERT INTO provider_accounts (provider, provider_subscription_id, app_id, user_id, linked_at) " +
-        "VALUES ('paddle','sub_0000000000000000000000001','subly','user-abc','2026-08-01T00:00:00.000Z')",
+        "VALUES ('paddle','sub_0000000000000000000000001','subscriptiontracker','user-abc','2026-08-01T00:00:00.000Z')",
     );
     const res = await send(adjustmentBody({ eventId: 'r', occurredAt: '2026-08-02T00:00:00.000Z', action: 'refund' }));
     expect(await res.json()).toMatchObject({ derived: 'refused' });

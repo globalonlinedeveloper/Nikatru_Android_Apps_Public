@@ -29,7 +29,7 @@
 //   every column the statement does not name)
 //
 // ⚠️ SCOPED TO *UNFILTERED* STATEMENTS ON PURPOSE. Backfills are existing,
-// legitimate practice here — services/subly-api/migrations/0002_schema_debt.sql
+// legitimate practice here — services/subscriptiontracker-api/migrations/0002_schema_debt.sql
 // carries two `UPDATE … SET … WHERE …` backfills that were applied --remote — so
 // a blanket ban would fail HEAD and be weakened within a week. A WHERE clause is
 // the difference between "repair these rows" and "wipe this column".
@@ -67,12 +67,12 @@ const PATTERNS = [
  *  🔴 THE LIST IS WRITTEN OUT, NOT DERIVED FROM `services/*` ON DISK, and that is
  *  the whole point: a derived list loses an entry at exactly the moment the
  *  directory it names disappears, which is the failure this check exists to
- *  catch. `services/subly-api` was MISSING here until 2026-08-01 — mutation-proven
- *  by renaming `services/subly-api/migrations`, after which the guard scanned 4
+ *  catch. `services/subscriptiontracker-api` was MISSING here until 2026-08-01 — mutation-proven
+ *  by renaming `services/subscriptiontracker-api/migrations`, after which the guard scanned 4
  *  files instead of 6 and still printed "clean". Its schema holds real user rows. */
 const REQUIRED_COVERAGE = [
   { fragment: 'services/platform', label: 'the shared platform_db migrations' },
-  { fragment: 'services/subly-api', label: "subly_db's own migrations — the flagship app's real user rows" },
+  { fragment: 'services/subscriptiontracker-api', label: "subly_db's own migrations — the flagship app's real user rows" },
   { fragment: 'tooling/bricks', label: "the brick's starter schema" },
 ];
 

@@ -12,10 +12,10 @@
 // no node APIs).
 //
 // 🔴 THIS GUARD USED TO READ ONE FILE. `const WRANGLER =
-// 'services/platform/wrangler.jsonc'` — hardcoded, with services/subly-api never
+// 'services/platform/wrangler.jsonc'` — hardcoded, with services/subscriptiontracker-api never
 // opened, while tooling/capability-register.json claimed ALLOWED_ORIGINS was
 // "guarded by assert-cors-allowlist.mjs" as if that covered the var generally.
-// Mutation-proven 2026-08-01: emptying services/subly-api/wrangler.jsonc's
+// Mutation-proven 2026-08-01: emptying services/subscriptiontracker-api/wrangler.jsonc's
 // ALLOWED_ORIGINS produced BYTE-IDENTICAL output and exit 0.
 //
 // 🔴 AND THEN IT HARDCODED THE ORIGINS. The fix above iterated every Worker but
@@ -85,7 +85,7 @@ const EXTRAS = {
       why: 'the local Subly web dev server (.claude/launch.json). It fetches config.nikatru.com cross-origin from the browser, and this Worker has NO localhost regex, so the origin must be listed explicitly.',
     },
   ],
-  'subly-api': [
+  'subscriptiontracker-api': [
     {
       origin: 'https://subly-9cp.pages.dev',
       why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform.',
@@ -131,8 +131,8 @@ function parseJsonc(path) {
 // and exits 0 forever — an assertion that cannot fail, which this repo treats
 // as worse than none. [10]D-8 limb (c) printed `0 comparison(s)`; an iOS
 // usage-key haystack held 0 keys while 18 tells compared against it.
-const MIN_SERVICES = 2; // platform + subly-api
-const MIN_CATALOGUE_ORIGINS = 1; // apps.json declares subly today
+const MIN_SERVICES = 2; // platform + subscriptiontracker-api
+const MIN_CATALOGUE_ORIGINS = 1; // apps.json declares subscriptiontracker today
 const MIN_PER_APP_WORKERS = 1; // the `<slug>-api` derivation must be LIVE, not theoretical
 
 if (!existsSync(SERVICES)) {
@@ -259,7 +259,7 @@ let perAppWorkers = 0;
 
 for (const { service, path, where } of configs) {
   const declared = SERVICE_POLICY[service];
-  // The `<slug>-api` derivation: app `subly` owns `services/subly-api`.
+  // The `<slug>-api` derivation: app `subscriptiontracker` owns `services/subscriptiontracker-api`.
   const owner = apps.find((a) => `${a.slug}-api` === service);
 
   let required;

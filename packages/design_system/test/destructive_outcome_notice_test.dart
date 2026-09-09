@@ -11,9 +11,9 @@ import 'package:nikatru_design_system/src/widgets/destructive_outcome_notice.dar
 /// Deleting an account signs the user out, so the router replaces the page stack
 /// — and a `SnackBar` or a dialog, both pageless routes on the page being
 /// removed, go with it. The brick posted its result to exactly such a messenger
-/// (`settings_screen.dart:650-657`); `apps/subly` measured the same thing from
+/// (`settings_screen.dart:650-657`); `apps/subscriptiontracker` measured the same thing from
 /// the other side and found ZERO widgets with the result key once the redirect
-/// settled (`apps/subly/lib/state/providers/auth.dart:568-574`).
+/// settled (`apps/subscriptiontracker/lib/state/providers/auth.dart:568-574`).
 ///
 /// This widget is the half that survives. What it must do is small and exact:
 /// render nothing when there is nothing to say, render the sentence it is handed

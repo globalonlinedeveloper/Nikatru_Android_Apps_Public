@@ -255,7 +255,7 @@ function run(o = {}) {
   }
   write(root, 'services/platform/test/money.test.ts', o.moneyTest ?? MONEY_TEST_TS);
   write(root, 'services/platform/wrangler.jsonc', o.wrangler ?? '{ "name": "platform", "vars": { "MONEY_ENVIRONMENT": "live" } }');
-  write(root, 'services/subly-api/src/routes/webhooks.ts', o.legacy ?? LEGACY_WEBHOOK_TS);
+  write(root, 'services/subscriptiontracker-api/src/routes/webhooks.ts', o.legacy ?? LEGACY_WEBHOOK_TS);
   write(root, BRICK_ACCOUNT, o.brickAccount ?? BRICK_ACCOUNT_TS);
   if (o.legalRegister !== null) {
     write(
@@ -315,10 +315,10 @@ describe('assert-mor-adapters — one verifier between a provider and the entitl
   test('FAILS on an undeclared writer in the LEGACY app Worker — the scan is not scoped to the new thing', () => {
     // The single most expensive recurring shape in this repo: a guard scoped to
     // services/platform reports clean standing next to a deployed writer in
-    // services/subly-api.
-    const r = run({ extra: { 'services/subly-api/src/routes/sneaky.ts': "await db.prepare('UPDATE entitlements SET is_active = 1').run();\n" } });
+    // services/subscriptiontracker-api.
+    const r = run({ extra: { 'services/subscriptiontracker-api/src/routes/sneaky.ts': "await db.prepare('UPDATE entitlements SET is_active = 1').run();\n" } });
     assert.equal(r.code, 1);
-    assert.match(r.out, /services\/subly-api\/src\/routes\/sneaky\.ts WRITES/);
+    assert.match(r.out, /services\/subscriptiontracker-api\/src\/routes\/sneaky\.ts WRITES/);
   });
 
   test('FAILS on an entitlements writer inside the BRICK template — [ADR 020]:18 scales to 50 apps', () => {
@@ -523,7 +523,7 @@ describe('assert-mor-adapters — one verifier between a provider and the entitl
     // A stale entry inflates apparent coverage and its gate claim can never fail.
     const r = run({ legacy: 'export const nothing = 1;\n' });
     assert.equal(r.code, 1);
-    assert.match(r.out, /DECLARED_WRITERS names `services\/subly-api\/src\/routes\/webhooks\.ts`, which no longer writes/);
+    assert.match(r.out, /DECLARED_WRITERS names `services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts`, which no longer writes/);
   });
 
   test('the PADDLE destination secret must never be a committed var', () => {
@@ -649,7 +649,7 @@ describe('the legacy rail writes a DECIDABLE row — the world column [2026-08-2
     assert.equal(r.code, 1, r.out);
     assert.match(
       r.out,
-      /COVERAGE LOST — services\/subly-api\/src\/routes\/webhooks\.ts carries 2 `INSERT INTO entitlements` statement\(s\) and this check could read the column list of only 1/,
+      /COVERAGE LOST — services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts carries 2 `INSERT INTO entitlements` statement\(s\) and this check could read the column list of only 1/,
     );
   });
 
@@ -664,7 +664,7 @@ describe('the legacy rail writes a DECIDABLE row — the world column [2026-08-2
     assert.equal(r.code, 1, r.out);
     assert.match(
       r.out,
-      /COVERAGE LOST — services\/subly-api\/src\/routes\/webhooks\.ts carries 1 `INSERT INTO entitlements` statement\(s\) and this check could read the column list of only 0/,
+      /COVERAGE LOST — services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts carries 1 `INSERT INTO entitlements` statement\(s\) and this check could read the column list of only 0/,
     );
   });
 
@@ -681,7 +681,7 @@ describe('the legacy rail writes a DECIDABLE row — the world column [2026-08-2
     assert.equal(r.code, 1, r.out);
     assert.match(
       r.out,
-      /COVERAGE LOST — services\/subly-api\/src\/routes\/webhooks\.ts is declared with a `provider_environment` column requirement/,
+      /COVERAGE LOST — services\/subscriptiontracker-api\/src\/routes\/webhooks\.ts is declared with a `provider_environment` column requirement/,
     );
   });
 });

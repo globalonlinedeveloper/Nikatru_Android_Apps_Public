@@ -259,7 +259,7 @@ for (const svc of owners) {
 
 // (ii) THE FINGERPRINT FLOOR — the nine statements this class is about, named
 // per file. A count would drift with any refactor; these say WHICH. Deleting the
-// subly-api pragma step (the mutation that re-creates half the outage) removes a
+// subscriptiontracker-api pragma step (the mutation that re-creates half the outage) removes a
 // row here even though the service still has a statement, which a count cannot
 // see.
 const FINGERPRINTS = [
@@ -267,11 +267,11 @@ const FINGERPRINTS = [
   ['services/platform/src/routes/account.ts', 'introspective', /pragma_table_info\(/i, 'the shared erasure route asks each table for its columns'],
   ['services/platform/src/routes/account.ts', 'dynamic-identifier', /^DELETE FROM /i, 'the shared erasure route empties a user-owned table'],
   ['services/platform/src/routes/account.ts', 'dynamic-identifier', /^UPDATE .* SET /i, 'the shared erasure route unlinks a *_user_id reference'],
-  ['services/subly-api/src/routes/account.ts', 'introspective', /FROM sqlite_master/i, "Subly's erasure route lists the tables"],
-  ['services/subly-api/src/routes/account.ts', 'introspective', /pragma_table_info\(/i, "Subly's erasure route asks each table for its columns"],
-  ['services/subly-api/src/routes/account.ts', 'dynamic-identifier', /^DELETE FROM /i, "Subly's erasure route empties a user-owned table"],
-  ['services/subly-api/src/routes/account.ts', 'dynamic-identifier', /^UPDATE .* SET /i, "Subly's erasure route unlinks a *_user_id reference"],
-  ['services/subly-api/src/routes/subscriptions.ts', 'dynamic-identifier', /^UPDATE subscriptions SET /i, 'the allowlisted-column subscription PATCH'],
+  ['services/subscriptiontracker-api/src/routes/account.ts', 'introspective', /FROM sqlite_master/i, "Subly's erasure route lists the tables"],
+  ['services/subscriptiontracker-api/src/routes/account.ts', 'introspective', /pragma_table_info\(/i, "Subly's erasure route asks each table for its columns"],
+  ['services/subscriptiontracker-api/src/routes/account.ts', 'dynamic-identifier', /^DELETE FROM /i, "Subly's erasure route empties a user-owned table"],
+  ['services/subscriptiontracker-api/src/routes/account.ts', 'dynamic-identifier', /^UPDATE .* SET /i, "Subly's erasure route unlinks a *_user_id reference"],
+  ['services/subscriptiontracker-api/src/routes/subscriptions.ts', 'dynamic-identifier', /^UPDATE subscriptions SET /i, 'the allowlisted-column subscription PATCH'],
 ];
 for (const [file, kind, pattern, what] of FINGERPRINTS) {
   const inv = scanned.get(file);
@@ -377,7 +377,7 @@ if (constrained === 0 && problems.length === 0) {
 // ─────────────────────────────────────────────────────────────────────────────
 const CAUSE_SITES = [
   'services/platform/src/routes/account.ts',
-  'services/subly-api/src/routes/account.ts',
+  'services/subscriptiontracker-api/src/routes/account.ts',
   'tooling/e2e/verify_purged.mjs',
 ];
 const wanted = normaliseProse(MEASURED_CAUSE);

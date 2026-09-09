@@ -3,7 +3,7 @@
 // assert-app-versioning.mjs — every shipped build carries a DIFFERENT, HIGHER,
 // traceable version, and the number is derived rather than typed.
 //
-// THE DEFECT THIS EXISTS FOR. `apps/subly/pubspec.yaml` read `version: 1.0.0+1`
+// THE DEFECT THIS EXISTS FOR. `apps/subscriptiontracker/pubspec.yaml` read `version: 1.0.0+1`
 // from the first deploy onward and nothing in the repository raised it. Two
 // things were broken by that, neither of them cosmetic:
 //
@@ -45,9 +45,9 @@
 //
 // Usage:
 //   node tooling/ci/assert-app-versioning.mjs [repoRoot]        # verify
-//   node tooling/ci/assert-app-versioning.mjs --emit apps/subly [repoRoot]
+//   node tooling/ci/assert-app-versioning.mjs --emit apps/subscriptiontracker [repoRoot]
 //     → prints `release_line=…` / `pubspec_version=…` in GITHUB_OUTPUT form.
-//   node tooling/ci/assert-app-versioning.mjs --tag subly-v1.0.0 [--app apps/subly] [repoRoot]
+//   node tooling/ci/assert-app-versioning.mjs --tag subscriptiontracker-v1.0.0 [--app apps/subscriptiontracker] [repoRoot]
 //     → the tag names the build name pubspec declares. See the --tag block.
 //
 // Exit 0 = wired, 1 = not wired (or the scan shrank), 2 = the flags name no check.
@@ -60,7 +60,7 @@ import { parseWorkflow } from './workflow-scan.mjs';
 // ── The release lanes are DERIVED FROM THE REGISTER, never typed here ─────────
 //
 // 🔴 THIS WAS `const RELEASE_LANES = [{ workflow: 'deploy-web.yml', app:
-// 'apps/subly' }]` — a one-entry hardcoded array — until 2026-08-03, and that
+// 'apps/subscriptiontracker' }]` — a one-entry hardcoded array — until 2026-08-03, and that
 // array was the whole of R-2's native half being unbuilt. The register already
 // carries a `lane: {workflow, job}` on three rows; a private second list here
 // could only ever describe the one lane somebody remembered, and the day a
@@ -146,7 +146,7 @@ const appFlag = takeFlag(tagFlag.rest, '--app');
 const emitApp = emitFlag.value;
 const repoRoot = appFlag.rest[0] ?? process.cwd();
 
-// 🔴 MODE COLLISION. MEASURED 2026-08-27: `--emit … --tag subly-v9.9.9` → 0; that tag alone → 1.
+// 🔴 MODE COLLISION. MEASURED 2026-08-27: `--emit … --tag subscriptiontracker-v9.9.9` → 0; that tag alone → 1.
 if (emitApp !== null && tagFlag.value !== null) {
   console.error('✗ --emit and --tag in one invocation — --emit answers first and the tag would never be read; run them as two steps');
   process.exit(2);
@@ -210,8 +210,8 @@ if (emitApp) {
 //
 // THE HOLE. `RELEASE_TAG` comes straight from `github.ref_name`
 // (build-platforms.yml:380-384, `TAG="$REF_NAME"` at :381) with nothing validating it,
-// then renames every staged installer and titles the Release. Tag `subly-v9.9.9`
-// today and the lane publishes `subly-v9.9.9-app-release.aab` whose build name
+// then renames every staged installer and titles the Release. Tag `subscriptiontracker-v9.9.9`
+// today and the lane publishes `subscriptiontracker-v9.9.9-app-release.aab` whose build name
 // is whatever pubspec says. The tag is the one claim a downloader reads BEFORE
 // opening the file, and nothing cross-read it; the requirement existed in prose
 // only, at tooling/release/RELEASE-RUNBOOK.md:264.

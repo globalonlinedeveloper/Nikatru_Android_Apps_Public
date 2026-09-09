@@ -34,7 +34,7 @@ class Entitlement {
   /// forever, with no error anywhere. That is the opposite direction from every
   /// other parse in this package (`AnalyticsEvent.tryFromJson` returns null,
   /// `ConfigCache.hydrate` skips the entry) and the mirror image of the server
-  /// bug in `services/subly-api/src/routes/entitlements.ts`, which read an
+  /// bug in `services/subscriptiontracker-api/src/routes/entitlements.ts`, which read an
   /// unparseable expiry as `is_pro: true`. Fixing one end alone just moves where
   /// the fail-open lives, so both are fixed together.
   ///

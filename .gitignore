@@ -80,8 +80,8 @@ KEYSTORE_B64*
 AuthKey_*.p8
 
 # ── App live config (dart-define-from-file; non-secret but env-specific) ──
-apps/subly/config/*.json
-!apps/subly/config/*.example.json
+apps/subscriptiontracker/config/*.json
+!apps/subscriptiontracker/config/*.example.json
 
 # ── Flutter / Dart (GLOBAL — survives app/→apps/ move) ──
 **/.dart_tool/
@@ -95,8 +95,8 @@ apps/subly/config/*.json
 **/android/local.properties
 # Kotlin compiler session files (`.kotlin/sessions/*.salive`). FOUND THE ONLY WAY
 # THIS CLASS EVER GETS FOUND — by running a real Android build, 2026-08-17, which
-# created `apps/subly/android/.kotlin/` UNTRACKED AND UNIGNORED. Never committed
-# (`git log --all -- apps/subly/android/.kotlin` is empty), so nothing leaked; the
+# created `apps/subscriptiontracker/android/.kotlin/` UNTRACKED AND UNIGNORED. Never committed
+# (`git log --all -- apps/subscriptiontracker/android/.kotlin` is empty), so nothing leaked; the
 # rule is added before the first `git add -A` rather than after, which is the same
 # doctrine as the `Private/` and `Private.*/` lines above.
 # ⚠️ It appears only on a machine that has actually built for Android, and this
@@ -135,7 +135,7 @@ coverage/
 
 # ── Pub workspace root artifacts ──
 /.dart_tool/
-# Root workspace lock IS committed (reproducible app builds; apps/subly is a
+# Root workspace lock IS committed (reproducible app builds; apps/subscriptiontracker is a
 # resolution: workspace member). Member locks stay ignored via **/pubspec.lock above.
 !/pubspec.lock
 
@@ -204,7 +204,7 @@ apps/*/l10n-untranslated.json
 # ([ADR 067] decision 2, unit `chassis-l10n`). `packages/design_system/l10n.yaml`
 # drives gen-l10n over `lib/src/l10n/chassis_*.arb`, and `flutter pub get` at the
 # WORKSPACE ROOT regenerates it — measured 2026-09-06 by deleting the triplet and
-# re-resolving, which brought back all three beside `apps/subly`'s.
+# re-resolving, which brought back all three beside `apps/subscriptiontracker`'s.
 #
 # 🔴 UNTRACKED IS NOT A CONVENIENCE HERE, IT IS WHAT KEEPS assert-no-gate-weakening
 # HONEST. gen-l10n emits `// ignore_for_file: type=lint` and `// ignore:

@@ -241,41 +241,41 @@ function fixtureRows(): Row[] {
 
   const COHORT = ['s1', 's2', 's3', 's4', 's5', 's6'];
 
-  // ── subly ────────────────────────────────────────────────────────────────
-  for (const a of COHORT) add('subly', a, 'first_launch', '2026-03-01T10:00:00.000Z');
-  add('subly', 's1', 'first_launch', '2026-03-01T10:00:05.000Z'); // A · same day, twice
-  add('subly', 's2', 'first_launch', '2026-03-05T08:00:00.000Z'); // B · reinstall, later day
+  // ── subscriptiontracker ────────────────────────────────────────────────────────────────
+  for (const a of COHORT) add('subscriptiontracker', a, 'first_launch', '2026-03-01T10:00:00.000Z');
+  add('subscriptiontracker', 's1', 'first_launch', '2026-03-01T10:00:05.000Z'); // A · same day, twice
+  add('subscriptiontracker', 's2', 'first_launch', '2026-03-05T08:00:00.000Z'); // B · reinstall, later day
 
-  for (const a of ['s1', 's2', 's3']) add('subly', a, 'activation', '2026-03-01T10:05:00.000Z');
-  add('subly', 's4', 'activation', '2026-03-20T11:00:00.000Z'); // activation days after the launch
+  for (const a of ['s1', 's2', 's3']) add('subscriptiontracker', a, 'activation', '2026-03-01T10:05:00.000Z');
+  add('subscriptiontracker', 's4', 'activation', '2026-03-20T11:00:00.000Z'); // activation days after the launch
 
   // retention: D1 = s1 s2 s3 · D7 = s1 s2 · D30 = s1 · s5 returns on day 3 (none)
-  for (const a of ['s1', 's2', 's3']) add('subly', a, 'return_visit', '2026-03-02T09:00:00.000Z');
-  for (const a of ['s1', 's2']) add('subly', a, 'return_visit', '2026-03-08T09:00:00.000Z');
-  add('subly', 's1', 'return_visit', '2026-03-31T09:00:00.000Z');
-  add('subly', 's5', 'return_visit', '2026-03-04T09:00:00.000Z');
-  add('subly', 's4', 'return_visit', '2026-03-01T08:00:00.000Z'); // C · before its own launch
+  for (const a of ['s1', 's2', 's3']) add('subscriptiontracker', a, 'return_visit', '2026-03-02T09:00:00.000Z');
+  for (const a of ['s1', 's2']) add('subscriptiontracker', a, 'return_visit', '2026-03-08T09:00:00.000Z');
+  add('subscriptiontracker', 's1', 'return_visit', '2026-03-31T09:00:00.000Z');
+  add('subscriptiontracker', 's5', 'return_visit', '2026-03-04T09:00:00.000Z');
+  add('subscriptiontracker', 's4', 'return_visit', '2026-03-01T08:00:00.000Z'); // C · before its own launch
 
   // funnel, with E's repeats at the top of it
-  for (const a of COHORT) add('subly', a, 'paywall_viewed', '2026-03-03T12:00:00.000Z');
-  add('subly', 's1', 'paywall_viewed', '2026-03-03T12:05:00.000Z');
-  add('subly', 's1', 'paywall_viewed', '2026-03-03T12:10:00.000Z');
-  for (const a of ['s1', 's2', 's3']) add('subly', a, 'checkout_started', '2026-03-03T12:01:00.000Z');
-  for (const a of ['s1', 's2']) add('subly', a, 'purchase_success', '2026-03-03T12:02:00.000Z');
-  add('subly', 's3', 'purchase_failed', '2026-03-03T12:02:00.000Z');
+  for (const a of COHORT) add('subscriptiontracker', a, 'paywall_viewed', '2026-03-03T12:00:00.000Z');
+  add('subscriptiontracker', 's1', 'paywall_viewed', '2026-03-03T12:05:00.000Z');
+  add('subscriptiontracker', 's1', 'paywall_viewed', '2026-03-03T12:10:00.000Z');
+  for (const a of ['s1', 's2', 's3']) add('subscriptiontracker', a, 'checkout_started', '2026-03-03T12:01:00.000Z');
+  for (const a of ['s1', 's2']) add('subscriptiontracker', a, 'purchase_success', '2026-03-03T12:02:00.000Z');
+  add('subscriptiontracker', 's3', 'purchase_failed', '2026-03-03T12:02:00.000Z');
 
   // notifications
-  for (const a of ['s1', 's2', 's3']) add('subly', a, 'notification_opened', '2026-03-06T08:00:00.000Z');
-  add('subly', 's1', 'notification_opened', '2026-03-06T08:30:00.000Z'); // E
-  add('subly', 's6', 'notif_opt_out', '2026-03-06T08:30:00.000Z');
+  for (const a of ['s1', 's2', 's3']) add('subscriptiontracker', a, 'notification_opened', '2026-03-06T08:00:00.000Z');
+  add('subscriptiontracker', 's1', 'notification_opened', '2026-03-06T08:30:00.000Z'); // E
+  add('subscriptiontracker', 's6', 'notif_opt_out', '2026-03-06T08:30:00.000Z');
 
   // features
   const used = (app: string, a: string, name: string, ts: string) =>
     add(app, a, 'feature_used', ts, JSON.stringify({ name }));
-  used('subly', 's1', 'budget_view', '2026-03-03T13:00:00.000Z');
-  used('subly', 's1', 'budget_view', '2026-03-03T13:30:00.000Z'); // E · same day, same feature
-  used('subly', 's2', 'budget_view', '2026-03-03T13:00:00.000Z');
-  used('subly', 's3', 'budget_view', '2026-03-10T13:00:00.000Z');
+  used('subscriptiontracker', 's1', 'budget_view', '2026-03-03T13:00:00.000Z');
+  used('subscriptiontracker', 's1', 'budget_view', '2026-03-03T13:30:00.000Z'); // E · same day, same feature
+  used('subscriptiontracker', 's2', 'budget_view', '2026-03-03T13:00:00.000Z');
+  used('subscriptiontracker', 's3', 'budget_view', '2026-03-10T13:00:00.000Z');
   // G · SAME install, SAME feature, TWO DIFFERENT DAYS. Distinct from E above,
   // which is same-day. The rollup collapses per (day, install, feature), so a
   // same-day repeat becomes ONE `events_daily` row and `COUNT(anon_id)` over the
@@ -283,13 +283,13 @@ function fixtureRows(): Row[] {
   // SURVIVED the fixture (measured: `COUNT(DISTINCT anon_id)` -> `COUNT(anon_id)`
   // on 05:95 left all 87 tests green). Only a DAY-SPANNING repeat produces two
   // rollup rows for one install and makes the two forms disagree.
-  used('subly', 's2', 'budget_view', '2026-03-10T13:00:00.000Z');
-  used('subly', 's1', 'reminder_set', '2026-03-03T13:05:00.000Z');
-  used('subly', 's4', 'reminder_set', '2026-03-03T13:05:00.000Z');
-  used('subly', 's5', 'export_csv', '2026-03-12T13:10:00.000Z');
-  add('subly', 's6', 'feature_used', '2026-03-03T13:10:00.000Z', '{}'); // D
+  used('subscriptiontracker', 's2', 'budget_view', '2026-03-10T13:00:00.000Z');
+  used('subscriptiontracker', 's1', 'reminder_set', '2026-03-03T13:05:00.000Z');
+  used('subscriptiontracker', 's4', 'reminder_set', '2026-03-03T13:05:00.000Z');
+  used('subscriptiontracker', 's5', 'export_csv', '2026-03-12T13:10:00.000Z');
+  add('subscriptiontracker', 's6', 'feature_used', '2026-03-03T13:10:00.000Z', '{}'); // D
 
-  add('subly', 's7', 'return_visit', '2026-03-15T09:00:00.000Z'); // F · active, never launched
+  add('subscriptiontracker', 's7', 'return_visit', '2026-03-15T09:00:00.000Z'); // F · active, never launched
 
   // H · a `first_launch` sitting EXACTLY on a window END boundary day
   // (2026-04-01 is the `march` window's exclusive end). Every other install in
@@ -297,7 +297,7 @@ function fixtureRows(): Row[] {
   // 2026-02-10 and 2026-04-08 — so the cohort's end comparison was never
   // exercised at the one input where `<` and `<=` differ. Measured: changing
   // 01:63 `day <` to `day <=` left all 87 tests green before this row existed.
-  add('subly', 's90', 'first_launch', '2026-04-01T10:00:00.000Z');
+  add('subscriptiontracker', 's90', 'first_launch', '2026-04-01T10:00:00.000Z');
 
   // ── negative control · another app, same days ────────────────────────────
   for (const a of ['l1', 'l2']) {
@@ -318,11 +318,11 @@ function fixtureRows(): Row[] {
     ['s98', '2026-02-10'],
     ['s99', '2026-04-08'],
   ] as const) {
-    add('subly', anon, 'first_launch', `${day}T10:00:00.000Z`);
-    add('subly', anon, 'activation', `${day}T10:05:00.000Z`);
-    add('subly', anon, 'paywall_viewed', `${day}T12:00:00.000Z`);
-    add('subly', anon, 'notification_opened', `${day}T08:00:00.000Z`);
-    used('subly', anon, 'legacy_feature', `${day}T13:00:00.000Z`);
+    add('subscriptiontracker', anon, 'first_launch', `${day}T10:00:00.000Z`);
+    add('subscriptiontracker', anon, 'activation', `${day}T10:05:00.000Z`);
+    add('subscriptiontracker', anon, 'paywall_viewed', `${day}T12:00:00.000Z`);
+    add('subscriptiontracker', anon, 'notification_opened', `${day}T08:00:00.000Z`);
+    used('subscriptiontracker', anon, 'legacy_feature', `${day}T13:00:00.000Z`);
   }
 
   return rows;
@@ -342,7 +342,7 @@ const WINDOWS = [
   { name: 'a window with no data at all', start: '2026-05-01T00:00:00.000Z', end: '2026-06-01T00:00:00.000Z' },
 ] as const;
 
-const APPS = ['subly', 'lingo', 'nope'] as const;
+const APPS = ['subscriptiontracker', 'lingo', 'nope'] as const;
 
 function insert(db: RealDb, rows: Row[]): void {
   const stmt = db.db.prepare(
@@ -418,7 +418,7 @@ describe('[pipeline 11]E-11 · the raw/rollup comparison is capable of failing',
 
   it('🔴 the CALLER CONTRACT is unchanged — same parameter indexes, same reference counts, no bare `?`', () => {
     // ⚠️ NEITHER `node:sqlite` NOR THIS SUITE WOULD CATCH A FOURTH PARAMETER BY
-    // RUNNING. Measured: `stmt.all('subly', start)` against every one of these
+    // RUNNING. Measured: `stmt.all('subscriptiontracker', start)` against every one of these
     // five files SUCCEEDS on node:sqlite — an unbound `?3` is simply NULL. D1
     // rejects a bind-count mismatch, so the failure would appear in production
     // and nowhere else. The contract therefore has to be asserted STRUCTURALLY,
@@ -581,8 +581,8 @@ describe('[pipeline 11]E-11 · the day window is a REAL loss, and it is not a "w
   const both = (start: string, end: string) => {
     const p = PAYWALL();
     return {
-      raw: db.rows(p.baseline, 'subly', start, end)[0],
-      rollup: db.rows(p.shipped, 'subly', start, end)[0],
+      raw: db.rows(p.baseline, 'subscriptiontracker', start, end)[0],
+      rollup: db.rows(p.shipped, 'subscriptiontracker', start, end)[0],
     };
   };
 
@@ -622,14 +622,14 @@ describe('[pipeline 11]E-11 · known divergences, measured (05-feature-adoption 
   // the rollup's answer is arguably the better one — but "the one and only" was
   // false, and a wrong count of the known losses is how the next one is missed.
   const FEATURES = () => PAIRS.find((p) => p.id === 'feature_adoption')!;
-  const WIN = ['subly', '2026-03-01T00:00:00.000Z', '2026-04-01T00:00:00.000Z'] as const;
+  const WIN = ['subscriptiontracker', '2026-03-01T00:00:00.000Z', '2026-04-01T00:00:00.000Z'] as const;
 
   async function withParams(params: string[]): Promise<{ raw: unknown[]; rollup: unknown[] }> {
     const db = realPlatformDb();
     insert(
       db,
       params.map((p, i) => ({
-        app: 'subly',
+        app: 'subscriptiontracker',
         anon: `d${i}`,
         event: 'feature_used',
         ts: '2026-03-03T13:00:00.000Z',

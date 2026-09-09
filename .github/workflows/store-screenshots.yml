@@ -54,7 +54,7 @@ jobs:
         uses: nanasess/setup-chromedriver@e913548694400f275b4070efcd90f47dbbc8914c # v3.0.0
 
       - name: flutter pub get
-        working-directory: apps/subly
+        working-directory: apps/subscriptiontracker
         run: flutter pub get --enforce-lockfile
 
       - name: Provision throwaway confirmed user
@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           export CHROME_EXECUTABLE="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser)"
           echo "Chrome: $CHROME_EXECUTABLE"
-          node tooling/store/capture-play-screenshots.mjs --app subly
+          node tooling/store/capture-play-screenshots.mjs --app subscriptiontracker
 
       - name: The captured set satisfies the listing-asset guard
         run: node tooling/ci/assert-listing-assets.mjs
@@ -83,10 +83,10 @@ jobs:
       - name: Upload the screenshot set
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: play-screenshots-subly
+          name: play-screenshots-subscriptiontracker
           path: |
-            apps/subly/store/android-play/screenshots/
-            apps/subly/store/android-play/screenshots-tablet/
+            apps/subscriptiontracker/store/android-play/screenshots/
+            apps/subscriptiontracker/store/android-play/screenshots-tablet/
           if-no-files-found: error
 
       # why: PROPOSED, never pushed. Screenshots are a sworn store filing; a machine may
@@ -102,7 +102,7 @@ jobs:
           # produces two device types and a PR proposing one is a PR that leaves
           # the listing one type short — which is exactly the state
           # assert-play-device-coverage.mjs fails the submission lane for.
-          SHOTS="apps/subly/store/android-play/screenshots apps/subly/store/android-play/screenshots-tablet"
+          SHOTS="apps/subscriptiontracker/store/android-play/screenshots apps/subscriptiontracker/store/android-play/screenshots-tablet"
           BRANCH="chore/play-screenshots-${{ github.run_id }}"
 
           git config user.name  "github-actions[bot]"
@@ -164,7 +164,7 @@ jobs:
               REMEDY='REMEDY: read the gh output above.'
             fi
 
-            echo "::error title=The screenshot set was captured but the pull request could not be opened::${CAUSE} THE CAPTURE IS NOT LOST — branch ${BRANCH} is pushed and the same pixels are already uploaded as this run's play-screenshots-subly artifact; open the pull request by hand from ${BRANCH} into ${GITHUB_REF_NAME}. ${REMEDY}"
+            echo "::error title=The screenshot set was captured but the pull request could not be opened::${CAUSE} THE CAPTURE IS NOT LOST — branch ${BRANCH} is pushed and the same pixels are already uploaded as this run's play-screenshots-subscriptiontracker artifact; open the pull request by hand from ${BRANCH} into ${GITHUB_REF_NAME}. ${REMEDY}"
             exit 1
           fi
 

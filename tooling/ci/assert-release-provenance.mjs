@@ -131,7 +131,7 @@
 // counts FOUR publish jobs —
 //     build-platforms.yml  "release"     a GitHub Release publish
 //     deploy-web.yml       "deploy-web"  a Cloudflare deploy action
-//     deploy-workers.yml   "subly-api"   a Cloudflare deploy action
+//     deploy-workers.yml   "subscriptiontracker-api"   a Cloudflare deploy action
 //     deploy-workers.yml   "platform"    a Cloudflare deploy action
 // — and `release` is the only one of the four that hands over a DOWNLOADABLE,
 // IMMUTABLE artifact. The other three replace a running service, and replacing
@@ -368,7 +368,7 @@ const NEUTRALIZING_IF = /\balways\s*\(|\bfailure\s*\(/;
 // (`-E`, because with a plain `grep` those `|` are literal and the command prints
 // nothing) names submit-play.mjs and submit-snap.mjs and NOTHING else, while
 // `grep -rl -- --submit tooling/release/*.mjs` names four files. It is also SUBMIT-TIME ONLY: running
-// `submit-play.mjs --dry-run --app subly --allow-missing-artifact` this session
+// `submit-play.mjs --dry-run --app subscriptiontracker --allow-missing-artifact` this session
 // EXITED 0 and printed no `PG-` line at all, so the check ci.yml runs on every
 // push is not the check that reads the YAML. This limb is the CI-time, lane-
 // generic half: the day submit-appstore.yml or submit-windows-store.yml grows a

@@ -19,7 +19,7 @@
 // out of the tree FAILS LOUDLY instead of quietly testing nothing.
 //
 // ── WHAT IS A FAILURE AND WHAT IS A PRINT ────────────────────────────────────
-// In `apps/subly` an uncovered surface FAILS the build — unchanged, and R1 pins
+// In `apps/subscriptiontracker` an uncovered surface FAILS the build — unchanged, and R1 pins
 // it. In the two roots the 2026-09-05 widening added (the brick template and
 // `packages/design_system`) the uncovered half is PRINTED and not failed,
 // because those roots entered the domain that day carrying seventeen unmeasured
@@ -57,7 +57,7 @@ const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-responsive-coverage.mjs');
 
-const APP = 'apps/subly';
+const APP = 'apps/subscriptiontracker';
 const ROUTER = `${APP}/lib/core/router.dart`;
 // 🔴 THE ROUTER IS A SPINE, NOT A FILE (2026-09-04, P1b) — `router.dart` is a
 // BARREL over `lib/core/router/`, and copying only the barrel gives a fixture a
@@ -73,7 +73,7 @@ const HARNESS = `${TESTS}/support/width_harness.dart`;
 const RESET_PW = `${TESTS}/width_reset_password_test.dart`;
 
 // 🔴 THE MANIFESTS ARE PART OF THE SUBJECT. The guard's domain used to be
-// `const APP = 'apps/subly'`; it is now DERIVED from `tooling/bricks/app/
+// `const APP = 'apps/subscriptiontracker'`; it is now DERIVED from `tooling/bricks/app/
 // brick.yaml` plus the root `pubspec.yaml` `workspace:` list, so a fixture with
 // no manifests derives NO ROOT and the guard correctly refuses it.
 const WORKSPACE_MANIFEST = 'pubspec.yaml';
@@ -172,7 +172,7 @@ const fails = (out) => out.split('\n').filter((l) => l.startsWith('FAIL '));
 // guard that can only ever say "uncovered".
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the guard says YES on the tree as it is', () => {
-  test('the REAL repository — 4 derived roots, subly EQUAL, exit 0', () => {
+  test('the REAL repository — 4 derived roots, subscriptiontracker EQUAL, exit 0', () => {
     const { code, out } = run(REPO);
     assert.equal(code, 0, out);
     // 🔴 THE ROOT LINE IS PINNED BECAUSE THE ROOT LINE IS THE FIX. The domain
@@ -183,7 +183,7 @@ describe('the guard says YES on the tree as it is', () => {
     // FOUR since [ADR 071] added packages/chassis_screens — the one root here
     // that ENFORCES rather than reports.
     assert.match(out, /4 root\(s\) DERIVED, never listed/);
-    assert.match(out, /apps\/subly \(workspace app member\)/);
+    assert.match(out, /apps\/subscriptiontracker \(workspace app member\)/);
     assert.match(
       out,
       /packages\/design_system \(workspace package member: declares flutter_test AND a public widget\)/,
@@ -199,22 +199,22 @@ describe('the guard says YES on the tree as it is', () => {
     // measured" would print as a cheerful report-mode line if it ever slipped.
     assert.match(out, /packages\/chassis_screens: 17 surface\(s\) reachable, 17 measured — the two sets are EQUAL/);
 
-    assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
+    assert.match(out, /apps\/subscriptiontracker: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
     assert.match(
       out,
-      /apps\/subly: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/,
+      /apps\/subscriptiontracker: every measured surface is pumped at kPhone \(375\), kTablet \(768\), kDesktop \(1280\)/,
     );
     // The two report-mode roots, and the shape of what they report.
     assert.match(out, /\{\{app_id\}\}: 3 of 12 surface\(s\) measured — 2 PRINTED and not failed/);
     assert.match(out, /packages\/design_system: 11 of 19 surface\(s\) measured — 8 PRINTED and not failed/);
   });
 
-  test('the copied subject tree reproduces the subly reading exactly — and derives ONE root', () => {
+  test('the copied subject tree reproduces the subscriptiontracker reading exactly — and derives ONE root', () => {
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
-    assert.match(out, /1 root\(s\) DERIVED, never listed — apps\/subly \(workspace app member\)/);
+    assert.match(out, /1 root\(s\) DERIVED, never listed — apps\/subscriptiontracker \(workspace app member\)/);
     assert.match(out, /PARTIAL TREE: the declared-root-must-exist clause is SKIPPED/);
-    assert.match(out, /apps\/subly: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
+    assert.match(out, /apps\/subscriptiontracker: 19 surface\(s\) reachable, 19 measured — the two sets are EQUAL/);
     assert.equal(fails(out).length, 0, out);
   });
 });
@@ -222,7 +222,7 @@ describe('the guard says YES on the tree as it is', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // THE TWO DIRECTIONS OF THE EQUALITY, IN THE ENFORCED ROOT
 // ─────────────────────────────────────────────────────────────────────────────
-describe('set equality, both directions, in apps/subly', () => {
+describe('set equality, both directions, in apps/subscriptiontracker', () => {
   test('R1 · a routed screen whose width test stops constructing it — UNCOVERED SURFACE', () => {
     const root = tree();
     // The import stays, so provenance survives and the ONLY thing that changed
@@ -232,7 +232,7 @@ describe('set equality, both directions, in apps/subly', () => {
     assert.equal(code, 1, out);
     assert.match(out, /FAIL UNCOVERED SURFACE — `ResetPasswordScreen`/);
     // ⚠️ THE COVERED FLOOR CO-FIRES, AND IT IS PINNED RATHER THAN LEFT
-    // UNSTATED. subly's `coveredSurfaces` floor is its WHOLE domain, so any
+    // UNSTATED. subscriptiontracker's `coveredSurfaces` floor is its WHOLE domain, so any
     // surface losing its measurement trips both limbs. The measured reading is
     // the record; a third finding appearing here means something else moved.
     //
@@ -241,7 +241,7 @@ describe('set equality, both directions, in apps/subly', () => {
     // suppressed the whole equality section and the run reported "18 measured,
     // floor is 19" and NEVER NAMED THE SURFACE. This assertion is what pins
     // the fix: the specific finding must survive the general one.
-    assert.match(out, /FAIL COVERAGE LOST — `apps\/subly` has 18 measured surface\(s\).*floor is 19/s);
+    assert.match(out, /FAIL COVERAGE LOST — `apps\/subscriptiontracker` has 18 measured surface\(s\).*floor is 19/s);
     assert.equal(fails(out).length, 2, out);
   });
 
@@ -265,8 +265,8 @@ describe('set equality, both directions, in apps/subly', () => {
     edit(
       root,
       `${TESTS}/width_onboarding_test.dart`,
-      "import 'package:subly/features/onboarding/onboarding_screen.dart';",
-      "import 'package:subly/features/firstrun/onboarding_screen.dart';",
+      "import 'package:subscriptiontracker/features/onboarding/onboarding_screen.dart';",
+      "import 'package:subscriptiontracker/features/firstrun/onboarding_screen.dart';",
     );
     const { code, out } = run(root);
     assert.equal(code, 1, out);
@@ -318,7 +318,7 @@ describe('the widths a case actually pumps', () => {
     assert.equal(code, 1, out);
     // ⚠️ THE FALLBACK IS WHY THIS MESSAGE AND NOT THE EMPTY ONE. With no
     // harness the guard harvests window classes from the corpus itself (the
-    // brick declares its four inline), and subly's width tests DO declare local
+    // brick declares its four inline), and subscriptiontracker's width tests DO declare local
     // constants — kJustBelowLarge, kAtSplit, kShell. So the set is not empty;
     // it simply no longer contains the three that are required, which is a
     // requirement naming a constant that does not exist.
@@ -342,7 +342,7 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
     }
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — the ROUTED set of `apps\/subly` parsed EMPTY/);
+    assert.match(out, /COVERAGE LOST — the ROUTED set of `apps\/subscriptiontracker` parsed EMPTY/);
   });
 
   test('R4 · a screen AND its width test leave together — only the surfaces floor sees it', () => {
@@ -363,7 +363,7 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
     rmSync(join(root, `${TESTS}/width_notifications_test.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `apps\/subly` has only 18 responsive surface\(s\).*floor is 19/s);
+    assert.match(out, /COVERAGE LOST — `apps\/subscriptiontracker` has only 18 responsive surface\(s\).*floor is 19/s);
     // Proof the equality really did stay quiet — the thing this floor exists
     // for. If an UNCOVERED or DEAD line appears here the mutation stopped being
     // the silent one it is named for.
@@ -381,7 +381,7 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
     );
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /FAIL `AppShell` is excluded in NOT_A_PANE for `apps\/subly` but no route in .* builds it/);
+    assert.match(out, /FAIL `AppShell` is excluded in NOT_A_PANE for `apps\/subscriptiontracker` but no route in .* builds it/);
   });
 });
 
@@ -425,11 +425,11 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
 
   test('R9b · the APP cut from the workspace list — COVERAGE LOST', () => {
     const root = treeWithNewRoots();
-    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', '');
+    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subscriptiontracker', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
-    assert.match(out, /`apps\/subly`/);
+    assert.match(out, /`apps\/subscriptiontracker`/);
   });
 });
 
@@ -536,7 +536,7 @@ describe('a report-mode root can get better, never quietly worse', () => {
 // under its floor of 3, which is a COVERAGE LOST finding about a tree where the
 // measurement is right there, green, one import away.
 //
-// THE BRICK IS THE ROOT USED, NOT `apps/subly`, AND THAT IS DELIBERATE. subly
+// THE BRICK IS THE ROOT USED, NOT `apps/subscriptiontracker`, AND THAT IS DELIBERATE. subscriptiontracker
 // measures all 19 of its surfaces, so a delegation there changes no number and
 // the tests below would pass against a resolver that does nothing at all. The
 // brick measures exactly 3 of 12 with a floor at 3 — zero slack — so moving one
@@ -757,7 +757,7 @@ describe('the chassis_screens floors are floors, not report lines', () => {
       /COVERAGE LOST — `packages\/chassis_screens` yielded only 16 width test file\(s\).*checked-in floor is 17/s,
     );
     // This root ENFORCES, so the surface the deleted file measured is a FAIL and
-    // not a print — the half R12 pins for apps/subly, here for the new root.
+    // not a print — the half R12 pins for apps/subscriptiontracker, here for the new root.
     //
     // 🔴 THE MESSAGE MOVED FROM `UNCOVERED SURFACE` TO `UNMEASURED WIDTH` ON
     // 2026-09-07, AND THE MOVE IS STRICTER RATHER THAN WEAKER. The a11y suites

@@ -8,7 +8,7 @@
 // This repository has shipped a guard whose six fixture tests all passed against
 // a broken version (assert-seams-wired.mjs): a fixture you write encodes the
 // same misunderstanding as the guard you write. The copy carries the real
-// services/platform, the real services/subly-api, the real e2e/ops/scripts
+// services/platform, the real services/subscriptiontracker-api, the real e2e/ops/scripts
 // harnesses and the tooling/ci modules the mechanism reads — so every mutation
 // below is one somebody could make in a diff. The FIRST test runs against the
 // true repository root, unmodified and untrimmed, so the trimming the copy does
@@ -48,8 +48,8 @@ const STATIC_GUARD = join(REPO, 'tooling', 'ci', 'assert-d1-sql-inventory.mjs');
 const LIVE_GUARD = join(REPO, 'tooling', 'ops', 'check-d1-accepts-live-sql.mjs');
 
 const PLATFORM_ROUTE = 'services/platform/src/routes/account.ts';
-const SUBLY_ROUTE = 'services/subly-api/src/routes/account.ts';
-const SUBS_ROUTE = 'services/subly-api/src/routes/subscriptions.ts';
+const SUBLY_ROUTE = 'services/subscriptiontracker-api/src/routes/account.ts';
+const SUBS_ROUTE = 'services/subscriptiontracker-api/src/routes/subscriptions.ts';
 
 /** The tooling/ci modules the mechanism reads. The rest of that directory is
  *  scanned in the real-repo test below; trimming it here keeps ~25 tree copies
@@ -65,7 +65,7 @@ const CI_MODULES = [
 
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-d1-sql-'));
-  for (const svc of ['services/platform', 'services/subly-api']) {
+  for (const svc of ['services/platform', 'services/subscriptiontracker-api']) {
     mkdirSync(join(root, svc), { recursive: true });
     cpSync(join(REPO, svc, 'src'), join(root, svc, 'src'), { recursive: true });
     copyFileSync(join(REPO, svc, 'wrangler.jsonc'), join(root, svc, 'wrangler.jsonc'));
@@ -324,7 +324,7 @@ describe('R1 — the shapes production D1 ACCEPTS stay green', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('R2 — required coverage, both directions', () => {
-  test('deleting subly-api\'s pragma step loses a NAMED statement, not just a count', () => {
+  test('deleting subscriptiontracker-api\'s pragma step loses a NAMED statement, not just a count', () => {
     withTree(
       (root) =>
         edit(root, SUBLY_ROUTE, (s) =>
@@ -353,7 +353,7 @@ describe('R2 — required coverage, both directions', () => {
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R2 i\] services\/subly-api owns subly_db and not one of its/);
+        assert.match(r.stderr, /\[R2 i\] services\/subscriptiontracker-api owns subly_db and not one of its/);
       },
     );
   });
@@ -446,7 +446,7 @@ describe('R3 — interpolated identifiers are constrained', () => {
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R3\] services\/subly-api\/src\/routes\/subscriptions\.ts/);
+        assert.match(r.stderr, /\[R3\] services\/subscriptiontracker-api\/src\/routes\/subscriptions\.ts/);
       },
     );
   });
@@ -471,7 +471,7 @@ describe('R4 — the cause sentence cannot drift from the constant', () => {
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R4\] services\/subly-api\/src\/routes\/account\.ts/);
+        assert.match(r.stderr, /\[R4\] services\/subscriptiontracker-api\/src\/routes\/account\.ts/);
       },
     );
   });

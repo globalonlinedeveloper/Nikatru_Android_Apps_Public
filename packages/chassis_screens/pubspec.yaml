@@ -44,7 +44,7 @@ environment:
 #
 # THE STANDING RULE THIS CREATES: a third-party dependency added here turns
 # this package into an adapter and reddens the build for two-thirds of the
-# `apps/subly` import sites. If a screen body needs a plugin, the plugin call
+# `apps/subscriptiontracker` import sites. If a screen body needs a plugin, the plugin call
 # stays in the brick adapter and this package takes a callback.
 dependencies:
   flutter:

@@ -234,7 +234,7 @@ async function recordUnclaimed(
  * WHERE refused it, which is exactly the "an older event arrived late" case.
  *
  * ⚠️ `is_active` AND `expires_at` ARE KEPT IN STEP WITH THE NEW COLUMNS ON
- * PURPOSE. services/subly-api/src/routes/entitlements.ts is a released reader
+ * PURPOSE. services/subscriptiontracker-api/src/routes/entitlements.ts is a released reader
  * that knows only those two, and two readers of one row that can disagree is a
  * defect waiting for a deploy-order accident.
  */

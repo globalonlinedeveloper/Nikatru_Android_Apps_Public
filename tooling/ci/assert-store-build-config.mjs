@@ -73,7 +73,7 @@ const APPS = 'catalog/apps.json';
 /** ORDERED CANDIDATE LAYOUTS, read from the register — NOT one hard-coded path.
  *
  *  🔴 THIS WAS `apps/<slug>/lib/core/config/app_config.dart` AND IT MEMORISED THE
- *  LAYOUT SUBLY IS MOVING OFF. apps/subly kept its config at
+ *  LAYOUT SUBLY IS MOVING OFF. apps/subscriptiontracker kept its config at
  *  `lib/core/config/app_config.dart` while the BRICK stamps
  *  `lib/core/app_config.dart`; the moment [ADR 037] P2.5 de-duplicated the two
  *  onto the stamped path this lookup found nothing, `configsRead` stayed 0, and the

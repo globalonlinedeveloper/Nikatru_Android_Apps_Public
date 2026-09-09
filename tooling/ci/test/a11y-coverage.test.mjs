@@ -8,8 +8,8 @@
 // matching the function's own DECLARATION, and ALL SIX of its hand-written
 // fixtures passed against the broken version. Only breaking the actual repo
 // exposed it. A fixture you wrote encodes the same misunderstanding as the
-// guard you wrote, so the subjects here are `apps/subly/lib/core/router.dart`,
-// `apps/subly/lib/features/**`, `apps/subly/test/a11y_semantics_test.dart`,
+// guard you wrote, so the subjects here are `apps/subscriptiontracker/lib/core/router.dart`,
+// `apps/subscriptiontracker/lib/features/**`, `apps/subscriptiontracker/test/a11y_semantics_test.dart`,
 // the brick template and `packages/design_system` as they are on disk.
 //
 // ⚠️ AND EVERY MUTATION ASSERTS ITS OWN ANCHOR WAS FOUND. `edit()` throws when
@@ -24,11 +24,11 @@
 // the whole app would be indistinguishable.
 //
 // ── THE FIXTURE GAINED TWO MANIFESTS ON 2026-09-05, AND THAT IS THE WIDENING ─
-// The guard's domain used to be `const APP = 'apps/subly'` — one hardcoded
+// The guard's domain used to be `const APP = 'apps/subscriptiontracker'` — one hardcoded
 // string. It is now DERIVED from `tooling/bricks/app/brick.yaml` plus the root
-// `pubspec.yaml` `workspace:` list, so a fixture that copies only subly's
+// `pubspec.yaml` `workspace:` list, so a fixture that copies only subscriptiontracker's
 // router and suite derives NO ROOT AT ALL and the guard correctly refuses it.
-// `tree()` therefore copies the root manifest and subly's own, and NOTHING
+// `tree()` therefore copies the root manifest and subscriptiontracker's own, and NOTHING
 // else — which means the fixture derives exactly one root (design_system is on
 // the workspace list but is not present, so it does not clear the
 // `flutter_test` + public-widget test) and the mutations below go on measuring
@@ -93,7 +93,7 @@ const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-a11y-coverage.mjs');
 
-const APP = 'apps/subly';
+const APP = 'apps/subscriptiontracker';
 const ROUTER = `${APP}/lib/core/router.dart`;
 // 🔴 THE ROUTER IS A SPINE, NOT A FILE (2026-09-04, P1b). `router.dart` is a
 // BARREL over `lib/core/router/` — the gate chain, the route table, the shell
@@ -116,7 +116,7 @@ const SUITE = `${APP}/test/a11y_semantics_test.dart`;
 const WORKSPACE_MANIFEST = 'pubspec.yaml';
 const APP_MANIFEST = `${APP}/pubspec.yaml`;
 
-// The things the guard reads for the subly root. Copied whole; copying only
+// The things the guard reads for the subscriptiontracker root. Copied whole; copying only
 // what is read keeps a fixture from accidentally depending on a part of the
 // repo this guard never opens.
 const SUBJECT = [WORKSPACE_MANIFEST, APP_MANIFEST, ROUTER, ROUTER_DIR, FEATURES, SUITE];
@@ -254,7 +254,7 @@ function familiesOf(out, symbol) {
  *
  *  ⚠️ ROOT-SCOPED SINCE 2026-09-05. There is one such block PER ROOT now, and a
  *  scan that stopped at the first would read the brick's twelve and report them
- *  as subly's. `root` defaults to the app because that is what every mutation
+ *  as subscriptiontracker's. `root` defaults to the app because that is what every mutation
  *  below is about. */
 function printedUnswept(out, root = APP) {
   const marker = `reachable surface(s) in ${root} carry NO a11y sweep`;
@@ -271,7 +271,7 @@ function printedUnswept(out, root = APP) {
 
 // ── THE MANUFACTURED SURFACE ────────────────────────────────────────────────
 // 🔴 WHY A FIXTURE HAS TO INVENT ONE. Two properties of this guard are only
-// observable when SOME reachable surface in subly is unswept: that owed work is
+// observable when SOME reachable surface in subscriptiontracker is unswept: that owed work is
 // PRINTED, and that a sweep arriving is COUNTED. On 2026-08-13 the tree stopped
 // supplying either — 19 of 19 are swept — and the honest move is to
 // manufacture the condition, not to drop the tests that measure it.
@@ -302,9 +302,9 @@ function sweepTheNewSheet(root) {
   edit(
     root,
     SUITE,
-    "import 'package:subly/features/detail/subscription_detail_screen.dart';",
-    "import 'package:subly/features/detail/subscription_detail_screen.dart';\n" +
-      `import 'package:subly/features/export/export_sheet.dart';`,
+    "import 'package:subscriptiontracker/features/detail/subscription_detail_screen.dart';",
+    "import 'package:subscriptiontracker/features/detail/subscription_detail_screen.dart';\n" +
+      `import 'package:subscriptiontracker/features/export/export_sheet.dart';`,
   );
   edit(
     root,
@@ -340,7 +340,7 @@ describe('the guard says YES on the tree as it is', () => {
     // print, in a tree with two unchecked roots in it.
     // FOUR since [ADR 071] added packages/chassis_screens as a root of its own.
     assert.match(out, /4 root\(s\) DERIVED, never listed/);
-    assert.match(out, /apps\/subly \(workspace app member\)/);
+    assert.match(out, /apps\/subscriptiontracker \(workspace app member\)/);
     assert.match(
       out,
       /packages\/design_system \(workspace package member: declares flutter_test AND a public widget\)/,
@@ -348,7 +348,7 @@ describe('the guard says YES on the tree as it is', () => {
     assert.match(out, /\{\{app_id\}\} \(brick template, declared by tooling\/bricks\/app\/brick\.yaml\)/);
     assert.match(out, /FULL CHECKOUT: all 4 declared root\(s\) are required to be among them/);
 
-    assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
+    assert.match(out, /apps\/subscriptiontracker: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
     // 50 → 57 on 2026-09-06: [ADR 071] added the seven chassis auth views as a
     // fourth root. The brick's twelve are unchanged — an adapter is still a
     // routed surface — so the seven are additions, not a re-count.
@@ -369,17 +369,17 @@ describe('the guard says YES on the tree as it is', () => {
     assert.match(out, /67 reachable surface\(s\); 36 swept by 4 a11y test file\(s\) across 161 case\(s\)/);
     assert.match(out, /10 swept where they delegate to/);
     assert.match(out, /21 unswept and PRINTED/);
-    // The per-family tally for subly, pinned. It read `tap-target ×0` from the
+    // The per-family tally for subscriptiontracker, pinned. It read `tap-target ×0` from the
     // day this guard was written until 2026-08-13, and a family that has never
     // been non-zero is a limb nothing has exercised — so the number that proves
     // it started is worth holding. `contrast` started the same day: ×0 → ×24.
     assert.match(out, /sweep families used: naked-controls ×24, tap-target ×19, contrast ×24/);
   });
 
-  test('the copied subject tree reproduces the subly reading exactly — and derives ONE root', () => {
+  test('the copied subject tree reproduces the subscriptiontracker reading exactly — and derives ONE root', () => {
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
-    assert.match(out, /1 root\(s\) DERIVED, never listed — apps\/subly \(workspace app member\)/);
+    assert.match(out, /1 root\(s\) DERIVED, never listed — apps\/subscriptiontracker \(workspace app member\)/);
     assert.match(out, /PARTIAL TREE: the declared-root-must-exist clause is SKIPPED/);
     assert.match(out, /19 reachable surface\(s\); 19 swept by 1 a11y test file\(s\) across 110 case\(s\)/);
     assert.deepEqual(sweptList(out).sort(), ALL_19_SWEPT);
@@ -402,7 +402,7 @@ describe('the guard says YES on the tree as it is', () => {
       `${NEW_SHEET_SYMBOL} is not in the printed list:\n${out}`,
     );
     assert.deepEqual(printedUnswept(out), [NEW_SHEET_SYMBOL]);
-    assert.match(out, /⬜ 1 of 20 reachable surface\(s\) in apps\/subly carry NO a11y sweep/);
+    assert.match(out, /⬜ 1 of 20 reachable surface\(s\) in apps\/subscriptiontracker carry NO a11y sweep/);
     assert.match(out, /→ add a case to .* that pumps the surface and calls/);
 
     // AND NOT FAILED. This is the half that would be lost if the test went.
@@ -478,7 +478,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     assert.match(out, /SignInScreen .* → packages\/chassis_screens\/lib\/auth\/sign_in_screen\.dart — SWEPT there/);
     // Each root gets its own accounting line. A root that is derived but whose
     // surfaces never reach the report is a root this guard cannot see.
-    assert.match(out, /apps\/subly: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
+    assert.match(out, /apps\/subscriptiontracker: 19 of 19 reachable surface\(s\) carry an a11y sweep/);
     assert.match(out, /\{\{app_id\}\}: 0 of 12 reachable surface\(s\) carry an a11y sweep/);
     assert.match(out, /packages\/design_system: 0 of 19 reachable surface\(s\) carry an a11y sweep/);
     // And the gap in each is PRINTED, by name, not merely counted.
@@ -519,11 +519,11 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
 
   test('M11d · the APP cut from the workspace list — COVERAGE LOST', () => {
     const root = treeWithNewRoots();
-    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subly', '');
+    edit(root, WORKSPACE_MANIFEST, '\n  - apps/subscriptiontracker', '');
     const { code, out } = run(root);
     assert.equal(code, 1, out);
     assert.match(out, /DECLARED root\(s\) were not among the 3 this run derived/);
-    assert.match(out, /`apps\/subly`/);
+    assert.match(out, /`apps\/subscriptiontracker`/);
   });
 
   test('M11e · one brick route leaves — the brick surfaces floor fires, and ALONE', () => {
@@ -543,7 +543,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
       /COVERAGE LOST — `tooling\/bricks\/app\/__brick__\/apps\/\{\{app_id\}\}` has only 11 reachable surface\(s\).*floor is 12/s,
     );
     // 🔴 AND ALONE, WHICH IS THE PROPERTY M7 LOST. Since SWEPT_FLOOR covers the
-    // whole of subly, removing a subly route also strands a floor entry and a
+    // whole of subscriptiontracker, removing a subscriptiontracker route also strands a floor entry and a
     // sweep — three findings, so the surfaces floor is not demonstrable there in
     // isolation. The brick's SWEPT_FLOOR is empty, so here it is: exactly one.
     assert.equal(
@@ -611,7 +611,7 @@ describe('the domain is DERIVED, and a root that stops being derived FAILS', () 
     // clause above was true only while this root's SWEPT_FLOOR was EMPTY. It is
     // now the full seventeen, so removing a surface ALSO strands its floor
     // entry — `FLOOR OVER NOTHING` — and two findings co-fire, the same way
-    // M7 stopped being demonstrable in isolation for subly the day its floor
+    // M7 stopped being demonstrable in isolation for subscriptiontracker the day its floor
     // covered its whole domain. The `surfaces` floor is NOT redundant for that:
     // a surface added AFTER the floor was measured sits in neither set and only
     // this floor would see it go. Independence is still demonstrable on the
@@ -920,21 +920,21 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
     }
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — the REACHABLE set of `apps\/subly` parsed EMPTY/);
+    assert.match(out, /COVERAGE LOST — the REACHABLE set of `apps\/subscriptiontracker` parsed EMPTY/);
   });
 
   // 🔴 THIS LIMB CHANGED SHAPE ON 2026-09-05 AND KEPT ITS STRENGTH. It used to
   // be "no a11y file at all ⇒ COVERAGE LOST", which is right for one root and
   // wrong the moment a root that has never had one joins the domain — the brick
   // and design_system would have reddened CI on arrival. It is now a per-root
-  // FLOOR, and subly's floor is 1, so renaming its suite out of the corpus
+  // FLOOR, and subscriptiontracker's floor is 1, so renaming its suite out of the corpus
   // still fires exactly as before.
   test('M4 · the a11y corpus is renamed out of the scan — the per-root floor of 1 fires', () => {
     const root = tree();
     renameSync(join(root, SUITE), join(root, `${APP}/test/semantics_of_a11y_test.dart`));
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `apps\/subly` yielded 0 file\(s\) matching `a11y_\*_test\.dart`.*floor is 1/s);
+    assert.match(out, /COVERAGE LOST — `apps\/subscriptiontracker` yielded 0 file\(s\) matching `a11y_\*_test\.dart`.*floor is 1/s);
   });
 
   // 🔴 `meetsGuideline` ADDED TO THE RENAME 2026-08-13, AND WITHOUT IT THIS
@@ -966,7 +966,7 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
 
   // ⚠️ RENAMED 2026-08-13, AND THE OLD NAME WAS THE LIE. It read "the surfaces
   // floor is the only thing that sees it", which was TRUE while SWEPT_FLOOR
-  // held five of nineteen. It holds all nineteen now, so removing ANY subly
+  // held five of nineteen. It holds all nineteen now, so removing ANY subscriptiontracker
   // route also strands a floor entry and strands its sweep: three findings.
   // ✅ The floor's INDEPENDENCE is demonstrable again as of 2026-09-05, on
   // another root — see M11e, where the brick's empty SWEPT_FLOOR lets exactly
@@ -985,7 +985,7 @@ describe('an empty scan is COVERAGE LOST, never a pass', () => {
     );
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /COVERAGE LOST — `apps\/subly` has only 18 reachable surface\(s\).*floor is 19/s);
+    assert.match(out, /COVERAGE LOST — `apps\/subscriptiontracker` has only 18 reachable surface\(s\).*floor is 19/s);
     // The two limbs that now co-fire, asserted rather than assumed.
     assert.match(out, /FAIL DEAD COVERAGE — .* sweeps `NotificationsScreen`/);
     assert.match(out, /FAIL FLOOR OVER NOTHING — .*notifications_screen\.dart#NotificationsScreen`/);
@@ -1046,8 +1046,8 @@ describe('a sweep must point at something a user can reach', () => {
     edit(
       root,
       SUITE,
-      "import 'package:subly/features/onboarding/onboarding_screen.dart';",
-      "import 'package:subly/features/firstrun/onboarding_screen.dart';",
+      "import 'package:subscriptiontracker/features/onboarding/onboarding_screen.dart';",
+      "import 'package:subscriptiontracker/features/firstrun/onboarding_screen.dart';",
     );
     const { code, out } = run(root);
     assert.equal(code, 1, out);
@@ -1064,7 +1064,7 @@ describe('a sweep must point at something a user can reach', () => {
     );
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /FAIL `AppShell` is excluded in NOT_A_PANE for `apps\/subly` but no route in .* builds it/);
+    assert.match(out, /FAIL `AppShell` is excluded in NOT_A_PANE for `apps\/subscriptiontracker` but no route in .* builds it/);
   });
 });
 
@@ -1100,7 +1100,7 @@ const tpl = (name, subs) => {
 /** `treeWithNewRoots()`, plus a chassis package the BRICK's settings screen
  *  delegates to.
  *
- *  The BRICK is the root used and not `apps/subly`, deliberately: subly sweeps
+ *  The BRICK is the root used and not `apps/subscriptiontracker`, deliberately: subscriptiontracker sweeps
  *  all 19 of its surfaces, so a delegation there would be invisible in the
  *  report. The brick sweeps ZERO of its 12, so a surface moving from the owed
  *  list to the swept one is a difference this suite can actually read — which is

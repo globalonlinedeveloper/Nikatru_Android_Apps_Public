@@ -25,8 +25,8 @@
 //      itself contain the route's own static path — so it cannot be satisfied by
 //      the server's declaration of the route and cannot outlive a rename.
 //   2. It ranged over ROUTES ONLY, so it could not see the violation that was
-//      live in production: `services/subly-api` bound a per-app R2 bucket
-//      (`EXPORTS` → `subly-exports`, created 2026-07-17) whose only occurrence
+//      live in production: `services/subscriptiontracker-api` bound a per-app R2 bucket
+//      (`EXPORTS` → `subscriptiontracker-exports`, created 2026-07-17) whose only occurrence
 //      anywhere in `services/**/*.ts` was its own type declaration. Limb 3 makes
 //      bindings first-class, and requires a READER that is not the Env type.
 //   3. Its coverage was implicit. Here both floors are RELATIONSHIPS derived from
@@ -227,7 +227,7 @@ function honoIdents(code) {
  *  entry written against that string would describe a path the Worker does not
  *  serve. Measured against hono 4.12.34 before this line was written: mounting a
  *  sub-router whose leaf is '/' answers 200 on '/v1/subscriptions' and 404 on
- *  '/v1/subscriptions/'. Five of subly-api's twelve routes declare their leaf as
+ *  '/v1/subscriptions/'. Five of subscriptiontracker-api's twelve routes declare their leaf as
  *  '/', so without this the register and the Worker would disagree on five paths
  *  while limb 1 reported perfect agreement with the register it was handed. */
 function joinPath(prefix, p) {
@@ -253,7 +253,7 @@ const parseNotes = [];
  *  to follow `app.route(prefix, ident)` ONLY when `ident` resolved to a default
  *  import, and pushed a parse note otherwise. services/platform/src/index.ts
  *  happens to mount every group from an import, so nothing was lost there — but
- *  services/subly-api/src/index.ts builds its authenticated group in the file:
+ *  services/subscriptiontracker-api/src/index.ts builds its authenticated group in the file:
  *
  *      const api = new Hono<AppEnv>();
  *      api.use('*', supabaseAuth);
@@ -380,7 +380,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   // THE SUBJECT IS EVERY DEPLOYABLE WORKER, AND THE LIST OF THEM IS DERIVED.
   //
   // 🔴 UNTIL THIS BLOCK, LIMB 1'S WHOLE SUBJECT WAS `servingWorker` — ONE Worker.
-  // `services/subly-api` mounts TWELVE routes and not one of them was in any
+  // `services/subscriptiontracker-api` mounts TWELVE routes and not one of them was in any
   // register, so limb 2's rule ("a capability with no client is not delivered")
   // covered zero of them, and a route deleted from that Worker was
   // indistinguishable from a route that had never existed. That is how
@@ -770,7 +770,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   //     `*.workers.dev` name and `api-<app>.nikatru.com` bound to nothing — the
   //     "no manual step" half of B-15 was a manual dashboard step nobody wrote
   //     down, and it would have been repeated for every app that ever stamps one;
-  //   · `services/subly-api` had none while `api.nikatru.com` SERVED LIVE TRAFFIC
+  //   · `services/subscriptiontracker-api` had none while `api.nikatru.com` SERVED LIVE TRAFFIC
   //     as a dashboard-created Custom Domain. The deployable config and the
   //     deployed reality disagreed, exactly like the `EXPORTS` bucket that was
   //     bound for two weeks with every guard green.
@@ -915,7 +915,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   // guards executed) against clean and against mutated: three of the four moved
   // NOTHING, and the fourth was caught only by assert-data-inventory.mjs, which
   // pins the KV namespace id for a legal reason and not for this one. The same
-  // two var mutations in the LIVE services/subly-api config also passed.
+  // two var mutations in the LIVE services/subscriptiontracker-api config also passed.
   //
   // ⚠️ WHY HERE AND NOT IN A NEW GUARD. This file already owns exactly the right
   // subject: `bindingSources.configs` IS the three-config set, and limb 3 above

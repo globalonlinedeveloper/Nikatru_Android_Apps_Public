@@ -47,7 +47,7 @@
 //
 // ── HOW IT MATCHES, AND WHY THAT IS THE CAREFUL PART ─────────────────────────
 // 🔴 THE FLAG ON A BUILD COMMAND, NEVER THE BARE WORD. `.symbols` as a token
-// matches `apps/subly/.gitignore:37`; the word "obfuscated" appears in a doc
+// matches `apps/subscriptiontracker/.gitignore:37`; the word "obfuscated" appears in a doc
 // comment at `packages/platform_storage/lib/src/storage_capabilities.dart:43`.
 // A guard that matched either would fire on correct input on day one and be
 // switched off. Comments are blanked before anything is read — the

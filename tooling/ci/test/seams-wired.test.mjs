@@ -165,18 +165,18 @@ Future<void> _signOut(BuildContext context, WidgetRef ref, AppLocalizations l10n
 
   /**
    * @param homeExtra   appended to the brick's home screen — the CHASSIS consumer slot.
-   * @param subly       an extra apps/subly lib file — a consumer OUTSIDE the chassis.
+   * @param subscriptiontracker       an extra apps/subscriptiontracker lib file — a consumer OUTSIDE the chassis.
    * @param brickTest   a file under the brick's `test/` tree — the excluded witness.
    * @param wrangler    services/platform/wrangler.jsonc, or null for absent.
    */
   const build = (
     name,
-    { homeExtra = '', subly = null, brickTest = null, wrangler = null, keys = '' } = {},
+    { homeExtra = '', subscriptiontracker = null, brickTest = null, wrangler = null, keys = '' } = {},
   ) => {
     const files = {};
     // 14 filler files: the guard fails COVERAGE LOST below 12 scanned dart files,
     // which would redden every case here for the wrong reason.
-    for (let i = 0; i < 14; i++) files[`apps/subly/lib/filler_${i}.dart`] = '// filler\n';
+    for (let i = 0; i < 14; i++) files[`apps/subscriptiontracker/lib/filler_${i}.dart`] = '// filler\n';
     Object.assign(files, {
       'packages/core/lib/src/content/ed25519_pack_verifier.dart':
         'class Ed25519PackVerifier implements PackVerifier {\n  verify() async { if (x == null) return false; return await _ed.verify(m); }\n}\n',
@@ -215,7 +215,7 @@ Future<void> main() async {
   );
 }
 `,
-      'apps/subly/lib/state/analytics_providers.dart': `
+      'apps/subscriptiontracker/lib/state/analytics_providers.dart': `
 final x = () async {
   await controller.record(
     core.ConsentPurpose.analytics,
@@ -232,9 +232,9 @@ Future<void> recordAnalyticsConsent(
 }) async {}
 const String kPrivacyPolicyVersion = '2026-07-26';
 `,
-      'apps/subly/lib/features/consent/consent_prompt.dart':
+      'apps/subscriptiontracker/lib/features/consent/consent_prompt.dart':
         'onPressed: () => recordAnalyticsConsent(ref, granted: true),',
-      'apps/subly/lib/main.dart': "final dsn = String.fromEnvironment('GLITCHTIP_DSN');\n",
+      'apps/subscriptiontracker/lib/main.dart': "final dsn = String.fromEnvironment('GLITCHTIP_DSN');\n",
       'packages/telemetry/lib/src/telemetry_bootstrap.dart':
         'options.enableAutoSessionTracking = false;\n',
       'sites/nikatru/privacy.html': '<p class="updated" data-policy-version="2026-07-26">x</p>',
@@ -245,7 +245,7 @@ const String kPrivacyPolicyVersion = '2026-07-26';
         jobWith('windows', DSN),
       ),
       '.github/workflows/submit-snap.yml': workflow(jobWith('dry-run', DSN)),
-      'apps/subly/lib/pack_consumer.dart': subly,
+      'apps/subscriptiontracker/lib/pack_consumer.dart': subscriptiontracker,
       [`${BRICK}/test/chassis_properties_test.dart`]: brickTest,
       'services/platform/wrangler.jsonc': wrangler,
     });
@@ -401,17 +401,17 @@ const String kPrivacyPolicyVersion = '2026-07-26';
     // template every stamped app is born from, and would keep this green with
     // the brick's own consumer deleted.
     const { code, out } = run(
-      build('pack-subly-only', { wrangler: SHELF_BOUND, subly: READS }),
+      build('pack-subscriptiontracker-only', { wrangler: SHELF_BOUND, subscriptiontracker: READS }),
     );
     assert.notEqual(code, 0, out);
     assert.match(out, /FAIL pack_verifier limb \(c\)/);
-    assert.match(out, /apps\/subly\/lib\/pack_consumer\.dart/);
+    assert.match(out, /apps\/subscriptiontracker\/lib\/pack_consumer\.dart/);
     assert.match(out, /none in the chassis, so no stamped app inherits a consumer/);
   });
 
   test('…and such a reader is still REPORTED beside a chassis one, never silently dropped', () => {
     const { code, out } = run(
-      build('pack-both', { homeExtra: READS, subly: READS }),
+      build('pack-both', { homeExtra: READS, subscriptiontracker: READS }),
     );
     assert.equal(code, 0, out);
     assert.match(out, /plus 1 outside the chassis/);

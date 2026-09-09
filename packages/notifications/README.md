@@ -37,7 +37,7 @@ await notifications.scheduleDaily(
 | Windows | ⬜ | ⬜ (no Windows plugin until 18.x → no-op) |
 | Web | ⬜ | ⬜ (no plugin → `NoOpNotificationService`) |
 
-The matrix is tied to the pinned major (shared with `apps/subly`, which uses the
+The matrix is tied to the pinned major (shared with `apps/subscriptiontracker`, which uses the
 17.x API). Windows support arrived in `flutter_local_notifications` 18.x and Linux
 has never implemented `zonedSchedule`; both would need re-review on a version bump.
 

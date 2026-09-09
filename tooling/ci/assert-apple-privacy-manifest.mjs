@@ -251,7 +251,7 @@ export function parsePbxproj(text) {
   // the first `*/` when that makes the whole pattern match, so
   // `<id> /* Foo.swift */; };\n\t\t<id2> /* Bar in Sources */ = {` matched with
   // the FIRST id and swallowed the second object whole. Measured on
-  // apps/subly/macos: 74 "objects", the PBXNativeTarget section entirely
+  // apps/subscriptiontracker/macos: 74 "objects", the PBXNativeTarget section entirely
   // absent, and the guard reported COVERAGE LOST — which is the good outcome
   // only because it refuses rather than guesses. The clause below cannot cross
   // a `*/`, so an id is only an object header when the very next thing after

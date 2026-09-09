@@ -5,7 +5,7 @@
 # the hosting package to declare `intl`, and `assert-package-boundaries.mjs:190`
 # classifies ANY package other than `core`/`design_system` that declares a
 # third-party dependency as an ADAPTER wrapping it — after which the 16 tracked
-# `apps/subly` files that import `package:intl` directly fail at `:288-298` as
+# `apps/subscriptiontracker` files that import `package:intl` directly fail at `:288-298` as
 # "going around the seam". This package is excluded from that derivation by
 # construction, and its own limb B forbids it only `nikatru_*` dependencies.
 #

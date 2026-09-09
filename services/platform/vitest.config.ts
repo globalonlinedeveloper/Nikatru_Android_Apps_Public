@@ -12,7 +12,7 @@ import { defineConfig } from 'vitest/config';
 //
 //   · a test that stubs `fetch` cannot serve the JWKS to the node build, so the
 //     ES256 path fails for a reason that exists only in the test environment;
-//   · `services/subly-api/test/auth.test.ts` works around exactly this by
+//   · `services/subscriptiontracker-api/test/auth.test.ts` works around exactly this by
 //     DISABLING the network and asserting the HS256 fallback instead — so that
 //     suite's "auth works" is a statement about the path this Worker
 //     deliberately does not have (see src/middleware/auth.ts);

@@ -21,7 +21,7 @@
     "",
     "⚠️ THE FORM CANNOT BE SUBMITTED WHILE AN `unresolved` ROW REMAINS. Answer each against THIS app's real",
     "widget tree and its served config, cite the page you read (host and fetch date), and model the finished",
-    "file on apps/subly/store/android-play/ads-declaration.json — which carries the worked example, the",
+    "file on apps/subscriptiontracker/store/android-play/ads-declaration.json — which carries the worked example, the",
     "format scan's required-coverage anchors and the four-way cross-check that",
     "tooling/ci/assert-ads-declarations.mjs evaluates.",
     "",

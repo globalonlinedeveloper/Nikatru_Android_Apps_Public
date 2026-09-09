@@ -177,13 +177,13 @@ void main() {
     test('Entitlement round-trips with and without expires_at', () {
       final Entitlement lifetime = Entitlement.fromJson(<String, dynamic>{
         'entitlement': 'pro',
-        'product_id': 'subly_pro',
+        'product_id': 'subscriptiontracker_pro',
         'store': 'paddle',
         'is_active': true,
       });
       final Entitlement back = Entitlement.fromJson(lifetime.toJson());
       expect(back.entitlement, 'pro');
-      expect(back.productId, 'subly_pro');
+      expect(back.productId, 'subscriptiontracker_pro');
       expect(back.store, 'paddle');
       expect(back.isActive, isTrue);
       expect(back.expiresAt, isNull);
@@ -201,22 +201,22 @@ void main() {
 
     test('Entitlements round-trips its items', () {
       final Entitlements e = Entitlements(
-        appId: 'subly',
+        appId: 'subscriptiontracker',
         isPro: true,
         items: <Entitlement>[
           const Entitlement(
             entitlement: 'pro',
-            productId: 'subly_pro',
+            productId: 'subscriptiontracker_pro',
             store: 'paddle',
             isActive: true,
           ),
         ],
       );
       final Entitlements back = Entitlements.fromJson(e.toJson());
-      expect(back.appId, 'subly');
+      expect(back.appId, 'subscriptiontracker');
       expect(back.isPro, isTrue);
       expect(back.items, hasLength(1));
-      expect(back.items.first.productId, 'subly_pro');
+      expect(back.items.first.productId, 'subscriptiontracker_pro');
     });
   });
 }

@@ -12,7 +12,7 @@
 //   R2  one trailing space in the COPY's
 //       packages/core/lib/src/result.dart     -> DIVERGED, both blobs named  exit 1
 //   R3  the same edit in the copy's
-//       apps/subly/android/… (per-slot)       -> still ok, 585 pairs         exit 0
+//       apps/subscriptiontracker/android/… (per-slot)       -> still ok, 585 pairs         exit 0
 //   R4  that shared file DELETED from the copy-> MISSING, 584 pairs          exit 1
 //   R5  the copy carrying a tooling/ file     -> UNDECIDED PATHS CARRIED     exit 1
 //   R6  a waiver pinned to the origin blob    -> WAIVED, printed by name     exit 0
@@ -204,13 +204,13 @@ const SRC = 'bool allowed(int n) { return n < 10; }\n';
 const ORIGIN_FILES = () => ({
   'pubspec.yaml': 'name: origin\n',
   'packages/core/lib/guard.dart': SRC,
-  'apps/subly/android/app/build.gradle.kts': 'signingConfig = release\n',
+  'apps/subscriptiontracker/android/app/build.gradle.kts': 'signingConfig = release\n',
   '.github/workflows/ci.yml': 'name: ci\n',
 });
 const COPY_FILES = () => ({
   'pubspec.yaml': 'name: origin\n',
   'packages/core/lib/guard.dart': SRC,
-  'apps/subly/android/app/build.gradle.kts': 'signingConfig = release\n',
+  'apps/subscriptiontracker/android/app/build.gradle.kts': 'signingConfig = release\n',
   '.github/workflows/ci.yml': 'name: ci\n',
 });
 const COPY_KEY = 'Google_Play_Store/Android/Games';
@@ -280,7 +280,7 @@ describe('assert-copy-parity — it must be able to PASS (the control that makes
 
   test('a PER-SLOT path may differ and the guard still passes — otherwise a guard that fails on everything would pass every case above', () => {
     const copy = COPY_FILES();
-    copy['apps/subly/android/app/build.gradle.kts'] = 'signingConfig = a_DIFFERENT_key\n';
+    copy['apps/subscriptiontracker/android/app/build.gradle.kts'] = 'signingConfig = a_DIFFERENT_key\n';
     const w = workspace({ slots: SLOTS(), decl: DECL(), originFiles: ORIGIN_FILES(), copyFiles: { [COPY_KEY]: copy } });
     const { code, text } = run(w.guard);
     assert.equal(code, 0, text);

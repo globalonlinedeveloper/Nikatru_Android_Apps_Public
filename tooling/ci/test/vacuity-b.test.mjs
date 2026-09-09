@@ -56,7 +56,7 @@
 //     rm -rf apps (committed)   → exit 1, same reason, index or no index
 //     apps → 1 tracked .dart    → exit 1, floor 40
 //     brick → 1 tracked .dart   → exit 1, floor 10
-//     rm apps/subly/integration_test → exit 0. THE CONTROL.
+//     rm apps/subscriptiontracker/integration_test → exit 0. THE CONTROL.
 //
 // ── RE-MEASURED 2026-09-05 (ADR 065 chassis step 3) ─────────────────────────
 // 🔴 TWO THINGS WERE WRONG WITH THE ROW ABOVE, AND ONLY ONE OF THEM WAS A GUARD
@@ -86,7 +86,7 @@
 //                                 packages/".
 //     packages → 1 tracked .dart → exit 1, floor 60
 //     brick → 1 tracked .dart   → exit 1, floor 10
-//     rm apps/subly/integration_test → exit 0. THE APPS CONTROL.
+//     rm apps/subscriptiontracker/integration_test → exit 0. THE APPS CONTROL.
 //     rm -rf packages/design_system  → exit 0, packages=140/floor 60.
 //                                 THE PACKAGES CONTROL: retiring a whole package
 //                                 is an honest shrink, and a floor that fired on
@@ -445,8 +445,8 @@ describe('assert-no-gate-weakening refuses a subject that emptied under it', () 
     ]);
   });
 
-  test('THE CONTROL: dropping apps/subly/integration_test clears the floor and stays green', () => {
-    staysGreen(G, () => rm('apps/subly/integration_test'));
+  test('THE CONTROL: dropping apps/subscriptiontracker/integration_test clears the floor and stays green', () => {
+    staysGreen(G, () => rm('apps/subscriptiontracker/integration_test'));
   });
 
   // The other half for the new floor. Retiring a whole package is a real,

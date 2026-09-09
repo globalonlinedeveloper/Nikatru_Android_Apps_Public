@@ -158,7 +158,7 @@ function die(lines) {
 // be deleted from a workflow file:
 //
 //   (a) A TAG PUSH. `GITHUB_REF` starting `refs/tags/` is a release by every
-//       reading — build-platforms.yml's only release trigger is `tags: subly-v*`
+//       reading — build-platforms.yml's only release trigger is `tags: subscriptiontracker-v*`
 //       — and it is set by GitHub, not by us.
 //   (b) THE CHANNEL'S DECLARED SUBMISSION PATH. tooling/channel-register.json
 //       names the workflow that submits to Play ([10]D-10 limb (i)); a workflow

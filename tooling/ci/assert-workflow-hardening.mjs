@@ -614,7 +614,7 @@ function expressionLimbSelfTest() {
     at(160, '          echo "installing: ${deps}"'),
     at(162, '          sudo apt-get install -y ${deps}'),
     at(275, '        run: >'),
-    at(276, '          project="${RUNNER_TEMP}/snapcraft-subly"'),
+    at(276, '          project="${RUNNER_TEMP}/snapcraft-subscriptiontracker"'),
     at(300, '        - run: echo "${GITHUB_SHA::7}"'),
   ]);
   if (e2.defects.length !== 0) {

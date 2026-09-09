@@ -61,7 +61,7 @@ class AppSpacing {
   // ⚠️ THE FUNCTION IS NOT UNREACHABLE, and saying so would be a fresh false
   // claim in a permanent tombstone. It is a public top-level function whose own
   // doc says "Public and pure on purpose", `app_scaffold.dart` is exported from
-  // the barrel, and apps/subly's tests already call it through that barrel — so
+  // the barrel, and apps/subscriptiontracker's tests already call it through that barrel — so
   // any screen CAN write `windowClassFor(MediaQuery.sizeOf(context).width)` and
   // get the correct class, because MediaQuery reports the WINDOW rather than the
   // pane's constraints. That route is available; nothing takes it, and no

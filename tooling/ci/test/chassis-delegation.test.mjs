@@ -73,13 +73,13 @@ function tree({ adapter, target = WIDGET, targetPath = 'settings_body.dart', ext
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, body);
   };
-  write('apps/subly/lib/features/settings/settings_screen.dart', adapter);
+  write('apps/subscriptiontracker/lib/features/settings/settings_screen.dart', adapter);
   if (target !== null) write(`${CHASSIS_DIR}/lib/${targetPath}`, target);
   for (const [rel, body] of Object.entries(extra)) write(rel, body);
   return root;
 }
 
-const ADAPTER = 'apps/subly/lib/features/settings/settings_screen.dart';
+const ADAPTER = 'apps/subscriptiontracker/lib/features/settings/settings_screen.dart';
 const IMPORT = `import 'package:${CHASSIS_PKG}/settings_body.dart';\n`;
 
 const resolveIn = (root) => delegationOf(root, ADAPTER);
@@ -102,7 +102,7 @@ describe('the three answers stay three answers', () => {
 
   test('A3 · a file that is not on disk is NOT a delegation either', () => {
     const root = tree({ adapter: IMPORT });
-    assert.equal(delegationOf(root, 'apps/subly/lib/features/settings/nowhere.dart'), null);
+    assert.equal(delegationOf(root, 'apps/subscriptiontracker/lib/features/settings/nowhere.dart'), null);
   });
 
   // `null` and `{ lost }` must never collapse: a resolver that stopped reaching
@@ -484,7 +484,7 @@ describe('🔴 BOUND NAMES — a parameter shadows an import exactly as a declar
 // `4faa5731`, that a name the adapter owns nothing of could still satisfy the
 // use check by appearing where Dart never resolves a reference at all — most
 // abundantly the NAMED ARGUMENT LABEL, the token before the `:` in `child:`.
-// `apps/subly/.../settings_screen.dart` spells `child:` 51 times, so a chassis
+// `apps/subscriptiontracker/.../settings_screen.dart` spells `child:` 51 times, so a chassis
 // file whose only top-level name is `final child = 0;` was "referenced" by it
 // fifty-one times without once referring to the package. R8 below is that
 // exploit; the `-control` cases beside it are what stops a resolver that simply
@@ -610,10 +610,10 @@ describe('the walk, and what the caller owns', () => {
     const root = tree({
       adapter: `${IMPORT}\nclass SettingsScreen {\n  Widget build(c) => const SettingsBody();\n}\n`,
       extra: {
-        'apps/subly/lib/features/settings/broken.dart': `import 'package:${CHASSIS_PKG}/nowhere.dart';\nclass B {}\n`,
+        'apps/subscriptiontracker/lib/features/settings/broken.dart': `import 'package:${CHASSIS_PKG}/nowhere.dart';\nclass B {}\n`,
       },
     });
-    const { files, lost } = delegationsUnder(root, 'apps/subly/lib/features/settings');
+    const { files, lost } = delegationsUnder(root, 'apps/subscriptiontracker/lib/features/settings');
     assert.deepEqual(files, [`${CHASSIS_DIR}/lib/settings_body.dart`]);
     assert.equal(lost.length, 1, lost.join('\n'));
     assert.match(lost[0], /that file is not on disk/);
@@ -647,10 +647,10 @@ describe('the walk, and what the caller owns', () => {
     const root = tree({
       adapter: `${IMPORT}\nclass SettingsScreen {\n  Widget build(c) => const SettingsBody();\n}\n`,
       extra: {
-        'apps/subly/lib/features/settings/broken.dart': `import 'package:${CHASSIS_PKG}/nowhere.dart';\nclass B {}\n`,
+        'apps/subscriptiontracker/lib/features/settings/broken.dart': `import 'package:${CHASSIS_PKG}/nowhere.dart';\nclass B {}\n`,
       },
     });
-    const absDir = join(root, 'apps', 'subly', 'lib', 'features', 'settings');
+    const absDir = join(root, 'apps', 'subscriptiontracker', 'lib', 'features', 'settings');
     const { files, lost } = delegationsUnderAbs(absDir, root);
     assert.deepEqual(files, [`${CHASSIS_DIR}/lib/settings_body.dart`]);
     assert.equal(lost.length, 1, lost.join('\n'));

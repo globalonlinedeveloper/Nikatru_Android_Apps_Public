@@ -127,7 +127,7 @@ function harness(db: RealDb) {
     JWKS_CACHE: KV,
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-    APP_ERASURE_ENDPOINTS: `subly=${APP_ORIGIN}`,
+    APP_ERASURE_ENDPOINTS: `subscriptiontracker=${APP_ORIGIN}`,
     APP_ID: 'platform',
     API_VERSION: 'v1',
   } as unknown as AppEnv['Bindings'];

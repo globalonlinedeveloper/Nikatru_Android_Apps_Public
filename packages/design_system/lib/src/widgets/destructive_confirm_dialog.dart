@@ -54,9 +54,9 @@ class DestructiveActionReport {
 /// settings_screen.dart` on 2026-09-04, before this widget existed: the
 /// deletion outcome was posted at `:651` to the `ScaffoldMessenger` of the very
 /// screen the sign-out redirect was tearing down, so the message could be
-/// destroyed before it was read. `apps/subly` hit the same thing from the other
+/// destroyed before it was read. `apps/subscriptiontracker` hit the same thing from the other
 /// side and recorded the measurement in
-/// `apps/subly/lib/state/providers/auth.dart:568-574`: its first version
+/// `apps/subscriptiontracker/lib/state/providers/auth.dart:568-574`: its first version
 /// rendered the result in the dialog, and the router-driven test found ZERO
 /// widgets with the result key once the redirect settled — so *the message that
 /// mattered most (502: your data is gone and your login still works) was the one
@@ -74,7 +74,7 @@ class DestructiveActionReport {
 /// 🔴 EVERY USER-VISIBLE STRING IS A REQUIRED PARAMETER WITH NO ENGLISH
 /// DEFAULT, AND THAT IS A COVERAGE DECISION.
 /// `tooling/ci/assert-no-hardcoded-strings.mjs` scans exactly two roots — the
-/// brick and `apps/subly/lib` (`:119-131`) — and does NOT scan `packages/`. A
+/// brick and `apps/subscriptiontracker/lib` (`:119-131`) — and does NOT scan `packages/`. A
 /// default sentence living here would be a user-visible literal that left the
 /// guard's domain by moving house: it would still ship, and the check that
 /// exists to catch it would go quiet rather than red. Every string this widget
@@ -144,7 +144,7 @@ class DestructiveConfirmDialog extends StatefulWidget {
   ///
   /// ZERO-ARGUMENT for the reason recorded on [secret]. It must not throw: an
   /// error escaping here leaves the dialog stuck in its busy state, which
-  /// `apps/subly/lib/features/settings/settings_screen.dart:1218-1223` records
+  /// `apps/subscriptiontracker/lib/features/settings/settings_screen.dart:1218-1223` records
   /// as a live E2E flake — `PopScope` then refuses to close a dialog that will
   /// never finish. Report the failure as a [DestructiveActionReport] instead.
   final Future<DestructiveActionReport> Function() onConfirm;

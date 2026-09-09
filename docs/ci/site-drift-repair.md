@@ -21,8 +21,8 @@ still in the future, and it is right every time until the merge makes it wrong.
 
 MEASURED IN THIS TREE, 2026-08-25:
   · at 51df9ef, `git show 51df9ef:sites/nikatru/sitemap.xml` gave <lastmod>
-    2026-08-22 for /apps/ and /apps/subly, while `git log -1 --date=short`
-    for sites/nikatru/apps/index.html and sites/nikatru/apps/subly.html both
+    2026-08-22 for /apps/ and /apps/subscriptiontracker, while `git log -1 --date=short`
+    for sites/nikatru/apps/index.html and sites/nikatru/apps/subscriptiontracker.html both
     gave 2026-08-25 — so check-site-integrity's `e.lastmod !== expected` limb
     exited 1 ON MAIN, where there is no pull-request check left to go red.
   · the repair was made BY HAND in f67ee2b (2026-08-25 10:03:13 +0530),
@@ -151,7 +151,7 @@ was generated landed on main with a one-day `<lastmod>` drift, and main went RED
 on the `sites` lane AND on the generator-freshness case in `guard-meta`:
 `39e3b3e1`, `a798985c`, and the run that opened **#513**. At `a798985c` the
 measurement was
-`sites/nikatru/sitemap.xml` giving `https://nikatru.com/subly/privacy`
+`sites/nikatru/sitemap.xml` giving `https://nikatru.com/subscriptiontracker/privacy`
 lastmod **2026-09-06** against a page `git log -1 --date=short` puts at
 **2026-09-07** — the merge happened at 01:27 +0530, past the runner's UTC
 midnight.

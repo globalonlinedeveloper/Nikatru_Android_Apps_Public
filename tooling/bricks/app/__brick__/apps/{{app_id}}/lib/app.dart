@@ -123,7 +123,7 @@ class _OfflineBanner extends ConsumerWidget {
 /// The recorder, the transport, the platform Worker and the D1 table are all
 /// fail-closed: with no consent artifact they discard, and discarding is the
 /// CORRECT behaviour, so nothing goes red. That is how the rail sat dead in
-/// apps/subly for months while every test passed. This widget is the one place
+/// apps/subscriptiontracker for months while every test passed. This widget is the one place
 /// that turns it on, and `tooling/ci/assert-seams-wired.mjs` asserts a non-test
 /// caller of `recordAnalyticsConsent` exists precisely so deleting it fails the
 /// build instead of quietly silencing every stamped app.
@@ -235,7 +235,7 @@ class _AnalyticsGateState extends ConsumerState<AnalyticsGate> {
 /// [13]T-9 — THE TAP→`notification_opened` SUBSCRIPTION, INHERITED BY EVERY
 /// STAMPED APP.
 ///
-/// 🔴 THE GAP THIS CLOSES. The tap loop shipped in `apps/subly` and stopped
+/// 🔴 THE GAP THIS CLOSES. The tap loop shipped in `apps/subscriptiontracker` and stopped
 /// there, so the template carried the whole OUTBOUND rail (schedule, re-arm,
 /// cancel, the platform matrix) and NOTHING on the way back. App #2 would have
 /// been born able to wake a user at 09:00 and unable to notice they answered.

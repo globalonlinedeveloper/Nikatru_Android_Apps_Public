@@ -2,7 +2,7 @@
 // THE TWO DOORS A CLIENT CAN REFUSE BEFORE IT SENDS ANYTHING.
 //
 // `signInProblem` and `passwordResetProblem` were three hand-written `if`s
-// inside `apps/subly/lib/features/auth/login_screen.dart` and existed nowhere in
+// inside `apps/subscriptiontracker/lib/features/auth/login_screen.dart` and existed nowhere in
 // the app brick. This file pins the rules themselves — every arm, both
 // boundaries of the malformed test, and the ORDER, which is part of the contract
 // and is the only thing a screen cannot restate for itself.

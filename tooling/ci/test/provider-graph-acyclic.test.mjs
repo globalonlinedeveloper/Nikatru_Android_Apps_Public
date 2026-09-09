@@ -12,7 +12,7 @@
 // Fixtures encode the author's understanding, so a fixture-only suite proves the
 // guard agrees with the person who wrote it — the assert-seams-wired scar, where
 // all six fixtures passed against a guard whose caller check matched the
-// function's own declaration. Each of these ran against apps/subly itself, with
+// function's own declaration. Each of these ran against apps/subscriptiontracker itself, with
 // `dart analyze` in between (27 issues, exit 0, unchanged) so a red result is a
 // CAUGHT MUTATION and not a compile error:
 //
@@ -29,7 +29,7 @@
 // than moved it, which no fixture can demonstrate about the real tree.
 //
 // 🔴 THE FALSE POSITIVE THIS GUARD WAS ALWAYS GOING TO HAVE, and the reason case
-// (d) exists: apps/subly/lib/state/providers.dart DESCRIBES THE CYCLE IN PROSE at
+// (d) exists: apps/subscriptiontracker/lib/state/providers.dart DESCRIBES THE CYCLE IN PROSE at
 // :561, :570-575 and :747 — that is what the doc comments are for. A scanner over
 // raw text reports the FIXED tree as broken and stays red forever, which is the
 // `grep '"r2_buckets"'`-matched-the-comment-explaining-there-is-no-r2_buckets
@@ -259,7 +259,7 @@ class HomeScreen extends ConsumerWidget {
   test('the REAL repository is green', () => {
     const r = run(REPO);
     assert.equal(r.status, 0, say(r));
-    assert.match(say(r), /ok\s+apps\/subly/);
+    assert.match(say(r), /ok\s+apps\/subscriptiontracker/);
     assert.match(say(r), /ok\s+brick\/app/);
   });
 });

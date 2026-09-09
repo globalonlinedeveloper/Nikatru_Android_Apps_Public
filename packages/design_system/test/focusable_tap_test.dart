@@ -6,7 +6,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 
 /// SC 2.1.1 KEYBOARD, AT THE PRIMITIVE.
 ///
-/// `apps/subly/test/keyboard_traversal_test.dart` measures the CRITERION on
+/// `apps/subscriptiontracker/test/keyboard_traversal_test.dart` measures the CRITERION on
 /// three real screens. This file measures the PROPERTY on the widget those
 /// screens are being rebuilt on, and the two are not the same assertion: a
 /// screen sweep goes green the moment somebody deletes the last dead control,
@@ -155,7 +155,7 @@ void main() {
     // `flutter test` runs the NON-web map, so the `ButtonActivateIntent`
     // binding in [FocusableTap] is invisible to every case above — deleting it
     // leaves this whole file green. It was nearly deleted for exactly that
-    // reason, and deleting it would have broken Enter on `apps/subly`'s WEB
+    // reason, and deleting it would have broken Enter on `apps/subscriptiontracker`'s WEB
     // build, which `deploy-web.yml` ships.
     //
     // So the web map is installed EXPLICITLY here, quoting the two rows the

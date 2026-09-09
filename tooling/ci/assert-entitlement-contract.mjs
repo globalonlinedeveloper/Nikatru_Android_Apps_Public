@@ -84,7 +84,7 @@
 //     and the dateDerived flag — the one that says an event NAME does not decide
 //     access — survives every copy.
 //   7 THE ONE RUNTIME THAT ALREADY READS A REVENUECAT EVENT does not drift from
-//     the authored table unwatched. services/subly-api/src/routes/webhooks.ts
+//     the authored table unwatched. services/subscriptiontracker-api/src/routes/webhooks.ts
 //     carries its own event sets; the DIFFERENCE between the two vocabularies is
 //     declared here, in both directions, and three shape agreements are held.
 //
@@ -116,7 +116,7 @@
 // this reason). Two writers with two different comparisons is worse than one
 // writer with none: each is individually defensible and together they interleave
 // — services/platform/src/lib/mor/store.ts (the MoR rail, HMAC-gated) and
-// services/subly-api/src/routes/webhooks.ts (the LEGACY RevenueCat route, bearer
+// services/subscriptiontracker-api/src/routes/webhooks.ts (the LEGACY RevenueCat route, bearer
 // -gated) write the SAME table for the SAME (user_id, app_id, entitlement) key.
 //
 // THREE THINGS ARE CHECKED, and each has an input that makes it fail ALONE:
@@ -124,7 +124,7 @@
 //         carries that tail VERBATIM (whitespace-normalised). A DO UPDATE SET
 //         with NO trailing WHERE is last-write-wins and fails loudest of all.
 //   (ii)  the instant that feeds it is CANONICALISED — services/platform's
-//         `normalizeInstant` and services/subly-api's `isoFromEpochMs` must each
+//         `normalizeInstant` and services/subscriptiontracker-api's `isoFromEpochMs` must each
 //         let an instant out only through `new Date(…).toISOString()`. The
 //         comparison is a STRING comparison in SQLite: ISO-8601 UTC sorts
 //         lexicographically, `1754697600000` does not, and `2026-08-09T00:00:00
@@ -356,7 +356,7 @@ const REQUIRED_UPSERT_WRITERS = [
     why: 'the MoR rail. Reached only after MoRWebhookVerifier.verify has checked an HMAC over the raw body',
   },
   {
-    file: 'services/subly-api/src/routes/webhooks.ts',
+    file: 'services/subscriptiontracker-api/src/routes/webhooks.ts',
     why: 'the LEGACY RevenueCat route — live, deployed, bearer-gated, and writing the SAME shared table. A guard scoped to services/platform prints clean standing right next to it',
   },
 ];
@@ -372,7 +372,7 @@ const INSTANT_PATHS = [
     why: "the MoR side. Providers send instants as strings in whatever shape they like; this is the one place that turns them into the UTC ISO-8601 the clause compares",
   },
   {
-    file: 'services/subly-api/src/lib/validate.ts',
+    file: 'services/subscriptiontracker-api/src/lib/validate.ts',
     fn: 'isoFromEpochMs',
     why: "the RevenueCat side. `event_timestamp_ms` is epoch MILLISECONDS — stored raw it would sort as a number-shaped string against the other writer's ISO strings, and every comparison between the two would be nonsense",
   },
@@ -802,7 +802,7 @@ function tsSourcesUnder(dir, out = []) {
   for (const e of entries) {
     // node_modules/dist/.wrangler are build output, not source. `test`/`tests`
     // are excluded because a fixture seeding a row is not a writer of
-    // production truth — services/subly-api/test/webhooks.test.ts alone holds
+    // production truth — services/subscriptiontracker-api/test/webhooks.test.ts alone holds
     // three `INSERT INTO entitlements` that exist to SET UP a stale row.
     if (['node_modules', 'dist', '.wrangler', 'test', 'tests'].includes(e.name)) continue;
     const p = join(dir, e.name);
@@ -1199,7 +1199,7 @@ const rcAuthored = existsSync(join(ROOT, CONTRACT_JS_REL))
 // something that does not exist yet: the Dart rail has no bridge, the extension
 // runtime has no store purchase, and services/platform has no revenuecatVerifier.
 // The runtime that DOES take a RevenueCat event today — POST /revenuecat, at
-// services/subly-api/src/routes/webhooks.ts — imports nothing from contracts/
+// services/subscriptiontracker-api/src/routes/webhooks.ts — imports nothing from contracts/
 // and carries its own hard-coded ACTIVE_TYPES / INACTIVE_TYPES / GRACE_TYPES.
 //
 // 🔴 SO THE GUARDED COPIES ARE THE FOUR NOTHING CONSUMES, AND THE UNGUARDED
@@ -1222,7 +1222,7 @@ const rcAuthored = existsSync(join(ROOT, CONTRACT_JS_REL))
 // the revenuecatVerifier unit makes that Worker IMPORT this contract and drops
 // the three literal sets, the limb sees the import, records that the duplication
 // is closed, and stops holding a divergence that no longer exists.
-const WEBHOOK_REL = 'services/subly-api/src/routes/webhooks.ts';
+const WEBHOOK_REL = 'services/subscriptiontracker-api/src/routes/webhooks.ts';
 const WORKER_SET_NAMES = ['ACTIVE_TYPES', 'INACTIVE_TYPES', 'GRACE_TYPES'];
 // The divergence as MEASURED on 2026-09-07, declared so it cannot widen unseen.
 const DECLARED_WORKER_ONLY = ['NON_RENEWING_PURCHASE', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED'];
@@ -1434,7 +1434,7 @@ if (problems.length) {
   console.error('  Private/requirements/ makes migrations ADDITIVE-ONLY (INV-505, INV-S3-10), so every');
   console.error('  column above is free today and permanent the instant a stranger pays.');
   // [5]M-2, matching the citation the code itself carries at
-  // services/subly-api/src/routes/webhooks.ts:505 ("the conditional DO UPDATE is
+  // services/subscriptiontracker-api/src/routes/webhooks.ts:505 ("the conditional DO UPDATE is
   // [5]M-2's ordering defence"). M-8 is the neighbouring rule about NOT revoking
   // on cancel-at-period-end and is a different requirement.
   console.error("  [5]M-2 Ordering is the provider's clock, and it is the SAME clause in both writers.");

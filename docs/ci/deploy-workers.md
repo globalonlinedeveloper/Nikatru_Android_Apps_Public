@@ -37,7 +37,7 @@ and NOTHING GOES RED, which is the exact shape assert-deploy-triggers
 exists for.
 
 ⚠️ SCOPED TO *.js / *.json, NOT `contracts/entitlement/**`, AND THE
-DIFFERENCE IS A RECORDED INCIDENT. The `services/subly-api/**` filter
+DIFFERENCE IS A RECORDED INCIDENT. The `services/subscriptiontracker-api/**` filter
 above once matched a README and redeployed a production Worker on a
 docs-only change. `contracts/entitlement/` holds README.md, a
 contract.schema.json, a hand-written contract.d.ts and two generator
@@ -114,7 +114,7 @@ workflow-only change TRIGGERS the run. This inner filter did not list
 it, so `decide` set both outputs to `false`, both deploy jobs were
 SKIPPED, and the run reported **success**. Measured: run 30933229005,
 push of 2cd7b7a (#155) — `Detect changed services => success`,
-`Deploy platform => skipped`, `Deploy subly-api => skipped`.
+`Deploy platform => skipped`, `Deploy subscriptiontracker-api => skipped`.
 
 #155's whole subject was repairing this deploy job's double-deploy,
 which had wiped `--var GLITCHTIP_DSN` and `--var RELEASE` off the live
@@ -138,7 +138,7 @@ every deploy while reporting success. That is the #155 shape and
 `tooling/ci/assert-deploy-triggers-deploy.mjs` fails the build on
 any trigger path no filter claims.
 
-subly-api deliberately does NOT claim it: that Worker restates
+subscriptiontracker-api deliberately does NOT claim it: that Worker restates
 its own two-value money environment in
 `src/lib/money.ts` and imports nothing from contracts/.
 Claiming a path it does not build from would redeploy it for a
@@ -156,7 +156,7 @@ only `platform` builds from it, so only `platform` claims it.
 
 Manual dispatch has no diff to filter on → deploy both. Push → per-path.
 
-## job `subly-api`
+## job `subscriptiontracker-api`
 
 ### above `permissions:`
 
@@ -271,13 +271,13 @@ still fails the job.
 
 ### above `Apply PLATFORM_DB migrations (before deploy)`
 
-MIGRATIONS BEFORE DEPLOY — see the note in the subly-api job.
+MIGRATIONS BEFORE DEPLOY — see the note in the subscriptiontracker-api job.
 platform is the SOLE applier of platform_db migrations, so this is the
 only place the shared entitlements/events/consent schema advances.
 
 ### above `The deployed SQL is SQL live D1 will run`
 
-── [pipeline K-7] see the identical step in the subly-api job above ─────
+── [pipeline K-7] see the identical step in the subscriptiontracker-api job above ─────
 This Worker is the portfolio's erasure ENTRY POINT: its DELETE
 /v1/account sweeps platform_db, relays to every app's own route and
 deletes the identity last. It is the route the rejected join broke first.
@@ -299,7 +299,7 @@ default `keep_vars: false` deletes every plain-text var that is not in
 Measured on run 30891499182: 08:23:39 deploy with `env.GLITCHTIP_DSN` and
 `env.RELEASE` bound (version 457a9616), 08:23:47 a second, unqualified
 deploy with neither (version e5bfece9). The version left LIVE was the
-second one. `GET /v1/health` returned `"build": null` while subly-api —
+second one. `GET /v1/health` returned `"build": null` while subscriptiontracker-api —
 which has no secrets step — returned the SHA, and that is what reddened
 the post-deploy smoke from 2026-08-02 onward.
 
@@ -335,13 +335,13 @@ on it; see the block there.
 
 ### inside the `id: deploy` step, above `command:`
 
-[pipeline 11]E-8 — see the identical pair in the subly-api job above
+[pipeline 11]E-8 — see the identical pair in the subscriptiontracker-api job above
 for why the DSN is a `--var` and why the release is the SHA rather
 than API_VERSION.
 
 ### above `Smoke — the live Worker answers at THIS commit`
 
-── [pipeline 14]O-7 · see the identical step in the subly-api job ───────
+── [pipeline 14]O-7 · see the identical step in the subscriptiontracker-api job ───────
 This is the Worker every future app depends on for config, analytics,
 consent and the single cron, and until this line nothing ever asked it
 whether it had actually come up.
@@ -349,7 +349,7 @@ whether it had actually come up.
 ### above `Record the deployed SHA`
 
 ── 🔴 CONDITIONED ON THE DEPLOY, NOT ON THE SMOKE (2026-08-09) ──────────
-See the identical step in the subly-api job above, and the long block in
+See the identical step in the subscriptiontracker-api job above, and the long block in
 deploy-web.yml for the run-144 failure this comes from. This Worker is
 the one every app depends on for config, analytics, consent,
 entitlements and the money webhook — "which sha is live on platform" is

@@ -250,7 +250,7 @@ void main() {
   //
   // 🔴 THIS IS THE ONLY PLACE THE RECOVERY PATH CAN BE OPENED WITHOUT A LIVE
   // PROJECT AND A REAL MAILBOX. Every non-web artifact `build-platforms.yml`
-  // produces runs on this repository, and every widget test in `apps/subly`
+  // produces runs on this repository, and every widget test in `apps/subscriptiontracker`
   // that does not override the seam resolves it — so a recovery gate whose only
   // input is a Supabase event would be the [pipeline C-6] dead shape: it
   // compiles, it never fires, and every closed-side test stays green.

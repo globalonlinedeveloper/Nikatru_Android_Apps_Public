@@ -58,7 +58,7 @@ const ROOT = resolve(process.argv[2] ?? process.cwd());
  *  `marketing: null` — it is not exempt from limb 1, only from limb 3. */
 const SURFACES = [
   {
-    file: 'apps/subly/lib/features/auth/sign_up_screen.dart',
+    file: 'apps/subscriptiontracker/lib/features/auth/sign_up_screen.dart',
     terms: '_acceptedTerms',
     marketing: '_marketingEmail',
   },
@@ -67,12 +67,12 @@ const SURFACES = [
     // `LoginScreen` carries a sign-up TOGGLE, so `/sign-up` is not the only way
     // to register — and `/sign-in` is where the router sends every signed-out
     // visitor. A clickwrap with a second entrance is not a clickwrap.
-    file: 'apps/subly/lib/features/auth/login_screen.dart',
+    file: 'apps/subscriptiontracker/lib/features/auth/login_screen.dart',
     terms: '_acceptedTerms',
     marketing: '_marketingEmail',
   },
   {
-    file: 'apps/subly/lib/features/auth/reaccept_terms_screen.dart',
+    file: 'apps/subscriptiontracker/lib/features/auth/reaccept_terms_screen.dart',
     terms: '_accepted',
     marketing: null,
   },
@@ -92,7 +92,7 @@ const SURFACES = [
  *  comes from the caller and it takes no `initial…` argument at all — the
  *  property that makes limb 1 sufficient rather than a spot check. */
 const WIDGETS = [
-  'apps/subly/lib/features/auth/legal_consent_fields.dart',
+  'apps/subscriptiontracker/lib/features/auth/legal_consent_fields.dart',
   'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/auth/legal_consent_fields.dart',
 ];
 

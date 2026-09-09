@@ -131,8 +131,8 @@ Two `UNSOURCED` entries survive and each names the limb it costs:
 * a `listing_url` input, refused unless it is `https://…`, so the `[10]D-9` record has an address
 * a secret preflight over all **five** `MS_STORE_*` names that **ends the job** when any is empty (the `e2e.yml:56-63` shape `assert-green-means-ran` section B counts)
 * the CLI installed at an exact version, then
-  `submit-windows-store.mjs --submit --app subly --confirm SUBMIT-TO-MICROSOFT-STORE`
-* `record-deployment.mjs subly-windows-store --state in_review --listing-url "$LISTING_URL"`
+  `submit-windows-store.mjs --submit --app subscriptiontracker --confirm SUBMIT-TO-MICROSOFT-STORE`
+* `record-deployment.mjs subscriptiontracker-windows-store --state in_review --listing-url "$LISTING_URL"`
 
 ### `environment:` on its own fails open — so the script reads the rules back
 

@@ -147,7 +147,7 @@ const REQUIRED_PACK_IDS = ['lingo'];
  *  landing here was deliberately unpriced — the app taken off `live`, its
  *  offerings removed from the rail config — say so by editing this list in the
  *  same commit, naming what remains. */
-const REQUIRED_PRICED_LANDINGS = ['subly'];
+const REQUIRED_PRICED_LANDINGS = ['subscriptiontracker'];
 
 /** ── THE PAGE-QUALITY ROOTS ──────────────────────────────────────────────────
  *  WIDENED 2026-08-25, and this is the enforcement half of that day's change.
@@ -599,7 +599,7 @@ let offeringsCompared = 0;
       // landing whose price merely DISAGREED with the config never got added —
       // and `coverageLost()` calls `process.exit(1)` immediately, before the
       // `problems` report. Measured: the wrong-price mutation below printed only
-      // "COVERAGE LOST — subly carries no priced offering", swallowing the exact
+      // "COVERAGE LOST — subscriptiontracker carries no priced offering", swallowing the exact
       // message ("carries data-offering=pro_monthly but not the amount 4.99")
       // that says what to fix. The canary's question is "is this limb comparing
       // anything at all?", never "does it agree?" — agreement is what `problems`

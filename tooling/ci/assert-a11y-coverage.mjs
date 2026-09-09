@@ -5,7 +5,7 @@
 // NOT. AND EVERY A11Y SWEEP POINTS AT A SURFACE A USER CAN REACH.
 //
 // ── WHY THIS EXISTS ────────────────────────────────────────────────────────
-// P5 shipped `apps/subly/test/a11y_semantics_test.dart` and it found two real
+// P5 shipped `apps/subscriptiontracker/test/a11y_semantics_test.dart` and it found two real
 // defects while it was being written — the calendar's hand-rolled renewal rows
 // (a twin of `RowCard` that never inherited the fix) and the shell's FAB, whose
 // `Tooltip` filled the `tooltip` slot and left `isButton` unset. It swept FIVE
@@ -19,7 +19,7 @@
 // accounting has to be mechanical.
 //
 // 🔴 THIS GUARD PRINTS THE GAP; IT DOES NOT FAIL ON IT. As of 2026-08-13 the
-// gap in `apps/subly` was empty — the sweep landed all nineteen, so the printed
+// gap in `apps/subscriptiontracker` was empty — the sweep landed all nineteen, so the printed
 // list had ZERO entries FOR THAT ROOT. That does not make the printing limb
 // decoration: the next surface to land arrives unswept and joins that list by
 // existing, which is the ordinary case this guard was written for. A guard that
@@ -41,7 +41,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴🔴 THE DOMAIN IS DERIVED, AND UNTIL 2026-09-05 IT WAS ONE HARDCODED APP
 // ═══════════════════════════════════════════════════════════════════════════
-// This file opened with `const APP = 'apps/subly';` from the day it was written
+// This file opened with `const APP = 'apps/subscriptiontracker';` from the day it was written
 // until 2026-09-05 [backlog G-3]. Two things followed from that line and both
 // were measured, not feared:
 //
@@ -121,7 +121,7 @@
 // root is every `class X extends …Widget` declared under `<root>/lib/**` whose
 // name does not start with `_`. That is strictly MORE reachable than a routed
 // screen, not less, and it is why `NotFoundScreen` can be excluded from
-// `apps/subly` on the grounds that "the design system owns its semantics" and
+// `apps/subscriptiontracker` on the grounds that "the design system owns its semantics" and
 // have that sentence be TRUE for the first time.
 //
 // 🔴 THERE IS NO SECOND HARDCODED LIST OF SCREENS HERE, AND THAT IS THE POINT.
@@ -176,7 +176,7 @@
 //   · the SWEEP CALL is what distinguishes a measurement from a mention.
 //
 // ⚠️ THE PACKAGE NAME IS READ OUT OF EACH ROOT'S OWN `pubspec.yaml`, NEVER
-// SPELLED HERE. It was `package:subly/` hardcoded until 2026-09-05. The brick's
+// SPELLED HERE. It was `package:subscriptiontracker/` hardcoded until 2026-09-05. The brick's
 // name is the literal string `{{app_id.snakeCase()}}` — a mustache placeholder
 // that is not a valid Dart identifier and never will be until the brick is
 // stamped — and the brick's own suite imports itself by exactly that spelling,
@@ -220,12 +220,12 @@
 // mechanism rather than an aspiration:
 //   · NAKED CONTROLS — `expectNothingNaked(` / `nakedControls(`, the walk this
 //     app wrote: every node with a tap action that announces no role or no
-//     name. All nineteen subly surfaces have it today. ~~and it is the ONLY
+//     name. All nineteen subscriptiontracker surfaces have it today. ~~and it is the ONLY
 //     family any of them uses~~ — RETRACTED 2026-08-13, hours after it was
 //     written, by the tap-target sweep below.
 //   · TAP TARGET — flutter_test's own `meetsGuideline(androidTapTargetGuideline)`
 //     / `iOSTapTargetGuideline` / `labeledTapTargetGuideline`. LIVE since
-//     2026-08-13 ([ADR 048]): 19 cases, covering 17 of the 19 subly surfaces.
+//     2026-08-13 ([ADR 048]): 19 cases, covering 17 of the 19 subscriptiontracker surfaces.
 //   · CONTRAST — flutter_test's `meetsGuideline(textContrastGuideline)`.
 // ⚠️ MEASURED, NOT ASSUMED, AND RE-MEASURED 2026-08-13 AFTER THE TAP-TARGET
 // SWEEP LANDED — the reading below is the CURRENT one and the previous two are
@@ -235,7 +235,7 @@
 // only hits are inside compiled `build/test_cache/*.dill` artefacts, i.e. the
 // framework's own bundle~~ — TRUE when this file was written and FALSE the same
 // day. `meetsGuideline(androidTapTargetGuideline)` now appears 19× in
-// apps/subly/test/a11y_semantics_test.dart, and NOTHING in this guard had to
+// apps/subscriptiontracker/test/a11y_semantics_test.dart, and NOTHING in this guard had to
 // change for it to count: the family was recognised in advance and it started
 // tallying non-zero on its own. That is the design working, and it is also why
 // the tally is PRINTED on every run — "tap targets are checked nowhere" was a
@@ -250,12 +250,12 @@
 // finds the twin's name in the covered set and writes the exact bug it exists
 // to catch into its own answer. The file is what distinguishes a twin from its
 // original, so the file is part of the identity. Since 2026-09-05 the key is
-// ROOT-QUALIFIED too, because the brick and subly declare a `SignUpScreen`
+// ROOT-QUALIFIED too, because the brick and subscriptiontracker declare a `SignUpScreen`
 // each and they are different files with different sweeps.
 //
 // ── WHY THE CORPUS IS `a11y_*_test.dart` AND NOT "ANY FILE THAT TAKES A
 //    SemanticsHandle" ──────────────────────────────────────────────────────
-// ~~Three~~ FOUR other files under apps/subly/test call `ensureSemantics()` —
+// ~~Three~~ FOUR other files under apps/subscriptiontracker/test call `ensureSemantics()` —
 // chassis_properties, consent_clickwrap_a11y, consent_scrim_layout and
 // dark_group_detail — and each
 // asserts one targeted fact (an icon's label, a scrim's reading order, a Tamil
@@ -283,7 +283,7 @@
 //     sweep family. Writing it down without running the grep would have put a
 //     false number in a header whose whole subject is false numbers.
 //   · `ensureSemantics` without a sweep — FOUR files in design_system
-//     (auth_field, brand_lockup, focusable_tap, promo_card), FOUR in subly
+//     (auth_field, brand_lockup, focusable_tap, promo_card), FOUR in subscriptiontracker
 //     (chassis_properties, consent_clickwrap_a11y, consent_scrim_layout,
 //     dark_group_detail — the header below said THREE and had said it for a
 //     file too long), ONE in the brick (chassis_properties).
@@ -338,7 +338,7 @@
 //   M3  delete every `GoRoute` from the router
 //       → COVERAGE LOST, the reachable set of that root parsed EMPTY.
 //   M4  rename `a11y_semantics_test.dart` out of the `a11y_*` corpus
-//       → COVERAGE LOST, subly's declared a11y-file floor of 1 is unmet.
+//       → COVERAGE LOST, subscriptiontracker's declared a11y-file floor of 1 is unmet.
 //   M5  rename EVERY sweep helper app-wide inside the test file — both naked
 //       helpers AND `meetsGuideline`
 //       → COVERAGE LOST, 110 cases parsed and not one sweeps.
@@ -351,19 +351,19 @@
 //   M6  point a sweep at an unrouted twin screen
 //       → DEAD COVERAGE, named.
 //   M7  delete one route (`/notifications`) from the router
-//       → COVERAGE LOST on subly's `surfaces` floor (18 < 19). ⚠️ TWO MORE
+//       → COVERAGE LOST on subscriptiontracker's `surfaces` floor (18 < 19). ⚠️ TWO MORE
 //         LIMBS CO-FIRE, re-measured 2026-08-13: with SWEPT_FLOOR covering the
 //         whole domain, the removed route also strands its floor entry (FLOOR
 //         OVER NOTHING) and strands its surviving sweep (DEAD COVERAGE). The
 //         `surfaces` floor is therefore no longer demonstrable IN ISOLATION
-//         for subly — it is still not redundant, because a surface added AFTER
+//         for subscriptiontracker — it is still not redundant, because a surface added AFTER
 //         the floor was measured sits in neither set and only this floor would
 //         see it go. ✅ AND SINCE 2026-09-05 IT *IS* DEMONSTRABLE IN ISOLATION,
 //         on another root: the brick has a `surfaces` floor and an EMPTY
 //         SWEPT_FLOOR, so deleting one brick route fires the floor and nothing
 //         else. See M11.
 //   M8  delete four of the 110 cases, keeping every sweep
-//       → COVERAGE LOST on subly's `cases` floor (106 < 110): every set above
+//       → COVERAGE LOST on subscriptiontracker's `cases` floor (106 < 110): every set above
 //         is byte-identical and real assertions left the tree in silence.
 //   M9  delete a NOT_A_PANE entry's route (AppShell)
 //       → the exclusion self-check fires: judgement over nothing.
@@ -381,7 +381,7 @@
 //                                                          → COVERAGE LOST
 //       M11c cut `flutter_test:` from design_system's own pubspec
 //                                                          → COVERAGE LOST
-//       M11d cut `  - apps/subly` from the workspace list  → COVERAGE LOST
+//       M11d cut `  - apps/subscriptiontracker` from the workspace list  → COVERAGE LOST
 //       M11e delete one brick route                        → the brick's
 //            `surfaces` floor alone, with no other limb firing
 //       M11f delete one design_system widget file          → that root's
@@ -408,7 +408,7 @@
 //            the guard is RIGHT to still report it.
 //       M13b delete one whole a11y file (`a11y_shell_test.dart`)
 //                                → COVERAGE LOST on `a11yFiles` (2 < 3), which
-//                                  is what M4 proves for subly and could not be
+//                                  is what M4 proves for subscriptiontracker and could not be
 //                                  proven here while the floor was 0.
 //       M13c delete four cases, keeping every surface's sweep
 //                                → COVERAGE LOST on `cases` (47 < 51). Every set
@@ -641,7 +641,7 @@ const IS_FULL_CHECKOUT = existsSync(join(ROOT, 'tooling', 'ci', 'assert-a11y-cov
 
 const REQUIRED_COVERAGE = [
   {
-    dir: 'apps/subly',
+    dir: 'apps/subscriptiontracker',
     // 19 reachable surfaces — 17 routed screens + 2 modal sheets.
     // 110 testWidgets cases in 1 file (a11y_semantics_test.dart), of which the
     //    sweeping families are naked-controls ×24 · tap-target ×19 · contrast ×24
@@ -746,7 +746,7 @@ const REQUIRED_COVERAGE = [
     // into a NAMED set — see (0d), and the reason a count alone would let one
     // surface's sweep be traded for another's in silence.
     // ⚠️ AND `cases` MUST BE RE-MEASURED IN EVERY DIMENSION A LATER INCREMENT
-    // TOUCHES. `apps/subly`'s row above records this floor going blind THREE
+    // TOUCHES. `apps/subscriptiontracker`'s row above records this floor going blind THREE
     // TIMES IN ONE DAY because a membership set was raised and the count was
     // not. Raising the sweeps here without re-reading the `case(s)` figure on
     // this line reproduces exactly that.
@@ -767,7 +767,7 @@ const REQUIRED_COVERAGE = [
     //
     // This is the root [ADR 065] chassis step 2 moved the shared widgets into,
     // and it is the root whose absence made `NotFoundScreen`'s exclusion from
-    // apps/subly a promise nothing kept.
+    // apps/subscriptiontracker a promise nothing kept.
     surfaces: 19,
     a11yFiles: 0,
     cases: 0,
@@ -786,7 +786,7 @@ const REQUIRED_COVERAGE = [
 // judgement over nothing), and an entry that turns out to be a feature surface
 // after all fails (it scans as a pane; the exclusion is wrong).
 //
-// Keyed by root since 2026-09-05: the brick and subly each route an `AppShell`
+// Keyed by root since 2026-09-05: the brick and subscriptiontracker each route an `AppShell`
 // and an errorBuilder `NotFoundScreen`, and one map over both would let an
 // exclusion argued for one tree silence the other.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -802,7 +802,7 @@ const NOT_FOUND_WHY =
 
 const NOT_A_PANE_BY_ROOT = new Map([
   [
-    'apps/subly',
+    'apps/subscriptiontracker',
     new Map([
       [
         'AppShell',
@@ -839,9 +839,9 @@ const NOT_A_PANE_BY_ROOT = new Map([
 // the domain no longer contains FAILS, because a floor over a surface that is
 // not there is judgement over nothing.
 //
-// MEASURED 2026-08-13 for apps/subly by running this guard against the working
+// MEASURED 2026-08-13 for apps/subscriptiontracker by running this guard against the working
 // tree: these NINETEEN keys were reported swept, each by a `nothing on … is
-// naked` case in apps/subly/test/a11y_semantics_test.dart. That is the WHOLE
+// naked` case in apps/subscriptiontracker/test/a11y_semantics_test.dart. That is the WHOLE
 // domain of that root.
 //
 // 🔴 THE OTHER TWO ROOTS HAVE AN EMPTY FLOOR, AND THAT IS A MEASUREMENT TOO —
@@ -859,7 +859,7 @@ const NOT_A_PANE_BY_ROOT = new Map([
 // merely stated. The brick and design_system floors are STILL empty and still
 // print their whole domain as owed; the brick's is the one M11e depends on.
 //
-// ⚠️ AN EMPTY FLOOR ALSO BUYS SOMETHING M7 LOST. With subly's floor covering
+// ⚠️ AN EMPTY FLOOR ALSO BUYS SOMETHING M7 LOST. With subscriptiontracker's floor covering
 // its whole domain, no mutation there can fire the `surfaces` floor ALONE. The
 // brick's floor is empty, so deleting one brick route fires its `surfaces`
 // floor and nothing else — M11e — and the floor's independence is demonstrable
@@ -867,7 +867,7 @@ const NOT_A_PANE_BY_ROOT = new Map([
 // ═══════════════════════════════════════════════════════════════════════════
 const SWEPT_FLOOR_BY_ROOT = new Map([
   [
-    'apps/subly',
+    'apps/subscriptiontracker',
     new Set(
       [
         'features/insights/insights_screen.dart#InsightsScreen',
@@ -889,7 +889,7 @@ const SWEPT_FLOOR_BY_ROOT = new Map([
         'features/onboarding/onboarding_screen.dart#OnboardingScreen',
         'features/add/add_subscription_sheet.dart#showAddSubscriptionSheet',
         'features/cancel/cancel_sheet.dart#showCancelSheet',
-      ].map((k) => `apps/subly/lib/${k}`),
+      ].map((k) => `apps/subscriptiontracker/lib/${k}`),
     ),
   ],
   [BRICK, new Set()],
@@ -911,7 +911,7 @@ const SWEPT_FLOOR_BY_ROOT = new Map([
   // ⚠️ THE THREE FAMILIES ARE NOT ALL PRESENT HERE AND THAT IS RECORDED RATHER
   // THAN LEFT TO BE INFERRED FROM THE TALLY. `naked-controls` reads ×0 for this
   // root: `expectNothingNaked` / `nakedControls` live in
-  // `apps/subly/test/a11y_semantics_test.dart`, a TEST file of an APP, which no
+  // `apps/subscriptiontracker/test/a11y_semantics_test.dart`, a TEST file of an APP, which no
   // package can import — and copying the walk would make a second copy of a
   // parse nothing compares. The NAME half of that walk is covered by
   // `labeledTapTargetGuideline`; the ROLE half (a tap action announcing no
@@ -1053,7 +1053,7 @@ const sliceCall = (text, open) => sliceBalanced(text, open, '(', ')');
 // barrel PLUS `router/*.dart`, in that order, and to nothing else — same
 // vocabulary, same regexes, same refusals. A tree whose router is still one
 // file has no sibling directory and is read exactly as it was before. The brick
-// is such a tree today; subly is not.
+// is such a tree today; subscriptiontracker is not.
 //
 // Concatenated rather than scanned per file on purpose: `_GatedInsights` is
 // declared in one file and routed from another, and the wrapper resolution
@@ -1169,7 +1169,7 @@ function delegationOf(rel) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ONE ROOT, ANALYSED. Everything below (A)–(G) used to be top-level code over
-// `const APP = 'apps/subly'`; it is the same accounting, once per derived root.
+// `const APP = 'apps/subscriptiontracker'`; it is the same accounting, once per derived root.
 // ═══════════════════════════════════════════════════════════════════════════
 function analyseRoot(R) {
   const routerRel = `${R.dir}/lib/core/router.dart`;
@@ -1575,7 +1575,7 @@ for (const a of analyses) {
   // moment a root with no suite at all joins the domain: the brick and
   // design_system have never had one, and reddening CI over work nobody has
   // started is the [pipeline C-6] rule this guard's whole design obeys. The
-  // floor keeps the strength where it was earned — subly's floor is 1, so
+  // floor keeps the strength where it was earned — subscriptiontracker's floor is 1, so
   // renaming its suite out of the corpus still fires (M4) — and a root at zero
   // prints its entire domain as owed instead.
   if (floor && a.a11yFiles.length < floor.a11yFiles) {
@@ -1694,7 +1694,7 @@ for (const a of analyses) {
   //   surfaces  delete a route. The reachable set shrinks, a surface that is
   //             gone is not unswept but ABSENT, and the printed list gets
   //             SHORTER, which reads like progress. This floor is what sees a
-  //             domain being emptied wholesale. On subly it no longer fires
+  //             domain being emptied wholesale. On subscriptiontracker it no longer fires
   //             ALONE (M7); on the brick, whose SWEPT_FLOOR is empty, it does
   //             (M11e).
   //   cases     delete a case that is not the only sweep of its surface. Every

@@ -128,7 +128,7 @@ const REQUIRED_COVERAGE = [
  * 🔴 CUES ARE ANCHORED AND EVERY EXEMPTION IS PRINTED — review 2026-07-31
  * (medium/low triage, mutation-proven): the old bare `0{4,}` exempted the
  * real-shaped `apps.apple.com/app/id6500001234` (four zeros INSIDE the id), and
- * bare `YOUR[_ -]` exempted a real Play package `id=com.your-apps.subly` —
+ * bare `YOUR[_ -]` exempted a real Play package `id=com.your-apps.subscriptiontracker` —
  * silently, because an exemption left no trace beyond an aggregate count. An
  * exemption is a decision NOT to fail, and this guard's own COUNT_CLAIM
  * discipline applies: listed every run so it cannot go unnoticed. Hence a cue

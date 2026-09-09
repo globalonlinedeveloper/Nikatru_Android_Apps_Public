@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Test harness for services/platform — A REAL SQL ENGINE, NOT A DOUBLE.
 //
-// Ported from services/subly-api/test/harness.ts (2026-08-01, [pipeline B-9]).
+// Ported from services/subscriptiontracker-api/test/harness.ts (2026-08-01, [pipeline B-9]).
 // The mechanism is the same and deliberately so: `node:sqlite` with THE REAL
 // MIGRATIONS applied, wrapped in D1's interface. What changed is the shape of
 // the double this Worker needed.
@@ -20,7 +20,7 @@
 //   · `batch()` being ONE TRANSACTION was never exercised, so a partial write
 //     under a constraint violation would have looked exactly like a clean one.
 //
-// TWO CAPABILITIES IN ONE OBJECT, ON PURPOSE. subly-api splits `realDb()` from
+// TWO CAPABILITIES IN ONE OBJECT, ON PURPOSE. subscriptiontracker-api splits `realDb()` from
 // `RecordingDb` because its questions split cleanly. This Worker's do not: the
 // events route has assertions about WHAT SQL IT CHOSE (the conflict clause, the
 // absence of an `ip` column, the exact bound tuple) *and* assertions about WHAT
@@ -236,7 +236,7 @@ export function realPlatformDb(extraSchema: readonly string[] = []): RealDb {
 // refused" and "the tampered body crashed the Worker" print the same red, and
 // only one of them means the rail is safe.
 //
-// Ported verbatim from services/subly-api/test/harness.ts:180-208.
+// Ported verbatim from services/subscriptiontracker-api/test/harness.ts:180-208.
 // Constant-time-ness is a property of the deployed runtime, not of this shim;
 // what is being restored here is PRESENCE.
 {

@@ -113,7 +113,7 @@ import { allRows } from '../lib/d1';
 // over a service-to-service secret. The app route then verifies the SAME ES256
 // signature against the SAME public JWKS, so tenancy is proved end to end by the
 // user's own token and there is no shared secret anywhere in the erasure path —
-// which is the property the app-side route (services/subly-api) exists to keep:
+// which is the property the app-side route (services/subscriptiontracker-api) exists to keep:
 // its own `erasureAuth` refuses anything that is not asymmetrically verified,
 // including the legacy HS256 token every other route on that Worker accepts.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,7 +275,7 @@ async function userReferencingColumns(
 }
 
 /**
- * `"subly=https://api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
+ * `"subscriptiontracker=https://api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
  *
  * REFUSES anything that is not an `https://` origin, rather than skipping it.
  * The relay forwards a live bearer token, so a plaintext or malformed entry is a

@@ -13,7 +13,7 @@
 //
 // ── WHAT MAKES THIS GUARD ABLE TO FAIL, WHICH IS THE WHOLE PROBLEM ───────────
 //
-// 🔴 THE DOMAIN. The stage doc says "every app under `apps/`", with `apps/subly`
+// 🔴 THE DOMAIN. The stage doc says "every app under `apps/`", with `apps/subscriptiontracker`
 // exempt by name as the frozen rail-prover (39-CHASSIS §4 cut 1). `apps/` holds
 // exactly one app, so that set is EMPTY and "every app has a done-record" is
 // vacuously true — seven requirements rest on it. Two changes fix it:
@@ -112,17 +112,17 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 // ── PHASE 5 · MEASURED 2026-08-12 BY READING THE RECORD RATHER THAN RUNNING
 //    THIS GUARD. What is left before the exemption drops. (Tree: main @ 981481c.)
 //
-// `apps/subly/dod.json` is SHAPE-COMPLETE and has been for a while: its `items`
+// `apps/subscriptiontracker/dod.json` is SHAPE-COMPLETE and has been for a while: its `items`
 // are set-equal to the register (A–H; B is `human` and honestly `pending`, which
 // is permitted), all FOURTEEN feature rows resolve to real `test(`/`testWidgets(`
-// declarations with non-empty bodies under apps/subly/test/, every `effect`
+// declarations with non-empty bodies under apps/subscriptiontracker/test/, every `effect`
 // symbol still appears in its file outside comments, `humanReview` carries all
 // four required rows with all four keys, and `selection` carries its four fields
 // and all five gates. Those 25 judgement strings (16 humanReview + 4 selection + 5 gates) are BLANK, which is legal at
 // `stamped` — every blank check below is inside `if (done)` — and becomes 25
 // failures the moment the status flips. TWO things fail today, and only two:
 //
-//   1. THE LIFECYCLE ANCHOR. `catalog/apps.json` advertises subly as
+//   1. THE LIFECYCLE ANCHOR. `catalog/apps.json` advertises subscriptiontracker as
 //      `"status": "live"` while this record still says `"status": "stamped"`.
 //      That red is the anchor doing its job, not a defect to route around.
 //
@@ -142,7 +142,7 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 // not care how many it takes down. `sign in` expired via 6559d6e (#303) touching
 // login_screen.dart on 2026-08-12 UTC. ⚠️ A COMMIT SUBJECT IS NOT A RE-DATING:
 // b1e62ae is titled "…the sign-in mutation is re-run" but re-dated the BRICK's
-// dod.json, not apps/subly/dod.json. Re-measure at the moment of the flip; do
+// dod.json, not apps/subscriptiontracker/dod.json. Re-measure at the moment of the flip; do
 // not trust this list.
 //
 // 🔴 THE DROP IS NOT THIS LINE ALONE. `tooling/scripts/check-selection-record.mjs`
@@ -153,17 +153,17 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 // that limb into an assertion that cannot fail and its negative test can no longer
 // fire for its stated reason: DELETE the limb with the exemption rather than keep
 // it. Two fixture FILES also pin today's behaviour — app-dod.test.mjs (whose
-// default fixture workspace lists `apps/subly` and never creates it, and which
+// default fixture workspace lists `apps/subscriptiontracker` and never creates it, and which
 // asserts `/1 exempt by name/` verbatim) and selection-record.test.mjs's whole
 // empty-domain describe. Guard and fixtures move together, in ONE commit with the
 // owner's 25 signed strings: dropping the exemption while the record says
 // `stamped` reddens the lifecycle anchor, and flipping the record while the
 // exemption stands changes nothing, because an exempt app is outside the domain.
-/** 39-CHASSIS §4 cut 1: `apps/subly` is a FROZEN legacy rail-prover. It predates
+/** 39-CHASSIS §4 cut 1: `apps/subscriptiontracker` is a FROZEN legacy rail-prover. It predates
  *  the brick, was never stamped, and is never retrofitted — so it is exempt from
  *  carrying a done-record. Exempt BY NAME, never by a pattern, so adding an app
  *  can never accidentally exempt it. */
-const EXEMPT = new Set(['apps/subly']);
+const EXEMPT = new Set(['apps/subscriptiontracker']);
 
 /** The brick's own copy of a stamped app's tree. A freshly stamped app is
  *  UNTRACKED, so `git log` can say nothing about its files; the brick source it

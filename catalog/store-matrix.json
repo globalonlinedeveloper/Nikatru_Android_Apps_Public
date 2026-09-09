@@ -140,15 +140,15 @@
     "whatMovedOn20260906": "The Chrome_Web_Store/Chrome/Extensions row was REMOVED - see removedSlot20260906_Chrome_Web_Store at the foot of this file. Its two repositories were merged into the platform pair under [ADR 067] decision 1 on 2026-09-05 and then DELETED on GitHub, so slots 2 -> 1, directories 4 -> 2, live 2 -> 1, intendedReposExistingOnGitHub 4 -> 2. The 2026-08-19 readings above are kept verbatim, not overwritten."
   },
   "backing": {
-    "rule": "A slot is BACKED when a real source tree exists TODAY that this slot's product would be built from - either sitting in the slot (filed: true) or sitting elsewhere under Projects/ with this slot as its declared destination (filed: false). CAPABILITY IS NOT BACKING: apps/subly carries all six Flutter platform targets, so the Flutter tree COULD fill twelve slots, but a tree that could be copied somewhere is not a product that is there. Counting capability instead of existence is exactly how fourteen empty directories start reading as a portfolio.",
+    "rule": "A slot is BACKED when a real source tree exists TODAY that this slot's product would be built from - either sitting in the slot (filed: true) or sitting elsewhere under Projects/ with this slot as its declared destination (filed: false). CAPABILITY IS NOT BACKING: apps/subscriptiontracker carries all six Flutter platform targets, so the Flutter tree COULD fill twelve slots, but a tree that could be copied somewhere is not a product that is there. Counting capability instead of existence is exactly how fourteen empty directories start reading as a portfolio.",
     "products": [
       {
-        "product": "subly",
+        "product": "subscriptiontracker",
         "sourceDirs": [
           "Google_Play_Store/Android/Apps/Nikatru_Platform_Public",
           "Google_Play_Store/Android/Apps/Nikatru_Platform_Private"
         ],
-        "declaredBy": "catalog/apps.json in this repo - one row, slug subly, platforms ['web'], status live",
+        "declaredBy": "catalog/apps.json in this repo - one row, slug subscriptiontracker, platforms ['web'], status live",
         "claimsSlots": [
           "Google_Play_Store/Android/Apps"
         ],
@@ -164,7 +164,7 @@
         "sourceDirsWere": "2026-08-18: Projects/Project_Cross_browser_Extensions and Projects/Project_Cross_browser_Extensions_Private, outside the store tree entirely. 2026-08-19 the pair MOVED into the Chrome slot, keeping its git history and its two origins. Recorded because 'where the source used to be' is the question a stale script's error message asks.",
         "declaredBy": "Chrome_Web_Store/Chrome/Extensions/Nikatru_Chrome_Extensions_Public/catalog/extensions.json - one row, slug fullshot, platforms ['chrome','edge','firefox'], all three `listings` null, status preview. The catalogue moved WITH the tree; its contents were not re-read by the 2026-08-19 registry work and this line still describes the 2026-08-18 reading of it.",
         "claimsSlots": [],
-        "claimsSlotsEmptyWhy20260906": "fullshot no longer OWNS a slot. A slot is a repository pair, and fullshot no longer has one: it is a subtree of the pair the Google_Play_Store/Android/Apps row already declares, whose backing.product is subly. Claiming that row would make two products claim one slot; claiming a row that does not exist is what assert-store-matrix caught when the Chrome row was removed. An empty list is the honest reading and is already legal here - the third product entry has carried one since 2026-08-19. What fullshot ships, and to which stores, lives in tooling/channel-register.json, which is unaffected.",
+        "claimsSlotsEmptyWhy20260906": "fullshot no longer OWNS a slot. A slot is a repository pair, and fullshot no longer has one: it is a subtree of the pair the Google_Play_Store/Android/Apps row already declares, whose backing.product is subscriptiontracker. Claiming that row would make two products claim one slot; claiming a row that does not exist is what assert-store-matrix caught when the Chrome row was removed. An empty list is the honest reading and is already legal here - the third product entry has carried one since 2026-08-19. What fullshot ships, and to which stores, lives in tooling/channel-register.json, which is unaffected.",
         "note": "ONE repo pair claims THREE slots, and it sits outside the store tree entirely. Whether it splits into three or stays one is STORE-MATRIX-PLAN.md section 5.2 and it is OPEN. What makes getting it wrong expensive: the AMO gecko.id in identity.json is fixed permanently at first signing, and the existing fatal check compares two files WITHIN one repo - a three-way split puts three copies of that one fact in three trees with nothing checking across them. 2026-08-19 - THE FIRST HALF OF THAT SENTENCE IS NO LONGER TRUE AND THE SECOND HALF IS UNCHANGED: the pair now sits INSIDE the store tree, in the Chrome slot, so Chrome is `filed: true` while Edge and Firefox remain `filed: false` and `shell-claimed`. One repo pair still claims three slots. Section 5.2 is STILL OPEN, and the move did not answer it - it made Chrome the de facto home without deciding whether the other two get copies or repos of their own, which is exactly the question. The gecko.id hazard is untouched: the moment a copy lands in Firefox_AMO, that one permanent fact exists in two trees.",
         "claimsSlotsWas20260819": [
           "Chrome_Web_Store/Chrome/Extensions",
@@ -332,7 +332,7 @@
       "publicDir": "Nikatru_Platform_Public",
       "state": "live",
       "backing": {
-        "product": "subly",
+        "product": "subscriptiontracker",
         "filed": true
       },
       "repos": {

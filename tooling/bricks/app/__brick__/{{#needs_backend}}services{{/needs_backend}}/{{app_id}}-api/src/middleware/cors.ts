@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import type { AppEnv } from '../types';
 
 // CORS — an EXACT allowlist, FAIL CLOSED. The same rule as services/platform
-// and services/subly-api; a fork HERE is not one bad app, it is every app the
+// and services/subscriptiontracker-api; a fork HERE is not one bad app, it is every app the
 // factory will ever stamp, born wrong.
 //
 // `ALLOWED_ORIGINS` is a comma-separated list of exact browser origins. An

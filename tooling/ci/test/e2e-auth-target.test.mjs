@@ -95,7 +95,7 @@ function run(script, env) {
         SUPABASE_URL: origin,
         SUPABASE_ANON_KEY: 'anon-key-for-the-fake',
         SUPABASE_SERVICE_ROLE_KEY: 'service-role-key-for-the-fake',
-        E2E_EMAIL: 'subly-e2e+fixture@nikatru.com',
+        E2E_EMAIL: 'subscriptiontracker-e2e+fixture@nikatru.com',
         API_BASE_URL: origin,
         ...env,
       },

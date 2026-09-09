@@ -77,7 +77,7 @@ List<String> writeWebBrandAssets({
 /// 🔴 WHY THE BRICK NEEDS THESE AT ALL, WHEN IT STAMPS NO NATIVE PLATFORM.
 /// It stamps `web/` only, and `[3]S-3` holds that claim — the owner adds the
 /// rest with `flutter create . --platforms=…` after the stamp. That command is
-/// EXACTLY WHAT WRITES FLUTTER'S DEFAULT ICONS, which is how `apps/subly` came
+/// EXACTLY WHAT WRITES FLUTTER'S DEFAULT ICONS, which is how `apps/subscriptiontracker` came
 /// to ship the stock logo on Android, iOS, macOS and Windows simultaneously
 /// (measured 2026-08-04: 29 files, all byte-identical to `flutter create`).
 /// Fixing only Subly fixes one instance of a defect the template reproduces on

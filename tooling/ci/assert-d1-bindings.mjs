@@ -21,7 +21,7 @@
 // somebody could extend.
 //
 // ── THE SECOND CHECK, WHICH IS THE ONE WITH TEETH TODAY ─────────────────────
-// `subly_db` is declared in BOTH `services/subly-api` and `services/platform`;
+// `subly_db` is declared in BOTH `services/subscriptiontracker-api` and `services/platform`;
 // so is `platform_db`. Nothing verified the uuids agreed. A copy-paste slip
 // there does not error — the Worker deploys, runs, and reads and writes the
 // WRONG DATABASE, silently. That is the same shape as every other defect this

@@ -2,7 +2,7 @@
 // chassis_l10n_parity_test.dart — the CHASSIS strings, in both directions, and
 // really rendered in both locales.
 //
-// [ADR 067] decision 2. `apps/subly/test/l10n_parity_test.dart` is the shape
+// [ADR 067] decision 2. `apps/subscriptiontracker/test/l10n_parity_test.dart` is the shape
 // this follows and the reason it exists is the same one, one level up: gen-l10n
 // FALLS BACK TO ENGLISH for a key missing from `chassis_ta.arb`. It does not
 // fail, it does not throw at runtime, it prints a line into build output nobody

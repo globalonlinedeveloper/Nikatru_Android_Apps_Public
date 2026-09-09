@@ -283,7 +283,7 @@ export const PROBES = Object.freeze({
       // switches off; this repo has that failure on record
       // (assert-desktop-runner-identity.mjs's header states the same rule).
       // Folding the separators keeps the defect [10]D-3 is for — a rename that
-      // leaves this file holding the OLD STEM ("subly" against
+      // leaves this file holding the OLD STEM ("subscriptiontracker" against
       // "nikatrusubscriptiontracker") still differs in its letters and still
       // fires — while letting "nikatru-subscription-tracker" pass.
       const fold = (s) => norm(s).replace(/[^a-z0-9]+/g, '');

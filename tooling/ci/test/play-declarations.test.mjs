@@ -121,7 +121,7 @@ const REGISTER = {
 const CITE = (url) => ({ url, fetched: '2026-08-04', quote: 'a quoted sentence from the page' });
 
 const DATA_SAFETY = () => ({
-  app: 'subly',
+  app: 'subscriptiontracker',
   channel: 'android-play',
   sources: {
     allowedHosts: ['support.google.com'],
@@ -177,7 +177,7 @@ const DATA_SAFETY = () => ({
         dartPackages: [],
         iosUsageDescriptionKeys: [],
       },
-      evidence: ['apps/subly/lib/login.dart'],
+      evidence: ['apps/subscriptiontracker/lib/login.dart'],
       inventoryRows: ['table:subly_db.subscriptions'],
       basis: 'sent to the identity provider on sign-in',
     },
@@ -205,12 +205,12 @@ const DATA_SAFETY = () => ({
     cannotSee: 'what the receiving server does with the event',
   },
   dataSecurity: {
-    encryptedInTransit: { answer: true, basis: 'every endpoint is https', clientRoots: ['apps/subly/lib'] },
+    encryptedInTransit: { answer: true, basis: 'every endpoint is https', clientRoots: ['apps/subscriptiontracker/lib'] },
     deletionRequestSupported: {
       answer: true,
       webDeletionUrl: 'https://nikatru.com/delete-account.html',
       sitePage: 'sites/nikatru/delete-account.html',
-      inAppControl: 'apps/subly/lib/settings.dart',
+      inAppControl: 'apps/subscriptiontracker/lib/settings.dart',
       guards: [],
       basis: 'in-app control plus a web link',
     },
@@ -219,7 +219,7 @@ const DATA_SAFETY = () => ({
   },
   inventory: { register: 'tooling/legal/data-inventory.json', notFromThisApp: {} },
   androidPermissions: {
-    declaredInRepo: { 'apps/subly/android/app/src/main/AndroidManifest.xml': [] },
+    declaredInRepo: { 'apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml': [] },
     // THE MEASURED UNION. Deliberately three rows and not four: one per GRADE the
     // block actually uses (`read`, `inferred`, and the row that admits it has no
     // attribution at all), because every obligation limb 7a enforces hangs off
@@ -229,13 +229,13 @@ const DATA_SAFETY = () => ({
         runId: '1',
         runName: 'Build all 6 platforms — run #1',
         commit: '0000000000000000000000000000000000000000',
-        artifact: 'subly-android-release-signed',
+        artifact: 'subscriptiontracker-android-release-signed',
         file: 'app/outputs/bundle/release/app-release.aab',
         entry: 'base/manifest/AndroidManifest.xml',
         method: 'decoded from the aapt2 XmlNode protobuf, cross-checked with `aapt2 dump permissions`',
         measuredOn: '2026-08-26',
       },
-      releaseManifest: 'apps/subly/android/app/src/main/AndroidManifest.xml',
+      releaseManifest: 'apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml',
       lockfile: 'pubspec.lock',
       permissions: [
         {
@@ -257,7 +257,7 @@ const DATA_SAFETY = () => ({
           why: 'a transport, not a collector',
         },
         {
-          name: 'com.example.subly.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION',
+          name: 'com.example.subscriptiontracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION',
           attributedTo: 'androidx.core',
           attribution: 'transitive',
           evidenceGrade: 'inferred',
@@ -278,13 +278,13 @@ const DATA_SAFETY = () => ({
     cannotSee: 'which library contributed which merged permission is not readable here',
   },
   dependencySurface: {
-    manifest: 'apps/subly/pubspec.yaml',
+    manifest: 'apps/subscriptiontracker/pubspec.yaml',
     direct: { flutter: { introduces: [], why: 'the SDK' } },
   },
 });
 
 const CONTENT_RATING = () => ({
-  app: 'subly',
+  app: 'subscriptiontracker',
   channel: 'android-play',
   assignedRating: null,
   status: 'pending-questionnaire-submission',
@@ -300,7 +300,7 @@ const CONTENT_RATING = () => ({
       claim: 'an app, not a game',
       answer: false,
       derivation: 'listing-category',
-      categoryFile: 'apps/subly/store/android-play/category.txt',
+      categoryFile: 'apps/subscriptiontracker/store/android-play/category.txt',
       categoryValue: 'Productivity',
       gameCategories: ['Games'],
       basis: 'the listing category is Productivity',
@@ -334,7 +334,7 @@ const CONTENT_RATING = () => ({
       claim: 'no violence, sexual content or profanity',
       answer: false,
       derivation: 'human-owned',
-      surfaces: ['apps/subly/store/android-play/category.txt'],
+      surfaces: ['apps/subscriptiontracker/store/android-play/category.txt'],
       basis: 'no mechanical tell exists for this; a human re-reads the surfaces',
     },
   ],
@@ -350,8 +350,8 @@ const INVENTORY = () => ({
       personalData: true,
       holds: 'user-entered subscriptions',
       retention: { kind: 'keep', reason: 'the user\'s own data' },
-      erasure: { kind: 'purge', route: 'services/subly-api/src/routes/account.ts', reason: 'keyed on user_id' },
-      writtenBy: ['services/subly-api/migrations/0001_init.sql'],
+      erasure: { kind: 'purge', route: 'services/subscriptiontracker-api/src/routes/account.ts', reason: 'keyed on user_id' },
+      writtenBy: ['services/subscriptiontracker-api/migrations/0001_init.sql'],
     },
   ],
 });
@@ -359,14 +359,14 @@ const INVENTORY = () => ({
 const MANIFEST = `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- A COMMENT NAMING android.permission.ACCESS_FINE_LOCATION, which is not a
          permission. Stripping XML comments first is the whole point. -->
-    <application android:label="subly"/>
+    <application android:label="subscriptiontracker"/>
 </manifest>
 `;
 
 /** The app declaration, WITHOUT `billing.mobileIap` — the shipped state, and
  *  the tree [ADR 059] shape A describes: mobile is FREE-ONLY at v1. Cases that
  *  are about the IAP limb opt in by appending IAP_BLOCK. */
-const APP_YAML = `id: subly
+const APP_YAML = `id: subscriptiontracker
 name: Subly
 tagline: Track every subscription in one place
 category: Productivity
@@ -391,7 +391,7 @@ billing:
       ios: fixture_ios_app
 `;
 
-const PUBSPEC = `name: subly
+const PUBSPEC = `name: subscriptiontracker
 dependencies:
   flutter:
     sdk: flutter
@@ -456,7 +456,7 @@ const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>subly</string>
+	<string>subscriptiontracker</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 </dict>
@@ -465,7 +465,7 @@ const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 
 // ── THE DOMAIN THE GUARD DERIVES, MODELLED ──────────────────────────────────
 // 🔴 EVERY TEST IN THIS FILE USED TO PASS WITHOUT ANY OF THIS, AND THAT WAS THE
-// DEFECT. The guard read `apps/subly` out of a string literal, so a fixture
+// DEFECT. The guard read `apps/subscriptiontracker` out of a string literal, so a fixture
 // needed no root pubspec, no workspace list and no brick — the domain could not
 // be got wrong because it was not derived. Now it is: the workspace block is
 // the app set, and a fixture that omits it is COVERAGE LOST rather than a pass
@@ -478,7 +478,7 @@ publish_to: none
 workspace:
   - packages/core
   # - apps/ghost
-  - apps/subly
+  - apps/subscriptiontracker
 `;
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
@@ -542,23 +542,23 @@ function makeRoot(patch = {}) {
   const cr = CONTENT_RATING();
   const inv = INVENTORY();
   const files = {
-    'apps/subly/android/app/src/main/AndroidManifest.xml': MANIFEST,
-    'apps/subly/ios/Runner/Info.plist': PLIST,
-    'apps/subly/macos/Runner/Info.plist': PLIST,
-    'apps/subly/pubspec.yaml': PUBSPEC,
+    'apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml': MANIFEST,
+    'apps/subscriptiontracker/ios/Runner/Info.plist': PLIST,
+    'apps/subscriptiontracker/macos/Runner/Info.plist': PLIST,
+    'apps/subscriptiontracker/pubspec.yaml': PUBSPEC,
     // [ADR 067] decision 7 — the IAP limb reads each app's OWN declaration to
     // find out whether it sells through a store billing rail. Without one the
     // limb refuses, and correctly: an app root whose app.yaml is missing is an
     // app whose Data safety obligations nothing can derive.
-    'apps/subly/app.yaml': APP_YAML,
+    'apps/subscriptiontracker/app.yaml': APP_YAML,
     'pubspec.lock': LOCK,
     '.github/workflows/build-platforms.yml': WORKFLOW,
-    'apps/subly/store/android-play/category.txt': 'Productivity\n',
-    'apps/subly/store/android-play/title.txt': 'Subly\n',
-    'apps/subly/lib/login.dart': "const url = 'https://example.test';\n",
-    'apps/subly/lib/settings.dart': '// the delete-account control\n',
+    'apps/subscriptiontracker/store/android-play/category.txt': 'Productivity\n',
+    'apps/subscriptiontracker/store/android-play/title.txt': 'Subly\n',
+    'apps/subscriptiontracker/lib/login.dart': "const url = 'https://example.test';\n",
+    'apps/subscriptiontracker/lib/settings.dart': '// the delete-account control\n',
     'sites/nikatru/delete-account.html': '<html><body>delete</body></html>\n',
-    'services/subly-api/src/routes/account.ts': '// DELETE /v1/account\n',
+    'services/subscriptiontracker-api/src/routes/account.ts': '// DELETE /v1/account\n',
     // ── the derived domain ──
     'pubspec.yaml': ROOT_PUBSPEC,
     [`${BRICK}/pubspec.yaml`]: BRICK_PUBSPEC,
@@ -585,8 +585,8 @@ function makeRoot(patch = {}) {
 
   writeFile(root, 'tooling/channel-register.json', register);
   writeFile(root, 'tooling/legal/data-inventory.json', inv);
-  writeFile(root, 'apps/subly/store/android-play/data-safety.json', ds);
-  writeFile(root, 'apps/subly/store/android-play/content-rating.json', cr);
+  writeFile(root, 'apps/subscriptiontracker/store/android-play/data-safety.json', ds);
+  writeFile(root, 'apps/subscriptiontracker/store/android-play/content-rating.json', cr);
   for (const [rel, body] of Object.entries(files)) {
     if (body !== null) writeFile(root, rel, body);
   }
@@ -643,7 +643,7 @@ describe('assert-play-declarations — the happy path really passes', () => {
 describe('assert-play-declarations — COVERAGE LOST rather than a quiet pass', () => {
   test('the declaration file being gone is COVERAGE LOST, not a pass', () => {
     const root = makeRoot();
-    rmSync(join(root, 'apps/subly/store/android-play/data-safety.json'));
+    rmSync(join(root, 'apps/subscriptiontracker/store/android-play/data-safety.json'));
     const r = run(root);
     assert.equal(r.status, 1);
     assert.match(out(r), /COVERAGE LOST/);
@@ -726,8 +726,8 @@ describe('assert-play-declarations — the posture limb', () => {
 describe('assert-play-declarations — the code tells', () => {
   test('FAILS when a permission contradicts a "never collected" answer', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
-      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subly/android/app/src/main/AndroidManifest.xml'] = ['android.permission.ACCESS_FINE_LOCATION']; },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
+      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = ['android.permission.ACCESS_FINE_LOCATION']; },
     }));
     assert.equal(r.status, 1);
     assert.match(out(r), /NEVER collected, and android\.permission\.ACCESS_FINE_LOCATION/);
@@ -737,8 +737,8 @@ describe('assert-play-declarations — the code tells', () => {
     // Declaring the new permission satisfies the equality check. The answer is
     // still false. One limb must not be able to silence the other.
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
-      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subly/android/app/src/main/AndroidManifest.xml'] = ['android.permission.ACCESS_FINE_LOCATION']; },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
+      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = ['android.permission.ACCESS_FINE_LOCATION']; },
     }));
     assert.doesNotMatch(out(r), /A permission is the loudest single tell/);
     assert.match(out(r), /NEVER collected, and android\.permission\.ACCESS_FINE_LOCATION/);
@@ -746,7 +746,7 @@ describe('assert-play-declarations — the code tells', () => {
 
   test('FAILS when a package contradicts a "never collected" answer', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  geolocator: ^13.0.0\n'); },
+      files: (f) => { f['apps/subscriptiontracker/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  geolocator: ^13.0.0\n'); },
       ds: (x) => { x.dependencySurface.direct.geolocator = { introduces: [], why: 'added' }; },
     }));
     assert.equal(r.status, 1);
@@ -755,7 +755,7 @@ describe('assert-play-declarations — the code tells', () => {
 
   test('FAILS when an iOS usage-description key contradicts a "never collected" answer', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/ios/Runner/Info.plist'] = '<plist><dict><key>NSLocationWhenInUseUsageDescription</key><string>why</string></dict></plist>\n'; },
+      files: (f) => { f['apps/subscriptiontracker/ios/Runner/Info.plist'] = '<plist><dict><key>NSLocationWhenInUseUsageDescription</key><string>why</string></dict></plist>\n'; },
       ds: (x) => { findAnswer(x, 'Precise location').tells.iosUsageDescriptionKeys = ['NSLocationWhenInUseUsageDescription']; },
     }));
     assert.equal(r.status, 1);
@@ -764,8 +764,8 @@ describe('assert-play-declarations — the code tells', () => {
 
   test('a tell on a COLLECTED type does not fire — the limb is about claims of absence', () => {
     const r = run(makeRoot({
-      ds: (x) => { findAnswer(x, 'Precise location').collected['backend-live'] = true; findAnswer(x, 'Precise location').required = true; findAnswer(x, 'Precise location').purposes = ['App functionality']; findAnswer(x, 'Precise location').evidence = ['apps/subly/lib/login.dart']; },
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
+      ds: (x) => { findAnswer(x, 'Precise location').collected['backend-live'] = true; findAnswer(x, 'Precise location').required = true; findAnswer(x, 'Precise location').purposes = ['App functionality']; findAnswer(x, 'Precise location').evidence = ['apps/subscriptiontracker/lib/login.dart']; },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <application'); },
     }));
     // It fails on the permission EQUALITY (undeclared permission), not on the tell.
     assert.match(out(r), /A permission is the loudest single tell/);
@@ -790,7 +790,7 @@ describe('assert-play-declarations — the code tells', () => {
 //
 // MUTATION-PROVEN AGAINST THE REAL TREE, not only these fixtures — 3/3 caught,
 // baseline exit 0 before and after, files byte-restored:
-//   · apps/subly/ios/Runner/Info.plist renamed away    → REQUIRED_COVERAGE fires
+//   · apps/subscriptiontracker/ios/Runner/Info.plist renamed away    → REQUIRED_COVERAGE fires
 //   · all 3 Info.plists under ios/+macos/ renamed away → "found NO Info.plist"
 //   · the ios plist body wrapped in <!-- -->           → "ZERO <key> … stripInert"
 // The third mutation FIRST reported NOT CAUGHT and the harness was wrong, not the
@@ -817,20 +817,20 @@ describe('assert-play-declarations — the iOS usage-key haystack, floored on th
   });
 
   test('the required iOS Runner Info.plist going missing is COVERAGE LOST, not "no keys"', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/ios/Runner/Info.plist'] = null; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/ios/Runner/Info.plist'] = null; } }));
     assert.equal(r.status, 1);
-    assert.match(out(r), /apps\/subly\/ios\/Runner\/Info\.plist is REQUIRED_COVERAGE for the iOS usage-key haystack/);
+    assert.match(out(r), /apps\/subscriptiontracker\/ios\/Runner\/Info\.plist is REQUIRED_COVERAGE for the iOS usage-key haystack/);
     assert.doesNotMatch(out(r), /assert-play-declarations: ok/);
   });
 
   test('the required macOS Runner Info.plist going missing is COVERAGE LOST too', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/macos/Runner/Info.plist'] = null; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/macos/Runner/Info.plist'] = null; } }));
     assert.equal(r.status, 1);
-    assert.match(out(r), /apps\/subly\/macos\/Runner\/Info\.plist is REQUIRED_COVERAGE/);
+    assert.match(out(r), /apps\/subscriptiontracker\/macos\/Runner\/Info\.plist is REQUIRED_COVERAGE/);
   });
 
   test('the walk reaching NO Info.plist at all is COVERAGE LOST — the walk() regression', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/ios/Runner/Info.plist'] = null; f['apps/subly/macos/Runner/Info.plist'] = null; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/ios/Runner/Info.plist'] = null; f['apps/subscriptiontracker/macos/Runner/Info.plist'] = null; } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /found NO Info\.plist at all/);
     assert.match(out(r), /An absence that is indistinguishable from a broken reading is/);
@@ -840,15 +840,15 @@ describe('assert-play-declarations — the iOS usage-key haystack, floored on th
     // stripInert() removes comments before the key scan. A plist whose body is
     // inside <!-- --> is found, is parsed, and yields nothing — the exact shape
     // of "the instrument stopped working" that a file-count check would miss.
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/ios/Runner/Info.plist'] = '<plist><dict><!--<key>CFBundleName</key><string>subly</string>--></dict></plist>\n'; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/ios/Runner/Info.plist'] = '<plist><dict><!--<key>CFBundleName</key><string>subscriptiontracker</string>--></dict></plist>\n'; } }));
     assert.equal(r.status, 1);
-    assert.match(out(r), /apps\/subly\/ios\/Runner\/Info\.plist was found but yielded ZERO <key> elements after stripInert\(\)/);
+    assert.match(out(r), /apps\/subscriptiontracker\/ios\/Runner\/Info\.plist was found but yielded ZERO <key> elements after stripInert\(\)/);
   });
 
   test('a plist with keys but no NS…UsageDescription is NOT a failure — the zero is honest', () => {
     // The guard-on-the-guard. If this ever goes red, the floor has migrated from
     // the instrument onto the result and become an unclearable daily red.
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/ios/Runner/Info.plist'] = '<plist><dict><key>CFBundleIdentifier</key><string>tru.nika.subly</string></dict></plist>\n'; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/ios/Runner/Info.plist'] = '<plist><dict><key>CFBundleIdentifier</key><string>tru.nika.subscriptiontracker</string></dict></plist>\n'; } }));
     assert.equal(r.status, 0, out(r));
     assert.match(out(r), /assert-play-declarations: ok/);
   });
@@ -857,20 +857,20 @@ describe('assert-play-declarations — the iOS usage-key haystack, floored on th
 describe('assert-play-declarations — equality on permissions and dependencies', () => {
   test('FAILS when a manifest gains an undeclared permission', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.VIBRATE"/>\n    <application'); },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.VIBRATE"/>\n    <application'); },
     }));
     assert.equal(r.status, 1);
     assert.match(out(r), /A permission is the loudest single tell/);
   });
 
   test('FAILS when the declaration names a manifest that is gone', () => {
-    const r = run(makeRoot({ ds: (x) => { x.androidPermissions.declaredInRepo['apps/subly/android/app/src/nope/AndroidManifest.xml'] = []; } }));
+    const r = run(makeRoot({ ds: (x) => { x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/nope/AndroidManifest.xml'] = []; } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /describing a manifest that is gone/);
   });
 
   test('FAILS when a new dependency arrives with nobody saying what it collects', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  some_new_sdk: ^1.0.0\n'); } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  some_new_sdk: ^1.0.0\n'); } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /A new dependency arrived and nobody said what data it can collect/);
   });
@@ -897,7 +897,7 @@ describe('assert-play-declarations — equality on permissions and dependencies'
 describe('assert-play-declarations — the inventory relation, both directions', () => {
   test('FAILS when a personal-data store is neither mapped nor excluded', () => {
     const r = run(makeRoot({
-      inv: (x) => { x.stores.push({ id: 'table:subly_db.diary', kind: 'd1-table', name: 'diary', personalData: true, holds: 'x', retention: { kind: 'keep', reason: 'x' }, erasure: { kind: 'purge', route: 'services/subly-api/src/routes/account.ts', reason: 'x' }, writtenBy: [] }); },
+      inv: (x) => { x.stores.push({ id: 'table:subly_db.diary', kind: 'd1-table', name: 'diary', personalData: true, holds: 'x', retention: { kind: 'keep', reason: 'x' }, erasure: { kind: 'purge', route: 'services/subscriptiontracker-api/src/routes/account.ts', reason: 'x' }, writtenBy: [] }); },
     }));
     assert.equal(r.status, 1);
     assert.match(out(r), /neither maps it to a Play data type nor excludes it/);
@@ -1007,9 +1007,9 @@ describe('assert-play-declarations — answer shape and the honest null', () => 
   });
 
   test('FAILS when a collected type points at evidence that is gone', () => {
-    const r = run(makeRoot({ ds: (x) => { findAnswer(x, 'Email address').evidence = ['apps/subly/lib/moved.dart']; } }));
+    const r = run(makeRoot({ ds: (x) => { findAnswer(x, 'Email address').evidence = ['apps/subscriptiontracker/lib/moved.dart']; } }));
     assert.equal(r.status, 1);
-    assert.match(out(r), /names evidence apps\/subly\/lib\/moved\.dart, which does not exist/);
+    assert.match(out(r), /names evidence apps\/subscriptiontracker\/lib\/moved\.dart, which does not exist/);
   });
 
   test('PRINTS, rather than failing, when an absence claim has no mechanical tell', () => {
@@ -1046,13 +1046,13 @@ describe('assert-play-declarations — citations', () => {
 
 describe('assert-play-declarations — data security', () => {
   test('FAILS when a plaintext endpoint appears in shipped client code', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/lib/login.dart'] = "const url = 'http://example.test';\n"; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/lib/login.dart'] = "const url = 'http://example.test';\n"; } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /contains a `http:\/\/` URL in shipped client code/);
   });
 
   test('a `http://` inside a COMMENT is not an endpoint', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/lib/login.dart'] = "// once was http://example.test\nconst url = 'https://example.test';\n"; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/lib/login.dart'] = "// once was http://example.test\nconst url = 'https://example.test';\n"; } }));
     assert.equal(r.status, 0, out(r));
   });
 
@@ -1063,7 +1063,7 @@ describe('assert-play-declarations — data security', () => {
   });
 
   test('FAILS when the erasure route derived from the inventory is gone', () => {
-    const r = run(makeRoot({ files: (f) => { f['services/subly-api/src/routes/account.ts'] = null; } }));
+    const r = run(makeRoot({ files: (f) => { f['services/subscriptiontracker-api/src/routes/account.ts'] = null; } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /the route answering it is gone/);
   });
@@ -1111,14 +1111,14 @@ describe('assert-play-declarations — the content rating record', () => {
   });
 
   test('FAILS when the listing category and the questionnaire answer disagree', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/store/android-play/category.txt'] = 'Games\n'; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/store/android-play/category.txt'] = 'Games\n'; } }));
     assert.equal(r.status, 1);
     assert.match(out(r), /the misrepresentation Google removes apps for/);
   });
 
   test('FAILS when an ads SDK contradicts the no-ads answer', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  google_mobile_ads: ^5.0.0\n'); },
+      files: (f) => { f['apps/subscriptiontracker/pubspec.yaml'] = PUBSPEC.replace('dependencies:\n', 'dependencies:\n  google_mobile_ads: ^5.0.0\n'); },
       ds: (x) => { x.dependencySurface.direct.google_mobile_ads = { introduces: [], why: 'added' }; },
     }));
     assert.equal(r.status, 1);
@@ -1127,8 +1127,8 @@ describe('assert-play-declarations — the content rating record', () => {
 
   test('FAILS when the ad-ID permission contradicts the no-ads answer', () => {
     const r = run(makeRoot({
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="com.google.android.gms.permission.AD_ID"/>\n    <application'); },
-      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subly/android/app/src/main/AndroidManifest.xml'] = ['com.google.android.gms.permission.AD_ID']; },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="com.google.android.gms.permission.AD_ID"/>\n    <application'); },
+      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = ['com.google.android.gms.permission.AD_ID']; },
     }));
     assert.equal(r.status, 1);
     assert.match(out(r), /claim "contains-ads" answers false and com\.google\.android\.gms\.permission\.AD_ID is declared/);
@@ -1191,7 +1191,7 @@ describe('assert-play-declarations — the two forms cannot contradict each othe
 // one CONTROL that had to keep passing (a resolved entry whose answer is filled
 // in). Baseline passed before and after; every file restored from an in-memory
 // original and byte-compared; `git status` clean at the end. The mutations were
-// applied to apps/subly/pubspec.yaml, the real release AndroidManifest.xml, the
+// applied to apps/subscriptiontracker/pubspec.yaml, the real release AndroidManifest.xml, the
 // real pubspec.lock and the real data-safety.json — NOT to these fixtures.
 //
 // WHY THESE LIMBS EXIST AT ALL. The `tells` limb only evaluates a row answering
@@ -1213,11 +1213,11 @@ describe('assert-play-declarations — clientAbsence: the claim that survives co
   test('FAILS when a clientAbsence permission appears — even though the row IS collected', () => {
     const r = run(makeRoot({
       files: (f) => {
-        f['apps/subly/android/app/src/main/AndroidManifest.xml'] =
+        f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] =
           '<manifest><uses-permission android:name="android.permission.GET_ACCOUNTS"/><application/></manifest>\n';
       },
       ds: (x) => {
-        x.androidPermissions.declaredInRepo['apps/subly/android/app/src/main/AndroidManifest.xml'] = ['android.permission.GET_ACCOUNTS'];
+        x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = ['android.permission.GET_ACCOUNTS'];
       },
     }));
     assert.equal(r.status, 1);
@@ -1232,7 +1232,7 @@ describe('assert-play-declarations — clientAbsence: the claim that survives co
         x.dependencySurface.direct.google_sign_in = { introduces: ['Email address'], why: 'identity' };
       },
       files: (f) => {
-        f['apps/subly/pubspec.yaml'] = PUBSPEC.replace('dev_dependencies:', '  google_sign_in: ^6.0.0\ndev_dependencies:');
+        f['apps/subscriptiontracker/pubspec.yaml'] = PUBSPEC.replace('dev_dependencies:', '  google_sign_in: ^6.0.0\ndev_dependencies:');
       },
     }));
     assert.equal(r.status, 1);
@@ -1527,15 +1527,15 @@ describe('assert-play-declarations — limb 7a: the merged manifest, as measured
   test('FAILS when the release manifest starts hand-declaring one of the merged permissions', () => {
     // `merged._why` asserts that not ONE of these arrived from this repository.
     const r = run(makeRoot({
-      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subly/android/app/src/main/AndroidManifest.xml'] = ['android.permission.VIBRATE']; },
-      files: (f) => { f['apps/subly/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.VIBRATE"/>\n    <application'); },
+      ds: (x) => { x.androidPermissions.declaredInRepo['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = ['android.permission.VIBRATE']; },
+      files: (f) => { f['apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml'] = MANIFEST.replace('<application', '<uses-permission android:name="android.permission.VIBRATE"/>\n    <application'); },
     }));
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /no longer arrived wholly from dependencies/);
   });
 
   test('FAILS when the named release manifest is not one the walk found', () => {
-    const r = run(makeRoot({ ds: (x) => { x.androidPermissions.merged.releaseManifest = 'apps/subly/android/app/src/nope/AndroidManifest.xml'; } }));
+    const r = run(makeRoot({ ds: (x) => { x.androidPermissions.merged.releaseManifest = 'apps/subscriptiontracker/android/app/src/nope/AndroidManifest.xml'; } }));
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /is not one of the manifests this walk found/);
   });
@@ -1585,7 +1585,7 @@ describe('assert-play-declarations — limb 7a: the merged manifest, as measured
 // file, so the miniature cannot quietly stop modelling the thing it stands in for.
 describe('assert-play-declarations — limb 7a against the REAL data-safety.json', () => {
   const REPO = resolve(CI_DIR, '..', '..');
-  const DS_PATH = join(REPO, 'apps', 'subly', 'store', 'android-play', 'data-safety.json');
+  const DS_PATH = join(REPO, 'apps', 'subscriptiontracker', 'store', 'android-play', 'data-safety.json');
   const realMerged = () => {
     assert.ok(existsSync(DS_PATH), `${DS_PATH} does not exist — this limb reads it and cannot be checked against it`);
     const m = JSON.parse(readFileSync(DS_PATH, 'utf8')).androidPermissions?.merged;
@@ -1652,7 +1652,7 @@ describe('assert-play-declarations — limb 7a against the REAL data-safety.json
 // ─────────────────────────────────────────────────────────────────────────────
 // THE DOMAIN — one app hard-coded became every app derived (2026-09-05).
 //
-// 🔴 WHAT THESE TESTS EXIST FOR. Until this change the guard read `apps/subly`
+// 🔴 WHAT THESE TESTS EXIST FOR. Until this change the guard read `apps/subscriptiontracker`
 // out of a string literal in two places, so app #2's Data safety label, its
 // permission equality and its content-rating questionnaire were outside every
 // limb while the file printed `ok`. Google's stated consequence for a label
@@ -1662,20 +1662,20 @@ describe('assert-play-declarations — limb 7a against the REAL data-safety.json
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** A root carrying TWO apps on the workspace list — the case the whole change
- *  is about. app2's tree and declarations are subly's with the path rewritten,
+ *  is about. app2's tree and declarations are subscriptiontracker's with the path rewritten,
  *  because the point being proven is that the LOOP reaches it, not that a
  *  different app can be modelled. */
 function makeTwoAppRoot(patch = {}) {
-  const ds2 = JSON.parse(JSON.stringify(DATA_SAFETY()).split('apps/subly').join('apps/app2'));
-  const cr2 = JSON.parse(JSON.stringify(CONTENT_RATING()).split('apps/subly').join('apps/app2'));
+  const ds2 = JSON.parse(JSON.stringify(DATA_SAFETY()).split('apps/subscriptiontracker').join('apps/app2'));
+  const cr2 = JSON.parse(JSON.stringify(CONTENT_RATING()).split('apps/subscriptiontracker').join('apps/app2'));
   if (patch.ds2) patch.ds2(ds2);
   if (patch.cr2) patch.cr2(cr2);
   return makeRoot({
     ...patch,
     files: (f) => {
-      f['pubspec.yaml'] = ROOT_PUBSPEC.replace('  - apps/subly\n', '  - apps/subly\n  - apps/app2\n');
+      f['pubspec.yaml'] = ROOT_PUBSPEC.replace('  - apps/subscriptiontracker\n', '  - apps/subscriptiontracker\n  - apps/app2\n');
       for (const [rel, body] of Object.entries({ ...f })) {
-        if (rel.startsWith('apps/subly/')) f[rel.replace('apps/subly/', 'apps/app2/')] = body;
+        if (rel.startsWith('apps/subscriptiontracker/')) f[rel.replace('apps/subscriptiontracker/', 'apps/app2/')] = body;
       }
       f['apps/app2/store/android-play/data-safety.json'] = ds2;
       f['apps/app2/store/android-play/content-rating.json'] = cr2;
@@ -1718,7 +1718,7 @@ describe('assert-play-declarations — the domain is DERIVED, and floored', () =
 
   test('🔴 A SECOND APP IS REALLY CHECKED — the whole defect, in one test', () => {
     // The mutation is in app2's declaration ONLY. Under the pre-change guard,
-    // which read `apps/subly` from a literal, this tree was GREEN.
+    // which read `apps/subscriptiontracker` from a literal, this tree was GREEN.
     const r = run(makeTwoAppRoot({
       ds2: (x) => { findAnswer(x, 'Precise location').tells.dartPackages = ['flutter']; },
     }));
@@ -1731,14 +1731,14 @@ describe('assert-play-declarations — the domain is DERIVED, and floored', () =
     const r = run(makeTwoAppRoot({
       ds2: (x) => { findAnswer(x, 'Precise location').tells.dartPackages = ['flutter']; },
     }));
-    assert.doesNotMatch(out(r), /FAIL[^\n]*apps\/subly\/store/);
+    assert.doesNotMatch(out(r), /FAIL[^\n]*apps\/subscriptiontracker\/store/);
   });
 
   test('two healthy apps both pass and both are NAMED in the passing lines', () => {
     const r = run(makeTwoAppRoot());
     assert.equal(r.status, 0, out(r));
     assert.match(out(r), /2 answered app root\(s\)/);
-    assert.match(out(r), /ok {3}apps\/subly — 3\/3 Play data type\(s\)/);
+    assert.match(out(r), /ok {3}apps\/subscriptiontracker — 3\/3 Play data type\(s\)/);
     assert.match(out(r), /ok {3}apps\/app2 — 3\/3 Play data type\(s\)/);
   });
 
@@ -1826,7 +1826,7 @@ describe('assert-play-declarations — THE FACTORY: the brick is a root of a dif
   });
 
   test('🔴 THE SWEEP BITES — a watched package added to the TEMPLATE fails the build', () => {
-    // The single reason the brick is a root at all. `geolocator` in apps/subly
+    // The single reason the brick is a root at all. `geolocator` in apps/subscriptiontracker
     // makes one label false; `geolocator` here makes every app the factory ever
     // stamps collect location, while the declaration stamped beside it is null.
     const r = run(makeRoot({ files: (f) => { f[`${BRICK}/pubspec.yaml`] = BRICK_PUBSPEC.replace('  go_router:', '  geolocator: ^12.0.0\n  go_router:'); } }));
@@ -1927,7 +1927,7 @@ const purchaseHistoryRow = (collectedLive) => ({
   required: false,
   purposes: ['App functionality'],
   tells: { androidPermissions: [], dartPackages: [], iosUsageDescriptionKeys: [] },
-  evidence: ['apps/subly/pubspec.yaml'],
+  evidence: ['apps/subscriptiontracker/pubspec.yaml'],
   inventoryRows: [],
   basis: 'the store records the purchase against the account',
 });
@@ -1946,7 +1946,7 @@ describe('assert-play-declarations — the IAP limb', () => {
     const r = run(
       makeRoot({
         files: (f) => {
-          f['apps/subly/app.yaml'] = APP_YAML + IAP_BLOCK;
+          f['apps/subscriptiontracker/app.yaml'] = APP_YAML + IAP_BLOCK;
         },
         // No Purchase-history row at all — which is exactly the shipped state
         // of a form nobody has answered for a store billing rail.
@@ -1960,7 +1960,7 @@ describe('assert-play-declarations — the IAP limb', () => {
     const r = run(
       makeRoot({
         files: (f) => {
-          f['apps/subly/app.yaml'] = APP_YAML + IAP_BLOCK;
+          f['apps/subscriptiontracker/app.yaml'] = APP_YAML + IAP_BLOCK;
         },
         ds: (d) => {
           d.vocabulary.categories['Financial info'] = ['Purchase history'];
@@ -1973,7 +1973,7 @@ describe('assert-play-declarations — the IAP limb', () => {
   });
 
   test('a sworn Purchase-history row with NO IAP declaration is not a failure', () => {
-    // Over-swearing is not the accuracy failure Play punishes, and apps/subly
+    // Over-swearing is not the accuracy failure Play punishes, and apps/subscriptiontracker
     // swears that row today for the first-party entitlement rail with a sourced
     // basis and no IAP anywhere.
     const r = run(
@@ -1988,8 +1988,8 @@ describe('assert-play-declarations — the IAP limb', () => {
   });
 
   test('an app root with no app.yaml is a finding, not a silent pass', () => {
-    const r = run(makeRoot({ files: (f) => { f['apps/subly/app.yaml'] = null; } }));
+    const r = run(makeRoot({ files: (f) => { f['apps/subscriptiontracker/app.yaml'] = null; } }));
     assert.equal(r.status, 1, out(r));
-    assert.match(out(r), /apps\/subly\/app\.yaml does not exist/);
+    assert.match(out(r), /apps\/subscriptiontracker\/app\.yaml does not exist/);
   });
 });

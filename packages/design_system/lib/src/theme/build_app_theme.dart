@@ -92,7 +92,7 @@ ThemeData _themeFrom({
 /// applied to every app in the portfolio.
 ///
 /// 📌 PREMISE CORRECTED 2026-08-21 — the paragraph above used to carry its
-/// warrant as *"`apps/subly` was frozen as a legacy rail-prover (39-CHASSIS
+/// warrant as *"`apps/subscriptiontracker` was frozen as a legacy rail-prover (39-CHASSIS
 /// cut 1)"*. THAT PREMISE IS DEAD, and it was already dead when this comment was
 /// written. `Private/decisions/036-subly-freeze-dissolved-by-owner-order.md`
 /// dissolves cut 1 by owner order of 2026-08-08: *"Subly stops being a frozen

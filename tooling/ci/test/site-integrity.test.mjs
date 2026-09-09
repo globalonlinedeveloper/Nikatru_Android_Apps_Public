@@ -601,16 +601,16 @@ describe('check-site-integrity · one canonical URL form', () => {
   });
 
   test('🔴 a link to a _redirects SOURCE resolves — and stops resolving when the rule goes', () => {
-    // The real link this was written for: checkout-return.html links `/subly`,
+    // The real link this was written for: checkout-return.html links `/subscriptiontracker`,
     // the permanent commerce address, which is a redirect rule and not a file.
     // Before the 2026-08-21 inversion nothing reached that link (it carries no
     // `.html`), so the redirect map had never been verified by anything.
-    const linksSubly = page(ORIGIN, '<a href="/subly">Subly</a>', EMPTY_GRID);
+    const linksSubly = page(ORIGIN, '<a href="/subscriptiontracker">Subly</a>', EMPTY_GRID);
 
     const withRule = run(
       urlTree('rd-ok', {
         'sites/nikatru/index.html': linksSubly,
-        'sites/nikatru/_redirects': '# comment line, ignored\n/subly /privacy 301\n',
+        'sites/nikatru/_redirects': '# comment line, ignored\n/subscriptiontracker /privacy 301\n',
       }),
     );
     assert.equal(withRule.code, 0, withRule.out);
@@ -621,7 +621,7 @@ describe('check-site-integrity · one canonical URL form', () => {
       urlTree('rd-gone', { 'sites/nikatru/index.html': linksSubly, 'sites/nikatru/_redirects': '# nothing\n' }),
     );
     assert.equal(withoutRule.code, 1);
-    assert.match(withoutRule.out, /links "\/subly", and no page and no _redirects rule backs that URL/);
+    assert.match(withoutRule.out, /links "\/subscriptiontracker", and no page and no _redirects rule backs that URL/);
   });
 
   test('🔴 the FORM half skips a noindex page; the RESOLVES half does not', () => {
@@ -1039,7 +1039,7 @@ const gridWith = (...names) =>
   '</div>\n<!-- /APPS-GRID -->';
 
 describe('check-site-integrity · the site app list vs apps.json', () => {
-  const registry = (status) => `[{ "slug": "subly", "name": "Subly", "url": "https://subly.test", "status": "${status}" }]\n`;
+  const registry = (status) => `[{ "slug": "subscriptiontracker", "name": "Subly", "url": "https://subscriptiontracker.test", "status": "${status}" }]\n`;
   const withApps = (name, grid, status) =>
     urlTree(name, {
       'sites/nikatru/index.html': page(ORIGIN, '', grid),
@@ -1156,7 +1156,7 @@ describe('check-site-integrity · a deploy root owes its discovery surfaces', ()
 //
 // Repo-wide, `llms.txt` appeared in guard code exactly once — inside a comment —
 // and the file was measurably lying: sites/nikatru/llms.txt said "First releases
-// are on the way" and "Status: pre-launch" while apps.json marked `subly` live
+// are on the way" and "Status: pre-launch" while apps.json marked `subscriptiontracker` live
 // and assert-catalog-reachable.mjs proved its URL answers.
 //
 // 🔴 THE STRONGEST NEGATIVE TEST THIS LIMB WILL EVER GET is that it was RED ON
@@ -1174,9 +1174,9 @@ describe('check-site-integrity · a deploy root owes its discovery surfaces', ()
 // edit.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('check-site-integrity · llms.txt vs the app registry', () => {
-  const LIVE = '[{ "slug": "subly", "name": "Subly", "url": "https://subly.test", "status": "live" }]\n';
-  const PREVIEW = '[{ "slug": "subly", "name": "Subly", "url": "https://subly.test", "status": "preview" }]\n';
-  const honest = '# N\n\n> The studio ships apps.\n\n## Apps\n- Subly — https://subly.test (web)\n';
+  const LIVE = '[{ "slug": "subscriptiontracker", "name": "Subly", "url": "https://subscriptiontracker.test", "status": "live" }]\n';
+  const PREVIEW = '[{ "slug": "subscriptiontracker", "name": "Subly", "url": "https://subscriptiontracker.test", "status": "preview" }]\n';
+  const honest = '# N\n\n> The studio ships apps.\n\n## Apps\n- Subly — https://subscriptiontracker.test (web)\n';
 
   /** An APP-FACING root: it ships an apps/ directory, which is the heuristic
    *  that catches a new site nobody added to REQUIRED_LEGAL_ROOTS. Only an
@@ -1230,7 +1230,7 @@ describe('check-site-integrity · llms.txt vs the app registry', () => {
       'sites/nikatru/llms.txt': '# N\n\n> The studio ships apps.\n',
     }));
     assert.equal(code, 1);
-    assert.match(out, /does not name https:\/\/subly\.test/);
+    assert.match(out, /does not name https:\/\/subscriptiontracker\.test/);
   });
 
   // The other direction, and the one that matches the homepage limb's rule: a
@@ -1238,7 +1238,7 @@ describe('check-site-integrity · llms.txt vs the app registry', () => {
   test('FAILS when llms.txt advertises an app the registry does not call live', () => {
     const { code, out } = run(appFacing('llms-unbacked', { 'catalog/apps.json': PREVIEW }));
     assert.equal(code, 1);
-    assert.match(out, /names https:\/\/subly\.test, and .* status "preview"/);
+    assert.match(out, /names https:\/\/subscriptiontracker\.test, and .* status "preview"/);
   });
 
   // A root that is NOT app-facing ships an llms.txt too and is deliberately out

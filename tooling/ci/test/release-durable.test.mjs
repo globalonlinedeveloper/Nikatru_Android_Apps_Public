@@ -129,7 +129,7 @@ function registerWith(mutate) {
 
 /**
  * `originEnvironments` takes the release's SURFACE as a required fourth argument
- * (added 2026-09-05 — without it `--app subly` emitted three browser-store
+ * (added 2026-09-05 — without it `--app subscriptiontracker` emitted three browser-store
  * environments). Every case in this file that does not name one is an APP-surface
  * release, so this wrapper supplies `'app'` and the extension cases pass
  * `'extension'` explicitly. The REQUIREMENT itself — that the raw function
@@ -142,7 +142,7 @@ const originEnvironments = (register, app, assets, surface = 'app') => originEnv
  *  reads MANIFEST_NAME and the extension derivation OUT of it — that single
  *  declaration is one of the guard's REQUIRED_COVERAGE identities, so a fixture
  *  without it is testing a different guard. */
-function fixture({ workflows = {}, register = REGISTER, withManifestScript = true, apps = ['subly'], tools = [] } = {}) {
+function fixture({ workflows = {}, register = REGISTER, withManifestScript = true, apps = ['subscriptiontracker'], tools = [] } = {}) {
   const root = join(TMP, `f${seq++}`);
   mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
   mkdirSync(join(root, 'tooling', 'ci'), { recursive: true });
@@ -185,15 +185,15 @@ const cli = (args) => {
 // ── workflow bodies ──────────────────────────────────────────────────────────
 const UPLOAD = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-linux
+          name: subscriptiontracker-linux
           path: |
-            apps/subly/build/app/outputs/flutter-apk/*.apk
-            apps/subly/build/linux/x64/release/bundle
+            apps/subscriptiontracker/build/app/outputs/flutter-apk/*.apk
+            apps/subscriptiontracker/build/linux/x64/release/bundle
           retention-days: 7
 `;
 
 const PUBLISH_STEPS = `      - name: Write the manifest
-        run: node tooling/ci/release-manifest.mjs --write dist --app subly --tag subly-v1 --sha 93aee1d
+        run: node tooling/ci/release-manifest.mjs --write dist --app subscriptiontracker --tag subscriptiontracker-v1 --sha 93aee1d
       - name: Verify it
         run: node tooling/ci/release-manifest.mjs --verify dist
       - name: Publish
@@ -276,19 +276,19 @@ describe('assert-release-durable.mjs — limb 1 (a release lane cannot end at up
   test('a desktop bundle DIRECTORY under build/ is installable even with no file extension', () => {
     const dirOnly = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-windows
-          path: apps/subly/build/windows/x64/runner/Release
+          name: subscriptiontracker-windows
+          path: apps/subscriptiontracker/build/windows/x64/runner/Release
 `;
     const r = run(fixture({ workflows: { 'build.yml': lane({ upload: dirOnly, releaseJob: false }) } }));
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /apps\/subly\/build\/windows\/x64\/runner\/Release/);
+    assert.match(r.out, /apps\/subscriptiontracker\/build\/windows\/x64\/runner\/Release/);
   });
 
   test('a SCREENSHOTS upload is a listing asset, not an installable — no false red', () => {
     const shots = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: shots
-          path: apps/subly/screenshots/
+          path: apps/subscriptiontracker/screenshots/
 `;
     // Paired with a real installable elsewhere so the COVERAGE-LOST floor is met.
     const r = run(fixture({ workflows: { 'shots.yml': lane({ upload: shots, releaseJob: false }), 'build.yml': lane() } }));
@@ -369,18 +369,18 @@ describe('assert-release-durable.mjs — limb 4 (an upload path that defeats if-
   // that always exists. `if-no-files-found: error` asks about the UNION.
   const MIXED = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-windows
+          name: subscriptiontracker-windows
           path: |
-            apps/subly/build/windows/x64/runner/Release
-            apps/subly/build/windows/msix/*.msix
+            apps/subscriptiontracker/build/windows/x64/runner/Release
+            apps/subscriptiontracker/build/windows/msix/*.msix
           if-no-files-found: error
 `;
   const GLOBS_ONLY = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-android
+          name: subscriptiontracker-android
           path: |
-            apps/subly/build/app/outputs/flutter-apk/*.apk
-            apps/subly/build/app/outputs/bundle/release/*.aab
+            apps/subscriptiontracker/build/app/outputs/flutter-apk/*.apk
+            apps/subscriptiontracker/build/app/outputs/bundle/release/*.aab
           if-no-files-found: error
 `;
 
@@ -410,10 +410,10 @@ describe('assert-release-durable.mjs — limb 4 (an upload path that defeats if-
   test('a block of ONLY directories is fine for the same reason', () => {
     const dirsOnly = `      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: subly-desktop
+          name: subscriptiontracker-desktop
           path: |
-            apps/subly/build/windows/x64/runner/Release
-            apps/subly/build/linux/x64/release/bundle
+            apps/subscriptiontracker/build/windows/x64/runner/Release
+            apps/subscriptiontracker/build/linux/x64/release/bundle
           if-no-files-found: error
 `;
     const r = run(fixture({ workflows: { 'build.yml': lane({ upload: dirsOnly }) } }), '--fail-on-mixed-upload-paths');
@@ -459,7 +459,7 @@ describe('assert-release-durable.mjs — limb 2 (the integrity record)', () => {
   });
 
   test('publishing from a directory the manifest does not describe', () => {
-    const elsewhere = PUBLISH_STEPS.replace('gh release create "$TAG" $(node tooling/ci/release-manifest.mjs --emit-assets dist)', 'gh release create "$TAG" out/subly.msix');
+    const elsewhere = PUBLISH_STEPS.replace('gh release create "$TAG" $(node tooling/ci/release-manifest.mjs --emit-assets dist)', 'gh release create "$TAG" out/subscriptiontracker.msix');
     const r = run(fixture({ workflows: { 'build.yml': lane({ publish: elsewhere }) } }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /manifests `dist` and its publish command never mentions it/);
@@ -467,9 +467,9 @@ describe('assert-release-durable.mjs — limb 2 (the integrity record)', () => {
 
   test('a manifest written AFTER the publish describes something already downloadable', () => {
     const late = `      - name: Publish
-        run: gh release create "$TAG" dist/subly.apk
+        run: gh release create "$TAG" dist/subscriptiontracker.apk
       - name: Write the manifest
-        run: node tooling/ci/release-manifest.mjs --write dist --app subly --tag subly-v1 --sha 93aee1d
+        run: node tooling/ci/release-manifest.mjs --write dist --app subscriptiontracker --tag subscriptiontracker-v1 --sha 93aee1d
       - name: Verify it
         run: node tooling/ci/release-manifest.mjs --verify dist
 `;
@@ -481,7 +481,7 @@ describe('assert-release-durable.mjs — limb 2 (the integrity record)', () => {
 
   test('a `--dry-run` publish is not a publish and is not held to limb 2', () => {
     const dry = `      - name: Not really publishing
-        run: gh release create "$TAG" --dry-run dist/subly.apk
+        run: gh release create "$TAG" --dry-run dist/subscriptiontracker.apk
 `;
     const r = run(fixture({ workflows: { 'build.yml': lane({ publish: dry }) } }));
     // No durable destination at all now, so limb 1 fires — but limb 2 must not,
@@ -573,12 +573,12 @@ describe('release-manifest.mjs — the derivations', () => {
   });
 
   test('originEnvironments takes DIRECT channels only, and only when the release carries their format', () => {
-    assert.deepEqual(originEnvironments(REGISTER, 'subly', ['subly-v1-subly.msix']).environments, ['subly-windows-direct']);
+    assert.deepEqual(originEnvironments(REGISTER, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']).environments, ['subscriptiontracker-windows-direct']);
     // The .aab is carried, but android-play is a STORE row: a GitHub Release is
     // a download origin, never a submission.
-    assert.deepEqual(originEnvironments(REGISTER, 'subly', ['subly-v1-app-release.aab']).environments, []);
+    assert.deepEqual(originEnvironments(REGISTER, 'subscriptiontracker', ['subscriptiontracker-v1-app-release.aab']).environments, []);
     // A direct row whose format is absent is not a channel this release served.
-    assert.deepEqual(originEnvironments(REGISTER, 'subly', ['subly-v1-notes.txt']).environments, []);
+    assert.deepEqual(originEnvironments(REGISTER, 'subscriptiontracker', ['subscriptiontracker-v1-notes.txt']).environments, []);
     // ...and none of those three is an OMISSION. A row that never matched is a
     // different fact from a row that matched and was withheld, and the CLI
     // branches on exactly that difference — an unmatched row must not leak into
@@ -589,23 +589,23 @@ describe('release-manifest.mjs — the derivations', () => {
     // EXIT 0 / 86 pass / 0 fail on 2026-08-24: no subject atom is held by this
     // case alone. A wider bound can only ADD a failure, never remove one, so
     // widening is the free direction and it is the one taken.
-    for (const names of [['subly-v1-subly.msix'], ['subly-v1-app-release.aab'], ['subly-v1-notes.txt']]) {
-      assert.deepEqual(originEnvironments(REGISTER, 'subly', names).omitted, [], names.join());
+    for (const names of [['subscriptiontracker-v1-subscriptiontracker.msix'], ['subscriptiontracker-v1-app-release.aab'], ['subscriptiontracker-v1-notes.txt']]) {
+      assert.deepEqual(originEnvironments(REGISTER, 'subscriptiontracker', names).omitted, [], names.join());
     }
   });
 
   test('the manifest round-trips, and its header carries the gated commit', () => {
     const text = renderManifest({
-      app: 'subly',
-      tag: 'subly-v1.0.0',
+      app: 'subscriptiontracker',
+      tag: 'subscriptiontracker-v1.0.0',
       sha: '93aee1d',
       runUrl: 'https://example/run/1',
       entries: [{ name: 'a.apk', hash: 'a'.repeat(64) }],
     });
     const { meta, entries } = parseManifest(text);
     assert.equal(meta.commit, '93aee1d');
-    assert.equal(meta.tag, 'subly-v1.0.0');
-    assert.equal(meta.app, 'subly');
+    assert.equal(meta.tag, 'subscriptiontracker-v1.0.0');
+    assert.equal(meta.app, 'subscriptiontracker');
     assert.deepEqual(entries, [{ name: 'a.apk', hash: 'a'.repeat(64) }]);
     assert.match(text, /^# NIKATRU release manifest/);
   });
@@ -617,9 +617,9 @@ describe('release-manifest.mjs — the derivations', () => {
 //
 // THE DEFECT, MEASURED 2026-08-21 BY RUNNING THE RELEASE JOB'S OWN COMMAND over
 // a scratch directory holding two one-line fake files named `…-app-release.aab`
-// and `…-subly.msix`:
-//     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subly
-//       → EXIT 0, stdout `subly-windows-direct`
+// and `…-subscriptiontracker.msix`:
+//     node tooling/ci/release-manifest.mjs --emit-environments <dir> --app subscriptiontracker
+//       → EXIT 0, stdout `subscriptiontracker-windows-direct`
 // build-platforms.yml:457-459 pipes that stdout into record-deployment.mjs
 // (re-anchored 2026-09-06 by grep -n, after that file's prose moved to
 // docs/ci/build-platforms.md and every line below it shifted), so
@@ -649,7 +649,7 @@ describe('release-manifest.mjs — the derivations', () => {
 //    A bound that ranges wider cannot make a red case green, so narrowing it is
 //    the only risky direction and widening it is free. Sliced to their first
 //    element, each of these left this file at EXIT 0 / 86 pass / 0 fail:
-//      · `for (const names of [['subly-v1-subly.msix'], …]]` (the .omitted === []
+//      · `for (const names of [['subscriptiontracker-v1-subscriptiontracker.msix'], …]]` (the .omitted === []
 //        loop in 'originEnvironments takes DIRECT channels only')
 //      · `for (const [label, mutate] of [` in 'a `signing.*` object with no
 //        USABLE sentinel' — re-checked PAIRED with the two subject atoms that
@@ -708,8 +708,8 @@ describe('release-manifest.mjs — the derivations', () => {
 //      · `assert.deepEqual(r.omitted.map((o) => o.environment), …)` — the `.id`
 //        deepEqual above it is the one that is load-bearing (it is the only
 //        thing holding `c.id ?? '(unnamed)'`; measured, that pair goes GREEN)
-//      · `assert.doesNotMatch(r.out, /\{app\}/)` and `/subly-windows-direct/`
-//        relaxed to `/subly/` in the CLI block
+//      · `assert.doesNotMatch(r.out, /\{app\}/)` and `/subscriptiontracker-windows-direct/`
+//        relaxed to `/subscriptiontracker/` in the CLI block
 //
 // D. ONE BRANCH THIS TREE CANNOT REACH TODAY — the `else` of
 //    `if (withheld.includes('windows-direct'))`. See the note at that line.
@@ -831,7 +831,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       'undeclared',
       'a one-element array is not the STRING "none"; only `==` would say it is',
     );
-    const arrayKeyKindOrigin = originEnvironments({ channels: [arrayKeyKind] }, 'subly', ['subly-v1-subly.msix']);
+    const arrayKeyKindOrigin = originEnvironments({ channels: [arrayKeyKind] }, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
     assert.deepEqual(arrayKeyKindOrigin.environments, [], 'an unreadable keyKind may never reach the ledger');
     assert.deepEqual(arrayKeyKindOrigin.omitted.map((o) => o.id), ['array-keykind']);
 
@@ -917,7 +917,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       signing: [{ ...CONFIGURED_PIN }],
     };
     assert.equal(signingPosture(arrayRow).state, 'undeclared', 'an array is not a `signing` block');
-    const r = originEnvironments({ channels: [arrayRow] }, 'subly', ['subly-v1-subly.msix']);
+    const r = originEnvironments({ channels: [arrayRow] }, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
     assert.deepEqual(r.environments, [], 'an unreadable posture must never reach the ledger');
     assert.equal(r.omitted.length, 1);
     assert.equal(r.omitted[0].state, 'undeclared');
@@ -941,7 +941,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
   // hand-written JSON and every shape below is one a human produces. The
   // `{app}`-less template is the one that is dangerous rather than merely untidy:
   // `tpl.replace('{app}', app)` is a no-op on it, so the row emits ONE environment
-  // name for EVERY app, and [10]D-9 records subly's release against dictoro's row.
+  // name for EVERY app, and [10]D-9 records subscriptiontracker's release against dictoro's row.
   test('a MALFORMED row is skipped, never fatal, and never silently renamed', () => {
     const good = REGISTER.channels.find((c) => c.id === 'windows-direct');
     const malformed = {
@@ -979,27 +979,27 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         good,
       ],
     };
-    const r = originEnvironments(malformed, 'subly', ['subly-v1-subly.msix', 'subly-v1-static-bundle']);
+    const r = originEnvironments(malformed, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix', 'subscriptiontracker-v1-static-bundle']);
     // The one well-formed, pinned row still emits. A broken sibling must not cost
     // the release its ledger row, and must not throw the release job either.
-    assert.deepEqual(r.environments, ['subly-windows-direct']);
+    assert.deepEqual(r.environments, ['subscriptiontracker-windows-direct']);
     // Exactly two rows got far enough to be WITHHELD: the junk-formats row (whose
     // one real format matched) and the id-less row. Every other malformed row was
     // skipped before posture was ever asked. `literal-env` appearing here is the
     // `{app}` clause failing open; a bare `undefined` id is the `?? '(unnamed)'`
     // clause failing open.
     assert.deepEqual(r.omitted.map((o) => o.id), ['junk-formats', '(unnamed)']);
-    assert.deepEqual(r.omitted.map((o) => o.environment), ['subly-junk-formats', 'subly-unnamed']);
+    assert.deepEqual(r.omitted.map((o) => o.environment), ['subscriptiontracker-junk-formats', 'subscriptiontracker-unnamed']);
     // ...and the surface-less row is in NEITHER list: not emitted, not withheld,
     // skipped. `deepEqual` on both lists above already holds that, and this says
     // so by name so the next reader does not have to count.
-    assert.ok(!r.environments.includes('subly-surfaceless'), 'a row that declares no surface may not reach the ledger');
+    assert.ok(!r.environments.includes('subscriptiontracker-surfaceless'), 'a row that declares no surface may not reach the ledger');
     assert.ok(!r.omitted.some((o) => o.id === 'surfaceless'), 'it is skipped BEFORE posture, so it is not a withheld row either');
 
     // A register with no `channels` key, and no register at all, are both empty
     // answers rather than a crash in the middle of a release job.
-    assert.deepEqual(originEnvironments({}, 'subly', ['subly-v1-subly.msix']), { environments: [], omitted: [] });
-    assert.deepEqual(originEnvironments(undefined, 'subly', ['subly-v1-subly.msix']), { environments: [], omitted: [] });
+    assert.deepEqual(originEnvironments({}, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']), { environments: [], omitted: [] });
+    assert.deepEqual(originEnvironments(undefined, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']), { environments: [], omitted: [] });
   });
 
   // 🔴 THE `new Set(out)` DEDUPE HAD NOTHING HOLDING IT — pinned 2026-08-22 by the
@@ -1045,8 +1045,8 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
         { id: 'suffix-only', surface: 'app', kind: 'direct', artifactFormats: ['.zip'], deploymentEnvironment: '{app}-zip', signing: nosign },
       ],
     };
-    const r = originEnvironments(reg, 'subly', ['subly-v1.msix', 'SUBLY-V1.EXE', 'subly-v1.dmg', 'subly-v1.zip.sha256']);
-    assert.deepEqual(r.environments, ['subly-dup', 'subly-lower', 'subly-second', 'subly-upper']);
+    const r = originEnvironments(reg, 'subscriptiontracker', ['subscriptiontracker-v1.msix', 'SUBLY-V1.EXE', 'subscriptiontracker-v1.dmg', 'subscriptiontracker-v1.zip.sha256']);
+    assert.deepEqual(r.environments, ['subscriptiontracker-dup', 'subscriptiontracker-lower', 'subscriptiontracker-second', 'subscriptiontracker-upper']);
     assert.deepEqual(r.omitted, []);
   });
 
@@ -1054,7 +1054,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const root = fixture();
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-v1-subly.msix'), 'msix');
+    writeFileSync(join(d, 'subscriptiontracker-v1-subscriptiontracker.msix'), 'msix');
     const r = cli(['--emit-environments', d, '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /--emit-environments needs --app/);
@@ -1069,17 +1069,17 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       row.signing.codeSigningCertificate.sha256 = SENTINEL;
       row.signing.codeSigningCertificate.subject = SENTINEL;
     });
-    const { environments, omitted } = originEnvironments(onSentinel, 'subly', ['subly-v1-subly.msix']);
+    const { environments, omitted } = originEnvironments(onSentinel, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
     assert.deepEqual(environments, [], 'a channel whose signing identity does not exist is not a channel this release deployed through');
     assert.equal(omitted.length, 1);
-    assert.equal(omitted[0].environment, 'subly-windows-direct');
+    assert.equal(omitted[0].environment, 'subscriptiontracker-windows-direct');
     assert.equal(omitted[0].state, 'sentinel');
     assert.match(omitted[0].detail, /codeSigningCertificate/);
   });
 
   test('an UNDECLARED posture is withheld too — an unreadable posture is not a good one', () => {
     const noPin = registerWith((row) => { delete row.signing.codeSigningCertificate; });
-    const r = originEnvironments(noPin, 'subly', ['subly-v1-subly.msix']);
+    const r = originEnvironments(noPin, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
     assert.deepEqual(r.environments, []);
     assert.equal(r.omitted[0].state, 'undeclared');
 
@@ -1087,8 +1087,8 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // missing. Without this case the gate would be "withhold every direct row",
     // which passes the test above for the wrong reason.
     const keyless = registerWith((row) => { row.signing = { keyKind: 'none', identity: null }; });
-    const k = originEnvironments(keyless, 'subly', ['subly-v1-subly.msix']);
-    assert.deepEqual(k.environments, ['subly-windows-direct']);
+    const k = originEnvironments(keyless, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
+    assert.deepEqual(k.environments, ['subscriptiontracker-windows-direct']);
     assert.deepEqual(k.omitted, []);
 
     // 🔴 AND THROUGH THE CLI THE LINE SAYS *UNDECLARED*, NOT "SENTINEL". The
@@ -1105,13 +1105,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const undeclaredRoot = fixture({ register: noPin });
     const ud = join(TMP, `d${seq++}`);
     mkdirSync(ud, { recursive: true });
-    writeFileSync(join(ud, 'subly-v1-subly.msix'), 'msix');
-    const u = cli(['--emit-environments', ud, '--app', 'subly', '--repo-root', undeclaredRoot]);
+    writeFileSync(join(ud, 'subscriptiontracker-v1-subscriptiontracker.msix'), 'msix');
+    const u = cli(['--emit-environments', ud, '--app', 'subscriptiontracker', '--repo-root', undeclaredRoot]);
     assert.equal(u.code, 0, u.out);
     assert.equal(u.stdout.trim(), '', 'an unreadable posture may not reach the word list either');
     assert.equal(
       u.stderr.trim().split(/\r?\n/).filter(Boolean)[0],
-      'omitted  subly-windows-direct — channel "windows-direct" signing posture is UNDECLARED: '
+      'omitted  subscriptiontracker-windows-direct — channel "windows-direct" signing posture is UNDECLARED: '
       + 'keyKind "code-signing-certificate" and no signing-material block carrying a `notYetConfiguredSentinel`.',
       u.stderr,
     );
@@ -1137,7 +1137,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       // sentinel line was tidied away, not an empty one.
       const reg = registerWith((row) => mutate(row.signing.codeSigningCertificate));
       assert.equal(signingPosture(reg.channels.find((c) => c.id === 'windows-direct')).state, 'undeclared', label);
-      const r = originEnvironments(reg, 'subly', ['subly-v1-subly.msix']);
+      const r = originEnvironments(reg, 'subscriptiontracker', ['subscriptiontracker-v1-subscriptiontracker.msix']);
       assert.deepEqual(r.environments, [], label);
       assert.equal(r.omitted.length, 1, label);
       assert.equal(r.omitted[0].state, 'undeclared', label);
@@ -1153,8 +1153,8 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     });
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-v1-subly.msix'), 'msix');
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    writeFileSync(join(d, 'subscriptiontracker-v1-subscriptiontracker.msix'), 'msix');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     // EXIT 0, not 1: `gh release create` has already run by this point in the
     // release job, so failing here would leave a real published release under a
     // red run. The record is withheld; the release is not.
@@ -1169,7 +1169,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // channel lost its ledger row and WHY, so it is asserted whole.
     assert.equal(
       r.stderr.trim().split(/\r?\n/).filter(Boolean)[0],
-      `omitted  subly-windows-direct — channel "windows-direct" signing posture is SENTINEL: `
+      `omitted  subscriptiontracker-windows-direct — channel "windows-direct" signing posture is SENTINEL: `
       + `signing.codeSigningCertificate still reads ${JSON.stringify(SENTINEL)} at \`sha256\`, \`subject\`.`,
       r.stderr,
     );
@@ -1200,10 +1200,10 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const root = fixture();
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-v1-subly.msix'), 'msix');
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    writeFileSync(join(d, 'subscriptiontracker-v1-subscriptiontracker.msix'), 'msix');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(r.code, 0, r.out);
-    assert.equal(r.stdout.trim(), 'subly-windows-direct');
+    assert.equal(r.stdout.trim(), 'subscriptiontracker-windows-direct');
     assert.equal(r.stderr.trim(), '', 'nothing was withheld, so nothing is explained');
   });
 
@@ -1239,13 +1239,13 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     });
     return r;
   };
-  const MIXED_ASSETS = ['subly-v1-subly.msix', 'subly-v1-subly.AppImage'];
+  const MIXED_ASSETS = ['subscriptiontracker-v1-subscriptiontracker.msix', 'subscriptiontracker-v1-subscriptiontracker.AppImage'];
 
   test('MIXED: one direct row emits and another is withheld IN THE SAME RUN — both halves are returned', () => {
-    const { environments, omitted } = originEnvironments(mixedRegister(), 'subly', MIXED_ASSETS);
-    assert.deepEqual(environments, ['subly-windows-direct'], 'the pinned row is still recorded');
+    const { environments, omitted } = originEnvironments(mixedRegister(), 'subscriptiontracker', MIXED_ASSETS);
+    assert.deepEqual(environments, ['subscriptiontracker-windows-direct'], 'the pinned row is still recorded');
     assert.equal(omitted.length, 1, 'the sentinel row is still withheld — a non-empty emit list must not swallow it');
-    assert.equal(omitted[0].environment, 'subly-linux-appimage');
+    assert.equal(omitted[0].environment, 'subscriptiontracker-linux-appimage');
     assert.equal(omitted[0].id, 'linux-appimage');
     assert.equal(omitted[0].state, 'sentinel');
     assert.match(omitted[0].detail, /signingPublicKey/);
@@ -1256,14 +1256,14 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
     for (const n of MIXED_ASSETS) writeFileSync(join(d, n), n);
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(r.code, 0, r.out);
     // STDOUT is the word list `for environment in $(…)` expands: exactly the one
     // recordable environment, and nothing else may join it.
-    assert.equal(r.stdout.trim(), 'subly-windows-direct');
+    assert.equal(r.stdout.trim(), 'subscriptiontracker-windows-direct');
     // 🔴 THIS IS THE ASSERTION THE MUTATION ABOVE FAILS: something DID emit, and
     // the withheld row must still be explained.
-    assert.match(r.stderr, /omitted {2}subly-linux-appimage/);
+    assert.match(r.stderr, /omitted {2}subscriptiontracker-linux-appimage/);
     // 🔴 THE REGISTER'S OWN WORDS, WHICH IS WHAT `/SENTINEL/` HERE DID NOT CHECK.
     // Until 2026-08-24 this asserted `/SENTINEL/` under a message saying exactly
     // that — and `${o.state.toUpperCase()}` prints the literal word SENTINEL, so
@@ -1274,7 +1274,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       r.stderr,
     );
     assert.match(r.stderr, /channel "linux-appimage"/, 'the withheld row is named by its register id, not only by its environment');
-    assert.doesNotMatch(r.stderr, /omitted {2}subly-windows-direct/, 'the pinned row was recorded, not withheld');
+    assert.doesNotMatch(r.stderr, /omitted {2}subscriptiontracker-windows-direct/, 'the pinned row was recorded, not withheld');
     // ...and the "nothing was recorded at all" line belongs to the OTHER empty.
     // Printing it here would tell the log a release recorded nothing while stdout
     // was handing record-deployment.mjs an environment.
@@ -1305,21 +1305,21 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const root = fixture({ register });
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    for (const n of ['subly-v1.msix', 'subly-v1.exe', 'subly-v1.dmg', 'subly-v1.AppImage']) writeFileSync(join(d, n), n);
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    for (const n of ['subscriptiontracker-v1.msix', 'subscriptiontracker-v1.exe', 'subscriptiontracker-v1.dmg', 'subscriptiontracker-v1.AppImage']) writeFileSync(join(d, n), n);
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(r.code, 0, r.out);
     // BOTH names, one per line — this is the word list `for environment in $(…)`
     // expands, so a dropped line is a [10]D-9 row that is simply never written.
     // 🔴 DEEP-EQUAL ON BOTH LINES, NOT `includes` ON ONE. Measured 2026-08-24:
-    // weaken this to `assert.ok(r.stdout.includes('subly-ok-exe'))` and the
+    // weaken this to `assert.ok(r.stdout.includes('subscriptiontracker-ok-exe'))` and the
     // `for (const e of environments)` bound in release-manifest.mjs stops being
     // held — that pair goes GREEN at 86 pass / 0 fail, where the bound alone is
     // red at 85/1. This assertion is the only reader of the SECOND name.
     // (The `\r?` inside it is not load-bearing; see section B of the ledger.)
-    assert.deepEqual(r.stdout.trim().split(/\r?\n/), ['subly-ok-exe', 'subly-ok-msix'], r.out);
+    assert.deepEqual(r.stdout.trim().split(/\r?\n/), ['subscriptiontracker-ok-exe', 'subscriptiontracker-ok-msix'], r.out);
     // BOTH reasons.
-    assert.match(r.stderr, /omitted {2}subly-held-dmg — channel "held-dmg"/, r.stderr);
-    assert.match(r.stderr, /omitted {2}subly-held-appimage — channel "held-appimage"/, r.stderr);
+    assert.match(r.stderr, /omitted {2}subscriptiontracker-held-dmg — channel "held-dmg"/, r.stderr);
+    assert.match(r.stderr, /omitted {2}subscriptiontracker-held-appimage — channel "held-appimage"/, r.stderr);
     // Something WAS recorded, so the "nothing at all" line does not belong here.
     assert.doesNotMatch(r.stderr, /no \[10\]D-9 record for this release/);
 
@@ -1333,8 +1333,8 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // after the first channel they fix.
     const heldOnly = join(TMP, `d${seq++}`);
     mkdirSync(heldOnly, { recursive: true });
-    for (const n of ['subly-v1.dmg', 'subly-v1.AppImage']) writeFileSync(join(heldOnly, n), n);
-    const h = cli(['--emit-environments', heldOnly, '--app', 'subly', '--repo-root', root]);
+    for (const n of ['subscriptiontracker-v1.dmg', 'subscriptiontracker-v1.AppImage']) writeFileSync(join(heldOnly, n), n);
+    const h = cli(['--emit-environments', heldOnly, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(h.code, 0, h.out);
     assert.equal(h.stdout.trim(), '', 'nothing was recordable, so nothing may reach the word list');
     // 🔴 THE DIGIT `2` IS THE ASSERTION. Measured 2026-08-24: relax it to
@@ -1356,7 +1356,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
     writeFileSync(join(d, 'notes.txt'), 'x');
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     // No direct row matched at all — the pre-existing fail-closed path, which
     // this increment must not have swallowed into the new exit-0 branch.
     assert.equal(r.code, 1, r.out);
@@ -1364,7 +1364,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     assert.doesNotMatch(r.out, /omitted {2}/, 'a row that never matched is not a row that was withheld');
     // The die names what the release DID hold, so the reader can see it was a
     // .txt and not an empty stage.
-    assert.match(r.out, /The release holds: notes\.txt, and `--app subly` is on the "app" surface/);
+    assert.match(r.out, /The release holds: notes\.txt, and `--app subscriptiontracker` is on the "app" surface/);
 
     // ...and an EMPTY release directory reaches the same die by a different road.
     // `${names.join(', ') || '(nothing)'}` — the `|| '(nothing)'` fallback is
@@ -1375,9 +1375,9 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // whitespace.
     const empty = join(TMP, `d${seq++}`);
     mkdirSync(empty, { recursive: true });
-    const e = cli(['--emit-environments', empty, '--app', 'subly', '--repo-root', root]);
+    const e = cli(['--emit-environments', empty, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(e.code, 1, e.out);
-    assert.match(e.out, /The release holds: \(nothing\), and `--app subly` is on the "app" surface/);
+    assert.match(e.out, /The release holds: \(nothing\), and `--app subscriptiontracker` is on the "app" surface/);
     assert.equal(e.stdout.trim(), '');
 
     // ...and the join RANGES OVER EVERY STAGED FILE. `names.join(', ')` sliced to
@@ -1393,9 +1393,9 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     mkdirSync(two, { recursive: true });
     writeFileSync(join(two, 'notes.txt'), 'x');
     writeFileSync(join(two, 'README.md'), 'x');
-    const t = cli(['--emit-environments', two, '--app', 'subly', '--repo-root', root]);
+    const t = cli(['--emit-environments', two, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(t.code, 1, t.out);
-    assert.match(t.out, /The release holds: README\.md, notes\.txt, and `--app subly` is on the "app" surface/, t.out);
+    assert.match(t.out, /The release holds: README\.md, notes\.txt, and `--app subscriptiontracker` is on the "app" surface/, t.out);
   });
 
   // 🔴 THE NAME BELOW SAID "both direct rows sit on their sentinels today" until
@@ -1423,8 +1423,8 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
     // measuring, not keep asserting a count taken in August.
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-v1.0.0-subly.msix'), 'msix');
-    const r = cli(['--emit-environments', d, '--app', 'subly']);
+    writeFileSync(join(d, 'subscriptiontracker-v1.0.0-subscriptiontracker.msix'), 'msix');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker']);
     const withheld = direct.filter((c) => signingPosture(c).state === 'sentinel').map((c) => c.id);
     if (withheld.includes('windows-direct')) {
       // 🔴 THIS IS THE STATE ON 2026-08-21 and the assertion is written so that
@@ -1434,7 +1434,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       // records no deployment for it.
       assert.equal(r.code, 0, r.out);
       assert.equal(r.stdout.trim(), '', 'the real register must not emit an environment for an identity that does not exist');
-      assert.match(r.stderr, /omitted {2}subly-windows-direct/);
+      assert.match(r.stderr, /omitted {2}subscriptiontracker-windows-direct/);
     } else {
       // The certificate was purchased and the pin filled. The row is recordable
       // again and this side of the branch is what proves the gate opens.
@@ -1450,7 +1450,7 @@ describe('release-manifest.mjs — origin channels are gated on signing posture'
       // state, not an assertion that cannot fail — the day `signing` is filled in
       // it runs, and if the gate does not open it fails.
       assert.equal(r.code, 0, r.out);
-      assert.equal(r.stdout.trim(), 'subly-windows-direct');
+      assert.equal(r.stdout.trim(), 'subscriptiontracker-windows-direct');
     }
   });
 });
@@ -1463,7 +1463,7 @@ describe('release-manifest.mjs — verification fails in BOTH directions', () =>
     writeFileSync(join(d, 'two.msix'), 'two');
     return d;
   };
-  const writeManifest = (d) => cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d']);
+  const writeManifest = (d) => cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d']);
 
   test('an asset the manifest does NOT name fails — "naming every asset" is the acceptance\'s wording', () => {
     const d = dir();
@@ -1693,7 +1693,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = join(TMP, `g${seq++}`);
     mkdirSync(d, { recursive: true });
     for (const f of files) writeFileSync(join(d, f), f);
-    assert.equal(cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d']).code, 0);
+    assert.equal(cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d']).code, 0);
     return d;
   };
   // ⚠️ `.snap` JOINED THIS SET ON 2026-08-09 — see the note above the REAL-register
@@ -1715,12 +1715,12 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // a release missing two whole platforms, which is precisely the defect the
   // recorded failing case below exists to catch.
   const COMPLETE = [
-    'subly-v1-app-release.apk',
-    'subly-v1-app-release.aab',
-    'subly-v1-subly.msix',
-    'subly-v1-subly.snap',
-    'subly-v1-subly.ipa',
-    'subly-v1-subly.pkg',
+    'subscriptiontracker-v1-app-release.apk',
+    'subscriptiontracker-v1-app-release.aab',
+    'subscriptiontracker-v1-subscriptiontracker.msix',
+    'subscriptiontracker-v1-subscriptiontracker.snap',
+    'subscriptiontracker-v1-subscriptiontracker.ipa',
+    'subscriptiontracker-v1-subscriptiontracker.pkg',
     'fullshot-v1-chromium.zip',
   ];
 
@@ -1745,7 +1745,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     // The release job passes the flag in a LATER increment. Until then this must
     // behave exactly as it did, or a workflow file this change cannot edit turns
     // red for a reason nobody introduced.
-    const d = staged(['subly-v1-app-release.apk']);
+    const d = staged(['subscriptiontracker-v1-app-release.apk']);
     const r = cli(['--verify', d]);
     assert.equal(r.code, 0, r.out);
     assert.doesNotMatch(r.out, /expected format/);
@@ -1756,7 +1756,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
       register: { channels: [{ id: 'linux-appimage', kind: 'direct', artifactFormats: ['.AppImage'], lane: { workflow: 'w.yml', job: 'j' } }] },
       workflows: {},
     });
-    const d = staged(['subly-v1-app-release.apk']);
+    const d = staged(['subscriptiontracker-v1-app-release.apk']);
     const r = cli(['--verify', d, '--expect-formats', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /\.AppImage/, 'a channel added to the register is demanded with no edit to this script');
@@ -1777,7 +1777,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
       },
       workflows: {},
     });
-    const d = staged(['subly-v1-app-release.apk']);
+    const d = staged(['subscriptiontracker-v1-app-release.apk']);
     const r = cli(['--verify', d, '--expect-formats', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST/);
@@ -1796,11 +1796,11 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // ⏱ `.ipa` and `.pkg` ADDED 2026-09-09 — the apple job emits both now, so a
   // dist without them is short two platforms rather than complete.
   const BUILD_PLATFORMS = [
-    'subly-v1-app-release.apk',
-    'subly-v1-app-release.aab',
-    'subly-v1-subly.msix',
-    'subly-v1-subly.ipa',
-    'subly-v1-subly.pkg',
+    'subscriptiontracker-v1-app-release.apk',
+    'subscriptiontracker-v1-app-release.aab',
+    'subscriptiontracker-v1-subscriptiontracker.msix',
+    'subscriptiontracker-v1-subscriptiontracker.ipa',
+    'subscriptiontracker-v1-subscriptiontracker.pkg',
   ];
 
   test('🔴 THE FLOOR — a workflow matching ZERO rows is COVERAGE LOST', () => {
@@ -1861,7 +1861,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // that KEPT `--verify`. These are the other modes a caller can put those words on.
   test('--expect-formats on --write REFUSES — the mode it modifies is not this one', () => {
     const d = staged(BUILD_PLATFORMS.filter((f) => !f.endsWith('.msix')));
-    const r = cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d', '--expect-formats', '--for-workflow', 'build-platforms.yml']);
+    const r = cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d', '--expect-formats', '--for-workflow', 'build-platforms.yml']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /--expect-formats is read by --verify alone, and this invocation runs --write\./);
   });
@@ -1875,7 +1875,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
 
   test('a MODE COLLISION cannot carry the flags past the refusal — the dispatch would run --write', () => {
     const d = staged(BUILD_PLATFORMS);
-    const r = cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d', '--verify', d, '--expect-formats']);
+    const r = cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d', '--verify', d, '--expect-formats']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /this invocation runs --write\./);
   });
@@ -1900,7 +1900,7 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
     writeFileSync(join(d, 'one.apk'), 'one');
-    const r = cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', 'TODO']);
+    const r = cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', 'TODO']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /is not a commit SHA/);
   });
@@ -1908,7 +1908,7 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
   test('--write refuses an empty directory', () => {
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    const r = cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d']);
+    const r = cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /holds no asset/);
   });
@@ -1924,10 +1924,10 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
 
   test('--stage refuses when the download tree holds no installer', () => {
     const from = join(TMP, `s${seq++}`);
-    mkdirSync(join(from, 'subly-web'), { recursive: true });
-    writeFileSync(join(from, 'subly-web', 'index.html'), '<html>');
+    mkdirSync(join(from, 'subscriptiontracker-web'), { recursive: true });
+    writeFileSync(join(from, 'subscriptiontracker-web', 'index.html'), '<html>');
     const out = join(TMP, `o${seq++}`);
-    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1']);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no installable artifact found/);
     assert.match(r.out, /A release with no installer is a release of nothing/);
@@ -1935,33 +1935,33 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
 
   test('--stage MOVES the installer, names it after the tag, and leaves nothing behind to duplicate', () => {
     const from = join(TMP, `s${seq++}`);
-    mkdirSync(join(from, 'subly-linux', 'app', 'outputs'), { recursive: true });
-    writeFileSync(join(from, 'subly-linux', 'app', 'outputs', 'app-release.apk'), 'apk');
+    mkdirSync(join(from, 'subscriptiontracker-linux', 'app', 'outputs'), { recursive: true });
+    writeFileSync(join(from, 'subscriptiontracker-linux', 'app', 'outputs', 'app-release.apk'), 'apk');
     const out = join(TMP, `o${seq++}`);
-    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0']);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1.0.0']);
     assert.equal(r.code, 0, r.out);
-    assert.deepEqual(assetFiles(out).names, ['subly-v1.0.0-app-release.apk']);
-    assert.equal(assetFiles(join(from, 'subly-linux', 'app', 'outputs')).names.length, 0, 'the installer must not exist twice');
+    assert.deepEqual(assetFiles(out).names, ['subscriptiontracker-v1.0.0-app-release.apk']);
+    assert.equal(assetFiles(join(from, 'subscriptiontracker-linux', 'app', 'outputs')).names.length, 0, 'the installer must not exist twice');
   });
 
   test('--stage LEAVES a bundle member where it is — lifting a runner .exe breaks the exe AND the bundle', () => {
     // The defect the first local dry run of the release lane found, 2026-08-06:
-    // `subly.exe` was moved out of build/windows/x64/runner/Release, producing a
+    // `subscriptiontracker.exe` was moved out of build/windows/x64/runner/Release, producing a
     // loose executable with no DLLs beside it and an archive with no executable
     // in it. Neither would run, and the manifest would have said both were fine.
     const from = join(TMP, `s${seq++}`);
-    mkdirSync(join(from, 'subly-windows', 'x64', 'runner', 'Release'), { recursive: true });
-    mkdirSync(join(from, 'subly-windows', 'msix'), { recursive: true });
-    writeFileSync(join(from, 'subly-windows', 'x64', 'runner', 'Release', 'subly.exe'), 'exe');
-    writeFileSync(join(from, 'subly-windows', 'x64', 'runner', 'Release', 'flutter_windows.dll'), 'dll');
-    writeFileSync(join(from, 'subly-windows', 'msix', 'subly.msix'), 'msix');
+    mkdirSync(join(from, 'subscriptiontracker-windows', 'x64', 'runner', 'Release'), { recursive: true });
+    mkdirSync(join(from, 'subscriptiontracker-windows', 'msix'), { recursive: true });
+    writeFileSync(join(from, 'subscriptiontracker-windows', 'x64', 'runner', 'Release', 'subscriptiontracker.exe'), 'exe');
+    writeFileSync(join(from, 'subscriptiontracker-windows', 'x64', 'runner', 'Release', 'flutter_windows.dll'), 'dll');
+    writeFileSync(join(from, 'subscriptiontracker-windows', 'msix', 'subscriptiontracker.msix'), 'msix');
     const out = join(TMP, `o${seq++}`);
-    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1']);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1']);
     assert.equal(r.code, 0, r.out);
-    assert.deepEqual(assetFiles(out).names, ['subly-v1-subly.msix'], 'only the self-contained package is lifted');
+    assert.deepEqual(assetFiles(out).names, ['subscriptiontracker-v1-subscriptiontracker.msix'], 'only the self-contained package is lifted');
     assert.deepEqual(
-      assetFiles(join(from, 'subly-windows', 'x64', 'runner', 'Release')).names.sort(),
-      ['flutter_windows.dll', 'subly.exe'],
+      assetFiles(join(from, 'subscriptiontracker-windows', 'x64', 'runner', 'Release')).names.sort(),
+      ['flutter_windows.dll', 'subscriptiontracker.exe'],
       'the bundle must still be whole so its archive is usable',
     );
   });
@@ -1981,7 +1981,7 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
     writeFileSync(join(d, 'one.apk'), 'one');
-    assert.equal(cli(['--write', d, '--app', 'subly', '--tag', 'subly-v1', '--sha', '93aee1d']).code, 0);
+    assert.equal(cli(['--write', d, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1', '--sha', '93aee1d']).code, 0);
     const r = cli(['--emit-assets', d]);
     assert.equal(r.code, 0, r.out);
     assert.match(r.out.split('\n')[0], new RegExp(`${MANIFEST_NAME}$`));
@@ -1991,7 +1991,7 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
     writeFileSync(join(d, 'notes.txt'), 'x');
-    const r = cli(['--emit-environments', d, '--app', 'subly']);
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker']);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no `kind: "direct"` and no `surface: "extension"` channel/);
   });
@@ -1999,26 +1999,26 @@ describe('release-manifest.mjs — the CLI refuses rather than producing a hollo
   test('--emit-environments resolves the real register to a real environment NAME', () => {
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-v1-subly.msix'), 'msix');
-    const r = cli(['--emit-environments', d, '--app', 'subly']);
+    writeFileSync(join(d, 'subscriptiontracker-v1-subscriptiontracker.msix'), 'msix');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker']);
     assert.equal(r.code, 0, r.out);
     // 🔴 `out`, NOT `stdout`, AND THAT IS THE WHOLE POINT OF THIS CASE. What it
     // has always tested is the RESOLUTION — that the real register's
-    // `deploymentEnvironment` template plus `--app subly` produces the string
-    // `subly-windows-direct` rather than a `{app}` left unsubstituted. Since
+    // `deploymentEnvironment` template plus `--app subscriptiontracker` produces the string
+    // `subscriptiontracker-windows-direct` rather than a `{app}` left unsubstituted. Since
     // 2026-08-21 that row is withheld on signing posture, so the resolved name
     // now appears on stderr in the omission line instead of on stdout. WHICH
     // stream it lands on is asserted by the posture block above; this case must
     // not silently become a second, weaker copy of that assertion.
     // ⚠️ BOTH OF THE NEXT TWO LINES SURVIVE BEING LOOSENED and both are kept —
     // section C of the ledger above the posture describe(). Measured 2026-08-24:
-    // `/subly-windows-direct/` relaxed to `/subly/`, and the `doesNotMatch`
+    // `/subscriptiontracker-windows-direct/` relaxed to `/subscriptiontracker/`, and the `doesNotMatch`
     // deleted outright, each left this file at EXIT 0 / 86 pass / 0 fail,
     // because the posture block already asserts this line as a WHOLE STRING.
     // They stay because this case is the one that reads the LIVE register rather
     // than a fixture, and `{app}` unsubstituted is the failure it was written
     // for; a stronger assertion here would be a second copy of a fixture case.
-    assert.match(r.out, /subly-windows-direct/);
+    assert.match(r.out, /subscriptiontracker-windows-direct/);
     assert.doesNotMatch(r.out, /\{app\}/);
   });
 
@@ -2095,13 +2095,13 @@ describe('release-manifest.mjs — the extension surface is an origin too', () =
 
   test('a kind:"store" row on the APP surface is still withheld — the rule did not widen', () => {
     const appStore = { ...EXT_ROW, id: 'android-play', surface: 'app', artifactFormats: ['.aab'], deploymentEnvironment: '{app}-android-play' };
-    const r = originEnvironments({ channels: [appStore] }, 'subly', ['subly-v1-app-release.aab']);
+    const r = originEnvironments({ channels: [appStore] }, 'subscriptiontracker', ['subscriptiontracker-v1-app-release.aab']);
     assert.deepEqual(r.environments, [], 'recording an app-store submission from a release would write a submission that never happened');
     assert.deepEqual(r.omitted, []);
   });
 
   test('an extension row whose format this release does NOT carry is not emitted', () => {
-    const r = originEnvironments({ channels: [EXT_ROW] }, 'fullshot', ['subly-v1-app-release.aab'], 'extension');
+    const r = originEnvironments({ channels: [EXT_ROW] }, 'fullshot', ['subscriptiontracker-v1-app-release.aab'], 'extension');
     assert.deepEqual(r.environments, []);
   });
 
@@ -2119,13 +2119,13 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   // `.zip` a format of THE REGISTER, and both readers of the register ranged over
   // every row with no surface question. Two defects, both measured on the real
   // tree on 2026-09-05 against main:
-  //   · `--stage <dl> --out <out> --app subly --tag v1.0.0` over a directory
-  //     holding subly-1.0.0.zip: main exited 1, "no installable artifact found";
+  //   · `--stage <dl> --out <out> --app subscriptiontracker --tag v1.0.0` over a directory
+  //     holding subscriptiontracker-1.0.0.zip: main exited 1, "no installable artifact found";
   //     the branch exited 0 and staged the .zip as an APP installable.
-  //   · `--emit-environments <dir> --app subly` over a dist holding a .zip: main
+  //   · `--emit-environments <dir> --app subscriptiontracker` over a dist holding a .zip: main
   //     exited 1, "no `kind: "direct"` channel … declares a format this release
-  //     carries"; the branch exited 0 printing subly-amo, subly-chrome-webstore
-  //     and subly-edge-addons — three [10]D-9 records of browser-store origins
+  //     carries"; the branch exited 0 printing subscriptiontracker-amo, subscriptiontracker-chrome-webstore
+  //     and subscriptiontracker-edge-addons — three [10]D-9 records of browser-store origins
   //     for a Flutter app that ships to no browser store.
   // An honest refusal became three false environments, so every case below is
   // written from the app side as well as the extension side.
@@ -2195,7 +2195,7 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
     const site = installableExtensions(THIRD, 'site');
     assert.deepEqual([...site].sort(), ['.html'], 'and the third surface still gets its own, so this is a narrowing and not a ban');
     // The mirror reader: a site row is not an origin of an APP release either.
-    const originsForApp = originEnvironments(THIRD, 'subly', ['subly-1.0.0.html'], 'app');
+    const originsForApp = originEnvironments(THIRD, 'subscriptiontracker', ['subscriptiontracker-1.0.0.html'], 'app');
     assert.deepEqual(originsForApp.environments, [], 'a .html carried by a site channel emits no app-surface origin');
   });
 
@@ -2214,14 +2214,14 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   test('the surface is REQUIRED — originEnvironments throws rather than defaulting to every surface', () => {
     // A default would be the defect itself: the caller that forgets the argument
     // gets the widened answer and every log line still reads correct.
-    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip']), /needs the SURFACE/);
-    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip'], ''), /needs the SURFACE/);
-    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-v1.zip'], null), /needs the SURFACE/);
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subscriptiontracker', ['subscriptiontracker-v1.zip']), /needs the SURFACE/);
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subscriptiontracker', ['subscriptiontracker-v1.zip'], ''), /needs the SURFACE/);
+    assert.throws(() => originEnvironmentsRaw(BOTH_SURFACES, 'subscriptiontracker', ['subscriptiontracker-v1.zip'], null), /needs the SURFACE/);
   });
 
   test('an APP release carrying a .zip emits NO extension environment — the 2026-09-05 defect, pinned', () => {
-    const r = originEnvironmentsRaw(BOTH_SURFACES, 'subly', ['subly-1.0.0.zip'], 'app');
-    assert.deepEqual(r.environments, [], 'subly-amo / subly-chrome-webstore / subly-edge-addons are submissions that cannot exist');
+    const r = originEnvironmentsRaw(BOTH_SURFACES, 'subscriptiontracker', ['subscriptiontracker-1.0.0.zip'], 'app');
+    assert.deepEqual(r.environments, [], 'subscriptiontracker-amo / subscriptiontracker-chrome-webstore / subscriptiontracker-edge-addons are submissions that cannot exist');
     assert.deepEqual(r.omitted, [], 'a row on another surface never matched, so it was never withheld either');
   });
 
@@ -2236,20 +2236,20 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   });
 
   test('productSurfaces reads the tool.json DECLARATION, not the directory it sits in', () => {
-    const root = fixture({ apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const root = fixture({ apps: ['subscriptiontracker'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
     assert.deepEqual(productSurfaces(root, 'fullshot').map((f) => f.surface), ['extension']);
-    assert.deepEqual(productSurfaces(root, 'subly').map((f) => f.surface), ['app']);
+    assert.deepEqual(productSurfaces(root, 'subscriptiontracker').map((f) => f.surface), ['app']);
     assert.deepEqual(productSurfaces(root, 'nothing-here'), [], 'an id the tree does not hold resolves to nothing, and the CLI refuses on it');
     // The id comes from tool.json's `id`, never from the directory name.
     assert.deepEqual(productSurfaces(root, 'Full_Screen_Shot'), []);
   });
 
   test('CLI --emit-environments refuses an APP id over a .zip, and names the surface it used', () => {
-    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subscriptiontracker'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-1.0.0.zip'), 'z');
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    writeFileSync(join(d, 'subscriptiontracker-1.0.0.zip'), 'z');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no `kind: "direct"` and no `surface: "extension"` channel/);
     assert.match(r.out, /is on the "app" surface/);
@@ -2261,10 +2261,10 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   });
 
   test('CLI refuses an --app id no product in the tree claims, rather than ranging over every surface', () => {
-    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'] });
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subscriptiontracker'] });
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-1.0.0.zip'), 'z');
+    writeFileSync(join(d, 'subscriptiontracker-1.0.0.zip'), 'z');
     const r = cli(['--emit-environments', d, '--app', 'nosuchthing', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /COVERAGE LOST/);
@@ -2272,12 +2272,12 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   });
 
   test('CLI --stage over a stray .zip finds no APP installable again, and says which surface it looked on', () => {
-    const root = fixture({ register: BOTH_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+    const root = fixture({ register: BOTH_SURFACES, apps: ['subscriptiontracker'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
     const from = join(TMP, `s${seq++}`);
     mkdirSync(from, { recursive: true });
-    writeFileSync(join(from, 'subly-1.0.0.zip'), 'z');
+    writeFileSync(join(from, 'subscriptiontracker-1.0.0.zip'), 'z');
     const out = join(TMP, `o${seq++}`);
-    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0', '--repo-root', root]);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1.0.0', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no installable artifact found/);
     assert.match(r.out, /surface "app"/);
@@ -2312,13 +2312,13 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   };
   const THREE_SURFACES = { channels: [...BOTH_SURFACES.channels, SITE_ROW] };
 
-  test('CLI --stage refuses a THIRD surface\'s format for --app subly, and never lists it as expected', () => {
-    const root = fixture({ register: THREE_SURFACES, apps: ['subly'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
+  test('CLI --stage refuses a THIRD surface\'s format for --app subscriptiontracker, and never lists it as expected', () => {
+    const root = fixture({ register: THREE_SURFACES, apps: ['subscriptiontracker'], tools: [{ dir: 'Full_Screen_Shot', id: 'fullshot' }] });
     const from = join(TMP, `s${seq++}`);
     mkdirSync(from, { recursive: true });
-    writeFileSync(join(from, 'subly-1.0.0.html'), 'h');
+    writeFileSync(join(from, 'subscriptiontracker-1.0.0.html'), 'h');
     const out = join(TMP, `o${seq++}`);
-    const r = cli(['--stage', from, '--out', out, '--app', 'subly', '--tag', 'subly-v1.0.0', '--repo-root', root]);
+    const r = cli(['--stage', from, '--out', out, '--app', 'subscriptiontracker', '--tag', 'subscriptiontracker-v1.0.0', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no installable artifact found/);
     assert.match(r.out, /surface "app"/);
@@ -2326,18 +2326,18 @@ describe('release-manifest.mjs — the SURFACE of the release, not just of the r
   });
 
   test('CLI --emit-environments emits NO third-surface origin for an APP release', () => {
-    // Against the old spelling this emitted `subly-site`: the site row is
+    // Against the old spelling this emitted `subscriptiontracker-site`: the site row is
     // `kind: "direct"`, and `channelIsOnSurface({surface:'site'},'app')` answered
     // true, so a Flutter release recorded a [10]D-9 origin on a surface it does
-    // not ship to — the same class of false record as `subly-amo`.
-    const root = fixture({ register: THREE_SURFACES, apps: ['subly'] });
+    // not ship to — the same class of false record as `subscriptiontracker-amo`.
+    const root = fixture({ register: THREE_SURFACES, apps: ['subscriptiontracker'] });
     const d = join(TMP, `d${seq++}`);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'subly-1.0.0.html'), 'h');
-    const r = cli(['--emit-environments', d, '--app', 'subly', '--repo-root', root]);
+    writeFileSync(join(d, 'subscriptiontracker-1.0.0.html'), 'h');
+    const r = cli(['--emit-environments', d, '--app', 'subscriptiontracker', '--repo-root', root]);
     assert.equal(r.code, 1, r.out);
     assert.equal(r.stdout.trim(), '', 'the lane reads stdout as a word list — a third-surface name here IS the false record');
-    assert.doesNotMatch(r.out, /subly-site/);
+    assert.doesNotMatch(r.out, /subscriptiontracker-site/);
     assert.match(r.out, /is on the "app" surface/);
   });
 });

@@ -259,7 +259,7 @@ function accessForStatus(status: string): {
       return { access: 'trialing', endsWithReason: null };
     case 'canceled':
       // Auto-renew is off. The already-paid period is honoured — revoking here
-      // is the exact defect services/subly-api/src/routes/webhooks.ts:40-63
+      // is the exact defect services/subscriptiontracker-api/src/routes/webhooks.ts:40-63
       // records and fixed: "do not revoke on cancel-at-period-end".
       return { access: 'until_end', endsWithReason: 'cancelled_at_period_end' };
     case 'past_due':

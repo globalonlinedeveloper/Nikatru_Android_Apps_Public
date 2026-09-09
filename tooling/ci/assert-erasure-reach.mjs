@@ -50,7 +50,7 @@
 //      assert-seams-wired.mjs exists. (assert-data-inventory proves the FILE is
 //      there; only this proves the Worker serves it.)
 //   3. 🔴 THE ERASURE ROUTE IS NOT REACHABLE THROUGH A SYMMETRIC SECRET. This is
-//      the limb that let the route be written at all. `services/subly-api`'s
+//      the limb that let the route be written at all. `services/subscriptiontracker-api`'s
 //      default auth middleware falls back to verifying with the shared
 //      `SUPABASE_JWT_SECRET`; putting an irreversible route behind that would
 //      mean one leaked environment variable can erase anybody's account. So, for
@@ -78,7 +78,7 @@
 // SUPABASE_JWT_SECRET fallback, and its own `src/routes/account.ts`. Every limb
 // above has an exact structural twin in there, and none of them read a byte of
 // it: measured 2026-09-05, this guard read 9 migration files (7 platform +
-// 2 subly-api) and the template's was not one.
+// 2 subscriptiontracker-api) and the template's was not one.
 //
 // So SIX brick-shaped defects were all EXIT 0 on the unwidened guard — see the
 // dated mutation table at the foot of this header. Each one stamps into every
@@ -167,11 +167,11 @@
 //   brick wrangler drops `migrations_dir`         0       1     template floor
 //   a wrangler.jsonc under `packages/`            0       1     COVERAGE LOST
 //   a wrangler.jsonc nested under `services/`     0       1     COVERAGE LOST
-//   subly-api route spelled `!== 'symmetric'`     1       1     live limb 3(b)
+//   subscriptiontracker-api route spelled `!== 'symmetric'`     1       1     live limb 3(b)
 //                                                                (positive
 //                                                                 control: the
 //                                                                 harness bites)
-//   subly-api `tokenAssurance` SUFFIX-renamed     0       1     live limb 3(b),
+//   subscriptiontracker-api `tokenAssurance` SUFFIX-renamed     0       1     live limb 3(b),
 //     to `tokenAssuranceXX`                                      after the fix
 //                                                                below
 //

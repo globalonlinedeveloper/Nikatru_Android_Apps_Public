@@ -67,7 +67,7 @@ it is what a future migration would adopt.
 
 **There is a second, unrelated palette in the tree:** `tooling/sites/generate-discovery.mjs`
 hardcodes its own `:root` and writes `sites/nikatru/apps/index.html` and
-`apps/subly.html` under a byte-equality guard. Those two pages must be changed at
+`apps/subscriptiontracker.html` under a byte-equality guard. Those two pages must be changed at
 that generator, never in place, and they are not driven by this package.
 
 ## Build

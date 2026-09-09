@@ -16,7 +16,7 @@
 //      apps/*/linux/CMakeLists.txt is the id GTK registers the app under and
 //      the id a .desktop entry and a Snap must agree with. No check in this
 //      repository read it.
-//   2. 🔴 EVERY ONE OF THOSE CHECKS RAN AS `--app subly`, HARDCODED IN ci.yml.
+//   2. 🔴 EVERY ONE OF THOSE CHECKS RAN AS `--app subscriptiontracker`, HARDCODED IN ci.yml.
 //      App #2 would be invisible to all of them on the day it is stamped, and
 //      nothing would say so — the coverage-shrink pattern this repo has paid
 //      for repeatedly.

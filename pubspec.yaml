@@ -2,7 +2,7 @@ name: nikatru_workspace
 description: >-
   Nikatru Cross Platform Apps — monorepo workspace root (Dart pub workspaces +
   Melos 8). Members: the shared packages under packages/ AND the Subly app
-  (apps/subly/). P0.8 promoted the spine packages + Subly to workspace members
+  (apps/subscriptiontracker/). P0.8 promoted the spine packages + Subly to workspace members
   so a single `melos run gate` analyzes and tests the whole tree in one
   resolution.
 publish_to: none
@@ -25,7 +25,7 @@ workspace:
   - packages/platform_storage
   - packages/purchases
   - packages/telemetry
-  - apps/subly
+  - apps/subscriptiontracker
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 🔴 EXACT, NOT `^8.2.2`. This line is the one no guard looked at until
@@ -84,7 +84,7 @@ dev_dependencies:
 # It is safe HERE and would not be in general, because of how narrowly
 # flutter_launcher_icons uses cli_util. VERIFIED BY RUNNING IT rather than by
 # reading a changelog: under this override the generator produced all 29 native
-# icons for apps/subly, and — the run that actually matters — a freshly stamped
+# icons for apps/subscriptiontracker, and — the run that actually matters — a freshly stamped
 # app #2 went from every icon byte-identical to Flutter's stock to none of them,
 # in one command (tooling/ci/assert-launcher-icons.mjs red, then green).
 #
@@ -112,7 +112,7 @@ melos:
       run: melos exec --fail-fast --dir-exists=test --no-flutter -- dart test && melos exec --fail-fast --dir-exists=test --flutter -- flutter test
       description: >-
         Pure-Dart members (core, api_client) run under `dart test`; Flutter
-        members (design_system, telemetry, subly) run under `flutter test`.
+        members (design_system, telemetry, subscriptiontracker) run under `flutter test`.
     gate:
       run: melos run analyze && melos run test
       description: >-

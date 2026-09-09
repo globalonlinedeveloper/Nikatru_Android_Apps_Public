@@ -2,7 +2,7 @@
 // e2e-legs.test.mjs — the leg-coverage guard must be able to FAIL.
 //
 // [pipeline N-6 / F-10] EVERY test below runs against a MUTATED COPY OF THE REAL
-// TREE — the real register, the real app_test.dart, the real apps/subly/lib, the
+// TREE — the real register, the real app_test.dart, the real apps/subscriptiontracker/lib, the
 // real e2e.yml — never a hand-written fixture. assert-seams-wired.mjs shipped
 // with its caller check matching the function's own declaration and ALL SIX of
 // its fixture tests passed against the broken version, because a fixture you
@@ -24,13 +24,13 @@ const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-e2e-legs.mjs');
 
 const REGISTER = 'tooling/e2e-leg-register.json';
-const SUITE = 'apps/subly/integration_test/app_test.dart';
-const APP_LIB = 'apps/subly/lib';
+const SUITE = 'apps/subscriptiontracker/integration_test/app_test.dart';
+const APP_LIB = 'apps/subscriptiontracker/lib';
 const WORKFLOW = '.github/workflows/e2e.yml';
 /** The E2E SURFACE the delete leg's blocker is now a predicate over: the named
  *  integration suite plus the nightly harness. It REPLACED a server-side pair
- *  (`no account route under services/subly-api` / `the platform route touches
- *  only PLATFORM_DB`) on 2026-08-04, when both went false — services/subly-api
+ *  (`no account route under services/subscriptiontracker-api` / `the platform route touches
+ *  only PLATFORM_DB`) on 2026-08-04, when both went false — services/subscriptiontracker-api
  *  ships DELETE /v1/account behind an asymmetric-only boundary and the shared
  *  route relays to it. That server relation now lives in
  *  tooling/ci/assert-erasure-reach.mjs, with its own mutation tests. */
@@ -40,7 +40,7 @@ const E2E_HARNESS = 'tooling/e2e';
 function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-n6-legs-'));
   mkdirSync(join(root, 'tooling'), { recursive: true });
-  mkdirSync(join(root, 'apps/subly/integration_test'), { recursive: true });
+  mkdirSync(join(root, 'apps/subscriptiontracker/integration_test'), { recursive: true });
   mkdirSync(join(root, '.github/workflows'), { recursive: true });
   cpSync(join(REPO, REGISTER), join(root, REGISTER));
   cpSync(join(REPO, SUITE), join(root, SUITE));
@@ -216,7 +216,7 @@ describe('the equality — a claim the suite does not carry', () => {
 
 describe('a blocked leg`s excuse is itself checked', () => {
   test('🔴 SWITCHING THE PAYWALL ON KILLS THE EXCUSE FOR THREE LEGS AT ONCE', () => {
-    // The blocker predicate reads apps/subly's own PaywallConfig declaration.
+    // The blocker predicate reads apps/subscriptiontracker's own PaywallConfig declaration.
     // The day somebody flips it to true, "blocked by the money rail" stops being
     // true and the guard says so — that is what stops the excuse outliving the
     // rail.
@@ -227,7 +227,7 @@ describe('a blocked leg`s excuse is itself checked', () => {
         // declaration this mutation flips — went to `providers/config.dart`.
         // The guard itself reads the whole `lib` tree, so IT never stopped
         // seeing the declaration; only this mutation had to follow it.
-        const p = join(root, 'apps/subly/lib/state/providers/config.dart');
+        const p = join(root, 'apps/subscriptiontracker/lib/state/providers/config.dart');
         writeFileSync(p, readFileSync(p, 'utf8').replace('PaywallConfig(enabled: false)', 'PaywallConfig(enabled: true)'));
       },
       (r) => {
@@ -242,8 +242,8 @@ describe('a blocked leg`s excuse is itself checked', () => {
 
   // 🔄 THE DELETE LEG'S EXCUSE HAS DIED THREE TIMES, AND THE THIRD DEATH IS THE
   // LEG SHIPPING.
-  //   v1 "apps/subly has no delete-account call site" — [ADR 027] shipped the control.
-  //   v2 "no deployed route erases apps/subly own database" — services/subly-api
+  //   v1 "apps/subscriptiontracker has no delete-account call site" — [ADR 027] shipped the control.
+  //   v2 "no deployed route erases apps/subscriptiontracker own database" — services/subscriptiontracker-api
   //      shipped DELETE /v1/account and the shared route began relaying to it.
   //   v3 "no e2e step exercises the erasure route against the deployed API" —
   //      2026-08-08: app_test.dart deletes a real account from inside the running
@@ -459,7 +459,7 @@ describe('coverage self-checks', () => {
       (root) => rmSync(join(root, SUITE)),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /the named E2E apps\/subly\/integration_test\/app_test\.dart does not exist/);
+        assert.match(r.stderr, /the named E2E apps\/subscriptiontracker\/integration_test\/app_test\.dart does not exist/);
         assert.doesNotMatch(r.stderr, /claims to be asserted/);
       },
     );
@@ -502,7 +502,7 @@ describe('coverage self-checks', () => {
   });
 
   test('🔴 AN EMPTY APP TREE IS COVERAGE LOST — a predicate over nothing answers "still blocked"', () => {
-    // Every blocker predicate reads apps/subly/lib. Over an empty string they
+    // Every blocker predicate reads apps/subscriptiontracker/lib. Over an empty string they
     // all cheerfully report "still blocked", which is a scan over nothing
     // printing ok — this repo's single most repeated failure.
     withTree(

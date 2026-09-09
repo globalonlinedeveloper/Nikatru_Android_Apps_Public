@@ -164,7 +164,7 @@ if (!visibleText(contactSrc).includes(canonical)) {
 
 // The same address, in every app that ships. `apps/*` rather than a named list,
 // so app #2 is covered by existing, and an app that declares no support address
-// fails rather than being skipped — the skip is how subly carried none at all
+// fails rather than being skipped — the skip is how subscriptiontracker carried none at all
 // while the brick carried one, and nothing could see the difference.
 const appsDir = join(repoRoot, 'apps');
 const appConfigs = [];

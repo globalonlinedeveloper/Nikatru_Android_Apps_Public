@@ -116,7 +116,7 @@ function seed(
     )
     .run(
       o.userId,
-      o.appId ?? 'subly',
+      o.appId ?? 'subscriptiontracker',
       o.entitlement ?? 'pro',
       null,
       null,
@@ -135,38 +135,38 @@ const OTHER = '22222222-2222-4222-8222-222222222222';
 describe('[5]M-4 · the three things a 404 cannot satisfy', () => {
   it('1 · an UNAUTHENTICATED request is 401 SPECIFICALLY — not 404, not 403', async () => {
     const h = harness();
-    const res = await h.get('/v1/entitlements?app_id=subly');
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker');
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'unauthorized' });
   });
 
   it('1b · a malformed Authorization header is 401', async () => {
     const h = harness();
-    expect((await h.get('/v1/entitlements?app_id=subly', 'Basic abc')).status).toBe(401);
-    expect((await h.get('/v1/entitlements?app_id=subly', 'Bearer')).status).toBe(401);
+    expect((await h.get('/v1/entitlements?app_id=subscriptiontracker', 'Basic abc')).status).toBe(401);
+    expect((await h.get('/v1/entitlements?app_id=subscriptiontracker', 'Bearer')).status).toBe(401);
   });
 
   it('2 · a token signed by the LEGACY HS256 SHARED SECRET is REJECTED', async () => {
-    // services/subly-api's middleware accepts one when the asymmetric path
+    // services/subscriptiontracker-api's middleware accepts one when the asymmetric path
     // fails. Carrying that fallback here would mean the portfolio's single auth
     // boundary — guarding entitlements for every app that exists and every app
     // that does not yet — accepts a symmetric secret. This is the recorded
     // failing input that stops a well-meaning port re-adding it.
     const h = harness();
     const hs = await token({ sub: USER }, { alg: 'HS256' });
-    expect((await h.get('/v1/entitlements?app_id=subly', `Bearer ${hs}`)).status).toBe(401);
+    expect((await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${hs}`)).status).toBe(401);
   });
 
   it('2b · a well-formed token from the WRONG ES256 key is rejected', async () => {
     const h = harness();
     const wrong = await token({ sub: USER }, { key: foreignKey });
-    expect((await h.get('/v1/entitlements?app_id=subly', `Bearer ${wrong}`)).status).toBe(401);
+    expect((await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${wrong}`)).status).toBe(401);
   });
 
   it('2c · a verified token with no `sub` authenticates nobody', async () => {
     const h = harness();
     const noSub = await token({});
-    expect((await h.get('/v1/entitlements?app_id=subly', `Bearer ${noSub}`)).status).toBe(401);
+    expect((await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${noSub}`)).status).toBe(401);
   });
 
   it('3 · 🔴 A REQUEST FOR APP B NEVER RETURNS APP A\'s ROWS', async () => {
@@ -174,11 +174,11 @@ describe('[5]M-4 · the three things a 404 cannot satisfy', () => {
     // had no test anywhere before this file. `user_id` alone returns every app's
     // rows for this user; `app_id` alone returns every user's rows for this app.
     const h = harness();
-    seed(h.db, { userId: USER, appId: 'subly', entitlement: 'pro' });
+    seed(h.db, { userId: USER, appId: 'subscriptiontracker', entitlement: 'pro' });
     const t = await token({ sub: USER });
 
-    const subly = await h.get('/v1/entitlements?app_id=subly', `Bearer ${t}`);
-    expect(await subly.json()).toMatchObject({ app_id: 'subly', is_pro: true });
+    const subscriptiontracker = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${t}`);
+    expect(await subscriptiontracker.json()).toMatchObject({ app_id: 'subscriptiontracker', is_pro: true });
 
     // 'probe' is a second registered app in DEFAULT_CONFIGS only when a probe
     // stamp exists, so an UNKNOWN app is the reachable second case: it must be a
@@ -190,9 +190,9 @@ describe('[5]M-4 · the three things a 404 cannot satisfy', () => {
 
   it('3b · one user never sees another user\'s row', async () => {
     const h = harness();
-    seed(h.db, { userId: OTHER, appId: 'subly' });
+    seed(h.db, { userId: OTHER, appId: 'subscriptiontracker' });
     const t = await token({ sub: USER });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${t}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${t}`);
     expect(await res.json()).toMatchObject({ is_pro: false, entitlements: [] });
   });
 
@@ -212,7 +212,7 @@ describe('the money boundary, read end — undecidable ⇒ DENY', () => {
   it('a lifetime grant (no expiry) IS honoured', async () => {
     const h = harness();
     seed(h.db, { userId: USER, expiresAt: null });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: true });
   });
 
@@ -221,7 +221,7 @@ describe('the money boundary, read end — undecidable ⇒ DENY', () => {
     // on anything it cannot read, and NaN became "no end date", i.e. FOREVER.
     const h = harness();
     seed(h.db, { userId: USER, expiresAt: 'the thirty-second of Octember' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     const body = (await res.json()) as { is_pro: boolean; entitlements: unknown[] };
     expect(body.is_pro).toBe(false);
     // …and the row is still RETURNED, so a support conversation can see that it
@@ -233,7 +233,7 @@ describe('the money boundary, read end — undecidable ⇒ DENY', () => {
   it('an EMPTY-STRING expiry denies — nothing we write can produce it', async () => {
     const h = harness();
     seed(h.db, { userId: USER, expiresAt: '' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: false });
   });
 
@@ -241,14 +241,14 @@ describe('the money boundary, read end — undecidable ⇒ DENY', () => {
     const h = harness();
     seed(h.db, { userId: USER, expiresAt: '2020-01-01T00:00:00.000Z' });
     seed(h.db, { userId: USER, entitlement: 'pro_annual', expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: true });
   });
 
   it('is_active = 0 denies regardless of the dates', async () => {
     const h = harness();
     seed(h.db, { userId: USER, isActive: 0, expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: false });
   });
 });
@@ -257,32 +257,32 @@ describe('[5]M-12 · a reader in one money world cannot see the other\'s rows', 
   it('a SANDBOX row does not grant on a LIVE deploy', async () => {
     const h = harness({ environment: 'live' });
     seed(h.db, { userId: USER, environment: 'sandbox', expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: false });
   });
 
   it('a LIVE row does not grant on a SANDBOX deploy — the isolation runs both ways', async () => {
     const h = harness({ environment: 'sandbox' });
     seed(h.db, { userId: USER, environment: 'live', expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: false });
   });
 
   it('a row with NO environment at all is UNDECIDABLE and denies', async () => {
     // "Written before the rail knew" is not evidence of a live payment. This is
     // a real constraint on the deferred RevenueCat rail: when
-    // services/subly-api's webhook is un-deferred it must set the column. Safe
+    // services/subscriptiontracker-api's webhook is un-deferred it must set the column. Safe
     // today because `entitlements` has never held a row.
     const h = harness({ environment: 'live' });
     seed(h.db, { userId: USER, environment: null, expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(await res.json()).toMatchObject({ is_pro: false });
   });
 
   it('an undeclared MONEY_ENVIRONMENT refuses to decide at all', async () => {
     const h = harness({ environment: null });
     seed(h.db, { userId: USER, expiresAt: '2099-01-01T00:00:00.000Z' });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     expect(res.status).toBe(503);
   });
 });
@@ -298,11 +298,11 @@ describe('the response shape carries what a support conversation needs', () => {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        USER, 'subly', 'pro', 0, '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z',
+        USER, 'subscriptiontracker', 'pro', 0, '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z',
         'paddle', 'live', 'canceled', '2026-08-01T00:00:00.000Z', '2026-07-31T00:00:00.000Z',
         'cancelled_at_period_end',
       );
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     const body = (await res.json()) as { entitlements: Array<Record<string, unknown>> };
     expect(body.entitlements[0]).toMatchObject({
       entitlement: 'pro',
@@ -320,7 +320,7 @@ describe('the response shape carries what a support conversation needs', () => {
     // nothing and puts a Supabase `sub` on the wire and into every client log.
     const h = harness();
     seed(h.db, { userId: USER });
-    const res = await h.get('/v1/entitlements?app_id=subly', `Bearer ${await token({ sub: USER })}`);
+    const res = await h.get('/v1/entitlements?app_id=subscriptiontracker', `Bearer ${await token({ sub: USER })}`);
     const text = await res.text();
     expect(text).not.toContain(USER);
     expect(text).not.toContain('provider_environment');

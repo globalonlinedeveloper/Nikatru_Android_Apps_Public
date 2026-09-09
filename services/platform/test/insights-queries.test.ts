@@ -215,13 +215,13 @@ function privateTreeRoot(): string | null {
 // TWO NEGATIVE CONTROLS, and they are what make the WHERE clauses testable:
 //   · app `lingo` mirrors the whole fixture inside the same window, so deleting
 //     any `app_id = ?1` moves a number;
-//   · install `s99` mirrors it inside app `subly` but BEFORE the window, so
+//   · install `s99` mirrors it inside app `subscriptiontracker` but BEFORE the window, so
 //     deleting any `server_ts` bound moves a number.
 // Without them every filter in all five files would be an assertion that cannot
 // fail, and the suite would certify a portfolio-wide all-time total as a
 // per-app windowed one.
 // ─────────────────────────────────────────────────────────────────────────────
-const APP = 'subly';
+const APP = 'subscriptiontracker';
 const WINDOW_START = '2026-01-01T00:00:00.000Z';
 const WINDOW_END = '2026-02-01T00:00:00.000Z';
 const PARAMS = [APP, WINDOW_START, WINDOW_END] as const;
@@ -242,7 +242,7 @@ function fixtureRows(): Row[] {
   const add = (app: string, anon: string, event: string, ts: string, params = '{}') =>
     rows.push({ app, anon, event, ts, params });
 
-  // ── subly · the cohort ────────────────────────────────────────────────────
+  // ── subscriptiontracker · the cohort ────────────────────────────────────────────────────
   for (const a of COHORT) add(APP, a, 'first_launch', LAUNCH);
 
   // activation: 3 of 8 → 37.5 %

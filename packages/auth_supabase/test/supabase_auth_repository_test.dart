@@ -227,7 +227,7 @@ void main() {
     });
 
     // 🔴 THE OUTCOME IS `notConfigured`, NOT A BARE `AuthFailure` CARRYING A
-    // SENTENCE, and this is the one place the deleted `apps/subly` fork was
+    // SENTENCE, and this is the one place the deleted `apps/subscriptiontracker` fork was
     // AHEAD of the chassis. The cut-1 reversal (owner, 2026-08-09) moved that
     // improvement here rather than dropping it with the file.
     //
@@ -261,7 +261,7 @@ void main() {
   // Owner lock, 2026-08-09: verification is MANDATORY for email+password
   // registration, because email is the matching key the one-identity lock merges
   // social sign-ins on. The ROUTER half is pinned in
-  // apps/subly/test/legal_gates_test.dart; this is the provider half.
+  // apps/subscriptiontracker/test/legal_gates_test.dart; this is the provider half.
   // ══════════════════════════════════════════════════════════════════════════
   group('emailVerified', () {
     test('an unconfirmed user maps to emailVerified FALSE', () {
@@ -385,13 +385,13 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://nikatru.com/subly/',
+        passwordResetRedirectTo: 'https://nikatru.com/subscriptiontracker/',
       );
 
       await auth.sendPasswordReset('a@b.com');
 
       expect(g.resetRequests, <List<String?>>[
-        <String?>['a@b.com', 'https://nikatru.com/subly/'],
+        <String?>['a@b.com', 'https://nikatru.com/subscriptiontracker/'],
       ]);
     });
 
@@ -732,7 +732,7 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://nikatru.com/subly/',
+        passwordResetRedirectTo: 'https://nikatru.com/subscriptiontracker/',
       );
 
       await auth.sendPasswordReset('a@b.com', captchaToken: 'tok-abc123');
@@ -747,7 +747,7 @@ void main() {
       final _FakeGoTrue g = _FakeGoTrue(session: null);
       final SupabaseAuthRepository auth = SupabaseAuthRepository(
         client: g,
-        passwordResetRedirectTo: 'https://nikatru.com/subly/',
+        passwordResetRedirectTo: 'https://nikatru.com/subscriptiontracker/',
       );
 
       await auth.sendPasswordReset('a@b.com');
@@ -756,7 +756,7 @@ void main() {
       // …and the redirect is still there. A forwarding change that quietly
       // dropped a sibling argument would pass the line above.
       expect(g.resetRequests, <List<String?>>[
-        <String?>['a@b.com', 'https://nikatru.com/subly/'],
+        <String?>['a@b.com', 'https://nikatru.com/subscriptiontracker/'],
       ]);
     });
 

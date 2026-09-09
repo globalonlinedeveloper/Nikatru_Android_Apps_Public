@@ -4,7 +4,7 @@
 // 🔴 THE DEFECT, 2026-08-05. The Play capture produced five frames and the
 // fifth, `05-settings.png`, rendered the signed-in account at the top of the
 // settings card in large legible type. CI captures signed in as the throwaway
-// end-to-end account, so the frame read `subly-e2e+…@nikatru.com` — an internal
+// end-to-end account, so the frame read `subscriptiontracker-e2e+…@nikatru.com` — an internal
 // test address on a public marketing asset, and the first thing a reader's eye
 // lands on. It was found by a human OPENING THE IMAGE.
 //
@@ -268,7 +268,7 @@ export function scanCaptureSuite({ root, app }) {
     frames.push({ frame, screen, file: `apps/${app}/lib/${file.rel}` });
     if (readsAccountAddress(readFileSync(file.abs, 'utf8'))) {
       problems.push(
-        `${suiteRel}: the capture of "${frame}" photographs \`${screen}\`, and apps/${app}/lib/${file.rel} READS THE SIGNED-IN ACCOUNT'S ADDRESS off the session (\`.email\`). That frame goes on a public Play listing. It happened on 2026-08-05: the settings frame carried \`subly-e2e+…@nikatru.com\`, every size/format/posture/banner check passed it, and it was caught only because a human opened the PNG — no guard in this tree can read text out of an image. ⚠️ This asks whether the screen TOUCHES the address, not whether it draws it: a regex cannot follow a value from a read to a pixel, and the narrow version would miss \`Text(_label(user))\` and pass a leaking frame. So a screen that handles the address cannot be a store frame — photograph one that does not, or move the read out of this screen.`,
+        `${suiteRel}: the capture of "${frame}" photographs \`${screen}\`, and apps/${app}/lib/${file.rel} READS THE SIGNED-IN ACCOUNT'S ADDRESS off the session (\`.email\`). That frame goes on a public Play listing. It happened on 2026-08-05: the settings frame carried \`subscriptiontracker-e2e+…@nikatru.com\`, every size/format/posture/banner check passed it, and it was caught only because a human opened the PNG — no guard in this tree can read text out of an image. ⚠️ This asks whether the screen TOUCHES the address, not whether it draws it: a regex cannot follow a value from a read to a pixel, and the narrow version would miss \`Text(_label(user))\` and pass a leaking frame. So a screen that handles the address cannot be a store frame — photograph one that does not, or move the read out of this screen.`,
       );
     }
   }

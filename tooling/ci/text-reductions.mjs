@@ -348,7 +348,7 @@ function blankHash(source) {
 // `//` line, inside a string, inside a regex literal — opened a block comment
 // that ran to the next `*/` anywhere in the file.
 //
-//   · services/subly-api/src/middleware/cors.ts line 15 is a LINE comment
+//   · services/subscriptiontracker-api/src/middleware/cors.ts line 15 is a LINE comment
 //     naming the glob `services/*/wrangler.jsonc`. The reduction handed to the
 //     seven importing guards had that file's `import { cors } …`, its two type
 //     imports and `const LOCALHOST = /…/` blanked out — 158 characters of real

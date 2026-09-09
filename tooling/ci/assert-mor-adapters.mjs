@@ -16,7 +16,7 @@
 //
 // 🔴 THE MISTAKE THIS GUARD IS SHAPED TO AVOID, named because it is this repo's
 // most expensive recurring one: a guard scoped to the NEW thing cannot see the
-// OLD thing. `services/subly-api/src/routes/webhooks.ts` upserts the SHARED
+// OLD thing. `services/subscriptiontracker-api/src/routes/webhooks.ts` upserts the SHARED
 // `entitlements` table behind a shared bearer secret, and it is deployed. Scope
 // this guard to `services/platform` — the obvious choice — and it prints clean
 // standing right next to it. So limb 1 enumerates entitlement writes across ALL
@@ -66,7 +66,7 @@ const fail = (m) => problems.push(m);
 const REQUIRED_COVERAGE = [
   { dir: 'services/platform', label: 'the shared Worker that owns the money rail' },
   {
-    dir: 'services/subly-api',
+    dir: 'services/subscriptiontracker-api',
     label: "the LEGACY app Worker, which upserts the SAME shared table behind a bearer secret and is DEPLOYED — the whole reason this scan is not scoped to services/platform",
   },
   {
@@ -94,7 +94,7 @@ const DECLARED_WRITERS = [
     why: 'the money rail. Reached only from POST /v1/money/:provider, after MoRWebhookVerifier.verify has checked an HMAC over the raw body.',
   },
   {
-    file: 'services/subly-api/src/routes/webhooks.ts',
+    file: 'services/subscriptiontracker-api/src/routes/webhooks.ts',
     gate: 'shared_secret',
     why: 'LEGACY. The RevenueCat route, live and deployed, authenticated by a shared bearer secret rather than a signature over the body. A bearer secret proves the sender knows a string; an HMAC proves THIS BODY came from the holder of that string.',
     retire:
@@ -672,7 +672,7 @@ if (!existsSync(join(ROOT, CONTRACT))) {
   // row it writes is UNDECIDABLE and the shared read denies it… it is a
   // REQUIREMENT on whoever un-defers that rail". It was FALSE at HEAD.
   //
-  // MEASURED this run against services/subly-api/src/routes/webhooks.ts: the route
+  // MEASURED this run against services/subscriptiontracker-api/src/routes/webhooks.ts: the route
   // derives the world from the event itself (:285, 'PRODUCTION' -> 'live'),
   // REFUSES a cross-world event before any write (:292-299), names
   // `provider_environment` in the INSERT column list (:522), sets it on the DO
@@ -696,7 +696,7 @@ if (!existsSync(join(ROOT, CONTRACT))) {
   // `provider_environment` appears — in the INSERT column list, absent, and
   // present in the file but outside the column list. THEN the predicate, beside
   // the structural `proof` regex on the DECLARED_WRITERS row for
-  // services/subly-api/src/routes/webhooks.ts: see `worldColumn` there, enforced
+  // services/subscriptiontracker-api/src/routes/webhooks.ts: see `worldColumn` there, enforced
   // over EVERY `INSERT INTO entitlements (…)` in the file.
   // MEASURED after the change: `node tooling/ci/assert-mor-adapters.mjs` exits 0
   // on this tree, `node --test tooling/ci/test/mor-adapters.test.mjs` reports

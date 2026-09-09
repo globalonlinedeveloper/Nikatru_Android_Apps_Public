@@ -5,14 +5,14 @@
 // 🔴 THE REAL-TREE RUN CAME FIRST. Eight mutations against a full COPY of this
 // repository, 2026-08-03, all eight caught and restored byte-identically:
 //
-//   1. `applicationId = "com.nikatru.subly2"` ⇒ exit 1 naming the canonical
+//   1. `applicationId = "com.nikatru.subscriptiontracker2"` ⇒ exit 1 naming the canonical
 //      form. (First attempt MISSED because the mutation hit `namespace =` and
 //      not `applicationId =` — a defect in the MUTATION, diagnosed rather than
 //      accepted, which is the rule this repo has written down twice.)
 //   2. THE SHARPEST CASE: the Linux `set(APPLICATION_ID …)` line DELETED ⇒
 //      exit 1. Windows was green on having no identity at all for weeks, so an
 //      absent identity must never read like a correct one.
-//   3. the Linux id changed to `com.example.subly` ⇒ exit 1. Nothing in this
+//   3. the Linux id changed to `com.example.subscriptiontracker` ⇒ exit 1. Nothing in this
 //      repository compared that value before [10]D-3.
 //   4. the shared Apple reader's matcher broken ⇒ COVERAGE LOST, not a pass.
 //   5. every `identity` block removed from the register ⇒ COVERAGE LOST. (Also
@@ -70,7 +70,7 @@ const REGISTER = () => ({
   ],
 });
 
-function fixture({ register = REGISTER(), apps = [{ slug: 'subly', platforms: ['web'] }], files = {} } = {}) {
+function fixture({ register = REGISTER(), apps = [{ slug: 'subscriptiontracker', platforms: ['web'] }], files = {} } = {}) {
   const root = join(TMP, `f${seq++}`);
   const write = (rel, body) => {
     const abs = join(root, rel);
@@ -80,8 +80,8 @@ function fixture({ register = REGISTER(), apps = [{ slug: 'subly', platforms: ['
   write('tooling/channel-register.json', JSON.stringify(register, null, 2));
   write('catalog/apps.json', JSON.stringify(apps, null, 2));
   const defaults = {
-    'apps/subly/android/app/build.gradle.kts': 'android {\n    namespace = "com.nikatru.subly"\n    defaultConfig {\n        applicationId = "com.nikatru.subly"\n    }\n}\n',
-    'apps/subly/linux/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.13)\nset(APPLICATION_ID "com.nikatru.subly")\n',
+    'apps/subscriptiontracker/android/app/build.gradle.kts': 'android {\n    namespace = "com.nikatru.subscriptiontracker"\n    defaultConfig {\n        applicationId = "com.nikatru.subscriptiontracker"\n    }\n}\n',
+    'apps/subscriptiontracker/linux/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.13)\nset(APPLICATION_ID "com.nikatru.subscriptiontracker")\n',
   };
   for (const [rel, body] of Object.entries({ ...defaults, ...files })) {
     if (body === null) continue;
@@ -97,8 +97,8 @@ function run(root) {
 
 describe('read-identity — each reader answers found / missing / lost, never a guess', () => {
   test('gradle: finds applicationId and is not confused by namespace', () => {
-    const r = readGradleApplicationId('android {\n  namespace = "com.other.thing"\n  applicationId = "com.nikatru.subly"\n}', 'g');
-    assert.equal(r.value, 'com.nikatru.subly');
+    const r = readGradleApplicationId('android {\n  namespace = "com.other.thing"\n  applicationId = "com.nikatru.subscriptiontracker"\n}', 'g');
+    assert.equal(r.value, 'com.nikatru.subscriptiontracker');
   });
 
   test('gradle: no applicationId is MISSING, and the message says why it cannot wait', () => {
@@ -108,12 +108,12 @@ describe('read-identity — each reader answers found / missing / lost, never a 
   });
 
   test('apple: TEST bundles are dropped EXPLICITLY, not by taking the first match', () => {
-    const text = 'PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subly.RunnerTests;\nPRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subly;\n';
-    assert.equal(readAppleBundleId(text, 'p').value, 'com.nikatru.subly');
+    const text = 'PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subscriptiontracker.RunnerTests;\nPRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subscriptiontracker;\n';
+    assert.equal(readAppleBundleId(text, 'p').value, 'com.nikatru.subscriptiontracker');
   });
 
   test('apple: ONLY test bundles is MISSING — there is nothing to submit under', () => {
-    const r = readAppleBundleId('PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subly.RunnerTests;', 'p');
+    const r = readAppleBundleId('PRODUCT_BUNDLE_IDENTIFIER = com.nikatru.subscriptiontracker.RunnerTests;', 'p');
     assert.match(r.missing, /only for test bundles/);
   });
 
@@ -128,7 +128,7 @@ describe('read-identity — each reader answers found / missing / lost, never a 
   });
 
   test('cmake: finds APPLICATION_ID', () => {
-    assert.equal(readCMakeApplicationId('set(APPLICATION_ID "com.nikatru.subly")', 'c').value, 'com.nikatru.subly');
+    assert.equal(readCMakeApplicationId('set(APPLICATION_ID "com.nikatru.subscriptiontracker")', 'c').value, 'com.nikatru.subscriptiontracker');
   });
 
   test('cmake: no APPLICATION_ID is MISSING — the one nothing compared before D-3', () => {
@@ -137,21 +137,21 @@ describe('read-identity — each reader answers found / missing / lost, never a 
   });
 
   test('msix: reads identity_name out of the msix_config block', () => {
-    const y = 'name: subly\nmsix_config:\n  display_name: Subly\n  identity_name: NIKATRU.Subly\n';
+    const y = 'name: subscriptiontracker\nmsix_config:\n  display_name: Subly\n  identity_name: NIKATRU.Subly\n';
     assert.equal(readMsixIdentityName(y, 'p').value, 'NIKATRU.Subly');
   });
 
   test('msix: no msix_config block is MISSING', () => {
-    assert.match(readMsixIdentityName('name: subly\n', 'p').missing, /no `msix_config:` block/);
+    assert.match(readMsixIdentityName('name: subscriptiontracker\n', 'p').missing, /no `msix_config:` block/);
   });
 
   test('resolveIdentity: an unknown kind is LOST, never a silent skip', () => {
-    const r = resolveIdentity(TMP, 'subly', { kind: 'invented', declaredIn: 'apps/{app}/x' });
+    const r = resolveIdentity(TMP, 'subscriptiontracker', { kind: 'invented', declaredIn: 'apps/{app}/x' });
     assert.match(r.lost, /has no reader/);
   });
 
   test('resolveIdentity: a declaredIn with no {app} is LOST', () => {
-    const r = resolveIdentity(TMP, 'subly', { kind: 'gradle-application-id', declaredIn: 'apps/subly/x' });
+    const r = resolveIdentity(TMP, 'subscriptiontracker', { kind: 'gradle-application-id', declaredIn: 'apps/subscriptiontracker/x' });
     assert.match(r.lost, /is not an "\{app\}" template/);
   });
 });
@@ -167,25 +167,25 @@ describe('assert-store-identity', () => {
     const { code, out } = run(
       fixture({
         files: {
-          'apps/subly/android/app/build.gradle.kts':
-            'android {\n    namespace = "com.nikatru.subly"\n    defaultConfig {\n        applicationId = "com.nikatru.subly2"\n    }\n}\n',
+          'apps/subscriptiontracker/android/app/build.gradle.kts':
+            'android {\n    namespace = "com.nikatru.subscriptiontracker"\n    defaultConfig {\n        applicationId = "com.nikatru.subscriptiontracker2"\n    }\n}\n',
         },
       }),
     );
     assert.equal(code, 1);
-    assert.match(out, /declares "com\.nikatru\.subly2" and architecture §24's canonical form is "com\.nikatru\.subly"/);
+    assert.match(out, /declares "com\.nikatru\.subscriptiontracker2" and architecture §24's canonical form is "com\.nikatru\.subscriptiontracker"/);
     assert.match(out, /Two platforms disagreeing is two apps/);
   });
 
   // THE SHARPEST CASE — absence must not read as agreement.
   test('FAILS when the Linux APPLICATION_ID is gone — absence is not agreement', () => {
-    const { code, out } = run(fixture({ files: { 'apps/subly/linux/CMakeLists.txt': 'project(runner LANGUAGES CXX)\n' } }));
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/linux/CMakeLists.txt': 'project(runner LANGUAGES CXX)\n' } }));
     assert.equal(code, 1);
     assert.match(out, /declares no `APPLICATION_ID`/);
   });
 
   test('FAILS when the platform folder exists and its identity FILE does not', () => {
-    const { code, out } = run(fixture({ files: { 'apps/subly/linux/CMakeLists.txt': null, 'apps/subly/linux/main.cc': 'int main(){}' } }));
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/linux/CMakeLists.txt': null, 'apps/subscriptiontracker/linux/main.cc': 'int main(){}' } }));
     assert.equal(code, 1);
     assert.match(out, /The platform folder is there, so this app IS built for it/);
   });
@@ -194,7 +194,7 @@ describe('assert-store-identity', () => {
   test('a web-only app with NO platform folders is not failing to declare anything', () => {
     const { code, out } = run(
       fixture({
-        apps: [{ slug: 'subly', platforms: ['web'] }, { slug: 'probe2', platforms: ['web'] }],
+        apps: [{ slug: 'subscriptiontracker', platforms: ['web'] }, { slug: 'probe2', platforms: ['web'] }],
         files: { 'apps/probe2/pubspec.yaml': 'name: probe2\n' },
       }),
     );
@@ -203,13 +203,13 @@ describe('assert-store-identity', () => {
   });
 
   test('a catalogue entry with no app on disk is PRINTED, not judged', () => {
-    const { code, out } = run(fixture({ apps: [{ slug: 'subly' }, { slug: 'ghost' }] }));
+    const { code, out } = run(fixture({ apps: [{ slug: 'subscriptiontracker' }, { slug: 'ghost' }] }));
     assert.equal(code, 0, out);
     assert.match(out, /lists "ghost" and apps\/ghost is not on disk/);
   });
 
   test('FAILS on a catalogue entry with no slug', () => {
-    const { code, out } = run(fixture({ apps: [{ slug: 'subly' }, { name: 'nameless' }] }));
+    const { code, out } = run(fixture({ apps: [{ slug: 'subscriptiontracker' }, { name: 'nameless' }] }));
     assert.equal(code, 1);
     assert.match(out, /carries an entry with no `slug`/);
   });
@@ -238,7 +238,7 @@ describe('assert-store-identity', () => {
       platforms: ['ios'],
       identity: { kind: 'apple-bundle-id', declaredIn: 'apps/{app}/ios/project.pbxproj' },
     });
-    const { code, out } = run(fixture({ register, files: { 'apps/subly/ios/project.pbxproj': '// empty\n' } }));
+    const { code, out } = run(fixture({ register, files: { 'apps/subscriptiontracker/ios/project.pbxproj': '// empty\n' } }));
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /compares nothing to nothing and agrees/);

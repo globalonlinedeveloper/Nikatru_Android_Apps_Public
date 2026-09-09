@@ -9,7 +9,7 @@
 // mention of its own include sat INSIDE A COMMENT, in its own file.
 //
 // The brick was the sharp end: it shipped one line, `include: flutter_lints`,
-// while apps/subly carried strict-casts, prefer_final_locals and avoid_print. So
+// while apps/subscriptiontracker carried strict-casts, prefer_final_locals and avoid_print. So
 // every app the factory stamped was born with LESS checking than the single app
 // that already existed — the opposite of what a chassis is for.
 //
@@ -137,7 +137,7 @@ for (const f of files) {
       ? `its \`include:\` names ${included.map((x) => `\`${x}\``).join(', ')} instead`
       : 'it declares no `include:` directive at all';
     problems.push(
-      `${f} does not include \`${INCLUDE}\` — ${found}. A rule change in the shared set will not reach it, which is the whole point of C-12 — and the brick shipping its own weaker config is how every stamped app was born with less checking than apps/subly.`,
+      `${f} does not include \`${INCLUDE}\` — ${found}. A rule change in the shared set will not reach it, which is the whole point of C-12 — and the brick shipping its own weaker config is how every stamped app was born with less checking than apps/subscriptiontracker.`,
     );
     continue;
   }

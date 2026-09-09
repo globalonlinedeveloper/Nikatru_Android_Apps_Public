@@ -98,7 +98,7 @@ describe('generate-apps-data — the site feed', () => {
   });
 
   test('FAILS when the catalogue is MALFORMED — no partial feed', () => {
-    const root = tree('{ "apps": [ {"slug": "subly",  ');
+    const root = tree('{ "apps": [ {"slug": "subscriptiontracker",  ');
     try {
       const { code } = run(root);
       assert.notEqual(code, 0, 'unparseable JSON must refuse');

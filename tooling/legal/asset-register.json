@@ -29,7 +29,7 @@
     "",
     "⚠️ AND THE ANSWER AROSE A DUTY THE ROW HAD RECORDED AS `null`. CC BY 4.0 §3(a)(1) requires attribution",
     "on Sharing, and the shipped bundle carries none of it: 0 occurrences of 'Attribution 4.0 International',",
-    "'CC BY' or 'material-design-icons' across 33,785 lines of apps/subly/build/web/assets/NOTICES. So the",
+    "'CC BY' or 'material-design-icons' across 33,785 lines of apps/subscriptiontracker/build/web/assets/NOTICES. So the",
     "verified answer turned a quiet UNVERIFIED row into an open, build-failing breach — see the row's",
     "`attributionGap`. THE GENERAL LESSON, which is not 'UNVERIFIED is bad' (it was the honest call then):",
     "AN UNREAD LICENCE IMPLIES AN UNKNOWN DUTY, so `attributionRequired` must never be left at `null` beside",
@@ -67,7 +67,7 @@
     "BY-SA adds a §3(b) ShareAlike, whose obligations attach to ADAPTED MATERIAL: share an adaptation and",
     "the Adapter's Licence must itself be BY-SA. We subset fonts and recolour images, so what we ship is",
     "adapted as a matter of routine — MEASURED, not assumed: Flutter's icon tree-shaking rewrites",
-    "MaterialIcons from 1,645,184 bytes to 11,524 in apps/subly/build/web/assets/fonts/, a new OTTO file",
+    "MaterialIcons from 1,645,184 bytes to 11,524 in apps/subscriptiontracker/build/web/assets/fonts/, a new OTTO file",
     "rather than a copy. Under SA that would force a copyleft licence onto the shipped artefact, which is",
     "incompatible with a proprietary all-rights-reserved binary. THAT is why SA cannot ship here.",
     "",
@@ -102,14 +102,14 @@
   "derivation": {
     "_why": [
       "Floors measured on the tree the day this file landed: 12 pubspec.yaml files, 3 declared asset files",
-      "(apps/subly/assets/brand/). A walk that finds fewer has BROKEN — an assets: entry renamed, a",
+      "(apps/subscriptiontracker/assets/brand/). A walk that finds fewer has BROKEN — an assets: entry renamed, a",
       "directory moved — and an asset register that enumerates nothing reports every asset accounted for.",
       "",
       "🔴 minDeclaredAssets WAS 3 AND IS NOW 2, LOWERED DELIBERATELY ON 2026-08-17. It was NOT lowered to",
-      "make a red guard go green: apps/subly/assets/brand/ genuinely holds two files now, because",
+      "make a red guard go green: apps/subscriptiontracker/assets/brand/ genuinely holds two files now, because",
       "nikatru-icon.png was deleted as an exact duplicate — sha256 e1b05e51aee8617b02721b04c30e2bb898e327de",
       "52082675dc7eba200cfb41fc, byte-for-byte and 261,948 bytes identical to the launcher master at",
-      "apps/subly/assets/icon/app_icon_1024.png, which is NOT under a declared assets: entry and so never",
+      "apps/subscriptiontracker/assets/icon/app_icon_1024.png, which is NOT under a declared assets: entry and so never",
       "shipped. The duplicate sat in the one directory that does ship, putting 256 KB of it into all six",
       "platform bundles with no Dart string naming it. Zero unique bytes left the repo; its row",
       "(`brand-nikatru-icon`) went in the same change, and the reason text it carried was promoted onto",
@@ -203,16 +203,16 @@
         "fetched": "2026-08-13",
         "note": "SETTLED 2026-08-13 BY READING THE FILE THAT SHIPS, which is the only artefact whose licence binds us. bin/internal/material_fonts.version pins the fonts archive to the hash in the URL above; it expands to bin/cache/artifacts/material_fonts/, and materialicons_license.txt:1 there reads 'Attribution 4.0 International' verbatim. Canonical text: https://creativecommons.org/licenses/by/4.0/legalcode. 🔴 BOTH EARLIER POSITIONS WERE TRUE OF DIFFERENT ARTEFACTS, which is why the corpus could hold them at once without either side being careless: google/material-design-icons @ master is Apache-2.0, and the font Flutter actually vendors carries CC BY 4.0. The tie-breaker is not which repository is upstream but which bytes are in the bundle."
       },
-      "wouldNeed": "~~The LICENSE file in Google's material-design-icons repository, at the revision Flutter vendors, read directly. Also open: whether a release build ships the whole font or a tree-shaken subset — a subset and a whole font are different artefacts with the same filename (see the flutter-icon-tree-shaking-scope row in tooling/legal/duty-matrix.json).~~ RESOLVED 2026-08-13, and the answer to the second half changed the first. (a) LICENCE: read from the VENDORED file, not the repository — see source.note; the repository would have given the wrong answer. (b) SUBSET: it is a subset, measured — apps/subly/build/web/assets/fonts/MaterialIcons-Regular.otf is 11,524 bytes against the vendored 1,645,184, i.e. 0.7%, and its header is a freshly written `OTTO` (CFF) table. So what ships is not a copy of the licensed file but a transformation of it.",
-      "shippedIn": "every build of every app: apps/subly/pubspec.yaml and the brick's app pubspec both declare uses-material-design: true, so this font is in 100% of what we publish. Confirmed in a real bundle: apps/subly/build/web/assets/FontManifest.json declares family MaterialIcons → fonts/MaterialIcons-Regular.otf.",
+      "wouldNeed": "~~The LICENSE file in Google's material-design-icons repository, at the revision Flutter vendors, read directly. Also open: whether a release build ships the whole font or a tree-shaken subset — a subset and a whole font are different artefacts with the same filename (see the flutter-icon-tree-shaking-scope row in tooling/legal/duty-matrix.json).~~ RESOLVED 2026-08-13, and the answer to the second half changed the first. (a) LICENCE: read from the VENDORED file, not the repository — see source.note; the repository would have given the wrong answer. (b) SUBSET: it is a subset, measured — apps/subscriptiontracker/build/web/assets/fonts/MaterialIcons-Regular.otf is 11,524 bytes against the vendored 1,645,184, i.e. 0.7%, and its header is a freshly written `OTTO` (CFF) table. So what ships is not a copy of the licensed file but a transformation of it.",
+      "shippedIn": "every build of every app: apps/subscriptiontracker/pubspec.yaml and the brick's app pubspec both declare uses-material-design: true, so this font is in 100% of what we publish. Confirmed in a real bundle: apps/subscriptiontracker/build/web/assets/FontManifest.json declares family MaterialIcons → fonts/MaterialIcons-Regular.otf.",
       "attributionGap": {
         "duty": "CC BY 4.0 §3(a)(1) (materialicons_license.txt:217-244). On Sharing we must retain, if supplied: (A)(i) identification of the creator, (ii) a copyright notice, (iii) a notice referring to this Public License, (iv) a notice referring to the disclaimer of warranties, (v) a URI to the Licensed Material; and (B) indicate if we modified it. Flutter supplies all of this beside the font, so 'if it is supplied by the Licensor' is satisfied and the retention duty is live rather than excused.",
         "alsoModified": "🔴 §3(a)(1)(B) BITES TOO, AND IS THE HALF NOBODY WAS LOOKING AT. Icon tree-shaking rewrites the font (1,645,184 → 11,524 bytes), which is 'altered … or otherwise modified' under §1(a) Adapted Material. We therefore owe an indication of modification on top of the five retentions.",
-        "gap": "🔴 NOT DISCHARGED ANYWHERE, MEASURED IN THE SHIPPED BUNDLE 2026-08-13. apps/subly/build/web/assets/NOTICES is 33,785 lines and contains: 'Attribution 4.0 International' → 0 · 'CC BY' → 0 · 'material-design-icons' → 0 · 'materialicons' → 0 · 'Material Icons' → 0. Its single creativecommons.org hit (NOTICES:6501) is a CC0 zero-waive for the unrelated W3C Ahem test font. The licence text exists nowhere in this repository either.",
+        "gap": "🔴 NOT DISCHARGED ANYWHERE, MEASURED IN THE SHIPPED BUNDLE 2026-08-13. apps/subscriptiontracker/build/web/assets/NOTICES is 33,785 lines and contains: 'Attribution 4.0 International' → 0 · 'CC BY' → 0 · 'material-design-icons' → 0 · 'materialicons' → 0 · 'Material Icons' → 0. Its single creativecommons.org hit (NOTICES:6501) is a CC0 zero-waive for the unrelated W3C Ahem test font. The licence text exists nowhere in this repository either.",
         "whyItIsMissing": "MECHANISM, not an oversight in one app: Flutter's NOTICES is assembled from the LICENSE files of Dart PACKAGES, and this font arrives from the SDK artifact cache instead. The control case is in the same file — cupertino_icons is a pub package and its licence IS present (1 hit), while Roboto, which also comes from material_fonts/, is likewise absent (0 hits). So every app built by this factory inherits the same gap, and no per-app fix generalises.",
-        "surfaceIsNotTheProblem": "The licences SCREEN is wired and reachable: apps/subly/lib/features/settings/settings_screen.dart:690 calls showLicensePage( and :711 constructs AboutListTile(. The screen renders what LicenseRegistry holds, and what it holds does not include this licence. This is a CONTENT gap on a working surface, which is why the licenceSurfaceCalls limb is green and correct while the duty is still unmet.",
+        "surfaceIsNotTheProblem": "The licences SCREEN is wired and reachable: apps/subscriptiontracker/lib/features/settings/settings_screen.dart:690 calls showLicensePage( and :711 constructs AboutListTile(. The screen renders what LicenseRegistry holds, and what it holds does not include this licence. This is a CONTENT gap on a working surface, which is why the licenceSurfaceCalls limb is green and correct while the duty is still unmet.",
         "wouldDischarge": "Register the vendored text at runtime so it reaches the screen the app already has: LicenseRegistry.addLicense(() async* { yield LicenseEntryWithLineBreaks(['MaterialIcons'], <text of materialicons_license.txt>); }) in the shared chassis, carrying the creator, the copyright notice, the reference to CC BY 4.0 and its warranty disclaimer, the URI, and a line stating the font is a tree-shaken subset (§3(a)(1)(B)). Chassis, not app: the mechanism above makes this every app's gap. Doing so lets `attributedIn` name a real file and turns this row green honestly.",
-        "whyAttributedInIsNull": "✅ RESOLVED 2026-08-13 — IT IS NO LONGER NULL, AND IT WAS NOT RESOLVED BY RENAMING THE PROBLEM. It stayed null while nothing in the tree discharged the duty, because every candidate value then available would have been a false citation: the bundle NOTICES does not contain the text AND is a gitignored build artefact (apps/subly/.gitignore:33 '/build/'), so it is absent from a fresh CI checkout; the vendored licence file lives in the Flutter SDK cache, outside repoRoot. The duty is now actually discharged: packages/design_system/lib/src/licences/vendored_asset_licences.dart registers the notice via LicenseRegistry.addLicense, carrying all five §3(a)(1)(A) retentions plus the §3(a)(1)(B) modification statement, with §3(a)(2)'s URI to the legalcode. apps/subly/lib/main.dart calls it before runApp, so it reaches the LicensePage that settings_screen.dart already offers. It is in the CHASSIS, not the app, because the mechanism made this every stamped app's gap. ⚠️ The guard checks the path EXISTS, not that the call is wired — the test that proves the entry actually reaches LicenseRegistry lives in packages/design_system/test/vendored_asset_licences_test.dart, and without it this row would be a citation to a file that could be emptied tomorrow."
+        "whyAttributedInIsNull": "✅ RESOLVED 2026-08-13 — IT IS NO LONGER NULL, AND IT WAS NOT RESOLVED BY RENAMING THE PROBLEM. It stayed null while nothing in the tree discharged the duty, because every candidate value then available would have been a false citation: the bundle NOTICES does not contain the text AND is a gitignored build artefact (apps/subscriptiontracker/.gitignore:33 '/build/'), so it is absent from a fresh CI checkout; the vendored licence file lives in the Flutter SDK cache, outside repoRoot. The duty is now actually discharged: packages/design_system/lib/src/licences/vendored_asset_licences.dart registers the notice via LicenseRegistry.addLicense, carrying all five §3(a)(1)(A) retentions plus the §3(a)(1)(B) modification statement, with §3(a)(2)'s URI to the legalcode. apps/subscriptiontracker/lib/main.dart calls it before runApp, so it reaches the LicensePage that settings_screen.dart already offers. It is in the CHASSIS, not the app, because the mechanism made this every stamped app's gap. ⚠️ The guard checks the path EXISTS, not that the call is wired — the test that proves the entry actually reaches LicenseRegistry lives in packages/design_system/test/vendored_asset_licences_test.dart, and without it this row would be a citation to a file that could be emptied tomorrow."
       },
       "note": "🔴 THIS ROW WAS THE REGISTER'S OWN HEADLINE EXAMPLE OF AN HONEST UNVERIFIED, AND IT WAS ALSO HIDING A LIVE BREACH. Until 2026-08-13 it read licence UNVERIFIED with attributionRequired null. `null` there does not mean 'no duty' — it means nobody decided — but on a page of `false`s it reads as 'probably nothing owed', which is how a shipped, unattributed CC BY asset sat in plain sight in the file built to catch exactly that. The lesson is narrower than 'UNVERIFIED is bad', because UNVERIFIED was the right call at the time: it is that AN UNKNOWN LICENCE IMPLIES AN UNKNOWN DUTY, and the duty field must not be allowed to rest at `null` while the licence is unread — the two unknowns compound into a confident-looking blank."
     },
@@ -255,7 +255,7 @@
       "id": "brand-nikatru-logo",
       "contentFamily": null,
       "contentFamilyWhy": "Own-work brand art, drawn once and committed. It is NOT hand-authored-content: that P-5 family covers what the content pipeline PRODUCES (phrases and deterministic container bytes), and no pack carries this file.",
-      "path": "apps/subly/assets/brand/nikatru-logo.png",
+      "path": "apps/subscriptiontracker/assets/brand/nikatru-logo.png",
       "name": "NIKATRU wordmark lockup (light background)",
       "origin": "own-work",
       "owner": "Rajasekar Selvam (sole proprietor, trading as NIKATRU)",
@@ -265,13 +265,13 @@
       "source": {
         "note": "Our own brand mark. The repository carries no licence grant at all — NOTICE.md states the source-visible, not-open-source posture and assert-repo-posture.mjs fails if a LICENSE file appears at the root — so everything original here is all-rights-reserved by default."
       },
-      "shippedIn": "apps/subly (declared under flutter: assets: assets/brand/)"
+      "shippedIn": "apps/subscriptiontracker (declared under flutter: assets: assets/brand/)"
     },
     {
       "id": "brand-nikatru-logo-dark",
       "contentFamily": null,
       "contentFamilyWhy": "Own-work brand art; same reason as brand-nikatru-logo. Shipped in the binary, never inside a pack.",
-      "path": "apps/subly/assets/brand/nikatru-logo-dark-bg.png",
+      "path": "apps/subscriptiontracker/assets/brand/nikatru-logo-dark-bg.png",
       "name": "NIKATRU wordmark lockup (dark background)",
       "origin": "own-work",
       "owner": "Rajasekar Selvam (sole proprietor, trading as NIKATRU)",
@@ -281,7 +281,7 @@
       "source": {
         "note": "Our own brand mark; see brand-nikatru-logo."
       },
-      "shippedIn": "apps/subly (declared under flutter: assets: assets/brand/)"
+      "shippedIn": "apps/subscriptiontracker (declared under flutter: assets: assets/brand/)"
     }
   ]
 }

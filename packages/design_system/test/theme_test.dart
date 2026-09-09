@@ -13,7 +13,7 @@ void main() {
   //
   // The split is now explicit and both halves are asserted:
   //   buildAppTheme(seed:) → the CHASSIS path, fully derived from the seed
-  //   AppTheme.light()/dark() → the PINNED legacy Subly palette, for apps/subly
+  //   AppTheme.light()/dark() → the PINNED legacy Subly palette, for apps/subscriptiontracker
   //                             only, which 39-CHASSIS cut 1 froze
   // ───────────────────────────────────────────────────────────────────────────
   group('buildAppTheme — the seed drives what is painted', () {
@@ -85,7 +85,7 @@ void main() {
   });
 
   group('AppTheme — the PINNED legacy Subly palette', () {
-    // apps/subly is frozen as a rail-prover, so these values must not move when
+    // apps/subscriptiontracker is frozen as a rail-prover, so these values must not move when
     // the shared builder becomes seed-driven. Byte-for-byte, deliberately.
     test('light() is exactly the palette Subly shipped', () {
       final ThemeData t = AppTheme.light();

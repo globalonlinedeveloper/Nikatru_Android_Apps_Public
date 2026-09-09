@@ -7,7 +7,7 @@
 //
 // WHY IT LIVES HERE AND NOT IN A PER-APP WORKER. The brick's DEFAULT stamp is
 // CLIENT-ONLY — it deploys no Worker of its own ([ADR 020]). Until now the only
-// working entitlement read in the repo was inside `services/subly-api`, i.e.
+// working entitlement read in the repo was inside `services/subscriptiontracker-api`, i.e.
 // inside the one legacy app that happens to have a backend, so every app the
 // factory stamps had no way to ask whether its user had paid. Fifty apps cannot
 // each grow a Worker to answer one question about a table they all share.
@@ -26,7 +26,7 @@
 //
 // ── THE MONEY BOUNDARY, AND IT FAILS CLOSED ON EVERY UNDECIDABLE CASE ────────
 // This is a straight port of the fixed logic in
-// `services/subly-api/src/routes/entitlements.ts:32-75` — NOT of the version
+// `services/subscriptiontracker-api/src/routes/entitlements.ts:32-75` — NOT of the version
 // that shipped before it, which read an unparseable `expires_at` as `is_pro:
 // true`, i.e. a lifetime grant to anybody whose row was damaged. The two
 // absent-expiry cases stay distinct:

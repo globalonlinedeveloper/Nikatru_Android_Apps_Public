@@ -49,7 +49,7 @@ immediately. The run history then shows a deployment to an environment, which
 reads exactly like an approval that happened.
 
 ⚠️ MEASURED IN THIS REPOSITORY, 2026-08-09, not assumed: the three environments
-that already exist here (`platform`, `subly-api`, `subly-web` — all
+that already exist here (`platform`, `subscriptiontracker-api`, `subscriptiontracker-web` — all
 auto-created by deploy lanes) each return `"protection_rules": []`. That is the
 fail-open state, observed, on this repo.
 
@@ -251,8 +251,8 @@ live blocker and re-derived a defect that no longer exists.
 and the four tablet frames landed on 2026-08-27 (#393). The listing now
 covers TWO device types, which is Play's stated minimum:
 
-  phone   apps/subly/store/android-play/screenshots/         4 × 1080×1920
-  tablet  apps/subly/store/android-play/screenshots-tablet/  4 × 1800×3200
+  phone   apps/subscriptiontracker/store/android-play/screenshots/         4 × 1080×1920
+  tablet  apps/subscriptiontracker/store/android-play/screenshots-tablet/  4 × 1800×3200
 
 Measured on `main` @ `d7586e3e`, 2026-09-08 —
 `node tooling/ci/assert-play-device-coverage.mjs --for-submission` exits
@@ -455,10 +455,10 @@ versionCodes each track carries, and after an upload that shipped
 nothing NO track carries this build's.
 
 ⚠️ THE EXPECTATION IS DERIVED, NOT PASSED IN, AND THE CHAIN IS THE
-REASON IT IS TRUSTWORTHY. `apps/subly/android/app/build.gradle.kts`
+REASON IT IS TRUSTWORTHY. `apps/subscriptiontracker/android/app/build.gradle.kts`
 sets `versionCode = flutter.versionCode`, and the build step above
 passes no `--build-number` — so the versionCode Play receives is the
-build number in `apps/subly/pubspec.yaml`, read here THROUGH THE SAME
+build number in `apps/subscriptiontracker/pubspec.yaml`, read here THROUGH THE SAME
 PARSER the versioning guard uses rather than by a second reader of the
 same file. The application id comes through the shared identity reader
 for the same reason. If somebody later gives the build an explicit
@@ -497,7 +497,7 @@ it must still say what. This is deploy-web run 144's lesson (2026-08-08),
 applied to a channel where the act is irreversible rather than merely
 published.
 
-### in step **Record the submission in the [10]D-9 ledger**, above `run: node tooling/ci/record-deployment.mjs subly-android-play --state in_review --listi…`
+### in step **Record the submission in the [10]D-9 ledger**, above `run: node tooling/ci/record-deployment.mjs subscriptiontracker-android-play --state in_review --listi…`
 
 ONE LINE, NOT A `run: >` FOLD, AND THAT IS NOT STYLE. The flat half of
 assert-publish-records.mjs's accounting identity matches PHYSICAL lines;

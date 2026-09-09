@@ -42,7 +42,7 @@ class AppTextStyles {
 /// [TextStyle]. `AppColors.ink` is `0xFF141420` — near-black. So the moment
 /// `app.dart` started supplying a `darkTheme`, EVERY line of prose in the app
 /// stayed near-black on a near-black scaffold, and the only per-screen remedy
-/// was a `copyWith(color: …)` at each of the 105 call sites in `apps/subly/lib`
+/// was a `copyWith(color: …)` at each of the 105 call sites in `apps/subscriptiontracker/lib`
 /// (muted 38 · body 20 · fig 18 · title 16 · label 12 · display 1) plus the 2 in
 /// the app brick. That is not a screen bug repeated 105 times; it is one token
 /// bug seen 105 times.
@@ -53,7 +53,7 @@ class AppTextStyles {
 ///      slot here would repaint every screen at once — which is the repaint
 ///      `app.dart`'s theme-fork note exists to avoid.
 ///      📌 PREMISE CORRECTED 2026-08-21 — this reason used to open
-///      *"`apps/subly` is the frozen legacy rail-prover"*. It is not, and was
+///      *"`apps/subscriptiontracker` is the frozen legacy rail-prover"*. It is not, and was
 ///      not when this comment was written:
 ///      `Private/decisions/036-subly-freeze-dissolved-by-owner-order.md` records
 ///      the owner order of 2026-08-08 — *"Subly stops being a frozen legacy

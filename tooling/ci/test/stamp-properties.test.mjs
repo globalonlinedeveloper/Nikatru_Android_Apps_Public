@@ -16,7 +16,7 @@
 // 🔴 THE FIXTURE IS A REAL TREE, NOT A SYNTHETIC ONE, AND THAT IS FORCED.
 // Limb (3) compares a COUNT of audit failures against a recorded floor, so a
 // fixture whose exempted app is a two-file stub cannot express the limb at all —
-// it can only express "the property test is missing". So `apps/subly` here is a
+// it can only express "the property test is missing". So `apps/subscriptiontracker` here is a
 // COPY OF THE REAL BRICK plus a package manifest: a genuinely stamped app that
 // audits with ZERO failures, into which this file then introduces failures ONE
 // AT A TIME by renaming `group('property: …')` markers. That makes the count an
@@ -47,9 +47,9 @@ const PROP_TEST = 'test/chassis_properties_test.dart';
 const PROVIDERS = 'lib/state/providers.dart';
 /** The one member of EXEMPT_APPS. Named here rather than derived, because the
  *  point of these cases is that the guard's own list is not empty and not free. */
-const EXEMPT = 'apps/subly';
+const EXEMPT = 'apps/subscriptiontracker';
 
-const GOOD_WORKSPACE = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subly\n';
+const GOOD_WORKSPACE = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n  - apps/subscriptiontracker\n';
 /** The same file with the exempted app taken off the list — limb (2)'s input. */
 const WORKSPACE_WITHOUT_EXEMPT = 'name: nikatru_workspace\nworkspace:\n  - packages/core\n';
 
@@ -78,7 +78,7 @@ before(() => {
   // The exempted app, as a REAL stamped app: the brick's own tree, which audits
   // clean, plus the package manifest that makes it a workspace member.
   cpSync(join(REPO, BRICK), join(BASE, EXEMPT), { recursive: true, filter });
-  writeFileSync(join(BASE, EXEMPT, 'pubspec.yaml'), 'name: subly\ndescription: fixture stand-in\n');
+  writeFileSync(join(BASE, EXEMPT, 'pubspec.yaml'), 'name: subscriptiontracker\ndescription: fixture stand-in\n');
   PRISTINE_PROP = readFileSync(join(REPO, BRICK, PROP_TEST), 'utf8');
   PRISTINE_PROVIDERS = readFileSync(join(REPO, BRICK, PROVIDERS), 'utf8');
 });
@@ -125,14 +125,14 @@ function run({ missingGroups = 0, protect = [], commentOutPackAnchor = false, wo
 
   writeFileSync(join(BASE, 'pubspec.yaml'), workspace);
   const manifest = join(BASE, EXEMPT, 'pubspec.yaml');
-  if (exemptHasPubspec) writeFileSync(manifest, 'name: subly\ndescription: fixture stand-in\n');
+  if (exemptHasPubspec) writeFileSync(manifest, 'name: subscriptiontracker\ndescription: fixture stand-in\n');
   else rmSync(manifest, { force: true });
 
   const r = spawnSync(process.execPath, [GUARD], { cwd: BASE, encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-// The floor the guard records for apps/subly. Named once here so a case that
+// The floor the guard records for apps/subscriptiontracker. Named once here so a case that
 // moves off it says which direction it moved in.
 const FLOOR = 10;
 
@@ -143,7 +143,7 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
   test('every EXEMPT_APPS member is named, with its reason, on a passing run', () => {
     const { code, out } = run({ missingGroups: FLOOR });
     assert.equal(code, 0, out);
-    assert.match(out, /NOT GRADED: apps\/subly is in EXEMPT_APPS/);
+    assert.match(out, /NOT GRADED: apps\/subscriptiontracker is in EXEMPT_APPS/);
     assert.match(out, /39-CHASSIS §4 cut 1/, 'the reason travels with the name, or the line is a label');
   });
 
@@ -155,14 +155,14 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
     // 🔴 THE ASSERTION IS ON THE VERDICT LINE, not on `out`. A print anywhere in
     // the output would satisfy a whole-output match while still letting somebody
     // read "ok — enforced across 1 root(s)" and stop there.
-    assert.match(verdict, /1 app root\(s\) NOT GRADED \(EXEMPT_APPS: apps\/subly\)/, verdict);
+    assert.match(verdict, /1 app root\(s\) NOT GRADED \(EXEMPT_APPS: apps\/subscriptiontracker\)/, verdict);
   });
 
   // ── LIMB (2) · THE EXEMPTION MUST NAME A REAL WORKSPACE MEMBER ─────────────
   test('FAILS when an EXEMPT_APPS entry is not on the workspace list', () => {
     const { code, out } = run({ missingGroups: FLOOR, workspace: WORKSPACE_WITHOUT_EXEMPT });
     assert.equal(code, 1, out);
-    assert.match(out, /EXEMPT_APPS names "apps\/subly", which is NOT in the root pubspec\.yaml `workspace:` block/);
+    assert.match(out, /EXEMPT_APPS names "apps\/subscriptiontracker", which is NOT in the root pubspec\.yaml `workspace:` block/);
     // ⚠️ AND IT IS ONE DEFECT, ONE MESSAGE. The ratchet must NOT also fire here:
     // an app that is not on the list was never audited, so a count for it would
     // be a second failure attributing one cause to two places.
@@ -188,7 +188,7 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
     );
     // …and it says WHICH properties, not just how many. A bare number is a
     // measurement nobody can act on.
-    assert.match(out, /would fail: apps\/subly: property '/);
+    assert.match(out, /would fail: apps\/subscriptiontracker: property '/);
   });
 
   test('FAILS when the exempted app DRIFTS one property further from the chassis', () => {
@@ -208,7 +208,7 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
   });
 
   // 🔴 THE TRAP THE 2026-08-21 RECORD NAMES BY NUMBER: raw vs comment-stripped.
-  // The header records that reading the anchors RAW gives 9 for apps/subly and
+  // The header records that reading the anchors RAW gives 9 for apps/subscriptiontracker and
   // COMMENT-STRIPPED gives 10, and that the difference is exactly one anchor
   // matching a `///` sentence ABOUT a feature the app does not have. A ratchet
   // built on a re-implementation that skipped the stripper would pin the wrong
@@ -224,13 +224,13 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
     assert.match(commented.out, new RegExp(`has DRIFTED: the audit now produces ${FLOOR + 1} FAIL line\\(s\\)`));
     // Named, so a future reader can tell this is the content-pack anchor and not
     // some other property that happened to move.
-    assert.match(commented.out, /would fail: apps\/subly: property 'content-pack-consumed' is asserted but its IMPLEMENTATION is gone/);
+    assert.match(commented.out, /would fail: apps\/subscriptiontracker: property 'content-pack-consumed' is asserted but its IMPLEMENTATION is gone/);
   });
 
   // ── THE MEASURABILITY GATE, pinned so it cannot be widened by accident ─────
-  // A tree may NAME `apps/subly` on its workspace list without being the app —
+  // A tree may NAME `apps/subscriptiontracker` on its workspace list without being the app —
   // every assert-stamp-properties fixture in guards.test.mjs does exactly that,
-  // seeding two files under `apps/subly/lib` so the [13]T-4 boot walk has
+  // seeding two files under `apps/subscriptiontracker/lib` so the [13]T-4 boot walk has
   // something to walk. The ratchet therefore compares only when the exempted app
   // carries a `pubspec.yaml`. That is not an opt-out: a `workspace:` member with
   // no manifest is not a Dart workspace, and `dart pub get` refuses the whole
@@ -239,7 +239,7 @@ describe('assert-stamp-properties — EXEMPT_APPS is visible, existent and sized
   test('PRINTS the count but does not compare it when the exempted app is not a package', () => {
     const { code, out } = run({ missingGroups: 0, exemptHasPubspec: false });
     assert.equal(code, 0, out);
-    assert.match(out, /produces 0 FAIL line\(s\) — but this tree has no apps\/subly\/pubspec\.yaml/);
+    assert.match(out, /produces 0 FAIL line\(s\) — but this tree has no apps\/subscriptiontracker\/pubspec\.yaml/);
     assert.match(out, new RegExp(`it is not the package floor ${FLOOR} was measured over`));
     // 0 is nine below the floor and must still not fail HERE.
     assert.doesNotMatch(out, /has CAUGHT UP|has DRIFTED/, out);

@@ -134,7 +134,7 @@ function dartFiles(absDir, rel, out) {
 //     packages/design_system folded away  EXIT 0  ok         EXIT 0  ok  (−40)
 //     five Subly feature areas dropped    EXIT 0  ok         EXIT 0  ok  (−5)
 //     the brick's test/ folder moved      EXIT 0  ok         EXIT 0  ok  (−0)
-//     apps/subly/test moved out entirely  EXIT 0  ok         EXIT 0  ok  (−0)
+//     apps/subscriptiontracker/test moved out entirely  EXIT 0  ok         EXIT 0  ok  (−0)
 //
 //   THE SECOND ROW IS THE WHOLE REASON THIS CHANGED. Delete the entire shared
 //   chassis — every package, the home of every seam implementation — and the old
@@ -380,7 +380,7 @@ const homed = new Set(shared.map((s) => s.contract));
 
 /** Violations already declared in the register are printed, not failed — the
  *  same posture assert-capability-register takes. The original reason was
- *  39-CHASSIS cut 1's freeze on apps/subly, which the agent could not reverse;
+ *  39-CHASSIS cut 1's freeze on apps/subscriptiontracker, which the agent could not reverse;
  *  that freeze is gone ([ADR 036], and the auth cut-1 reversal landed
  *  2026-08-10), so what a declaration means now is simply "known, dated, and
  *  owned by a named increment". */
@@ -436,7 +436,7 @@ if (forks.length) {
 // single person deciding to.
 //
 // 🔬 THIS LIMB WAS WRITTEN BECAUSE THE CUT-1 REVERSAL PRODUCED THE FIRST ONE.
-// `apps/subly/lib/data/auth/supabase_auth_repository.dart` was deleted on
+// `apps/subscriptiontracker/lib/data/auth/supabase_auth_repository.dart` was deleted on
 // 2026-08-10 and its violation entry went on sitting in the register, matching
 // nothing, printing nothing, failing nothing. The loop above only ever speaks
 // when a suspect is FOUND, so a stale path is silent by construction — the
@@ -577,14 +577,14 @@ const PARITY_PAIRS = [
   {
     adr: 'ADR 042',
     chassis: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/auth/sign_in_screen.dart',
-    fork: 'apps/subly/lib/features/auth/login_screen.dart',
-    note: '#275 deleted the chassis SignInScreen from apps/subly; the fork is accepted, so it owes parity.',
+    fork: 'apps/subscriptiontracker/lib/features/auth/login_screen.dart',
+    note: '#275 deleted the chassis SignInScreen from apps/subscriptiontracker; the fork is accepted, so it owes parity.',
   },
   {
     adr: 'ADR 042',
     chassis:
       'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/settings/settings_screen.dart',
-    fork: 'apps/subly/lib/features/settings/settings_screen.dart',
+    fork: 'apps/subscriptiontracker/lib/features/settings/settings_screen.dart',
     note:
       'Listed UNSPECIFIED at [ADR 042]:260 because it was "not established that settings gates on that ' +
       'idiom at all". Established by measurement 2026-08-12: BOTH sides build the reminders tile inside ' +
@@ -595,7 +595,7 @@ const PARITY_PAIRS = [
   {
     adr: 'ADR 042',
     chassis: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/home/home_screen.dart',
-    fork: 'apps/subly/lib/features/home/home_screen.dart',
+    fork: 'apps/subscriptiontracker/lib/features/home/home_screen.dart',
     note:
       '🔴 THIS PAIR IS IN NO ADR. [ADR 042]:256-260 enumerates THREE pairs and calls that the tree; it is ' +
       'not. Found 2026-08-12 by enumerating every brick screen that has a Subly counterpart (11) and ' +
@@ -646,7 +646,7 @@ const WATCHED_PAIRS = [
   ['monetization/paywall_screen.dart', 'monetization/paywall_screen.dart'],
 ].map(([c, f]) => ({
   chassis: `tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/${c}`,
-  fork: `apps/subly/lib/features/${f}`,
+  fork: `apps/subscriptiontracker/lib/features/${f}`,
 }));
 
 /** Every brick screen with a Subly counterpart must be accounted for by exactly
@@ -789,7 +789,7 @@ if (PARITY_PAIRS.length + WATCHED_PAIRS.length < MIN_ACCOUNTED_PAIRS) {
 // being left for a reader to discover.
 // ─────────────────────────────────────────────────────────────────────────────
 const BRICK_FEATURES = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features';
-const SUBLY_FEATURES = 'apps/subly/lib/features';
+const SUBLY_FEATURES = 'apps/subscriptiontracker/lib/features';
 
 /** Every `.dart` under a features root, as paths relative to that root. */
 function featureFiles(relRoot) {
@@ -1028,7 +1028,7 @@ console.log(
 // invisible to it — exactly how sign_in_screen→login_screen and
 // firstrun→onboarding are shaped, which is why both are listed by hand. These
 // files have no same-path counterpart; if one of them is silently forked
-// elsewhere in apps/subly, no path rule here will say so.
+// elsewhere in apps/subscriptiontracker, no path rule here will say so.
 if (unpairedByPath.length) {
   console.log(
     `⚠  ${unpairedByPath.length} brick feature file(s) have NO same-path Subly counterpart, so the arrive ` +

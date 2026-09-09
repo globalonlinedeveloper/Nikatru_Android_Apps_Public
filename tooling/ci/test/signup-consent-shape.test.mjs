@@ -15,7 +15,7 @@
 // `LoginScreen`'s button. The second is the one that matters most for why this
 // guard exists at all — the brick has no Dart test suite of its own, so a
 // pre-ticked box stamped into every future app is invisible to `flutter test`
-// in both trees. `apps/subly/test/legal_gates_test.dart` covers the app side;
+// in both trees. `apps/subscriptiontracker/test/legal_gates_test.dart` covers the app side;
 // only this guard covers the template.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
@@ -30,7 +30,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-signup-consent-shape.mjs');
 
 const BRICK = 'tooling/bricks/app/__brick__/apps/{{app_id}}';
-const SUBLY = 'apps/subly';
+const SUBLY = 'apps/subscriptiontracker';
 const SUBLY_SIGNUP = `${SUBLY}/lib/features/auth/sign_up_screen.dart`;
 const SUBLY_LOGIN = `${SUBLY}/lib/features/auth/login_screen.dart`;
 const SUBLY_REACCEPT = `${SUBLY}/lib/features/auth/reaccept_terms_screen.dart`;

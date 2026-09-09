@@ -4,7 +4,7 @@
 //
 // ── WHY THIS EXISTS AS A STEP AND NOT AS A SENTENCE
 //
-// `apps/subly/lib/features/auth/turnstile_gate.dart` ships a widget that is OFF
+// `apps/subscriptiontracker/lib/features/auth/turnstile_gate.dart` ships a widget that is OFF
 // unless `TURNSTILE_SITE_KEY` is compiled in, and the argument for compiling it
 // in AHEAD of the cutover — so the cutover window carries three acts instead of
 // four — rests entirely on "GoTrue ignores a captcha token when captcha is
@@ -46,7 +46,7 @@ if (target !== 'hosted' && target !== 'boxa') {
   process.exitCode = 1;
 } else {
   // No user is ever created on this route, and the address is one nobody has.
-  const email = `subly-captcha-posture+${Date.now()}@nikatru.com`;
+  const email = `subscriptiontracker-captcha-posture+${Date.now()}@nikatru.com`;
   const password = `E2e${randomBytes(24).toString('hex')}`;
   console.log(`::add-mask::${password}`);
 

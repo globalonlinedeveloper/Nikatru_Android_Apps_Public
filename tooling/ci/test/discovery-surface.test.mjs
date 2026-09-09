@@ -14,11 +14,11 @@
 // afterwards (never `git checkout --`, which hides whether the restore was
 // faithful). Recorded results, in the order they were run:
 //
-//   M1  sites/nikatru/apps/subly.html: <h1>Subly</h1> -> <h1>Subly Pro</h1>
-//         => FAIL "sites/nikatru/apps/subly.html DRIFTED"
-//   M2  sites/nikatru/apps/subly.html deleted
-//         => FAIL "sites/nikatru/apps/subly.html is MISSING"
-//   M3  the <url> block for https://nikatru.com/apps/subly.html deleted from
+//   M1  sites/nikatru/apps/subscriptiontracker.html: <h1>Subly</h1> -> <h1>Subly Pro</h1>
+//         => FAIL "sites/nikatru/apps/subscriptiontracker.html DRIFTED"
+//   M2  sites/nikatru/apps/subscriptiontracker.html deleted
+//         => FAIL "sites/nikatru/apps/subscriptiontracker.html is MISSING"
+//   M3  the <url> block for https://nikatru.com/apps/subscriptiontracker.html deleted from
 //       sites/nikatru/sitemap.xml
 //         => FAIL "sites/nikatru/sitemap.xml DRIFTED"  (a DISTINCT message from
 //            M1, which is what the plan required of these two mutations)
@@ -38,11 +38,11 @@
 //   M8   tooling/content_pipeline/examples/lingo-phrases/recipe.json deleted
 //          => COVERAGE LOST "the pack walk no longer finds 1 of its 1 canary
 //             pack id(s): lingo"  (restored; sha256 4d7b497d… re-verified)
-//   M9   packages/core/growth_probe/recipe.json added, pack_id "subly"
+//   M9   packages/core/growth_probe/recipe.json added, pack_id "subscriptiontracker"
 //          => 🔔 TRIGGER FIRED for W-5, W-6 AND W-8 together, "2 committed pack
-//             id(s) [lingo, subly], 1 owned by a registry slug" — and W-4 stayed
+//             id(s) [lingo, subscriptiontracker], 1 owned by a registry slug" — and W-4 stayed
 //             DEFERRED, which is what keeps the two measurements independent
-//   M10  THE SAME BYTES moved to apps/subly/build/web/recipe.json
+//   M10  THE SAME BYTES moved to apps/subscriptiontracker/build/web/recipe.json
 //          => back to DEFERRED, "1 committed pack id(s) [lingo]". M9 and M10
 //             differ only in the directory, so the `build` prune is provably
 //             load-bearing rather than decorative
@@ -76,12 +76,12 @@
 //          => FAIL "does not carry data-offering=pro_monthly" (and pro_yearly) —
 //             the case limb A structurally cannot see, since a generator that
 //             emits no price agrees with a page that carries none
-//   M14  subly's `offerings` array emptied in the rail config
+//   M14  subscriptiontracker's `offerings` array emptied in the rail config
 //          => first CRASHED the generator (TypeError: cannot read 'code' of
 //             undefined — the free card dereferenced offerings[0] eagerly and
 //             wrote no page at all). Fixed, then re-run: page renders with no
 //             pricing section, and COVERAGE LOST "1 of 1 canary landing(s) carry
-//             no priced offering at all: subly" — the writable failing input
+//             no priced offering at all: subscriptiontracker" — the writable failing input
 //             REQUIRED_PRICED_LANDINGS needed. (Config restored from a byte copy
 //             and `git status` re-verified clean.)
 //
@@ -203,7 +203,7 @@
 //          while the direction that actually EVADES a limb is the one pinned
 //          TRUE, and M17-M22 never took it. Same scratchpad discipline as M21
 //          and M22 (a mirror of tooling/ + sites/ + .github/ + catalog/ +
-//          apps/subly/store, never the repo, reproduced green first; a driver
+//          apps/subscriptiontracker/store, never the repo, reproduced green first; a driver
 //          that EXITS 2 on a no-op so an unapplied mutation cannot read as
 //          green), plus one rule they did not have: the predicted tripwire is
 //          run first, and any mutation that stays green is re-run against the
@@ -286,7 +286,7 @@
 //
 //          METHOD, same discipline as M21-M23 and one addition. A scratchpad
 //          mirror of tooling/ + sites/ + .github/ + catalog/ + services/ +
-//          apps/subly/store (never the repo), its sites/ regenerated so the
+//          apps/subscriptiontracker/store (never the repo), its sites/ regenerated so the
 //          mirror starts from a reproduced baseline of 105 tests / 104 pass /
 //          1 fail — the single red is the `real repository` homepage case,
 //          which runs check-site-integrity.mjs and needs a git work tree the
@@ -633,10 +633,10 @@ function guard(root) {
 // problem (the router would have nowhere to send `/<slug>`), so a fixture
 // without one is not a smaller fixture — it is a catalogue the router cannot use.
 const SUBLY = {
-  slug: 'subly',
+  slug: 'subscriptiontracker',
   name: 'Subly',
   tagline: 'Track every subscription in one place',
-  url: 'https://nikatru.com/subly',
+  url: 'https://nikatru.com/subscriptiontracker',
   origin: 'https://subly-9cp.pages.dev',
   platforms: ['web'],
   status: 'live',
@@ -763,24 +763,24 @@ describe('the generator', () => {
   test('a generated tree passes the guard, and is idempotent', () => {
     const root = tree([SUBLY]);
     assert.equal(generate(root).code, 0);
-    const first = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const first = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     // A second run must change nothing — otherwise CI's regenerate-and-diff can
     // never be green, and the drift limb would fire on every push.
     const second = generate(root);
     assert.equal(second.code, 0);
     assert.match(second.out, /0 changed/);
-    assert.equal(readFileSync(p(root, 'apps', 'subly.html'), 'utf8'), first);
+    assert.equal(readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8'), first);
     assert.equal(guard(root).code, 0);
   });
 
   test('a live entry is indexable, carries a canonical, and joins the sitemap', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.doesNotMatch(html, /noindex/);
-    assert.match(html, /<link rel="canonical" href="https:\/\/nikatru\.com\/apps\/subly">/);
+    assert.match(html, /<link rel="canonical" href="https:\/\/nikatru\.com\/apps\/subscriptiontracker">/);
     const sitemap = readFileSync(p(root, 'sitemap.xml'), 'utf8');
-    assert.match(sitemap, /<loc>https:\/\/nikatru\.com\/apps\/subly<\/loc>/);
+    assert.match(sitemap, /<loc>https:\/\/nikatru\.com\/apps\/subscriptiontracker<\/loc>/);
     assert.match(sitemap, /<loc>https:\/\/nikatru\.com\/apps\/<\/loc>/);
     // The homepage <loc> that was already there survives untouched.
     assert.match(sitemap, /<loc>https:\/\/nikatru\.com\/<\/loc>/);
@@ -805,7 +805,7 @@ describe('the generator', () => {
   test('operatingSystem comes from the entry, never from the hardcoded six', () => {
     const root = tree([{ ...SUBLY, platforms: ['web'] }]);
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(html, /"operatingSystem": "Web"/);
     assert.doesNotMatch(html, /iOS, Android, Windows, macOS, Linux, Web/);
   });
@@ -813,7 +813,7 @@ describe('the generator', () => {
   test('no price, no offers block, no aggregateRating, no store button it cannot back', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.doesNotMatch(html, /offers/);
     assert.doesNotMatch(html, /aggregateRating/);
     assert.doesNotMatch(html, /priceCurrency/);
@@ -894,7 +894,7 @@ describe('the generator', () => {
     const out = rewriteLlms(before, [
       { name: 'Subly', tagline: 'Track every subscription in one place', url: 'https://subly.nikatru.com', platforms: ['web'] },
     ]);
-    assert.match(out, /## Apps\n- Subly — Track every subscription in one place — https:\/\/subly\.nikatru\.com \(web\)\n\n## Key pages/);
+    assert.match(out, /## Apps\n- Subly — Track every subscription in one place — https:\/\/subscriptiontracker\.nikatru\.com \(web\)\n\n## Key pages/);
     assert.doesNotMatch(out, /Old — stale/);
     assert.match(out, /## About\n- Studio: N/);
   });
@@ -927,11 +927,11 @@ describe('the generator', () => {
 
   test('a live landing prices itself from the RAIL CONFIG, and the guard compares the two', () => {
     const root = tree([SUBLY], {
-      rail: rail({ subly: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ subscriptiontracker: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
       pricingPage: true,
     });
     assert.equal(generate(root).code, 0);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(html, /data-offering="pro_monthly"/);
     assert.match(html, /\$4\.99 <small>\/ month<\/small>/);
     assert.match(html, /data-offering="pro_yearly"/);
@@ -947,10 +947,10 @@ describe('the generator', () => {
     // add a dollar printed `ok` from the first version of that limb, because it
     // imported the generator's own formatter to compute what it expected.
     const root = tree([SUBLY], {
-      rail: rail({ subly: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ subscriptiontracker: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
     });
     generate(root);
-    const page = p(root, 'apps', 'subly.html');
+    const page = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(page, readFileSync(page, 'utf8').replace('$4.99', '$3.99'));
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -959,10 +959,10 @@ describe('the generator', () => {
 
   test('a declared offering with NO card on the page fails, naming the product id', () => {
     const root = tree([SUBLY], {
-      rail: rail({ subly: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ subscriptiontracker: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
     });
     generate(root);
-    const page = p(root, 'apps', 'subly.html');
+    const page = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(page, readFileSync(page, 'utf8').replace('data-offering="pro_yearly"', 'data-card="yearly"'));
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -975,10 +975,10 @@ describe('the generator', () => {
     // only next to a rating this factory must never synthesise. The guard's limb D
     // fails the build for it; this asserts the generator does not hand it one.
     const root = tree([SUBLY], {
-      rail: rail({ subly: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ subscriptiontracker: { features: {}, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
     });
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     const ld = JSON.parse(html.match(/<script type="application\/ld\+json">\n([\s\S]*?)\n<\/script>/)[1]);
     assert.equal('offers' in ld, false);
     assert.equal('aggregateRating' in ld, false);
@@ -986,15 +986,15 @@ describe('the generator', () => {
   });
 
   test('the FREE card is a fact about the paywall switch, not a tier description — it goes when the switch flips', () => {
-    const off = tree([SUBLY], { rail: rail({ subly: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }) });
+    const off = tree([SUBLY], { rail: rail({ subscriptiontracker: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }) });
     generate(off);
-    const free = readFileSync(p(off, 'apps', 'subly.html'), 'utf8');
+    const free = readFileSync(p(off, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(free, /<h3>Free<\/h3>/);
     assert.match(free, /Paid checkout is not open yet/);
 
-    const on = tree([SUBLY], { rail: rail({ subly: { paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }) });
+    const on = tree([SUBLY], { rail: rail({ subscriptiontracker: { paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }) });
     generate(on);
-    const paid = readFileSync(p(on, 'apps', 'subly.html'), 'utf8');
+    const paid = readFileSync(p(on, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.doesNotMatch(paid, /<h3>Free<\/h3>/);
     assert.doesNotMatch(paid, /Paid checkout is not open yet/);
     assert.match(paid, /\$4\.99/);
@@ -1006,16 +1006,16 @@ describe('the generator', () => {
     // `offerings[0].code` eagerly, so emptying a live app's offerings threw a
     // TypeError and wrote NO page at all. That is a state a live app is in the
     // moment someone edits its paywall entry.
-    const root = tree([SUBLY], { rail: rail({ subly: { paywall: { enabled: false, offerings: [] } } }) });
+    const root = tree([SUBLY], { rail: rail({ subscriptiontracker: { paywall: { enabled: false, offerings: [] } } }) });
     assert.equal(generate(root).code, 0);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.doesNotMatch(html, /data-offering/);
     assert.doesNotMatch(html, /<h2>Pricing<\/h2>/);
     assert.equal(guard(root).code, 0);
   });
 
   test('a feature flag with no reader-facing name FAILS rather than title-casing an internal switch', () => {
-    const root = tree([SUBLY], { rail: rail({ subly: { features: { renewals: true, reminders_v2: true } } }) });
+    const root = tree([SUBLY], { rail: rail({ subscriptiontracker: { features: { renewals: true, reminders_v2: true } } }) });
     const r = generate(root);
     assert.equal(r.code, 1);
     assert.match(r.out, /no reader-facing name/);
@@ -1025,7 +1025,7 @@ describe('the generator', () => {
   test('a `term` outside the config vocabulary FAILS rather than inventing a billing frequency', () => {
     const root = tree([SUBLY], {
       rail: rail({
-        subly: { paywall: { enabled: false, offerings: [{ product_id: 'x', amount_minor: 100, currency_code: 'USD', term: 'quarter' }] } },
+        subscriptiontracker: { paywall: { enabled: false, offerings: [{ product_id: 'x', amount_minor: 100, currency_code: 'USD', term: 'quarter' }] } },
       }),
     });
     const r = generate(root);
@@ -1034,9 +1034,9 @@ describe('the generator', () => {
   });
 
   test('enabled features render, disabled ones do not', () => {
-    const root = tree([SUBLY], { rail: rail({ subly: { features: { renewals: true, budgets: false, exports: true } } }) });
+    const root = tree([SUBLY], { rail: rail({ subscriptiontracker: { features: { renewals: true, budgets: false, exports: true } } }) });
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(html, /Renewal reminders/);
     assert.match(html, /Export your data/);
     assert.doesNotMatch(html, /<b>Budgets\.<\/b>/);
@@ -1045,11 +1045,11 @@ describe('the generator', () => {
   test('the store listing lede reaches the page and STOPS at the first section heading', () => {
     const root = tree([SUBLY], {
       store: {
-        subly: 'One list of everything you pay for.\n\nAdd each service once and it does the arithmetic.\n\nWHAT IT DOES\n- a bullet nobody asked this page for\n\nPRIVACY\nNot here either.\n',
+        subscriptiontracker: 'One list of everything you pay for.\n\nAdd each service once and it does the arithmetic.\n\nWHAT IT DOES\n- a bullet nobody asked this page for\n\nPRIVACY\nNot here either.\n',
       },
     });
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(html, /One list of everything you pay for\./);
     assert.match(html, /Add each service once and it does the arithmetic\./);
     assert.doesNotMatch(html, /WHAT IT DOES|a bullet nobody asked|Not here either/);
@@ -1057,9 +1057,9 @@ describe('the generator', () => {
   });
 
   test('a listing with no heading at all is BOUNDED, not poured onto the page', () => {
-    const root = tree([SUBLY], { store: { subly: 'One.\n\nTwo.\n\nThree.\n\nFour.\n' } });
+    const root = tree([SUBLY], { store: { subscriptiontracker: 'One.\n\nTwo.\n\nThree.\n\nFour.\n' } });
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.match(html, /<p>One\.<\/p>/);
     assert.match(html, /<p>Two\.<\/p>/);
     assert.doesNotMatch(html, /<p>Three\.<\/p>/);
@@ -1067,12 +1067,12 @@ describe('the generator', () => {
 
   test('a NON-live entry gets no price, no features and no lede — status changes what the page SAYS', () => {
     const root = tree([{ ...SUBLY, status: 'preview' }], {
-      rail: rail({ subly: { features: { renewals: true }, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
-      store: { subly: 'A lede that must not appear.\n' },
+      rail: rail({ subscriptiontracker: { features: { renewals: true }, paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      store: { subscriptiontracker: 'A lede that must not appear.\n' },
       pricingPage: true,
     });
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     assert.doesNotMatch(html, /data-offering|\$4\.99|Renewal reminders|A lede that must not appear/);
     assert.match(html, /not released yet/);
     assert.equal(guard(root).code, 0);
@@ -1083,15 +1083,15 @@ describe('the generator', () => {
     // and rightly: the alternative is a button that 404s from the one page a
     // payment processor's verification opens.
     const withPage = tree([SUBLY], {
-      rail: rail({ subly: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ subscriptiontracker: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }),
       pricingPage: true,
     });
     generate(withPage);
-    assert.match(readFileSync(p(withPage, 'apps', 'subly.html'), 'utf8'), /href="\/pricing\?app=subly"/);
+    assert.match(readFileSync(p(withPage, 'apps', 'subscriptiontracker.html'), 'utf8'), /href="\/pricing\?app=subscriptiontracker"/);
 
-    const without = tree([SUBLY], { rail: rail({ subly: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }) });
+    const without = tree([SUBLY], { rail: rail({ subscriptiontracker: { paywall: { enabled: false, offerings: SUBLY_OFFERINGS } } }) });
     generate(without);
-    const html = readFileSync(p(without, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(without, 'apps', 'subscriptiontracker.html'), 'utf8');
     // The shared footer links /pricing on every page as site navigation; what is
     // conditional is the CTA, which carries the ?app= query string.
     assert.doesNotMatch(html, /href="\/pricing\?app=/);
@@ -1108,7 +1108,7 @@ describe('the generator', () => {
   test('the four legal pages are linked from every landing, generated or not', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     for (const page of ['/privacy', '/terms', '/refund', '/delete-account']) {
       assert.ok(html.includes(`href="${page}"`), `the landing must link ${page}`);
     }
@@ -1203,20 +1203,20 @@ describe('the drift limb (W-9)', () => {
   test('M1 — a hand-edited landing FAILS, naming that file', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(f, readFileSync(f, 'utf8').replace('<h1>Subly</h1>', '<h1>Subly Pro</h1>'));
     const r = guard(root);
     assert.equal(r.code, 1);
-    assert.match(r.out, /sites\/nikatru\/apps\/subly\.html DRIFTED/);
+    assert.match(r.out, /sites\/nikatru\/apps\/subscriptiontracker\.html DRIFTED/);
   });
 
   test('M2 — a deleted landing FAILS as MISSING', () => {
     const root = tree([SUBLY]);
     generate(root);
-    unlinkSync(p(root, 'apps', 'subly.html'));
+    unlinkSync(p(root, 'apps', 'subscriptiontracker.html'));
     const r = guard(root);
     assert.equal(r.code, 1);
-    assert.match(r.out, /sites\/nikatru\/apps\/subly\.html is MISSING/);
+    assert.match(r.out, /sites\/nikatru\/apps\/subscriptiontracker\.html is MISSING/);
   });
 
   test('M3 — a deleted sitemap <url> block FAILS with a DISTINCT message from M1', () => {
@@ -1230,13 +1230,13 @@ describe('the drift limb (W-9)', () => {
     // no longer feeding bad input to. Exactly the shape F-10 exists to catch,
     // caught here only because the guard then returned 0 where 1 was asserted.
     const before = readFileSync(f, 'utf8');
-    const after = before.replace(/[ \t]*<url>\s*<loc>https:\/\/nikatru\.com\/apps\/subly<\/loc>[\s\S]*?<\/url>\n/, '');
+    const after = before.replace(/[ \t]*<url>\s*<loc>https:\/\/nikatru\.com\/apps\/subscriptiontracker<\/loc>[\s\S]*?<\/url>\n/, '');
     assert.notEqual(after, before, 'the mutation must actually remove the block, or this test asserts nothing');
     writeFileSync(f, after);
     const r = guard(root);
     assert.equal(r.code, 1);
     assert.match(r.out, /sites\/nikatru\/sitemap\.xml DRIFTED/);
-    assert.doesNotMatch(r.out, /apps\/subly\.html DRIFTED/);
+    assert.doesNotMatch(r.out, /apps\/subscriptiontracker\.html DRIFTED/);
   });
 
   test('a registry entry added and never regenerated FAILS', () => {
@@ -1325,7 +1325,7 @@ describe('the structured-data limb', () => {
   test('M5 — a fabricated aggregateRating in a served landing FAILS', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(
       f,
       readFileSync(f, 'utf8').replace('"@type": "SoftwareApplication",', '"@type": "SoftwareApplication",\n  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "312" },'),
@@ -1338,7 +1338,7 @@ describe('the structured-data limb', () => {
   test('an offers block in a served landing FAILS — no price may be written here', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(
       f,
       readFileSync(f, 'utf8').replace('"@type": "SoftwareApplication",', '"@type": "SoftwareApplication",\n  "offers": { "@type": "Offer", "price": "4.99", "priceCurrency": "USD" },'),
@@ -1351,7 +1351,7 @@ describe('the structured-data limb', () => {
   test('a JSON-LD block that stops parsing FAILS rather than being skipped', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(f, readFileSync(f, 'utf8').replace('"@context": "https://schema.org",', '"@context": ,'));
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -1361,10 +1361,10 @@ describe('the structured-data limb', () => {
   test('a canonical and a JSON-LD url that disagree FAIL', () => {
     const root = tree([SUBLY]);
     generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(
       f,
-      readFileSync(f, 'utf8').replace('"url": "https://nikatru.com/apps/subly"', '"url": "https://nikatru.com/apps/subly.html"'),
+      readFileSync(f, 'utf8').replace('"url": "https://nikatru.com/apps/subscriptiontracker"', '"url": "https://nikatru.com/apps/subscriptiontracker.html"'),
     );
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -1529,7 +1529,7 @@ describe('the deferred stage-12 trigger watcher', () => {
   });
 
   test('🔴 a pack a REGISTRY SLUG OWNS flips W-5, W-6 and W-8 together — they share one measurement', () => {
-    const root = tree([SUBLY], { packs: [{ at: 'packages/subly_content', pack_id: 'subly' }] });
+    const root = tree([SUBLY], { packs: [{ at: 'packages/subscriptiontracker_content', pack_id: 'subscriptiontracker' }] });
     generate(root);
     const r = guard(root);
     assert.equal(r.code, 0, r.out);
@@ -1555,7 +1555,7 @@ describe('the deferred stage-12 trigger watcher', () => {
   });
 
   test('a pack under test/fixtures is NOT counted — it exists to prove the FORMAT', () => {
-    const root = tree([SUBLY], { packs: [{ at: 'packages/core/test/fixtures/pack/v1', pack_id: 'subly' }] });
+    const root = tree([SUBLY], { packs: [{ at: 'packages/core/test/fixtures/pack/v1', pack_id: 'subscriptiontracker' }] });
     generate(root);
     const r = guard(root);
     assert.match(lineFor(r.out, 'W-5'), /0 committed pack id\(s\) \[none\]/);
@@ -1569,7 +1569,7 @@ describe('the deferred stage-12 trigger watcher', () => {
     // CI does, and a copied pack would fire a trigger the repository does not
     // satisfy. `build` was missing from this walk's prune list while the pubspec
     // walk twenty lines below it already had it.
-    const root = tree([SUBLY], { packs: [{ at: 'apps/subly/build/web', pack_id: 'subly' }] });
+    const root = tree([SUBLY], { packs: [{ at: 'apps/subscriptiontracker/build/web', pack_id: 'subscriptiontracker' }] });
     generate(root);
     const r = guard(root);
     assert.match(lineFor(r.out, 'W-5'), /0 committed pack id\(s\) \[none\]/);
@@ -1581,7 +1581,7 @@ describe('the deferred stage-12 trigger watcher', () => {
     // [pipeline C-6]: "you shipped a second app" must never turn CI red. The
     // watcher informs; it does not gate.
     const root = tree([SUBLY, { ...SUBLY, slug: 'lingo', name: 'Lingo' }], {
-      packs: [{ at: 'packages/p', pack_id: 'subly' }],
+      packs: [{ at: 'packages/p', pack_id: 'subscriptiontracker' }],
     });
     generate(root);
     const r = guard(root);
@@ -1848,7 +1848,7 @@ describe('the web accessibility chrome', () => {
   test('🔴 `hreflang` is NOT `lang`, and a `lang` DEEPER IN THE PAGE is not the document language', () => {
     // TWO conditions of one matcher that no case in this file could tell from
     // nothing. MEASURED 2026-08-24 in a scratchpad mirror of tooling/ + sites/
-    // + .github/ + catalog/ + services/ + apps/subly/store (never the repo),
+    // + .github/ + catalog/ + services/ + apps/subscriptiontracker/store (never the repo),
     // against a reproduced baseline of 105 tests / 104 pass / 1 fail — the one
     // red is the `real repository` homepage case, which needs a git work tree
     // the mirror is not — with a driver that EXITS 2 on a no-op:
@@ -2246,7 +2246,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
   test('a generated tree carries all four properties on every landing, sized from the PNG', () => {
     const root = tree([SUBLY]);
     assert.equal(generate(root).code, 0);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    const html = readFileSync(p(root, 'apps', 'subscriptiontracker.html'), 'utf8');
     for (const prop of ['og:image', 'og:image:width', 'og:image:height', 'og:image:alt']) {
       assert.match(html, new RegExp(`<meta property="${prop}" content="[^"]+">`), `${prop} missing`);
     }
@@ -2259,7 +2259,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
     assert.equal(r.code, 0, r.out);
     // ⚠️ 2 -> 3 ON 2026-08-25, and the shape of the sentence changed with the
     // limb: the HAND-WRITTEN homepage of every page-quality root is now a
-    // subject, so this tree's three are apps/index.html, apps/subly.html and
+    // subject, so this tree's three are apps/index.html, apps/subscriptiontracker.html and
     // sites/nikatru/index.html. The count is not padding — before that day the
     // two real homepages were the ONLY pages carrying all four properties and
     // the ONLY pages nothing asserted.
@@ -2311,7 +2311,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
   test('🔴 a page that loses ONE of the four FAILS, per property, naming it', () => {
     for (const prop of ['og:image:width', 'og:image:height', 'og:image:alt']) {
       const root = tree([SUBLY]); generate(root);
-      const f = p(root, 'apps', 'subly.html');
+      const f = p(root, 'apps', 'subscriptiontracker.html');
       writeFileSync(f, readFileSync(f, 'utf8').replace(new RegExp(`<meta property="${prop}"[^>]*>\n`), ''));
       const r = guard(root);
       assert.equal(r.code, 1, `${prop} removal was accepted`);
@@ -2331,7 +2331,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
 
   test('🔴 an EMPTY og:image:alt FAILS — the property is present and says nothing', () => {
     const root = tree([SUBLY]); generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(f, readFileSync(f, 'utf8').replace(/(<meta property="og:image:alt" content=")[^"]*/, '$1'));
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -2347,7 +2347,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
     // template leaves when the slot was filled with a blank, and a screen
     // reader announces exactly as much of it as it announces of `""`.
     const root = tree([SUBLY]); generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(f, readFileSync(f, 'utf8').replace(/(<meta property="og:image:alt" content=")[^"]*/, '$1   '));
     const r = guard(root);
     assert.equal(r.code, 1, r.out);
@@ -2369,7 +2369,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
     // proves nothing here — the ABSENCE of limb H's messages is the assertion.
     // Same reason as the three cases above it (M18).
     const root = tree([SUBLY]); generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     const html = readFileSync(f, 'utf8').replace(
       /<meta property="og:image" content="([^"]*)">\n<meta property="og:image:width" content="([^"]*)">\n<meta property="og:image:height" content="([^"]*)">\n<meta property="og:image:alt" content="([^"]*)">/,
       (_m, a, b, c, d) =>
@@ -2388,7 +2388,7 @@ describe('the og:image block is complete and its numbers are the file\'s', () =>
 
   test('🔴 losing og:image ALTOGETHER FAILS, and says the card is scavenged', () => {
     const root = tree([SUBLY]); generate(root);
-    const f = p(root, 'apps', 'subly.html');
+    const f = p(root, 'apps', 'subscriptiontracker.html');
     writeFileSync(f, readFileSync(f, 'utf8').replace(/<meta property="og:image(:[a-z]+)?"[^>]*>\n/g, ''));
     const r = guard(root);
     assert.equal(r.code, 1);
@@ -2661,7 +2661,7 @@ describe('the page-quality contract reaches the mirror deploy root', () => {
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /sites\/rajasekarselvam\/index\.html declares og:image 1200x630 and sites\/rajasekarselvam\/og-image\.png is actually 800x418/);
     assert.doesNotMatch(r.out, /sites\/nikatru\/og-image\.png is actually/);
-    assert.doesNotMatch(r.out, /sites\/nikatru\/apps\/subly\.html declares og:image/);
+    assert.doesNotMatch(r.out, /sites\/nikatru\/apps\/subscriptiontracker\.html declares og:image/);
   });
 
   test('🔴 a mirror root with NO og-image.png FAILS, counting the pages that point at it', () => {

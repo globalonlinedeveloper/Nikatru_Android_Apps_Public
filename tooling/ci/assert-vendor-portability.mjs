@@ -98,7 +98,7 @@ import { stripSourceComments } from './text-reductions.mjs';
 // value (`SUPABASE_URL`, `ALLOWED_ORIGINS`, `APP_ERASURE_ENDPOINTS`) and all
 // five come back intact. Measured 2026-08-21 across three views of those two
 // configs — no strip, the old line-prefix strip, and this module — all three
-// derive the SAME 12 wrangler surfaces (platform 9, subly-api 3) with identical
+// derive the SAME 12 wrangler surfaces (platform 9, subscriptiontracker-api 3) with identical
 // token sets. The reach is new; the verdict is not.
 // `vendor-portability.test.mjs` pins the new reach with a commented-out binding
 // in all three comment forms.
@@ -180,7 +180,7 @@ for (const s of services) {
   const p = join(svcRoot, s, 'src/types.ts');
   if (!existsSync(p)) continue;
   // Stripped for the same reason as (a). NO VERDICT CHANGE, ROUTED FOR
-  // UNIFORMITY — re-measured 2026-08-21: 32 keys (platform 20, subly-api 12)
+  // UNIFORMITY — re-measured 2026-08-21: 32 keys (platform 20, subscriptiontracker-api 12)
   // raw AND stripped, key lists byte-identical, lengths identical. It is here
   // so a commented-out `SOME_KEY: string;` cannot start demanding a claim, and
   // `vendor-portability.test.mjs` pins that with a block-commented key.
@@ -211,7 +211,7 @@ for (const s of services) {
   // WIDENED 2026-08-21: this was `.replace(/^\s*\/\/.*$/gm, '')`, which saw only
   // FULL-LINE comments — a trailing `// "binding": "X"` or a block comment was
   // read as config. No count moved (12 wrangler surfaces before and after,
-  // re-measured that day: platform 9, subly-api 3, identical token sets),
+  // re-measured that day: platform 9, subscriptiontracker-api 3, identical token sets),
   // because today's two configs carry 202 full-line comments (135 + 67) and NOT
   // ONE trailing or block comment between them. The reach is new; the verdict
   // is not.
@@ -291,7 +291,7 @@ if (envHits < FLOORS['worker-env']) {
 // ── source (c)/(d) IS A RELATIONSHIP, NOT A NUMBER ───────────────────────────
 // 🔴 IT USED TO BE `bindingHits >= 5`, against a tree measuring 11. Corpus
 // triage 2026-08-01 (#39) mutated the real repository — `mv
-// services/subly-api/wrangler.jsonc wrangler.json` — and watched the total fall
+// services/subscriptiontracker-api/wrangler.jsonc wrangler.json` — and watched the total fall
 // 11 → 7 and the guard EXIT 0. Nothing else caught it either: the four lost
 // surfaces are D1/KV bindings that ALSO appear in that Worker's `interface Env`,
 // so source (b) kept them in `derived` and no vendor's claim went stale. One

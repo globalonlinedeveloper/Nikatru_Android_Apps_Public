@@ -11,7 +11,7 @@
 // BECAUSE THE REAL TREE FOUND IT, NOT BECAUSE THIS FILE DID. The guard's first
 // handler pattern ended `\)\s*\{` and so did not match
 // `async alarm(): Promise<void> {` — the ordinary TypeScript spelling. Planting
-// a real Durable Object in services/subly-api/src/index.ts still turned the
+// a real Durable Object in services/subscriptiontracker-api/src/index.ts still turned the
 // guard RED, because three sibling rules fired on the same class, so the exit
 // code hid the miss completely; it showed only as "3 problems" where 4 were
 // expected. A fixture written by the same hand as the pattern would have
@@ -91,13 +91,13 @@ describe('assert-no-do-alarms — the alarm surface in source', () => {
   // ── THE REGRESSION CASE. See the header. ──────────────────────────────────
   test('an `alarm(): Promise<void> {` handler — the TypeScript spelling the first pattern missed', () => {
     const { code, out } = withAnchor({
-      'services/subly-api/wrangler.jsonc': config(),
-      'services/subly-api/src/index.ts':
+      'services/subscriptiontracker-api/wrangler.jsonc': config(),
+      'services/subscriptiontracker-api/src/index.ts':
         'export class R {\n  async alarm(): Promise<void> {\n    return;\n  }\n}\n',
     });
     assert.equal(code, 1);
     assert.match(out, /declares an `alarm\(\)` handler/);
-    assert.match(out, /services\/subly-api\/src\/index\.ts:2/);
+    assert.match(out, /services\/subscriptiontracker-api\/src\/index\.ts:2/);
   });
 
   test('a plain `async alarm() {` handler, with no return type', () => {
@@ -283,7 +283,7 @@ describe('assert-no-do-alarms — the config limbs', () => {
 // that would have passed vacuously under that enumeration.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('assert-no-do-alarms — the enumeration reaches outside services/', () => {
-  for (const where of ['sites/edge/wrangler.jsonc', 'apps/subly/worker/wrangler.jsonc', 'infra/x/wrangler.jsonc']) {
+  for (const where of ['sites/edge/wrangler.jsonc', 'apps/subscriptiontracker/worker/wrangler.jsonc', 'infra/x/wrangler.jsonc']) {
     test(`a Durable Object under ${dirname(where)}/ is seen`, () => {
       const src = `${dirname(where)}/src/index.ts`;
       const { code, out } = withAnchor({
@@ -328,8 +328,8 @@ describe('assert-no-do-alarms — COVERAGE LOST rather than a vacuous pass', () 
 
   test('the anchor config missing fails, even with other configs present', () => {
     const { code, out } = run({
-      'services/subly-api/wrangler.jsonc': config(),
-      'services/subly-api/src/index.ts': 'export default {};\n',
+      'services/subscriptiontracker-api/wrangler.jsonc': config(),
+      'services/subscriptiontracker-api/src/index.ts': 'export default {};\n',
     });
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);

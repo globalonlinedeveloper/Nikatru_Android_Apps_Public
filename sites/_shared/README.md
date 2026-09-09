@@ -49,7 +49,7 @@ the directory being dead — `_data/apps.json` and `assets/tokens.css` are not.
 
 ```json
 {
-  "slug": "subly",
+  "slug": "subscriptiontracker",
   "name": "Nikatru Subscription Tracker",
   "tagline": "Track every subscription in one place",
   "url": "https://subly.nikatru.com",
@@ -63,7 +63,7 @@ Add more apps by appending objects to the array in `_data/apps.json`.
 
 **Who reads it today, precisely.** `sites/nikatru` reads it *through the
 generator*: `tooling/sites/generate-discovery.mjs` writes `apps/index.html` and
-`apps/subly.html` from these rows, and those files are committed and
+`apps/subscriptiontracker.html` from these rows, and those files are committed and
 byte-diffed by `tooling/ci/assert-discovery-surface.mjs`. Two surfaces
 deliberately do **not**: `sites/nikatru/index.html`'s hand-written
 `const APPS = [` array at `:470` (whether a live app is named on the public
@@ -139,7 +139,7 @@ Shape of `tooling/ci/assert-site-palette.mjs`:
    one real page and confirm it exits 1 naming that file.
 
 ⚠️ Two pages are **generated**. `sites/nikatru/apps/index.html` and
-`apps/subly.html` come from `generate-discovery.mjs`; a sed-style palette sweep
+`apps/subscriptiontracker.html` come from `generate-discovery.mjs`; a sed-style palette sweep
 over `sites/**` rewrites them in place and turns the discovery lane red on a
 byte-equality diff. Change the generator's `STYLE` constant and regenerate.
 
@@ -161,7 +161,7 @@ Two loose ends the prototype surfaced, neither of them blocking:
   declares it (`#EEF3FF` light / `rgba(46,111,242,.14)` dark) and no token file
   carries it — the same gap `--soft` had, at one page instead of thirteen.
 - **The discovery family declares `--ink` but never uses it.**
-  `apps/index.html`, `apps/subly.html` and `apps/_template.html` are the only 3
+  `apps/index.html`, `apps/subscriptiontracker.html` and `apps/_template.html` are the only 3
   of 18 pages with zero `var(--ink)`; their footer and header use the literal
   `#0B1220` instead. Harmless today because the values agree, but it means a
   future change to `--ink` would not reach them. Fixing it changes rendered
