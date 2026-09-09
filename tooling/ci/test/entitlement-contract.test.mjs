@@ -199,8 +199,83 @@ CREATE TABLE IF NOT EXISTS revocation_reasons (
 INSERT INTO ${seedTable} (reason, restores_access, description) VALUES
 ${reasons}
 ON CONFLICT(reason) DO NOTHING;
-`;
+${o.bundleHalf === false ? '' : BUNDLE_HALF}`;
 }
+
+/**
+ * THE BUNDLE HALF OF THE MIGRATION SET, appended to every fixture by default.
+ *
+ * 🔴 IT IS HERE BECAUSE LIMBS 8-10 MADE IT NECESSARY, and the way that surfaced
+ * is worth writing down: those limbs were added on 2026-09-09 and placed BELOW
+ * the guard's terminal `if (problems.length) process.exit(1)`, where every
+ * `fail()` they raised was pushed onto an array nobody read again. They were
+ * vacuous, this file stayed green, and only a mutation run said so. Moving them
+ * above the terminal block made them live — and every fixture here, which models
+ * a migration set with no bundle tables in it, started failing limb 8.
+ *
+ * The fixture models the SHIPPING migration set, and the shipping set has a
+ * bundle half since 0009. So the fixture grows one. It is the MINIMUM limb 8
+ * requires rather than a copy of the real DDL: the real one is graded by
+ * tooling/ci/test/bundle-contract-limbs.test.mjs, which mutates the shipping
+ * file itself rather than a hand-written model of it.
+ *
+ * `bundleHalf: false` omits it, so a case CAN still assert that limb 8 bites.
+ */
+const BUNDLE_HALF = `
+CREATE TABLE IF NOT EXISTS bundle_grants (
+  grant_id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  feature_set_name TEXT NOT NULL,
+  feature_set_version INTEGER NOT NULL,
+  provider TEXT,
+  provider_environment TEXT,
+  provider_subscription_id TEXT,
+  provider_transaction_id TEXT,
+  provider_status TEXT,
+  last_event_id TEXT,
+  occurred_at TEXT,
+  current_period_end TEXT,
+  trial_end TEXT,
+  expires_at TEXT,
+  grace_until TEXT,
+  revoked_at TEXT,
+  revocation_reason TEXT,
+  credit_days_applied INTEGER,
+  superseded_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bundle_sources (
+  source TEXT PRIMARY KEY,
+  requires_receipt INTEGER NOT NULL DEFAULT 1,
+  description TEXT
+);
+INSERT INTO bundle_sources (source, requires_receipt, description) VALUES
+  ('paddle_subscription', 1, 'the MoR rail'),
+  ('razorpay_subscription', 1, 'the India rail (no adapter yet), seeded before it exists'),
+  ('apple_iap', 1, 'a signed JWS, verified against Apple''s cert chain'),
+  ('google_play_billing', 1, 'the RTDN is a ping, not a receipt (stage 13), so the pull is mandatory'),
+  ('microsoft_store', 1, 'poll-based; there is no push at all'),
+  ('promo_code', 0, 'an operator record stands in for the receipt'),
+  ('owner_comp', 0, 'the same, with a different review path')
+ON CONFLICT(source) DO NOTHING;
+CREATE TABLE IF NOT EXISTS feature_sets (
+  name TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  minted_at TEXT NOT NULL,
+  minted_from TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  PRIMARY KEY (name, version)
+);
+CREATE TABLE IF NOT EXISTS feature_set_members (
+  name TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  product_slug TEXT NOT NULL,
+  product_kind TEXT NOT NULL,
+  PRIMARY KEY (name, version, product_slug)
+);
+`;
 
 /** The ordering tail both writers must carry, whitespace notwithstanding. */
 const CLAUSE = `WHERE entitlements.occurred_at IS NULL
@@ -328,6 +403,35 @@ ${entries.map(([r, restores]) => `  { reason: '${r}', restores: ${restores === 1
 ${rcJs(rcEvents)}
 export const CONTRACT_TABLE = { moneyEnvironments: MONEY_ENVIRONMENTS, revocationReasons: REVOCATION_REASONS, revenuecatEventReasons: REVENUECAT_EVENT_REASONS };
 `;
+}
+
+/**
+ * The bundle source set, as the fixture models it. MUST equal the tuples
+ * BUNDLE_HALF seeds, or limb 9 fails every case for a reason about this file
+ * rather than about the tree under test.
+ */
+const BUNDLE_SOURCES = [
+  ['paddle_subscription', true],
+  ['razorpay_subscription', true],
+  ['apple_iap', true],
+  ['google_play_billing', true],
+  ['microsoft_store', true],
+  ['promo_code', false],
+  ['owner_comp', false],
+];
+
+/** contracts/entitlement/bundle.js — the authored bundle copy, as limb 9 parses it. */
+function bundleJs(sources = BUNDLE_SOURCES) {
+  const rows = sources
+    .map(([s, r]) => `  { source: '${s}', requiresReceipt: ${r} },`)
+    .join('\n');
+  return `export const BUNDLE_SOURCES = [\n${rows}\n];\n`;
+}
+
+/** contracts/entitlement/bundle.json — generated from bundle.js. */
+function bundleJson(sources = BUNDLE_SOURCES) {
+  const doc = { bundleSources: sources.map(([s, r]) => ({ source: s, requiresReceipt: r })) };
+  return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
 /** contracts/entitlement/contract.json — generated from contract.js. */
@@ -479,6 +583,14 @@ function run(o = {}) {
   mkdirSync(extCore, { recursive: true });
   if (o.js !== null) writeFileSync(join(contracts, 'contract.js'), o.js ?? contractJs(o.jsReasons ?? codeReasons, o.jsRc ?? RC_EVENTS));
   if (o.json !== null) writeFileSync(join(contracts, 'contract.json'), o.json ?? contractJson(o.jsonReasons ?? codeReasons, o.jsonRc ?? RC_EVENTS));
+  // 🔴 THE BUNDLE VOCABULARY'S TWO COPIES, which limb 9 holds to the SQL seed the
+  // same way limb 4 holds the revocation set to its four. A fixture without them
+  // is a fixture where limb 9 reports COVERAGE LOST — correctly, and on every
+  // case in this file, which is what happened the moment limbs 8-10 stopped
+  // being vacuous. `bundleJs: null` / `bundleJson: null` omits one, so a case can
+  // still assert that limb 9's own coverage check bites.
+  if (o.bundleJs !== null) writeFileSync(join(contracts, 'bundle.js'), o.bundleJs ?? bundleJs(o.bundleSources ?? BUNDLE_SOURCES));
+  if (o.bundleJson !== null) writeFileSync(join(contracts, 'bundle.json'), o.bundleJson ?? bundleJson(o.bundleJsonSources ?? o.bundleSources ?? BUNDLE_SOURCES));
   if (o.vendored !== null) {
     writeFileSync(join(extCore, 'entitlement-contract.js'), o.vendored ?? contractJs(o.vendoredReasons ?? codeReasons, o.vendoredRc ?? RC_EVENTS));
   }
@@ -1344,3 +1456,41 @@ describe('assert-entitlement-contract limb 7b — the SWEEP, so a THIRD copy is 
 });
 
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// LIMBS 8 AND 9 — the fixture knobs that make the BUNDLE half omissible.
+//
+// The bundle limbs are mutation-proved against the SHIPPING migration by
+// tooling/ci/test/bundle-contract-limbs.test.mjs, which is where they belong: a
+// hand-written model of 300 lines of load-bearing DDL encodes my reading of it
+// rather than the one that ships. What belongs HERE is the two coverage checks
+// those limbs put on THEMSELVES — because `bundleHalf: false` and
+// `bundleJs: null` are options this file's fixture builder now carries, and an
+// option nothing exercises is an option that has quietly stopped working.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('assert-entitlement-contract limbs 8-9 — their own coverage checks', () => {
+  test('a migration set with NO bundle half fails limb 8 rather than passing over it', () => {
+    // 🔴 THIS IS THE CASE THAT CAUGHT THE REAL DEFECT. Limbs 8-10 were added below
+    // the guard's terminal `if (problems.length) process.exit(1)`, so every
+    // failure they raised went onto an array nobody read again — and this whole
+    // file stayed green over a guard that had stopped checking.
+    const r = run({ bundleHalf: false });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /table `bundle_grants` — MISSING/);
+  });
+
+  test('a bundle contract copy that is ABSENT is COVERAGE LOST, never a silent agreement', () => {
+    const r = run({ bundleJs: null });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — contracts\/entitlement\/bundle\.js does not exist/);
+  });
+
+  test('a bundle copy that DISAGREES with the seed is refused, in both directions', () => {
+    // The set is equal by name here and one flag differs — the shape a diff reads
+    // as correct and that turns a paid rail into one that mints from nothing.
+    const flipped = BUNDLE_SOURCES.map(([s, r]) => [s, s === 'paddle_subscription' ? false : r]);
+    const r = run({ bundleSources: BUNDLE_SOURCES, bundleJs: bundleJs(flipped) });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /THIS IS THE FIELD THAT MATTERS/);
+  });
+});

@@ -66,7 +66,7 @@
   "e2e-run-resolver.test.mjs": 16,
   "elf-page-alignment.test.mjs": 22,
   "enforcement-index.test.mjs": 26,
-  "entitlement-contract.test.mjs": 83,
+  "entitlement-contract.test.mjs": 86,
   "erasure-reach.test.mjs": 35,
   "extension-submission.test.mjs": 30,
   "extensions-build-free.test.mjs": 14,
