@@ -257,6 +257,32 @@ test('POSITIVE CONTROL · a block matching the derived shape passes', () => {
   assert.match(r.out, /1 generated availability block/);
 });
 
+// ── THE PARSING CONTRACT ─────────────────────────────────────────────────────
+// 🔴 A REGEX OVER HTML IS ONLY AS GOOD AS THE SHAPES IT HAS BEEN SHOWN. Limb C's
+// value is entirely in whether it survives the markup a person actually writes,
+// and every one of these was a way the first draft could have missed a real
+// badge while reporting clean. The three negatives are the other half: a limb
+// that flags "Pricing" is a limb somebody switches off.
+
+for (const [shape, snippet, mustFail] of [
+  ['a single-quoted href', "<a href='https://play.google.com/x'>Google Play</a>", true],
+  ['an UPPERCASE tag and attribute', '<A HREF="https://play.google.com/x">Google Play</A>', true],
+  ['newlines and padding around the link text', '<a href="https://play.google.com/x">\n   Google Play\n </a>', true],
+  ['a <span> nested around the store name', '<a href="https://play.google.com/x"><span>Google Play</span></a>', true],
+  ['the register name WITH its parenthetical', '<a href="https://apps.apple.com/x">Apple App Store (iOS)</a>', true],
+  ['an ordinary internal link', '<a href="/pricing">Pricing</a>', false],
+  ['a bare word that is only PART of a store name', '<a href="/x">Play</a>', false],
+  ['a badge row commented out of the markup', '<!-- <a href="https://play.google.com/x">Google Play</a> -->', false],
+]) {
+  test(`${mustFail ? 'limb C catches' : 'limb C does not flag'} ${shape}`, () => {
+    const d = tree();
+    edit(d, 'sites/nikatru/contact.html', '</body>', `${snippet}</body>`);
+    const r = run(d);
+    rmSync(d, { recursive: true, force: true });
+    assert.equal(r.code, mustFail ? 1 : 0, r.out);
+  });
+}
+
 test('COVERAGE LOST · an empty register refuses rather than reporting clean', () => {
   const d = tree();
   writeJson(d, 'tooling/channel-register.json', { ...REGISTER, channels: [] });
