@@ -46,12 +46,14 @@
 // Either direction failing is COVERAGE LOST, not a pass.
 //
 // ── WHAT IT DELIBERATELY DOES NOT ASSERT ─────────────────────────────────────
-// THE iOS .ipa — and ONLY the .ipa. `flutter build ios --release --no-codesign`
-// cannot emit one: an .ipa is a signed archive and needs an Apple distribution
-// certificate. The `ios-appstore` row accepts ".ipa" and declares
-// no lane. That gap is CODE-gated (corrected 2026-09-08), so it is PRINTED on the apple
-// lane rather than failed — a guard that reds the build over work only a person
-// with a chequebook can do is a guard somebody switches off.
+// ⏱ SUPERSEDED 2026-09-09. This heading used to exempt the iOS .ipa, on the
+// ground that nothing in the repository could produce one. That ground is gone:
+// the apple lane now runs `flutter build ipa --export-options-plist` and
+// `productbuild`, and on a signed lane BOTH the .ipa and the .pkg are asserted
+// like any other artifact. What remains posture-dependent is not an exemption
+// but a fact about the run — an unsigned build proof has no identity, so it has
+// no signed formats to assert, and the apple entry below branches on exactly
+// that rather than on anyone's judgement about what is worth checking.
 //
 // 🔴 WHAT THIS FILE USED TO SAY, AND WHY IT NO LONGER DOES. Until 2026-08-20
 // the entry here disclaimed iOS entirely, on the reasoning that "an assertion
@@ -111,6 +113,23 @@ const APPS_DIR = 'apps';
  * defect whether or not the result is packaged — and it is labelled so nobody
  * reads its presence here as a claim that it ships.
  */
+/** Which artifacts the apple lane can possibly have produced.
+ *
+ *  🔴 READ FROM THE POSTURE THE SIGNING STEP EXPORTED, NEVER GUESSED FROM THE
+ *  FILESYSTEM. "Is there an .ipa?" cannot answer "should there be one?" — that
+ *  is the tautology this whole file exists to refuse. `apple-signing.mjs` writes
+ *  APPLE_SIGNING_POSTURE to $GITHUB_ENV as its LAST act on both branches, so an
+ *  absent value means the signing step did not complete.
+ *
+ *  An absent value therefore reads as UNSIGNED, and that is fail-closed rather
+ *  than lenient — but not for the comfortable reason. `flutter build ipa` does
+ *  NOT populate `build/ios/iphoneos`; it writes `build/ios/archive/*.xcarchive`
+ *  and `build/ios/ipa/*.ipa`. So a genuinely signed run that arrived here
+ *  mislabelled would be asked for a directory it never created and would FAIL,
+ *  loudly, at the missing build proof. The two branches assert disjoint paths,
+ *  which is what makes a wrong posture impossible to pass under. */
+const APPLE_SIGNED = (process.env.APPLE_SIGNING_POSTURE ?? '').trim() === 'release-signed';
+
 const LANE_OUTPUTS = new Map([
   [
     'linux_web_android',
@@ -169,15 +188,42 @@ const LANE_OUTPUTS = new Map([
           suffix: '.app',
           why: 'the macOS application bundle — what this lane actually produces and uploads today',
         },
-        {
-          treeGlob: 'build/ios/iphoneos',
-          suffix: '.app',
-          why: 'the iOS application bundle — UNSIGNED, produced by `flutter build ios --release --no-codesign` and, since 2026-08-20, uploaded and retained for 90 days as `<app>-ios-<posture>`. It is a BUILD PROOF, not a submittable artifact: the ios-appstore row accepts `.ipa`, which nothing here produces. What this asserts is that the compile actually emitted a bundle with bytes in it — from the first commit of this file (2026-08-08) until 2026-08-20 a lane that emitted NOTHING for iOS was graded clean, because the only iOS statement in this table was a printed gap',
-        },
+        // ⏱ REWRITTEN 2026-09-09. This lane now emits DIFFERENT artifacts on the
+        // two postures, and the table has to say which — asserting the unsigned
+        // build proof's path on a signed lane would fail a correct build, and
+        // asserting only the proof's path would let a signed lane that produced
+        // no .ipa go green, which is this file's founding failure with the names
+        // changed.
+        ...(APPLE_SIGNED
+          ? [
+              {
+                ext: '.ipa',
+                dir: 'build/ios/ipa',
+                why: 'the iOS SUBMITTABLE artifact, produced by `flutter build ipa --export-options-plist` (archive + exportArchive) since 2026-09-09. This is the format the ios-appstore row declares; before that date the row declared `.ipa` and nothing in the repository could emit one. Asserted as a FILE with bytes because an export that fails part-way leaves the directory present and empty',
+              },
+              {
+                ext: '.pkg',
+                dir: 'build/macos/pkg',
+                why: 'the macOS SUBMITTABLE artifact, produced by `productbuild --component … --sign "3rd Party Mac Developer Installer: …"` since 2026-09-09. The macos-appstore row has declared a `*.pkg` glob since 2026-08-20 and NOTHING FILLED IT: `productbuild` appeared in zero workflows and existed only as printed plan text in apple-signing.mjs. The Mac App Store takes a .pkg, never a .app',
+              },
+            ]
+          : [
+              {
+                treeGlob: 'build/ios/iphoneos',
+                suffix: '.app',
+                why: 'the iOS application bundle — UNSIGNED, produced by `flutter build ios --release --no-codesign`, uploaded and retained for 90 days as `<app>-ios-<posture>`. It is a BUILD PROOF, not a submittable artifact, and on an unsigned lane it is the ONLY iOS output there can be: an .ipa is a signed archive. What this asserts is that the compile actually emitted a bundle with bytes in it — from the first commit of this file (2026-08-08) until 2026-08-20 a lane that emitted NOTHING for iOS was graded clean, because the only iOS statement in this table was a printed gap',
+              },
+            ]),
       ],
-      gaps: [
-        'iOS — THE .ipa, which nothing in this repository produces. The unsigned build/ios/iphoneos/*.app IS now built, retained and asserted above; what is still missing is the SUBMITTABLE format. `ios-appstore` accepts ".ipa", declares no lane, and `flutter build ios --release --no-codesign` cannot emit one — an .ipa needs a signing identity, which needs an Apple DISTRIBUTION CERTIFICATE. CORRECTED 2026-09-08: this gap is CODE-gated, not owner-gated. The account exists and is ACTIVE (App Store Connect answered HTTP 200 on 2026-09-08, with an ACCOUNT_HOLDER record); OWNER_QUEUE A-4 closed 2026-08-31. What GET /v1/certificates returned that same day was an EMPTY set - so the certificate is issuable through the ASC API with the key this repository already holds, by an agent, with no owner action. It is still printed rather than failed, for the second reason only: it is not closed today and reddening every merge over it helps nobody. It closes when a certificate is issued and something packages a signed archive — not when somebody edits the line away.',
-      ],
+      // Empty on a signed lane: both formats have real paths above, so nothing
+      // is excused. Populated only on the unsigned branch, where the gap note
+      // below is what makes the exemption visible in the run that took it.
+      gapFormats: APPLE_SIGNED ? [] : ['.ipa', '.pkg'],
+      gaps: APPLE_SIGNED
+        ? []
+        : [
+            'iOS — THE .ipa, and macOS — THE .pkg, neither of which an UNSIGNED lane can produce. Both are signed formats; `flutter build ios --release --no-codesign` cannot emit an .ipa and there is no identity for `productbuild` to sign a .pkg with. CORRECTED 2026-09-09: this is no longer a statement about the ACCOUNT or about a missing CERTIFICATE — both exist (App Store Connect issued a DISTRIBUTION and a MAC_INSTALLER_DISTRIBUTION certificate, a UNIVERSAL bundle id and two App Store profiles on 2026-09-09, and the repository secrets carry them). It is a statement about THIS RUN: a branch, a fork PR or the weekly platform proof does not get the signing secrets, so it gets the build proof instead, correctly and by design. On a release lane the entries above are asserted rather than this note printed.',
+          ],
     },
   ],
 ]);
@@ -306,6 +352,28 @@ const boundRows = rows.filter((c) => c?.lane?.job === platform);
 for (const row of boundRows) {
   const formats = (row.artifactFormats ?? []).filter((f) => typeof f === 'string' && /^\.[A-Za-z0-9]+$/.test(f));
   for (const f of formats) {
+    // ⏱ `gapFormats` ADDED 2026-09-09, and it is a NARROW hole, deliberately.
+    // Direction (c) asks "does this guard have a path for every format a bound
+    // channel accepts". Until today no apple row was bound, so the question
+    // never arose for .ipa/.pkg; now both rows name the `apple` job and the
+    // answer depends on the POSTURE — a signed lane has paths for both, an
+    // unsigned one cannot produce either, because both are signed formats.
+    //
+    // 🔴 THIS IS NOT A WAIVER, AND THE DIFFERENCE IS THAT A GAP MUST BE PRINTED.
+    // A format may sit in `gapFormats` only while the lane also prints a `gaps`
+    // note about it, and the assertion below enforces exactly that pairing. A
+    // lane that listed a format here and printed nothing would be silently
+    // exempting its own artifact, which is the defect this direction exists for.
+    if (!expectedExts.has(f) && (lane.gapFormats ?? []).includes(f)) {
+      if (!Array.isArray(lane.gaps) || lane.gaps.length === 0) {
+        coverageLost(
+          `lane "${platform}" lists "${f}" in gapFormats and prints NO gap for it.`,
+          'A format excused from direction (c) must be visible in the run that excused it; otherwise the',
+          'exemption is invisible and permanent, which is worse than the missing path it stands in for.',
+        );
+      }
+      continue;
+    }
     if (!expectedExts.has(f)) {
       coverageLost(
         `channel "${row.id}" declares lane job "${platform}" and accepts "${f}", and this guard has no path for it.`,

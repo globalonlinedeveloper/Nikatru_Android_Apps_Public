@@ -149,9 +149,26 @@ describe('assert-name-clearance — the mutation matrix', () => {
     doc.overall = 'BLOCKED';
   };
 
+  // ⏱ THE GREEN CONTROL NOW HAS TO DISARM THE ROW EXPLICITLY — 2026-09-09. This
+  // test's whole shape is "unarmed prints, armed fails", and it took
+  // `ios-appstore` being unarmed in the REAL register as its starting state. That
+  // stopped being true when the row acquired a lane, so the control was silently
+  // measuring the armed case twice. The fixture now states the unarmed half
+  // rather than inheriting it, which is what a control has to do anyway: a
+  // control that depends on unrelated production state is one register edit away
+  // from testing nothing, and this is the edit that proved it.
+  const unarm = (doc) => {
+    for (const c of doc.channels) if (c.id === 'ios-appstore') { c.lane = null; c.served = false; }
+  };
+
   test('M3 THE ARMING BITE — the same BLOCKED record fails the moment its channel arms', () => {
     // green control: the seeded wall on an UNARMED channel is printed, not fatal
-    const before = run(fixture(({ editJson }) => editJson(RECORD, withWall)));
+    const before = run(
+      fixture(({ editJson }) => {
+        editJson(RECORD, withWall);
+        editJson('tooling/channel-register.json', unarm);
+      }),
+    );
     assert.equal(before.code, 0, `green control first — a seeded wall on an unarmed channel must still exit 0:
 ${before.out}`);
     assert.match(before.out, /PROVEN-TAKEN on ios-appstore/, 'the wall must be printed, not swallowed');
