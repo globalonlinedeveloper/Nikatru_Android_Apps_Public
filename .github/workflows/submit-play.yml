@@ -141,7 +141,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
           --dir apps/subly/build/symbols/android-aab
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: The .aab must be signed by the upload key, not the debug key
         run: >
           node tooling/ci/assert-artifact-signed.mjs
@@ -295,7 +295,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
           --dir apps/subly/build/symbols/android-aab
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: Upload to Google Play
         id: upload
         env:

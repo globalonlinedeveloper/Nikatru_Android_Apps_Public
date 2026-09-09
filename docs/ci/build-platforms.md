@@ -1440,3 +1440,79 @@ exit 1; a stale exemption ⇒ exit 1; an exemption for a job that does not exist
 **What is still open.** The third residue bullet above stands unchanged: this guard reads workflow
 text and cannot see whether the crash sink actually symbolicated anything. That is
 `O-GLITCHTIP-FLUTTER-SYMBOLICATION-UNPROVEN`, and it is a different question from this one.
+
+### ⏱ APPENDED 2026-09-09 — `glitchtip-project`: the telemetry sink was standing between an artifact and its own proof
+
+**What happened, measured twice.** The Apple lane's step 17, *Upload the native debug symbols to
+GlitchTip*, POSTed to
+`https://glitchtip.nikatru.com/api/0/projects/nikatru/subscriptiontracker/files/difs/assemble/` and
+got **404**. GitHub then skipped every step after it — which is *Package the macOS .pkg* and *PROVE
+the .ipa and .pkg are real and signed*. So no `.pkg` was produced, and no signature was ever read
+back. **A monitoring outage decided whether a shippable artifact was proven signed.**
+
+**The 404 itself.** `--project` was `"$APP"` — `matrix.app`, the name of a *directory in this
+repository*. The app slug moved to `subscriptiontracker`; the GlitchTip project did not, because a
+project slug lives on a remote server and moves by `PUT /api/0/projects/nikatru/<slug>/`, not by a
+commit. Deriving one from the other asserts they move together, and on 2026-09-09 they did not.
+
+**What was done to the live instance.** The existing project was **renamed**, not replaced —
+`PUT {"name":"subscriptiontracker","slug":"subscriptiontracker"}` returned the same row, `id 1`.
+Read back afterwards: **all 14 issues survive with their ids and event counts unchanged**, and the
+DSN is byte-identical (same key id, same public key, same `projectId`), so `GLITCHTIP_DSN` needed no
+rotation. The short-id **prefix is rendered from the slug, not stored**, so the suffix is stable and
+every corpus reference re-resolves by adding the new prefix: `SUBLY-9` is `SUBSCRIPTIONTRACKER-9`,
+issue id 21, 4 events. `SUBLY-1`…`SUBLY-E` map likewise, one for one. Creating a new project instead
+would have split the history *and* minted a new DSN; that is why it was not done.
+
+**The ordering, which is the real defect.** The linux lane already ran its signing and shape
+assertions *before* the symbol upload. The windows and apple lanes did not. Both now match linux:
+the `upload-artifact` step that *retains* the mappings for 90 days still runs immediately after the
+last `flutter build` — nothing about symbol preservation changed — and only the **network call**
+moved, to the end of the lane, after every proof.
+
+**The rule, now held by a guard.** `tooling/ci/assert-glitchtip-project.mjs` refuses (1) two call
+sites naming different projects, (2) any `--project` argument that is an expression rather than a
+literal, and (3) zero call sites found. It carries no project name of its own, so the next rename
+does not touch it. `--project-name=` (Cloudflare Pages) is deliberately outside its boundary: that
+one *is* one-per-app and *is* correctly derived. Mutation record, green control first, each exit code
+captured on its own line: real tree ⇒ **exit 0, 12 call sites**; `origin/main`'s pre-fix workflows ⇒
+**exit 1**, naming all five derived sites; one file reverted to `--project subly` ⇒ **exit 1**,
+printing both spellings; the flag renamed away ⇒ **exit 1 COVERAGE LOST**; `--live` with no token ⇒
+**exit 1** naming the secret. With the token, `--live` reads `"subscriptiontracker" (id 1)` back off
+the live instance. CI runs it **offline** — ci.yml's standing objection to a CI limb depending on the
+GlitchTip box stands, and the half that was false today is knowable from the tree alone.
+
+#### ⏱ APPENDED the same day — the first repair spelled the project out, and the lane guard refused it
+
+The paragraph above says the project is written out at each call site. **That was true for
+about an hour and it is now wrong**, and the correction is worth more than the edit would be.
+`assert-release-lane-generic.mjs` failed the change on `deploy-web.yml`: **[pipeline 10]D-2b**
+abolishes per-app workflow authoring, and an app id typed into a graded lane's `run` is exactly
+that — shipping app #2 would mean finding and editing every copy on the one lane that reaches
+users. The guard also states the remedy: an app id belongs to the matrix leg, *or to a file the
+lane reads at run time*.
+
+So the value lives in **`tooling/ops/glitchtip-project.json`** and every lane reads it at run
+time. It is not the matrix leg, because the value is not per-app: it is one crash sink for the
+whole portfolio. The two forms now in the tree are both accepted and both graded:
+
+| lane | form | why |
+| --- | --- | --- |
+| `build-platforms.yml`, `deploy-web.yml` | `gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"` (bash) / `Get-Content \| ConvertFrom-Json` (pwsh) | graded by D-2b; the id may not appear in `run` |
+| `submit-*.yml` | the literal | not graded by D-2b, and PR #567 is editing these same lines — a second form here would be a merge conflict for no gain |
+
+`assert-glitchtip-project.mjs` holds both: a **variable-form** call site must read the
+declaration **in its own step** (a variable assigned somewhere else can hold anything), a
+**literal-form** call site must equal the declared project, and **no** call site may be derived
+from the app — `$APP`, `${env:APP}`, `${{ matrix.app }}`. Mutation record, green control first,
+each exit code on its own line: real tree ⇒ **exit 0, 12 call sites, 5 reading the declaration**;
+`--project "$APP"` ⇒ **exit 1**; `${{ matrix.app }}` ⇒ **exit 1**; `${env:APP}` ⇒ **exit 1**; a
+lane spelling a different project ⇒ **exit 1**; the read line deleted and the variable left ⇒
+**exit 1**; the flag renamed away ⇒ **exit 1 COVERAGE LOST**; the declaration file absent ⇒
+**exit 1**; a declaration with no `project` ⇒ **exit 1**. 17/17 in
+`tooling/ci/test/glitchtip-project.test.mjs`.
+
+🔴 **Case R1b paid for itself.** The first regex was `--project\s+(\S+)`, which stops at the
+space inside `${{ matrix.app }}` and captures `${{`. That is a variable but not recognisably
+app-derived, so the single expression this guard exists to refuse would have been graded by the
+weaker of its two rules. The test caught it; the regex now matches the whole `${{ … }}` form.
