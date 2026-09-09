@@ -123,11 +123,14 @@ import {
   footerCss as chromeFooterCss,
   skipLink as chromeSkipLink,
   a11yCss as chromeA11yCss,
+  scaleCss as chromeScaleCss,
+  marksCss as chromeMarksCss,
   openMarker,
   closeMarker,
 } from './chrome.mjs';
 import { lastmodFor } from './lastmod.mjs';
 import { APEX_ORIGIN } from './apex.mjs';
+import { renderAvailability, AVAILABILITY_CSS, availabilitySummary, availabilityRow } from './availability.mjs';
 
 /** The deploy root this generator owns. The mirror (`sites/rajasekarselvam`) is
  *  deliberately NOT generated into — see the note in assert-discovery-surface.mjs
@@ -337,6 +340,14 @@ const STYLE = `<style>
   @media (prefers-color-scheme: dark){
     :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2;--on-accent:#0B1220}
   }
+  :root{
+${openMarker('scale-css', true)}
+${chromeScaleCss()}
+${closeMarker('scale-css', true)}
+  }
+${openMarker('marks-css', true)}
+${chromeMarksCss()}
+${closeMarker('marks-css', true)}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
   .wrap{max-width:880px;margin:0 auto;padding:0 24px}
@@ -381,6 +392,8 @@ ${closeMarker('a11y-css', true)}
   .privacy p{color:var(--muted);font-size:15px;margin:6px 0 0}
   .privacy ul{margin:10px 0 0 20px}
   .privacy li{color:var(--muted);font-size:15px;margin-bottom:6px}
+  .fig{font-family:var(--font-display,inherit);font-variant-numeric:tabular-nums}
+${AVAILABILITY_CSS.replace(/\n$/, '')}
 ${openMarker('footer-css', true)}
 ${chromeFooterCss()}
 ${closeMarker('footer-css', true)}
@@ -656,6 +669,40 @@ function screenshotsFor(repoRoot, slug) {
   }));
 }
 
+/**
+ * The served-channel register, read ONCE for the whole run.
+ *
+ * 🔴 A MISSING OR EMPTY REGISTER IS A PROBLEM, NOT AN EMPTY AVAILABILITY BLOCK.
+ * `renderAvailability` over zero channels emits a section reading "No channel is
+ * published for this app yet" — which is a TRUE sentence about an empty list and
+ * a FALSE one about this app, and it would ship silently the day someone moved
+ * the file. Every other reader in this generator refuses the same way, so this
+ * one does too.
+ */
+function readChannelRegister(repoRoot, problems) {
+  const rel = 'tooling/channel-register.json';
+  const abs = join(repoRoot, ...rel.split('/'));
+  if (!existsSync(abs)) {
+    problems.push(
+      `${rel} does not exist, so the availability row on every app landing would render over an empty ` +
+        'register and print "no channel is published" about an app that is live on the web.',
+    );
+    return [];
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch (e) {
+    problems.push(`${rel} is not valid JSON — ${e.message}`);
+    return [];
+  }
+  const channels = Array.isArray(parsed?.channels) ? parsed.channels : [];
+  if (channels.length === 0) {
+    problems.push(`${rel} declares no \`channels\`, so no landing could say where its app can be got.`);
+  }
+  return channels;
+}
+
 function landingHtml(app, ctx, problems) {
   const live = app.status === 'live';
   const url = urlForPage(`apps/${app.slug}.html`);
@@ -732,6 +779,49 @@ ${buttons.map((b) => `      ${b}`).join('\n')}
     ? `${esc(app.name)} is an app by Nikatru, an independent studio in Chennai, Tamil Nadu, India.`
     : `${esc(app.name)} is an app by Nikatru, an independent studio in Chennai, Tamil Nadu, India. ${esc(app.tagline)}.`;
 
+  // ── WHERE YOU CAN ACTUALLY GET IT ─────────────────────────────────────────
+  //
+  // 🔴 THIS IS THE BLOCK THE DESIGN CANVAS SPECIFIED AND THE SITE NEVER GREW.
+  // `tooling/sites/availability.mjs` has existed since #568 and, until this
+  // change, ZERO served pages rendered it — `assert-availability.mjs` said so on
+  // every run ("0 generated availability block(s) found"). A renderer nothing
+  // renders is a renderer that proves nothing; the guard's A and B limbs ranged
+  // over an empty set and could only ever report clean.
+  //
+  // Nothing about the row is typed here. The ORDER comes from the register, the
+  // STATE from `catalog/apps.json → listings`, and the count is the length of a
+  // list — so this same call renders one tile or seven with no edit, which is
+  // the property the hand-written badge row it replaces did not have.
+  //
+  // ⚠️ `facts` IS DELIBERATELY NOT PASSED. Version, download size and minimum OS
+  // are the credible "boring facts under the button", and NO file in this
+  // repository holds any of them today. The renderer omits the line entirely
+  // when they are absent rather than printing a bracketed placeholder; passing
+  // an invented value here would defeat that on the first page that uses it.
+  //
+  // ⚠️ AND `lost` IS RAISED, NOT LOGGED. A renderable register row the catalogue
+  // has no opinion about is coverage lost — the tile would silently not render
+  // and the count would silently be one lower. `renderAvailability` cannot
+  // exit (it is a pure renderer); this is the caller that refuses.
+  const avail = renderAvailability(ctx.channels, app.listings ?? {}, {
+    heading: `Where you can get ${app.name}`,
+    headingId: `availability-${app.slug}`,
+  });
+  for (const lost of avail.lost) {
+    problems.push(
+      `${REGISTRY}: entry "${app.slug}" — COVERAGE LOST rendering its availability row. ${lost}`,
+    );
+  }
+  const availSection = avail.shown
+    ? `
+  <section>
+    <div class="wrap">
+${avail.html}
+    </div>
+  </section>
+`
+    : '';
+
   // ── SCREENSHOTS ────────────────────────────────────────────────────────────
   // The header's refusal is UNCHANGED and is the reason this reads the disk
   // rather than a flag: "screenshots — owner-supplied art that does not exist.
@@ -793,6 +883,23 @@ ${features.map((f) => `        <li><b>${esc(f.title)}.</b> ${esc(f.blurb)}</li>`
           <p>Paid plans are not open yet, so every part of ${esc(app.name)} is free to use today.</p>
         </div>
 `;
+  // 🔴 THE TRIAL BADGE IS GATED ON THE PAYWALL, ADDED 2026-09-09, AND IT WAS
+  // SHIPPING FALSE. The rail config declares `trial_days: 30` on both offerings,
+  // so `apps/subly.html` rendered "30-DAY FREE TRIAL" on two cards — three
+  // paragraphs above its own sentence "Paid checkout is not open yet … nothing
+  // can be bought today", which the same function emits from the same flag.
+  //
+  // The page was therefore telling a reader, in its loudest type, that they
+  // could start a 30-day trial, and then telling them in smaller type that they
+  // could not. A trial is not a price: a price is a fact about what the thing
+  // will cost and stays true while the till is shut, whereas a trial is an OFFER
+  // — a thing the reader is invited to start, today, by clicking. Printing one
+  // over a closed checkout is a promise made to a stranger with nothing behind
+  // it, and it is the exact class of copy the availability renderer exists to
+  // stop appearing one section further up the same page.
+  //
+  // `trial_days` stays in the rail config and the badge returns the day
+  // `paywall.enabled` flips. Nothing is deleted; it is simply not claimed early.
   const currencies = [...new Set(offerings.map((o) => o.code))];
   const pricingSection = offerings.length
     ? `
@@ -804,7 +911,7 @@ ${freeCard}${offerings
         .map(
           (o) => `        <div class="card" data-offering="${esc(o.id)}">
           <h3>${esc(o.term.heading)}</h3>
-${o.trialDays ? `          <span class="trial">${o.trialDays}-DAY FREE TRIAL</span>\n` : ''}          <div class="amount">${o.amount}${o.term.unit ? ` <small>/ ${esc(o.term.unit)}</small>` : ''}</div>
+${paywallEnabled && o.trialDays ? `          <span class="trial">${o.trialDays}-DAY FREE TRIAL</span>\n` : ''}          <div class="amount">${o.amount}${o.term.unit ? ` <small>/ ${esc(o.term.unit)}</small>` : ''}</div>
           <p>${esc(o.term.renews)}</p>
         </div>`,
         )
@@ -856,7 +963,7 @@ ${ledeParagraphs}      <p>${studioLine}</p>
       <p>${platformSentence}</p>
 ${statusNote}    </div>
   </section>
-${shotSection}${featureSection}${pricingSection}
+${availSection}${shotSection}${featureSection}${pricingSection}
   <section>
     <div class="wrap">
       <h2>Privacy, terms and refunds</h2>
@@ -1136,17 +1243,21 @@ const HOME_PAGE = `${DEPLOY_ROOT}/index.html`;
 export const HOME_GRID_OPEN = '<!-- APPS-GRID -->';
 export const HOME_GRID_CLOSE = '<!-- /APPS-GRID -->';
 
-/** The registry's `listings` keys, in the order the badges render, with the label
- *  each one is allowed to print. A key absent from this map renders nothing —
- *  a channel this site has no agreed name for is not a channel it will announce. */
-const LISTING_LABELS = new Map([
-  ['appstore', 'App Store'],
-  ['play', 'Google Play'],
-  ['microsoft', 'Microsoft Store'],
-  ['mac', 'Mac App Store'],
-  ['linux', 'Snap / AppImage'],
-  ['web', 'Web App'],
-]);
+// 🔴 `LISTING_LABELS` IS GONE, DELETED 2026-09-09, AND THIS NOTE IS ITS RECORD.
+// It was a hand-written `listings` key -> store name table living in this file,
+// which is the SAME defect as a hand-written badge row one level down: it goes
+// stale in silence, it lets a channel be renamed on the page without being
+// renamed in the register, and its key set (`appstore`, `mac`, `microsoft`,
+// `linux`) was already a THIRD vocabulary — neither the register's channel ids
+// (`ios-appstore`, `macos-appstore`, `windows-store`, `linux-snap`) nor anything
+// a guard compared it against. A key the table did not know simply rendered
+// nothing, so a real published listing could disappear from the homepage and
+// every count in this generator would still be right.
+//
+// The register is now the only source of channel identity on this page too:
+// `availabilityRow(ctx.channels, app.listings)` decides which channels exist,
+// which are live, and how many there are — and the count printed beside each row
+// is the length of that list. See tooling/sites/availability.mjs.
 
 /** The site's own mark, as the app tile. Not the app's icon — see above. */
 const HOME_APP_MARK = `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
@@ -1192,30 +1303,50 @@ const HOME_VALUE_CARDS = `    <div class="bento">
  * @param {object[]} liveApps registry entries whose status is `live`
  * @returns {string}
  */
-export function homeAppsGrid(liveApps) {
+export function homeAppsGrid(liveApps, channels = []) {
   if (!liveApps.length) return HOME_VALUE_CARDS;
-  const cards = liveApps.map((app) => {
-    const listings = app && typeof app.listings === 'object' && app.listings ? app.listings : {};
-    const badges = [...LISTING_LABELS]
-      .filter(([key]) => typeof listings[key] === 'string' && listings[key] !== '')
-      .map(
-        ([key, label]) =>
-          `<a class="badge" target="_blank" rel="noopener" href="${esc(listings[key])}">${esc(label)}</a>`,
-      )
+  const rows = liveApps.map((app) => {
+    const row = availabilityRow(channels, app.listings ?? {});
+    // The marks are DECORATION and are hidden from assistive technology; the
+    // sentence beside them carries the same fact in words. WCAG 1.4.1: a row
+    // whose state lived only in the number of filled squares would convey its
+    // meaning by colour and shape alone, and the compact form has no room for
+    // per-channel labels. The labelled form is on the landing this row links to.
+    const marks = row.tiles
+      .map((t) => `<span class="mark mark-${t.state === 'live' ? 'served' : 'soon'}"></span>`)
       .join('');
-    return `      <div class="card">
-        <div class="app-head">
-          <div class="app-icon">
-            ${HOME_APP_MARK}
-          </div>
-          <div><div class="app-name">${esc(app.name)}</div></div>
-        </div>
-        <div class="app-tag">${esc(app.tagline ?? '')}</div>
-        <div class="badges">${badges || '<span class="badge soon">Coming soon</span>'}</div>
-        <div class="app-more"><a href="/apps/${esc(app.slug)}">More about ${esc(app.name)} &rarr;</a></div>
-      </div>`;
+    // 🔴 TWO LINKS, NOT ONE ROW-SIZED ANCHOR. The first draft wrapped the whole
+    // row in a single `<a>`, which is worse in both directions: it makes one
+    // link whose accessible name is the icon, the product name, the tagline, six
+    // status marks and a count read end to end, and it makes a SECOND link
+    // impossible, because anchors cannot nest. The second link is the one that
+    // matters — it is the app's own address, and it is the only direct route
+    // from this page to the running product.
+    //
+    // ⚠️ `app.url` COMES FROM THE CATALOGUE AND IS NEVER TYPED HERE. The app's
+    // public path is moving, and a literal in this generator would survive the
+    // rename silently while pointing at a 404. The open link exists only when
+    // the catalogue supplies a URL; an entry without one renders the row and no
+    // button rather than a button to nowhere.
+    const open =
+      typeof app.url === 'string' && app.url !== ''
+        ? `\n          <a class="reg-open" href="${esc(app.url)}">Open<span class="sr-only"> ${esc(app.name)}</span> &rarr;</a>`
+        : '';
+    return `      <li class="reg-row">
+        <span class="reg-icon" aria-hidden="true">
+          ${HOME_APP_MARK}
+        </span>
+        <span class="reg-main">
+          <a class="app-name" href="/apps/${esc(app.slug)}">${esc(app.name)}</a>
+          <span class="app-tag">${esc(app.tagline ?? '')}</span>
+        </span>
+        <span class="reg-state">
+          <span class="marks" aria-hidden="true">${marks}</span>
+          <span class="reg-count fig">${esc(availabilitySummary(row))}</span>
+        </span>${open}
+      </li>`;
   });
-  return `    <div class="grid">\n${cards.join('\n')}\n    </div>`;
+  return `    <ul class="reg">\n${rows.join('\n')}\n    </ul>`;
 }
 
 /**
@@ -1231,7 +1362,7 @@ export function homeAppsGrid(liveApps) {
  * @param {object[]} liveApps
  * @returns {string}
  */
-export function applyHomeGrid(html, liveApps) {
+export function applyHomeGrid(html, liveApps, channels = []) {
   const opens = html.split(HOME_GRID_OPEN).length - 1;
   const closes = html.split(HOME_GRID_CLOSE).length - 1;
   if (opens !== 1 || closes !== 1) {
@@ -1247,7 +1378,7 @@ export function applyHomeGrid(html, liveApps) {
   if (end < start) {
     throw new Error(`${HOME_PAGE}: the APPS-GRID sentinels are reversed, which would replace the rest of the document.`);
   }
-  return `${html.slice(0, start + HOME_GRID_OPEN.length)}\n${homeAppsGrid(liveApps)}\n${html.slice(end)}`;
+  return `${html.slice(0, start + HOME_GRID_OPEN.length)}\n${homeAppsGrid(liveApps, channels)}\n${html.slice(end)}`;
 }
 
 // -----------------------------------------------------------------------------
@@ -1492,6 +1623,7 @@ export function planDiscovery(repoRoot) {
     repoRoot,
     rail: readRailConfig(repoRoot, problems),
     pricingPage: existsSync(join(repoRoot, ...PRICING_PAGE.split('/'))),
+    channels: readChannelRegister(repoRoot, problems),
   };
 
   const live = usable.filter((a) => a.status === 'live');
@@ -1573,7 +1705,7 @@ export function planDiscovery(repoRoot) {
       let out = applyChrome(readFileSync(join(repoRoot, ...rel.split('/')), 'utf8'));
       // The homepage takes ONE more spliced region than the rest: its app grid,
       // which used to be built in the browser. See `applyHomeGrid` above.
-      if (rel === HOME_PAGE) out = applyHomeGrid(out, live);
+      if (rel === HOME_PAGE) out = applyHomeGrid(out, live, ctx.channels);
       // ... and the price list takes THREE more, for the prices themselves. See
       // `applyPricing` above for why a hand-written page is spliced rather than
       // generated, and why leaving those four numbers hand-maintained was a

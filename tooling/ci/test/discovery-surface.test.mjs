@@ -578,6 +578,20 @@ function tree(entries, opts = {}) {
     typeof entries === 'string' ? entries : JSON.stringify(entries, null, 2),
   );
   writeFileSync(join(root, 'sites', 'nikatru', 'sitemap.xml'), opts.sitemap ?? SITEMAP_BASE);
+  // 🔴 THE SERVED-CHANNEL REGISTER. Since 2026-09-09 every landing renders its
+  // availability row from `tooling/channel-register.json` ∩ the entry's
+  // `listings`, and the generator REFUSES a tree without one rather than
+  // emitting a page that says "no channel is published" about a live app. So the
+  // fixture ships one — two rows, one served and one merely submittable, which
+  // is the smallest register that can express both tile states. `opts.register`
+  // lets a case take it away or reshape it.
+  if (opts.register !== false) {
+    mkdirSync(join(root, 'tooling'), { recursive: true });
+    writeFileSync(
+      join(root, 'tooling', 'channel-register.json'),
+      JSON.stringify(opts.register ?? { channels: REGISTER_ROWS }, null, 2) + '\n',
+    );
+  }
   // 🔴 The fixture homepage carries the APPS-GRID sentinel pair because the REAL
   // one does: since 2026-09-09 the generator splices the app grid into that span
   // instead of the browser building it from a `const APPS = [...]` literal, and
@@ -657,6 +671,17 @@ function guard(root) {
 // `app-routes.json` from them, and a LIVE row with no https `origin` is a real
 // problem (the router would have nowhere to send `/<slug>`), so a fixture
 // without one is not a smaller fixture — it is a catalogue the router cannot use.
+/**
+ * The fixture's served-channel register: one SERVED row and one merely
+ * SUBMITTABLE row, which is the smallest pair that renders both tile states.
+ * `kind` is `store` on the second so the guard's anti-hardcode limb has a store
+ * name to range over, exactly as the real register gives it nine.
+ */
+const REGISTER_ROWS = [
+  { id: 'web', name: 'Web (Cloudflare Pages)', kind: 'web', storefrontKey: 'web', served: true, submittable: false },
+  { id: 'android-play', name: 'Google Play', kind: 'store', storefrontKey: 'play', served: false, submittable: true },
+];
+
 const SUBLY = {
   slug: 'subscriptiontracker',
   name: 'Subly',
@@ -664,6 +689,13 @@ const SUBLY = {
   url: 'https://nikatru.com/subscriptiontracker',
   origin: 'https://subly-9cp.pages.dev',
   platforms: ['web'],
+  // 🔴 `listings` IS NOT OPTIONAL DECORATION. `availabilityOf` treats an ABSENT
+  // storefront key as COVERAGE LOST — deliberately, because absent is not null:
+  // null says "declared, nothing published yet" and draws a coming-soon tile,
+  // while absent says nobody has decided, and drawing a tile on a missing field
+  // would advertise a channel on the strength of an omission. The real catalogue
+  // carries the same two keys with the same two values.
+  listings: { web: 'https://nikatru.com/subly', play: null },
   status: 'live',
 };
 
@@ -694,6 +726,12 @@ const chromed = (body) =>
   '<meta property="og:image:alt" content="Nikatru">\n' +
   '<style>\n' +
   '  /* CHROME:a11y-css */\n  :focus-visible{outline:2px}\n  /* /CHROME:a11y-css */\n' +
+  // The non-colour scale tokens, spliced like every other region since
+  // 2026-09-09. A fixture page without the pair is not a smaller fixture: it is
+  // a page `applyChrome` correctly refuses, because a region that silently does
+  // nothing is the failure the whole splice exists to prevent.
+  '  :root{\n  /* CHROME:scale-css */\n  /* /CHROME:scale-css */\n  }\n' +
+  '  /* CHROME:marks-css */\n  /* /CHROME:marks-css */\n' +
   '  /* CHROME:footer-css */\n  /* /CHROME:footer-css */\n' +
   '</style></head><body>\n' +
   '<!-- CHROME:skiplink -->\n<a class="skip-link" href="#main">Skip</a>\n<!-- /CHROME:skiplink -->\n' +
@@ -969,7 +1007,34 @@ describe('the generator', () => {
     assert.match(html, /\$4\.99 <small>\/ month<\/small>/);
     assert.match(html, /data-offering="pro_yearly"/);
     assert.match(html, /\$19\.99 <small>\/ year<\/small>/);
+    // 🔴 NO TRIAL BADGE, BECAUSE `paywall.enabled` IS FALSE IN THIS FIXTURE.
+    // Changed 2026-09-09: the badge used to render regardless, so this page
+    // printed "30-DAY FREE TRIAL" in its loudest type three paragraphs above its
+    // own sentence "Paid checkout is not open yet … nothing can be bought
+    // today". A price is a fact that stays true while the till is shut; a trial
+    // is an OFFER the reader is invited to start by clicking, and printing one
+    // over a closed checkout is a promise with nothing behind it.
+    assert.doesNotMatch(html, /FREE TRIAL/);
+    assert.equal(guard(root).code, 0);
+  });
+
+  test('🔴 the trial badge RETURNS the moment the paywall is switched on — gated, not deleted', () => {
+    // The positive control for the gate above. Without it, "no trial badge" is
+    // equally consistent with a generator that lost the ability to render one,
+    // and `trial_days` in the rail config would be a field nothing reads.
+    const root = tree([SUBLY], {
+      rail: rail({ [SUBLY.slug]: { features: {}, paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }),
+      pricingPage: true,
+    });
+    assert.equal(generate(root).code, 0);
+    // The slug comes from the fixture, never retyped — the 2026-09-09 rename
+    // turned every literal 'subly' in this file into a path that resolves to
+    // nothing, and an ENOENT inside assert.match is a case testing no code.
+    const html = readFileSync(p(root, 'apps', `${SUBLY.slug}.html`), 'utf8');
     assert.match(html, /30-DAY FREE TRIAL/);
+    // And the "nothing can be bought today" note is correspondingly gone, so the
+    // page never carries the badge and the disclaimer at the same time.
+    assert.doesNotMatch(html, /nothing can be bought today/);
     assert.equal(guard(root).code, 0);
   });
 
@@ -1475,7 +1540,11 @@ describe('the real repository', () => {
     const live = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8')).filter((r) => r.status === 'live');
     assert.ok(live.length > 0, 'the catalogue lists no live app, so this case would assert nothing');
     for (const row of live) {
-      assert.ok(grid.includes(`>${row.name}</div>`), `the generated grid does not name ${row.name}`);
+      // Element-agnostic: the row wraps the name in whatever element the design
+      // uses, and pinning that element made this case a test of markup rather than
+      // of agreement. It was `</div>` until 2026-09-09 and went stale the moment
+      // the card became a register row.
+      assert.ok(grid.includes(`>${row.name}<`), `the generated grid does not name ${row.name}`);
       assert.ok(grid.includes(row.url), `the generated grid does not carry ${row.url}`);
     }
 
