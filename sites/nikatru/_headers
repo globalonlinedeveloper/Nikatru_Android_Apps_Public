@@ -7,7 +7,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-/F5Ry+1cCHURQ7c2PIC+pv90DaJ01rRWBejMCVN4Dm4=' 'sha256-81LCPMaNasvHATsjoSFd8R4NNZzgfHzTHJYwT95So9M=' 'sha256-MgqFFGLQqvfHTjM1wDUjdvXwSAKg/tr5sx4ydu3DVNY=' 'sha256-SdQiYmfng5RFNXxQywQLylCcSrYBeQ+MfoGO578s0XY=' 'sha256-iirw2adT4VStWMwxa6SV4b23nDbCQXvWDNa9V0S9ink=' 'sha256-se6nVksVFvJGiLATTxTxshBOCrCLLqEM7cJ2CJk5WYE='; connect-src 'self'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-/F5Ry+1cCHURQ7c2PIC+pv90DaJ01rRWBejMCVN4Dm4=' 'sha256-5kSPOE1eBo0U0JdT5xXL0+YJxPPetEps1sLXy5Z6/EM=' 'sha256-MgqFFGLQqvfHTjM1wDUjdvXwSAKg/tr5sx4ydu3DVNY=' 'sha256-SdQiYmfng5RFNXxQywQLylCcSrYBeQ+MfoGO578s0XY=' 'sha256-iirw2adT4VStWMwxa6SV4b23nDbCQXvWDNa9V0S9ink=' 'sha256-se6nVksVFvJGiLATTxTxshBOCrCLLqEM7cJ2CJk5WYE='; connect-src 'self'; form-action 'self'; upgrade-insecure-requests
 
 # Revalidate HTML so a new deploy shows immediately (no stale edge copy)
 /
