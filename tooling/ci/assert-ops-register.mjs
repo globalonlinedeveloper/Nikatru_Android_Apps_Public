@@ -186,7 +186,7 @@ import { listDir } from './tree-walk.mjs';
 // The ONE workflow parser. Four copies of it drift in the way that reports
 // "clean" — which lines they can see — so [14]O-7's deploy-job derivation goes
 // through the same one assert-release-provenance and assert-no-secret-defines use.
-import { parseAllWorkflows, workflowEvents, RECORD_CALL, expandMatrixEnvironment } from './workflow-scan.mjs';
+import { parseAllWorkflows, workflowEvents, shellSegments, RECORD_CALL, expandMatrixEnvironment } from './workflow-scan.mjs';
 // The ONE comment tokenizer, for the same reason as the workflow parser above.
 import { stripSourceComments } from './text-reductions.mjs';
 
@@ -2570,6 +2570,213 @@ export function dispatchableWorkflows(root) {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 A DISPATCH BUTTON IS NOT AN EXIT WHEN THE DISPATCHED RUN'S FIRST STEP IS
+// THE GATE THIS VERDICT JUST REDDENED. Added 2026-09-09, coverage unit
+// `red-since-self-gate`. TRAPS `ci-42`/`ci-43` again — a run's own conclusion may
+// not be an input to the grade that produces it — one hop further out.
+//
+// ── THE LIVELOCK, MEASURED ON `main` RATHER THAN REASONED ───────────────────
+// 1. `build-platforms.yml` run 34351523027 FAILED on `main` at
+//    2026-09-09T12:45:45Z (Windows MAX_PATH; cause fixed by merged PR #582).
+// 2. `classifyRedSince` graded it `red` and `evaluateRedSince` pushed the line
+//    into `errors`, so this guard exits 1.
+// 3. This guard runs in `ci.yml`'s `guards-platform` job, and `ci-gate` `needs:`
+//    that job — so `ci-gate` went red on `main` (runs 34354769442 on ee582aef
+//    and 34355401877 on ddfc63d4, both for exactly this line).
+// 4. `build-platforms.yml`'s FIRST step is
+//    `node tooling/ci/assert-gate-passed.mjs ${{ github.sha }}`. Observed in run
+//    34355529015 on ddfc63d4: `✗ ci-gate concluded "failure" for ddfc63d4 —
+//    refusing to deploy`. The dispatched run aborts before it builds anything.
+// 5. So `build-platforms.yml` can never produce a green run on `main`, so RED
+//    SINCE never clears, so `ci-gate` never goes green. Every merge and every
+//    deploy on `main` is frozen, and the verdict's own remedy line — "A success
+//    of ANY event on that branch clears it — dispatch the workflow once the
+//    cause is fixed" — is UNREACHABLE for precisely the workflows it is aimed at.
+//
+// ⚠️ AND THE LOOP HAS A SECOND LAP, WHICH IS WHY THE RULE IS NOT MERELY
+// "EXEMPT THE SELF-GATED ROW". `.github/workflows/ops-watch.yml` RUNS THIS
+// GUARD, so step 2 above also fails ops-watch: run 34354893475, job "Every
+// declared duty is fresh", FAILURE at 2026-09-09T13:06:44Z. That failure makes
+// `duty.workflow.ops-watch.yml` RED SINCE in turn, and ops-watch is NOT
+// self-gated — so exempting only the self-gated row leaves `ci-gate` red through
+// the ops-watch row instead, and nothing has moved. Both laps are closed here,
+// and the second one only while the first is actually live.
+//
+// ── THE PROPERTY, STATED ONCE ──────────────────────────────────────────────
+// The header above already names what makes a blocking alarm honest: "⚠️ THE
+// FREEZE IS BOUNDED AND ITS REMEDY IS REACHABLE". `dispatchableWorkflows` tests
+// that one way — has this lane a button. This tests the other, and it is the
+// half that was missing: IS THE BUTTON WIRED TO THE GATE THIS VERDICT CONTROLS.
+// A `workflow_dispatch:` line and an `assert-gate-passed.mjs` first step are the
+// same lane read from two ends, and only both together mean "reachable".
+//
+// ── DERIVED, NEVER LISTED, AND NEVER FROM A CALLER'S FLAG ──────────────────
+//   · SELF-GATED   — every `.github/workflows/*.yml` that RUNS
+//                    `tooling/ci/assert-gate-passed.mjs`. Eight files today;
+//                    this code never says which, and the moment one drops the
+//                    step it leaves the set and is blocked again.
+//   · GUARD HOSTS  — every workflow that RUNS `tooling/ci/assert-ops-register.mjs`
+//                    (`ci.yml` and `ops-watch.yml`), i.e. every workflow whose
+//                    conclusion THIS FILE helps produce.
+//   · THE GATE     — the check-run name is read out of `assert-gate-passed.mjs`'s
+//                    own source (`const GATE = '…'`), and the GATE-PRODUCING
+//                    workflow is the one declaring a job by that name. Not a
+//                    string this file asserts: the two ends must agree on disk or
+//                    the derivation returns `null` and NOTHING is exempted.
+// 🔴 AND THE CONTEXT COMES FROM THE ENVIRONMENT, VIA `hostWorkflowFile()` —
+// `GITHUB_WORKFLOW_REF`/`GITHUB_WORKFLOW`. Never a `--allow-deadlock` argument
+// and never a register field: a flag a caller may pass is a waiver, and a waiver
+// is how this alarm gets switched off by the next person in a hurry. A run
+// cannot lie about which workflow file it is executing inside.
+//
+// ── WHAT IS AND IS NOT GIVEN UP: NOTHING IS ───────────────────────────────
+// The exemption applies in ONE host — the workflow that produces the gate — and
+// there it converts `errors` into a LOUD, NAMED PRINT carrying the workflow, the
+// run id, the timestamps and the deadlock reason. In `ops-watch.yml` the same
+// RED still lands in `errors`, still fails the job, and still files against the
+// durable issue "Scheduled duty is not reporting healthy" — ops-watch is gated on
+// nothing, so blocking there cannot deadlock, and that is where the page lives.
+// The alarm keeps its whole bite; only the copy of it that would eat its own
+// remedy is downgraded, and it is downgraded to a sentence rather than to silence.
+//
+// 🔴 FAIL-CLOSED IN EVERY DIRECTION. No topology, no gate name, no gate-producing
+// workflow, an unresolvable host, a host that is not the gate producer, or a host
+// that does not run this guard — any one of them means NO exemption and the
+// pre-2026-09-09 blocking behaviour exactly. The direction that costs a freeze is
+// the direction this code takes when it cannot prove otherwise.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The gate the deploy lanes wait on, and the guard whose exit code decides it.
+ *  Both are FILES IN THIS TREE, read rather than described — a rename that is not
+ *  followed here collapses the derivation to `null`, which restores blocking. */
+export const GATE_SCRIPT_REL = 'tooling/ci/assert-gate-passed.mjs';
+export const GUARD_SCRIPT_REL = 'tooling/ci/assert-ops-register.mjs';
+
+/** PURE, over a workflow already parsed by the ONE parser. Does this file
+ *  actually RUN `scriptRel`?
+ *
+ *  🔴 "MENTIONS" IS NOT "RUNS", AND THE DIFFERENCE IS A REAL LINE IN THIS TREE.
+ *  `deploy-web.yml` names `tooling/ci/assert-gate-passed.mjs` inside its
+ *  `on.push.paths:` filter — a substring search would read that as an invocation,
+ *  which is harmless there but is exactly the sloppiness that later admits a
+ *  workflow to a deadlock exemption on the strength of a comment. So a segment
+ *  must invoke `node` AND name the script. `parseWorkflow` has already blanked
+ *  comments, which is the other half (`build-platforms.yml` names the script in
+ *  one). */
+export function workflowRunsScript(parsed, scriptRel) {
+  const base = String(scriptRel).split('/').pop();
+  for (const l of parsed?.lines ?? []) {
+    for (const seg of shellSegments(String(l.text))) {
+      if (/(^|\s)node(\s|$)/.test(seg) && seg.includes(base)) return true;
+    }
+  }
+  return false;
+}
+
+/** IMPURE. The check-run name `assert-gate-passed.mjs` waits for, read out of
+ *  that script's own source so the two cannot drift. `null` when the file is
+ *  gone or the constant has moved — and `null` exempts nothing.
+ *
+ *  ⚠️ A DEBT, NAMED RATHER THAN HIDDEN: this is the THIRD reader of
+ *  `const GATE` in `tooling/ci`. `assert-release-lane-generic.mjs` (~line 406)
+ *  and `assert-release-provenance.mjs` (~line 524) each carry their own copy of
+ *  this regex AND their own "which workflow declares a job by that name" walk.
+ *  `grep-10` says the answer is one reader in `workflow-scan.mjs`, not a third
+ *  copy here — and that is owed. It is not taken in this change because the
+ *  consolidation has to move two other guards, their two test files and their
+ *  two coverage-manifest keys, none of which this branch owns, and shipping a
+ *  livelock fix behind a four-file refactor is the wrong trade while `main` is
+ *  frozen.
+ *
+ *  What keeps the debt cheap in the meantime is the DIRECTION each copy fails
+ *  in. Rename the constant and the other two stop with COVERAGE LOST; this one
+ *  returns `null`, which exempts nothing and restores blocking. Three readers
+ *  that drift, all three toward refusing rather than toward passing. */
+export function gateCheckName(root) {
+  const abs = join(root, GATE_SCRIPT_REL);
+  if (!existsSync(abs)) return null;
+  const m = /^const GATE = ['"]([^'"]+)['"];/m.exec(readFileSync(abs, 'utf8'));
+  return m ? m[1] : null;
+}
+
+/** IMPURE, and the ONE impure input to the deadlock rule. Returns
+ *  `{ selfGated, guardHosts, gateName, gateWorkflow, why }` — three derivations
+ *  over the workflow tree plus the reason any of them came back empty, so a
+ *  collapsed derivation is a printed sentence rather than a quietly restored
+ *  freeze. */
+export function gateTopology(root) {
+  const parsed = parseAllWorkflows(root);
+  const fileOf = (wf) => String(wf?.rel ?? '').split('/').pop();
+  const selfGated = new Set();
+  const guardHosts = new Set();
+  for (const wf of parsed) {
+    if (workflowRunsScript(wf, GATE_SCRIPT_REL)) selfGated.add(fileOf(wf));
+    if (workflowRunsScript(wf, GUARD_SCRIPT_REL)) guardHosts.add(fileOf(wf));
+  }
+  const why = [];
+  const gateName = gateCheckName(root);
+  if (!gateName) why.push(`no \`const GATE = …\` could be read out of ${GATE_SCRIPT_REL}, so the gate has no name here`);
+  if (selfGated.size === 0) why.push(`no workflow under ${WORKFLOW_DIR_REL} runs ${GATE_SCRIPT_REL}, so no lane is self-gated`);
+  if (guardHosts.size === 0) why.push(`no workflow under ${WORKFLOW_DIR_REL} runs ${GUARD_SCRIPT_REL}, so no workflow's conclusion is produced by this guard`);
+  // 🔴 EXACTLY ONE producer, or none. Two jobs answering to the gate's name
+  // would make "which host feeds the gate" a guess, and a guess here is a
+  // silently widened exemption.
+  const producers = new Set();
+  if (gateName) {
+    for (const wf of parsed) {
+      for (const job of wf.jobs?.values?.() ?? []) {
+        if (job?.displayName === gateName || job?.name === gateName) producers.add(fileOf(wf));
+      }
+    }
+  }
+  let gateWorkflow = null;
+  if (producers.size === 1) [gateWorkflow] = producers;
+  else if (gateName && producers.size === 0) why.push(`no workflow declares a job named \`${gateName}\`, so the gate-producing workflow is unknown`);
+  else if (producers.size > 1) why.push(`${producers.size} workflows declare a job named \`${gateName}\` (${[...producers].join(' · ')}), so which host feeds the gate would be a guess`);
+  return { selfGated, guardHosts, gateName, gateWorkflow, why };
+}
+
+/** PURE. Is THIS run the one whose exit code decides the gate? Both halves are
+ *  required: the host must be the gate-producing workflow AND must actually run
+ *  this guard. `hostWorkflow` comes from `hostWorkflowFile()`, i.e. from the
+ *  environment — never from an argument a caller chooses. */
+export function feedsTheGate(hostWorkflow, topology) {
+  return Boolean(
+    topology?.gateWorkflow && hostWorkflow && topology.gateWorkflow === hostWorkflow && topology.guardHosts.has(hostWorkflow),
+  );
+}
+
+/** PURE. Why this RED may not be routed into `errors` HERE, or `null` if it may.
+ *  `redFiles` is every workflow file graded `red` on THIS run, which is what makes
+ *  the second lap conditional: a red guard host is exempt only while a self-gated
+ *  lane is actually red, i.e. only while this guard is the thing failing it. */
+export function deadlockExemption(file, redFiles, topology, gateFeeding) {
+  if (!gateFeeding || !topology || !file) return null;
+  const gate = topology.gateName;
+  if (topology.selfGated.has(file)) {
+    return (
+      `SELF-GATED — \`${WORKFLOW_DIR_REL}/${file}\` runs \`${GATE_SCRIPT_REL}\`, which refuses to proceed while ` +
+      `\`${gate}\` is red. This run IS the run that decides \`${gate}\`, so routing this RED into \`errors\` here ` +
+      `keeps \`${gate}\` red, and a red \`${gate}\` is exactly what aborts the dispatched run that would clear the ` +
+      `RED. The verdict's own remedy — "dispatch the workflow once the cause is fixed" — is UNREACHABLE from this ` +
+      `host, so the verdict may not be the thing that blocks it. It is BLOCKING in every other host.`
+    );
+  }
+  const selfGatedRed = [...(redFiles ?? [])].filter((f) => topology.selfGated.has(f)).sort();
+  if (selfGatedRed.length && topology.guardHosts.has(file)) {
+    return (
+      `SECOND LAP — \`${WORKFLOW_DIR_REL}/${file}\` runs \`${GUARD_SCRIPT_REL}\`, this guard, so its conclusion is ` +
+      `partly THIS FILE'S OUTPUT. ${selfGatedRed.join(' · ')} is RED and self-gated, which fails this guard inside ` +
+      `${file} too — so ${file} can have no green run until that clears. Routing this RED into \`errors\` here keeps ` +
+      `\`${gate}\` red, which aborts the dispatch that clears the self-gated RED, which is the only thing that would ` +
+      `let ${file} go green: the same loop, one hop out. Exempt HERE and ONLY while a self-gated lane is actually ` +
+      `red; blocking in every other host, and blocking here the moment ${selfGatedRed.join(' · ')} is green again.`
+    );
+  }
+  return null;
+}
+
 /** The rows this limb grades. TWO admissions, and they are graded for the SAME
  *  thing — REDNESS — by the same clockless comparison:
  *
@@ -2818,7 +3025,7 @@ export function classifyRedSince(row, probe) {
  *  happened. `coverageLost` is returned SEPARATELY from `errors` because the two
  *  mean different things: an error is a branch that is red right now, coverage
  *  lost is this limb no longer being able to tell. */
-export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(), dispatchable = null) {
+export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(), dispatchable = null, topology = null) {
   const errors = [];
   const prints = [];
   const domain = redSinceDomain(reg, dispatchable);
@@ -2842,10 +3049,16 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
     };
   }
 
-  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, self: 0 };
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, self: 0, deadlockExempt: 0 };
   const blindLines = [];
   const darkLines = [];
   const selfLines = [];
+  // ⏱ 2026-09-09 — the REDs are collected before any of them is routed. The
+  // second lap of the deadlock (see the header block above `GATE_SCRIPT_REL`)
+  // asks "is a SELF-GATED lane red on THIS run", and that question has no answer
+  // until every row has been classified. One pass to classify, one to route.
+  const redRows = [];
+  const gateFeeding = feedsTheGate(hostWorkflow, topology);
   for (const r of domain) {
     // 🔴 THE ONE ROW A RUN MAY NOT GRADE: the workflow it is executing inside.
     // Appended 2026-09-08, TRAPS `ci-42`/`ci-43`; the header states the incident.
@@ -2869,10 +3082,30 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
     }
     const c = classifyRedSince(r, probes.get(r.id));
     tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
-    if (c.verdict === 'red') errors.push(c.line);
+    if (c.verdict === 'red') redRows.push({ row: r, line: c.line, file: String(r?.mechanism?.recordQuery?.workflow ?? '') });
     else if (c.verdict === 'blind') blindLines.push(c.line);
     else if (c.verdict === 'unreadable') darkLines.push(c.line);
     else prints.push(`[14]O-3b — ${c.line}`);
+  }
+
+  // 🔴 SECOND PASS — WHERE A RED GOES, WHICH IS NOT WHETHER IT WAS SEEN. Every
+  // row above is already graded; nothing here can turn a `red` into anything
+  // else. The only question is whether THIS host is the one whose exit code the
+  // graded workflow's own recovery depends on — and in that one host a RED whose
+  // remedy this verdict would abort is printed instead of blocked. See the
+  // header block above `GATE_SCRIPT_REL` for the measured livelock and both laps.
+  const redFiles = new Set(redRows.map((e) => e.file).filter(Boolean));
+  for (const e of redRows) {
+    const why = deadlockExemption(e.file, redFiles, topology, gateFeeding);
+    if (!why) {
+      errors.push(e.line);
+      continue;
+    }
+    tally.deadlockExempt += 1;
+    prints.push(
+      `[14]O-3b — 🔴 RED, AND NOT BLOCKING IN THIS HOST BECAUSE BLOCKING HERE WOULD DEADLOCK IT — ${e.line}`,
+    );
+    prints.push(`[14]O-3b — 🔴 …WHY THIS RED IS A PRINT HERE: ${why}`);
   }
 
   // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE, for the same reason [14]O-3's
@@ -2888,9 +3121,31 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
     `[14]O-3b — RED SINCE: ${domain.length} workflow duty(ies) graded (${clocked} on a clock · ` +
       `${domain.length - clocked} \`trigger\` row(s) whose workflow declares \`workflow_dispatch\`, so a red lane ` +
       `has an exit that is not a merge) · ${tally.green} whose newest run on their own ` +
-      `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
+      `branch is GREEN · ${tally.red} RED (${tally.deadlockExempt} of them printed rather than blocked HERE because ` +
+      `blocking them in this host would deadlock their own recovery — see the lines above; they are BLOCKING in ` +
+      `every other host) · ${tally.unreadable} unreadable on this runner · ` +
       `${tally.blind} with no success to compare against · ${tally.self} NOT GRADED HERE because this run is its host`,
   );
+  // 🔴 THE DEADLOCK DERIVATION, PRINTED ON EVERY RUN — the same anti-shrink rule
+  // the trigger census follows. The self-gated set comes from a step anybody may
+  // delete and the gate name from a constant anybody may rename, so what was
+  // derived and what it did is a sentence in the log rather than a behaviour
+  // nobody can see. ⏱ 2026-09-09.
+  prints.push(
+    `[14]O-3b — GATE TOPOLOGY: gate check \`${topology?.gateName ?? 'UNKNOWN'}\` is produced by ` +
+      `\`${topology?.gateWorkflow ?? 'UNKNOWN'}\` · SELF-GATED (they run \`${GATE_SCRIPT_REL}\`, so a dispatch of ` +
+      `theirs aborts while that check is red): ${[...(topology?.selfGated ?? [])].sort().join(' · ') || 'NONE DERIVED'} · ` +
+      `GUARD HOSTS (they run \`${GUARD_SCRIPT_REL}\`, so this guard helps produce their conclusion): ` +
+      `${[...(topology?.guardHosts ?? [])].sort().join(' · ') || 'NONE DERIVED'} · THIS RUN'S HOST: ` +
+      `${hostWorkflow ?? 'none resolved'}, which ${gateFeeding ? 'FEEDS that gate — so a RED whose own recovery needs the gate is printed here and blocked elsewhere' : 'does NOT feed that gate — so EVERY RED here is BLOCKING, exactly as before'}`,
+  );
+  for (const l of topology?.why ?? []) {
+    prints.push(
+      `[14]O-3b — 🔴 GATE TOPOLOGY INCOMPLETE · ${l}. Nothing is exempted on an incomplete derivation: every RED ` +
+        'routes into `errors` here, which is the pre-2026-09-09 behaviour and may re-freeze the queue. Fail-closed ' +
+        'is deliberate — an exemption is granted only on proof, never on a missing answer.',
+    );
+  }
   // 🔴 THE SHRINK, PRINTED. The trigger half of the domain is derived from a
   // `workflow_dispatch:` line in a file anybody may edit, so every trigger row
   // this limb did NOT admit is named here with its reason on every run — see
@@ -3801,9 +4056,16 @@ async function main() {
   // files declare `workflow_dispatch`, i.e. which red lanes can be cleared
   // without a merge. Read from the tree through the shared workflow parser, and
   // a `trigger` row is admitted to this blocking alarm only on that evidence.
+  // ⏱ 2026-09-09 — the SECOND impure input: which lanes are self-gated on the
+  // check this guard's own exit code decides, and which workflows' conclusions
+  // this guard helps produce. Both read from `.github/workflows` and from
+  // `assert-gate-passed.mjs`'s own source; the CONTEXT that selects between
+  // "print" and "block" is `hostWorkflowFile()`, i.e. the environment, never an
+  // argument. See the header block above `GATE_SCRIPT_REL`.
   const dispatchable = dispatchableWorkflows(ROOT);
+  const topology = gateTopology(ROOT);
   const redProbes = await probeRedSince(reg, dispatchable);
-  const red = evaluateRedSince(reg, redProbes, hostWorkflowFile(), dispatchable);
+  const red = evaluateRedSince(reg, redProbes, hostWorkflowFile(), dispatchable, topology);
   prints.push(...(red.prints ?? []));
   if (red.coverageLost) {
     for (const p of prints) console.log(`⬜  ${p}`);
