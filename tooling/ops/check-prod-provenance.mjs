@@ -214,6 +214,57 @@ function servedEnvironments() {
   return [...envs];
 }
 
+/** 🔴 ENVIRONMENTS NOTHING WRITES ANY MORE, AND THE LEDGER STILL HAS TO BE READ
+ *  FROM THEM. Declared, dated, and never derived.
+ *
+ *  `servedEnvironments()` above expands `{app}-web` over the app DIRECTORIES, so
+ *  it answers "where does the lane write TODAY" — and that binding is exactly
+ *  what prod-provenance.test.mjs grades against deploy-web.yml. It must not grow
+ *  a second meaning. But a GitHub Deployment environment is a NAME ON GITHUB,
+ *  created when the deploy ran, and it does not move when a directory is
+ *  renamed. On 2026-09-09 `apps/subly` became `apps/subscriptiontracker` and the
+ *  ledger went from 58 witnesses to 2 — measured:
+ *
+ *    gh api repos/<owner>/<repo>/deployments?per_page=100
+ *      -> subly-web 58 · subly-api 14 · platform 25
+ *         subscriptiontracker-web 2 · subscriptiontracker-api 1
+ *
+ *  Nothing went red about the LOSS. What went red is its consequence, which is
+ *  the failure this reader exists to produce rather than swallow: six groups of
+ *  real production rows — including a real person's consent artifact — stopped
+ *  tracing to any published build, because the two builds that wrote them
+ *  (efabfb5, 40c0787) have their Deployments under `subly-web`.
+ *
+ *  ⚠️ THIS IS A READ-SIDE WIDENING ONLY, and the asymmetry is the whole safety
+ *  property. `--emit-served-environments` still prints ONLY the derived set, so
+ *  the test that binds this reader to the lane still grades the lane's name and
+ *  cannot be satisfied by a line added here. An entry below can make a HISTORICAL
+ *  build attributable; it can never make today's lane look like it recorded
+ *  something it did not.
+ *
+ *  Each entry earns its line, EXTRAS-style: an environment nobody can say when
+ *  or why stopped being written is drift, not history. Delete an entry when the
+ *  last production row written by a build in it is gone. */
+const RETIRED_ENVIRONMENTS = [
+  {
+    environment: 'subly-web',
+    retired: '2026-09-09',
+    why:
+      'the web channel for app id `subly`, which became `subscriptiontracker` when the slug rename landed ' +
+      '(#567). 58 Deployments were recorded under this name by record-deployment.mjs between 2026-07 and ' +
+      '2026-09-09, and production rows written by those builds are still in platform_db.',
+  },
+];
+
+/** The environments the DEPLOYMENT LEDGER is read from: where the lane writes
+ *  today, plus the names it used to write. Read-side only — see the block above
+ *  for why the emitted set stays narrower than this one. */
+function ledgerEnvironments() {
+  const envs = new Set(servedEnvironments());
+  for (const r of RETIRED_ENVIRONMENTS) envs.add(r.environment);
+  return [...envs];
+}
+
 // Named `ghJson` rather than `gh` because the manual-deploys block below
 // declares its own local `gh`; two helpers with one name in one file is how a
 // later edit ends up calling the wrong one.
@@ -487,6 +538,20 @@ async function main() {
     return;
   }
 
+  // ── `--emit-ledger-environments` · THE READ SIDE, REACHABLE FOR THE SAME
+  //    REASON AND ON THE SAME TERMS ────────────────────────────────────────────
+  // `ledgerEnvironments()` sits behind the same credential wall the emitter above
+  // was built to get past, so without this flag RETIRED_ENVIRONMENTS would be a
+  // list nothing grades — and a widening nothing grades is how a reader quietly
+  // starts accepting a name it should not. Two flags rather than one because the
+  // ASYMMETRY is the property: the emitted set must stay bound to what
+  // deploy-web.yml records today, and this one must be a superset of it.
+  if (args.includes('--emit-ledger-environments')) {
+    for (const e of ledgerEnvironments()) console.log(e);
+    process.exitCode = 0;
+    return;
+  }
+
   const register = readJson(REGISTER_REL);
   const rules = register.tables ?? {};
   const migrationsRel = register.migrationsDir;
@@ -535,7 +600,7 @@ async function main() {
     ? new Set(JSON.parse(readFileSync(deploymentsFile, 'utf8')).map((s) => String(s).toLowerCase()))
     : runsFile
       ? null
-      : await githubDeployments(servedEnvironments());
+      : await githubDeployments(ledgerEnvironments());
   const witnessed = [];
 
   // ── attested manual deploys — tooling/ops/manual-deploys.json ─────────────
