@@ -857,19 +857,9 @@
         "why": "The addons.mozilla.org API secret (JWT secret) web-ext passes as --api-secret. Pairs with AMO_JWT_ISSUER; same reasoning, and it is not signing material for the same reason."
       },
       {
-        "name": "CWS_CLIENT_ID",
+        "name": "CWS_SERVICE_ACCOUNT_JSON",
         "kind": "publishing-credential",
-        "why": "The OAuth client id of the Google Cloud project authorised for the https://www.googleapis.com/auth/chromewebstore scope. The Chrome Web Store re-signs the uploaded zip and owns the extension key, so nothing of ours signs on this channel."
-      },
-      {
-        "name": "CWS_CLIENT_SECRET",
-        "kind": "publishing-credential",
-        "why": "That OAuth client's secret. Half of the refresh-token exchange; it authorises publishing and is not key material any artifact carries."
-      },
-      {
-        "name": "CWS_REFRESH_TOKEN",
-        "kind": "publishing-credential",
-        "why": "The long-lived OAuth refresh token minted once through the OAuth playground. It is the credential the cws-token-keepalive job in extensions.yml exercises weekly, because a refresh token that goes unused is revoked and nothing else in this tree would notice."
+        "why": "The Google service-account key JSON the Chrome Web Store lane authenticates with, by the JWT-bearer grant. REPLACED CWS_CLIENT_ID + CWS_CLIENT_SECRET + CWS_REFRESH_TOKEN on 2026-09-09: https://developer.chrome.com/docs/webstore/service-accounts (fetched that day) documents service accounts for this API -- the account email is added in the Developer Dashboard under Account, and \"you can only add one service account to your publisher\". The refresh-token shape was a stale assumption, not a requirement, and it gave this repository a second way of authenticating to Google beside the Play lane's PLAY_SERVICE_ACCOUNT_JSON; there is now one. The Chrome Web Store re-signs the uploaded zip and owns the extension key, so this authorises a SUBMISSION and signs nothing. Account nikatru-free-api@nikatru-platform.iam.gserviceaccount.com, project nikatru-platform -- the same account [ADR 033] keeps powerless on GCP, measured by tooling/ops/verify-free-api-scope.mjs. ⚠ A minted token proves the KEY works, NOT that it is linked to the publisher: measured 2026-09-09, `:fetchStatus` answers an identical 403 for the real and a bogus publisher id while a bogus token answers 401, so with zero items in the account linkage is unreadable from the API and remains an owner console step."
       },
       {
         "name": "CWS_PUBLISHER_ID",
