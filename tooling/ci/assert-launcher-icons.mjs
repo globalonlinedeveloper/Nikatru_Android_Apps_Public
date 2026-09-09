@@ -87,6 +87,9 @@
 //      the block for why this is not a "the brick has icons" check.
 //   7. LINUX — the desktop entry and the hicolor icon theme, RE-DERIVED from the
 //      app's own master rather than merely counted. See the limb.
+//   8. THE LAUNCH SCREEN — the iOS `LaunchImage.imageset` and the Android
+//      `launch_image` drawables, RE-DERIVED from the same master, plus the two
+//      declarations that decide whether they are drawn at all. See the limb.
 //
 // ── 🔴 LIMB 7 REPLACED A PRINT, AND THE PRINT WAS RIGHT WHEN IT WAS WRITTEN ──
 // Until 2026-08-04 this header said Linux "has no artefact to compare and
@@ -148,6 +151,20 @@ import {
 // The shared PNG decoder, so "what is in this picture" has one answer across the
 // guards. Limb 7 compares DECODED PIXELS rather than file bytes — see the limb.
 import { decodeRgba, PngUnreadable } from '../store/png-codec.mjs';
+// Limb 8's right-hand side, imported for exactly the reason limb 7's is: the
+// sizes, the resample and the imageset catalogue have ONE definition, in the
+// generator that writes them.
+import {
+  ANDROID_BACKGROUNDS,
+  ANDROID_DRAWABLE_NAME,
+  IOS_BASE_PX,
+  IOS_IMAGESET,
+  IOS_STORYBOARD,
+  SplashBrandUnavailable,
+  backgroundDrawsSplash,
+  deriveSplash,
+  readStoryboardImageSize,
+} from '../store/render-splash.mjs';
 
 const repoRoot = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? process.cwd());
 const APPS = join(repoRoot, 'apps');
@@ -334,6 +351,9 @@ const icoSizes = [];
  *  derivation stopped reaching the tree while still reporting a clean run. */
 let linuxApps = 0;
 let linuxChecked = 0;
+/** Limb 8's accounting, separate for the same reason as limb 7's. */
+let splashApps = 0;
+let splashChecked = 0;
 
 for (const slug of listDir(APPS).sort()) {
   const appDir = join(APPS, slug);
@@ -744,6 +764,214 @@ for (const slug of listDir(APPS).sort()) {
     }
   }
 
+  // ── limb 8: THE LAUNCH SCREEN ───────────────────────────────────────────
+  // 🔴 WHY IT IS HERE AND NOT IN THE PLATFORMS TABLE ABOVE. Limbs 1-3 range
+  // over `keep`-filtered files and prove "not byte-identical to Flutter's".
+  // That is precisely the check the splash cannot use: what `flutter create`
+  // writes for `LaunchImage.png` is a 68-byte 1x1 TRANSPARENT PNG, so "not
+  // stock" is satisfied by literally any other image, including a second blank
+  // one. And the android half is not an image at all — it is a `<bitmap>` item
+  // sitting inside an XML COMMENT, which no byte comparison of any PNG can see.
+  //
+  // Measured on this tree 2026-09-09, and both halves were wrong:
+  //   · all three iOS LaunchImage files were 68 bytes, md5
+  //     978c1bee49d7ad5fc1a4d81099b13e18, one transparent pixel — while
+  //     LaunchScreen.storyboard declared `width="168" height="185"` for them, a
+  //     size no file in that imageset has ever had;
+  //   · both launch_background.xml files were stock, bitmap item commented out,
+  //     and no `launch_image` drawable existed anywhere in the tree.
+  // The result is a BLANK screen for the whole of the engine's cold start — the
+  // one surface a user sees on every single launch, and the longest-lived one on
+  // the cheap Android hardware this app is aimed at.
+  //
+  // 🔬 AND IT IS THE SAME FACTORY DEFECT as the icons: the brick ships no native
+  // folders, `flutter create . --platforms=…` writes the placeholder, so all 50
+  // planned apps are born with it. This limb is the half that stops it
+  // recurring — a freshly created app fails it on the transparent placeholder
+  // before anybody has to notice.
+  //
+  // RE-DERIVED, like limb 7 and for the same reason: these artefacts are
+  // generated in this repository (tooling/store/render-splash.mjs) from the
+  // app's own 1024 master, so the strong claim is available and the weak one
+  // ("not Flutter's") would be a waste of it. Compared as DECODED PIXELS, never
+  // file bytes — zlib's output is not guaranteed stable across Node releases,
+  // and a guard that cries wolf where a human is watching gets switched off.
+  {
+    const hasIos = existsSync(join(appDir, 'ios'));
+    const hasAndroid = existsSync(join(appDir, 'android'));
+    if (hasIos || hasAndroid) {
+      splashApps += 1;
+      let derived;
+      try {
+        derived = deriveSplash(appDir, { ios: hasIos, android: hasAndroid });
+      } catch (e) {
+        if (!(e instanceof SplashBrandUnavailable)) throw e;
+        // NOT a `problems.push`. A derivation that cannot run makes every
+        // comparison below range over nothing, and would report a branded
+        // launch screen over an app that shows a blank one.
+        coverageLost([
+          `apps/${slug} ships a platform with a launch screen and it could not be DERIVED, so nothing about it was checked.`,
+          ...e.lines,
+        ]);
+      }
+      if (derived.size === 0) {
+        coverageLost([
+          `apps/${slug} ships ios/ or android/ and the splash derivation produced ZERO artefacts.`,
+          'Presence and content for the whole launch screen would range over nothing and pass.',
+        ]);
+      }
+
+      for (const [rel, expected] of derived) {
+        const where = `apps/${slug}/${rel}`;
+        const path = join(appDir, rel);
+        if (!existsSync(path)) {
+          problems.push(
+            `${where} — MISSING. The launch screen is the first thing shown on every open, and with no ` +
+              'asset it is a blank field for the whole of the engine\'s cold start. `flutter create` writes ' +
+              'a 1x1 transparent placeholder here, so an app has a real splash only if something put one ' +
+              `there. Generate: node tooling/store/render-splash.mjs --app ${slug}`,
+          );
+          continue;
+        }
+        const actual = readFileSync(path);
+
+        // The imageset catalogue is COMPARED AS PARSED JSON, not as text: it is
+        // a generated file whose key order and indentation carry no meaning,
+        // and a byte compare would go red on a reformat while a text search
+        // could be satisfied by the filename appearing anywhere in it.
+        if (rel.endsWith('.json')) {
+          let got;
+          let want;
+          try {
+            got = JSON.parse(actual.toString('utf8'));
+            want = JSON.parse(expected.toString('utf8'));
+          } catch {
+            problems.push(`${where} — is not readable JSON. An asset catalogue Xcode cannot parse compiles to an empty image.`);
+            continue;
+          }
+          const norm = (j) =>
+            JSON.stringify(
+              (j.images ?? [])
+                .map((i) => ({ idiom: i.idiom, filename: i.filename, scale: i.scale }))
+                .sort((a, b) => String(a.scale).localeCompare(String(b.scale))),
+            );
+          splashChecked += 1;
+          if (norm(got) !== norm(want)) {
+            problems.push(
+              `${where} — declares ${norm(got)} and the generator derives ${norm(want)}. A catalogue naming ` +
+                'a file that is not there compiles to an EMPTY image, and the storyboard then draws nothing ' +
+                `— the same blank screen, reached from the other direction. Regenerate: node tooling/store/render-splash.mjs --app ${slug}`,
+            );
+          }
+          continue;
+        }
+
+        // 🔴 THE SIZE IS READ FROM THE HEADER FIRST, BEFORE ANY DECODE, and the
+        // stock placeholder is exactly why. Flutter's `LaunchImage.png` is a
+        // 68-byte 1x1 GREY+ALPHA png (colour type 4), which `decodeRgba` refuses
+        // — so a decode-first version reported "could not be decoded", a message
+        // about PNG internals for the single most important case this limb
+        // exists to catch. Dimensions come from IHDR, which every colour type
+        // has, so the defect gets named as the defect.
+        const wantPx = decodeRgba(expected);
+        const head = readPng(actual);
+        if (head === null || head.width === 0 || head.height === 0) {
+          problems.push(`${where} — is not a readable PNG (${actual.length} bytes). Present is not the same as valid.`);
+          continue;
+        }
+        splashChecked += 1;
+        if (head.width !== wantPx.width || head.height !== wantPx.height) {
+          problems.push(
+            `🔴 ${where} — is ${head.width}x${head.height} and the master derives ${wantPx.width}x${wantPx.height} ` +
+              'here. `flutter create` writes a 68-byte 1x1 TRANSPARENT png at this path, which is what a ' +
+              'freshly created app ships and what this app shipped until 2026-09-09: a BLANK launch screen ' +
+              'for the whole of the engine\'s cold start. It is also why "not identical to Flutter\'s" is the ' +
+              'wrong test for a splash — a second blank image passes it. Generate: ' +
+              `node tooling/store/render-splash.mjs --app ${slug}`,
+          );
+          continue;
+        }
+        let same = false;
+        try {
+          const got = decodeRgba(actual);
+          same = got.rgba.equals(wantPx.rgba);
+        } catch (e) {
+          if (!(e instanceof PngUnreadable)) throw e;
+          problems.push(
+            `${where} — is ${head.width}x${head.height} but could not be decoded for comparison: ${e.lines[0]} ` +
+              `Regenerate: node tooling/store/render-splash.mjs --app ${slug}`,
+          );
+          continue;
+        }
+        if (!same) {
+          problems.push(
+            `${where} — is the right size and the WRONG PIXELS: not what assets/icon/app_icon_1024.png ` +
+              'derives at this density. Either the master changed and these were never regenerated, or ' +
+              'somebody hand-placed an image here. Both ship a launch screen that no longer matches the ' +
+              `mark on every other surface. Regenerate: node tooling/store/render-splash.mjs --app ${slug}`,
+          );
+        }
+      }
+
+      // ── limb 8b: THE DECLARATIONS THAT DECIDE WHETHER IT IS DRAWN ────────
+      // Correct pixels that nothing references are a blank screen with extra
+      // steps — green here, nothing on the device. These two are hand-written
+      // once and held here; the generator writes images, not XML it did not
+      // author.
+      if (hasIos) {
+        const sbPath = join(appDir, IOS_STORYBOARD);
+        if (!existsSync(sbPath)) {
+          coverageLost([
+            `apps/${slug}/${IOS_STORYBOARD} does not exist, so limb 8b ranged over nothing on iOS.`,
+            'That storyboard IS the iOS launch screen. Its absence is not "nothing to check" — it is the',
+            'subject being gone, and iOS then shows a bare window.',
+          ]);
+        }
+        const declared = readStoryboardImageSize(readFileSync(sbPath, 'utf8'));
+        if (declared === null) {
+          problems.push(
+            `apps/${slug}/${IOS_STORYBOARD} names no \`LaunchImage\` image resource with a size. The image ` +
+              'view has no size constraints — it takes the asset\'s intrinsic size — so a storyboard that ' +
+              'does not know the asset is a storyboard that draws nothing.',
+          );
+        } else if (declared.width !== IOS_BASE_PX || declared.height !== IOS_BASE_PX) {
+          problems.push(
+            `apps/${slug}/${IOS_STORYBOARD} declares LaunchImage as ${declared.width}x${declared.height} and ` +
+              `the 1x asset in ${IOS_IMAGESET} is ${IOS_BASE_PX}x${IOS_BASE_PX}. Measured at HEAD this said ` +
+              '168x185 — a size no file in that imageset has ever had, because the imageset held a 1x1 ' +
+              'placeholder. Interface Builder caches the size it last saw; nothing re-reads it, so it stays ' +
+              'wrong forever and nothing but this line would ever say so.',
+          );
+        } else {
+          splashChecked += 1;
+        }
+      }
+      if (hasAndroid) {
+        for (const rel of ANDROID_BACKGROUNDS) {
+          const bgPath = join(appDir, rel);
+          if (!existsSync(bgPath)) {
+            problems.push(
+              `apps/${slug}/${rel} — MISSING. It is the window background the OS paints before the Flutter ` +
+                'engine draws its first frame, named by `LaunchTheme` in values/styles.xml.',
+            );
+            continue;
+          }
+          splashChecked += 1;
+          if (!backgroundDrawsSplash(readFileSync(bgPath, 'utf8'))) {
+            problems.push(
+              `🔴 apps/${slug}/${rel} does not draw @drawable/${ANDROID_DRAWABLE_NAME} OUTSIDE A COMMENT. ` +
+                'What `flutter create` ships is exactly that `<bitmap>` item wrapped in an XML comment, under ' +
+                'the words "You can insert your own image assets here" — so every bare text search for ' +
+                '`launch_image` or `<bitmap` matches the STOCK file and reports the splash as wired. Android\'s ' +
+                'resource compiler does not read comments; this check strips them first. The window is a bare ' +
+                'colour layer until the item is real.',
+            );
+          }
+        }
+      }
+    }
+  }
+
   if (nativeHere) appsWithNative += 1;
 }
 
@@ -855,6 +1083,27 @@ if (linuxChecked === 0) {
   ]);
 }
 
+// 🔴 LIMB 8'S OWN REQUIRED_COVERAGE. The launch screen is checked by nothing
+// else in this repository — `assert-stamp-brand-assets.mjs`'s WEB_ASSETS is five
+// web PNGs, and the PLATFORMS table above excludes non-icon drawables by regex —
+// so if this limb stops reaching the tree, the blank splash comes back and every
+// other line here goes on printing ok.
+if (splashApps === 0) {
+  coverageLost([
+    'no app under apps/ ships ios/ or android/, so limb 8 evaluated nothing.',
+    'Those are the only two platforms with a launch screen. If both were dropped, retire this limb',
+    'deliberately; do not let it report green over an empty set.',
+  ]);
+}
+if (splashChecked === 0) {
+  coverageLost([
+    `${splashApps} app(s) ship a platform with a launch screen and ZERO splash artefacts were compared.`,
+    'Pixel identity, the imageset catalogue, the storyboard size and both launch_background.xml files all',
+    'ranged over nothing, which is indistinguishable from every launch screen being correct — and what',
+    '`flutter create` leaves behind is a 1x1 transparent placeholder that shows a blank window.',
+  ]);
+}
+
 const totalStock = [...stockCache.values()].reduce((n, m) => n + m.size, 0);
 prints.push(
   `${appsWithNative} app(s) with a native platform · ${iconsCompared} icon(s) compared against ` +
@@ -882,6 +1131,17 @@ prints.push(
   'limb 7 is STRONGER than limbs 1-3, not weaker: re-derivation is satisfied only by the app\'s own mark, ' +
     'where "not identical to Flutter\'s" is satisfied by a blank square. It can be, because these artefacts ' +
     'are generated in this repo rather than by a third-party tool.',
+);
+prints.push(
+  `SPLASH (limb 8) — ${splashApps} app(s) ship a platform with a launch screen · ${splashChecked} ` +
+    "artefact(s) and declaration(s) RE-DERIVED from the app's own 1024 master and compared as decoded " +
+    'pixels · source of truth: tooling/store/render-splash.mjs',
+);
+prints.push(
+  'limb 8 does NOT use the not-stock test the icon limbs use, and could not: `flutter create` writes a ' +
+    '68-byte 1x1 TRANSPARENT LaunchImage.png, so "not identical to Flutter\'s" is satisfied by a second ' +
+    'blank image — and the Android half is a `<bitmap>` inside an XML comment, which no byte comparison ' +
+    'of any PNG can see at all.',
 );
 for (const s of icoSizes) prints.push(`ico entries — ${s}`);
 

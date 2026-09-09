@@ -48,7 +48,34 @@
     "The rule is now enforced instead of narrated: assert-config-registry.mjs limb 8 unions the Dart",
     "readers and generate-discovery.mjs's FEATURE_NAMES, and fails on a served feature key that is `true`",
     "with no reader in either. A key served `false` with no reader is PRINTED, not failed — that is",
-    "`max_promos_per_week`'s shape one field over: a lever that ships disarmed, declared before its reader."
+    "`max_promos_per_week`'s shape one field over: a lever that ships disarmed, declared before its reader.",
+    "",
+    "🔴 THE PRICES MOVED ON 2026-09-09, BY OWNER DECISION, AND THIS IS THE ONE PLACE THEY MOVED.",
+    "Was $4.99/mo + $19.99/yr (30-day trial). Now $5.99/mo + $34.99/yr + $89 lifetime, trial unchanged at",
+    "30 days. Source: Private/research/2026-09-09/unit-economics-2026-09-09.md §4.1 and §4.4, with its",
+    ".csv and unit-economics-model.mjs beside it. $34.99 sits just under the North American median annual",
+    "of $39.99 and just above the global median of $34.80, and nets $31.23 (89.2%) through Paddle. $5.99",
+    "monthly is the DECOY, not a target: it costs 13.3% per charge against annual's 6.4% and nets LESS in",
+    "year one ($27.86 expected vs $31.23 banked). It exists so 12 x $5.99 = $71.88 makes annual read cheap.",
+    "$89 lifetime nets $80.27 = 2.57 years of annual net, against a ~1.4-year expected life for an annual",
+    "subscriber at the measured 35% Utilities Y1->Y2 renewal — so lifetime is accretive, not dilutive.",
+    "",
+    "⬜ THE INDIA PRICES ARE DECIDED AND ARE DELIBERATELY NOT SERVED HERE, and the reason is structural",
+    "rather than an omission. Decided 2026-09-09: Rs1,299/yr (moved off Rs999) + Rs149/mo + Rs2,499",
+    "lifetime, all GST-INCLUSIVE — Rule 35 CGST Rules 2017 back-calculates tax from a tax-inclusive value,",
+    "so Rs1,299 = Rs1,100.85 taxable + Rs198.15 GST at 18%. Rs999 was justified as 'at or below the",
+    "IN/SEA median annual of $18.32', which is the argument AGAINST it: it put the SKU in RevenueCat's",
+    "low-priced tier, the one that converts at 1.4% D35 and realises ~6x less per payer. Rs1,299 (~$13.70)",
+    "is still ~25% under the regional median (~Rs1,737) and is the BOTTOM of the tested Rs1,299-Rs1,499",
+    "band, because the price-tier effect is correlational and not causal and India is a volume play.",
+    "TWO THINGS HAVE TO EXIST BEFORE AN INR ROW CAN LAND IN `offerings`, and neither does today:",
+    "  1. this document has NO REGION DIMENSION. `offerings` is one flat list and every reader renders",
+    "     all of it, so an INR row would put six prices on one public landing page with no geography.",
+    "  2. NEITHER RAIL CARRIES AN INDIA CATALOGUE ENTRY. India is Razorpay by owner decision 2026-09-09",
+    "     (Paddle cannot serve Rs149/mo at all — the $0.50 flat fee makes it ~42%), and there is zero",
+    "     Razorpay code in this repository: no route, no key, no webhook.",
+    "Putting the rupees here before either exists would be a price nothing can charge, on a page nobody",
+    "in India should see. The decision lives in the ADR and in OWNER_QUEUE; this paragraph is the pointer."
   ],
 
   "sharedApiBaseUrl": "https://platform.nikatru.com/v1",
@@ -72,16 +99,23 @@
         "offerings": [
           {
             "product_id": "pro_monthly",
-            "amount_minor": 499,
+            "amount_minor": 599,
             "currency_code": "USD",
             "term": "month",
             "trial_days": 30
           },
           {
             "product_id": "pro_yearly",
-            "amount_minor": 1999,
+            "amount_minor": 3499,
             "currency_code": "USD",
             "term": "year",
+            "trial_days": 30
+          },
+          {
+            "product_id": "pro_lifetime",
+            "amount_minor": 8900,
+            "currency_code": "USD",
+            "term": "one_time",
             "trial_days": 30
           }
         ]

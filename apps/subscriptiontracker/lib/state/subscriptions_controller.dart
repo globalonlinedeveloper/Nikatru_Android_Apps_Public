@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart' show Locale, basicLocaleListResolution;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
-import '../core/format/currency.dart';
+import '../core/format/money_format.dart';
 import '../core/format/sub_math.dart';
 import '../data/models/subscription.dart';
 import '../l10n/app_localizations.dart';
@@ -77,11 +77,9 @@ DateFormat _monthDay(String localeName) {
 /// binding, so a plain `ProviderContainer` test resolves a locale instead of
 /// asserting.
 ReminderCopy reminderCopyFor(Locale? chosen) {
-  final Locale resolved = basicLocaleListResolution(
-    chosen != null ? <Locale>[chosen] : PlatformDispatcher.instance.locales,
-    AppLocalizations.supportedLocales,
+  final AppLocalizations l10n = lookupAppLocalizations(
+    resolveAppLocale(chosen),
   );
-  final AppLocalizations l10n = lookupAppLocalizations(resolved);
   final DateFormat monthDay = _monthDay(l10n.localeName);
   return ReminderCopy(
     channelName: l10n.renewalChannelName,
@@ -94,6 +92,23 @@ ReminderCopy reminderCopyFor(Locale? chosen) {
     digestBody: l10n.weeklyDigestBody,
   );
 }
+
+/// The locale the app would actually render under, given [chosen] — the
+/// persisted language override, where null means "follow the device".
+///
+/// Factored out of [reminderCopyFor] so the MONEY in the weekly digest is
+/// formatted under the same locale as the WORDS around it. Formatting an
+/// amount under one locale inside a sentence built in another is the seam the
+/// old `Currency` sat in: it hardcoded `en_US` grouping into a notification
+/// whose copy was Tamil.
+Locale resolveAppLocale(Locale? chosen) => basicLocaleListResolution(
+  chosen != null ? <Locale>[chosen] : PlatformDispatcher.instance.locales,
+  AppLocalizations.supportedLocales,
+);
+
+/// The name of that locale, as `AppLocalizations` spells it.
+String resolvedLocaleName(Locale? chosen) =>
+    lookupAppLocalizations(resolveAppLocale(chosen)).localeName;
 
 /// What the reminder wiring should do for a given set of preferences.
 ///
@@ -207,6 +222,13 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     }
   }
 
+  /// The currency a NEW row is created in — the user's own choice.
+  ///
+  /// Read here rather than in the add sheet because this is what WRITES rows:
+  /// "what currency is this amount in" is a property of the row being created,
+  /// and the sheet should not have to know which provider holds a preference.
+  String get newRowCurrencyCode => ref.read(currencyCodeProvider);
+
   Future<void> cancelSubscription(String id) async {
     await ref.read(subscriptionRepositoryProvider).cancel(id);
     final List<Subscription> list =
@@ -225,7 +247,8 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     final ReminderPlan plan = ReminderPlan.from(settings.prefs);
     // Rendered here, once, for both scheduling branches — see reminderCopyFor
     // on why it is rebuilt each sync rather than cached in a provider.
-    final ReminderCopy copy = reminderCopyFor(ref.read(localeProvider));
+    final Locale? chosenLocale = ref.read(localeProvider);
+    final ReminderCopy copy = reminderCopyFor(chosenLocale);
 
     // Fire-and-forget; NotificationService is a no-op on web.
     //
@@ -241,11 +264,18 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     }
 
     if (plan.weeklyDigest) {
-      final Currency currency = ref.read(currencyProvider);
+      // 🔴 THE SAME LOCALE AS THE COPY. There is no `BuildContext` here, so
+      // the locale is resolved rather than read off a widget — and it is the
+      // one the digest's own sentence was just built in, not the compiled-in
+      // `en_US` the old formatter used no matter what language was on screen.
+      final MoneyFormatter money = MoneyFormatter(
+        resolvedLocaleName(chosenLocale),
+        emptyCurrencyCode: newRowCurrencyCode,
+      );
       notifier.scheduleWeeklyDigest(
         copy: copy,
         count: subs.length,
-        formattedTotal: currency.fmt(SubMath.totalMonthly(subs)),
+        formattedTotal: money.formatBag(SubMath.totalMonthly(subs)),
       );
     } else {
       notifier.cancelWeeklyDigest();

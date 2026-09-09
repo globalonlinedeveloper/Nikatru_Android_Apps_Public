@@ -14,7 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart'
     show AppBreakpoints, ContentPane;
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/format/sub_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -229,21 +229,28 @@ class InsightsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ({Color ink, Color muted, Color line}) neutral = neutrals(context);
-    final Currency currency = ref.watch(currencyProvider);
+    // The currency the DONUT is drawn in — see [SubMath.chartWeight] — and the
+    // one an empty total reads as. Every figure printed beside the donut still
+    // carries every subtotal.
+    final String currencyCode = ref.watch(currencyCodeProvider);
+    final MoneyFormatter money = MoneyFormatter(
+      l10n.localeName,
+      emptyCurrencyCode: currencyCode,
+    );
     final List<Subscription> subs =
         ref.watch(subscriptionsControllerProvider).valueOrNull ??
         const <Subscription>[];
-    final double total = SubMath.totalMonthly(subs);
+    final MoneyBag total = SubMath.totalMonthly(subs);
     final List<CategoryTotal> cats = SubMath.categoryTotals(subs);
     final List<Subscription> unused = SubMath.unused(subs);
-    final double savings = SubMath.savings(subs);
+    final MoneyBag savings = SubMath.savings(subs);
 
     // The page's card STACK, in reading order — built ONCE, then laid out in
     // one column or two. Building it once is the whole trick: the commonest way
     // a responsive branch rots is that one arm gains a card and the other does
     // not, and nothing goes red because both arms still render something.
     final List<Widget> cards = <Widget>[
-      _categoryCard(context, l10n, currency, cats, total),
+      _categoryCard(context, l10n, money, currencyCode, cats, total),
       // 🔴 THE SAVINGS CARD IS GATED ON THERE BEING SOMETHING TO SAVE.
       // `SubMath.savings` sums rows carrying `unused == true`, and NOTHING in
       // this app ever sets `unused` — the add sheet constructs every draft
@@ -260,7 +267,7 @@ class InsightsScreen extends ConsumerWidget {
       // is ONE card, and `_twoUp` refuses a second column for one card — so the
       // shape every real user sees is unchanged by the two-column work below.
       if (unused.isNotEmpty)
-        _savingsCard(context, l10n, currency, unused, savings),
+        _savingsCard(context, l10n, money, unused, savings),
     ];
 
     // 🔴 THE `LayoutBuilder` SITS OUTSIDE THE PANE, AND THAT IS NOT STYLE.
@@ -382,15 +389,16 @@ class InsightsScreen extends ConsumerWidget {
   Widget _categoryCard(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
+    String currencyCode,
     List<CategoryTotal> cats,
-    double total,
+    MoneyBag total,
   ) {
     final ({Color ink, Color muted, Color line}) neutral = neutrals(context);
     final List<MapEntry<double, Color>> segments = <MapEntry<double, Color>>[
       for (int i = 0; i < cats.length; i++)
         MapEntry<double, Color>(
-          cats[i].value,
+          SubMath.chartWeight(cats[i].value, currencyCode),
           AppColors.ramp[i % AppColors.ramp.length],
         ),
     ];
@@ -457,10 +465,13 @@ class InsightsScreen extends ConsumerWidget {
                 child: Semantics(
                   container: true,
                   label: l10n.a11yCategoryDonut(
-                    currency.fmt0(total),
+                    money.formatBagRounded(total),
                     <String>[
                       for (final CategoryTotal c in cats)
-                        l10n.a11yCategoryShare(c.name, currency.fmt0(c.value)),
+                        l10n.a11yCategoryShare(
+                          c.name,
+                          money.formatBagRounded(c.value),
+                        ),
                     ].join(', '),
                   ),
                   excludeSemantics: true,
@@ -471,7 +482,7 @@ class InsightsScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
                           Text(
-                            currency.fmt0(total),
+                            money.formatBagRounded(total),
                             style: AppText.fig.copyWith(
                               fontSize: 18,
                               color: neutral.ink,
@@ -520,7 +531,7 @@ class InsightsScreen extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              currency.fmt0(cats[i].value),
+                              money.formatBagRounded(cats[i].value),
                               style: AppText.fig.copyWith(
                                 fontSize: 12,
                                 color: neutral.muted,
@@ -542,9 +553,9 @@ class InsightsScreen extends ConsumerWidget {
   Widget _savingsCard(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     List<Subscription> unused,
-    double savings,
+    MoneyBag savings,
   ) {
     final ({Color ink, Color muted, Color line}) neutral = neutrals(context);
     return Container(
@@ -573,7 +584,7 @@ class InsightsScreen extends ConsumerWidget {
                 // A KEY, not an interpolation: `/mo` is an abbreviation of a
                 // word, and where it sits relative to the amount is the
                 // translator's call.
-                l10n.perMonthAmount(currency.fmt(savings)),
+                l10n.perMonthAmount(money.formatBag(savings)),
                 // The savings pill is a STATUS surface — green means "money you
                 // could keep" in either brightness — so both halves stay the
                 // literal tokens, the same call `AppThemeX.fromScheme` makes

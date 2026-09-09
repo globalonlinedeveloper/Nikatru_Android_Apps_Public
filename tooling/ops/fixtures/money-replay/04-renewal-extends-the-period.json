@@ -1,0 +1,28 @@
+{
+  "provider": "paddle",
+  "note": "A renewal. This is the event whose current_billing_period must survive in the final row when it is delivered FIRST and the older ones arrive behind it - the ordering clause, doing its job.",
+  "payload": {
+    "event_id": "evt_replay000000000000000004",
+    "notification_id": "ntf_replay000000000000000004",
+    "event_type": "subscription.updated",
+    "occurred_at": "2026-09-15T00:00:00.000Z",
+    "data": {
+      "id": "sub_replayfixture0000000001",
+      "status": "active",
+      "current_billing_period": {
+        "starts_at": "2026-09-15T00:00:00.000Z",
+        "ends_at": "2026-10-15T00:00:00.000Z"
+      },
+      "items": [],
+      "custom_data": {
+        "nikatru_user_id": "replay-user-0001",
+        "nikatru_app_id": "subscriptiontracker"
+      },
+      "customer_id": "ctm_replayfixture0000000001",
+      "customer": {
+        "id": "ctm_replayfixture0000000001",
+        "email": "replay-fixture@example.invalid"
+      }
+    }
+  }
+}

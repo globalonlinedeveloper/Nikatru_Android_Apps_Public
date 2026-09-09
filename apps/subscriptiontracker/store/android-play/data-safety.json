@@ -252,7 +252,7 @@
       "  isBackendLive        := isSupabaseConfigured && isApiConfigured",
       "and the app branches on them at four places that decide everything this form asks about:",
       "  providers/auth.dart:120          isBackendLive ? SupabaseAuthRepository : InMemoryAuthRepository",
-      "  providers/subscriptions.dart:50  !isApiConfigured -> SeedApiClient (in-memory, never leaves the device)",
+      "  providers/subscriptions.dart:69  !isApiConfigured -> SeedApiClient (wrapped by PersistedApiClient: device-local storage, never leaves the device)",
       "  analytics_providers.dart:536  !isBackendLive (via analyticsEnabledProvider) -> NoOpAnalytics",
       "  app.dart:470                  the consent prompt shows only when analyticsEnabledProvider is true",
       "",
@@ -339,7 +339,7 @@
     "gateFile": "apps/subscriptiontracker/lib/core/app_config.dart",
     "current": "backend-live",
     "postures": {
-      "demo": "No identity dart-defines. MockAuthRepository, SeedApiClient (in-memory list, lost on restart), NoOpAnalytics, no consent prompt, no account. The ONLY outbound traffic is the crash rail, because GLITCHTIP_DSN is passed.",
+      "demo": "No identity dart-defines. MockAuthRepository, SeedApiClient behind PersistedApiClient (the list and the budget are kept in the device's own key-value store and survive a restart; nothing is transmitted), NoOpAnalytics, no consent prompt, no account. The ONLY outbound traffic is the crash rail, because GLITCHTIP_DSN is passed.",
       "backend-live": "SUPABASE_URL + SUPABASE_ANON_KEY + API_BASE_URL all supplied. Real account, subscriptions/budget/payment rows synced to services/subscriptiontracker-api, consent-gated first-party analytics to services/platform. This is the posture .github/workflows/deploy-web.yml builds, and — since 2026-08-04 — the posture EVERY store lane builds: both Android steps, both Windows steps and both Apple steps were passing no identity defines at all, so every store artefact in the tree was the demo build. tooling/ci/assert-store-build-config.mjs now derives the required set from AppConfig.isBackendLive and grades every build step a `kind: store` row declares."
     }
   },
@@ -779,7 +779,7 @@
         "table:subly_db.budget_categories",
         "table:subly_db.payment_history"
       ],
-      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subly_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only in SeedApiClient's in-memory list (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:12-13) and are lost on restart — never written to disk, never transmitted, so not `collected` under Play's own definition."
+      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subly_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only on the device: SeedApiClient's working set (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:20-21) mirrored by PersistedApiClient into the app's own namespaced key-value store (apps/subscriptiontracker/lib/data/local/subscription_store.dart). ⚠️ THEY NOW SURVIVE A RESTART, AND THAT DOES NOT CHANGE THIS ANSWER — Play defines collection as data TRANSMITTED OFF THE DEVICE, and the demo posture opens no socket for them at all. The previous wording rested this row on 'lost on restart', which was true of the old in-memory list but was never the criterion; resting it on 'never transmitted' is the same conclusion on the ground Play actually states. Nothing is shared, and no server holds a copy."
     },
     {
       "category": "Health and fitness",
@@ -1298,7 +1298,7 @@
       "inventoryRows": [
         "table:subly_db.subscriptions"
       ],
-      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subly_db.subscriptions; under demo it stays in an in-memory list. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
+      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subly_db.subscriptions; under demo it stays on the device, in the app's own namespaced key-value store, and is never transmitted. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
     },
     {
       "category": "App activity",
@@ -1616,11 +1616,34 @@
       "scanning — so this is an equality, not a subset: a permission appearing OR disappearing fails, and",
       "the fix is to say which Play data type it changes.",
       "",
-      "The main (release) manifest declares NONE. The debug and profile manifests declare INTERNET, which",
+      "⏱ 2026-09-09 — THE MAIN MANIFEST NO LONGER DECLARES NONE, and the sentence that stood here (\"The",
+      "main (release) manifest declares NONE\") is corrected in place rather than deleted, so the change is",
+      "visible to whoever reads this next. It now declares RECEIVE_BOOT_COMPLETED and SCHEDULE_EXACT_ALARM.",
+      "",
+      "NEITHER MOVES A PLAY DATA TYPE, and neither is a `tells` entry on any answer in this file. One lets",
+      "the notification plugin's own boot receiver re-arm alarms that Android drops across a restart; the",
+      "other asks for alarm PRECISION. Both are about WHEN a local notification fires. There is no read side",
+      "to either — no API behind them returns anything about the device or the person holding it — and",
+      "nothing is transmitted anywhere, because these reminders are scheduled on-device with no push",
+      "service, no token and no Firebase (see dependencySurface.flutter_local_notifications).",
+      "",
+      "SCHEDULE_EXACT_ALARM is also NOT load-bearing, which is why it can be asked for honestly: the app",
+      "gates every schedule behind `canScheduleExactAlarms()` and degrades to an inexact alarm when it is",
+      "refused, so a user who never grants it still receives every reminder, within about ten minutes.",
+      "",
+      "⚠️ POST_NOTIFICATIONS IS DELIBERATELY STILL ABSENT FROM THIS LIST. It is already in `merged` below,",
+      "contributed by flutter_local_notifications' own plugin manifest, and the runtime prompt resolves",
+      "against the merged manifest — the only one a device has. Declaring it here as well would make",
+      "merged._why's \"NOT ONE OF THESE FOUR IS DECLARED IN THIS REPOSITORY\" false for no gain.",
+      "",
+      "The debug and profile manifests declare INTERNET, which",
       "Flutter's tooling needs for hot reload and which is not merged into a release build."
     ],
     "declaredInRepo": {
-      "apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml": [],
+      "apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
       "apps/subscriptiontracker/android/app/src/debug/AndroidManifest.xml": [
         "android.permission.INTERNET"
       ],
@@ -1637,8 +1660,13 @@
         "said so honestly — while every `Build all 6 platforms` run had been uploading a signed .aab the",
         "whole time. Run 32869814582's was downloaded and decoded; `measuredFrom` says exactly how.",
         "",
-        "🔴 NOT ONE OF THESE FOUR IS DECLARED IN THIS REPOSITORY. apps/subscriptiontracker/android/app/src/main/",
-        "AndroidManifest.xml declares NO permission at all — see `declaredInRepo` above. The two manifests",
+        "🔴 NOT ONE OF THESE FOUR IS DECLARED IN THIS REPOSITORY. That half is STILL TRUE and is what this",
+        "block turns on. ⏱ 2026-09-09 — the half beside it is not: this sentence used to continue",
+        "\"apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml declares NO permission at all\",",
+        "and that manifest now declares RECEIVE_BOOT_COMPLETED and SCHEDULE_EXACT_ALARM — neither of which",
+        "is one of these four, so the claim this block rests on is untouched. See `declaredInRepo` above and",
+        "`measuredFrom.treeUnchangedSince` below, which records that this reading now pre-dates them. The two",
+        "manifests",
         "that do declare INTERNET are debug and profile, which a release build never merges. So the WHOLE of",
         "the merged set arrived from dependencies, which is exactly the mechanism `dependencySurface` below",
         "exists to watch, and the first direct evidence that it is the right thing to be watching.",
@@ -1660,7 +1688,7 @@
         "entry": "base/manifest/AndroidManifest.xml",
         "measuredOn": "2026-09-09",
         "method": "🔬 HOW IT WAS READ, BECAUSE THE DOCUMENTED ROUTE WAS NOT AVAILABLE AND SAYING SO IS THE POINT. `bundletool dump manifest` is the documented route and bundletool is not installed on the measuring host. An .aab does NOT carry the binary AXML an .apk carries: base/manifest/AndroidManifest.xml is a serialized aapt2 `XmlNode` protobuf, and aapt2 itself refuses the container (`app-release.aab: error: could not identify format of APK`). It was decoded straight from the protobuf wire format — a short reader over the four XmlNode/XmlElement/XmlAttribute fields that carry element names and attribute values — and the manifest was then walked as a TREE, not grepped for strings. CROSS-CHECKED WITH A DOCUMENTED TOOL ON A DOCUMENTED FORMAT: `aapt2 dump permissions` (build-tools 36.0.0) against app-release.apk from the SAME run returns the identical five lines — one <permission> and four <uses-permission>. Two independent decoders, two artefacts of one build, one set. The .aab's own versionCode is 53 and the run number is 53, which is a third tie between the file read and the run cited.  ⏱ RE-MEASURED 2026-09-09, AND THE SENTENCES ABOVE ARE LEFT EXACTLY AS THEY WERE because they were true of run 32869814582. THIS ROW NOW DESCRIBES RUN 34345368085. Why it had to be re-taken: the application id moved from com.nikatru.subly to com.nikatru.subscriptiontracker, and the fourth permission in this list is an ${applicationId}-substituted name — so the value here became a statement about an id the app no longer builds under. IT WAS NOT RETYPED. A blind find-and-replace had already put the new string in once and was correctly reverted; a sworn declaration is re-measured from a built artefact or it is not changed at all. THE READING, same protobuf route as before: base/manifest/AndroidManifest.xml (12,914 bytes) was taken out of the 61,649,052-byte app-release.aab and walked for its element names and `name` attributes. FIVE nodes, unchanged in shape from the 2026-08-26 reading: four <uses-permission> — android.permission.VIBRATE, android.permission.POST_NOTIFICATIONS, android.permission.INTERNET and com.nikatru.subscriptiontracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION — and one <permission> declaring that same custom name. The 72-byte length prefix on that string was checked against the string itself, so it is the whole value and not a truncation. android.permission.ACCESS_NETWORK_STATE is STILL ABSENT, so `expectedButAbsent` below did not fire. ⚠️ ONE NEAR-MISS WORTH RECORDING: a first, cruder pass grepped the payload for permission-shaped strings and returned a SIXTH, android.permission.DUMP. Read in context it is a receiver-level android:permission attribute naming android.permission.DUMP on androidx.profileinstaller.ProfileInstallReceiver — an access restriction ON a receiver, not a permission this app requests. A grep would have sworn to a permission the app does not hold; walking the element and its attribute name is what kept it out. The versionName in the manifest reads 1.0.80 against run number 80, the same kind of tie the previous reading used. ⚠️ NOT CROSS-CHECKED WITH aapt2 THIS TIME: build-tools is not installed on the measuring host, so this is ONE decoder on one artefact where the 2026-08-26 record had two on two. The set is otherwise identical to that double-checked reading with one substring changed, which is why it is offered as a re-measurement of a known set rather than a first reading of an unknown one.",
-        "treeUnchangedSince": "THE ARTEFACT IS THIS BRANCH'S OWN, not a yesterday one: run 80 built commit ab941c12, which is the head of apple-proof-2026-09-09 = appid-rename-2026-09-09 + the GlitchTip/ordering fix (#577). The previous record had to argue that a day-old .aab still described the tree; this one does not, because the tree that was built is the tree this row sits in. What DID change between the two readings is the application id, and that is the entire delta — see `method`."
+        "treeUnchangedSince": "THE ARTEFACT IS THIS BRANCH'S OWN, not a yesterday one: run 80 built commit ab941c12, which is the head of apple-proof-2026-09-09 = appid-rename-2026-09-09 + the GlitchTip/ordering fix (#577). The previous record had to argue that a day-old .aab still described the tree; this one does not, because the tree that was built is the tree this row sits in. What DID change between the two readings is the application id, and that is the entire delta — see `method`. ⏱ 2026-09-09 — NO LONGER TRUE, AND SAID SO HERE RATHER THAN QUIETLY: apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml has since gained RECEIVE_BOOT_COMPLETED and SCHEDULE_EXACT_ALARM plus two `<receiver>` elements, so the union in `permissions` below is a reading of a build that PRE-DATES them and is two permissions short of what the next .aab will carry. It is left as the measurement it is rather than edited into a guess, because every value in this block carries where it came from and there is no artefact to cite for the new set yet. RE-TAKE IT off the first `Build all 6 platforms` run after this change lands, by the `method` above, and add the two rows with attribution `direct`, evidenceGrade `read`, pointing at this repository's own manifest."
       },
       "releaseManifest": "apps/subscriptiontracker/android/app/src/main/AndroidManifest.xml",
       "lockfile": "pubspec.lock",
@@ -1772,7 +1800,7 @@
           "Email address",
           "User IDs"
         ],
-        "why": "First-party. Wires the Supabase session through OS-backed secure storage so the refresh token is not written in plaintext. Under demo it is never initialised (main.dart:143 gates on isBackendLive)."
+        "why": "First-party. Wires the Supabase session through OS-backed secure storage so the refresh token is not written in plaintext. Under demo it is never initialised (main.dart:157 gates on isBackendLive)."
       },
       "nikatru_telemetry": {
         "introduces": [
