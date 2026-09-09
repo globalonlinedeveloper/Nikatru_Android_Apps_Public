@@ -64,6 +64,12 @@ void run(HookContext context) {
     context,
     id: id,
     name: (v['short_name'] ?? displayName).toString(),
+    // The ICON label, validated by pre_gen and rendered by
+    // tooling/app-yaml/render.mjs into the six OS-level name fields. Written
+    // into the declaration rather than straight into the platform files for the
+    // same reason the catalogue row is: a value that stops at the stamp is a
+    // rule that holds for the length of one command.
+    iconLabel: (v['icon_label'] ?? '').toString(),
     tagline: tagline,
     category: (v['category'] ?? '').toString(),
     webHost: webHost,
@@ -421,6 +427,7 @@ bool _writeAppDeclaration(
   HookContext context, {
   required String id,
   required String name,
+  required String iconLabel,
   required String tagline,
   required String category,
   required String webHost,
@@ -441,7 +448,8 @@ bool _writeAppDeclaration(
   final buffer = StringBuffer()
     ..writeln('# ${_generatedNotice(id)}')
     ..writeln('#')
-    ..writeln('# THIS FILE IS THE SOURCE. catalog/apps.json and every')
+    ..writeln('# THIS FILE IS THE SOURCE. catalog/apps.json, the six OS-level icon')
+    ..writeln('# label fields, and every')
     ..writeln('# store/<channel>/{title,short-description,category,privacy-policy-url,')
     ..writeln('# support-url}.txt are RENDERED from it. Change a value here, then run:')
     ..writeln('#')
@@ -452,6 +460,7 @@ bool _writeAppDeclaration(
     ..writeln()
     ..writeln('id: $id')
     ..writeln('name: ${_yamlQuoted(name)}')
+    ..writeln('shortName: ${_yamlQuoted(iconLabel)}')
     ..writeln('tagline: ${_yamlQuoted(tagline)}')
     ..writeln('category: ${_yamlQuoted(_titleCase(category))}')
     // [3]S-7a — a stamp writes `preview`, never `live`. `preview` is a promise

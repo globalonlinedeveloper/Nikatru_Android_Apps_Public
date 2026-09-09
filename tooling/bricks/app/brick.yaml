@@ -48,6 +48,30 @@ vars:
     type: string
     description: Human display name, e.g. "Lingo — Offline Phrasebook"
     prompt: Display name
+  icon_label:
+    type: string
+    description: >-
+      The ICON LABEL — what a home screen, a launcher and a task switcher print
+      under the app's mark, e.g. "Phrasebook". It is written into the stamped
+      app's `shortName:` and rendered from there into CFBundleDisplayName (iOS +
+      macOS), android:label, the .desktop `Name=`, msix_config.display_name and
+      the PWA manifest `short_name` by tooling/app-yaml/render.mjs.
+      ⚠️ NOT the same thing as this brick's INTERNAL `short_name` var, which is
+      the display name up to its subtitle separator and is the STORE TITLE. Two
+      different fields with two different readers: a store title is read once in
+      a search result with a row to itself, an icon label is read every day under
+      a 60-pixel square that truncates it (iOS at about 12-13 glyphs, Android at
+      about 11-14). Shipping one string to both is how a launcher ends up showing
+      four apps that all read the same six characters and an ellipsis.
+      hooks/pre_gen.dart refuses one that is empty, over 15 characters, holds a
+      newline, or SHARES NO WORD with `display_name` (a common stem of four
+      characters or more counts, so a plural is similar) — Apple QA1892 asks
+      that the name on the device and the name in the store be similar, and a
+      label with nothing in common with the listing is a rejection risk rather
+      than a style choice. tooling/ci/assert-app-naming.mjs holds the same four
+      rules over apps/*/app.yaml, so the stamp cannot produce an app the gate
+      then refuses.
+    prompt: Icon label (<= 15 chars, sharing a word with the display name)
   subdomain:
     type: string
     description: >-

@@ -50,7 +50,7 @@ the directory being dead — `_data/apps.json` and `assets/tokens.css` are not.
 ```json
 {
   "slug": "subly",
-  "name": "Subly",
+  "name": "Nikatru Subscription Tracker",
   "tagline": "Track every subscription in one place",
   "url": "https://subly.nikatru.com",
   "api": "https://api.nikatru.com",

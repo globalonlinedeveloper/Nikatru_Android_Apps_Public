@@ -1,6 +1,6 @@
 {
     "name": "{{{display_name_json}}}",
-    "short_name": "{{{display_name_json}}}",
+    "short_name": "{{{icon_label_json}}}",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#{{{seed_hex}}}",

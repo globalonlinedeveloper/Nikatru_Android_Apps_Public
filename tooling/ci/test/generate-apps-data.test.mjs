@@ -123,7 +123,17 @@ describe('generate-apps-data — the site feed', () => {
       const feed = join(root, FEED_REL);
       // Simulate somebody editing the generated file by hand, which is exactly
       // what the drift check exists to catch.
-      writeFileSync(feed, readFileSync(feed, 'utf8').replace('Subly', 'Subly-EDITED'));
+      //
+      // ⚠️ THE EDITED STRING IS READ OUT OF THE FEED, never typed. It was the
+      // brand as a literal until 2026-09-09, when a rename made `.replace()` a
+      // no-op — and a mutation that changes nothing leaves this red control
+      // printing exit 0 while reading as a pass.
+      const before = readFileSync(feed, 'utf8');
+      const firstName = JSON.parse(before)[0].name;
+      assert.ok(firstName, 'the generated feed has no row to edit, so this case mutates nothing');
+      const after = before.replace(firstName, `${firstName}-EDITED`);
+      assert.notEqual(after, before, 'the hand edit changed nothing, so --check has no drift to find');
+      writeFileSync(feed, after);
       const { code } = run(root, '--check');
       assert.equal(code, 1, '--check must report drift as exit 1');
     } finally { rmSync(root, { recursive: true, force: true }); }
