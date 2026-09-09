@@ -69,6 +69,61 @@
 // the Hostinger box, since 2026-09-02 — which is the very single point of
 // failure E-9b is about.
 //
+// ⏱ 2026-09-09 — THE `origin` FIELD, AND WHY IT IS A FOURTH READING RATHER THAN
+// A FOURTH DERIVED SOURCE. APPENDED; NOTHING ABOVE IS REWRITTEN.
+// [ADR 075] moved every app's published address to a PATH on the apex and gave
+// catalog/apps.json a new field: `origin` — the Cloudflare Pages PRODUCTION
+// ALIAS the apex router actually fetches the bytes from. Measured 2026-09-09 it
+// is `https://subly-9cp.pages.dev`; the `-9cp` is a suffix Cloudflare appended
+// because the project name was already taken, which is exactly why the alias is
+// DECLARED in apps/<id>/app.yaml `hosts.pagesOrigin` and can never be guessed
+// from the id. That host is live, the whole apex is dark without it, and until
+// this block nothing in this guard read the field at all.
+// tooling/monitor-register.json named the gap itself, at
+// `_derivation._appPublicPathIsCOMPUTEDNotTyped`: "that host is neither derived
+// nor declared and nothing here says whether it should be watched … Named
+// rather than fixed: assert-monitor-coverage.mjs belongs to another unit."
+// This is that unit.
+//
+// 🔴 WHAT WAS MEASURED BEFORE CHOOSING THE SHAPE, because the obvious move is
+// wrong. `subly-9cp.pages.dev` has NO row in the register today — measured
+// 2026-09-09, zero `origin` keys and zero `pages.dev` hostnames under `hosts`.
+// So feeding origins into the DERIVED set would make limb 1 red on the tree as
+// it stands, for a row this guard cannot write: a register row is a CLAIM OF
+// COVERAGE, and that file's own rule is "A ROW AND ITS LIVE MONITOR ARE ONE
+// CHANGE, NOT TWO". Reddening the build to force a row buys precisely the
+// defect the register refuses — a declared monitor that does not exist. The
+// split below is that reasoning applied, and it is the same FAIL/PRINT line the
+// header draws above rather than a new one:
+//   FAIL  · a catalogue `origin` the tree does not corroborate — the STALE case
+//           (limb 5). The corroborating source is the app's OWN declaration,
+//           apps/<slug>/app.yaml `hosts.pagesOrigin` (or `hosts.web` when it is
+//           absent, which is the same fallback tooling/app-yaml/render.mjs:344
+//           uses to COMPOSE the catalogue field). Rename the Pages project in
+//           one file and not the other and the router fetches a host that is
+//           gone, with every other guard in this repository green.
+//   FAIL  · a register ROW for an origin host that has gone stale. This needs no
+//           new limb and gets none: origin hosts now count as deployed for the
+//           no-dead-rows limb, so a row naming last week's alias stops being
+//           produced by anything the moment the alias moves, and limb 2 fails it
+//           by name. ⚠️ Before this change such a row could not exist AT ALL —
+//           limb 2 refused it as dead — so the register was structurally unable
+//           to declare the one hostname the apex router depends on even if
+//           somebody wanted to. Admitting it is what gives the staleness catch
+//           teeth; it excuses nothing, because limb 1 is untouched and the
+//           admitted set is exactly the hostnames the catalogue itself names.
+//   PRINT · an origin host with no row in the register. That is the accounting
+//           gap the register named, it is real, and closing it is a register
+//           edit plus a GlitchTip POST — the same shape as the `monitor: null`
+//           gap above, printed on every run so it cannot go quiet.
+//
+// ⚠️ WHAT THIS DELIBERATELY DOES NOT RE-CHECK, so it is a second axis and not a
+// rival guard. assert-app-address-shape.mjs already grades the `origin` field's
+// SHAPE (https, not the apex, no path — its limb 4) and already holds each route
+// in sites/nikatru/app-routes.json equal to its catalogue row's `origin` (its
+// limb 6). Neither of those asks the question below: does the alias still match
+// the app's own declaration, and does the register account for it.
+//
 // Usage:  node tooling/ci/assert-monitor-coverage.mjs [repoRoot]
 // Exit 0 = every deployed hostname is declared, 1 = violation or lost coverage.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +131,11 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
+/** ⏱ 2026-09-09 — the repository's ONE reader of apps/<id>/app.yaml. It is
+ *  imported rather than re-implemented for the reason its own header gives: a
+ *  second parser of a declaration file guesses differently from the first, and
+ *  a guess is how a register goes stale. */
+import { parseYaml } from '../app-yaml/yaml.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -83,6 +143,10 @@ const REGISTER = 'tooling/monitor-register.json';
 const SERVICES = 'services';
 const SITES = 'sites';
 const CATALOGUE = 'catalog/apps.json';
+/** ⏱ 2026-09-09 — where the app's OWN declaration of its Pages alias lives.
+ *  `catalog/apps.json` is RENDERED from it (tooling/app-yaml/render.mjs:344),
+ *  so the two are one fact with two spellings and limb 5 holds them equal. */
+const APPS_DIR = 'apps';
 
 /** The three DERIVED sources. Each must contribute at least one hostname: a
  *  source that silently stops yielding anything makes the coverage check true
@@ -208,11 +272,47 @@ try {
 } catch (err) {
   coverageLost(`${CATALOGUE} is not valid JSON (${err.message}).`);
 }
-for (const app of Array.isArray(catalogue) ? catalogue : []) {
+const catalogueRows = Array.isArray(catalogue) ? catalogue : [];
+/** ⏱ 2026-09-09 — `origin` IS ABSENT FROM THIS LIST ON PURPOSE, and the reason
+ *  is in the header block: a hostname added here acquires an ADVERTISED-host
+ *  obligation graded by limb 1, and limb 1 is red today for the app origin,
+ *  which has no row. The field is read in 2b instead, on its own terms. */
+for (const app of catalogueRows) {
   for (const field of ['url', 'api']) {
     if (typeof app?.[field] === 'string') add('appCatalogue', hostOf(app[field]));
   }
 }
+
+// ── 2b · the app ORIGIN host — what the apex router FETCHES ─────────────────
+// Since [ADR 075] the address an app is PUBLISHED at (`url`, above) and the
+// host its bytes COME FROM (`origin`, here) are two different hostnames, and
+// only the first was ever read. `origin` is the Cloudflare Pages production
+// alias — live, load-bearing for the whole apex path, and unguessable from the
+// app id (Cloudflare appended `-9cp` when `subly` was taken).
+// This block only COLLECTS, because two later limbs need the set and both sit
+// after the register is read: limb 2 (a row for an origin host is legitimate,
+// and goes dead when the alias moves) and limb 5 (the alias against the app's
+// own declaration). The floor below fires here rather than there because a
+// catalogue that stopped yielding origins makes both of them vacuous at once.
+/** origin hostname → the catalogue slug(s) that name it. */
+const originHosts = new Map();
+for (const app of catalogueRows) {
+  if (typeof app?.origin !== 'string' || app.origin === '') continue;
+  const h = hostOf(app.origin);
+  if (!h) continue;
+  if (!originHosts.has(h)) originHosts.set(h, []);
+  originHosts.get(h).push(typeof app.slug === 'string' && app.slug !== '' ? app.slug : '(a row with no slug)');
+}
+if (catalogueRows.length > 0 && originHosts.size === 0) {
+  coverageLost(
+    `${CATALOGUE} carries ${catalogueRows.length} row(s) and not one of them yields an \`origin\` hostname. ` +
+      'Every app row has carried one since [ADR 075] — tooling/app-yaml/render.mjs composes it from ' +
+      '`hosts.pagesOrigin` (or `hosts.web`) and assert-app-address-shape.mjs fails a row without it — so a ' +
+      'catalogue that yields none means the field was renamed or dropped and limb 5 below would report ' +
+      'judgement over an empty set while printing ok. That is this repository\'s single most repeated failure.',
+  );
+}
+
 
 // 3 · Each site's OWN canonical host. Not the directory name: `sites/nikatru`
 //     ⇒ nikatru.com is a guess, and a guess is how a register goes stale.
@@ -278,8 +378,17 @@ for (const h of undeclared) {
 // ── 2 · no dead rows ────────────────────────────────────────────────────────
 // A row for a hostname nothing deploys reports judgement over nothing — this
 // guard's own failure mode, applied to its subject.
+// ⏱ 2026-09-09 — `originHosts` JOINS `derived` HERE, AND ONLY HERE. A row for
+// the Pages alias the apex router fetches from was, until today, refused by this
+// limb as dead — so the register could not declare the one hostname the whole
+// apex path depends on even if somebody wanted to. Admitting it is what makes a
+// STALE such row red: the alias moves (a project renamed, a catalogue re-render
+// that never happened), the catalogue stops naming last week's host, and the row
+// that still names it lands in this loop and fails by name. Nothing else is
+// relaxed — limb 1 above is untouched, and the admitted set is exactly the
+// hostnames catalog/apps.json itself carries in `origin`.
 for (const [h, row] of byHost) {
-  if (derived.has(h)) continue;
+  if (derived.has(h) || originHosts.has(h)) continue;
   if (row.derivedFrom === 'declared' && typeof row.why === 'string' && row.why.trim() !== '') continue;
   fail(
     `${h} has a row in ${REGISTER} and nothing in the tree deploys it. Either it was retired and the row ` +
@@ -339,6 +448,72 @@ for (const [h, row] of [...byHost.entries()].sort()) {
   monitored++;
 }
 
+// ── 5 · a catalogue origin is CORROBORATED by the app's own declaration ─────
+// The STALE case. apps/<slug>/app.yaml is where the alias was read off the
+// Cloudflare Pages API and written down; catalog/apps.json is RENDERED from it.
+// Two spellings of one fact drift the moment one of them is hand-edited or the
+// render is skipped, and the drift is invisible — the router just fetches a
+// host that is not there any more.
+if (!existsSync(rel(APPS_DIR))) {
+  coverageLost(
+    `no ${APPS_DIR}/ directory under ${ROOT}, so every \`origin\` in ${CATALOGUE} is uncorroborated and ` +
+      'limb 5 would pass on any hostname whatsoever, including one that no longer exists.',
+  );
+}
+for (const app of catalogueRows) {
+  if (typeof app?.origin !== 'string' || app.origin === '') continue; // presence is assert-app-address-shape's limb 4.
+  const declaredIn = typeof app.slug === 'string' && app.slug !== '' ? `${APPS_DIR}/${app.slug}/app.yaml` : null;
+  const h = hostOf(app.origin);
+  if (h === null) {
+    fail(
+      `${CATALOGUE} has an \`origin\` of ${JSON.stringify(app.origin)} that no hostname can be taken from, so ` +
+        'nothing in this tree can corroborate the host the apex router fetches from.',
+    );
+    continue;
+  }
+  if (declaredIn === null) {
+    fail(
+      `${CATALOGUE} declares \`origin\` ${h} on a row with no \`slug\`. The slug is what names the app's own ` +
+        `declaration under ${APPS_DIR}/, so without it the alias is a hostname this tree states exactly once ` +
+        'and can never check.',
+    );
+    continue;
+  }
+  const yamlText = readIf(declaredIn);
+  if (yamlText === null) {
+    fail(
+      `${CATALOGUE} declares \`origin\` ${h} for slug "${app.slug}" and ${declaredIn} does not exist. The ` +
+        'catalogue is rendered FROM that file, so a catalogue row whose declaration is gone is a published ' +
+        'address whose origin nothing in this repository still asserts.',
+    );
+    continue;
+  }
+  let doc;
+  try {
+    doc = parseYaml(yamlText);
+  } catch (err) {
+    fail(`${declaredIn} could not be parsed, so \`origin\` ${h} is uncorroborated: ${err.message}`);
+    continue;
+  }
+  const declared = doc?.hosts?.pagesOrigin || doc?.hosts?.web;
+  if (typeof declared !== 'string' || declared.trim() === '') {
+    fail(
+      `${declaredIn} declares neither \`hosts.pagesOrigin\` nor \`hosts.web\`, so the \`origin\` ${h} in ` +
+        `${CATALOGUE} is a hostname nothing else in this tree names.`,
+    );
+    continue;
+  }
+  const declaredHost = declared.trim().toLowerCase();
+  if (declaredHost !== h) {
+    fail(
+      `${CATALOGUE} routes app "${app.slug}" to origin ${h} while ${declaredIn} declares ${declaredHost}. ` +
+        'One of the two is STALE — a Pages project renamed on one side only, or a hand-edited catalogue — ' +
+        'and the apex router fetches the catalogue\'s answer, so the app is served from a host the tree no ' +
+        'longer says it deploys. Re-render the catalogue from the declaration rather than editing either by hand.',
+    );
+  }
+}
+
 // ── the printed gap, on every run, pass or fail ─────────────────────────────
 if (gaps.length) {
   // ⏱ 2026-09-07 — THIS LINE SAID "deployed hostname(s) … — OWNER-GATED" AND BOTH
@@ -367,10 +542,31 @@ if (register?.observability?.decidedOn == null) {
   console.log('     name (monitor-register.json → observability.decidedOn / decidedBy).');
 }
 
+// ⏱ 2026-09-09 — the ORIGIN accounting gap, printed on every run for the same
+// reason the monitor gap above is: closing it is a register row PLUS a GlitchTip
+// POST, and a row written ahead of the monitor is the defect
+// tooling/monitor-register.json refuses by name ("A ROW AND ITS LIVE MONITOR ARE
+// ONE CHANGE, NOT TWO"). What must never happen is the host going quiet, so it
+// is named — with the app that depends on it — whether or not anything failed.
+const unaccountedOrigins = [...originHosts.keys()].filter((h) => !byHost.has(h)).sort();
+if (unaccountedOrigins.length) {
+  console.log(
+    `--   ${unaccountedOrigins.length} app ORIGIN host(s) with no row in ${REGISTER} — printed not hidden:`,
+  );
+  for (const h of unaccountedOrigins) {
+    console.log(`       ${h} — the apex router fetches ${originHosts.get(h).join(', ')} from it`);
+  }
+  console.log('     Since [ADR 075] an app is served at a PATH on the apex and its bytes come from this host,');
+  console.log('     so it is live and load-bearing while nothing in this register says whether it is watched.');
+  console.log('     Declaring a row here is one change with the GlitchTip monitor it claims, which is why this');
+  console.log('     guard prints it rather than failing a branch into writing a claim nobody has verified.');
+}
+
 const summary =
   `monitor coverage — ${derived.size} deployed hostname(s) derived from ${DERIVED_SOURCES.length} source(s) ` +
   `(${DERIVED_SOURCES.map((s) => `${s}: ${perSource.get(s).size}`).join(', ')}), ` +
-  `${byHost.size} declared, ${monitored} monitored, ${gaps.length} gap(s)`;
+  `${byHost.size} declared, ${monitored} monitored, ${gaps.length} gap(s)` +
+  `, ${originHosts.size} app origin host(s) corroborated (${originHosts.size - unaccountedOrigins.length} with a row)`;
 
 if (failed) {
   console.error(`\n${summary}`);

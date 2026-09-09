@@ -541,8 +541,9 @@
       "",
       "    12 (the rows this ceiling was set for, unchanged and still null)",
       "  +  6 (the store PUBLISHING credentials the extensions and store lanes now depend on:",
-      "        amo-api-key, cws-oauth-client, cws-refresh-token, edge-api-key, ms-store-client-secret,",
-      "        snapcraft-macaroon)",
+      "        amo-api-key, cws-oauth-client (RETIRED 2026-09-09 — row removed; kept here as history),",
+      "        cws-refresh-token (RETIRED 2026-09-09 — row removed; kept here as history), edge-api-key,",
+      "        ms-store-client-secret, snapcraft-macaroon)",
       "  = 18",
       "",
       "NOT ONE OF THE SIX EXISTS YET. No account has issued any of them, so there is no console page",
@@ -563,9 +564,37 @@
       "⚠️ AND THE ARITHMETIC STILL HAS NOT RUN. 19 expiring rows, 18 nulls, and the one row with a real",
       "date (expiring.ceilings-citations) is the only one the lead-window comparison executes on. The",
       "executed-count print below is what keeps that visible; it is the reason this raise is recorded as a",
-      "debt with six named owners rather than as coverage."
+      "debt with six named owners rather than as coverage.",
+      "",
+      "⏱ 2026-09-09 — RATCHETED DOWN 18 -> 17, AND THE ENUMERATION ABOVE IS TWO NAMES STALE, MARKED IN PLACE.",
+      "The 2026-09-07 derivation is left standing exactly as written, because it was true on its date and",
+      "rewriting it would make that decision claim a fact that was not yet true — the same reason the guard",
+      "amended rather than swapped its own 2026-08-06 paragraph. What it costs is this arithmetic:",
+      "",
+      "    18 (the ceiling as derived on 2026-09-07)",
+      "  -  2 (expiring.store-credential.cws-oauth-client and expiring.store-credential.cws-refresh-token,",
+      "        RETIRED 2026-09-09 into _retiredRows with evidence. PR #566 converts the Chrome lane from an",
+      "        OAuth client + refresh token to a service-account JWT-bearer mint, so neither credential has",
+      "        a caller left; `gh secret list` shows neither secret exists in the repository)",
+      "  +  1 (expiring.store-credential.cws-service-account — the ONE key that replaced all three secrets)",
+      "  = 17",
+      "",
+      "🔴 AND THE ROW THAT ARRIVED IS NOT AN UNKNOWN-UNTIL-MINTED PLACEHOLDER, WHICH IS THE FIRST TIME THAT",
+      "IS TRUE IN THIS BLOCK. CWS_SERVICE_ACCOUNT_JSON was set 2026-09-09T02:51:30Z, read live from",
+      "`gh secret list`. Its `expires` is STILL null, and for a reason none of the other seventeen have: a",
+      "Google service-account key HAS NO EXPIRY DATE OF ITS OWN. The null therefore records an ABSENT KIND",
+      "OF FACT rather than an unread one — and the rule this section is built on applies with more force,",
+      "not less, because an invented date here could never be corrected by somebody finally opening a",
+      "console: there is no date in the console either. What replaces it is a revocation risk, watched by a",
+      "daily mint rather than by a countdown.",
+      "",
+      "⚠️ THE ARITHMETIC STILL HAS NOT RUN, AND THE SUBSTITUTION DID NOT MOVE THAT NUMBER BY ONE. 18 expiring",
+      "rows, 17 nulls, and expiring.ceilings-citations remains the only row the lead-window comparison",
+      "executes on. A ceiling that falls because a credential was REPLACED is not the same event as one that",
+      "falls because a date was finally read, and this paragraph exists so the two can never be counted as",
+      "the same kind of progress."
     ],
-    "_maxNull": 18
+    "_maxNull": 17
   },
   "_retentionCoverage": {
     "_why": [
@@ -751,6 +780,70 @@
           "ownerGated": true,
           "ownerGap": "Laptop-side. See duty.laptop.claude-transcript-backup (RETIRED 2026-08-12 — row removed; kept here as history).",
           "source": "verified"
+        }
+      },
+      {
+        "id": "expiring.store-credential.cws-oauth-client",
+        "retiredOn": "2026-09-09",
+        "retiredWhy": "🔴 THE OAUTH CLIENT HAS NO CALLER LEFT, SO THE ROW WATCHED A CONSOLE PAGE FOR A MECHANISM NOTHING RUNS. PR #566 converts the Chrome Web Store lane from an OAuth client + refresh-token exchange to a Google SERVICE ACCOUNT — an RS256 JWT-bearer assertion for the scope https://www.googleapis.com/auth/chromewebstore, on Google's own documented path for this API (https://developer.chrome.com/docs/webstore/service-accounts). The client-half of that exchange is referenced by nothing after the change: not the release lane, not the keep-alive, not the arming preflight, not the channel register. Its replacement is expiring.store-credential.cws-service-account, added in the SAME change — this is a SUBSTITUTION and not a shrinking of the domain: one row leaves, one arrives, and the one arriving is the first store credential here that is actually minted.\n\n⚠️ THE ROW WAS NOT WRONG WHILE IT STOOD, WHICH IS THE PART A LATER READER WILL MISJUDGE. It said UNKNOWN UNTIL MINTED, and the credential was in fact never minted; nothing it asserted turned out false. What changed is not the credential's state but the LANE'S DESIGN — the one kind of change no amount of re-reading the console it named could ever have surfaced.",
+        "evidence": "Read 2026-09-09 from three places, one of them live. (1) LIVE — `gh secret list` on globalonlinedeveloper/Nikatru_Platform_Public: CWS_SERVICE_ACCOUNT_JSON present, set 2026-09-09T02:51:30Z, and CWS_PUBLISHER_ID present, set 2026-09-09T06:04:45Z; CWS_CLIENT_ID and CWS_CLIENT_SECRET do not appear in the listing at all. (2) PR #566, head commit of branch cws-service-account-2026-09-09: extensions/scripts/publish-cws-token.mjs exports mintAccessToken() over createSign() with an RS256 JWT and no longer exports exchangeRefreshToken(); extensions/scripts/publish-cws.mjs and extensions/scripts/publish-cws-keepalive.mjs both import the mint; .github/workflows/extensions.yml passes CWS_SERVICE_ACCOUNT_JSON and CWS_PUBLISHER_ID and nothing else, above a comment reading 'CWS_CLIENT_ID, CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN are retired'. (3) tooling/channel-register.json at that same head: ciSecretRegister.nonSigning carries CWS_SERVICE_ACCOUNT_JSON + CWS_PUBLISHER_ID where this branch's copy carries CWS_CLIENT_ID + CWS_CLIENT_SECRET + CWS_REFRESH_TOKEN + CWS_PUBLISHER_ID — three credential names replaced by one, read by PARSING both copies rather than by grepping for absence.\n\n⚠️ THE WEAK JOINT, STATED RATHER THAN GLOSSED: #566 was OPEN AND NOT MERGED when this retirement was written, so (2) and (3) are read from its head commit and not from the default branch. And (1), though live, does NOT on its own justify retiring anything — the row's entire content was that the credential had not been minted, so the secrets' absence is the row WORKING, not the row being obsolete. What retires it is the design change in (2): there is no caller left for a client secret. If #566 is closed unmerged, this retirement is wrong and must be reverted with it; that is the single condition, and it is checkable at the PR.",
+        "whatTheRetirementCosts": "NOTHING THE REPLACEMENT ROW DOES NOT COVER STRICTLY BETTER, AND THE COMPARISON IS WHAT PROVES IT RATHER THAN THE ASSERTION. This row watched EXISTENCE AND NON-DISABLEMENT of an OAuth client in the Google Cloud console on a 180d re-read, with `readBy: nothing yet` — an obligation on a human to open a page, over a credential that had never been created. expiring.store-credential.cws-service-account watches the same console, for the same class of event (disabled, deleted, rotated), on the same 180d cadence and with the same `accessProviders: [google]` — but its `readBy` is a DAILY SCHEDULED MINT instead of nothing, and the credential it names exists and is set.\n\n⬜ THE ONE THING GENUINELY LOST is this row's two-halves-move-together warning: 'a new client invalidates the refresh token as well: both CWS_CLIENT_* secrets AND CWS_REFRESH_TOKEN are re-minted together, in one change, or the lane refuses on whichever half is stale.' That warning has no subject any more. There is ONE secret now, so there are no halves that can fall out of step — the same reduction that removed the need for the warning is what removed the warning, which is the only shape in which losing a warning is not a cost.",
+        "row": {
+          "id": "expiring.store-credential.cws-oauth-client",
+          "kind": "expiring",
+          "what": "The Chrome Web Store OAuth client CWS_CLIENT_ID + CWS_CLIENT_SECRET in the Google Cloud project authorised for the chromewebstore scope. It is the half of the refresh-token exchange that lives in a console rather than in a token.",
+          "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
+          "response": "Open the Google Cloud console credentials page for that project and confirm the OAuth client still exists and is not disabled. If it was deleted, a new client invalidates the refresh token as well: both CWS_CLIENT_* secrets AND CWS_REFRESH_TOKEN are re-minted together, in one change, or the lane refuses on whichever half is stale.",
+          "cadence": "180d",
+          "expires": null,
+          "leadDays": 30,
+          "mechanism": {
+            "substrate": "external-registry",
+            "anchor": "tooling/channel-register.json",
+            "record": "Google Cloud console -> APIs & Services -> Credentials, for the project holding the chromewebstore scope",
+            "failingValue": "the OAuth client deleted or disabled, which also kills every refresh token issued under it",
+            "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+          },
+          "accessProviders": [
+            "google"
+          ],
+          "ownerGated": true,
+          "ownerGap": "Owner: pay the $5 Chrome Web Store developer fee, create the OAuth client, then set CWS_CLIENT_ID and CWS_CLIENT_SECRET. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+          "source": "unverified",
+          "unverifiedWhy": "No page fetched for this row states a fixed lifetime for a Google OAuth client secret. What this row watches is therefore EXISTENCE and non-disablement on a 180d re-read, not a calendar expiry — and it is recorded rather than researched again because the credential does not exist yet to be researched about.",
+          "expiryKnownAt": "Google Cloud console -> APIs & Services -> Credentials -> the OAuth 2.0 Client ID row. Console-only. Private/runbooks/store-submission-extensions.md"
+        }
+      },
+      {
+        "id": "expiring.store-credential.cws-refresh-token",
+        "retiredOn": "2026-09-09",
+        "retiredWhy": "🔴 THE NON-USE CLOCK THIS ROW WAS WRITTEN FOR NO LONGER TICKS, BECAUSE THERE IS NO LONG-LIVED GRANT LEFT TO KEEP WARM. Its whole content was that an unexercised Google OAuth refresh token is revoked, and that a lane publishing a few times a year is exactly the shape that lets that happen unnoticed. PR #566 replaces the exchange with a service-account JWT-bearer assertion MINTED FRESH ON EVERY CALL: no refresh token, no OAuth-playground step, and no clock to lose a race against. Leaving the row standing would be worse than merely useless — it would hold a `cadence` and an `ownerGap` open over a credential that cannot decay because it does not exist. Its replacement is expiring.store-credential.cws-service-account.\n\n⚠️ THE DUTY IS RETIRED AND THE JOB IS NOT, AND THOSE ARE TWO DIFFERENT FACTS THAT LOOK LIKE ONE. `cws-token-keepalive` keeps its id, its `53 20 * * *` daily slot and its arming gate; what it exercises changed from an EXCHANGE to a MINT. The job survives because a different silent failure replaced the old one and it is not smaller: a service-account key can be disabled, deleted or rotated in the Google Cloud console — or the account removed from the project, or the API disabled on it — instantly and invisibly from this repository, and without something scheduled asking, that is discovered on a tag push, on the one path that ships bytes. The id is unchanged DELIBERATELY: renaming the job would restart at zero the run history that is the entire evidence this check produces, which is the one asset a keep-alive has.",
+        "evidence": "Read 2026-09-09. (1) LIVE — `gh secret list` on globalonlinedeveloper/Nikatru_Platform_Public: CWS_REFRESH_TOKEN does not appear in the listing; CWS_SERVICE_ACCOUNT_JSON does, set 2026-09-09T02:51:30Z. (2) PR #566, head commit of branch cws-service-account-2026-09-09: extensions/scripts/publish-cws-keepalive.mjs imports mintAccessToken from ./publish-cws-token.mjs and its KEEPALIVE list is [CWS_SA_ENV] — one name — where this branch's copy imports exchangeRefreshToken and lists CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN; publish-cws-token.mjs on that head no longer exports exchangeRefreshToken at all, so the exchange has no implementation, not merely no caller. The workflow step's own ::error:: text on that head reads 'the Chrome Web Store credential the release lane depends on could not be exercised. The service-account key in CWS_SERVICE_ACCOUNT_JSON no longer mints a token -- disabled, deleted or rotated' — the replacing failure mode written into the workflow itself rather than inferred. (3) tooling/channel-register.json at that head: the three CWS credential entries in ciSecretRegister.nonSigning collapse to one, read by parsing both copies.\n\n⚠️ SAME WEAK JOINT AS THE ENTRY ABOVE, AND IT IS THE SAME PR: #566 was OPEN, NOT MERGED, on 2026-09-09, so (2) and (3) are read from its head commit and not from the default branch. If it is closed unmerged, this retirement is reverted with it.",
+        "whatTheRetirementCosts": "THE SIX-MONTH NON-USE WINDOW STOPS BEING WATCHED, AND THAT IS THE POINT RATHER THAN THE PRICE — the window was a property of refresh tokens, and there is no refresh token. The number was this repository's own anyway (`source: unverified`, carried over from expiring.drive-refresh-token-non-use with no Google page fetched for it), so what leaves is an unconfirmed figure about a credential that no longer exists.\n\n⬜ WHAT IS ACTUALLY LOST IS NARROWER AND WORTH NAMING: this was the only row in the register that recorded WHY a scheduled job exists at all on a lane that publishes a few times a year. That argument is MOVED, not deleted — expiring.store-credential.cws-service-account carries it with a new subject (invisible REVOCATION in place of invisible NON-USE), and the header of extensions/scripts/publish-cws-keepalive.mjs carries it in the code on #566.\n\n⬜ AND ONE REFUSAL IS CARRIED FORWARD RATHER THAN INHERITED. This row deliberately did not set `satisfiedBy` — 'this guard resolves satisfiedBy to a real row and grades that row's cadence against windowDays, and the duty row cannot exist until the job has a run history. Claiming satisfaction by a row that does not exist is the failure mode the field exists to prevent.' That is still true, unchanged, because duty.extensions.cws-token-keepalive still cannot exist until the job has run on the default branch. The replacement row REPEATS the refusal in its own words instead of pointing here, because a retired entry is outside every limb and a rule that lives only in one is a rule that has stopped being enforced.",
+        "row": {
+          "id": "expiring.store-credential.cws-refresh-token",
+          "kind": "expiring",
+          "what": "The Chrome Web Store OAuth refresh token CWS_REFRESH_TOKEN. It is the one store credential with a NON-USE clock rather than a calendar date: a refresh token that is not exercised is revoked, and a release lane that publishes a few times a year is exactly the shape that lets that happen unnoticed.",
+          "detector": "The `cws-token-keepalive` job on the DAILY 20:53 UTC schedule (`53 20 * * *`) in .github/workflows/extensions.yml — it exchanges the refresh token on every scheduled run and fails when the exchange fails while the chrome-webstore row is armed. ⚠️ 2026-09-07, CORRECTED IN PLACE: this sentence was drafted against the Monday-only cron `17 4 * * 1` and #519 widened that cron to daily while this branch was open; the job rides `if: github.event_name == 'schedule'`, so it now fires daily. `cadence` stays `7d` because the DUTY did not change — only the number of chances the evidence gets (TRAPS ci-19 gives the margin to the evidence, not to the duty), exactly as duty.workflow.extensions records at its own `what`. ⚠️ THAT JOB HAS NO `duty.*` ROW YET AND THAT IS CORRECT, NOT AN OVERSIGHT: assert-ops-register grades a watched job with zero run rows as ABSENT with no grace (TRAPS ci-26), and the job cannot have a run history until the file is on the default branch. The duty row lands with its first scheduled run. Until then this row is the only place the obligation is written down.",
+          "response": "Confirm the keep-alive job has run inside the non-use window. If it has not — the lane was disabled, the schedule was skipped (TRAPS ci-15: GitHub delivers a minority of scheduled slots), or the token was revoked — re-mint the refresh token through the OAuth playground and set CWS_REFRESH_TOKEN again.",
+          "cadence": "180d",
+          "expires": null,
+          "leadDays": 30,
+          "mechanism": {
+            "substrate": "external-registry",
+            "anchor": "tooling/channel-register.json",
+            "record": "the cws-token-keepalive job run history in .github/workflows/extensions.yml",
+            "failingValue": "the keep-alive not having run inside the non-use window, or its exchange failing while the row is armed",
+            "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+          },
+          "accessProviders": [
+            "google"
+          ],
+          "ownerGated": true,
+          "ownerGap": "Owner: exchange a refresh token once through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope and set CWS_REFRESH_TOKEN. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down. 🔴 `satisfiedBy` IS DELIBERATELY NOT SET, even though the keep-alive is exactly the duty that would satisfy it: this guard resolves satisfiedBy to a real row and grades that row's cadence against windowDays, and the duty row cannot exist until the job has a run history. Claiming satisfaction by a row that does not exist is the failure mode the field exists to prevent. It is set in the same change that adds duty.extensions.cws-token-keepalive.",
+          "source": "unverified",
+          "unverifiedWhy": "The six-month non-use figure is this repository's own, carried over from expiring.drive-refresh-token-non-use, and no Google page was fetched for THIS row. It is recorded as unconfirmed for the same reason that row is: the mitigation (a weekly exchange) is orders of magnitude inside any plausible window.",
+          "expiryKnownAt": "NO CALENDAR DATE EXISTS for this one, by construction: it is a non-use clock. The checkable fact is the keep-alive job's own run history, once that job has one. Private/runbooks/store-submission-extensions.md"
         }
       }
     ]
@@ -2936,54 +3029,29 @@
       "expiryKnownAt": "addons.mozilla.org -> Developer Hub -> Manage API Keys. Console-only. Private/runbooks/store-submission-extensions.md"
     },
     {
-      "id": "expiring.store-credential.cws-oauth-client",
+      "id": "expiring.store-credential.cws-service-account",
       "kind": "expiring",
-      "what": "The Chrome Web Store OAuth client CWS_CLIENT_ID + CWS_CLIENT_SECRET in the Google Cloud project authorised for the chromewebstore scope. It is the half of the refresh-token exchange that lives in a console rather than in a token.",
-      "detector": "This row. Nothing in CI can reach the issuing console, so the register is the detector until a date is written here.",
-      "response": "Open the Google Cloud console credentials page for that project and confirm the OAuth client still exists and is not disabled. If it was deleted, a new client invalidates the refresh token as well: both CWS_CLIENT_* secrets AND CWS_REFRESH_TOKEN are re-minted together, in one change, or the lane refuses on whichever half is stale.",
+      "what": "The Google service-account key carried in the CWS_SERVICE_ACCOUNT_JSON repository secret — account nikatru-free-api@nikatru-platform.iam.gserviceaccount.com in project nikatru-platform — presented to https://oauth2.googleapis.com/token as an RS256 JWT-BEARER assertion for the scope https://www.googleapis.com/auth/chromewebstore, by extensions/scripts/publish-cws-token.mjs, the one mint every Chrome Web Store caller uses. ⏱ 2026-09-09: it REPLACED CWS_CLIENT_ID + CWS_CLIENT_SECRET + CWS_REFRESH_TOKEN (PR #566, and see both cws-* entries in _retiredRows), so the Chrome lane and the Play lane now authenticate to Google the same way and this repository has ONE shape of Google credential rather than two.\n\n🔴 IT IS THE FIRST ROW IN THIS STORE-CREDENTIAL BLOCK THAT IS NOT 'UNKNOWN UNTIL MINTED', AND THE DIFFERENCE IS LOAD-BEARING. The key has been minted and the secret is set — `gh secret list` shows CWS_SERVICE_ACCOUNT_JSON at 2026-09-09T02:51:30Z (and CWS_PUBLISHER_ID, the route segment beside it, at 2026-09-09T06:04:45Z). Its five neighbours are placeholders for credentials no account has issued; this one watches a credential that exists and is in use.",
+      "detector": "The `cws-token-keepalive` job on the DAILY 20:53 UTC schedule (`53 20 * * *`) in .github/workflows/extensions.yml, which runs `node extensions/scripts/publish-cws-keepalive.mjs` — it MINTS a service-account access token through extensions/scripts/publish-cws-token.mjs, the same module the release uses, and fails when the mint fails while the chrome-webstore lane is armed. A scheduled check that exercises a credential ADJACENT to the one the release uses keeps the wrong thing alive and reports success, so the shared module is the requirement and not a tidiness.\n\n⏱ 2026-09-09, REWRITTEN RATHER THAN AMENDED: this detector previously said the job EXCHANGES A REFRESH TOKEN on every scheduled run. That sentence is not stale, it is about a thing that no longer exists, and the retired duty is preserved verbatim in _retiredRows rather than half-corrected here. The JOB ID IS UNCHANGED DELIBERATELY — the slot, the arming gate and the accumulated run history are the evidence this check produces, and a rename restarts that history at zero.\n\n⚠️ THE JOB STILL HAS NO `duty.*` ROW AND THAT REMAINS CORRECT, NOT AN OVERSIGHT: assert-ops-register grades a watched job with zero run rows as ABSENT with no grace (TRAPS ci-26), and the job cannot have a run history until #566 is on the default branch. The duty row lands with its first scheduled run; until then this row is the only place the obligation is written down.",
+      "response": "Open the Google Cloud console for project nikatru-platform (IAM & Admin -> Service Accounts -> nikatru-free-api -> Keys) and confirm the key is still listed and ENABLED, that the account is still a member of the project, and that the Chrome Web Store API is still enabled on it. If the key was disabled, deleted or rotated, mint a new JSON key and set CWS_SERVICE_ACCOUNT_JSON again — ONE secret, not three, which is the whole operational gain of the change that created this row.\n\n⚠️ A GREEN KEEP-ALIVE DOES NOT MEAN THE LANE CAN PUBLISH, AND NOBODY SHOULD READ MORE INTO IT THAN IT SAYS. Minting proves the key AUTHENTICATES; it does not prove the service account was added to the publisher in the Chrome Web Store Developer Dashboard, under Account. Measured 2026-09-09: `:fetchStatus` answers 403 PERMISSION_DENIED — byte for byte apart from the echoed id — for the REAL publisher and for a BOGUS one alike, while a bogus token answers 401, so with zero items in the account that linkage is unreadable from the API. It becomes readable the moment the owner's manual first publish issues a real listing id.",
       "cadence": "180d",
       "expires": null,
       "leadDays": 30,
       "mechanism": {
         "substrate": "external-registry",
         "anchor": "tooling/channel-register.json",
-        "record": "Google Cloud console -> APIs & Services -> Credentials, for the project holding the chromewebstore scope",
-        "failingValue": "the OAuth client deleted or disabled, which also kills every refresh token issued under it",
-        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
+        "record": "the cws-token-keepalive job run history in .github/workflows/extensions.yml, and the Keys list for the service account in the Google Cloud console",
+        "failingValue": "the key disabled, deleted or rotated in the Google Cloud console — or the account removed from the project, or the Chrome Web Store API disabled on it — so that the mint in extensions/scripts/publish-cws-keepalive.mjs fails while the row is armed",
+        "readBy": "extensions/scripts/publish-cws-keepalive.mjs, daily on the schedule — 🔴 AND THIS IS THE ONE STORE-CREDENTIAL ROW WHOSE `readBy` IS NOT 'nothing yet'. The release lane also fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), but a fail-closed preflight catches a credential that has ALREADY died, on the one path that ships bytes; the scheduled mint catches it the next morning. ⏱ 2026-09-09: this reader is real only once #566 is on the default branch — see `source` below."
       },
       "accessProviders": [
         "google"
       ],
       "ownerGated": true,
-      "ownerGap": "Owner: pay the $5 Chrome Web Store developer fee, create the OAuth client, then set CWS_CLIENT_ID and CWS_CLIENT_SECRET. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down.",
+      "ownerGap": "🔴 NOT 'UNKNOWN UNTIL MINTED' — THE KEY IS MINTED AND SET, AND THE GAP IS A DIFFERENT SHAPE ENTIRELY. A Google service-account key HAS NO EXPIRY DATE OF ITS OWN: there is no field, in any console, that says when this credential stops working. What it has instead is a REVOCATION RISK — disabled, deleted or rotated in the Google Cloud console, the account removed from the project, the API disabled on it — every one of them instant and invisible from this repository.\n\nSo `expires` stays null DELIBERATELY AND PERMANENTLY, and this is the register's own doctrine applied where it bites hardest: an invented expiry is strictly worse than a null, because the lead-window arithmetic would then run and PASS on a fiction — and on this row the fiction could never be corrected by somebody finally reading a console, because there is no date there to read. The neighbouring rows' nulls say 'nobody has read it yet'; this one says 'the fact does not exist', which is a different claim and is written out rather than borrowed.\n\nOWNER, on the 180d cadence: open the service account's Keys page and confirm the key is listed and enabled. ⏱ AND THE SECOND OWNER GAP IS THE ONE THAT ACTUALLY BLOCKS A RELEASE: the service account must be added to the publisher in the Chrome Web Store Developer Dashboard, Account section — 'you can only add one service account to your publisher' — which is console-only and which no probe in this tree can currently read (see `response`).\n\n🔴 `satisfiedBy` IS DELIBERATELY NOT SET, and the reason is inherited from the row this one replaces rather than assumed to still hold: this guard resolves satisfiedBy to a real row and grades THAT row's cadence against windowDays, and duty.extensions.cws-token-keepalive cannot exist until the job has a run history on the default branch. Claiming satisfaction by a row that does not exist is the failure mode the field exists to prevent. It is set in the same change that adds the duty row.",
       "source": "unverified",
-      "unverifiedWhy": "No page fetched for this row states a fixed lifetime for a Google OAuth client secret. What this row watches is therefore EXISTENCE and non-disablement on a 180d re-read, not a calendar expiry — and it is recorded rather than researched again because the credential does not exist yet to be researched about.",
-      "expiryKnownAt": "Google Cloud console -> APIs & Services -> Credentials -> the OAuth 2.0 Client ID row. Console-only. Private/runbooks/store-submission-extensions.md"
-    },
-    {
-      "id": "expiring.store-credential.cws-refresh-token",
-      "kind": "expiring",
-      "what": "The Chrome Web Store OAuth refresh token CWS_REFRESH_TOKEN. It is the one store credential with a NON-USE clock rather than a calendar date: a refresh token that is not exercised is revoked, and a release lane that publishes a few times a year is exactly the shape that lets that happen unnoticed.",
-      "detector": "The `cws-token-keepalive` job on the DAILY 20:53 UTC schedule (`53 20 * * *`) in .github/workflows/extensions.yml — it exchanges the refresh token on every scheduled run and fails when the exchange fails while the chrome-webstore row is armed. ⚠️ 2026-09-07, CORRECTED IN PLACE: this sentence was drafted against the Monday-only cron `17 4 * * 1` and #519 widened that cron to daily while this branch was open; the job rides `if: github.event_name == 'schedule'`, so it now fires daily. `cadence` stays `7d` because the DUTY did not change — only the number of chances the evidence gets (TRAPS ci-19 gives the margin to the evidence, not to the duty), exactly as duty.workflow.extensions records at its own `what`. ⚠️ THAT JOB HAS NO `duty.*` ROW YET AND THAT IS CORRECT, NOT AN OVERSIGHT: assert-ops-register grades a watched job with zero run rows as ABSENT with no grace (TRAPS ci-26), and the job cannot have a run history until the file is on the default branch. The duty row lands with its first scheduled run. Until then this row is the only place the obligation is written down.",
-      "response": "Confirm the keep-alive job has run inside the non-use window. If it has not — the lane was disabled, the schedule was skipped (TRAPS ci-15: GitHub delivers a minority of scheduled slots), or the token was revoked — re-mint the refresh token through the OAuth playground and set CWS_REFRESH_TOKEN again.",
-      "cadence": "180d",
-      "expires": null,
-      "leadDays": 30,
-      "mechanism": {
-        "substrate": "external-registry",
-        "anchor": "tooling/channel-register.json",
-        "record": "the cws-token-keepalive job run history in .github/workflows/extensions.yml",
-        "failingValue": "the keep-alive not having run inside the non-use window, or its exchange failing while the row is armed",
-        "readBy": "nothing yet — the lane fails CLOSED on an empty secret (tooling/ci/assert-green-means-ran.mjs counts that preflight), which catches a credential that has already died, not one that is about to"
-      },
-      "accessProviders": [
-        "google"
-      ],
-      "ownerGated": true,
-      "ownerGap": "Owner: exchange a refresh token once through the OAuth playground with the https://www.googleapis.com/auth/chromewebstore scope and set CWS_REFRESH_TOKEN. UNKNOWN UNTIL MINTED. The credential does not exist yet — no account has issued it — so there is no date to read anywhere, and writing one would be an invented expiry, which is strictly worse than a null because the lead-window arithmetic would then run and PASS on a fiction. The row exists NOW rather than on the day the credential arrives because the day it arrives is exactly the day nobody remembers to write it down. 🔴 `satisfiedBy` IS DELIBERATELY NOT SET, even though the keep-alive is exactly the duty that would satisfy it: this guard resolves satisfiedBy to a real row and grades that row's cadence against windowDays, and the duty row cannot exist until the job has a run history. Claiming satisfaction by a row that does not exist is the failure mode the field exists to prevent. It is set in the same change that adds duty.extensions.cws-token-keepalive.",
-      "source": "unverified",
-      "unverifiedWhy": "The six-month non-use figure is this repository's own, carried over from expiring.drive-refresh-token-non-use, and no Google page was fetched for THIS row. It is recorded as unconfirmed for the same reason that row is: the mitigation (a weekly exchange) is orders of magnitude inside any plausible window.",
-      "expiryKnownAt": "NO CALENDAR DATE EXISTS for this one, by construction: it is a non-use clock. The checkable fact is the keep-alive job's own run history, once that job has one. Private/runbooks/store-submission-extensions.md"
+      "unverifiedWhy": "TWO CLAIMS WITH TWO DIFFERENT STANDINGS, AND THE ROW IS MARKED BY THE WEAKER. The CREDENTIAL is verified live: `gh secret list` shows CWS_SERVICE_ACCOUNT_JSON set 2026-09-09T02:51:30Z, and the account and project names are the ones tooling/channel-register.json carries on PR #566's head. The DETECTOR is not: the mint-based keep-alive, the single-secret workflow step and the one-entry channel register all land with #566, which was OPEN AND UNMERGED on 2026-09-09 — in THIS tree, extensions/scripts/publish-cws-keepalive.mjs still exchanges a refresh token. So a reader must not take `readBy` as describing what runs on the default branch today. This flips to `verified` when #566 merges and the job has its first scheduled run, which is the same event that lets the duty row and `satisfiedBy` exist.",
+      "expiryKnownAt": "NO CALENDAR DATE EXISTS FOR THIS ONE, BY CONSTRUCTION — and unlike the non-use clock the retired expiring.store-credential.cws-refresh-token carried, it is not a clock of any kind. The two checkable facts that stand in for a date: (a) the key's presence and ENABLED state at Google Cloud console -> IAM & Admin -> Service Accounts -> nikatru-free-api@nikatru-platform.iam.gserviceaccount.com -> Keys, console-only, owner-read on the 180d cadence; and (b) the cws-token-keepalive job's own run history, which becomes a machine-readable fact the day #566 is on the default branch. Private/runbooks/store-submission-extensions.md"
     },
     {
       "id": "expiring.store-credential.edge-api-key",
