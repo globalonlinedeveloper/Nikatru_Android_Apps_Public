@@ -59,16 +59,6 @@
 // refuses, and `chrome-splice.test.mjs` has the failing case recorded.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { MARK_CSS } from './availability.mjs';
-
-/** The repository root, from this file's own location — not from `process.cwd()`.
- *  `applyChrome` is called by the generator, by the guard and by three test files,
- *  each with a different working directory. */
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-
 /** The deploy root this chrome belongs to. `sites/rajasekarselvam` is a separate
  *  brochure site with its own identity and is deliberately NOT a member — it is
  *  a different legal person's shop window, not a second Nikatru page. */
@@ -237,53 +227,74 @@ export function skipLink() {
  * what puts the names on the pages, which is the half that makes them real: a
  * token nothing declares is a token nothing can use.
  *
- * ── WHY IT READS THE GENERATED CSS AND NOT THE DTCG JSON ─────────────────────
- * 🔴 SO THAT THE `--group-name` RULE LIVES IN EXACTLY ONE PLACE. The obvious
- * implementation reads `scale.json` and joins the path with a hyphen — and that
- * would be a SECOND implementation of the naming rule, sitting beside
- * `packages/tokens/style-dictionary.config.mjs`'s, free to disagree with it. The
- * repository has paid for that shape before (see this file's own header on six
- * hand-maintained footers, and the config's on the deleted `--brand-ink` rename).
+ * ── WHY IT IS A CONSTANT AND NOT A READ OF tokens.css ────────────────────────
+ * 🔴 BECAUSE THIS MODULE GETS COPIED, AND A COPY LOSES ITS DATA. The first
+ * version read `contracts/tokens/dtcg/scale.json` and
+ * `sites/_shared/assets/tokens.css` off disk, resolved from this file's own
+ * location. That is correct in the repository and WRONG the moment the module is
+ * copied — and it is copied routinely: render-payload.test.mjs materialises the
+ * whole tooling closure into a temp root to mutate one of its members, and
+ * assert-guards-refuse-empty.mjs copies its subjects for the same reason (a guard
+ * pointed at a fixture root re-scanned the real repository instead; twenty of
+ * them did). In a copied tree the reads throw ENOENT, and the failure surfaces as
+ * a module error inside a case that was testing something else entirely.
  *
- * So the emitter stays the emitter: this reads its OUTPUT and re-emits the
- * declarations whose property name begins with one of the scale groups. The group
- * names come from the contract; the property names and the values come from the
- * build. A token renamed in the config is renamed on every page by the next run,
- * and neither file can drift from the other because only one of them decides.
+ * So the values live here, as bytes, and the emitter stays the authority a GUARD
+ * compares them to rather than one they are fetched from.
  *
- * ── AND IT REFUSES OVER AN EMPTY SET ─────────────────────────────────────────
- * If `tokens.css` is missing, or carries no `--space-*` line, the honest outcome
- * is a hard failure and not an empty region: an empty region splices cleanly,
- * every count in the generator still includes the page, the byte-diff in CI
- * compares the stale page against itself and agrees — and every `var(--space-5)`
- * on the site silently falls back to nothing. That is the exact "quietly stops
- * covering what it covers" shape this file exists to prevent, so it throws.
+ * ── WHAT KEEPS IT HONEST, AND IT IS NOT A COMMENT ────────────────────────────
+ * `tooling/ci/assert-palette-consistent.mjs` compares every CSS custom property
+ * declared by two or more sources across the whole site, and BOTH sides of this
+ * are in its subject: `sites/_shared/assets/tokens.css` (a named member of
+ * MUST_COMPARE) and the 15 pages that carry this region spliced into their
+ * `:root`. So a value that drifts from the build is 15 sources against 1 and the
+ * guard names the property, the two values and every file — which is exactly the
+ * mechanism that already keeps the colour palette in step, applied to the scales.
+ *
+ * Negative-tested, not assumed: `--space-5` changed here from 24px to 25px,
+ * regenerated, and assert-palette-consistent exits 1 with "--space-5 is declared
+ * 2 different ways in the light palette". Restored and re-verified clean.
+ *
+ * TO CHANGE A VALUE: edit contracts/tokens/dtcg/scale.json, run
+ * `cd packages/tokens && npm run build`, copy the emitted `--group-name` lines
+ * from sites/_shared/assets/tokens.css into the constant below, and re-run
+ * tooling/sites/generate-discovery.mjs. The guard fails if you do only some of it.
  */
+const SCALE_CSS = `  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:24px;
+  --space-6:32px;
+  --space-7:48px;
+  --space-gutter-sm:18px;
+  --space-gutter:24px;
+  --space-gutter-lg:32px;
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-xl:22px;
+  --radius-pill:999px;
+  --type-xs:12.5px;
+  --type-sm:13.5px;
+  --type-body:16px;
+  --type-lead:18px;
+  --type-h3:24px;
+  --type-h2:31px;
+  --type-display:clamp(34px, 5.5vw, 58px);
+  --shadow-sm:0 6px 16px rgba(11, 18, 32, .06);
+  --shadow-base:0 12px 32px rgba(11, 18, 32, .10);
+  --shadow-lg:0 16px 40px rgba(11, 18, 32, .14);
+  --motion-fast:120ms;
+  --motion-base:220ms;
+  --motion-ease:cubic-bezier(.2, .6, .3, 1);
+  --focus-ring:3px;
+  --focus-offset:3px;
+  --focus-scroll-margin:84px;
+  --container-max:1080px;
+  --container-gutter:24px;`;
+
 export function scaleCss() {
-  const groups = Object.keys(JSON.parse(readFileSync(join(REPO_ROOT, 'contracts/tokens/dtcg/scale.json'), 'utf8')));
-  if (groups.length === 0) {
-    throw new Error(
-      'contracts/tokens/dtcg/scale.json declares no token groups, so the scale region would emit nothing while ' +
-        'every page went on referencing var(--space-*). An empty region is indistinguishable from a correct one ' +
-        'in a byte diff, so this refuses.',
-    );
-  }
-  const css = readFileSync(join(REPO_ROOT, 'sites/_shared/assets/tokens.css'), 'utf8');
-  const wanted = new RegExp(`^\\s*(--(?:${groups.join('|')})-[a-z0-9-]+)\\s*:\\s*([^;]+);`);
-  const lines = [];
-  for (const line of css.split('\n')) {
-    const m = wanted.exec(line);
-    if (m) lines.push(`  ${m[1]}:${m[2].trim()};`);
-  }
-  if (lines.length === 0) {
-    throw new Error(
-      `sites/_shared/assets/tokens.css carries no declaration for any of the ${groups.length} scale group(s) ` +
-        `(${groups.join(', ')}). Either the tokens build has not been run since scale.json landed, or the emit ` +
-        'order in packages/tokens/style-dictionary.config.mjs dropped them. Regenerate with ' +
-        '`cd packages/tokens && npm run build`.',
-    );
-  }
-  return lines.join('\n');
+  return SCALE_CSS;
 }
 
 /**
@@ -295,6 +306,40 @@ export function scaleCss() {
  * and two rule sets for one mark would drift with nothing able to see it — a CSS
  * rule is not a custom property, so the palette guard is blind to it.
  */
+/**
+ * THE STATUS MARK. It lives HERE, in the shared-chrome module, and not beside
+ * the availability tiles that were its first use.
+ *
+ * A filled teal square means LIVE; a dashed muted outline means COMING SOON.
+ * That is the whole visual state device this design uses in place of a row of
+ * coloured store badges — and it appears at two densities: labelled, inside an
+ * availability tile on an app landing, and bare, in the homepage register row
+ * beside the sentence "1 of 6 channels live".
+ *
+ * 🔴 TWO DENSITIES OF ONE MARK MUST NOT BE TWO RULE SETS. If the homepage
+ * declared its own `.mark`, the two would drift — by a pixel, by a radius, by a
+ * colour — and NOTHING in this repository could see it: `assert-palette-
+ * consistent.mjs` compares CSS CUSTOM PROPERTIES, and `width:9px` is not one.
+ * That is the same blind spot that let nine different corner radii accumulate
+ * across the served pages. So the mark is emitted ONCE, as the shared
+ * `marks-css` chrome region, onto every page — the identical mechanism that
+ * replaced six hand-maintained footers.
+ *
+ * ⚠️ EVERY VALUE IS A TOKEN OR A LITERAL THAT IS SCHEME-INDEPENDENT. `--teal`
+ * and `--muted` both fork under `prefers-color-scheme`, so the mark follows the
+ * scheme without this string knowing anything about schemes. A hex here would be
+ * the light-mode-hex-in-dark defect the design canvas was corrected for.
+ *
+ * ⚠️ AND THE MARK NEVER CARRIES THE MEANING ALONE. WCAG 1.4.1: on a tile the
+ * word "Coming soon" sits beside it, and in the compact homepage row the marks
+ * are `aria-hidden` and the count sentence carries the fact in words. A reader
+ * who cannot distinguish a filled square from a dashed one loses nothing.
+ */
+const MARK_CSS = `  .mark{width:9px;height:9px;flex:0 0 auto;border-radius:2px;display:inline-block}
+  .mark-served{background:var(--teal)}
+  .mark-soon{background:transparent;border:1.5px dashed var(--muted)}
+  .marks{display:inline-flex;gap:5px;align-items:center}`;
+
 export function marksCss() {
   return MARK_CSS;
 }

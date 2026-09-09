@@ -998,11 +998,14 @@ describe('the generator', () => {
     // equally consistent with a generator that lost the ability to render one,
     // and `trial_days` in the rail config would be a field nothing reads.
     const root = tree([SUBLY], {
-      rail: rail({ subly: { features: {}, paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }),
+      rail: rail({ [SUBLY.slug]: { features: {}, paywall: { enabled: true, offerings: SUBLY_OFFERINGS } } }),
       pricingPage: true,
     });
     assert.equal(generate(root).code, 0);
-    const html = readFileSync(p(root, 'apps', 'subly.html'), 'utf8');
+    // The slug comes from the fixture, never retyped — the 2026-09-09 rename
+    // turned every literal 'subly' in this file into a path that resolves to
+    // nothing, and an ENOENT inside assert.match is a case testing no code.
+    const html = readFileSync(p(root, 'apps', `${SUBLY.slug}.html`), 'utf8');
     assert.match(html, /30-DAY FREE TRIAL/);
     // And the "nothing can be bought today" note is correspondingly gone, so the
     // page never carries the badge and the disclaimer at the same time.
