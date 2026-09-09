@@ -22,6 +22,7 @@
   "artifact-signed-msix.test.mjs": 39,
   "assert-deploy-triggers-deploy.test.mjs": 11,
   "assert-name-clearance.test.mjs": 16,
+  "availability.test.mjs": 32,
   "await-pr-checks.test.mjs": 46,
   "capability-register-seams.test.mjs": 27,
   "capability-register.test.mjs": 40,
