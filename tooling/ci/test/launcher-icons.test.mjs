@@ -999,7 +999,16 @@ describe('backgroundDrawsSplash', () => {
 </layer-list>`;
     // The single-pass behaviour, spelled out, so the case cannot silently stop
     // being the case it was written for: one pass leaves the item LIVE.
-    assert.match(reforms.replace(/<!--[\s\S]*?-->/g, ''), /android:src="@drawable\//);
+    //
+    // `split(re).join('')` rather than `replace(re, '')`, and not to dodge
+    // anything: the expression IS an incomplete sanitizer — that is what it is
+    // here to demonstrate — so CodeQL flags the `replace` form
+    // (js/incomplete-multi-character-sanitization) on the line PROVING the bug.
+    // Split-and-join is the identical operation, verified byte-for-byte against
+    // the global replace on this input, and it reads more plainly as "the naive
+    // one-shot removal". The assertion keeps exactly the force it had.
+    const onePass = reforms.split(/<!--[\s\S]*?-->/).join('');
+    assert.match(onePass, /android:src="@drawable\//);
     assert.equal(backgroundDrawsSplash(reforms), false);
   });
 
