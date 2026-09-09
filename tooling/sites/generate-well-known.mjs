@@ -424,7 +424,20 @@ if (isMain) {
   for (const [rel, contents] of files) {
     const abs = join(root, ...rel.split('/'));
     mkdirSync(dirname(abs), { recursive: true });
-    if (!existsSync(abs) || readFileSync(abs, 'utf8') !== contents) {
+    // 🔴 READ, DO NOT `existsSync` THEN READ. The check-then-act form is a
+    // time-of-check/time-of-use race (CodeQL js/file-system-race): between the
+    // two calls the file can appear, vanish or change, and on this repository's
+    // own machinery that is not hypothetical — `site-drift-repair` regenerates
+    // this surface while a local generator may be running. Attempting the read
+    // and treating its failure as "absent" collapses the two calls into one, so
+    // there is no window to lose.
+    let current = null;
+    try {
+      current = readFileSync(abs, 'utf8');
+    } catch {
+      current = null; // absent, or unreadable — either way it must be written
+    }
+    if (current !== contents) {
       writeFileSync(abs, contents);
       written++;
       console.log(`    wrote ${rel}`);

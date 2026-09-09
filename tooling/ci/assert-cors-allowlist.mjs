@@ -226,8 +226,14 @@ if (catalogueOrigins.length < MIN_CATALOGUE_ORIGINS) {
   const strays = catalogueOrigins.filter((o) => o !== apex);
   if (strays.length) {
     console.error(
-      `assert-cors-allowlist: ${strays.length} catalogue origin(s) are not the apex ${apex}: ` +
-        `${strays.join(', ')}.\n` +
+      // ⚠️ THE ORIGINS ARE QUOTED, and a trailing period never touches one. A
+      // hostname with a sentence period butted against it reads as part of the
+      // name to a human and to every anchored matcher — the test that asserts
+      // this line had to choose between an unanchored host pattern (which also
+      // matches `subly.nikatru.com.evil.example`) and a wrong one. Quoting ends
+      // the name unambiguously, so the assertion can be anchored.
+      `assert-cors-allowlist: ${strays.length} catalogue origin(s) are not the apex "${apex}": ` +
+        `${strays.map((o) => `"${o}"`).join(', ')}\n` +
         '    [ADR 075] publishes every app at a PATH on the apex. An app back on its\n' +
         '    own origin needs its own payment-provider approval and its own allowlist\n' +
         '    entry, and assert-app-address-shape.mjs is the guard that names it.',

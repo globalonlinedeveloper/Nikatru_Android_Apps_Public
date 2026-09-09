@@ -38,6 +38,11 @@ import {
   INVALID_BEARER,
   API_AUTH_PROBE_PATH,
 } from '../../ops/post-deploy-smoke.mjs';
+import { APEX_ORIGIN } from '../../sites/apex.mjs';
+
+/** The apex as a bare origin. IMPORTED, never retyped -- the same declaration
+ *  the guards and the generator read (tooling/sites/apex.mjs). */
+const APEX_ORIGIN_BARE = new URL(APEX_ORIGIN).origin;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = resolve(HERE, '..', '..', 'ops', 'post-deploy-smoke.mjs');
@@ -2135,10 +2140,27 @@ describe('post-deploy-smoke — REQUIRED COVERAGE of the cross-origin API limb',
     // The offline half of what the limb checks live. This is the file the live
     // failure comes FROM, so a wrangler config that drops the apex fails here
     // before a deploy ever reaches the smoke.
+    // ⚠️ PARSED AND COMPARED AS AN ORIGIN, NOT SUBSTRING-MATCHED. A
+    // `.includes('https://nikatru.com')` would also be satisfied by
+    // `https://nikatru.com.evil.example` sitting in the list — the incomplete-URL-
+    // sanitisation shape (CodeQL js/incomplete-url-substring-sanitization), and a
+    // genuinely wrong assertion in a test whose whole subject is an allowlist.
+    // The list is comma-separated, so split it and compare each entry's ORIGIN.
     const wrangler = readFileSync(join(ROOT, 'services', 'subly-api', 'wrangler.jsonc'), 'utf8');
+    const listed = (wrangler.match(/"ALLOWED_ORIGINS"\s*:\s*"([^"]*)"/) ?? [, ''])[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        try {
+          return new URL(s).origin;
+        } catch {
+          return s;
+        }
+      });
     assert.ok(
-      wrangler.includes('https://nikatru.com'),
-      'services/subly-api ALLOWED_ORIGINS no longer carries the apex, which is the origin every app page is served from since [ADR 075]',
+      listed.includes(APEX_ORIGIN_BARE),
+      `services/subly-api ALLOWED_ORIGINS no longer carries ${APEX_ORIGIN_BARE}, which is the origin every app page is served from since [ADR 075]. It lists: ${listed.join(', ')}`,
     );
   });
 });

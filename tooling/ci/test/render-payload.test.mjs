@@ -134,6 +134,15 @@ const TOOLING_CLOSURE = [
   // error instead of the finding they exist to prove, which is the closure
   // working: an incomplete one fails loudly rather than testing a smaller tree.
   'tooling/sites/chrome.mjs',
+  // Added 2026-09-09 with [ADR 075]: the apex is now declared exactly once in
+  // `apex.mjs` and generate-discovery.mjs RE-EXPORTS it as `ORIGIN` instead of
+  // holding the literal, so a tree without this file cannot load the publisher.
+  // The closure fell behind exactly as the note above predicted it would — the
+  // two mutation cases went red with ERR_MODULE_NOT_FOUND instead of the finding
+  // they exist to prove. That is the closure working, and it is the second time
+  // it has caught its own staleness, so the note is kept and extended rather
+  // than replaced.
+  'tooling/sites/apex.mjs',
 ];
 
 /**

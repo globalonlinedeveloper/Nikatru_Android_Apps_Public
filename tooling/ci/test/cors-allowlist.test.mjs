@@ -250,8 +250,15 @@ describe('assert-cors-allowlist', () => {
     const relapsed = { ...SUBLY, url: SUBDOMAIN };
     const { code, out } = run(tree({ apps: [relapsed] }));
     assert.equal(code, 1);
-    assert.match(out, /1 catalogue origin\(s\) are not the apex https:\/\/nikatru\.com/);
-    assert.match(out, /https:\/\/subly\.nikatru\.com/);
+    // ⚠️ ANCHORED TO THE SENTENCE, NOT LEFT AS A BARE HOST PATTERN. An unanchored
+    // /https:\/\/subly\.nikatru\.com/ over text that contains URLs is the
+    // missing-regexp-anchor shape (CodeQL js/regex/missing-regexp-anchor): it
+    // matches inside `https://subly.nikatru.com.evil.example` too, so it would go
+    // on passing while the guard named a host nobody meant. Each assertion below
+    // pins the host to what must surround it — a line end, or a comma/quote —
+    // so the match cannot drift onto a longer name.
+    assert.match(out, /1 catalogue origin\(s\) are not the apex "https:\/\/nikatru\.com"/);
+    assert.match(out, /"https:\/\/subly\.nikatru\.com"/);
     assert.match(out, /publishes every app at a PATH on the apex/);
   });
 
@@ -272,7 +279,7 @@ describe('assert-cors-allowlist', () => {
     assert.equal(code, 0, out);
     assert.doesNotMatch(out, /pages\.dev/);
     assert.doesNotMatch(out, /localhost:3000/);
-    assert.doesNotMatch(out, /subly\.nikatru\.com/);
+    assert.doesNotMatch(out, /subly\.nikatru\.com(?![\w.-])/);
   });
 
   // 🔴 AN EXTRA IS REQUIRED, NOT MERELY PERMITTED — and the first draft of this
