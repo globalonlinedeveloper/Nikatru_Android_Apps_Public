@@ -152,6 +152,12 @@ jobs:
         run: node tooling/ci/assert-lane-coverage.mjs
       - name: Every deployed hostname is declared, and its monitor gap is visible
         run: node tooling/ci/assert-monitor-coverage.mjs
+      # OFFLINE by design — no --live, no token. ci.yml's standing objection to a
+      # CI limb depending on the GlitchTip box stands; what this asserts is that
+      # the workflows agree with EACH OTHER and spell the project out, which is
+      # the half that was false on 2026-09-09 and is knowable from the tree.
+      - name: One GlitchTip project, spelled out, at every call site
+        run: node tooling/ci/assert-glitchtip-project.mjs
       - name: Every failure has a detector, a response and a cadence
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

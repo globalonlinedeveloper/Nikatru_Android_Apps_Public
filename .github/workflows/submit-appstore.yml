@@ -130,7 +130,7 @@ jobs:
             node tooling/ops/upload-native-symbols.mjs \
               --cli "${RUNNER_TEMP}/glitchtip-cli" \
               --dir "apps/subly/build/symbols/${lane}" \
-              --org nikatru --project subly
+              --org nikatru --project subscriptiontracker
           done
       - name: Dry-run the App Store submission (iOS)
         env:

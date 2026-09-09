@@ -132,7 +132,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
           --dir apps/subly/build/symbols/linux
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs
@@ -311,7 +311,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${RUNNER_TEMP}/glitchtip-cli"
           --dir apps/subly/build/symbols/linux
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: Generate the snapcraft recipe
         run: >
           node tooling/release/generate-snapcraft.mjs

@@ -123,7 +123,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
           --dir apps/subly/build/symbols/windows
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/subly
         run: dart run msix:create
@@ -287,7 +287,7 @@ jobs:
           node tooling/ops/upload-native-symbols.mjs
           --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
           --dir apps/subly/build/symbols/windows
-          --org nikatru --project subly
+          --org nikatru --project subscriptiontracker
       - name: Package MSIX (Microsoft Store)
         working-directory: apps/subly
         run: dart run msix:create

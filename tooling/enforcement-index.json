@@ -990,6 +990,19 @@
   },
   {
     "claims": [
+      "ADR 067",
+      "C-COVERAGE-LOST-IS-NOT-PASS"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-glitchtip-project.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 004",
       "ADR 020",
       "ADR 039",

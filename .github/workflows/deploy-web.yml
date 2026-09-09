@@ -233,7 +233,7 @@ jobs:
           echo "release=${release}" >> "$GITHUB_ENV"
           echo "sentry_url=${server}" >> "$GITHUB_ENV"
           SENTRY_URL="$server" "${RUNNER_TEMP}/glitchtip-cli" releases new "$release" \
-            --finalize --org nikatru --project "$APP"
+            --finalize --org nikatru --project subscriptiontracker
 
       - name: Upload the source maps to GlitchTip
         working-directory: .
@@ -249,7 +249,7 @@ jobs:
             --dir "apps/${APP}/build/web" \
             --release "$release" \
             --org nikatru \
-            --project "$APP" \
+            --project subscriptiontracker \
             --dist web \
             --url-prefix '~'
 

@@ -73,7 +73,7 @@
 // Usage:
 //   node tooling/ops/upload-web-sourcemaps.mjs \
 //     --dir apps/subly/build/web --release 'subly@1.0.75+e509a26' \
-//     --org nikatru --project subly [--dist web] [--url-prefix '~'] [--timeout 180]
+//     --org nikatru --project subscriptiontracker [--dist web] [--url-prefix '~'] [--timeout 180]
 // Env: SENTRY_URL (server origin), SENTRY_AUTH_TOKEN.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, readdirSync } from 'node:fs';
