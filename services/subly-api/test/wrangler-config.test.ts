@@ -110,9 +110,22 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
   });
 
   it('lists the live web origin and the Pages preview origin', () => {
-    for (const origin of ['https://subly.nikatru.com', 'https://subly-9cp.pages.dev']) {
+    // The live web origin is the APEX since [ADR 075]: the app is published at
+    // https://nikatru.com/<id>, so that -- not the old subdomain -- is what a
+    // browser tab sends. `https://subly.nikatru.com` was removed on 2026-09-09
+    // when the zone Redirect Rule started 301ing it, so nothing is served there
+    // and nothing sends that Origin.
+    for (const origin of ['https://nikatru.com', 'https://subly-9cp.pages.dev']) {
       expect(listed, `missing ${origin}`).toContain(origin);
     }
+  });
+
+  it('no longer lists the retired app subdomain', () => {
+    // Not a tautology: this list is the ONLY thing standing between a retired
+    // host and a standing CORS grant, and re-adding it is a one-word edit.
+    expect(listed, 'the subdomain serves only a 301 now [ADR 075]').not.toContain(
+      'https://subly.nikatru.com',
+    );
   });
 
   it('carries no wildcard and no scheme-less or trailing-slash entry', () => {
