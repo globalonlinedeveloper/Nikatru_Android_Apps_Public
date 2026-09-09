@@ -1,0 +1,28 @@
+{
+  "provider": "paddle",
+  "note": "Auto-renew off. The already-paid period is HONOURED - revoking on a cancel-at-period-end is the exact defect the legacy RevenueCat route records and fixed. Against the pinned clock (2026-11-01) that period has since lapsed, so this event revokes with reason cancelled_at_period_end rather than granting.",
+  "payload": {
+    "event_id": "evt_replay000000000000000005",
+    "notification_id": "ntf_replay000000000000000005",
+    "event_type": "subscription.updated",
+    "occurred_at": "2026-09-20T00:00:00.000Z",
+    "data": {
+      "id": "sub_replayfixture0000000001",
+      "status": "canceled",
+      "current_billing_period": {
+        "starts_at": "2026-09-15T00:00:00.000Z",
+        "ends_at": "2026-10-15T00:00:00.000Z"
+      },
+      "items": [],
+      "custom_data": {
+        "nikatru_user_id": "replay-user-0001",
+        "nikatru_app_id": "subscriptiontracker"
+      },
+      "customer_id": "ctm_replayfixture0000000001",
+      "customer": {
+        "id": "ctm_replayfixture0000000001",
+        "email": "replay-fixture@example.invalid"
+      }
+    }
+  }
+}

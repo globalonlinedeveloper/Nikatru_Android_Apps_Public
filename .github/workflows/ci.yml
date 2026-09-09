@@ -262,6 +262,8 @@ jobs:
         run: node tooling/ci/assert-mor-adapters.mjs
       - name: Sandbox money cannot grant a production unlock
         run: node tooling/ci/assert-money-config.mjs
+      - name: A stored notification replayed in any order reaches the same entitlement
+        run: node tooling/ops/money-dry-run.mjs
       - name: Every app with accounts ships a deletion control
         run: node tooling/ci/assert-deletion-control.mjs
       - name: Account deletion reaches every user-owned table, never via a shared secret
