@@ -95,9 +95,23 @@
       "money",
       "plan",
       "cancel",
-      "checkout"
+      "checkout",
+    "receipts"
     ],
-    "_checkout": [
+    "_receipts": [
+   "🟢 `receipts` ADDED 2026-09-09, AND THIS LIMB CAUGHT IT AGAIN. POST /v1/receipts/:store is a",
+   "RESOURCE OF OURS and NOT a provider tell, and the distinction is the whole design: a provider",
+   "tell is a segment the PROVIDER posts to (RevenueCat's `/revenuecat`), whereas nothing external",
+   "posts here at all. Our own authenticated client posts an opaque store token, and the SERVER then",
+   "calls the store's API itself — the push is never the evidence ([ADR 057]; the bundle entitlement",
+   "design §3.2). Google's RTDN carries no proof in its body and Microsoft has no push whatsoever.",
+   "",
+   "⚠️ THIS IS EXACTLY THE SEGMENT THE LIMB EXISTS FOR. A route named `receipts` under the Worker that",
+   "already carries the money rail is where a payment webhook would land unnoticed, and the answer has",
+   "to be written down by the person adding it rather than inferred from the name. If a store rail",
+   "ever DOES push here, this entry becomes false and a provider row is owed instead."
+  ],
+  "_checkout": [
       "🟢 `checkout` ADDED 2026-08-12, AND THIS LIMB CAUGHT IT AGAIN — the third time. The route",
       "services/platform/src/routes/checkout.ts mounts POST /v1/checkout (the Paddle",
       "create-transaction server half, [ADR 044]) and it passed typecheck, its own tests and every",

@@ -107,6 +107,21 @@ function editText(dir, rel, fn) {
   writeFileSync(p, fn(readFileSync(p, 'utf8')));
 }
 
+/** The SHIPPING writer — the module the Worker really deploys. */
+const REAL_WRITER = 'services/platform/src/lib/mor/bundle-store.ts';
+
+/**
+ * Remove the shipping writer from a fixture tree.
+ *
+ * 🔴 EACH CASE MUST TEST ONE PROPERTY. Until `bundle-store.ts` existed, the cases
+ * below wrote a probe writer into an otherwise writer-less tree. Once it existed,
+ * BC6 ("one writer is accepted") was adding a probe ON TOP of it and therefore
+ * exercising TWO writers, and BC8 ("a deleted clause is refused") was going red
+ * for the COUNT rather than for the CLAUSE. A red for the wrong reason is a case
+ * that keeps passing after the property it names has broken.
+ */
+const withoutRealWriter = (d) => rmSync(join(d, REAL_WRITER), { force: true });
+
 /** A writer that is CORRECT — one INSERT, carrying the ordering clause verbatim. */
 const GOOD_WRITER = [
   'export const upsertBundleGrant = `',
@@ -215,16 +230,39 @@ describe('limb 9 — the bundle source enum equals its runtime copies, BOTH ways
 });
 
 describe('limb 10 — exactly ONE writer into bundle_grants, carrying the ordering clause', () => {
-  test('no writer yet PRINTS the gap and does not fail — the schema landed first, by design', () => {
-    const r = run(tree());
+  test('a schema with NO writer PRINTS the gap and does not fail — the schema may land first', () => {
+    // ⏱ RE-POINTED 2026-09-09. This case ran against the REAL tree while no
+    // writer existed. `services/platform/src/lib/mor/bundle-store.ts` now exists,
+    // so the real tree no longer produces the print — and a case asserting a
+    // print that can never appear again is a case that tests nothing.
+    //
+    // The PROPERTY is still worth holding: a schema that lands before its writer
+    // must PRINT rather than fail, or the guard would have to be waived on the
+    // day the migration merged — which is how a repository learns that guards are
+    // things you waive. So the fixture removes the writer instead of the tree
+    // being expected not to have one.
+    const r = run(tree((d) => rmSync(join(d, 'services/platform/src/lib/mor/bundle-store.ts'), { force: true })));
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /limb 10 — NO writer into `bundle_grants` exists yet/);
+  });
+
+  test('…and the REAL tree now has one, so the limb is load-bearing rather than printing', () => {
+    // The other half, and without it the case above is satisfied by a limb that
+    // can only ever print.
+    const r = run(tree());
+    assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /NO writer into `bundle_grants` exists yet/);
   });
 
   test('BC6 — ONE writer carrying the clause is ACCEPTED', () => {
     // 🔴 THE ACCEPT CASE, and without it the two reds below prove nothing: a limb
     // that refused every writer would "catch" both mutations and be useless.
-    const r = run(tree((d) => writeFileSync(join(d, WRITER), GOOD_WRITER)));
+    const r = run(
+      tree((d) => {
+        withoutRealWriter(d);
+        writeFileSync(join(d, WRITER), GOOD_WRITER);
+      }),
+    );
     assert.equal(r.code, 0, r.out);
     assert.doesNotMatch(r.out, /NO writer into `bundle_grants` exists yet/);
   });
@@ -242,10 +280,34 @@ describe('limb 10 — exactly ONE writer into bundle_grants, carrying the orderi
 
   test('BC8 — deleting the ordering clause from the one writer is refused', () => {
     const r = run(
-      tree((d) =>
+      tree((d) => {
+        // The shipping writer goes first, or this case would go red for the
+        // COUNT (two writers) rather than for the CLAUSE — and a red for the
+        // wrong reason keeps passing after the property it names has broken.
+        withoutRealWriter(d);
         writeFileSync(
           join(d, WRITER),
           GOOD_WRITER.replace('\n  WHERE bundle_grants.occurred_at IS NULL OR excluded.occurred_at > bundle_grants.occurred_at', ''),
+        );
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /does not carry the ordering clause verbatim/);
+  });
+
+  test('BC9 — the SHIPPING writer carries the clause, checked on the file that really runs', () => {
+    // 🔴 THE CASE THE OTHERS CANNOT REPLACE. BC6 and BC8 grade a writer this file
+    // wrote; only this one grades `services/platform/src/lib/mor/bundle-store.ts`.
+    // A fixture writer that satisfies the limb says nothing about the module the
+    // Worker actually deploys.
+    const r = run(
+      tree((d) =>
+        writeFileSync(
+          join(d, REAL_WRITER),
+          readFileSync(join(REPO, REAL_WRITER), 'utf8').replace(
+            /WHERE bundle_grants\.occurred_at IS NULL[\s\S]*?bundle_grants\.occurred_at/,
+            'WHERE 1 = 1',
+          ),
         ),
       ),
     );

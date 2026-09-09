@@ -100,7 +100,17 @@ const DECIDING_FIELDS = [
  * names its two canonicalisers by file.
  */
 const VERIFY_CALL = /\.\s*verify\s*\(|verifierFor\s*\(|receiptVerifierFor\s*\(/;
-const VERIFY_IMPORT = /from\s+['"][^'"]*(?:receipts|mor)\/registry['"]/;
+// ⏱ RE-POINTED 2026-09-09, AND THE RENAME IS EXACTLY WHY THIS IS MATCHED AS
+// SOURCE TEXT. `services/platform/src/lib/receipts/registry.ts` became
+// `verifiers.ts` in the same change that made its modules reachable — two files
+// named `registry.ts` in one service is a name collision waiting to confuse a
+// reader — and this guard went RED on the real tree the moment it did, reporting
+// `imports=false` for a route that plainly does verify. That is the design
+// working: a rename of the seam is a DIFF HERE rather than a silent pass, which
+// is the same reason INSTANT_PATHS in assert-entitlement-contract.mjs names its
+// two canonicalisers by file. Both spellings are accepted so a merge from either
+// side of the rename is not a false red.
+const VERIFY_IMPORT = /from\s+['"][^'"]*(?:receipts|mor)\/(?:registry|verifiers)['"]/;
 
 const problems = [];
 const notes = [];
