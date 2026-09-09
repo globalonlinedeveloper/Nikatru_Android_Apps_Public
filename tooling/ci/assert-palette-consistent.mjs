@@ -120,7 +120,7 @@
 // The generated-siblings limb was negative-tested the same way, on the REAL tree
 // (2026-09-05, each mutation restored with `git checkout --` and a green control
 // run before and after):
-//   (d) brand_tokens.dart `primary` #2E6FF2 → #2E6FF3 ⇒ exit 1, "light.primary
+//   (d) brand_tokens.dart `primary` #2563EB → #2563EC ⇒ exit 1, "light.primary
 //       disagrees between the token source and a file generated from it",
 //       citing the Dart line.
 //   (e) brand_tokens.dart `line` (DARK class) #22304D → #22304E ⇒ exit 1, in the

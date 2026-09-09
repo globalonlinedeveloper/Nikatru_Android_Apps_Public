@@ -224,8 +224,8 @@ export function skipLink() {
  * one way to write a skip link that cannot be used at all.
  */
 export function a11yCss() {
-  return `  :focus-visible{outline:2px solid var(--primary,#2E6FF2);outline-offset:2px;border-radius:6px}
-  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2E6FF2);color:#fff;
+  return `  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:#fff;
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
   .skip-link:focus{left:0}`;
 }
