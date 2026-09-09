@@ -1,0 +1,28 @@
+{
+  "provider": "paddle",
+  "note": "A charge failed and the rail is retrying. Dunning is not a revocation event; access runs to the end of the period already paid for and the outcome arrives later. The pinned clock is past that period, so this one lands as payment_failed_final.",
+  "payload": {
+    "event_id": "evt_replay000000000000000006",
+    "notification_id": "ntf_replay000000000000000006",
+    "event_type": "subscription.updated",
+    "occurred_at": "2026-09-25T00:00:00.000Z",
+    "data": {
+      "id": "sub_replayfixture0000000001",
+      "status": "past_due",
+      "current_billing_period": {
+        "starts_at": "2026-09-15T00:00:00.000Z",
+        "ends_at": "2026-10-15T00:00:00.000Z"
+      },
+      "items": [],
+      "custom_data": {
+        "nikatru_user_id": "replay-user-0001",
+        "nikatru_app_id": "subscriptiontracker"
+      },
+      "customer_id": "ctm_replayfixture0000000001",
+      "customer": {
+        "id": "ctm_replayfixture0000000001",
+        "email": "replay-fixture@example.invalid"
+      }
+    }
+  }
+}

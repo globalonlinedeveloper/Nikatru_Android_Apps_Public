@@ -1,0 +1,16 @@
+{
+  "provider": "paddle",
+  "note": "An event this rail does not consume. Paddle sends products, prices, customers and reports down the same destination; paddle.ts recognises the subject from the ENTITY SHAPE and returns 'unknown' rather than refusing, so the notification is stored verbatim and moves no entitlement. It is in the corpus because an event that writes nothing must stay an event that writes nothing in every order.",
+  "payload": {
+    "event_id": "evt_replay000000000000000003",
+    "notification_id": "ntf_replay000000000000000003",
+    "event_type": "price.updated",
+    "occurred_at": "2026-08-20T00:00:00.000Z",
+    "data": {
+      "id": "pri_replayfixture0000000001",
+      "product_id": "pro_replayfixture0000000001",
+      "description": "Pro, yearly",
+      "status": "active"
+    }
+  }
+}
