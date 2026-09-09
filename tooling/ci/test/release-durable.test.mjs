@@ -1595,7 +1595,12 @@ describe('release-manifest.mjs — the expected-format set is DERIVED, not typed
     // build-platforms.yml legitimately does not carry it, exactly as it does not
     // carry the `.snap` submit-snap.yml emits. The narrowed cases below are what
     // a real lane asks.
-    assert.deepEqual([...expectedReleaseFormats(real)].sort(), ['.aab', '.apk', '.msix', '.snap', '.zip']);
+    // ⚠️ `.ipa` and `.pkg` JOINED THIS SET ON 2026-09-09, when both Apple rows
+    // acquired a lane pointing at build-platforms.yml's `apple` job. Unlike
+    // `.zip` and `.snap`, these are NOT a reason to reach for the narrowing:
+    // they come out of the very workflow that stages the dist, so the narrowed
+    // set below grows with this one rather than staying behind it.
+    assert.deepEqual([...expectedReleaseFormats(real)].sort(), ['.aab', '.apk', '.ipa', '.msix', '.pkg', '.snap', '.zip']);
   });
 
   // ⚠️ THE QUESTION THE NOTE ABOVE PARKED WAS ANSWERED 2026-08-27, AND ONLY HALF
@@ -1608,7 +1613,7 @@ describe('release-manifest.mjs — the expected-format set is DERIVED, not typed
   test('narrowed to the workflow that STAGES the dist, the .snap is not demanded of it', () => {
     const real = JSON.parse(readFileSync(join(REPO, 'tooling', 'channel-register.json'), 'utf8'));
     const bp = expectedReleaseFormats(real, '.github/workflows/build-platforms.yml');
-    assert.deepEqual([...bp].sort(), ['.aab', '.apk', '.msix']);
+    assert.deepEqual([...bp].sort(), ['.aab', '.apk', '.ipa', '.msix', '.pkg']);
     assert.ok(!bp.has('.snap'), 'submit-snap.yml is a different workflow on a different trigger; download-artifact cannot reach its output');
   });
 
@@ -1701,11 +1706,21 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // form on purpose, so the fixture carries one — exactly as it carries the .snap
   // no build-platforms dist holds either. The narrowed cases below are what a
   // real lane asks.
+  // NOTE 2026-09-09: `.ipa` and `.pkg` joined the UNNARROWED expectation when
+  // both Apple rows acquired a lane. Those rows DECLARED both formats all along;
+  // what changed is that `lane` stopped being null, because build-platforms.yml's
+  // apple job now actually emits them (`flutter build ipa --export-options-plist`
+  // and `productbuild --component ... --sign`). Adding them here is not loosening
+  // the fixture — leaving them out would let this set call itself "complete" over
+  // a release missing two whole platforms, which is precisely the defect the
+  // recorded failing case below exists to catch.
   const COMPLETE = [
     'subly-v1-app-release.apk',
     'subly-v1-app-release.aab',
     'subly-v1-subly.msix',
     'subly-v1-subly.snap',
+    'subly-v1-subly.ipa',
+    'subly-v1-subly.pkg',
     'fullshot-v1-chromium.zip',
   ];
 
@@ -1723,7 +1738,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = staged(COMPLETE);
     const r = cli(['--verify', d, '--expect-formats']);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all 5 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap, \.zip/);
+    assert.match(r.out, /all 7 expected format\(s\) present: \.aab, \.apk, \.ipa, \.msix, \.pkg, \.snap, \.zip/);
   });
 
   test('DEFAULT BEHAVIOUR IS UNCHANGED — without the flag nothing new can go red', () => {
@@ -1778,7 +1793,15 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
   // ⚠️ STILL UNWIRED: build-platforms.yml:419 runs plain `--verify dist`
   // (re-anchored 2026-09-06 by grep -n after the prose strip).
   // ───────────────────────────────────────────────────────────────────────────
-  const BUILD_PLATFORMS = ['subly-v1-app-release.apk', 'subly-v1-app-release.aab', 'subly-v1-subly.msix'];
+  // ⏱ `.ipa` and `.pkg` ADDED 2026-09-09 — the apple job emits both now, so a
+  // dist without them is short two platforms rather than complete.
+  const BUILD_PLATFORMS = [
+    'subly-v1-app-release.apk',
+    'subly-v1-app-release.aab',
+    'subly-v1-subly.msix',
+    'subly-v1-subly.ipa',
+    'subly-v1-subly.pkg',
+  ];
 
   test('🔴 THE FLOOR — a workflow matching ZERO rows is COVERAGE LOST', () => {
     // Handed a directory carrying every format build-platforms stages, so nothing
@@ -1809,11 +1832,11 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     assert.match(r.out, /missing 1 expected release format\(s\): \.msix/);
   });
 
-  test('narrowed to build-platforms.yml, its own complete dist passes and NAMES the three', () => {
+  test('narrowed to build-platforms.yml, its own complete dist passes and NAMES the five', () => {
     const d = staged(BUILD_PLATFORMS);
     const r = cli(['--verify', d, '--expect-formats', '--for-workflow', '.github/workflows/build-platforms.yml']);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all 3 expected format\(s\) present: \.aab, \.apk, \.msix/);
+    assert.match(r.out, /all 5 expected format\(s\) present: \.aab, \.apk, \.ipa, \.msix, \.pkg/);
   });
 
   test('🔴 UNNARROWED, THAT SAME DIST IS RED — which is why the flag could not be wired as it stood', () => {
@@ -1868,7 +1891,7 @@ describe('release-manifest.mjs — `--verify --expect-formats` (the G3 half)', (
     const d = staged(COMPLETE);
     const r = cli(['--verify', d, '--expect-formats']);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all 5 expected format\(s\) present: \.aab, \.apk, \.msix, \.snap, \.zip/);
+    assert.match(r.out, /all 7 expected format\(s\) present: \.aab, \.apk, \.ipa, \.msix, \.pkg, \.snap, \.zip/);
   });
 });
 
