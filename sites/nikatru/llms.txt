@@ -1,6 +1,6 @@
 # Nikatru
 
-> Nikatru is an independent app studio based in Chennai, Tamil Nadu, India, building polished, privacy-first applications and games for six platforms — iOS, Android, Windows, macOS, Linux and the web. Established 2021. Government of India registered MSME (Udyam UDYAM-TN-02-0487004). The first app, Subly, is available on the web.
+> Nikatru is an independent app studio based in Chennai, Tamil Nadu, India, building polished, privacy-first applications and games for six platforms — iOS, Android, Windows, macOS, Linux and the web. Established 2021. Government of India registered MSME (Udyam UDYAM-TN-02-0487004). The first app, Nikatru Subscription Tracker, is available on the web.
 
 ## About
 - Studio: Nikatru — independent app studio, Chennai, Tamil Nadu, India
@@ -12,7 +12,7 @@
 - Status: shipping; the catalogue below is the complete list of released apps
 
 ## Apps
-- Subly — Track every subscription in one place — https://subly.nikatru.com (web)
+- Nikatru Subscription Tracker — Track every subscription in one place — https://nikatru.com/subly (web)
 
 ## Key pages
 - Home: https://nikatru.com/
@@ -22,7 +22,7 @@
 - Refund & Cancellation Policy: https://nikatru.com/refund
 - Contact: https://nikatru.com/contact
 - FullShot Privacy Policy: https://nikatru.com/fullshot/privacy — the browser extension; all capture is processed locally and nothing is transmitted
-- Subly — what the app collects: https://nikatru.com/subly/privacy — the per-app notice, itemised from the app's own privacy declaration; the policy a user agrees to is /privacy
+- Nikatru Subscription Tracker — what the app collects: https://nikatru.com/subly/privacy — the per-app notice, itemised from the app's own privacy declaration; the policy a user agrees to is /privacy
 - Developer site: https://rajasekarselvam.com/
 
 ## Contact

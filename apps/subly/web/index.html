@@ -4,7 +4,7 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Subly — a cross-platform subscription tracker by Nikatru.">
+  <meta name="description" content="Nikatru Subscription Tracker — a cross-platform subscription tracker by Nikatru.">
   <!--
     🔴 DO NOT RESHAPE THIS TAG. `assert-stamp-properties.mjs:824` anchors the
     `ui-invariants-inherited` property on the literal
@@ -20,10 +20,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Subly">
+  <meta name="apple-mobile-web-app-title" content="Subscriptions">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png"/>
-  <title>Subly — Subscription Tracker</title>
+  <title>Nikatru Subscription Tracker</title>
   <link rel="manifest" href="manifest.json">
 
   <!--
@@ -171,11 +171,11 @@
   </style>
 </head>
 <body>
-  <div id="boot" role="status" aria-live="polite" aria-label="Loading Subly">
-    <div id="boot-mark">Subly</div>
+  <div id="boot" role="status" aria-live="polite" aria-label="Loading Nikatru Subscription Tracker">
+    <div id="boot-mark">Subscriptions</div>
     <div id="boot-spinner"></div>
     <noscript>
-      <p id="boot-noscript">Subly needs JavaScript to run. Please enable it and reload this page.</p>
+      <p id="boot-noscript">Subscriptions needs JavaScript to run. Please enable it and reload this page.</p>
     </noscript>
   </div>
 
@@ -199,7 +199,7 @@
         boot.setAttribute('data-leaving', '1');
         // Outlives the 180ms CSS transition. `remove()` rather than
         // `display:none` because this is a `role="status"` live region: left in
-        // the tree it keeps announcing "Loading Subly" to a screen reader over
+        // the tree it keeps announcing "Loading Nikatru Subscription Tracker" to a screen reader over
         // an app that has finished loading.
         window.setTimeout(function () {
           if (boot.parentNode) boot.parentNode.removeChild(boot);

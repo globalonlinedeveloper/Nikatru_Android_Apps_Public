@@ -1,11 +1,11 @@
 {
-    "name": "Subly — Subscription Tracker",
-    "short_name": "Subly",
+    "name": "Nikatru Subscription Tracker",
+    "short_name": "Subscriptions",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#101418",
     "theme_color": "#101418",
-    "description": "Subly — a cross-platform subscription tracker by Nikatru.",
+    "description": "Nikatru Subscription Tracker — a cross-platform subscription tracker by Nikatru.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -82,6 +82,52 @@ void run(HookContext context) {
   // source and own. An unsourced cap here would reject legitimate input while
   // looking authoritative.
 
+  // ── icon_label ────────────────────────────────────────────────────────────
+  // The name an OPERATING SYSTEM shows, as against the name a STORE shows. See
+  // brick.yaml's var description for why they are two fields; the four rules
+  // here are the same four tooling/ci/assert-app-naming.mjs holds over
+  // apps/*/app.yaml, so a stamp cannot produce an app the gate then refuses.
+  //
+  // 🔴 THE SHARED-TOKEN RULE IS THE ONE WITH A SOURCE. Apple QA1892 ("the name
+  // displayed on the device should be similar to the name in the App Store")
+  // makes an icon label with nothing in common with the listing a review risk,
+  // not a style choice. "At least one whole token in common" is the weakest
+  // mechanical reading of "similar" that still refuses the real failure — a
+  // label naming a different product entirely. A common STEM of four characters
+  // or more counts as shared, so a plural does not fail it — see _sharesToken.
+  //
+  // ⚠️ THE CAP IS 15, NOT 30. The store cap is a store's; this one is a home
+  // screen's, where iOS truncates around 12-13 glyphs and Android around 11-14.
+  // A label longer than that is one no user ever reads in full, so accepting it
+  // would be accepting a value that cannot do its job.
+  final String iconLabel = v('icon_label');
+  if (iconLabel.isEmpty) {
+    problems.add(
+      'icon_label must not be empty — it is what a home screen, a launcher and '
+      'a task switcher print under the app\'s mark, and it is written into the '
+      'stamped app.yaml as `shortName:`.',
+    );
+  } else if (iconLabel.length > 15) {
+    problems.add(
+      'icon_label must be <= 15 characters — got "$iconLabel" '
+      '(${iconLabel.length}). iOS truncates a home-screen label at about 12-13 '
+      'glyphs and Android at about 11-14, so a longer one is a label no user '
+      'ever reads in full. The STORE title has its own, larger cap and is the '
+      '`display_name` var.',
+    );
+  } else if (iconLabel.contains('\n')) {
+    problems.add('icon_label must be a single line.');
+  } else if (displayName.isNotEmpty &&
+      !_sharesToken(iconLabel, displayName)) {
+    problems.add(
+      'icon_label "$iconLabel" shares no word with display_name '
+      '"$displayName". Apple QA1892 asks that the name shown on the device and '
+      'the name shown in the App Store be similar; a label naming a different '
+      'product is a review risk rather than a style choice. Pick a word the '
+      'listing already uses.',
+    );
+  }
+
   // ── subdomain ─────────────────────────────────────────────────────────────
   // [pipeline S-8] Empty means DERIVE. A value disagreeing with the convention
   // is refused rather than honoured: `lingo` hosted at `phrasebook.nikatru.com`
@@ -429,6 +475,11 @@ void run(HookContext context) {
   // own `_shortName` and the templates had no access to it at all, which is how
   // a listing title could only ever have been hand-typed.
   vars['short_name'] = shortName;
+  // The ICON label, not the store title — see the icon_label rules above. The
+  // JSON-escaped twin exists for the same reason `display_name_json` does: it
+  // lands inside a PWA manifest string body, where a raw `"` ends the value.
+  vars['icon_label'] = iconLabel;
+  vars['icon_label_json'] = _jsonBody(iconLabel);
   vars['display_name_dart'] = _dartSingleQuoted(displayName);
   vars['display_name_json'] = _jsonBody(displayName);
   vars['description_json'] = _jsonBody(description);
@@ -583,6 +634,32 @@ String _dartSingleQuoted(String s) => s
 /// the result — the catalogue row post_gen appends AND the `title.txt` the
 /// templates stamp — and a guard compares them to each other. Two spellings of
 /// one split is how they would come to disagree.
+/// The words of a name, lowercased. An intra-word hyphen or apostrophe is part
+/// of the word ("E-Book", "Traveler's"); everything else separates.
+List<String> _tokens(String s) => s
+    .toLowerCase()
+    .split(RegExp(r"[^a-z0-9'\-]+"))
+    .map((String t) => t.replaceAll(RegExp(r"^['\-]+|['\-]+$"), ''))
+    .where((String t) => t.isNotEmpty)
+    .toList();
+
+/// Do two names share a word? A COMMON STEM OF AT LEAST FOUR CHARACTERS counts,
+/// which is what makes "Subscriptions" similar to "Subscription Tracker" — an
+/// exact-equality rule would refuse a plural, and a rule that refuses the
+/// obviously-similar case is one people route around rather than obey. Four is
+/// the floor at which a shared prefix stops being an accident of the alphabet:
+/// "Sub" would marry "Subway" to "Submarine", "Subs" does not reach "Submarine".
+bool _sharesToken(String a, String b) {
+  for (final String x in _tokens(a)) {
+    for (final String y in _tokens(b)) {
+      final String shorter = x.length <= y.length ? x : y;
+      final String longer = x.length <= y.length ? y : x;
+      if (shorter.length >= 4 && longer.startsWith(shorter)) return true;
+    }
+  }
+  return false;
+}
+
 String _shortName(String displayName) {
   final trimmed = displayName.trim();
   final separator = RegExp(r'\s+[—–-]\s+').firstMatch(trimmed);

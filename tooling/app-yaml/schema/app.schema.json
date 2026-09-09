@@ -20,6 +20,12 @@
       "minLength": 1,
       "maxLength": 30
     },
+    "shortName": {
+      "description": "The ICON LABEL — what a home screen, a task switcher and a launcher show under the app's mark. It is NOT the store title: `name` is rendered into every store/<channel>/title.txt and into the catalogue, while this string is rendered into CFBundleDisplayName (iOS + macOS), android:label, the .desktop `Name=`, msix_config.display_name (which becomes uap:VisualElements/@DisplayName) and the PWA manifest `short_name` — the six places an operating system, rather than a store, has room for. OPTIONAL in this schema so an existing declaration still parses; tooling/ci/assert-app-naming.mjs is what REQUIRES it, caps it at 15 characters, requires it to share a whole token with `name`, and requires it to be unique across apps/*. Apple QA1892 asks that the device name and the store name be similar, which is why the shared token is a rule and not a preference. 15 rather than 30: iOS truncates a home-screen label around 12-13 glyphs and Android around 11-14, so anything longer is a label no user ever reads in full.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 15
+    },
     "tagline": {
       "description": "The one-line description. Rendered into every store/<channel>/short-description.txt and into the catalogue `tagline`. Play caps a short description at 80 characters.",
       "type": "string",
@@ -44,8 +50,13 @@
       "required": ["web"],
       "properties": {
         "web": {
-          "description": "The app's web host, e.g. subly.nikatru.com. Becomes the catalogue `url` and `listings.web`, which assert-catalog-contract.mjs asserts are byte-equal.",
+          "description": "The app's OWN ORIGIN host, e.g. subly.nikatru.com. This is NOT the address the app is published at. Since [ADR 075] the published address is a PATH on the apex (https://nikatru.com/<id>), because a subdomain costs a payment-provider submission per app and a path costs nothing on either provider; this host survives as the origin the apex router proxies to, and as the source of the permanent 301. It is still covered by [ADR 006]'s proxied wildcard, so it still needs no DNS record.",
           "type": "string",
+          "format": "hostname"
+        },
+        "pagesOrigin": {
+          "description": "The Cloudflare Pages PRODUCTION ALIAS of the app's own Direct Upload project, e.g. subly-9cp.pages.dev -- the host the apex router actually fetches. OPTIONAL; absent means `web`. It is declared rather than derived because it is NOT DERIVABLE: Cloudflare appended a suffix when the project name was taken, so guessing <id>.pages.dev is wrong for exactly the app this repository has. It is PREFERRED over `web` because *.pages.dev is OUTSIDE the nikatru.com zone, so the zone Redirect Rule that 301s the retired subdomain cannot match the router's own proxy subrequest -- a loop there takes the whole apex dark, marketing and the frozen legal archive with it. assert-app-address-shape.mjs checks the declaration against the deployed project.",
+          "type": ["string", "null"],
           "format": "hostname"
         },
         "api": {

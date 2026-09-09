@@ -124,6 +124,7 @@
 // Exit 0 = every deployed bundle declares a policy a deploy can be seen through.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
@@ -602,6 +603,98 @@ if (kinds['static-site'] > 0 && classProbes === 0) {
 // ⚠️ WHAT THIS CANNOT SEE, stated so nobody reads green as safe: the header the
 // edge actually returns. Same blindness the cache limbs declare above — CI holds
 // no Cloudflare credential. A declaration in source is not a served header.
+
+// ── THE INLINE-SCRIPT HASH IN A FLUTTER BUNDLE'S CSP IS RECOMPUTED, NEVER TRUSTED
+//
+// 🔴 WHY THIS LIMB EXISTS. Since [ADR 075] the app is served from the same origin
+// as the marketing site, the pricing page and the frozen consent archive, so
+// `apps/<id>/web/_headers` acquired a real Content-Security-Policy — and its
+// `script-src` carries a `'sha256-…'` for the one inline <script> in
+// `web/index.html`, the boot loader. A hash is the right mechanism and it has one
+// failure mode: EDIT THE SCRIPT, FORGET THE HEADER, and the loader silently stops
+// executing. It does not error and it does not 404. It leaves a full-viewport
+// overlay with a near-maximal z-index sitting over a working app, which is the
+// exact regression that element's own comment calls "the difference between this
+// being an improvement and a regression".
+//
+// So the hash is RECOMPUTED here from the bundle's own index.html and required to
+// be present in the declared policy. The two are then incapable of drifting
+// without this run saying so.
+//
+// ⚠️ HASHING THE REPOSITORY'S BYTES IS CORRECT, and that is measured rather than
+// assumed: `flutter build web` substitutes only `$FLUTTER_BASE_HREF` in the <base>
+// tag, which is outside every <script> element. Confirmed 2026-09-09 — the value
+// computed from `apps/subly/web/index.html` was byte-identical to the hash a
+// browser reported for the DEPLOYED page.
+//
+// ⚠️ AN INLINE EVENT HANDLER CANNOT BE HASHED AT ALL. `onclick=` and
+// `href="javascript:"` need `'unsafe-hashes'`, which re-opens what the hash list
+// closes, so their presence is a finding rather than something the header quietly
+// accommodates.
+let cspBundlesChecked = 0;
+let cspHashesChecked = 0;
+const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+const INLINE_HANDLER = /(\son[a-z]+\s*=\s*["'])|(["']javascript:)/i;
+for (const b of bundles.filter((x) => x.kind === 'flutter-web')) {
+  const headersAbs = join(ROOT, ...b.dir.split('/'), '_headers');
+  const indexAbs = join(ROOT, ...b.dir.split('/'), 'index.html');
+  if (!existsSync(headersAbs) || !existsSync(indexAbs)) continue;
+  const headersSrc = readFileSync(headersAbs, 'utf8');
+  // Comment lines are stripped first: this file is mostly prose, and the prose
+  // quotes the very directive being looked for.
+  const declared = headersSrc
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('#'))
+    .join('\n');
+  const cspMatch = declared.match(/Content-Security-Policy:\s*(.+)/i);
+  const html = readFileSync(indexAbs, 'utf8');
+  const bodies = [...html.matchAll(INLINE_SCRIPT)].map((m) => m[1]).filter((x) => x.trim() !== '');
+  if (!cspMatch) {
+    if (bodies.length > 0) {
+      problems.push(
+        `${b.dir}/_headers declares no Content-Security-Policy while ${b.dir}/index.html carries ` +
+          `${bodies.length} inline <script> block(s). On the shared apex origin ([ADR 075]) an app with no ` +
+          `policy inherits nothing — the router's fallback is deliberately strict and will block them.`,
+      );
+    }
+    continue;
+  }
+  cspBundlesChecked++;
+  const csp = cspMatch[1];
+  if (/script-src[^;]*'unsafe-inline'/i.test(csp)) {
+    problems.push(
+      `${b.dir}/_headers declares script-src 'unsafe-inline'. On one shared origin that lets an injected ` +
+        `script on ANY path of the apex execute, including the pages that have never had a script of their ` +
+        `own, and it reaches every app's session token in shared web storage. Use a 'sha256-…' per block.`,
+    );
+  }
+  if (INLINE_HANDLER.test(html)) {
+    problems.push(
+      `${b.dir}/index.html carries an inline event handler or a javascript: URL. Neither can be covered by a ` +
+        `CSP hash — they need 'unsafe-hashes', which reopens exactly what the hash list closes.`,
+    );
+  }
+  for (const body of bodies) {
+    const want = `'sha256-${createHash('sha256').update(body, 'utf8').digest('base64')}'`;
+    cspHashesChecked++;
+    if (!csp.includes(want)) {
+      problems.push(
+        `${b.dir}/_headers script-src does not carry ${want}, the hash of an inline <script> in ` +
+          `${b.dir}/index.html. That block will be BLOCKED at runtime — silently: no error page, no 404, ` +
+          `just a script that never runs. Recompute the hash into the header in the same commit as the edit.`,
+      );
+    }
+  }
+}
+if (cspBundlesChecked > 0 && cspHashesChecked === 0) {
+  console.error(
+    'assert-web-cache-policy: COVERAGE LOST — a flutter-web bundle declares a CSP but this run hashed ZERO\n' +
+      '    inline scripts. Either the inline-script matcher has stopped matching or index.html moved; both\n' +
+      '    leave this limb printing ok about a policy it did not check.',
+  );
+  process.exit(2);
+}
+
 const FUNCTION_SECURITY_HEADERS = [
   'x-content-type-options',
   'x-frame-options',

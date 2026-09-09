@@ -22,5 +22,33 @@
 # that path (tooling/sites/generate-discovery.mjs) and three limbs of
 # assert-discovery-surface.mjs model `apps/<slug>.html`; relocating it to
 # subly/index.html is the Phase 2 generator rework, not a redirect edit.
-/subly /apps/subly 301
-/subly/ /apps/subly 301
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔴 RETIRED 2026-09-09 — THE TWO `/subly …` LINES ARE GONE, AND THIS FILE IS
+# NOW EMPTY OF RULES. The whole record above is kept rather than deleted,
+# because it is the record of a decision this one COMPLETES.
+#
+# The comment above is right about the destination and was right about the
+# mechanism for the surface that existed when it was written: `nikatru.com/<app>`
+# is the permanent public address, and Paddle approval is a one-time act on the
+# apex. What it could not know is which surface would end up AT that path. It
+# routed `/subly` to the MARKETING page because in August the app lived at
+# `subly.nikatru.com` and the path had nothing else to serve.
+#
+# [ADR 075] moves the APP there. So these two lines stopped being a convenience
+# and became a COLLISION: a 301 sitting on the exact prefix the apex router
+# (`functions/_middleware.js`) now claims, on a project where `_redirects` is
+# evaluated BEFORE Functions. Left in place they would have 301-ed every request
+# for the running application to a marketing page — and the failure would have
+# looked like "the app does not load", not like "a redirect rule won".
+#
+# `/apps/<id>` is UNCHANGED and stays the product page: it is where
+# `tooling/sites/generate-discovery.mjs` writes it, where the sitemap, the hub,
+# `llms.txt` and every store-facing link already point, and where
+# `assert-discovery-surface.mjs` models it. Nothing that pointed at `/apps/subly`
+# moves. What moves is `/subly`, from a redirect to the application itself.
+#
+# ⚠️ NOTHING REPLACES THESE LINES, and nothing should. `_redirects` cannot proxy
+# — Cloudflare Pages supports 3xx and SAME-PROJECT 200 rewrites only, with no
+# proxy-to-another-origin form — which is exactly why the router is a Pages
+# Function and not two more lines here. Adding a per-app line to this file for a
+# new app would put a redirect in front of the router again.

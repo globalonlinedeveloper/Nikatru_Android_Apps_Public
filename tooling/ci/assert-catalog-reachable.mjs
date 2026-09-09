@@ -115,6 +115,7 @@
 //
 // Usage:  node tooling/ci/assert-catalog-reachable.mjs [repoRoot]
 //         node tooling/ci/assert-catalog-reachable.mjs --emit-url <slug> [repoRoot]
+//         node tooling/ci/assert-catalog-reachable.mjs --emit-base-href <slug> [repoRoot]
 // Exit 0 = every advertised app answered, the wildcard answered and the hub
 // returned 200. 1 = one of those did not (or the scan broke).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,14 +124,18 @@ import { join, resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { CANONICAL_HUB_URL } from '../sites/generate-discovery.mjs';
+import { appBaseHref } from '../sites/apex.mjs';
 
 // `indexOf` returns -1 when the flag is absent, and -1 + 1 === 0 silently
 // selects argv[0] — the off-by-one that shipped in assert-gate-passed.mjs and
 // blocked both production deploys. Filtered explicitly, never by arithmetic.
 const argv = process.argv.slice(2);
 const emitAt = argv.indexOf('--emit-url');
+const baseAt = argv.indexOf('--emit-base-href');
 const EMIT_SLUG = emitAt === -1 ? null : (argv[emitAt + 1] ?? null);
-const positional = emitAt === -1 ? argv : argv.filter((_, i) => i !== emitAt && i !== emitAt + 1);
+const EMIT_BASE_SLUG = baseAt === -1 ? null : (argv[baseAt + 1] ?? null);
+const dropped = new Set([emitAt, emitAt + 1, baseAt, baseAt + 1].filter((i) => i >= 0));
+const positional = emitAt === -1 && baseAt === -1 ? argv : argv.filter((_, i) => !dropped.has(i));
 
 const ROOT = resolve(positional[0] ?? process.cwd());
 const CATALOG = join(ROOT, 'catalog', 'apps.json');
@@ -348,6 +353,59 @@ if (isMain) {
       ]);
     }
     console.log(`site_url=${url}`);
+    process.exit(0);
+  }
+
+  // ── `--emit-base-href <slug>` — WHAT THE FLUTTER BUILD IS COMPILED WITH ────
+  // 🔴 SAME RELATIONSHIP, SAME REASON, AND A SHARPER FAILURE. Since [ADR 075] an
+  // app is served under a PATH (`nikatru.com/<id>`), so `flutter build web` must
+  // be given `--base-href /<id>/` or every asset URL in the document resolves
+  // against `/` — `main.dart.js`, `flutter_bootstrap.js`, the CanvasKit blobs,
+  // all of them one directory too high.
+  //
+  // ⚠️ AND THAT FAILURE IS SILENT. A wrong base href does not 500 and does not
+  // fail the build: `index.html` returns 200, the assets 404, and the visitor
+  // gets a WHITE PAGE. The existing post-deploy smoke would not catch it either,
+  // because `version.json` is a static file that answers whatever the base href
+  // says. So the value is emitted from the same catalogue row the deploy target
+  // comes from — one parse, one answer, no way for the target and the base href
+  // to disagree — and `appBaseHref` is imported rather than composed here, so the
+  // leading and trailing slashes are written down exactly once.
+  if (baseAt !== -1) {
+    if (!EMIT_BASE_SLUG || EMIT_BASE_SLUG.startsWith('-')) {
+      fail([
+        '✗ --emit-base-href needs an app slug: `--emit-base-href <slug>`.',
+        `  Got ${EMIT_BASE_SLUG === null ? 'nothing' : JSON.stringify(EMIT_BASE_SLUG)}. An unresolved slug would emit an`,
+        '  empty base href and the build would silently compile for the origin root.',
+      ]);
+    }
+    const row = entries.find((e) => e && e.slug === EMIT_BASE_SLUG);
+    if (!row) {
+      fail([
+        `✗ the catalogue holds no row with slug "${EMIT_BASE_SLUG}", so there is no address to derive a base href from.`,
+        `  It holds: ${entries.map((e) => e?.slug ?? '<no slug>').join(', ')}.`,
+      ]);
+    }
+    // Derived from the PUBLISHED url, not from the slug alone: the base href and
+    // the address are the same fact, and deriving them separately is how they
+    // drift. The pathname is asserted to be exactly `/<slug>` first, because a
+    // row whose url is an origin root would otherwise emit `/` and compile an app
+    // that only works if it is never moved.
+    let pathname;
+    try {
+      pathname = new URL(row.url).pathname.replace(/\/+$/, '');
+    } catch {
+      pathname = '';
+    }
+    if (pathname !== `/${EMIT_BASE_SLUG}`) {
+      fail([
+        `✗ the catalogue row for "${EMIT_BASE_SLUG}" has url ${JSON.stringify(row.url ?? null)}, whose path is`,
+        `  ${JSON.stringify(pathname)} and not ${JSON.stringify(`/${EMIT_BASE_SLUG}`)}.`,
+        '  [ADR 075] publishes every app at a path on the apex. An app whose url is an origin root would emit a',
+        '  base href of "/" here, and the build would be compiled for an address it is not served at.',
+      ]);
+    }
+    console.log(`base_href=${appBaseHref(EMIT_BASE_SLUG)}`);
     process.exit(0);
   }
 

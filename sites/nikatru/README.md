@@ -18,27 +18,44 @@ The `/api/subscribe` Function uses the KV binding `SIGNUPS → nikatru-signups`.
 > rajasekarselvam.com is a **separate** site in the same monorepo at `sites/rajasekarselvam/`
 > (Cloudflare Pages project `rajasekarselvam`).
 
-## 🔴 TWO ADDRESSES, ONE PRODUCT — the rule, written down once
+## 🔴 ONE ADDRESS PER APP — `nikatru.com/<id>` — and what it replaced
 
-`nikatru.com/subly` and `subly.nikatru.com` are **both permanent and they are not the same thing.**
-Neither redirects to the other. This was decided but never recorded, which is how it keeps being
-re-litigated.
+**An app's public address is a PATH on the apex.** `https://nikatru.com/<id>` is the application
+itself; `<id>.nikatru.com` is an internal origin and a permanent 301 to it. Locked by the owner on
+2026-09-09, recorded as **ADR 075**.
 
-| address | what it is | measured 2026-08-21 |
+| address | what it is | measured 2026-09-09 |
 |---|---|---|
-| **`nikatru.com/subly`** | marketing, pricing, commerce, legal. The address given to stores, ads and humans. | `301 → /apps/subly`, serving the product page |
-| **`subly.nikatru.com`** | the running web application — where the product actually executes | `200` |
-| `nikatru.com/subly/web` | describes the web build and links OUT to the subdomain | not built yet |
+| **`nikatru.com/<id>/`** | the running web application, proxied from the app's own Pages project by `functions/_middleware.js` | `200`, serving the app |
+| `nikatru.com/<id>` | the same, one hop | `301 → /<id>/` (the build is compiled with `--base-href /<id>/`) |
+| **`nikatru.com/apps/<id>`** | the product/marketing page — UNCHANGED, still where the generator writes it and where the sitemap, the hub and every store-facing link point | `200` |
+| `<id>.nikatru.com` | the app's own Cloudflare Pages origin; not an address given to humans | `301 → nikatru.com/<id>/…` |
 
-**Why the apex holds the commerce half.** Paddle attaches domain approval to the domain:
-*"You should submit each domain and subdomain you plan to launch a checkout from, but only one
-approved domain is required to move forward with verification"*
-(paddle.com/help/start/account-verification/what-is-domain-verification, fetched 2026-08-20).
-Keeping checkout on the apex keeps it to one submission.
+**Why.** Paddle attaches approval to the DOMAIN — *"you will only be allowed to sell through the
+domain(s) that have been approved"* — and of a subdomain, *"you will need to have that subdomain
+approved separately"*
+(paddle.com/help/start/account-verification/what-is-domain-verification). Its checkout overlay
+enforces **at init, against the page origin**, so on a subdomain in-app checkout could not open at
+all. Razorpay needs a support ticket per sub-domain against a ceiling of one main site plus five.
+Neither conditions anything on a path. One apex approval, held once, covers app #51.
 
-⚠️ **NOT ESTABLISHED: whether that approval extends to `subly.nikatru.com`. Assume it does not —
-keep checkout off the subdomain** until it is verified, because the failure mode is a live checkout
-on an unapproved domain.
+### 🔄 SUPERSEDED — the rule this section used to state, kept because the reversal is the useful part
+
+Until 2026-09-09 this file said, under the heading *"TWO ADDRESSES, ONE PRODUCT"*, that
+`nikatru.com/subly` and `subly.nikatru.com` were **"both permanent and they are not the same
+thing"**, that **"neither redirects to the other"**, and that the path served marketing while the
+subdomain served the application. It also recorded, correctly for what was known then, that whether
+Paddle's approval extended to the subdomain was **NOT ESTABLISHED**.
+
+Two of those three are now false and the third is answered. The unknown was closed by reading the
+vendor's own documentation (above): the approval does **not** extend, and it never would have. So
+the "two permanent addresses" rule was resting on an open question, and once the question was
+answered the second address stopped being defensible — a subdomain per app is a payment-provider
+submission per app, forever, in exchange for isolation the portfolio had already traded away by
+running one shared identity project.
+
+What survives unchanged: **`/apps/<id>` is still the marketing page.** Nothing that pointed there
+moves. What moved is `/<id>`, from a redirect into the application.
 
 ## The one contact record
 

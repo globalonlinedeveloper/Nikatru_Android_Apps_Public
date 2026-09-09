@@ -402,29 +402,33 @@ describe('check-migrations', () => {
 // misunderstanding as the guard I write): 8 mutations, each failing with its
 // intended message and each restoring to green.
 describe('assert-cors-allowlist', () => {
-  const PLATFORM = [
-    'https://subly.nikatru.com',
-    'https://subly-9cp.pages.dev',
-    'http://localhost:3000',
-  ];
+  // ⏱ MOVED TO THE APEX 2026-09-09 [ADR 075]. The DERIVED origin is now
+  // `https://nikatru.com` for every app, because every app is published at a path
+  // on it. `https://subly.nikatru.com` did not leave these lists: it stopped being
+  // catalogue-derived and became a declared EXTRA, held for the length of the
+  // cutover, and the guard requires every EXTRA to be present — so a fixture that
+  // drops it is not a simpler fixture, it is a config the guard must red.
+  const APEX = 'https://nikatru.com';
+  const RETIRING = 'https://subly.nikatru.com';
+  const PLATFORM = [APEX, RETIRING, 'https://subly-9cp.pages.dev', 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = ['https://subly.nikatru.com', 'https://subly-9cp.pages.dev'];
+  const SUBLY = [APEX, RETIRING, 'https://subly-9cp.pages.dev'];
 
-  const config = (origins) =>
-    `{\n  // a Worker\n  "vars": { "ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
+  const config = (origins, { appId = null } = {}) =>
+    `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
 
   /** The app catalogue every required origin is DERIVED from ([4]B-2, [3]S-11).
    *  Without it the guard reports COVERAGE LOST rather than checking anything,
    *  so every fixture below is a tree that has one. */
   const CATALOGUE = JSON.stringify(
-    [{ slug: 'subly', name: 'Subly', url: 'https://subly.nikatru.com', status: 'live' }],
+    [{ slug: 'subly', name: 'Subly', url: 'https://nikatru.com/subly', status: 'live' }],
     null,
     2,
   );
 
   /** Both Workers, each overridable. Anything less is not a valid tree — the
    *  guard is supposed to insist that every service it knows about is present. */
-  const build = (name, { platform = config(PLATFORM), subly = config(SUBLY), extra = {} } = {}) =>
+  const build = (name, { platform = config(PLATFORM), subly = config(SUBLY, { appId: 'subly' }), extra = {} } = {}) =>
     fixture(name, {
       'catalog/apps.json': CATALOGUE,
       'services/platform/wrangler.jsonc': platform,

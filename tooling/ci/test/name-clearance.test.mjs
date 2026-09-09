@@ -146,15 +146,34 @@ describe('the probe — the downgrades that make an answer honest', () => {
   });
 });
 
+// 🔴 THE SELF-EXCLUSION PAIR READS THE DECLARED NAME OFF THE TREE, and does not
+// spell it. Both cases below are ABOUT the name `catalog/apps.json` currently
+// carries for `subly` — C1 that re-clearing it is not a self-collision, C2 that a
+// DIFFERENT app proposing that same name still collides. A literal here is a copy
+// of a value the tree owns, and on 2026-09-09 that copy went stale in the worst
+// available way: this file arrived on main written against `Subly`, the rename
+// branch never touched it because it did not exist there, and the merge was
+// TEXTUALLY CLEAN while C2 silently inverted — `Subly` stopped being anybody's
+// declared name, so the "different app" no longer collided with anything and the
+// case that must bite went green for the wrong reason. Derived, it cannot happen
+// again: rename the app and this pair follows it.
+const DECLARED_NAME = (() => {
+  const rows = JSON.parse(readFileSync(join(REPO, 'catalog', 'apps.json'), 'utf8'));
+  const list = Array.isArray(rows) ? rows : rows.apps;
+  const row = list.find((a) => a.slug === 'subly');
+  assert.ok(row?.name, 'catalog/apps.json must carry a name for slug "subly" — without it this pair tests nothing');
+  return row.name;
+})();
+
 describe('the probe — self is not a collision', () => {
   test('C1 an app re-clearing ITS OWN declared name is PROVEN-FREE on web, and says so', async () => {
-    const r = await clear({ root: REPO, name: 'Subly', app: 'subly', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: DECLARED_NAME, app: 'subly', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels.web.verdict, PROVEN_FREE);
     assert.ok(r.channels.web.evidence.some((e) => /SELF, NOT A COLLISION/.test(e)), 'the exclusion must be visible in the output, not silent');
   });
 
   test('C2 a DIFFERENT app proposing the same name still collides — the exclusion is not a blanket', async () => {
-    const r = await clear({ root: REPO, name: 'Subly', app: 'someotherapp', http: stub(NOTHING_ANYWHERE) });
+    const r = await clear({ root: REPO, name: DECLARED_NAME, app: 'someotherapp', http: stub(NOTHING_ANYWHERE) });
     assert.equal(r.channels.web.verdict, PROVEN_TAKEN);
     assert.equal(rollUp(r).overall, 'BLOCKED');
   });

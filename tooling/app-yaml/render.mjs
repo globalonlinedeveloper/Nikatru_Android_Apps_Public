@@ -10,6 +10,19 @@
 //                                        ├▶ …/privacy-policy-url.txt
 //                                        └▶ …/support-url.txt
 //
+// and, when the declaration carries a `shortName`, the FIVE OS-level icon-label
+// fields this script owns — CFBundleDisplayName (iOS + macOS), android:label,
+// msix_config.display_name and the PWA manifest `short_name`. Those are SURGICAL
+// renderings into files this script does not otherwise own; see
+// ICON_LABEL_TARGETS below for the anchor rule that makes that safe.
+//
+// ⛔ THE SIXTH OS-LEVEL LABEL — the .desktop `Name=` — IS NOT WRITTEN HERE, and
+// that is not an omission. `tooling/store/render-linux-icons.mjs` derives that
+// whole file, all nine lines of it, and assert-launcher-icons.mjs limb 7
+// re-derives and compares it. It reads the same `shortName`. Patching one line
+// of a file another generator owns entirely would be two owners of one fact —
+// which is the thing every generator in this repository exists to prevent.
+//
 // ── WHAT THIS FIXES, IN THE GUARD'S OWN WORDS ────────────────────────────────
 // `assert-store-metadata.mjs` opens with "[pipeline D-5] Store listing metadata
 // is GENERATED from the spec and lives in the repo", and its own header then
@@ -68,6 +81,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseYaml, YamlError } from './yaml.mjs';
 import { validate } from './schema-validate.mjs';
+import { publicAppUrl } from '../sites/apex.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -80,11 +94,102 @@ export const APP_SCHEMA_PATH = join(HERE, 'schema', 'app.schema.json');
  *  sworn or editorial — see the header. */
 export const RENDERED_LISTING_FILES = ['title.txt', 'short-description.txt', 'category.txt', 'privacy-policy-url.txt', 'support-url.txt'];
 
+/* ------------------------------------------------------------------ */
+/* The icon label — `shortName`                                       */
+//
+// ── WHY A SECOND NAME AT ALL ─────────────────────────────────────────────────
+// A store title and a home-screen label are two different fields with two
+// different readers. The store title is read once, in a search result, with a
+// whole row to itself; the icon label is read every day, under a 60-pixel mark,
+// and every OS truncates it — iOS around 12-13 glyphs, Android around 11-14. A
+// portfolio brand that is correct in the store ("Nikatru Subscription Tracker")
+// is an ellipsis on a phone, and shipping the SAME string to both is how a
+// launcher ends up showing four apps all reading "Nikatru Subs…".
+//
+// 🔴 IT IS RENDERED, NOT AUTHORED, AND THAT IS THE ENTIRE POINT. These fields
+// sit in five different file formats across five platform directories.
+// Hand-maintained, they are six chances for one of them to keep the old brand
+// through a rename — which is precisely the class of defect a rename produces,
+// because five of the six are files nobody opens between `flutter create` and a
+// store submission. `--check` is what makes a hand edit to any of them fail.
+//
+// ⚠️ SURGICAL, NOT WHOLESALE. Every other rendering in this file is a file whose
+// ENTIRE content this script owns. These six are not: an Info.plist, an
+// AndroidManifest and a pubspec are mostly things this script knows nothing
+// about. So each target names an ANCHOR — a regex with the value between two
+// captured groups — and the rendering is the current file with that one span
+// replaced. A target whose anchor is not found is COVERAGE LOST, never a skip:
+// it means the renderer believes it owns a field that has moved, and a silent
+// skip there is exactly how the old brand would survive.
+//
+// Each value is escaped for ITS OWN language. The same lesson
+// `tooling/bricks/app/hooks/pre_gen.dart` records for mason: one string, five
+// destinations, and a raw `&` that is ordinary text in JSON is a malformed
+// document in an Info.plist and a scalar-quoting decision in YAML.
+
+/** JSON string BODY (no surrounding quotes) — the anchor supplies them. */
+const jsonBody = (s) => JSON.stringify(s).slice(1, -1);
+/** XML text and double-quoted attribute values. `'` needs no escape in either. */
+const xmlText = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** A YAML scalar. Plain when the value cannot be mistaken for anything else,
+ *  double-quoted otherwise — JSON's escapes are a strict subset of YAML's. */
+const yamlScalar = (s) => (/^[A-Za-z0-9][A-Za-z0-9 ._-]*[A-Za-z0-9.]$/.test(s) ? s : JSON.stringify(s));
+
+/**
+ * The six OS-level label fields, in the order a person would check them.
+ *
+ * `in` names the file, relative to `apps/<id>/`; a `dir`+`ext` pair instead
+ * means every matching file in that directory (the .desktop entry is named
+ * after the application id, which this script does not own).
+ * `re` MUST capture exactly two groups — everything before the value and
+ * everything after it — so the replacement can never widen its own span.
+ */
+export const ICON_LABEL_TARGETS = [
+  {
+    field: 'PWA short_name',
+    in: 'web/manifest.json',
+    re: /("short_name"\s*:\s*")(?:[^"\\]|\\.)*(")/,
+    encode: jsonBody,
+  },
+  {
+    field: 'android:label',
+    in: 'android/app/src/main/AndroidManifest.xml',
+    re: /(android:label=")[^"]*(")/,
+    encode: xmlText,
+  },
+  {
+    field: 'CFBundleDisplayName (iOS)',
+    in: 'ios/Runner/Info.plist',
+    re: /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
+    encode: xmlText,
+  },
+  {
+    field: 'CFBundleDisplayName (macOS)',
+    in: 'macos/Runner/Info.plist',
+    re: /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
+    encode: xmlText,
+  },
+  {
+    // `msix` writes this into the generated AppxManifest as
+    // uap:VisualElements/@DisplayName — the Start-menu tile's label.
+    field: 'msix_config.display_name (uap:VisualElements/@DisplayName)',
+    in: 'pubspec.yaml',
+    // Every app has a pubspec; only an app packaged for the Microsoft Store has
+    // an `msix_config:` block in it. `applies` is the difference between "this
+    // platform is not configured" (skip) and "the field this renderer owns has
+    // moved" (COVERAGE LOST) — without it a freshly stamped app, whose pubspec
+    // carries no msix_config at all, would fail the renderer on its first run.
+    applies: /^msix_config:/m,
+    re: /(^msix_config:[\s\S]*?^ {2}display_name: )[^\r\n]*(\r?)$/m,
+    encode: yamlScalar,
+  },
+];
+
 /** The catalogue row's key order. Locked, because the row is the published record
  *  and the bytes are compared by two positive controls: a row whose keys arrive
  *  in whatever order the reader happened to produce is a file that reformats
  *  itself the first time a different tool writes it. */
-const ROW_ORDER = ['slug', 'name', 'tagline', 'url', 'api', 'listings', 'platforms', 'markets', 'audience', 'status'];
+const ROW_ORDER = ['slug', 'name', 'tagline', 'url', 'origin', 'api', 'listings', 'platforms', 'markets', 'audience', 'status'];
 
 /* ------------------------------------------------------------------ */
 /* Serialisation — the catalogue's hand-written house style           */
@@ -213,7 +318,30 @@ export function plan(root) {
 
   // ── the catalogue ─────────────────────────────────────────────────────────
   const rows = declarations.map(({ doc }) => {
-    const url = `https://${doc.hosts.web}`;
+    /* 🔴 THE PUBLIC ADDRESS IS A PATH ON THE APEX, NOT A SUBDOMAIN [ADR 075].
+     *
+     * It was `https://${doc.hosts.web}` until 2026-09-09. The owner's decision
+     * and its measured premise: Paddle approves a DOMAIN and says of a
+     * subdomain "you will need to have that subdomain approved separately",
+     * and its overlay enforces at init AGAINST THE PAGE ORIGIN — so on
+     * `<id>.nikatru.com` in-app checkout could not open at all. Razorpay needs
+     * a support ticket per sub-domain against a ceiling of one main site plus
+     * five. Neither conditions anything on a PATH. So one apex approval, held
+     * once, covers app #51.
+     *
+     * `publicAppUrl` is imported, never retyped — the apex is declared exactly
+     * once (tooling/sites/apex.mjs) and `doc.id` is interpolated, never a
+     * literal, because the app has already been renamed once and a rename must
+     * move both sides of every comparison in the same run. */
+    const url = publicAppUrl(doc.id);
+
+    /* WHERE THE BYTES COME FROM, as distinct from where they are addressed.
+     * The apex router (sites/nikatru/functions/_middleware.js) reads this to
+     * know what to fetch. Prefer `pagesOrigin` — it is outside the nikatru.com
+     * zone, so the Redirect Rule retiring the subdomain cannot catch the
+     * router's own subrequest. Falling back to `hosts.web` keeps a
+     * freshly-stamped app routable before its Pages project has been named. */
+    const origin = `https://${doc.hosts.pagesOrigin || doc.hosts.web}`;
     const declared = doc.listings ?? {};
     const listings = {};
     for (const c of storefronts) {
@@ -224,6 +352,7 @@ export function plan(root) {
       name: doc.name,
       tagline: doc.tagline,
       url,
+      origin,
       api: doc.hosts.api ? `https://${doc.hosts.api}` : '',
       listings,
       platforms: doc.platforms,
@@ -268,6 +397,60 @@ export function plan(root) {
         'alone is not what [10]D-5 is about.',
     );
   }
+
+  // ── the icon label ────────────────────────────────────────────────────────
+  // Only for a declaration that HAS a `shortName`; the field is optional in the
+  // schema so an older declaration still parses. A target file that is not on
+  // disk is a platform this app was never stamped for and is skipped silently —
+  // a target file that IS on disk and no longer carries its anchor is COVERAGE
+  // LOST, because that is the renderer having lost a field it believes it owns.
+  let labelApps = 0;
+  let labelFields = 0;
+  for (const { id, doc } of declarations) {
+    if (typeof doc.shortName !== 'string' || doc.shortName === '') continue;
+    labelApps += 1;
+    let fieldsHere = 0;
+    for (const t of ICON_LABEL_TARGETS) {
+      const rels = t.in
+        ? [`${APPS_DIR}/${id}/${t.in}`]
+        : (isDir(join(root, APPS_DIR, id, t.dir))
+            ? readdirSync(join(root, APPS_DIR, id, t.dir))
+                .filter((f) => f.endsWith(t.ext))
+                .sort()
+                .map((f) => `${APPS_DIR}/${id}/${t.dir}/${f}`)
+            : []);
+      for (const rel of rels) {
+        // A file this loop has already rewritten (two targets can share a file)
+        // is read back out of the plan, never off disk.
+        const current = files.get(rel) ?? read(root, rel);
+        if (current === null) continue;
+        if (t.applies && !t.applies.test(current)) continue;
+        if (!t.re.test(current)) {
+          lost.push(
+            `${rel} exists but carries no ${t.field} anchor this renderer can find. \`shortName\` is DECLARED in ` +
+              `${APPS_DIR}/${id}/app.yaml, so this file is one of the six an operating system reads the app's name from — ` +
+              'and a rendering that quietly skipped it is how a retired brand survives a rename in the one place a user looks ' +
+              'at every day. Restore the field, or remove this target and say here why the platform no longer has one.',
+          );
+          continue;
+        }
+        files.set(rel, current.replace(t.re, (_m, pre, post) => `${pre}${t.encode(doc.shortName)}${post}`));
+        fieldsHere += 1;
+        labelFields += 1;
+      }
+    }
+    if (fieldsHere === 0) {
+      lost.push(
+        `${APPS_DIR}/${id}/app.yaml declares \`shortName: ${doc.shortName}\` and NOT ONE of the ${ICON_LABEL_TARGETS.length} icon-label ` +
+          'targets exists under it. The label reaches no operating system, so the declaration is a string this repository ' +
+          'renders nowhere — which reads exactly like a rendered one.',
+      );
+    }
+  }
+  if (labelApps > 0 && labelFields === 0) {
+    lost.push(`${labelApps} declaration(s) carry a \`shortName\` and zero icon-label fields were rendered from any of them.`);
+  }
+
   return { declarations, files, problems, lost };
 }
 

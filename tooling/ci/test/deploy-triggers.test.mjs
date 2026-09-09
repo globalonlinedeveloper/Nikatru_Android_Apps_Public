@@ -7,7 +7,8 @@
 //
 // ⚠️ THE REAL TREE IS THE FIRST NEGATIVE TEST, not these fixtures. Reverting
 // .github/workflows/deploy-web.yml to its pre-fix `paths:` list makes the guard
-// exit 1 naming pubspec.yaml, pubspec.lock and tooling/versions.json; restoring
+// exit 1 naming pubspec.yaml, pubspec.lock, tooling/versions.json and (since
+// [ADR 075]) catalog/apps.json; restoring
 // it returns "ok 1 path-filtered Flutter lane(s)". A fixture I wrote encodes the
 // same misunderstanding as the guard I wrote, so it can only ever be the second
 // line of evidence.
@@ -78,6 +79,8 @@ const ALL_PATHS = `    paths:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'tooling/versions.json'
+      # [ADR 075] the address the build is compiled for (--base-href).
+      - 'catalog/apps.json'
       - '.github/workflows/deploy-web.yml'
 `;
 
@@ -115,6 +118,8 @@ describe('assert-deploy-triggers.mjs', () => {
       - 'packages/**'
       - 'pubspec.yaml'
       - 'tooling/versions.json'
+      # [ADR 075] the address the build is compiled for (--base-href).
+      - 'catalog/apps.json'
       - '.github/workflows/deploy-web.yml'
 `),
       }),
@@ -157,6 +162,8 @@ describe('assert-deploy-triggers.mjs', () => {
       fixture({
         'deploy-web.yml': lane(`    paths-ignore:
       - 'tooling/versions.json'
+      # [ADR 075] the address the build is compiled for (--base-href).
+      - 'catalog/apps.json'
 `),
       }),
     );
@@ -185,6 +192,8 @@ describe('assert-deploy-triggers.mjs', () => {
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'tooling/versions.json'
+      # [ADR 075] the address the build is compiled for (--base-href).
+      - 'catalog/apps.json'
 `),
       }),
     );

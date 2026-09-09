@@ -832,6 +832,11 @@
         "why": "Which Partner Center product a submission targets. An identifier."
       },
       {
+        "name": "MS_STORE_SELLER_ID",
+        "kind": "publishing-credential",
+        "why": "The Partner Center SELLER id — which ACCOUNT `msstore reconfigure` configures against, passed as `--sellerId`. An identifier, not key material: the windows-store row's keyKind stays `none` because the Store re-signs the package. Added 2026-09-09, when the lane stopped passing only three of Microsoft's four account parameters. ⚠️ This account has carried TWO seller ids differing by three digits; the retired one authenticates against nothing and looks entirely plausible in a log, so the live value is read from Private/runbooks/store-submission-windows.md and never from memory."
+      },
+      {
         "name": "SNAPCRAFT_STORE_CREDENTIALS",
         "kind": "publishing-credential",
         "why": "Exported `snapcraft` store credentials. The linux-snap row's keyKind is `none` because Canonical signs the binary — this authorises the upload and nothing else."
