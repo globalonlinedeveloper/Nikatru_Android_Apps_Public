@@ -569,6 +569,23 @@ export function keychainPlan({ keychain, keychainPassword, p12Path, p12Password,
   ];
 }
 
+/** Where Xcode SCANS for provisioning profiles, newest location first.
+ *
+ *  Xcode 16+ reads `~/Library/Developer/Xcode/UserData/Provisioning Profiles`;
+ *  everything before it read `~/Library/MobileDevice/Provisioning Profiles`.
+ *  Both are returned rather than one chosen from the toolchain version, because
+ *  choosing would make this depend on a version check that is itself a thing
+ *  that can be wrong, to save one file copy.
+ *
+ *  Pure so the paths can be asserted without a home directory: the caller
+ *  supplies `home`, and only `main()` reads the environment. */
+export function xcodeProfileDirs(home = process.env.HOME ?? '') {
+  return [
+    join(home, 'Library', 'Developer', 'Xcode', 'UserData', 'Provisioning Profiles'),
+    join(home, 'Library', 'MobileDevice', 'Provisioning Profiles'),
+  ];
+}
+
 /** The SECOND import: the Mac Installer Distribution identity, which signs the
  *  .pkg and CANNOT sign anything else.
  *
@@ -1383,6 +1400,49 @@ function main() {
     const member = members.find((m) => m.name === p.member);
     writeFileSync(join(profileDir, p.member.split('/').pop()), member.bytes, { mode: 0o600 });
   }
+
+  // ── and INSTALLED where Xcode actually looks ──────────────────────────────
+  // 🔴 WRITING THEM TO $RUNNER_TEMP IS NOT INSTALLING THEM, AND THE BUILD SAYS
+  // SO SEVERAL MINUTES LATER. Measured 2026-09-09, with manual signing correctly
+  // in force and the identity in the keychain:
+  //
+  //     error: No profile for team '…' matching 'Nikatru Subly macOS App Store'
+  //     found: Xcode couldn't find any provisioning profiles matching …
+  //
+  // `PROVISIONING_PROFILE_SPECIFIER` names a profile; it does not point at a
+  // file. Xcode resolves the name by SCANNING its own profile directory, so a
+  // profile that exists only in a temp directory this script invented is, to
+  // xcodebuild, not present at all. `APPLE_PROVISIONING_PROFILES_DIR` is still
+  // exported — `-exportArchive` and any later step may want the originals — but
+  // the copy below is the one the build reads.
+  //
+  // Both directories are written because the location MOVED: Xcode 16 and newer
+  // read `~/Library/Developer/Xcode/UserData/Provisioning Profiles`, and older
+  // toolchains read `~/Library/MobileDevice/Provisioning Profiles`. Writing both
+  // costs two file copies and removes a silent dependency on the runner image's
+  // Xcode version — the kind of dependency that turns into a mystery failure the
+  // week the image is bumped.
+  //
+  // The filename is the profile's own UUID, which is the convention Xcode itself
+  // uses. Name collisions between two profiles are therefore impossible unless
+  // they ARE the same profile.
+  const installedTo = [];
+  for (const dir of xcodeProfileDirs()) {
+    mkdirSync(dir, { recursive: true });
+    for (const p of parsed) {
+      const member = members.find((m) => m.name === p.member);
+      const ext = p.member.endsWith('.provisionprofile') ? 'provisionprofile' : 'mobileprovision';
+      if (p.uuid === null) {
+        coverageLost([
+          `the profile "${p.name ?? p.member}" carries no UUID, so it cannot be installed under the name Xcode looks for.`,
+          'Installing it under any other name leaves the build resolving PROVISIONING_PROFILE_SPECIFIER against a',
+          'directory that does not contain it, which fails minutes later with a message about entitlements.',
+        ]);
+      }
+      writeFileSync(join(dir, `${p.uuid}.${ext}`), member.bytes, { mode: 0o600 });
+    }
+    installedTo.push(dir);
+  }
   writeFileSync(exportOptionsPath, exportOptionsPlist({ teamId, method: METHOD, profiles: parsed }));
 
   // ── the keychain ──────────────────────────────────────────────────────────
@@ -1480,6 +1540,9 @@ function main() {
   console.log(`ok   distribution identity imported into a per-run keychain — ${p12.length} byte(s), outside the workspace`);
   console.log(`ok   ${parsed.length} provisioning profile(s) decoded, team-checked and in date:`);
   for (const p of parsed) console.log(`        "${p.name}" → ${p.bundleId ?? '(no application-identifier)'} · expires ${p.expires ?? 'unstated'}`);
+  console.log(`ok   installed into ${installedTo.length} Xcode profile director(ies), named by UUID — this is what`);
+  console.log('     PROVISIONING_PROFILE_SPECIFIER resolves against; a temp directory is not searched:');
+  for (const d of installedTo) console.log(`        ${d}`);
   console.log(`ok   ExportOptions.plist written (method "${METHOD}", signingStyle manual)`);
   console.log(`ok   application identity in the keychain: "${application}"`);
   console.log(`ok   installer identity in the keychain:   ${installer === null ? '(none supplied — no .pkg can be signed in this job)' : `"${installer}"`}`);
