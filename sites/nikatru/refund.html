@@ -13,9 +13,9 @@
 <link rel="manifest" href="/site.webmanifest">
 <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="%2317253F"/><stop offset="1" stop-color="%230A111E"/></linearGradient><linearGradient id="m" x1="0.05" y1="1" x2="0.95" y2="0"><stop offset="0" stop-color="%232E6FF2"/><stop offset="0.55" stop-color="%232AA0D8"/><stop offset="1" stop-color="%2317C3A2"/></linearGradient></defs><rect width="1024" height="1024" rx="244" fill="url(%23t)"/><path d="M 292 720 L 292 304 L 656 720 L 656 304 M 580 380 L 656 304 L 732 380" fill="none" stroke="url(%23m)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/></svg>'>
 <style>
-  :root{--ink:#0B1220;--primary:#2E6FF2;--teal:#17C3A2;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC}
+  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC}
   @media (prefers-color-scheme: dark){
-    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830}
+    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2}
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
@@ -35,8 +35,8 @@
   a{color:var(--primary)}
   .note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:14.5px;color:var(--muted);margin:18px 0}
   /* CHROME:a11y-css */
-  :focus-visible{outline:2px solid var(--primary,#2E6FF2);outline-offset:2px;border-radius:6px}
-  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2E6FF2);color:#fff;
+  :focus-visible{outline:2px solid var(--primary,#2563EB);outline-offset:2px;border-radius:6px}
+  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--primary,#2563EB);color:#fff;
     padding:10px 18px;border-radius:0 0 8px 0;text-decoration:none;font-weight:600}
   .skip-link:focus{left:0}
   /* /CHROME:a11y-css */
@@ -69,54 +69,97 @@
 
 <main id="main">
   <h1>Refund &amp; Cancellation Policy</h1>
-  <p class="updated">Last updated: 16 July 2026</p>
+  <p class="updated">Last updated: 9 September 2026</p>
 
-  <p>This policy explains how refunds and cancellations work for purchases of <b>Nikatru</b> apps, games
-  and digital content. Because our products are digital goods delivered electronically, the terms below apply.
-  Who handles your refund depends on who sold you the product, and your receipt names them.</p>
+  <p>This policy explains how refunds and cancellations work for purchases of <b>Nikatru</b> apps and
+  digital content. Nikatru is a proprietorship of Rajasekar Selvam, Chennai, Tamil Nadu, India. Read it
+  alongside our <a href="/terms">Terms of Service</a> and our
+  <a href="/shipping">Shipping &amp; Delivery Policy</a>.</p>
 
-  <h2>1. Purchases billed by an app store</h2>
-  <p>If you bought an app, subscription or in-app item inside an app from a store that requires its own
-  billing system &mdash; the <b>Apple App Store, Google Play</b> &mdash; then that store took the payment.
-  It is the seller for that purchase and handles refunds and cancellations under its own policy, so please
-  request a refund directly through it:</p>
+  <div class="note"><b>Checkout is not open yet.</b> You cannot buy anything on nikatru.com today, and we
+  have taken no payments. This page states the policy that will apply the moment paid checkout opens, so
+  that you can read it before you ever have to rely on it.</div>
+
+  <h2>1. Which section applies to you</h2>
+  <p>Who refunds you depends on who took your money, and your receipt names them.</p>
+  <ul>
+    <li>Outside India, and for our Windows, macOS and Linux downloads and the Microsoft Store:
+    <b>Paddle</b> is the merchant of record. See section&nbsp;2.</li>
+    <li>In India, on nikatru.com: <b>Razorpay</b> is our payment gateway and Nikatru is the seller.
+    See section&nbsp;3.</li>
+    <li>Inside an iOS or Android app, where the store's own billing is used: Apple or Google is the
+    seller. See section&nbsp;4.</li>
+  </ul>
+
+  <h2>2. International purchases &mdash; Paddle, merchant of record</h2>
+  <p>For purchases outside India, our online reseller <b>Paddle.com</b> is the Merchant of Record. Paddle,
+  not Nikatru, is the legal seller: it takes the payment, issues the receipt and issues the refund back to
+  your original payment method. The Paddle entity named on your receipt is the party you contracted with.</p>
+  <p><b>30-day money-back guarantee.</b> If you are not happy with a purchase, ask us for a refund within
+  <b>30 days</b> of the charge and we will approve it. You do not need to give a reason, and you do not lose
+  the right by having downloaded, activated or used the product. Once approved, Paddle returns the money to
+  your original payment method; Paddle's own timings then apply, and your bank or card issuer may add a few
+  days before it shows on your statement.</p>
+  <p>How to ask. Email <a href="mailto:support@nikatru.com">support@nikatru.com</a> with the order or
+  transaction ID from your Paddle receipt, or use the buyer support link on that receipt to contact Paddle
+  directly. We reply within 2 business days.</p>
+
+  <h2>3. India &mdash; purchases taken through Razorpay</h2>
+  <p>For purchases made in India on nikatru.com, <b>Nikatru is the seller</b> and <b>Razorpay</b> is the
+  payment gateway that collects the money for us. We handle these refunds ourselves.</p>
+  <ul>
+    <li><b>Request window: 30 days.</b> Email us within <b>30 days</b> of the charge and we will refund the
+    purchase. This matches the guarantee we give international buyers &mdash; the rail is different, the
+    promise is the same.</li>
+    <li><b>We decide within 3 business days.</b> We acknowledge a refund request within 2 business days and
+    approve or decline it within <b>3 business days</b> of receiving it, with our reason in writing.</li>
+    <li><b>We initiate the refund within 1 business day of approval</b>, through Razorpay.</li>
+    <li><b>Money reaches you in 5&ndash;7 working days</b> from that point. Razorpay's documented processing
+    time for a standard refund is 5&ndash;7 working days, and the refund is credited to the
+    <b>original payment method</b> &mdash; the same card, bank account, UPI handle or wallet you paid from.
+    We cannot redirect a refund to a different account.</li>
+    <li><b>The bank leg can add time.</b> The 5&ndash;7 working days is the gateway-and-bank cycle we can
+    stand behind. Your own bank or card issuer controls the final posting to your statement, and we have no
+    control over that step. If more than 10 working days have passed since we told you the refund was
+    initiated, email us and we will chase it with the reference number.</li>
+    <li><b>No fee is deducted.</b> You get the full amount you were charged back.</li>
+  </ul>
+  <p>These commitments are made under the Consumer Protection (E-Commerce) Rules, 2020 &mdash; Rule 4,
+  which requires us to publish our identity, contact details and grievance route, and Rule 7, which requires
+  a seller to state its return, refund and cancellation terms plainly &mdash; and under our merchant
+  agreement with Razorpay.</p>
+
+  <h2>4. Purchases billed by an app store</h2>
+  <p>If you bought a subscription or an in-app item inside an app using the store's own billing &mdash; the
+  Apple App Store or Google Play &mdash; that store took the payment and is the seller. Refunds
+  for those purchases go through the store's own process, not through Nikatru, and the store decides:</p>
   <ul>
     <li>Apple &mdash; reportaproblem.apple.com</li>
     <li>Google Play &mdash; play.google.com &rarr; Order history</li>
   </ul>
+  <p>We cannot issue a store refund ourselves, but email us and we will help you put the request together.</p>
 
-  <h2>2. Purchases where Paddle is the seller</h2>
-  <p>Everywhere else &mdash; nikatru.com, the <b>Microsoft Store</b>, and our direct downloads for Windows,
-  macOS and Linux &mdash; the seller is <b>Paddle</b>, acting as our <b>merchant of record</b>. Paddle, and
-  not Nikatru, is the legal seller of those purchases: it takes the payment, issues the receipt, and issues
-  any refund back to your original payment method. Your receipt names the Paddle entity you contracted with.
-  We do not sell anything directly from this website today; this is the arrangement that will apply when we
-  do, and the terms below are the refund policy we will apply to those purchases:</p>
+  <h2>5. Cancelling a subscription</h2>
+  <p>You can cancel at any time. Cancelling stops future renewals; your current paid period runs to its end
+  and you keep access until then. Cancel through your app store account for a store purchase, through the
+  link on your Paddle receipt or your account settings for a Paddle purchase, or by emailing us for an
+  India purchase. Beyond the 30-day window above, we do not refund the unused part of a period already paid
+  for, unless the law where you live says otherwise.</p>
+
+  <h2>6. Things we always refund</h2>
   <ul>
-    <li><b>Digital delivery:</b> content is delivered/activated immediately, so purchases are generally
-    non-refundable once the product has been accessed or downloaded.</li>
-    <li><b>We will provide a refund if:</b> you were charged more than once for the same order; the product
-    was not delivered due to a technical failure on our side that we cannot resolve; or a refund is required
-    under applicable law.</li>
-    <li><b>Subscriptions:</b> you may cancel at any time. Cancellation stops future renewals; the current
-    paid period remains active until it ends. We do not provide partial refunds for an unused portion of a
-    billing period unless required by law.</li>
+    <li>You were charged more than once for the same order.</li>
+    <li>You paid and access was never provisioned, and we could not fix it &mdash; see
+    <a href="/shipping">Shipping &amp; Delivery</a>.</li>
+    <li>You were charged after cancelling.</li>
+    <li>A refund is required by the law that applies to you.</li>
   </ul>
 
-  <h2>3. How to request a refund</h2>
-  <p>Email <a href="mailto:support@nikatru.com">support@nikatru.com</a> within <b>7 days</b> of the charge
-  with your order/transaction ID and the reason. We aim to respond within 2 business days. For a purchase
-  billed by an app store, the store decides &mdash; we can help you with it, but we cannot issue that refund
-  ourselves. For a purchase where Paddle is the seller, we authorise the refund and Paddle returns the money.</p>
-
-  <h2>4. How refunds are issued</h2>
-  <p>Approved refunds are returned to your original payment method by whoever took the payment &mdash; the
-  app store, or Paddle &mdash; normally within <b>5&ndash;7 business days</b> after approval. Timing on your
-  statement depends on your bank or card issuer.</p>
-
-  <h2>5. Contact</h2>
-  <p>Questions about a payment or refund? Email <a href="mailto:support@nikatru.com">support@nikatru.com</a>
-  or see our <a href="/contact">Contact page</a>.</p>
+  <h2>7. Contact and grievances</h2>
+  <p>Email <a href="mailto:support@nikatru.com">support@nikatru.com</a> with your order or transaction ID.
+  If you are not satisfied with how we handled a refund, our Grievance Officer is named on the
+  <a href="/contact">Contact page</a> and will acknowledge your complaint within 48 hours and resolve it
+  within 30 days.</p>
 
   <div class="note">This policy is offered in good faith for our digital products and does not limit any
   statutory consumer rights you may have where you live.</div>
@@ -124,7 +167,7 @@
 
 <!-- CHROME:footer -->
 <footer>
-  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/delete-account">Delete account</a> &middot; <a href="/contact">Contact</a><br><br>
+  <a href="/">Home</a> &middot; <a href="/apps/">Apps</a> &middot; <a href="/pricing">Pricing</a> &middot; <a href="/about">About</a> &middot; <a href="/support">Support</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/refund">Refunds</a> &middot; <a href="/shipping">Shipping</a> &middot; <a href="/delete-account">Delete account</a><br><br>
   <span class="foot-em">Nikatru&trade;</span> &middot; Chennai, Tamil Nadu, India &middot; Registered MSME UDYAM-TN-02-0487004<br>
   Developed by <a href="https://rajasekarselvam.com" target="_blank" rel="noopener"><span class="foot-em">Rajasekar Selvam</span></a><br>
   &copy; 2026 Nikatru. All rights reserved.

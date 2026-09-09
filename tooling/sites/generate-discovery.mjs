@@ -333,9 +333,9 @@ const OG_IMAGE = `<meta property="og:image" content="${ORIGIN}og-image.png">
 <meta property="og:image:alt" content="Nikatru &mdash; Apps for every screen. iOS, Android, Windows, macOS, Linux and Web.">`;
 
 const STYLE = `<style>
-  :root{--ink:#0B1220;--primary:#2E6FF2;--teal:#17C3A2;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
+  :root{--ink:#0B1220;--primary:#2563EB;--teal:#0F766E;--bg:#F6F8FC;--card:#FFFFFF;--text:#1E293B;--strong:#0B1220;--muted:#586275;--line:#E2E8F0;--soft:#F6F8FC;--radius:16px}
   @media (prefers-color-scheme: dark){
-    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830}
+    :root{--bg:#0B1220;--card:#111C33;--text:#C7D2E3;--strong:#F1F5F9;--muted:#93A1BC;--line:#22304D;--soft:#0E1830;--primary:#6E9BFF;--teal:#17C3A2}
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
@@ -370,7 +370,9 @@ ${closeMarker('a11y-css', true)}
   .card p{color:var(--muted);font-size:15px;margin-bottom:10px}
   .card .amount{color:var(--strong);font-size:27px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px}
   .card .amount small{font-size:14.5px;font-weight:600;color:var(--muted);letter-spacing:0}
-  .trial{display:inline-block;background:var(--teal);color:#04231C;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:99px;margin-bottom:8px}
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:10px}
+  .shots img{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);background:var(--soft)}
+  .trial{display:inline-block;background:var(--teal);color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:99px;margin-bottom:8px}
   .note{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;color:var(--muted);font-size:15px;margin-top:16px}
   .note p{margin:0;font-size:15px}
   .note p+p{margin-top:8px}
@@ -584,6 +586,76 @@ export function storeLede(repoRoot, slug) {
   return null;
 }
 
+// ── source 4 · the web-sized screenshots ─────────────────────────────────────
+//
+// Two directories, and the split is the point:
+//
+//   apps/<slug>/store/android-play/screenshots/NN-<screen>.png  THE MASTERS.
+//     1080x1920 store art, captured by tooling/store/capture-play-screenshots.mjs,
+//     submitted to Play. Never served — 889 KB for four images.
+//   sites/nikatru/apps/shots/<slug>-N-vV.webp                    THE WEB COPIES.
+//     540px wide (2x the ~260 CSS px the .shots grid gives them), WebP q72,
+//     69.5 KB for the same four. Committed, because Cloudflare serves this repo
+//     with no build step.
+//
+// 🔴 THE `-vV` IN THE WEB NAME IS LOAD-BEARING, AND IT IS NOT A STYLE CHOICE.
+// `sites/nikatru/_headers` gives `/*.webp` a one-year `immutable`, which
+// suppresses revalidation even on an explicit reload. A stable name under that
+// rule means re-cutting a screenshot would not reach a returning visitor for a
+// YEAR. `assert-web-cache-policy.mjs` prints exactly that finding, and its test
+// asserts the REAL repository leaves no stable name declared immutable — these
+// four files failed it on their first CI run. `founder-v4.jpg` is the convention
+// they now follow: the version lives IN THE NAME, so a new cut is a new URL.
+// Re-cutting means writing `<slug>-N-v2.webp` and DELETING the v1; the version
+// is never typed into this generator, which reads whatever is on disk.
+//
+// 🔴 THE LABEL COMES FROM THE MASTER'S FILENAME, and that is deliberate. `01-home`
+// and `03-insights` are names the OWNER gave the screens when the captures were
+// scripted; deriving alt text from them reuses an owner-authored word instead of
+// inventing a description of a picture this generator cannot see. When the master
+// is missing the web copy still renders, with the ordinal alone — an image with a
+// weaker alt is better than an image the generator refuses to show, and a WRONG
+// description is worse than both.
+const SHOTS_DIR = `${APPS_DIR}/shots`;
+const SHOTS_HREF = '/apps/shots';
+/** The masters' directory, per app. One channel: Play is the only one with art. */
+const SHOT_MASTERS = (slug) => `apps/${slug}/store/android-play/screenshots`;
+/** `<slug>-<index>-v<version>.webp`. The index orders the set and lines it up
+ *  with the masters' labels; the version is what makes `immutable` honest. A
+ *  file that does not match is not a screenshot this generator will publish —
+ *  which is how an unversioned name fails to appear rather than appearing under
+ *  a cache header that would freeze it for a year. */
+const SHOT_NAME = /^([a-z0-9-]+?)-(\d+)-v\d+\.webp$/i;
+/** The intrinsic size every web copy is written at. Emitted as width/height on
+ *  every <img> so the grid reserves its box before the bytes arrive (CLS). */
+const SHOT_W = 540;
+const SHOT_H = 960;
+
+function screenshotsFor(repoRoot, slug) {
+  const labels = [];
+  const mastersDir = join(repoRoot, ...SHOT_MASTERS(slug).split('/'));
+  if (existsSync(mastersDir)) {
+    for (const name of listDir(mastersDir).filter((n) => n.toLowerCase().endsWith('.png')).sort()) {
+      // `01-home.png` -> `home`; `02-my-calendar.png` -> `my calendar`.
+      labels.push(name.replace(/\.png$/i, '').replace(/^\d+[-_]?/, '').replace(/[-_]+/g, ' ').trim());
+    }
+  }
+  const dir = join(repoRoot, ...SHOTS_DIR.split('/'));
+  if (!existsSync(dir)) return [];
+  const found = [];
+  for (const name of listDir(dir)) {
+    const m = SHOT_NAME.exec(name);
+    if (m && m[1] === slug) found.push({ file: name, index: Number(m[2]) });
+  }
+  found.sort((a, b) => a.index - b.index);
+  return found.map(({ file, index }) => ({
+    file,
+    width: SHOT_W,
+    height: SHOT_H,
+    label: labels[index - 1] || `screenshot ${index}`,
+  }));
+}
+
 function landingHtml(app, ctx, problems) {
   const live = app.status === 'live';
   const url = urlForPage(`apps/${app.slug}.html`);
@@ -659,6 +731,34 @@ ${buttons.map((b) => `      ${b}`).join('\n')}
   const studioLine = lede
     ? `${esc(app.name)} is an app by Nikatru, an independent studio in Chennai, Tamil Nadu, India.`
     : `${esc(app.name)} is an app by Nikatru, an independent studio in Chennai, Tamil Nadu, India. ${esc(app.tagline)}.`;
+
+  // ── SCREENSHOTS ────────────────────────────────────────────────────────────
+  // The header's refusal is UNCHANGED and is the reason this reads the disk
+  // rather than a flag: "screenshots — owner-supplied art that does not exist.
+  // The layout degrades to no screenshot block rather than shipping three broken
+  // <img> tags." So the block is emitted for the files that ARE there and for no
+  // others, and an app with none still gets no section. What changed on
+  // 2026-09-09 is only that the art now exists: `apps/subly/store/android-play/
+  // screenshots/` had carried four real captures since 2026-08-04 and not one of
+  // them appeared anywhere on the site.
+  const shots = screenshotsFor(ctx.repoRoot, app.slug);
+  const shotSection = shots.length
+    ? `
+  <section>
+    <div class="wrap">
+      <h2>Screenshots</h2>
+      <div class="shots">
+${shots
+  .map(
+    (s) =>
+      `        <img src="${SHOTS_HREF}/${esc(s.file)}" width="${s.width}" height="${s.height}" loading="lazy" decoding="async" alt="${esc(app.name)} &mdash; ${esc(s.label)}">`,
+  )
+  .join('\n')}
+      </div>
+    </div>
+  </section>
+`
+    : '';
 
   const featureSection = features.length
     ? `
@@ -756,7 +856,7 @@ ${ledeParagraphs}      <p>${studioLine}</p>
       <p>${platformSentence}</p>
 ${statusNote}    </div>
   </section>
-${featureSection}${pricingSection}
+${shotSection}${featureSection}${pricingSection}
   <section>
     <div class="wrap">
       <h2>Privacy, terms and refunds</h2>
@@ -982,6 +1082,174 @@ export function rewriteLlms(existing, liveApps) {
   return `${existing.slice(0, start)}${heading}${body}\n${tail}`;
 }
 
+// ── the HOMEPAGE app grid ────────────────────────────────────────────────────
+//
+// 🔴 WHY THIS EXISTS: THE HOMEPAGE USED TO BUILD ITS APP LIST IN THE BROWSER.
+// `sites/nikatru/index.html` carried `const APPS = [...]` inside a `<script>`
+// and, on load, hid the three "what we're building" value cards and injected the
+// app cards with `innerHTML`. Measured on the served bytes 2026-09-09, with every
+// `<script>` element removed — which is exactly what a crawler or an AI fetcher
+// that does not execute JavaScript is handed:
+//
+//     class="app-name"                 0 occurrences
+//     https://subly.nikatru.com        0 occurrences
+//     >Web App<                        0 occurrences
+//     id="apps-grid" hidden            1  (the empty container, still hidden)
+//     "In development"                 1  (the placeholder copy, still showing)
+//
+// So the one page most likely to be fetched said Nikatru ships nothing. The
+// hand-maintained array was GUARDED — `check-site-integrity.mjs` compared it to
+// the registry by name in both directions — but being guarded is not being in
+// the DOM, and no guard on a JS literal can put it there.
+//
+// The array is now gone and this function renders the same grid AT BUILD TIME
+// from the same registry, spliced between the page's own sentinel pair by
+// `applyHomeGrid` below. The client script that injected cards is deleted; there
+// is nothing left to enhance because there is nothing left to wait for.
+//
+// ── WHAT IT REFUSES TO INVENT, ON THE SAME RULE AS EVERY OTHER LIMB HERE ─────
+//   · an icon per app. The registry has no `icon` field, and the emoji the old
+//     array carried (`&#128179;`, a credit card) existed only in that literal.
+//     A generator cannot read a field that does not exist, so the tile renders
+//     the SITE's brand mark — chrome, not a claim about the app. When the
+//     registry gains an icon, it renders from there.
+//   · a store button for a listing that is null. `listings` is read key by key;
+//     an absent channel draws nothing, which is the same rule
+//     `assert-channel-claims.mjs` enforces for the landings.
+//   · the "coming soon" state for an app with no listing at all — that is the
+//     old array's fallback and it is kept, because an app in the registry with
+//     no reachable channel is exactly what it says.
+//
+// ── THE FALLBACK IS INSIDE THE REGION ON PURPOSE ─────────────────────────────
+// The three value cards ("In development" / "Core principle" / "Our commitment")
+// were the thing the old script HID once apps existed. They are emitted here for
+// the empty-registry case so the page degrades to the honest pre-launch shape by
+// regeneration rather than by a browser, and so that state is reachable from the
+// tree instead of only from a code path nobody runs.
+const HOME_PAGE = `${DEPLOY_ROOT}/index.html`;
+
+/** The homepage's own sentinel pair. DELIBERATELY NOT a `CHROME:` marker and not
+ *  a member of `chrome.mjs`'s REGIONS: `applyChrome` applies every region to
+ *  every chrome page and refuses when one is missing, so a homepage-only region
+ *  added there would fail the other twelve pages on the next run. Same refusal
+ *  semantics, different owner. */
+export const HOME_GRID_OPEN = '<!-- APPS-GRID -->';
+export const HOME_GRID_CLOSE = '<!-- /APPS-GRID -->';
+
+/** The registry's `listings` keys, in the order the badges render, with the label
+ *  each one is allowed to print. A key absent from this map renders nothing —
+ *  a channel this site has no agreed name for is not a channel it will announce. */
+const LISTING_LABELS = new Map([
+  ['appstore', 'App Store'],
+  ['play', 'Google Play'],
+  ['microsoft', 'Microsoft Store'],
+  ['mac', 'Mac App Store'],
+  ['linux', 'Snap / AppImage'],
+  ['web', 'Web App'],
+]);
+
+/** The site's own mark, as the app tile. Not the app's icon — see above. */
+const HOME_APP_MARK = `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <defs><linearGradient id="am" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="0.55" stop-color="#2A8FB8"/><stop offset="1" stop-color="#0F766E"/></linearGradient></defs>
+            <path d="M 292 720 L 292 304 L 656 720 L 656 304 M 580 380 L 656 304 L 732 380" fill="none" stroke="url(#am)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`;
+
+/** The three honest value cards, shown while no app is live. Byte-for-byte the
+ *  block `sites/nikatru/index.html` shipped before the grid was generated. */
+const HOME_VALUE_CARDS = `    <div class="bento">
+      <div class="card b-a">
+        <div class="card-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 13l9 5 9-5"/></svg>
+        </div>
+        <h3>Cross-platform apps</h3>
+        <p>Everyday tools and games that feel native on your phone, your computer and the web &mdash;
+        not watered-down ports.</p>
+        <span class="tag">In development</span>
+      </div>
+      <div class="card b-b">
+        <div class="card-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        </div>
+        <h3>Privacy-first by design</h3>
+        <p>No tracking, no ads, no selling your data. Apps that do their job and respect your information.</p>
+        <span class="tag">Core principle</span>
+      </div>
+      <div class="card wide b-c">
+        <div class="card-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.4L20 10l-5.8 1.6L12 17l-2.2-5.4L4 10l5.8-1.6z"/></svg>
+        </div>
+        <div class="card-body">
+          <h3>Built for the long run</h3>
+          <p>Careful design and steady updates. Software we intend to support &mdash; not abandon after launch.</p>
+          <span class="tag">Our commitment</span>
+        </div>
+      </div>
+    </div>`;
+
+/**
+ * The homepage grid, as static markup. Pure; no DOM, no timing, no `hidden`.
+ *
+ * @param {object[]} liveApps registry entries whose status is `live`
+ * @returns {string}
+ */
+export function homeAppsGrid(liveApps) {
+  if (!liveApps.length) return HOME_VALUE_CARDS;
+  const cards = liveApps.map((app) => {
+    const listings = app && typeof app.listings === 'object' && app.listings ? app.listings : {};
+    const badges = [...LISTING_LABELS]
+      .filter(([key]) => typeof listings[key] === 'string' && listings[key] !== '')
+      .map(
+        ([key, label]) =>
+          `<a class="badge" target="_blank" rel="noopener" href="${esc(listings[key])}">${esc(label)}</a>`,
+      )
+      .join('');
+    return `      <div class="card">
+        <div class="app-head">
+          <div class="app-icon">
+            ${HOME_APP_MARK}
+          </div>
+          <div><div class="app-name">${esc(app.name)}</div></div>
+        </div>
+        <div class="app-tag">${esc(app.tagline ?? '')}</div>
+        <div class="badges">${badges || '<span class="badge soon">Coming soon</span>'}</div>
+        <div class="app-more"><a href="/apps/${esc(app.slug)}">More about ${esc(app.name)} &rarr;</a></div>
+      </div>`;
+  });
+  return `    <div class="grid">\n${cards.join('\n')}\n    </div>`;
+}
+
+/**
+ * Splice the grid into the homepage between its sentinels.
+ *
+ * 🔴 REFUSES when the pair is missing, exactly as `spliceRegion` does for shared
+ * chrome, and for the identical reason: a splice that quietly does nothing leaves
+ * the page serving whatever it last had while every count still includes it. That
+ * is the failure this whole change was made to end, so it may not be reintroduced
+ * by the fix.
+ *
+ * @param {string} html the homepage as it is on disk
+ * @param {object[]} liveApps
+ * @returns {string}
+ */
+export function applyHomeGrid(html, liveApps) {
+  const opens = html.split(HOME_GRID_OPEN).length - 1;
+  const closes = html.split(HOME_GRID_CLOSE).length - 1;
+  if (opens !== 1 || closes !== 1) {
+    throw new Error(
+      `${HOME_PAGE}: expected exactly one ${HOME_GRID_OPEN} … ${HOME_GRID_CLOSE} pair, found ` +
+        `${opens} opening and ${closes} closing sentinel(s). The homepage app grid is generated into that span; ` +
+        'without it the page would silently keep whatever grid it last had while this generator still counted ' +
+        'the file as written — which is the client-rendered failure this limb exists to end.',
+    );
+  }
+  const start = html.indexOf(HOME_GRID_OPEN);
+  const end = html.indexOf(HOME_GRID_CLOSE);
+  if (end < start) {
+    throw new Error(`${HOME_PAGE}: the APPS-GRID sentinels are reversed, which would replace the rest of the document.`);
+  }
+  return `${html.slice(0, start + HOME_GRID_OPEN.length)}\n${homeAppsGrid(liveApps)}\n${html.slice(end)}`;
+}
+
 /**
  * The whole plan, as bytes, without touching the disk. `assert-discovery-surface.mjs`
  * calls this and compares; the CLI below calls it and writes.
@@ -1124,7 +1392,11 @@ export function planDiscovery(repoRoot) {
   for (const rel of htmlUnder(repoRoot, DEPLOY_ROOT)) {
     if (!isChromePage(rel) || files.has(rel)) continue; // the generated pair already carries the regions
     try {
-      files.set(rel, applyChrome(readFileSync(join(repoRoot, ...rel.split('/')), 'utf8')));
+      let out = applyChrome(readFileSync(join(repoRoot, ...rel.split('/')), 'utf8'));
+      // The homepage takes ONE more spliced region than the rest: its app grid,
+      // which used to be built in the browser. See `applyHomeGrid` above.
+      if (rel === HOME_PAGE) out = applyHomeGrid(out, live);
+      files.set(rel, out);
       chromeOnly.add(rel);
     } catch (e) {
       problems.push(`${rel}: ${e.message}`);

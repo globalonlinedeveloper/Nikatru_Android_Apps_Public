@@ -2,12 +2,15 @@
   "_readme": [
     "THE PUBLISHED-CLAIMS REGISTER — [pipeline K-3] Private/requirements/ (was pipeline/08-compliance-legal.md, folded into the JSON spec 2026-08-15)",
     "",
-    "One row for every EMPHASISED claim in the visible text of the three published legal pages, paired to",
+    "One row for every EMPHASISED claim in the visible text of the published legal pages in `pages` below, paired to",
     "whatever in this tree makes it true — or, where nothing does, to the owner item that will.",
     "",
     "🔴 WHAT MAKES THIS UNFAKEABLE, AND IT IS THE ONLY REASON THE FILE IS WORTH HAVING.",
     "The domain is not this file. The domain is the set of <b>/<strong> spans in the visible text of",
-    "sites/nikatru/{privacy,terms,refund}.html, extracted by tooling/ci/text-reductions.mjs. The guard requires",
+    "sites/nikatru/{privacy,terms,refund,shipping,delete-account}.html, extracted by tooling/ci/text-reductions.mjs.",
+    "shipping.html joined that set on 2026-09-09: /shipping is one of the four policy URLs a payment provider",
+    "collects, so leaving it outside the domain was a hole in the guard rather than a page that owed nothing.",
+    "The guard requires",
     "the two sets to be EQUAL, both directions:",
     "  · a span with no row FAILS — you cannot publish a new emphasised promise without recording it;",
     "  · a row with no span FAILS — you cannot keep a row for a sentence the site no longer makes.",
@@ -36,7 +39,7 @@
     "typed from memory; if a row here does not match, the page is what is right."
   ],
 
-  "pages": ["privacy.html", "terms.html", "refund.html", "delete-account.html"],
+  "pages": ["privacy.html", "terms.html", "refund.html", "shipping.html", "delete-account.html"],
   "siteRoot": "sites/nikatru",
 
   "claims": [
@@ -380,25 +383,37 @@
       "type": "descriptive",
       "why": "A warranty disclaimer. Its scope and enforceability are a question for a lawyer, not for a guard, and this register does not pretend otherwise."
     },
+    {
+      "page": "terms.html",
+      "claim": "Nothing can be bought here today.",
+      "type": "descriptive",
+      "why": "A statement about the tree, and everything in the tree agrees with it: every kind:store channel in tooling/channel-register.json is served:false (only `web`, the site itself, is served), no merchant-of-record or gateway row in tooling/legal/provider-register.json carries a non-null `reachableAt`, and sites/nikatru/pricing.html loads no checkout script — its own source comment says so and the page's note repeats it in visible text. Descriptive rather than `code` because the honest assertion would be 'no checkout script is reachable from sites/', and no guard in this tree makes that claim today; a `code` row invented for it would be one regex standing in for a property nobody has defined."
+    },
+    {
+      "page": "terms.html",
+      "claim": "Razorpay",
+      "type": "provider",
+      "providers": ["razorpay"],
+      "note": "The India gateway named in §4. ⚠️ THE REGISTER IS BEHIND THIS PAGE AND SAYING SO IS THE POINT OF THE ROW: tooling/legal/provider-register.json carries razorpay at status `not-named-not-wired` with an EMPTY `namedIn`, and its notes record [ADR 039] D6 deciding that the India clause names Paddle and that Razorpay is not the app rail. The page now names it again, and there is still no Razorpay route, key or webhook anywhere in this repository (`reachableAt: null`). Nothing in this tree makes the sentence true; what it does today is disclose an intended domestic rail. The substantive half of that disclosure — that Nikatru, not Paddle, is the seller for those purchases — is carried as a `known-gap` on the refund.html row \"Nikatru is the seller\", which prints on every run until the register and the pages name one seller for India again."
+    },
+    {
+      "page": "terms.html",
+      "claim": "Subscriptions renew automatically",
+      "type": "descriptive",
+      "why": "A commitment about billing behaviour, and nothing in this tree asserts it: no subscription is sold on any rail today (every kind:store channel in tooling/channel-register.json is served:false and no payment provider is reachable), so there is no renewal path to check the sentence against. It is here because it is the disclosure a store and a payment provider both require before the first sale, not because code backs it."
+    },
+    {
+      "page": "terms.html",
+      "claim": "You may cancel at any time",
+      "type": "descriptive",
+      "why": "The cancellation promise. Descriptive for the same reason as the renewal row above — there is no subscription to cancel yet, and the three routes the sentence names (the store account, the Paddle receipt link, support@nikatru.com) are all outside this tree. The one cancellation-shaped control this repository DOES own is account deletion, which is asserted by tooling/ci/assert-deletion-control.mjs and is a different promise; nothing here should be read as proving this one."
+    },
 
     {
       "page": "refund.html",
       "claim": "Nikatru",
       "type": "descriptive",
       "why": "The trading name."
-    },
-    {
-      "page": "refund.html",
-      "claim": "Apple App Store, Google Play",
-      "type": "provider",
-      "providers": ["apple-app-store", "google-play"]
-    },
-    {
-      "page": "refund.html",
-      "claim": "Microsoft Store",
-      "type": "provider",
-      "providers": ["microsoft-store"],
-      "note": "⚠️ THE SPAN MOVED SECTIONS AND THAT IS THE SUBSTANCE OF THE CHANGE, not a reformat. §1 used to send a Microsoft Store buyer to account.microsoft.com for a refund. [ADR 039] D1 puts the Microsoft Store on the Paddle rail (Store Policies v7.19 §10.8.1/§10.8.6 permit a third-party purchase API for non-game PC apps; `packages/purchases/lib/src/purchase_capabilities.dart` carries the same citation on `windowsStore.channelPermitted: true`), so Microsoft never takes the payment and has no order to refund. The store is still named — it is still how the app is distributed — but it is named in §2, beside the seller that actually took the money."
     },
     {
       "page": "refund.html",
@@ -409,40 +424,140 @@
     },
     {
       "page": "refund.html",
-      "claim": "merchant of record",
+      "claim": "Checkout is not open yet.",
+      "type": "descriptive",
+      "why": "The same statement of fact terms.html makes in the words 'Nothing can be bought here today.', and the tree agrees with it the same way: every kind:store channel in tooling/channel-register.json is served:false, no provider row in tooling/legal/provider-register.json carries a non-null reachableAt, and sites/nikatru/pricing.html loads no checkout script. Descriptive rather than code for the reason given on the terms.html row: no guard in this tree asserts 'no checkout is reachable', and inventing a regex for it here would claim a proof nobody has built."
+    },
+    {
+      "page": "refund.html",
+      "claim": "Razorpay",
+      "type": "provider",
+      "providers": ["razorpay"],
+      "note": "The India gateway named in section 1 and section 3. Same standing as the terms.html Razorpay row: tooling/legal/provider-register.json carries razorpay at status not-named-not-wired with an empty namedIn and reachableAt null, and there is no Razorpay route, key or webhook in this repository. The register row and this page disagree about India, and the disagreement is filed as the known-gap on the 'Nikatru is the seller' row below rather than being smoothed over here."
+    },
+    {
+      "page": "refund.html",
+      "claim": "Paddle.com",
       "type": "provider",
       "providers": ["paddle"],
-      "note": "Same role disclosure as the terms.html row. It is on BOTH pages by design and by rule: assert-policy-claims.mjs §3(c) requires a merchant-of-record row to be named in terms.html AND refund.html, because those are the two documents a buyer reads about the same purchase, and a buyer told one seller in one and another in the other has been told the wrong counterparty."
+      "note": "The legal seller for purchases outside India, named in section 2 in the form Paddle requires of its sellers ('our online reseller Paddle.com is the Merchant of Record'). Resolves to the same register row as the 'Paddle' span in section 1; the paddle row is status live with namedIn covering terms.html, refund.html and privacy.html, and assert-policy-claims section 3(c) fails the build if a live merchant of record stops being named on either of the two documents a buyer reads about one purchase. Typed provider and not code because the single registry assertion for Paddle lives on the terms.html row; a second one here would report two proofs of one fact."
     },
     {
       "page": "refund.html",
-      "claim": "Digital delivery:",
+      "claim": "30-day money-back guarantee.",
       "type": "descriptive",
-      "why": "A commitment about digital goods with no code consequence. Whether it is enforceable where a buyer lives is a legal question this register does not answer."
+      "why": "A refund window we commit to, and nothing in this tree asserts it. It is a commitment we chose rather than a statutory period, and it is deliberately not described as one; no guard here invents a legal minimum to compare it against. It cannot become a code row until a refund path exists to check: no payment provider is reachable from any file in this repository today, so there is no refund to time."
     },
     {
       "page": "refund.html",
-      "claim": "We will provide a refund if:",
+      "claim": "30 days",
       "type": "descriptive",
-      "why": "The refund conditions. No code path issues refunds today — every kind:store channel in tooling/channel-register.json is served:false and no payment provider is wired — so there is nothing to assert against."
+      "why": "The window itself, emphasised twice on the page - once in section 2 for the Paddle rail and once in section 3 for the India rail. Both spans collapse to this one row because the normalised text is identical, and the two sentences deliberately state the same number: the page says so in the words 'the rail is different, the promise is the same'. Nothing in the tree asserts either instance."
     },
     {
       "page": "refund.html",
-      "claim": "Subscriptions:",
-      "type": "descriptive",
-      "why": "Cancellation behaviour. Store-side today, and no website subscription exists to cancel."
+      "claim": "Nikatru is the seller",
+      "type": "known-gap",
+      "ownerItem": "O-3",
+      "stillTrue": "Nikatru is the seller",
+      "what": "THE PAGES AND THE REGISTER NOW NAME DIFFERENT SELLERS FOR INDIA. Section 3 says Nikatru is the seller for purchases made in India on nikatru.com, with Razorpay as the gateway that collects the money. Two things in this tree say otherwise. (1) tooling/legal/provider-register.json carries razorpay at status not-named-not-wired with an empty namedIn, recording that the naming had been removed and that no Razorpay integration exists anywhere in this repository - no route, no key, no webhook. (2) That row cites [ADR 039] D6, which settled India on measurement rather than preference and concluded that the India clause names Paddle, not a domestic rail, because a gateway leaves Nikatru the domestic seller and the worldwide sales-tax duty with us - the exact burden [ADR 004] chose a merchant of record to remove. terms.html section 4 carries the same split and so contains the same tension: it says the seller is Paddle for every purchase that is not store-billed, and then carves India out to Nikatru. Nothing here decides which side is right: the page is published copy and the register is a locked decision, and reconciling them is owner work (publish a corrected clause, or re-open [ADR 039] D6 and update provider-register.json). PRINTED, not failed, for the reason the guard header gives - failing CI on owner-only copy blocks every other lane. It retires the day refund.html stops saying 'Nikatru is the seller' or the register names Razorpay as a live India rail."
     },
     {
       "page": "refund.html",
-      "claim": "7 days",
+      "claim": "Request window: 30 days.",
       "type": "descriptive",
-      "why": "The window for requesting a refund. A COMMITMENT WE CHOSE, not a statutory period — it is deliberately not described as one, and no guard here invents a legal minimum to compare it to."
+      "why": "The India-rail statement of the same window as the 30-day guarantee above, and the reason the two are one promise rather than two: the page says the rail is different and the promise is the same. Nothing in this tree asserts it - no refund path exists to run a clock against."
     },
     {
       "page": "refund.html",
-      "claim": "5-7 business days",
+      "claim": "We decide within 3 business days.",
       "type": "descriptive",
-      "why": "How long a refund takes to appear. Depends on the buyer's bank and the provider; not a promise any file in this tree can keep or break."
+      "why": "A decision-time commitment we make to an India buyer, paired to nothing: no refund request reaches any code in this repository, so no file can keep or break it. It is a service-level promise the owner published, not a property of the tree, and the honest reading of this row is that somebody read the sentence and wrote it down."
+    },
+    {
+      "page": "refund.html",
+      "claim": "3 business days",
+      "type": "descriptive",
+      "why": "The same number, emphasised again inside the sentence that carries it. Kept as its own row because the guard compares span text and this is a distinct span; the commitment and its evidence (none) are the ones described on the row above."
+    },
+    {
+      "page": "refund.html",
+      "claim": "We initiate the refund within 1 business day of approval",
+      "type": "descriptive",
+      "why": "The initiation commitment, and the limb that is ours rather than a bank's. Nothing in this tree asserts it: initiation would happen in a Razorpay dashboard that no file in this repository reaches. It becomes assertable only if a refund route is ever written; today a code row here would be a regex standing in for a system that does not exist."
+    },
+    {
+      "page": "refund.html",
+      "claim": "Money reaches you in 5-7 working days",
+      "type": "descriptive",
+      "why": "How long the money takes to arrive once the refund is initiated. The page attributes the figure to Razorpay's documented processing time for a standard refund, which is a vendor fact held outside this tree and not verified by any guard here. Depends on the gateway and the buyer's bank; not a promise any file in this repository can keep or break."
+    },
+    {
+      "page": "refund.html",
+      "claim": "original payment method",
+      "type": "descriptive",
+      "why": "Where the refund goes, and the sentence that follows it - that we cannot redirect a refund to a different account - is the operative half. It is how a gateway refund works rather than a choice this tree implements; no code in this repository issues a refund, so nothing here asserts it."
+    },
+    {
+      "page": "refund.html",
+      "claim": "The bank leg can add time.",
+      "type": "descriptive",
+      "why": "A caveat rather than a promise: it says the 5-7 working days is the gateway-and-bank cycle and that the final posting is the buyer's own bank's. It is emphasised because it limits the commitment immediately above it, and it is recorded here for that reason. Nothing in the tree asserts it, and nothing could - the step it describes is outside every system we run."
+    },
+    {
+      "page": "refund.html",
+      "claim": "No fee is deducted.",
+      "type": "descriptive",
+      "why": "A commitment about the AMOUNT refunded, and the one refund promise on this page that a price file could contradict rather than merely fail to support. Nothing in this tree does either today: no payment provider is reachable, no fee schedule exists in any register here, and tooling/ci/assert-no-price-literals.mjs keeps money amounts out of shipping source rather than recording any. Paired, not proven."
+    },
+
+    {
+      "page": "shipping.html",
+      "claim": "Checkout is not open yet.",
+      "type": "descriptive",
+      "why": "The same statement of fact the refund and terms pages make, in the note at the top of this page. Supported the same way and no further: every kind:store channel in tooling/channel-register.json is served:false, no provider row carries a non-null reachableAt, and sites/nikatru/pricing.html opens no checkout."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "no courier or postal delivery",
+      "type": "descriptive",
+      "why": "A statement about what we sell, and it is true of the whole catalogue by construction: every row in catalog/apps.json is software and there is no physical fulfilment anywhere in this tree - no address field, no carrier, no order table with a shipment on it. Descriptive rather than code because the assertion would have to be 'no physical product exists', which is the absence of a whole subsystem and not a property any one file carries."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "no tracking number",
+      "type": "descriptive",
+      "why": "The consequence of the sentence above, on the same footing: nothing is shipped, so there is nothing to track. Nothing in this tree asserts it beyond the absence of any fulfilment system at all."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "no shipping, handling or delivery charge",
+      "type": "descriptive",
+      "why": "A PRICE promise, and the strongest claim on this page: it says the quoted price is the whole price, now and at any price we quote. Nothing in this tree asserts it today - the published prices live in sites/nikatru/pricing.html and no checkout or tax-and-fee calculation exists in this repository to compare them against. It is the row to re-point at a real assertion the day a checkout lands, because a delivery fee appearing at checkout would make this sentence false in the direction a buyer notices."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "the account and email address you used at checkout",
+      "type": "descriptive",
+      "why": "Where a purchase is delivered - the operative delivery promise on a page about delivery. Nothing in this tree provisions an entitlement today: no payment provider is reachable, and services/platform has no fulfilment route, so there is no code path from a payment to an account to check the sentence against."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "a few minutes",
+      "type": "descriptive",
+      "why": "How long delivery normally takes. A commitment with no code consequence: no purchase can be made and nothing is provisioned, so no file in this tree can keep or break it. Hedged on the page as 'in normal operation', and recorded here as a commitment we chose rather than a measured figure."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "30 minutes",
+      "type": "descriptive",
+      "why": "The escalation threshold: the point at which a buyer is told to stop waiting and contact us. It is a commitment because a reader relies on it, and nothing in this tree asserts it - there is no provisioning path to time, and no monitoring in tooling/ops/register.json watches a fulfilment delay, because there are no fulfilments."
+    },
+    {
+      "page": "shipping.html",
+      "claim": "2 business days",
+      "type": "descriptive",
+      "why": "Our reply time to a delivery problem. A support commitment made by people rather than by code; nothing in this tree measures or enforces it, and no queue or ticketing system exists in this repository to point at. The same figure is stated unemphasised on refund.html, and the two are one promise."
     }
   ]
 }

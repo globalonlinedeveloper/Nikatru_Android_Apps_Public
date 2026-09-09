@@ -231,7 +231,7 @@ function selfHosted(dir, { root = 'a' } = {}) {
     join(site, 'index.html'),
     `<html><head><link rel="canonical" href="${FIXTURE_ORIGIN}"></head><body>` +
       `<p data-policy-version="${FIXTURE_VERSION}">${FIXTURE_PROMISE}</p>` +
-      '<script>const APPS = [\n];</script></body></html>\n',
+      `${EMPTY_GRID}</body></html>\n`,
   );
   writeFixtureFile(
     dir,
@@ -519,7 +519,7 @@ const KEYED_FN =
  */
 function urlTree(name, over = {}, opts = {}) {
   const files = {
-    'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy">Privacy</a>', '<script>const APPS = [\n];</script>'),
+    'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy">Privacy</a>', EMPTY_GRID),
     'sites/nikatru/privacy.html': page(`${ORIGIN}privacy`, POLICY_BODY),
     'sites/nikatru/404.html': '<meta name="robots" content="noindex"><html><body>gone</body></html>\n',
     'sites/nikatru/robots.txt': 'x\n',
@@ -569,17 +569,17 @@ describe('check-site-integrity · one canonical URL form', () => {
     // the EXTENSIONLESS link fails. That had the redirect backwards: Cloudflare
     // Pages serves `/privacy` and 308s `/privacy.html` to it, so the form this
     // suite was pinning was the one costing a redirect on every internal link.
-    const rel = run(urlTree('uf-rel', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="privacy">P</a>', '<script>const APPS = [\n];</script>') }));
+    const rel = run(urlTree('uf-rel', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="privacy">P</a>', EMPTY_GRID) }));
     assert.equal(rel.code, 1);
     assert.match(rel.out, /links "privacy" document-relative/);
 
-    const ext = run(urlTree('uf-ext', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy.html">P</a>', '<script>const APPS = [\n];</script>') }));
+    const ext = run(urlTree('uf-ext', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy.html">P</a>', EMPTY_GRID) }));
     assert.equal(ext.code, 1);
     assert.match(ext.out, /the `\.html` form of \/privacy/);
   });
 
   test('FAILS on a root-relative link to a page that does not exist', () => {
-    const { code, out } = run(urlTree('uf-dangling', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="/nope">N</a>', '<script>const APPS = [\n];</script>') }));
+    const { code, out } = run(urlTree('uf-dangling', { 'sites/nikatru/index.html': page(ORIGIN, '<a href="/nope">N</a>', EMPTY_GRID) }));
     assert.equal(code, 1);
     assert.match(out, /no page and no _redirects rule backs that URL on this deploy root/);
   });
@@ -589,7 +589,7 @@ describe('check-site-integrity · one canonical URL form', () => {
     // the permanent commerce address, which is a redirect rule and not a file.
     // Before the 2026-08-21 inversion nothing reached that link (it carries no
     // `.html`), so the redirect map had never been verified by anything.
-    const linksSubly = page(ORIGIN, '<a href="/subly">Subly</a>', '<script>const APPS = [\n];</script>');
+    const linksSubly = page(ORIGIN, '<a href="/subly">Subly</a>', EMPTY_GRID);
 
     const withRule = run(
       urlTree('rd-ok', {
@@ -620,7 +620,7 @@ describe('check-site-integrity · one canonical URL form', () => {
     // …and the same `.html` link on an INDEXABLE page is still a defect.
     const indexable = run(
       urlTree('ni-indexable', {
-        'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy.html">P</a>', '<script>const APPS = [\n];</script>'),
+        'sites/nikatru/index.html': page(ORIGIN, '<a href="/privacy.html">P</a>', EMPTY_GRID),
       }),
     );
     assert.equal(indexable.code, 1);
@@ -643,7 +643,7 @@ describe('check-site-integrity · one canonical URL form', () => {
     // a URL — and it is the allowlisted, deliberately-served template.
     const { code, out } = run(
       urlTree('ph-slot', {
-        'sites/nikatru/index.html': page(ORIGIN, '<a href="[PLAY STORE URL]">Get it</a>', '<script>const APPS = [\n];</script>'),
+        'sites/nikatru/index.html': page(ORIGIN, '<a href="[PLAY STORE URL]">Get it</a>', EMPTY_GRID),
       }),
     );
     assert.equal(code, 0, out);
@@ -980,7 +980,7 @@ describe('check-site-integrity · a promise the code quotes is a promise the sit
     const { code, out } = run(
       urlTree('sp-ok', {
         'sites/nikatru/functions/api/probe.js': `// SITE PROMISE: "${PROMISE}"\n${KEYED_FN}`,
-        'sites/nikatru/index.html': page(ORIGIN, `<p>${PROMISE}</p>`, '<script>const APPS = [\n];</script>'),
+        'sites/nikatru/index.html': page(ORIGIN, `<p>${PROMISE}</p>`, EMPTY_GRID),
       }),
     );
     assert.equal(code, 0, out);
@@ -990,7 +990,7 @@ describe('check-site-integrity · a promise the code quotes is a promise the sit
     const { code, out } = run(
       urlTree('sp-drift', {
         'sites/nikatru/functions/api/probe.js': `// SITE PROMISE: "${PROMISE}"\n${KEYED_FN}`,
-        'sites/nikatru/index.html': page(ORIGIN, '<p>We store your email. Nothing else, ever.</p>', '<script>const APPS = [\n];</script>'),
+        'sites/nikatru/index.html': page(ORIGIN, '<p>We store your email. Nothing else, ever.</p>', EMPTY_GRID),
       }),
     );
     assert.equal(code, 1);
@@ -1009,26 +1009,39 @@ describe('check-site-integrity · a promise the code quotes is a promise the sit
   });
 });
 
+/** The homepage's generated app grid, empty. RETARGETED 2026-09-09: these
+ *  fixtures built `<script>const APPS = [...]</script>` until the homepage
+ *  stopped rendering its grid in the browser. The guard's subject is now the
+ *  markup between the sentinels - what a crawler is actually handed - so the
+ *  fixtures had to move with it. A suite left on the old shape would have gone
+ *  on proving a scan that no longer exists. */
+const EMPTY_GRID = '<!-- APPS-GRID -->\n<!-- /APPS-GRID -->';
+/** Rendered cards, in the shape generate-discovery.mjs writes them. */
+const gridWith = (...names) =>
+  '<!-- APPS-GRID -->\n<div class="grid">' +
+  names.map((n) => `<div class="card"><div class="app-name">${n}</div></div>`).join('') +
+  '</div>\n<!-- /APPS-GRID -->';
+
 describe('check-site-integrity · the site app list vs apps.json', () => {
   const registry = (status) => `[{ "slug": "subly", "name": "Subly", "url": "https://subly.test", "status": "${status}" }]\n`;
-  const withApps = (name, body, status) =>
+  const withApps = (name, grid, status) =>
     urlTree(name, {
-      'sites/nikatru/index.html': page(ORIGIN, '', `<script>const APPS = [${body}];</script>`),
+      'sites/nikatru/index.html': page(ORIGIN, '', grid),
       'catalog/apps.json': registry(status),
     });
 
   test('FAILS when the homepage lists an app the registry does not mark live', () => {
     // This direction is a promise made to a stranger, and an agent can fix it.
-    const { code, out } = run(withApps('aj-unbacked', '{ name: "Drift" }', 'live'));
+    const { code, out } = run(withApps('aj-unbacked', gridWith('Drift'), 'live'));
     assert.equal(code, 1);
-    assert.match(out, /lists an app "drift" in its APPS array/);
+    assert.match(out, /renders an app card for "drift" inside its APPS-GRID block/);
   });
 
   test('PRINTS, and does not fail, when the registry says live and the site is silent', () => {
     // 🔴 The limb must NOT presuppose the answer. Whether a live app is publicly
     // announced is a launch decision the owner makes; failing here would block
     // every build on owner-only work, which is [pipeline C-6]'s recorded rule.
-    const { code, out } = run(withApps('aj-unannounced', '\n', 'live'));
+    const { code, out } = run(withApps('aj-unannounced', EMPTY_GRID, 'live'));
     assert.equal(code, 0, out);
     assert.match(out, /UNANNOUNCED: .*marks "Subly" status "live"/);
     assert.match(out, /WHICH ONE IS RIGHT IS AN OWNER DECISION/);
@@ -1036,37 +1049,42 @@ describe('check-site-integrity · the site app list vs apps.json', () => {
 
   test('either resolution silences it — and the guard says which without choosing', () => {
     // Resolution A: the registry stops claiming live.
-    const registryMoved = run(withApps('aj-not-live', '\n', 'beta'));
+    const registryMoved = run(withApps('aj-not-live', EMPTY_GRID, 'beta'));
     assert.equal(registryMoved.code, 0, registryMoved.out);
     assert.doesNotMatch(registryMoved.out, /UNANNOUNCED/);
 
     // Resolution B: the site announces it. Both are accepted, which is exactly
     // what "decidable without knowing which is right" means.
-    const siteMoved = run(withApps('aj-announced', '{ name: "Subly" }', 'live'));
+    const siteMoved = run(withApps('aj-announced', gridWith('Subly'), 'live'));
     assert.equal(siteMoved.code, 0, siteMoved.out);
     assert.doesNotMatch(siteMoved.out, /UNANNOUNCED/);
   });
 
-  test('the array is read RAW — stripping <script> would find nothing at all', () => {
-    // The APPS array lives inside a <script>, which stripInert() removes. Every
-    // other limb here reads the stripped text; this one must not, and the way to
-    // notice it started to is that the array becomes invisible and the limb goes
-    // vacuously quiet rather than loud.
-    const { code, out } = run(withApps('aj-raw', '{ name: "Ghost" }', 'beta'));
+  test('the grid is read RAW — stripping comments would take the sentinels with them', () => {
+    // The reason SURVIVED the 2026-09-09 retarget and got stronger. It used to be
+    // that the APPS array lived inside a <script>, which stripInert() removes;
+    // now the bounds are HTML COMMENTS, which stripInert() also removes. Either
+    // way this limb must read raw, and the way to notice it stopped is that the
+    // span becomes unfindable and the limb goes vacuously quiet rather than loud
+    // — which is why the COVERAGE LOST case below is a floor and not a comment.
+    const { code, out } = run(withApps('aj-raw', gridWith('Ghost'), 'beta'));
     assert.equal(code, 1);
-    assert.match(out, /lists an app "ghost"/);
+    assert.match(out, /renders an app card for "ghost"/);
   });
 
-  test('the instructional comment above the array is NOT read as a listed app', () => {
-    // sites/nikatru/index.html carries a worked example — `name: "My Notes App"`
-    // and five store URLs — in the comment a human copies from. A scan that
-    // started at the file rather than at the array would report it as an app.
+  test('an app-name OUTSIDE the sentinels is NOT read as a listed app', () => {
+    // The same defect class as the pre-2026-09-09 case this replaces (a worked
+    // example in the comment above `const APPS = [` being counted as an app): the
+    // scan must be BOUNDED BY the sentinels, not started at the file. The page
+    // still carries prose above them — today a five-line note telling the reader
+    // the block is generated — and a stray `app-name` anywhere else on a 31 KB
+    // hand-written document must not become a published claim about a product.
     const { code, out } = run(
-      urlTree('aj-comment', {
+      urlTree('aj-outside', {
         'sites/nikatru/index.html': page(
           ORIGIN,
-          '',
-          '<script>/* Example:\n{ name: "My Notes App", links: { ios: "..." } }\n*/\nconst APPS = [\n  // add your first app here\n];</script>',
+          '<div class="app-name">My Notes App</div>',
+          EMPTY_GRID,
         ),
         'catalog/apps.json': registry('beta'),
       }),
@@ -1349,12 +1367,16 @@ describe('check-site-integrity · the new limbs cannot go vacuously quiet', () =
     assert.match(r.out, /NO apps\/\*\/store\/\*\/\*-url\.txt resolved to a host this repo deploys/);
   });
 
-  test('COVERAGE LOST when the APPS array is renamed out from under the check', () => {
+  test('COVERAGE LOST when the grid sentinels are renamed out from under the check', () => {
     // The exact edit that would silently retire the apps.json comparison — and
-    // the reason it is a floor and not a comment.
-    const r = afterEdit('cf-noapps', (d) => patch(d, 'sites/nikatru/index.html', 'const APPS = [', 'const NIKATRU_APPS = ['));
+    // the reason it is a floor and not a comment. Retargeted 2026-09-09 with the
+    // limb it guards: it read `const APPS = [` while the homepage built its grid
+    // in the browser, and that scan no longer exists.
+    const r = afterEdit('cf-noapps', (d) =>
+      patch(d, 'sites/nikatru/index.html', '<!-- APPS-GRID -->', '<!-- APPS-LIST -->'),
+    );
     assert.equal(r.code, 1);
-    assert.match(r.out, /`const APPS = \[` was not found/);
+    assert.match(r.out, /`<!-- APPS-GRID -->` … `<!-- \/APPS-GRID -->` pair was not found/);
   });
 
   test('COVERAGE LOST when no Function reads the client IP header any more', () => {
