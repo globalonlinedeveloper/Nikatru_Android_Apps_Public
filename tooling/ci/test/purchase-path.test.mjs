@@ -43,7 +43,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -306,16 +306,27 @@ void main() {
 }
 `;
 
+// 🔄 REVERSED 2026-09-09 with the guard limb it feeds. This fixture used to
+// carry `connectivityAvailable && isStaleAt(...)` because that was the REQUIRED
+// shape; it is now the FORBIDDEN one (design §2.4 / invariant G9). The green
+// control below re-runs the same limb over the REAL cache source, so this
+// fixture cannot quietly drift away from the tree it stands in for.
 const CACHE = `
 class EntitlementCache {
   bool isStaleAt(Entitlements cached, DateTime now) => true;
-  Future<Entitlements> readValid({DateTime? now, bool connectivityAvailable = true}) async {
-    final bool stale = connectivityAvailable && isStaleAt(cached, at);
+  Future<Entitlements> readValid({DateTime? now}) async {
+    final bool stale = isStaleAt(cached, at);
     return cached;
   }
 }
 const Duration kEntitlementStalenessCeiling = Duration(days: 7);
 `;
+
+/** The REAL shipped cache source, for the green control. */
+const REAL_CACHE = readFileSync(
+  join(CI_DIR, '..', '..', 'packages/core/lib/src/entitlement_cache.dart'),
+  'utf8',
+);
 
 // [pipeline 4]B-2 — THE RAIL CONFIG IS DATA NOW, AND SO IS THIS FIXTURE. It was
 // a TypeScript literal (`export const DEFAULT_CONFIGS = { subscriptiontracker: { paywall: … } }`)
@@ -547,14 +558,67 @@ describe('assert-purchase-path — the client money rail', () => {
     assert.match(r.out, /THE BOUND OUTLIVES THE TRIAL/);
   });
 
-  test('🔴 FAILS when the bound stops consulting CONNECTIVITY (the parameter name survives)', () => {
-    // The defect the mutation run exposed in this guard: `connectivityAvailable`
-    // is a parameter name, so it stayed present when the `&&` that consults it
-    // was deleted — turning the bound into a countdown that locks a paying user
-    // out for being in a tunnel.
-    const r = run({ cache: CACHE.replace('connectivityAvailable && isStaleAt', 'isStaleAt') });
+  // ── [5]M-8 · the ceiling applies REGARDLESS OF CONNECTIVITY (G9) ──────────
+  //
+  // 🔄 INVERTED 2026-09-09. Until then this block asserted the OPPOSITE: that
+  // the guard fails when `connectivityAvailable && isStaleAt(` is missing. The
+  // guard was enforcing the defect — offline grace was unbounded, so a refunded
+  // user who never reconnected kept Pro forever. Design §2.4 / invariant G9
+  // reversed it; these cases follow.
+  //
+  // GREEN CONTROL FIRST — a mutation test with no green control proves nothing:
+  // it cannot tell "the mutation broke it" from "it was already broken".
+
+  test('GREEN CONTROL — the limb passes on the REAL shipped cache source', () => {
+    const r = run({ cache: REAL_CACHE });
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /consulted unconditionally/);
+  });
+
+  test('GREEN CONTROL — the limb passes on the fixture, and SAYS so', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /consulted unconditionally \(no connectivity gate\)/);
+  });
+
+  test('🔴 FAILS when the connectivity gate is RE-INTRODUCED in front of the ceiling', () => {
+    // The exact regression: put the old conjunction back and offline grace is
+    // unbounded again. Mutating the REAL source, not just the fixture, so the
+    // case cannot pass by measuring a stand-in that has drifted.
+    const r = run({
+      cache: REAL_CACHE.replace(
+        'final bool stale = isStaleAt(',
+        'final bool stale = connectivityAvailable && isStaleAt(',
+      ),
+    });
     assert.equal(r.code, 1);
-    assert.match(r.out, /gated on `connectivityAvailable`/);
+    assert.match(r.out, /gates the staleness ceiling on `connectivityAvailable`/);
+    assert.match(r.out, /offline grace is UNBOUNDED/);
+  });
+
+  test('🔴 FAILS when the gate comes back under a DIFFERENT name', () => {
+    // Matching the old parameter's literal name would be the same mistake in the
+    // other direction: rename the flag and the defect returns with the guard
+    // still printing ok. The gate is matched by shape.
+    const r = run({ cache: CACHE.replace('= isStaleAt(', '= isOffline && isStaleAt(') });
+    assert.equal(r.code, 1);
+    assert.match(r.out, /gates the staleness ceiling on `isOffline`/);
+  });
+
+  test('🔴 FAILS when the bound is DECLARED but never consulted at all', () => {
+    // The property the pre-reversal limb really carried, kept: a named constant
+    // nothing reads is a constant, not a bound.
+    const r = run({ cache: CACHE.replace('final bool stale = isStaleAt(cached, at);', 'final bool stale = false;') });
+    assert.equal(r.code, 1);
+    assert.match(r.out, /never applies it/);
+  });
+
+  test('COVERAGE LOST when `readValid` cannot be located at all', () => {
+    // The limb is scoped to readValid's body; a rename must REFUSE, not pass by
+    // measuring an empty string.
+    const r = run({ cache: CACHE.replace('readValid(', 'readSomethingElse(') });
+    assert.equal(r.code, 1);
+    assert.match(r.out, /COVERAGE LOST — .*no readable `readValid` body/);
   });
 
   test('FAILS when the bound is not a readable named constant', () => {

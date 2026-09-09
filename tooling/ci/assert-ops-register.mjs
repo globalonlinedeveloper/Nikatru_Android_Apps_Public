@@ -2350,17 +2350,109 @@ export function classifyRunHistoryAnswer(q, newest, repo) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE ANSWER'S SHAPE WAS CHECKED AND ITS RECENCY WAS NOT — a `per_page=1`
+// read believed on sight. Added 2026-09-09, coverage unit `stale-run-page`.
+//
+// ── THE DEFECT, MEASURED RATHER THAN REASONED ───────────────────────────────
+// Both readers below asked GitHub for one run and took it. The filter checks
+// they already carry — `head_branch` is the answer, `conclusion` is the answer —
+// validate WHAT came back and never WHEN, so a read replica serving an old page
+// satisfies every one of them and is believed.
+//
+// MEASURED 2026-09-09, inside run 34351841295: the freshness read answered run
+// 32560795997, a scheduled ops-watch success from 2026-08-22 — 436.7h stale —
+// while the SAME query, issued again, returned run 34332836726 from that
+// morning. Same URL, same filters, two different histories.
+//
+// ── WHY IT CUTS BOTH WAYS, WHICH IS WHY IT IS NOT MERELY NOISE ──────────────
+//   · FRESHNESS ([14]O-3)  — a stale success INVENTS a red: the newest green
+//                            looks 436h old and the duty reads as gone stale.
+//   · RED-SINCE ([14]O-3b) — a stale FAILURE read HIDES a red: the newest
+//                            failure looks older than the newest success and a
+//                            broken `main` grades green.
+// A guard that can be talked into either answer by a cache is not evidence.
+//
+// ── THE FIX: TWO READS AT TWO WIDTHS, AND A REFUSAL WHEN THEY DISAGREE ──────
+// Every question is asked twice, concurrently, at `per_page=1` and
+// `per_page=30`. Two widths rather than the same request twice ON PURPOSE: a
+// different `per_page` is a different cache key, so the second read cannot be
+// served the first one's cached page — repeating one URL would mostly re-read
+// one replica and prove nothing.
+//
+// A stale replica can only OMIT recent runs; it can never invent a run that has
+// not happened. So the two reads disagreeing means one of them is provably
+// behind, and the newer answer is the true one. This code nevertheless REFUSES
+// rather than quietly taking it, with one bounded exception: a run that genuinely
+// COMPLETES between two concurrent requests is a real race, and it is
+// distinguishable, because such a run finished seconds ago. So a disagreement is
+// accepted as a race only when the newer run completed within
+// `RUN_READ_RACE_MS` of now; anything older is replica staleness and throws.
+//
+// A throw here is `unreadable` at both call sites — it prints, it never passes,
+// and it never reds. That is the honest verdict for "GitHub served me two
+// histories": not a green, not a red, and visible on every run.
+//
+// ⚠️ `newestOnPage` scans for the maximum `updated_at` instead of taking entry
+// zero. Newest-first is a promise the API makes; this file does not take
+// promises, for the same reason the filter checks exist at all.
+export const RUN_READ_RACE_MS = 120_000;
+const RUN_READ_WIDE = 30;
+
+/** PURE. The newest run on one page by `updated_at`, never `runs[0]`. */
+export function newestOnPage(runs) {
+  let best = null;
+  for (const r of runs ?? []) {
+    if (!r?.updated_at) continue;
+    if (!best || Date.parse(r.updated_at) > Date.parse(best.updated_at)) best = r;
+  }
+  return best;
+}
+
+/** PURE. Reconciles the two independent reads of ONE run-history question, so
+ *  every branch of the refusal is reachable from a test without a network —
+ *  the same shell/pure split the classifiers above already use. */
+export function reconcileRunReads(narrow, wide, what, nowMs = Date.now()) {
+  if ((narrow?.id ?? null) === (wide?.id ?? null)) return narrow ?? wide ?? null;
+  const at = (r) => (r ? Date.parse(r.updated_at) : -Infinity);
+  const newer = at(wide) > at(narrow) ? wide : narrow;
+  const staleBy = nowMs - at(newer);
+  if (staleBy <= RUN_READ_RACE_MS) return newer;
+  const say = (r, w) => (r ? `per_page=${w} answered run ${r.id} at ${r.updated_at}` : `per_page=${w} answered NO run`);
+  throw new Error(
+    `two reads of ${what} disagreed, and the gap is not a race: ${say(narrow, 1)}, ` +
+      `while ${say(wide, RUN_READ_WIDE)}. The newer of the two completed ` +
+      `${(staleBy / 3_600_000).toFixed(1)}h ago — far outside the ${RUN_READ_RACE_MS / 1000}s window in which a run ` +
+      `finishing between two concurrent requests could explain it — so GitHub served an inconsistent view of this ` +
+      `history and NO verdict is available from it. A stale page can invent a red in the freshness limb and hide ` +
+      `one in RED-SINCE, so this refuses rather than believing either answer.`,
+  );
+}
+
+/** The impure shell for one run-history question: two reads, two widths,
+ *  reconciled. Holds no verdict logic and applies no filter checks — the
+ *  callers below own those, and they still see exactly the run they used to. */
+async function ghNewestRun(repo, workflow, filters, what) {
+  const qs = filters.filter(Boolean).join('&');
+  const path = (n) => `/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/runs?${qs}&per_page=${n}`;
+  const [narrow, wide] = await Promise.all([ghJson(path(1)), ghJson(path(RUN_READ_WIDE))]);
+  return reconcileRunReads(newestOnPage(narrow?.workflow_runs), newestOnPage(wide?.workflow_runs), what);
+}
+
 /** The newest SUCCESSFUL run for the declared event AND branch. `event=schedule`
  *  matters: a workflow_dispatch green run proves somebody pressed a button, which
  *  is the opposite of what a cadence claim means. `branch` matters for a reason
  *  that is currently INVISIBLE — see the schema limb above. The impure shell only. */
 async function probeGithubRun(q, repo) {
-  const ev = q.event ? `event=${encodeURIComponent(q.event)}&` : '';
-  const br = q.headBranch ? `branch=${encodeURIComponent(q.headBranch)}&` : '';
-  const body = await ghJson(
-    `/repos/${repo}/actions/workflows/${encodeURIComponent(q.workflow)}/runs?${ev}${br}status=success&per_page=1`,
+  const ev = q.event ? `event=${encodeURIComponent(q.event)}` : '';
+  const br = q.headBranch ? `branch=${encodeURIComponent(q.headBranch)}` : '';
+  const newest = await ghNewestRun(
+    repo,
+    q.workflow,
+    [ev, br, 'status=success'],
+    `the newest successful ${q.event ?? 'any'} run of ${q.workflow}${q.headBranch ? ` on ${q.headBranch}` : ''}`,
   );
-  return classifyRunHistoryAnswer(q, body?.workflow_runs?.[0], repo);
+  return classifyRunHistoryAnswer(q, newest, repo);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3207,11 +3299,17 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
  *  change the verdict simply by being newest. Asking each conclusion for its own
  *  newest run cannot be moved by a third one. */
 async function probeGithubRedSince(q, repo) {
-  const wf = encodeURIComponent(q.workflow);
-  const br = `branch=${encodeURIComponent(q.headBranch)}&`;
+  const br = `branch=${encodeURIComponent(q.headBranch)}`;
   const newest = async (status) => {
-    const body = await ghJson(`/repos/${repo}/actions/workflows/${wf}/runs?${br}status=${status}&per_page=1`);
-    const run = body?.workflow_runs?.[0];
+    // Two reads, two widths, reconciled — see the RUN_READ_RACE_MS block above.
+    // A stale FAILURE read is the direction that HIDES a red on this limb, so
+    // the cross-check matters here even more than it does for freshness.
+    const run = await ghNewestRun(
+      repo,
+      q.workflow,
+      [br, `status=${status}`],
+      `the newest ${status} run of ${q.workflow} on ${q.headBranch}`,
+    );
     if (!run) return null;
     // 🔴 THE FILTER IS THE REQUEST; THIS IS THE ANSWER, CHECKED — the same rule
     // `classifyRunHistoryAnswer` states and for a sharper reason here. A

@@ -103,7 +103,7 @@ Subscription _draft() => Subscription(
   id: '',
   name: 'Hulu',
   category: 'Other',
-  price: 9.99,
+  price: const Money(999, 'USD'),
   cycle: BillingCycle.monthly,
   nextRenewal: DateTime.utc(2026, 9, 1),
 );
@@ -151,7 +151,7 @@ void main() {
             id: 'existing',
             name: 'Netflix',
             category: 'Other',
-            price: 15,
+            price: const Money(1500, 'USD'),
             cycle: BillingCycle.monthly,
             nextRenewal: DateTime.utc(2026, 9, 1),
           ),

@@ -37,3 +37,31 @@ thing is already broken. Every rule below is a way that has actually happened he
 ⚠️ **A green guard after a refactor is evidence of nothing.** Moved code leaves a guard's domain by
 moving house — the guard still runs, still finds its old subject absent, and still prints ok. After
 any move, run the OLD guard against a deliberate mutation, with a green control first.
+
+⏱ **APPENDED 2026-09-09 — GIT HISTORY IS NOT A FRESHNESS ORACLE.** A worked instance of the rule
+above, recorded because it cost a whole record. `assert-app-dod.mjs` dated every mutation proof
+against a walk of `git log -- <effect file>`. The app-slug rename (`apps/subly/` →
+`apps/subscriptiontracker/`, c92bfb80) meant git reported exactly ONE commit at every one of those
+paths — the rename — so the walk never compared two blobs and returned the rename day for all
+fourteen rows. Three things are worth carrying forward:
+
+1. **The rename did not change the verdict, it destroyed the INFORMATION.** Re-measured with a walk
+   that resolves the path at each commit, all fourteen rows are still expired. What was lost was the
+   ability to tell a genuine expiry from a rename artefact — every row read the same wrong day, so
+   the column said nothing at all. A check that returns the same answer for every input has stopped
+   checking even while its answer happens to be right.
+2. **The obvious fix was measured and is a no-op.** Adding `--follow` changes nothing, because the
+   walk reads each version with `git show <sha>:<path>` at the CURRENT path, which does not exist at
+   any pre-rename commit; git exits 128, the reader treats that as unreadable, and the walk stops at
+   the newest commit — the rename day again. Measure the fix, do not reason about it.
+3. **The repair is to stop asking history.** `assert-mutation-proofs.mjs` records a sha256 of the
+   comment-stripped implementation in the row itself. No history walk, so a rename cannot blind it
+   and a shallow clone cannot starve it, and the same stripper serves it and the guard it replaces
+   (`dart-source.mjs`), because two readings of "what is code" disagreeing is what produced the
+   original defect.
+
+🔴 And the rule that outranks all three: **a row may only be re-dated by RE-RUNNING the mutation.**
+When a mechanical sweep expires every proof at once, the cheap response is to move the dates, which
+converts proofs into claims and teaches the next reader that the date is a field you edit to get
+green. The same applies to a hash. The harness exists so that "re-run it" is a command rather than an
+afternoon.

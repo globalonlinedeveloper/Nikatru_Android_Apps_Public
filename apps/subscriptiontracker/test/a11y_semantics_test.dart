@@ -69,7 +69,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart'
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 import 'package:subscriptiontracker/core/app_config.dart';
 import 'package:subscriptiontracker/core/e2e_keys.dart';
-import 'package:subscriptiontracker/core/format/currency.dart';
+import 'package:subscriptiontracker/core/format/money_format.dart';
 import 'package:subscriptiontracker/core/format/sub_math.dart';
 import 'package:subscriptiontracker/core/router.dart';
 import 'package:subscriptiontracker/data/models/budget_info.dart';
@@ -1135,7 +1135,10 @@ String expectedDonutLabel(ProviderContainer c, AppLocalizations l10n) {
   final List<Subscription> subs =
       c.read(subscriptionsControllerProvider).valueOrNull ??
       const <Subscription>[];
-  final Currency currency = c.read(currencyProvider);
+  // The SAME two axes the screen formats under: the reader's locale, and each
+  // amount's own currency.
+  final MoneyFormatter money = MoneyFormatter(l10n.localeName);
+  final String currencyCode = c.read(currencyCodeProvider);
   final List<CategoryTotal> cats = SubMath.categoryTotals(subs);
   expect(
     cats.length,
@@ -1145,11 +1148,16 @@ String expectedDonutLabel(ProviderContainer c, AppLocalizations l10n) {
         'the "per category" half of this label is empty or trivial and the '
         'assertion is about the prose only.',
   );
+  expect(
+    currencyCode,
+    isNotEmpty,
+    reason: 'the donut is drawn in the user currency — SubMath.chartWeight',
+  );
   return l10n.a11yCategoryDonut(
-    currency.fmt0(SubMath.totalMonthly(subs)),
+    money.formatBagRounded(SubMath.totalMonthly(subs)),
     <String>[
       for (final CategoryTotal cat in cats)
-        l10n.a11yCategoryShare(cat.name, currency.fmt0(cat.value)),
+        l10n.a11yCategoryShare(cat.name, money.formatBagRounded(cat.value)),
     ].join(', '),
   );
 }
@@ -1169,22 +1177,28 @@ String expectedRingLabel(ProviderContainer c, AppLocalizations l10n) {
         'still its CircularProgressIndicator branch and there was no ring to '
         'describe. Check the pump count before believing any failure below.',
   );
-  final Currency currency = c.read(currencyProvider);
-  final double total = SubMath.totalMonthly(subs);
-  final double budgetVal = budget!.monthlyBudget;
-  final bool over = total > budgetVal;
-  final String percent = NumberFormat.percentPattern(
-    l10n.localeName,
-  ).format(budgetVal <= 0 ? 0 : (total / budgetVal).clamp(0, 1));
+  final MoneyFormatter money = MoneyFormatter(l10n.localeName);
+  final String currencyCode = c.read(currencyCodeProvider);
+  // Mirrors the screen exactly: the PRINTED figure is every subtotal, the
+  // MEASURED one is only the part in the budget's own currency.
+  final MoneyBag spent = SubMath.totalMonthly(subs);
+  final Money spentHere = spent.inCurrency(currencyCode);
+  final Money budgetVal = budget!.inCurrency(currencyCode).monthlyBudget;
+  final bool over = spentHere > budgetVal;
+  final String percent = NumberFormat.percentPattern(l10n.localeName).format(
+    budgetVal.minorUnits <= 0
+        ? 0
+        : (spentHere.minorUnits / budgetVal.minorUnits).clamp(0, 1),
+  );
   return over
       ? l10n.a11yBudgetRingOver(
-          currency.fmt(total),
-          currency.fmt0(budgetVal),
+          money.formatBag(spent),
+          money.formatRounded(budgetVal),
           percent,
         )
       : l10n.a11yBudgetRing(
-          currency.fmt(total),
-          currency.fmt0(budgetVal),
+          money.formatBag(spent),
+          money.formatRounded(budgetVal),
           percent,
         );
 }
@@ -3012,11 +3026,11 @@ void main() {
           id: 'sub-1',
           name: 'Netflix',
           category: 'Streaming',
-          price: 15,
+          price: const Money(1500, 'USD'),
           cycle: BillingCycle.monthly,
           nextRenewal: DateTime.utc(2026, 9, 12),
         );
-        final ProviderContainer c = await pumpScreen(
+        await pumpScreen(
           tester,
           Scaffold(
             body: Builder(
@@ -3083,11 +3097,11 @@ void main() {
         // audible as garbage in the one sentence that tells a user what they
         // just saved. Composed from the SAME provider the sheet read, so the
         // expectation cannot drift from the currency the sheet formatted.
-        final Currency currency = c.read(currencyProvider);
+        final MoneyFormatter money = MoneyFormatter(l10n.localeName);
         expect(announced(tester), contains(l10n.cancelledHeading));
         expect(
           announced(tester),
-          contains(l10n.cancelStep2Body(currency.fmt(sub.monthlyPrice))),
+          contains(l10n.cancelStep2Body(money.format(sub.monthlyPrice))),
           reason:
               'the emphasised amount is spliced into a translated sentence at '
               'U+FFFC; a reader must hear the sentence, not the seam. '
@@ -3118,7 +3132,7 @@ void main() {
           id: 'sub-1',
           name: 'Netflix',
           category: 'Streaming',
-          price: 15,
+          price: const Money(1500, 'USD'),
           cycle: BillingCycle.monthly,
           nextRenewal: DateTime.utc(2026, 9, 12),
         );
@@ -3657,7 +3671,7 @@ void main() {
           id: 'sub-1',
           name: 'Netflix',
           category: 'Streaming',
-          price: 15,
+          price: const Money(1500, 'USD'),
           cycle: BillingCycle.monthly,
           nextRenewal: DateTime.utc(2026, 9, 12),
         );
@@ -4731,7 +4745,7 @@ void main() {
           id: 'sub-1',
           name: 'Netflix',
           category: 'Streaming',
-          price: 15,
+          price: const Money(1500, 'USD'),
           cycle: BillingCycle.monthly,
           nextRenewal: DateTime.utc(2026, 9, 12),
         );
@@ -4974,7 +4988,7 @@ void main() {
         id: 'fork',
         name: 'Fork',
         category: 'Other',
-        price: 1,
+        price: const Money(100, 'USD'),
         cycle: BillingCycle.monthly,
         nextRenewal: renewal,
       );

@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:nikatru_design_system/nikatru_design_system.dart'
     show AppSpacing, ContentPane, TwoPane;
 
-import '../../core/format/currency.dart';
+import '../../core/format/money_format.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/subscription.dart';
@@ -111,7 +111,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ({Color ink, Color muted, Color line}) neutral = neutrals(context);
-    final Currency currency = ref.watch(currencyProvider);
+    final MoneyFormatter money = MoneyFormatter(
+      l10n.localeName,
+      emptyCurrencyCode: ref.watch(currencyCodeProvider),
+    );
     final List<Subscription> subs =
         ref.watch(subscriptionsControllerProvider).valueOrNull ??
         const <Subscription>[];
@@ -196,9 +199,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             (Subscription a, Subscription b) =>
                 a.nextRenewal.day.compareTo(b.nextRenewal.day),
           );
-    final double monthTotal = inMonth.fold(
-      0.0,
-      (double a, Subscription s) => a + s.monthlyPrice,
+    final MoneyBag monthTotal = MoneyBag.sum(
+      inMonth.map((Subscription s) => s.monthlyPrice),
     );
 
     // The selection, re-validated — see [_selectedDay]. `byDay` is the same map
@@ -309,7 +311,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   // the month grid is what this column is.
                   l10n.calendarSubtitle(
                     monthYearFmt.format(now),
-                    currency.fmt(monthTotal),
+                    money.formatBag(monthTotal),
                   ),
                   style: AppText.muted.copyWith(
                     fontSize: 12,
@@ -630,7 +632,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   ..._renewals(
                     context,
                     l10n,
-                    currency,
+                    money,
                     neutral,
                     now,
                     l10n.calendarByDate,
@@ -653,7 +655,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           children: _renewals(
             context,
             l10n,
-            currency,
+            money,
             neutral,
             now,
             selectedDay == null
@@ -695,7 +697,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   List<Widget> _renewals(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     ({Color ink, Color muted, Color line}) neutral,
     DateTime now,
     String heading,
@@ -710,7 +712,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     ...rows.map(
       (Subscription s) => Padding(
         padding: const EdgeInsets.only(bottom: 9),
-        child: _dateRow(context, l10n, currency, s, now),
+        child: _dateRow(context, l10n, money, s, now),
       ),
     ),
     // Reachable only with `heading == l10n.calendarByDate`: a day is selectable
@@ -730,7 +732,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget _dateRow(
     BuildContext context,
     AppLocalizations l10n,
-    Currency currency,
+    MoneyFormatter money,
     Subscription s,
     DateTime now,
   ) {
@@ -848,7 +850,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       ),
                     ),
                     Text(
-                      currency.fmt(s.monthlyPrice),
+                      money.format(s.monthlyPrice),
                       style: AppText.fig.copyWith(
                         fontSize: 16,
                         color: neutral.ink,
