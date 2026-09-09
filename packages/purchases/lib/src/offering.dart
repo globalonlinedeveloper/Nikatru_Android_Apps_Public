@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show immutable;
+import 'package:nikatru_core/nikatru_core.dart' show Money;
 
 /// How often a buyer is charged. Verbatim from the rail config — never inferred
 /// from a price id, which is a vendor string we do not get to interpret.
@@ -76,41 +77,38 @@ class Offering {
   /// An UNKNOWN currency renders as `CODE 4.99` rather than guessing a symbol.
   /// A wrong symbol on a real charge is worse than a plain one.
   String get formattedPrice {
-    final int units = _minorUnitDigits[currencyCode] ?? 2;
+    final int units = Money.minorUnitDigitsFor(currencyCode);
     final String major = units == 0
         ? '$amountMinor'
-        : (amountMinor / _pow10(units)).toStringAsFixed(units);
+        : (amountMinor / Money.pow10(units)).toStringAsFixed(units);
     final String? symbol = _symbols[currencyCode];
     return symbol == null ? '$currencyCode $major' : '$symbol$major';
   }
 
-  /// Currency symbols, and nothing beyond what is universally written that way.
-  /// A code with no entry prints as the code — see [formattedPrice].
-  static const Map<String, String> _symbols = <String, String>{
-    'USD': r'$',
-    'EUR': '€',
-    'GBP': '£',
-    'INR': '₹',
-    'JPY': '¥',
-    'AUD': r'A$',
-    'CAD': r'C$',
-  };
+  /// The same charge as the portfolio's money type — an integer count of the
+  /// currency's minor unit, with the code attached.
+  ///
+  /// Exists so a caller that has to DO something with this amount (compare it,
+  /// show it under the reader's own locale) is not handed a string and left to
+  /// parse it back. [formattedPrice] stays the paywall's answer because a
+  /// paywall shows the merchant of record's own rendering and nothing else.
+  Money get price => Money(amountMinor, currencyCode);
 
-  /// Decimal places per currency. ISO 4217 is NOT uniform — JPY has none and
-  /// KWD has three — so a hardcoded `/ 100` would misprice a yen plan by a
-  /// factor of a hundred. Two is the default and covers everything sold today.
-  static const Map<String, int> _minorUnitDigits = <String, int>{
-    'JPY': 0,
-    'KWD': 3,
-  };
-
-  static int _pow10(int n) {
-    int r = 1;
-    for (int i = 0; i < n; i++) {
-      r *= 10;
-    }
-    return r;
-  }
+  /// 🔴 AN ALIAS ONTO THE ONE TABLE, NOT A SECOND COPY. The symbols and the
+  /// per-currency minor-unit digits (JPY 0, KWD 3) used to be declared here AND
+  /// again in the tracker app's formatter — which is how a symbol can be right
+  /// on the paywall and wrong on the next screen. They now live once, in
+  /// [Money], and this is a `const` reference to that map.
+  ///
+  /// ⚠️ THE NAME IS LOAD-BEARING. `assert-no-price-literals.mjs` scopes its
+  /// derivation check to [formattedPrice]'s own body and reads `_symbols` there
+  /// as the evidence that the symbol is LOOKED UP rather than supplied ready
+  /// made by config. Renaming it, or replacing the getter's body with a plain
+  /// delegation to [Money.plainFormat], reads to that guard as a paywall that
+  /// no longer derives its price. The equivalence is pinned instead by a test:
+  /// `offering_test.dart` asserts `formattedPrice == price.plainFormat()` over
+  /// a matrix of currencies, so the two cannot drift.
+  static const Map<String, String> _symbols = Money.symbols;
 
   /// Parses one offering, returning null on ANYTHING it cannot read.
   ///
