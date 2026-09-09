@@ -131,11 +131,18 @@ describe('platform CORS (shared Worker — ADR 020, exact allowlist)', () => {
     const call = appWith(SHIPPED);
     for (const origin of [
       'https://other.nikatru.com', // a SIBLING portfolio origin is not implied
-      'https://nikatru.com',
+      // ⏱ `https://nikatru.com` MOVED OUT OF THIS LIST on 2026-09-09 [ADR 075]:
+      // it is now where every app page is SERVED, so refusing it would take the
+      // whole portfolio's config and analytics offline. The near-miss shapes it
+      // brought with it stay, and they matter more here than they did on a
+      // subdomain — an origin that merely LOOKS like the apex now looks like
+      // every app at once, not one of them.
       'https://nikatru.com.evil.test', // suffix-of-hostname attack
-      'https://evilnikatru.com',
-      'http://subly.nikatru.com', // plaintext variant of an allowed origin
-      'https://subly.nikatru.com/', // trailing slash is a different origin
+      'https://evilnikatru.com', // prefix-of-hostname attack
+      'http://nikatru.com', // plaintext variant of an allowed origin
+      'https://nikatru.com/', // trailing slash is a different origin
+      'https://nikatru.com/subly', // an origin is not a URL: the PATH is not part of it
+      'https://subly.nikatru.com', // the RETIRED subdomain is refused, not grandfathered
       'https://example.com',
       'not-a-url',
     ]) {
@@ -148,11 +155,12 @@ describe('platform CORS (shared Worker — ADR 020, exact allowlist)', () => {
     // The semantics changed on 2026-07-25: empty used to mean '*'. Clearing the
     // var now takes every web build offline for config + analytics, so this must
     // fail loudly in a test rather than quietly in production.
+    // Probed with the origin that IS on the list when the list is not empty —
+    // the apex since [ADR 075]. Probing a host that would be refused anyway
+    // proves nothing about emptiness.
     const call = appWith('');
     expect(
-      (await call('GET', 'https://subly.nikatru.com')).headers.get(
-        'Access-Control-Allow-Origin',
-      ),
+      (await call('GET', 'https://nikatru.com')).headers.get('Access-Control-Allow-Origin'),
     ).toBeNull();
   });
 
