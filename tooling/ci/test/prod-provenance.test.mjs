@@ -125,10 +125,16 @@ describe('migration-tables — the one reading of the schema', () => {
 
 // ── the GATE ────────────────────────────────────────────────────────────────
 describe('assert-prod-provenance — the gate limb', () => {
+  // ⏱ THE ENUMERATION WAS 11 UNTIL 2026-09-09 and is 15 now: 0009_bundle_grants.sql
+  // added bundle_grants, bundle_sources, feature_sets and feature_set_members, over
+  // 9 migration files. The count is PINNED rather than derived ON PURPOSE — a
+  // derived count agrees with any schema, including one that quietly stopped
+  // enumerating — so it moves in the same commit as the migration that moved it,
+  // with the measurement written beside it rather than the number simply edited.
   test('the real tree passes, and says out loud that it has not seen production', () => {
     const r = spawnSync(process.execPath, [GATE, REPO], { cwd: REPO, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(r.stdout, /11 table\(s\) enumerated/);
+    assert.match(r.stdout, /15 table\(s\) enumerated/);
     assert.match(r.stdout, /HAS NOT LOOKED AT PRODUCTION/);
     assert.match(r.stdout, /MONITOR/);
   });
@@ -336,7 +342,7 @@ describe('check-prod-provenance — the monitor limb', () => {
     const r = run({});
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /THIS IS A MONITOR, NOT A GATE/);
-    assert.match(r.stdout, /11 table\(s\) enumerated/);
+    assert.match(r.stdout, /15 table\(s\) enumerated/);
   });
 
   test('the real production consent row resolves — it is a shipped build, not residue', () => {

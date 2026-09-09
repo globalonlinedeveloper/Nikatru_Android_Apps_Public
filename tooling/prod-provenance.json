@@ -63,6 +63,8 @@
   "migrationsDir": "services/platform/migrations",
 
   "resolvers": {
+    "operator-minted": "The marker value must be a NON-EMPTY provenance string recorded by the operator act that created the row — a commit sha or a register hash. Rows in these tables are neither client-written nor migration-seeded: they are minted by a dated, reviewed human act, so the honest question is not \"which build shipped this\" but \"what state was this minted against\". NULL or empty fails, which is the point: a row minted against nothing is a row nobody can review.",
+    "product-kind": "The marker value must be one of the product kinds declared in contracts/entitlement/bundle.js (`app` | `extension` | `script`) — the same list tooling/bundle-availability.mjs derives the live-product set from. A value outside it is a row nothing in this tree could have written. Deliberately NOT a join against the product catalogues: a RETIRED product leaves the catalogue while grants that pinned it must keep resolving, so a catalogue join would turn honest history into a false red.",
     "released-build": "The marker value must be the version string of a build the release lane actually shipped: `<release_line>.<run_number>+<sha7>`, where a SERVED lane in tooling/channel-register.json has a SUCCESSFUL run numbered <run_number> whose head commit is <sha7>. Derived from the GitHub Actions API at read time — never a list in this file. `dev` (the dart-define default), `c6-localprobe` (the C-6 live probe's literal) and NULL all fail, which is the point.",
     "live-environment": "The marker value must be exactly `live`. Every row in these tables is written by the money rail, which stamps `live` or `sandbox` on purpose ([5]M-12: a sandbox notification is stored so it is auditable and can never write a live entitlement). A verification against production necessarily runs in sandbox, so `sandbox` IS the test marker for this half of the schema — and NULL is worse than either, because it is a row the rail could not attribute at all.",
     "cron-job": "The marker value must be a job the deployed Worker both DECLARES and USES — the `export const <NAME>_JOB = '<literal>'` set in services/platform/src, the same derivation tooling/ops/check-heartbeats.mjs uses for its completeness limb. A heartbeat row naming a job no deployed code writes is residue from a renamed or deleted job.",
@@ -114,7 +116,28 @@
       "resolver": "live-environment",
       "reason": "NO `app_version` COLUMN: written by the cancellation route (0005) from the authenticated session, not from an app envelope. `environment` is NOT NULL in the DDL for the same [5]M-12 reason as the rest of the rail, so the marker is guaranteed present and only its VALUE can be wrong."
     },
-    "revocation_reasons": {
+    "bundle_grants": {
+    "marker": "provider_environment",
+    "resolver": "live-environment",
+    "reason": "THE SAME ANSWER `entitlements` GIVES, AND FOR THE SAME REASON — one vocabulary, one set of readers. No `app_version` column and never will have one: the row is written by the money rail from a merchant-of-record notification or a server-side receipt pull, not by a client, so no app build is involved and there is no version to record. `provider_environment` (0009_bundle_grants.sql section A) is the column that answers the same question — which money world produced this row. 🔴 IT CARRIES THE SAME FIRST-REVENUE CONSEQUENCE AS `entitlements`, MULTIPLIED: a test bundle grant in production is a free Pro unlock across EVERY member product, not one, and a NULL here is precisely such a row. ⚠️ THE TWO EXEMPT SOURCES DO NOT BREAK THE RULE: `promo_code` and `owner_comp` grants carry no receipt, but they are still written by this Worker in this environment and still stamp `provider_environment` — the exemption is from a RECEIPT, never from the money world.",
+    "_note": "As of 2026-09-09 this table has zero rows in production; the rule exists before the first one, which is the only time it is free."
+  },
+  "bundle_sources": {
+    "marker": "source",
+    "resolver": "migration-seed",
+    "reason": "NO `app_version` COLUMN AND NO WRITER AT ALL: reference data seeded by 0009_bundle_grants.sql section B and extendable only by an additive INSERT in a later migration. Nothing in the running system writes it, so 'traced to a released build' is the wrong question — the right one is 'is this row in the migration ledger'. Same shape as `revocation_reasons`, and the same reason emptiness could never have been the rule: it has seven rows the day it is created."
+  },
+  "feature_sets": {
+    "marker": "minted_from",
+    "resolver": "operator-minted",
+    "reason": "NO `app_version` COLUMN, BECAUSE NEITHER A CLIENT NOR THE MONEY RAIL WRITES THIS, AND IT IS NOT SEEDED EITHER — which is why it needs its own resolver rather than borrowing one that would fit badly. A feature-set version is MINTED by a dated, reviewed operator act ([ADR 057] §4: adding a product to the bundle is forward-only and explicit), and `minted_from` is the commit or register hash that act recorded. A row with a NULL or empty `minted_from` is a version somebody created by hand against no reviewed state — and because a `sellable` version's members are frozen and grants PIN it, such a row silently defines what a stranger bought. Reusing `migration-seed` here would have been the empty-predicate failure this register's _readme was written against: no migration seeds this table, so the predicate would range over nothing and print clean forever."
+  },
+  "feature_set_members": {
+    "marker": "product_kind",
+    "resolver": "product-kind",
+    "reason": "NO `app_version` COLUMN — no client build touches these rows. THE MEMBER ROWS ARE THE RESOLUTION OF A PURCHASE, so an unattributable one is the sharpest failure in this migration: a member row silently added or removed changes what an EXISTING grant unlocks, with no revocation, no notification and no trace. There is no version string and no environment on these rows; what there is, is the category the slug came from, and `product_kind` outside the declared set (`app` | `extension` | `script`) means a row nothing in the tree could have written. ⚠️ THE STRONGER CHECK — that `product_slug` names a product in `catalog/apps.json` or `extensions/catalog/extensions.json` — is deliberately NOT this rule: a RETIRED product legitimately leaves the catalogue while old grants must keep resolving it, so a catalogue join would turn honest history into a false red. That check belongs to the mint, not to the monitor."
+  },
+  "revocation_reasons": {
       "marker": "reason",
       "resolver": "migration-seed",
       "reason": "NO `app_version` COLUMN and no writer at all: this is REFERENCE DATA seeded by 0004_money_rail.sql:282 and extended only by an additive INSERT in a later migration. Nothing in the running system writes it, so 'traced to a released build' is the wrong question — the right one is 'is this row in the migration ledger'. Its 8 rows are the second reason emptiness could never have been the rule."

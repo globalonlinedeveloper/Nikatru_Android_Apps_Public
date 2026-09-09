@@ -107,6 +107,10 @@ import { fileURLToPath } from 'node:url';
 
 import { enumerateMigrationTables } from '../ci/migration-tables.mjs';
 import { stripSourceComments } from '../ci/text-reductions.mjs';
+// The product kinds a bundle may span, imported rather than retyped: the same
+// file tooling/bundle-availability.mjs and the Worker twin read, so `script`
+// becoming real is one edit and not three.
+import { PRODUCT_KINDS } from '../../contracts/entitlement/bundle.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REGISTER_REL = 'tooling/prod-provenance.json';
@@ -613,6 +617,45 @@ async function main() {
         // An empty set marks every row unattributable, which reads as a finding
         // about the data when it is really a finding about the reader.
         if (s.size === 0) throw new CouldNotLook('the app catalogue declares zero apps, so every row would read as unattributable');
+        return s;
+      })(),
+    ),
+    // For rows created by a dated, reviewed OPERATOR act — neither a client, nor
+    // the money rail, nor a migration seed. `feature_sets` is the case: minting a
+    // bundle version is an explicit forward-only act ([ADR 057] §4), and
+    // `minted_from` is the commit or register hash that act recorded.
+    //
+    // 🔴 THE PREDICATE IS "NON-EMPTY", AND THAT IS WEAKER THAN IT LOOKS ON
+    // PURPOSE. This reader cannot verify a sha against anything: the register
+    // hash a mint records is not a git object, and resolving it would mean this
+    // monitor deciding what a valid mint looks like — a second authority over a
+    // one-way door. What it CAN say is that somebody recorded something, and the
+    // failing input it exists for is the row minted by hand against nothing,
+    // which is the row that silently defines what a stranger bought.
+    'operator-minted': (v) =>
+      typeof v === 'string' && v.trim().length > 0
+        ? null
+        : v == null
+          ? 'no mint provenance at all — this version was created against no reviewed state, and grants that pin it are defined by nobody'
+          : 'mint provenance is blank',
+    // For the member rows of a pinned feature set. The marker is the CATEGORY the
+    // slug came from, checked against the kinds the shared contract declares.
+    //
+    // ⚠️ DELIBERATELY NOT A JOIN AGAINST THE PRODUCT CATALOGUES. A RETIRED product
+    // legitimately leaves `catalog/apps.json` while every grant that pinned it must
+    // keep resolving — so a catalogue join would turn honest history into a false
+    // red, which is the same trap `app-catalogue` above is allowed to take only
+    // because its tables are derived and carry no purchase.
+    'product-kind': ((set) => (v) =>
+      typeof v === 'string' && set.has(v)
+        ? null
+        : `product kind \`${v}\` is not one of the kinds contracts/entitlement/bundle.js declares (${[...set].join(', ')})`)(
+      (() => {
+        const s = new Set(PRODUCT_KINDS);
+        // An empty set marks every row unattributable, which reads as a finding
+        // about the data when it is really a finding about the reader — the same
+        // failure `app-catalogue` guards against one entry up.
+        if (s.size === 0) throw new CouldNotLook('the bundle contract declares zero product kinds, so every member row would read as unattributable');
         return s;
       })(),
     ),
