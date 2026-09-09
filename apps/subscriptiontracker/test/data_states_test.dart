@@ -52,7 +52,8 @@ import 'support/width_harness.dart';
 /// length of an assertion.
 class _Pending implements SubscriptionRepository {
   @override
-  Future<List<Subscription>> fetchAll() => Completer<List<Subscription>>().future;
+  Future<List<Subscription>> fetchAll() =>
+      Completer<List<Subscription>>().future;
 
   @override
   Future<BudgetInfo> budget() => Completer<BudgetInfo>().future;
@@ -70,8 +71,7 @@ class _Failing implements SubscriptionRepository {
       throw StateError('the network is down');
 
   @override
-  Future<BudgetInfo> budget() async =>
-      throw StateError('the network is down');
+  Future<BudgetInfo> budget() async => throw StateError('the network is down');
 
   @override
   dynamic noSuchMethod(Invocation i) =>
@@ -85,11 +85,10 @@ class _Empty implements SubscriptionRepository {
   Future<List<Subscription>> fetchAll() async => const <Subscription>[];
 
   @override
-  Future<BudgetInfo> budget() async =>
-      const BudgetInfo(
-        monthlyBudget: Money(500000, 'USD'),
-        categories: <BudgetCap>[],
-      );
+  Future<BudgetInfo> budget() async => const BudgetInfo(
+    monthlyBudget: Money(500000, 'USD'),
+    categories: <BudgetCap>[],
+  );
 
   @override
   dynamic noSuchMethod(Invocation i) =>
@@ -156,7 +155,8 @@ void main() {
         expect(
           find.byKey(DataStateView.retryKey),
           findsOneWidget,
-          reason: 'a failure a user can read but not act on is a dead end, and '
+          reason:
+              'a failure a user can read but not act on is a dead end, and '
               'the dead end is what this whole change exists to remove',
         );
       });
@@ -173,7 +173,8 @@ void main() {
         expect(
           find.byKey(DataStateView.retryKey),
           findsNothing,
-          reason: 'a retry on the empty state tells a user their empty account '
+          reason:
+              'a retry on the empty state tells a user their empty account '
               'is a malfunction — and it is the one edit that would make the '
               'empty state look like the failed one again',
         );
@@ -231,7 +232,8 @@ void main() {
         expect(
           find.byType(AppBar),
           findsOneWidget,
-          reason: 'this route is reachable by a reloaded URL, so on a cold load '
+          reason:
+              'this route is reachable by a reloaded URL, so on a cold load '
               'the app bar is the only chrome on screen — a state that drops '
               'it is a screen with no way back',
         );

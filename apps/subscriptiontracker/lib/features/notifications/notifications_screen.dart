@@ -82,7 +82,6 @@ class NotificationsScreen extends ConsumerWidget {
       Localizations.localeOf(context).toString(),
     );
 
-
     return Scaffold(
       // Light byte-identical (the literal AppColors.bg); dark takes
       // `scheme.surface`, which is what `buildAppTheme` gives
@@ -245,7 +244,10 @@ class NotificationsScreen extends ConsumerWidget {
                               ? l10n.notifRenewsToday(x.name)
                               // (name, count) — gen-l10n orders the parameters by the arb's
                               // placeholder map, and the plural SELECTOR is the second one here.
-                              : l10n.notifRenewsInDays(x.name, x.daysUntil(now)),
+                              : l10n.notifRenewsInDays(
+                                  x.name,
+                                  x.daysUntil(now),
+                                ),
                           l10n.notifChargeOn(
                             money.format(x.price),
                             renewalDate.format(x.nextRenewal),
@@ -296,7 +298,8 @@ class NotificationsScreen extends ConsumerWidget {
                               AppSpacing.xl,
                             ),
                             itemCount: items.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (BuildContext context, int i) =>
                                 _card(context, items[i]),
                           );

@@ -321,7 +321,10 @@ class InsightsScreen extends ConsumerWidget {
                   // boundary would make the grid look like two pages.
                   Text(
                     l10n.insightsTitle,
-                    style: AppText.title.copyWith(fontSize: 26, color: neutral.ink),
+                    style: AppText.title.copyWith(
+                      fontSize: 26,
+                      color: neutral.ink,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
