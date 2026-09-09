@@ -49,9 +49,14 @@
 // Exit 0 = every bundle grant has provenance. 1 = one does not, or coverage was
 // lost. It exits NON-ZERO on an absent or empty subject tree, by design.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// 🔴 THE ONE DIRECTORY LISTING. `readdirSync` here would descend into a nested
+// checkout — a git worktree, a submodule, a stray clone — and read another
+// repository's files as this tree's. Green in CI, which creates no worktrees, and
+// wrong on the machine of whoever is actually looking at it.
+import { listDir } from './tree-walk.mjs';
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 
@@ -158,7 +163,7 @@ function stripComments(src) {
 
 function tsFilesUnder(dir, acc = []) {
   let entries;
-  try { entries = readdirSync(dir); } catch { return acc; }
+  try { entries = listDir(dir); } catch { return acc; }
   for (const name of entries) {
     if (name === 'node_modules' || name === 'dist' || name === '.wrangler') continue;
     const abs = join(dir, name);
