@@ -277,9 +277,17 @@ describe('assert-cors-allowlist', () => {
     // catalogue-derived the moment the app moved to a path.
     const { code, out } = run(tree());
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /pages\.dev/);
-    assert.doesNotMatch(out, /localhost:3000/);
-    assert.doesNotMatch(out, /subly\.nikatru\.com(?![\w.-])/);
+    // ⚠️ SUBSTRING, NOT REGEX. These are NEGATIVE assertions — "the guard did not
+    // complain about this host" — and for a negative the loosest match is the
+    // strongest check, so anchoring them would weaken them. But a bare host
+    // pattern compiled as a regex over text full of URLs is the
+    // missing-regexp-anchor shape whatever its polarity, and arguing that a
+    // scanner has miscategorised one line is how a rule stops being read at all.
+    // `includes` says exactly what is meant, catches strictly more, and is not a
+    // regex — so there is nothing left to anchor.
+    for (const host of ['pages.dev', 'localhost:3000', 'subly.nikatru.com']) {
+      assert.ok(!out.includes(host), `the guard named ${host} on a tree where every EXTRA is present:\n${out}`);
+    }
   });
 
   // 🔴 AN EXTRA IS REQUIRED, NOT MERELY PERMITTED — and the first draft of this
