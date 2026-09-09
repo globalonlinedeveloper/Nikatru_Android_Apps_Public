@@ -41,9 +41,20 @@
 //
 //   · `deployment_trigger.metadata.commit_hash`, for GIT-CONNECTED projects
 //     only, against the newest commit on `main` that touched the project's
-//     source directory. Equal is the only passing answer. BEHIND means the
-//     build for that commit never ran or never finished. AHEAD, or a hash `main`
-//     does not contain, means production is serving a branch.
+//     source directory. The test is CONTAINMENT, not equality: the served
+//     commit passes if it IS that commit or is a DESCENDANT of it. BEHIND —
+//     a served commit that does not carry it — means the build for that commit
+//     never ran or never finished. An ancestry that cannot be read is exit 2.
+//
+//     🔴 THIS LIMB READ `!==` UNTIL 2026-09-09 AND THAT WAS WRONG. Cloudflare
+//     builds EVERY push to main, not only the ones touching this project's
+//     directory, so a healthy project normally serves a commit AHEAD of the one
+//     `main` names, and equality holds only for the minutes between a
+//     source-touching commit and the next push of any kind. ops-watch run
+//     34379156976 called both `nikatru` and `rajasekarselvam` RED while each
+//     served 2dd81ff, a descendant of the commit it was accused of missing;
+//     `duty.workflow.ops-watch.yml` then read RED SINCE and reddened
+//     `Guards — platform, data and ops` on every open pull request at once.
 //
 //   ⚠️ `*.pages.dev` IS NOT ASKED, ON PURPOSE. It is a different zone with its
 //   own preview deployments, and `env=production` is the whole reason this query
@@ -65,7 +76,8 @@
 // ── THREE-VALUED, AND 2 IS NOT A PASS ───────────────────────────────────────
 //   0  every derived project's newest production deployment succeeded, and every
 //      git-connected one is at the commit `main` says it should be.
-//   1  a project is stale, red, or serving a commit `main` does not contain.
+//   1  a project is stale or red — its newest production build failed, or the
+//      commit it serves does not CARRY the newest `main` commit for its source.
 //   2  COULD NOT LOOK — no credential, a non-200, unparseable JSON, an
 //      `environment` that came back something other than `production`, or a
 //      project list that derived to EMPTY. An empty sweep prints the same `ok`
@@ -173,8 +185,14 @@ export function derivePagesProjects(root) {
  *  `null` for a project whose commit limb is ungraded (direct upload) or whose
  *  history could not be read.
  *
+ *  `isAncestor(a, b)` answers "does commit b already carry commit a?" as
+ *  true/false/null, null meaning UNREADABLE. It is injected rather than called
+ *  here so this function stays pure and every branch stays reachable from a test
+ *  with no git. It is consulted ONLY when the served commit differs from
+ *  `expectedCommit`; when they are equal the question is already answered.
+ *
  *  Returns `{ code, line }`. `code` is 0, 1 or 2 with the file-level meaning. */
-export function judgeProject({ project, kind, sourceDir, deployments, expectedCommit }) {
+export function judgeProject({ project, kind, sourceDir, deployments, expectedCommit, isAncestor = null }) {
   const at = `${project} (${kind})`;
 
   if (!Array.isArray(deployments)) {
@@ -249,14 +267,53 @@ export function judgeProject({ project, kind, sourceDir, deployments, expectedCo
     };
   }
 
+  // 🔴 THE QUESTION IS CONTAINMENT, NOT EQUALITY, AND `!==` ASKS THE WRONG ONE.
+  // Cloudflare's git integration builds EVERY push to `main`, not only the ones
+  // touching this project's source directory, so a healthy deployment normally
+  // serves a commit AHEAD of `expectedCommit`. Equality holds only in the window
+  // between a source-touching commit and the next push of any kind, which on a
+  // busy day is minutes. The real defect — "the build for that commit never ran"
+  // — is `served` being strictly BEHIND `expectedCommit`, i.e. not carrying it.
+  //
+  // Measured 2026-09-09: ops-watch run 34379156976 called BOTH `nikatru` and
+  // `rajasekarselvam` RED while each served 2dd81ff, a DESCENDANT of the commit
+  // it was accused of missing (bf04fc6 and c72701c respectively, both ancestors).
+  // That false red is not free: `duty.workflow.ops-watch.yml` then reads RED
+  // SINCE in assert-ops-register.mjs, which reddened `Guards — platform, data
+  // and ops` on EVERY open pull request at once.
+  //
+  // An unreadable ancestry is exit 2, never a pass: a shallow clone that cannot
+  // see the served commit has not judged this, and saying "fine" there is the
+  // blind-pass this whole file exists to refuse.
   if (served !== expectedCommit) {
+    const carries = typeof isAncestor === 'function' ? isAncestor(expectedCommit, served) : null;
+
+    if (carries === null) {
+      return {
+        code: 2,
+        line:
+          `?   ${at} — deployment ${id} is serving ${short(served)} and \`main\` names ${short(expectedCommit)} ` +
+          `for ${sourceDir}, but whether the served commit CARRIES that one could not be read from this ` +
+          `checkout. The freshness question is unanswered rather than answered "fine".`,
+      };
+    }
+
+    if (carries === false) {
+      return {
+        code: 1,
+        line:
+          `✗   ${at} — deployment ${id} succeeded, but it is serving commit ${short(served)}, which does NOT ` +
+          `carry ${short(expectedCommit)} — the newest commit on \`main\` touching ${sourceDir}. The Cloudflare ` +
+          `build for ${short(expectedCommit)} never ran or never finished. This is invisible on the Actions page ` +
+          `by construction: the build happens on Cloudflare's side of the wire and posts no status here.`,
+      };
+    }
+
     return {
-      code: 1,
+      code: 0,
       line:
-        `✗   ${at} — deployment ${id} succeeded, but it is serving commit ${short(served)} while the newest ` +
-        `commit on \`main\` touching ${sourceDir} is ${short(expectedCommit)}. The Cloudflare build for ` +
-        `${short(expectedCommit)} never ran or never finished. This is invisible on the Actions page by ` +
-        `construction: the build happens on Cloudflare's side of the wire and posts no status here.`,
+        `ok  ${at} — deployment ${id} succeeded at stage \`deploy\`, serving ${short(served)}, which is AHEAD of ` +
+        `${short(expectedCommit)}, the newest \`main\` commit touching ${sourceDir}, and carries it.`,
     };
   }
 
@@ -264,6 +321,26 @@ export function judgeProject({ project, kind, sourceDir, deployments, expectedCo
     code: 0,
     line: `ok  ${at} — deployment ${id} succeeded at stage \`deploy\`, serving ${short(served)}, the newest \`main\` commit touching ${sourceDir}.`,
   };
+}
+
+/** The ancestry question `judgeProject` cannot ask for itself: does `descendant`
+ *  already carry `ancestor`? true / false / null, where null is UNREADABLE and
+ *  the caller must turn it into exit 2 rather than a pass.
+ *
+ *  ⚠️ `git merge-base --is-ancestor` uses its EXIT CODE as the answer: 0 is yes,
+ *  1 is no, and anything else (128 for an object this checkout does not have) is
+ *  an ERROR that must not be read as "no". ops-watch.yml checks out with
+ *  `fetch-depth: 0` precisely so both commits are present. */
+export function isAncestorOf(root, ancestor, descendant, run = spawnSync) {
+  const sha = /^[0-9a-f]{7,40}$/i;
+  if (typeof ancestor !== 'string' || typeof descendant !== 'string') return null;
+  if (!sha.test(ancestor) || !sha.test(descendant)) return null;
+
+  const r = run('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: root, encoding: 'utf8' });
+  if (r.error) return null;
+  if (r.status === 0) return true;
+  if (r.status === 1) return false;
+  return null;
 }
 
 /** PURE. The whole sweep's verdict from the per-project ones. The WORST code
@@ -353,7 +430,14 @@ async function main() {
 
     try {
       const deployments = await readDeployments(p.project);
-      results.push(judgeProject({ ...p, deployments, expectedCommit }));
+      results.push(
+        judgeProject({
+          ...p,
+          deployments,
+          expectedCommit,
+          isAncestor: (a, b) => isAncestorOf(ROOT, a, b, spawnSync),
+        }),
+      );
     } catch (e) {
       results.push({
         code: 2,
