@@ -264,24 +264,60 @@ test('POSITIVE CONTROL · a block matching the derived shape passes', () => {
 // badge while reporting clean. The three negatives are the other half: a limb
 // that flags "Pricing" is a limb somebody switches off.
 
-for (const [shape, snippet, mustFail] of [
-  ['a single-quoted href', "<a href='https://play.google.com/x'>Google Play</a>", true],
-  ['an UPPERCASE tag and attribute', '<A HREF="https://play.google.com/x">Google Play</A>', true],
-  ['newlines and padding around the link text', '<a href="https://play.google.com/x">\n   Google Play\n </a>', true],
-  ['a <span> nested around the store name', '<a href="https://play.google.com/x"><span>Google Play</span></a>', true],
-  ['the register name WITH its parenthetical', '<a href="https://apps.apple.com/x">Apple App Store (iOS)</a>', true],
-  ['an ordinary internal link', '<a href="/pricing">Pricing</a>', false],
-  ['a bare word that is only PART of a store name', '<a href="/x">Play</a>', false],
-  ['a badge row commented out of the markup', '<!-- <a href="https://play.google.com/x">Google Play</a> -->', false],
-]) {
-  test(`${mustFail ? 'limb C catches' : 'limb C does not flag'} ${shape}`, () => {
-    const d = tree();
-    edit(d, 'sites/nikatru/contact.html', '</body>', `${snippet}</body>`);
-    const r = run(d);
-    rmSync(d, { recursive: true, force: true });
-    assert.equal(r.code, mustFail ? 1 : 0, r.out);
-  });
+// ⚠️ THESE ARE EIGHT `test()` DECLARATIONS AND NOT A TABLE IN A LOOP, DELIBERATELY.
+// assert-guard-coverage.mjs's ratchet counts DECLARATIONS in the source, while
+// assert-case-count-honest.mjs counts what node REPORTED running. A loop over a
+// table makes those two disagree by seven — the floor reads 1 where the run
+// reports 8 — and a floor that cannot see seven of the cases it is meant to hold
+// is exactly the coverage a ratchet exists to stop leaking.
+/** Paste one snippet in front of `</body>` on a real page and run the guard. */
+function withSnippet(snippet) {
+  const d = tree();
+  edit(d, 'sites/nikatru/contact.html', '</body>', `${snippet}</body>`);
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  return r;
 }
+
+test('limb C catches a single-quoted href', () => {
+  const r = withSnippet("<a href='https://play.google.com/x'>Google Play</a>");
+  assert.equal(r.code, 1, r.out);
+});
+
+test('limb C catches an UPPERCASE tag and attribute', () => {
+  const r = withSnippet('<A HREF="https://play.google.com/x">Google Play</A>');
+  assert.equal(r.code, 1, r.out);
+});
+
+test('limb C catches newlines and padding around the link text', () => {
+  const r = withSnippet('<a href="https://play.google.com/x">\n   Google Play\n </a>');
+  assert.equal(r.code, 1, r.out);
+});
+
+test('limb C catches a <span> nested around the store name', () => {
+  const r = withSnippet('<a href="https://play.google.com/x"><span>Google Play</span></a>');
+  assert.equal(r.code, 1, r.out);
+});
+
+test('limb C catches the register name carried WITH its parenthetical', () => {
+  const r = withSnippet('<a href="https://apps.apple.com/x">Apple App Store (iOS)</a>');
+  assert.equal(r.code, 1, r.out);
+});
+
+test('limb C does not flag an ordinary internal link', () => {
+  const r = withSnippet('<a href="/pricing">Pricing</a>');
+  assert.equal(r.code, 0, r.out);
+});
+
+test('limb C does not flag a bare word that is only PART of a store name', () => {
+  const r = withSnippet('<a href="/x">Play</a>');
+  assert.equal(r.code, 0, r.out);
+});
+
+test('limb C does not flag a badge row commented out of the markup', () => {
+  const r = withSnippet('<!-- <a href="https://play.google.com/x">Google Play</a> -->');
+  assert.equal(r.code, 0, r.out);
+});
 
 test('COVERAGE LOST · an empty register refuses rather than reporting clean', () => {
   const d = tree();
