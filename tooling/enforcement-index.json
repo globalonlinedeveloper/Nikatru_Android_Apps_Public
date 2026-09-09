@@ -766,6 +766,18 @@
     "state": "NOT-CI-RUNNABLE"
   },
   {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-platform"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-glitchtip-project.mjs",
+    "references": [
+      "D-2b"
+    ],
+    "state": "WIRED"
+  },
+  {
     "claims": [
       "R-5"
     ],
@@ -985,19 +997,6 @@
     ],
     "kind": "guard",
     "ref": "tooling/ci/assert-monitor-coverage.mjs",
-    "references": [],
-    "state": "WIRED"
-  },
-  {
-    "claims": [
-      "ADR 067",
-      "C-COVERAGE-LOST-IS-NOT-PASS"
-    ],
-    "invokedBy": [
-      ".github/workflows/ci.yml#guards-platform"
-    ],
-    "kind": "guard",
-    "ref": "tooling/ci/assert-glitchtip-project.mjs",
     "references": [],
     "state": "WIRED"
   },

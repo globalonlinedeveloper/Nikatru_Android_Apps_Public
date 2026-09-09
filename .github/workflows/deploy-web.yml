@@ -232,8 +232,10 @@ jobs:
           release="${APP}@${version}+${GITHUB_SHA::7}"
           echo "release=${release}" >> "$GITHUB_ENV"
           echo "sentry_url=${server}" >> "$GITHUB_ENV"
+          gt_org="$(node -p "require('./tooling/ops/glitchtip-project.json').org")"
+          gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"
           SENTRY_URL="$server" "${RUNNER_TEMP}/glitchtip-cli" releases new "$release" \
-            --finalize --org nikatru --project subscriptiontracker
+            --finalize --org "$gt_org" --project "$gt_project"
 
       - name: Upload the source maps to GlitchTip
         working-directory: .
@@ -245,11 +247,13 @@ jobs:
           # `release` and `sentry_url` reach here through $GITHUB_ENV, written by
           # the step above. `set -u` is what makes a missing one loud.
           export SENTRY_URL="$sentry_url"
+          gt_org="$(node -p "require('./tooling/ops/glitchtip-project.json').org")"
+          gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"
           node tooling/ops/upload-web-sourcemaps.mjs \
             --dir "apps/${APP}/build/web" \
             --release "$release" \
-            --org nikatru \
-            --project subscriptiontracker \
+            --org "$gt_org" \
+            --project "$gt_project" \
             --dist web \
             --url-prefix '~'
 

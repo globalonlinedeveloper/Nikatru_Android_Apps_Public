@@ -229,16 +229,25 @@ jobs:
       # failed chunks and over an assembly that never completed — its header
       # names all three and the source lines they were read from.
       #
-      # 🔴 `--project subscriptiontracker` IS A LITERAL AND MUST STAY ONE. It read
-      # `--project "$APP"` until 2026-09-09, deriving a name that lives on a
-      # REMOTE SERVER from this repository's own directory name. The two are not
-      # the same fact: renaming apps/<slug> is a commit, renaming a GlitchTip
-      # project is a PUT against glitchtip.nikatru.com, and on 2026-09-09 the
-      # first happened without the second — every symbol upload in the pipeline
-      # POSTed to /projects/nikatru/subscriptiontracker/ and took a 404 from an
-      # instance that still held `subly`. A derived name made that a silent
-      # coupling; a literal makes it a grep. tooling/ci/assert-glitchtip-project.mjs
-      # holds every call site to ONE literal and refuses a derived one, and
+      # 🔴 THE ORG AND PROJECT ARE READ FROM A FILE, NOT SPELT HERE. This read
+      # `--project "$APP"` until 2026-09-09 — a name that lives on a REMOTE
+      # SERVER, derived from this repository's own directory name. The two are
+      # not the same fact: renaming apps/<slug> is a commit, renaming a GlitchTip
+      # project is a PUT against the instance, and on 2026-09-09 the first
+      # happened without the second — every symbol upload POSTed to
+      # /projects/nikatru/subscriptiontracker/ and took a 404 from an instance
+      # that still held the retired slug.
+      #
+      # ⏱ AND THE FIRST REPAIR WAS WRONG TOO, WHICH IS WHY IT IS WRITTEN DOWN.
+      # It spelled the project out at each call site, and
+      # assert-release-lane-generic.mjs refused that on deploy-web.yml:
+      # [pipeline 10]D-2b abolishes per-app workflow authoring, and an app id
+      # typed into a graded lane's `run` is exactly that. The value now lives in
+      # tooling/ops/glitchtip-project.json and every lane reads it at run time —
+      # D-2b's own remedy ("a file the lane READS at run time"), applied to a
+      # value that is not per-app at all: one crash sink for the portfolio.
+      # tooling/ci/assert-glitchtip-project.mjs holds every call site to that one
+      # declaration and refuses an app-derived one;
       # docs/ci/build-platforms.md §glitchtip-project carries the measurement.
       - name: Upload the native debug symbols to GlitchTip
         env:
@@ -247,11 +256,13 @@ jobs:
           APP: ${{ matrix.app }}
         run: |
           set -euo pipefail
+          gt_org="$(node -p "require('./tooling/ops/glitchtip-project.json').org")"
+          gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"
           for lane in linux android-apk android-aab; do
             node tooling/ops/upload-native-symbols.mjs \
               --cli "${RUNNER_TEMP}/glitchtip-cli" \
               --dir "apps/${APP}/build/symbols/${lane}" \
-              --org nikatru --project subscriptiontracker
+              --org "$gt_org" --project "$gt_project"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -408,11 +419,14 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
           APP: ${{ matrix.app }}
-        run: >
-          node tooling/ops/upload-native-symbols.mjs
-          --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe"
-          --dir "apps/${env:APP}/build/symbols/windows"
-          --org nikatru --project subscriptiontracker
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gt = Get-Content -Raw tooling/ops/glitchtip-project.json | ConvertFrom-Json
+          node tooling/ops/upload-native-symbols.mjs `
+            --cli "${env:RUNNER_TEMP}/glitchtip-cli.exe" `
+            --dir "apps/${env:APP}/build/symbols/windows" `
+            --org $gt.org --project $gt.project
+          if ($LASTEXITCODE -ne 0) { Write-Error "upload-native-symbols exited $LASTEXITCODE" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.app }}-windows
@@ -744,11 +758,13 @@ jobs:
           APP: ${{ matrix.app }}
         run: |
           set -euo pipefail
+          gt_org="$(node -p "require('./tooling/ops/glitchtip-project.json').org")"
+          gt_project="$(node -p "require('./tooling/ops/glitchtip-project.json').project")"
           for lane in macos ios; do
             node tooling/ops/upload-native-symbols.mjs \
               --cli "${RUNNER_TEMP}/glitchtip-cli" \
               --dir "apps/${APP}/build/symbols/${lane}" \
-              --org nikatru --project subscriptiontracker
+              --org "$gt_org" --project "$gt_project"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

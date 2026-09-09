@@ -1,45 +1,44 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // glitchtip-project.test.mjs — assert-glitchtip-project.mjs must be able to FAIL,
-// and must fail on the three shapes that actually occurred.
+// and must fail on the shapes that actually occurred.
 //
 // The guard holds one rule: every GlitchTip `--project` argument in
-// .github/workflows names the SAME project and is a LITERAL, never derived from
-// a path in this repository.
+// .github/workflows resolves to the ONE declaration in
+// tooling/ops/glitchtip-project.json, and never to the app slug.
 //
-// ⚠️ REAL-TREE NEGATIVE CONTROL FIRST, THEN FIXTURES. R1 below is not invented.
-// It is `origin/main` at a7b92d8e — the tree as it stood before this change —
-// extracted to a directory and handed to the guard. That tree carried BOTH
-// defects at once: five derived call sites (`--project "$APP"`,
-// `--project "${env:APP}"`) and seven literals still spelling the retired slug.
-// A fixture the test author wrote would encode the same misunderstanding as the
+// ⚠️ REAL-TREE NEGATIVE CONTROL FIRST, THEN FIXTURES. R1 is not invented: it is
+// `origin/main` at a7b92d8e — the tree as it stood before this change —
+// extracted and handed to the guard. That tree carried both defects at once:
+// five call sites derived from the app slug (`--project "$APP"`,
+// `--project "${env:APP}"`) and seven literals spelling the retired slug. A
+// fixture the test author wrote would encode the same misunderstanding as the
 // guard the test author wrote; the pre-fix tree cannot, because it predates
 // both. Results, each exit code captured on its OWN LINE, never after a pipe and
 // never after a trailing echo:
 //   G   the repaired tree (the real .github/workflows)  -> exit 0, 12 call sites
-//   R1  origin/main's workflows, unmodified             -> exit 1, named all five
-//                                                          derived sites
-//   R2  a workflow directory with no GlitchTip call at all
-//                                                       -> exit 1 COVERAGE LOST
-//   R3  one file reverted to `--project subly`          -> exit 1, named both
-//                                                          spellings
+//   R1  origin/main's workflows, unmodified             -> exit 1, app-derived
+//   R2  the flag renamed away                           -> exit 1 COVERAGE LOST
+//   R3  a literal reverted to the retired slug          -> exit 1, names it
+//   R4  a variable whose step never reads the file      -> exit 1
+//   R5  the declaration file deleted                    -> exit 1
 //
 // 🔴 THE POSITIVE CONTROL IS NOT OPTIONAL. Without a case that runs the guard
 // against the REAL .github/workflows and demands exit 0, every refusal below is
 // equally consistent with a guard that refuses everything it is shown.
 //
-// ── WHY THIS TEST SPELLS `subly` AND THE GUARD DOES NOT ──────────────────────
-// The guard carries no project name — it asserts agreement, not a value, so it
-// survives the next rename untouched. This file spells the RETIRED name on
-// purpose, in a fixture, because the drift it reproduces is historical and
-// frozen: the pair (`subly`, `subscriptiontracker`) is the 2026-09-09 event and
-// stops being interesting the moment either name moves again.
+// ── WHY THIS FILE SPELLS NEITHER SLUG ────────────────────────────────────────
+// The declared project is read from the declaration the guard reads, so a rename
+// moves both sides of every comparison at once and this file does not go red for
+// a reason that has nothing to do with what it tests. The retired name appears
+// only where a case must produce a value that is DIFFERENT from the declared
+// one, and there it is composed, not typed.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, cpSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -48,12 +47,18 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
 const GUARD = join(REPO, 'tooling', 'ci', 'assert-glitchtip-project.mjs');
 const WORKFLOWS = join(REPO, '.github', 'workflows');
+const DECL_REL = 'tooling/ops/glitchtip-project.json';
+const DECL = JSON.parse(readFileSync(join(REPO, ...DECL_REL.split('/')), 'utf8'));
+const DECLARED = DECL.project;
+/** A project name that is definitely NOT the declared one, composed rather than
+ *  typed, so this file never becomes the second declaration. */
+const OTHER = `${DECLARED}-not`;
 
 /** Run the guard. The exit code is read from the returned object on its own
  *  line — never through a pipe, and never after a trailing command, both of
  *  which report the LAST thing that ran rather than the guard. */
-function run(dir) {
-  const r = spawnSync(process.execPath, [GUARD, '--workflows', dir], { encoding: 'utf8' });
+function run(dir, extra = []) {
+  const r = spawnSync(process.execPath, [GUARD, '--workflows', dir, ...extra], { encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -81,55 +86,84 @@ describe('the repaired tree passes', () => {
   test('G — the real .github/workflows: exit 0, and every call site is named', () => {
     const r = run(WORKFLOWS);
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /all naming the literal project/);
-    // The count is asserted as a FLOOR, not an equality: a new lane that uploads
-    // symbols must not fail this test, but a rewrite that deletes every call
-    // site must not pass it either. Twelve on 2026-09-09.
-    const named = r.out.split('\n').filter((l) => /^\s+\S+\.ya?ml:\d+$/.test(l));
+    assert.match(r.out, /call site\(s\)/);
+    assert.match(r.out, new RegExp(`reads? ${DECL_REL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    // A FLOOR, not an equality: a new lane that uploads symbols must not fail
+    // this test, but a rewrite that deletes every call site must not pass it.
+    // Twelve on 2026-09-09.
+    const named = r.out.split('\n').filter((l) => /^\s+\S+\.ya?ml:\d+/.test(l));
     assert.ok(named.length >= 12, `only ${named.length} call site(s) named:\n${r.out}`);
+  });
+
+  test('at least one call site actually reads the declaration in its own step', () => {
+    const r = run(WORKFLOWS);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /\(reads the declaration\)/);
   });
 });
 
-describe('a derived project name is refused', () => {
-  test('R3 — `--project "$APP"` in one lane: exit 1, and the line is quoted back', () => {
-    const dir = stage('derived', (f, body) =>
-      f === 'build-platforms.yml'
-        ? body.replace('--org nikatru --project subscriptiontracker', '--org nikatru --project "$APP"')
-        : body,
+describe('an app-derived project name is refused', () => {
+  test('R1 — `--project "$APP"`: exit 1, and the line is quoted back', () => {
+    const dir = stage('app-derived', (f, body) =>
+      f === 'build-platforms.yml' ? body.replace('--project "$gt_project"', '--project "$APP"') : body,
     );
     const r = run(dir);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /DERIVED, not literal/);
+    assert.match(r.out, /derived from the APP SLUG/);
     assert.match(r.out, /--project "\$APP"/);
   });
 
-  test('R3b — a `${{ matrix.app }}` expression is refused the same way', () => {
-    const dir = stage('expr', (f, body) =>
+  test('R1b — a `${{ matrix.app }}` expression is refused the same way', () => {
+    const dir = stage('matrix-expr', (f, body) =>
       f === 'submit-play.yml'
-        ? body.replace('--org nikatru --project subscriptiontracker', '--org nikatru --project ${{ matrix.app }}')
+        ? body.replace(`--project ${DECLARED}`, '--project ${{ matrix.app }}')
         : body,
     );
     const r = run(dir);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /DERIVED, not literal/);
+    assert.match(r.out, /derived from the APP SLUG/);
   });
-});
 
-describe('two spellings are refused', () => {
-  test('R3c — one file left on the retired slug: exit 1, and BOTH names are printed', () => {
-    const dir = stage('drift', (f, body) =>
-      f === 'submit-snap.yml' ? body.replaceAll('--project subscriptiontracker', '--project subly') : body,
+  test('R1c — the windows lane\'s `${env:APP}` form is refused', () => {
+    const dir = stage('env-app', (f, body) =>
+      f === 'build-platforms.yml' ? body.replace('--project $gt.project', '--project "${env:APP}"') : body,
     );
     const r = run(dir);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /different GlitchTip projects/);
-    assert.match(r.out, /subly/);
-    assert.match(r.out, /subscriptiontracker/);
+    assert.match(r.out, /derived from the APP SLUG/);
+  });
+});
+
+describe('a literal that is not the declaration is refused', () => {
+  test('R3 — one lane spelling a different project: exit 1, and it is named', () => {
+    const dir = stage('drift', (f, body) =>
+      f === 'submit-snap.yml' ? body.replaceAll(`--project ${DECLARED}`, `--project ${OTHER}`) : body,
+    );
+    const r = run(dir);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /do not name the declared project/);
+    assert.match(r.out, new RegExp(OTHER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  });
+});
+
+describe('a variable whose step never reads the declaration is refused', () => {
+  test('R4 — the read line deleted, the variable left behind: exit 1', () => {
+    const dir = stage('unread-var', (f, body) =>
+      f === 'deploy-web.yml'
+        ? body
+            .split('\n')
+            .filter((l) => !l.includes('glitchtip-project.json'))
+            .join('\n')
+        : body,
+    );
+    const r = run(dir);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /pass a VARIABLE whose step never reads/);
   });
 });
 
 describe('no call sites is COVERAGE LOST, never a pass', () => {
-  test('R2 — a workflow directory with the flag renamed away: exit 1', () => {
+  test('R2 — the flag renamed away: exit 1', () => {
     const dir = stage('renamed-flag', (f, body) => body.replaceAll('--project ', '--gtproject '));
     const r = run(dir);
     assert.equal(r.code, 1, r.out);
@@ -146,14 +180,48 @@ describe('no call sites is COVERAGE LOST, never a pass', () => {
   });
 });
 
+describe('the declaration itself is graded', () => {
+  test('R5 — a repo with no declaration file: exit 1, naming the file', () => {
+    // A whole shadow repo, so the guard resolves its own REPO root to a tree
+    // that genuinely lacks the declaration rather than to this one.
+    const shadow = join(TMP, 'shadow');
+    mkdirSync(join(shadow, 'tooling', 'ci'), { recursive: true });
+    mkdirSync(join(shadow, 'tooling', 'ops'), { recursive: true });
+    cpSync(GUARD, join(shadow, 'tooling', 'ci', 'assert-glitchtip-project.mjs'));
+    cpSync(join(REPO, 'tooling', 'ci', 'tree-walk.mjs'), join(shadow, 'tooling', 'ci', 'tree-walk.mjs'));
+    const r = spawnSync(
+      process.execPath,
+      [join(shadow, 'tooling', 'ci', 'assert-glitchtip-project.mjs'), '--workflows', WORKFLOWS],
+      { encoding: 'utf8' },
+    );
+    assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+    assert.match(`${r.stdout}${r.stderr}`, /does not exist/);
+  });
+
+  test('a declaration with no project is refused', () => {
+    const shadow = join(TMP, 'shadow-empty');
+    mkdirSync(join(shadow, 'tooling', 'ci'), { recursive: true });
+    mkdirSync(join(shadow, 'tooling', 'ops'), { recursive: true });
+    cpSync(GUARD, join(shadow, 'tooling', 'ci', 'assert-glitchtip-project.mjs'));
+    cpSync(join(REPO, 'tooling', 'ci', 'tree-walk.mjs'), join(shadow, 'tooling', 'ci', 'tree-walk.mjs'));
+    writeFileSync(join(shadow, 'tooling', 'ops', 'glitchtip-project.json'), JSON.stringify({ org: 'nikatru' }));
+    const r = spawnSync(
+      process.execPath,
+      [join(shadow, 'tooling', 'ci', 'assert-glitchtip-project.mjs'), '--workflows', WORKFLOWS],
+      { encoding: 'utf8' },
+    );
+    assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+    assert.match(`${r.stdout}${r.stderr}`, /non-empty string/);
+  });
+});
+
 describe('the boundary against Cloudflare Pages is deliberate', () => {
   test('`--project-name=` is a Pages project and is NOT read as a GlitchTip one', () => {
     // deploy-web.yml carries `pages deploy --project-name=${{ matrix.app }}`,
     // which IS derived from the app slug and is CORRECT that way: the Pages
     // project is one per app. Reading it as a GlitchTip call site would make
     // this guard demand a change that would break the deployment.
-    const dir = stage('pages-boundary');
-    const r = run(dir);
+    const r = run(WORKFLOWS);
     assert.equal(r.code, 0, r.out);
     assert.ok(
       readFileSync(join(WORKFLOWS, 'deploy-web.yml'), 'utf8').includes('--project-name='),
@@ -189,7 +257,7 @@ describe('the guard is reachable from CI', () => {
   });
   test('the enforcement index carries it as WIRED', () => {
     const idx = JSON.parse(readFileSync(join(REPO, 'tooling', 'enforcement-index.json'), 'utf8'));
-    const rows = Array.isArray(idx) ? idx : idx.entries ?? [];
+    const rows = Array.isArray(idx) ? idx : (idx.entries ?? []);
     const row = rows.find((e) => e.ref === 'tooling/ci/assert-glitchtip-project.mjs');
     assert.ok(row, 'no enforcement-index row for assert-glitchtip-project.mjs');
     assert.equal(row.state, 'WIRED');
