@@ -4,6 +4,7 @@
     "$description": "Dark-scheme overrides. ink and ink-2 are shared with the light palette. primary and teal STOPPED being shared on 2026-09-09: a single blue cannot pass WCAG AA on both #FFFFFF and #111C33, and the shared #2E6FF2 was failing in BOTH directions at once - 4.49:1 on the light card and 3.77:1 on the dark card, with every page declaring a{color:var(--primary)} inside a prefers-color-scheme block. Darkening it for light made dark worse, so the token forked. Measured: primary #6E9BFF is 6.95:1 on dark.bg and 6.30:1 on dark.card; teal #17C3A2 (the light palette's former value) is 8.35:1 and 7.57:1.",
     "primary": { "$value": "#6E9BFF" },
     "teal": { "$value": "#17C3A2" },
+    "on-accent": { "$value": "#0B1220", "$description": "Dark-scheme foreground on an accent FILL. #0B1220 (the dark bg ink) measures 6.95:1 on primary #6E9BFF and 8.35:1 on teal #17C3A2; the darkest point of the 90deg primary-to-teal gradient is the primary end, so 6.95:1 is the worst case on every gradient button. White here is 2.69:1 and 2.24:1 respectively, which is what this token exists to stop." },
     "bg": { "$value": "#0B1220" },
     "card": { "$value": "#111C33" },
     "card-2": { "$value": "#0E1830" },
