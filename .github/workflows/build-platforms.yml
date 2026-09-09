@@ -677,8 +677,21 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :ExpirationDate' "$RUNNER_TEMP/embedded.plist"
           echo "::endgroup::"
           appid="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/embedded.plist")"
-          [ "$appid" = "${APPLE_TEAM_ID}.com.nikatru.subly" ] \
-            || { echo "::error title=ipa::embedded profile is for \"$appid\", not ${APPLE_TEAM_ID}.com.nikatru.subly"; exit 1; }
+          # why: DERIVED, NOT SPELT. `matrix.app` is the slug and architecture
+          # §24 defines the identity as `com.nikatru.<slug>` - the same rule
+          # assert-store-identity.mjs:63 enforces across gradle, pbxproj and
+          # xcconfig. Writing the id out here would either assert an id the app
+          # has stopped building under, or be rewritten by the next rename and
+          # stop being an independent statement about the PROFILE.
+          #
+          # ⚠️ A BUNDLE ID CHANGE NEEDS A NEW PROFILE FROM THE APPLE ACCOUNT.
+          # A provisioning profile is issued against one App ID, so this check
+          # fails - correctly and loudly - from the moment the slug moves until
+          # a profile for the new id is issued and the secret replaced. That is
+          # account-side work, not a repo edit.
+          want="${APPLE_TEAM_ID}.com.nikatru.${{ matrix.app }}"
+          [ "$appid" = "$want" ] \
+            || { echo "::error title=ipa::embedded profile is for \"$appid\", not \"$want\""; exit 1; }
 
           pkg="build/macos/pkg/${{ matrix.app }}.pkg"
           [ -s "$pkg" ] || { echo "::error title=pkg::the .pkg is missing or empty"; exit 1; }
