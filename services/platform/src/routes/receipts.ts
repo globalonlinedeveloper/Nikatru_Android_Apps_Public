@@ -450,11 +450,17 @@ receipts.post('/receipts/:store', async (c) => {
   });
 });
 
-/** Oldest by the PROVIDER'S clock, falling back to when we first saw the row. */
+/**
+ * Oldest by when THIS SERVER first recorded the grant.
+ *
+ * Not by `occurred_at`: that column is each rail's own ordering clock and the
+ * rails do not agree on what it measures — Play's is the paid-through instant,
+ * Microsoft's the item's last modification, Paddle's the event time — so
+ * comparing two rails' values decides nothing. `created_at` is one clock, ours,
+ * and "which purchase did we see first" is the question the race asks.
+ */
 function oldest(rows: readonly BundleGrantRow[]): BundleGrantRow {
-  return [...rows].sort((a, b) =>
-    (a.occurred_at ?? a.created_at).localeCompare(b.occurred_at ?? b.created_at),
-  )[0];
+  return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
