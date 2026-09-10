@@ -70,7 +70,6 @@ interface PlayLineItem {
 interface PlaySubscriptionV2 {
   subscriptionState?: unknown;
   latestOrderId?: unknown;
-  startTime?: unknown;
   lineItems?: unknown;
   linkedPurchaseToken?: unknown;
   canceledStateContext?: unknown;
@@ -81,6 +80,39 @@ function firstLineItem(doc: PlaySubscriptionV2): PlayLineItem | null {
   const items = Array.isArray(doc.lineItems) ? doc.lineItems : [];
   const first = items[0];
   return first !== null && typeof first === 'object' ? (first as PlayLineItem) : null;
+}
+
+/**
+ * 🔴 THE ORDERING CLOCK ON THIS RAIL IS THE PERIOD END, NOT THE START.
+ *
+ * `occurredAt` feeds the [5]M-2 clause `excluded.occurred_at >
+ * bundle_grants.occurred_at`, which refuses an EQUAL clock — correctly, because
+ * an equal clock is the same state delivered twice. So the clock must be a field
+ * that MOVES on every renewal, and `startTime` is the one field that never does:
+ * the API reference (developers.google.com/android-publisher/api-ref/rest/v3/
+ * purchases.subscriptionsv2, SubscriptionPurchaseV2) defines it as "Time at
+ * which the subscription was granted", fixed for the token's whole life. Keyed
+ * on it, the first period granted and every renewal re-post was `stale`, and a
+ * paying subscriber lost access at the end of period one.
+ *
+ * `lineItems[].expiryTime` is the field the same reference defines as "Time at
+ * which the subscription expired or will expire unless the access is extended
+ * (ex. renews)" — a renewal extends it, a grace period extends it, and a
+ * re-delivery of the same state leaves it equal. The LATEST across the line
+ * items is taken so a multi-item purchase orders by the furthest paid-through
+ * instant. There is no RTDN `eventTimeMillis` to prefer here: this route is a
+ * client-posted token followed by a server pull, and the pull carries no
+ * notification.
+ */
+function latestExpiry(doc: PlaySubscriptionV2): string | null {
+  const items = Array.isArray(doc.lineItems) ? doc.lineItems : [];
+  let latest: string | null = null;
+  for (const raw of items) {
+    if (raw === null || typeof raw !== 'object') continue;
+    const iso = isoFromStoreInstant((raw as PlayLineItem).expiryTime);
+    if (iso !== null && (latest === null || iso > latest)) latest = iso;
+  }
+  return latest;
 }
 
 export const googlePlayVerifier: ReceiptVerifier = {
@@ -158,6 +190,19 @@ export const googlePlayVerifier: ReceiptVerifier = {
     }
 
     const expiry = isoFromStoreInstant(item?.expiryTime);
+    const clock = latestExpiry(doc);
+    if (expiry === null || clock === null) {
+      // An ACTIVE subscription with no readable period end is a document this
+      // rail cannot order (no clock) and cannot bound (no end). Writing it would
+      // mint a LIFETIME grant from a missing field — `expires_at NULL` is the
+      // read's rule 3 — so it is refused as unreadable instead.
+      return refuse(
+        502,
+        'store_unreadable',
+        'Google Play reports an active subscription without a readable lineItems[].expiryTime, so neither ' +
+          'its end nor its place in the ordering is known. Refusing rather than granting for ever.',
+      );
+    }
     const orderId = typeof doc.latestOrderId === 'string' ? doc.latestOrderId : null;
     return {
       ok: true,
@@ -178,7 +223,9 @@ export const googlePlayVerifier: ReceiptVerifier = {
         expiresAt: expiry,
         currentPeriodEnd: expiry,
         trialEnd: null,
-        occurredAt: isoFromStoreInstant(doc.startTime) ?? new Date(input.nowMs).toISOString(),
+        // The clock that moves per renewal — see `latestExpiry`. NEVER
+        // `startTime`, which is constant and made every renewal `stale`.
+        occurredAt: clock,
       },
     };
   },
