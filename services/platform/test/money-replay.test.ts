@@ -44,6 +44,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveAndApply, persistNotification } from '../src/lib/mor/store';
 import { PADDLE_CUSTOM_DATA_APP_ID, PADDLE_CUSTOM_DATA_USER_ID, paddleVerifier } from '../src/lib/mor/paddle';
+import { isKnownProduct } from '../src/config';
 import { realPlatformDb, type RealDb } from './harness';
 import {
   DEFAULT_CORPUS_REL,
@@ -68,6 +69,8 @@ const injected = {
   makeDb: () => realPlatformDb(),
   persistNotification,
   deriveAndApply,
+  // The store's attribution rule, injected exactly as routes/money.ts injects it.
+  isKnownProduct,
   environment: 'live',
   nowMs: NOW_MS,
 };
@@ -201,7 +204,7 @@ describe('[5]M-2 · the final entitlement is the same in every delivery order', 
     // who has been refunded is Pro again, indefinitely, and nothing anywhere
     // says so.
     const db = realPlatformDb();
-    const deps = { db, environment: 'live', nowMs: NOW_MS } as unknown as Parameters<typeof deriveAndApply>[0];
+    const deps = { db, environment: 'live', nowMs: NOW_MS, isKnownProduct } as unknown as Parameters<typeof deriveAndApply>[0];
 
     const grantT0 = deliver('T0', subscriptionBody({ eventId: 'evt_grant_t0', occurredAt: '2026-09-01T00:00:00.000Z', status: 'active', periodEnd: '2027-01-01T00:00:00.000Z' }));
     const refundT2 = deliver('T2', adjustmentBody({ eventId: 'evt_refund_t2', occurredAt: '2026-09-03T00:00:00.000Z', action: 'refund' }));
@@ -226,13 +229,15 @@ describe('[5]M-2 · the final entitlement is the same in every delivery order', 
     expect(Date.parse(String(row.expires_at))).toBeLessThanOrEqual(NOW_MS);
   });
 
-  it('a refund that arrives BEFORE the grant it reverses still ends revoked — but only because it is re-derived', async () => {
-    // 🔴 AND THE RAIL WILL NOT DO THIS FOR US. routes/money.ts:137 answers 2xx
-    // for a derivation that refused, so Paddle never retries it: the payload is
-    // stored verbatim, the entitlement never moves, and nothing says so. That is
-    // what makes re-derivation over `provider_notifications` an OPERATOR act and
-    // why tooling/ops/money-dry-run.mjs has a `--rounds` flag at all. This case
-    // is the smallest corpus for which the flag is load-bearing.
+  it('a refund that arrives BEFORE the grant it reverses still ends revoked — because it is re-derived', async () => {
+    // This drives the SECOND pass through the dry-run's `--rounds`, which is the
+    // operator's replay tool. In the deployed Worker the second pass is the
+    // rail's own re-delivery: routes/money.ts answers 503 for a derivation that
+    // refused, Paddle re-delivers, and the duplicate branch re-derives
+    // (test/money.test.ts, "a refused derivation is NOT lost"); the nightly
+    // `moneyRederive` limb re-runs whatever outlives the rail's retry window
+    // (test/money-rederive.test.ts). This case is the smallest corpus for which
+    // a second pass is load-bearing at all.
     const grant = deliver('grant', subscriptionBody({ eventId: 'evt_pair_grant', occurredAt: '2026-09-01T00:00:00.000Z', status: 'active', periodEnd: '2027-01-01T00:00:00.000Z' }));
     const refund = deliver('refund', adjustmentBody({ eventId: 'evt_pair_refund', occurredAt: '2026-09-03T00:00:00.000Z', action: 'refund' }));
 

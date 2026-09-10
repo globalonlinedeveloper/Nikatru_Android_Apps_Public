@@ -17,6 +17,10 @@
 import type { AppTarget, Env } from './types';
 import { recomputeRenewals } from './renewals';
 import { runBackup } from './backup';
+import { isMoneyEnvironment } from './lib/mor/contract';
+import { isKnownProduct } from './config';
+import { verifierFor } from './lib/mor/registry';
+import { deriveAndApply, unconcludedNotifications } from './lib/mor/store';
 
 /** The job name recorded in `cron_heartbeat`. */
 export const KEEPALIVE_JOB = 'supabase_keepalive';
@@ -715,6 +719,129 @@ export async function renewalsFanOut(env: Env): Promise<void> {
 // there; a comment may not carry a check, and this one was carrying it upside
 // down.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 RE-DERIVE WHAT THE MONEY RAIL COULD NOT CONCLUDE — the nightly backstop.
+//
+// A provider notification is stored verbatim BEFORE it is interpreted ([5]M-2),
+// and a derivation that REFUSED (a refund that arrived before the grant it
+// reverses) or THREW leaves the row unconcluded: `derived_at IS NULL`, or
+// `derive_error` beginning `refused:`. Until 2026-09-10 nothing in this Worker
+// ever re-read such a row, so the refunded customer kept Pro for good.
+//
+// The FIRST mechanism is the route: routes/money.ts answers 503 for an
+// unconcluded derivation, Paddle re-delivers (60 times within 3 days on a live
+// account), and the re-delivery is re-derived. That closes the case in minutes.
+// THIS limb is the second: whatever outlives the rail's 3-day window — a
+// derivation that threw on a bug until the bug was fixed — is re-derived here,
+// on the nightly firing, bounded by age and by count, with every outcome
+// PRINTED in the heartbeat row so a row that stays refused is visible rather
+// than quietly re-tried for ever.
+//
+// It is NOT a second writer: it calls `deriveAndApply` in src/lib/mor/store.ts,
+// the one writer, with the same stored payload the route parsed, re-parsed by
+// the same adapter. It takes decisions against NOW, which is what a delayed
+// derivation should do — a cancel whose period end has since passed lapses.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The job name recorded in `cron_heartbeat` for the re-derivation limb.
+ *  `<NAME>_JOB` spelling is load-bearing — see RETENTION_SWEEP_JOB. */
+export const MONEY_REDERIVE_JOB = 'money_rederive';
+
+// How far back the sweep looks. Anything older than this that is still
+// unconcluded has been reported in this heartbeat every night for a month, is
+// still in the table (the retention sweep never deletes an underived row), and
+// is an operator's to look at rather than a job's to keep re-trying.
+// @ceiling none — an AGE BOUND on which stored rows are re-read, not a cap on any platform resource.
+export const REDERIVE_MAX_AGE_DAYS = 30;
+
+// Per-run bound. Each candidate costs the reads and at most one write pair the
+// route itself would have spent; 200 a night is far inside the D1 daily budget
+// and far above any real backlog — a rail delivers a handful of events a day.
+// @ceiling d1.rowsWrittenPerDay lte
+export const MAX_REDERIVE_PER_RUN = 200;
+
+/**
+ * Re-derive every unconcluded notification younger than the age bound.
+ *
+ * ok=1 means every candidate was parsed and derived without THROWING — a
+ * candidate that is refused AGAIN is a printed count, not a job failure.
+ * ok=0 means the work itself could not run: no money world configured, the
+ * query failed, an adapter could not re-read a payload it once accepted, or a
+ * derivation threw.
+ */
+export async function moneyRederive(env: Env, nowMs: number = Date.now()): Promise<void> {
+  const environment = env.MONEY_ENVIRONMENT;
+  if (!isMoneyEnvironment(environment)) {
+    // The same refusal the route makes ([5]M-12): without a money world a
+    // derivation would stamp rows with a world nobody configured.
+    await recordHeartbeat(
+      env,
+      [
+        {
+          target: '(portfolio)',
+          ok: false,
+          detail: `MONEY_ENVIRONMENT is ${JSON.stringify(environment)} — nothing re-derived; the route refuses on the same value`,
+        },
+      ],
+      MONEY_REDERIVE_JOB,
+    );
+    return;
+  }
+  const since = new Date(nowMs - REDERIVE_MAX_AGE_DAYS * MS_PER_DAY).toISOString();
+  const counts: Record<string, number> = {};
+  const bump = (k: string) => { counts[k] = (counts[k] ?? 0) + 1; };
+  let candidates = 0;
+  let failed = 0;
+  try {
+    const rows = await unconcludedNotifications(env.PLATFORM_DB, since, MAX_REDERIVE_PER_RUN);
+    candidates = rows.length;
+    // The store's attribution rule, injected exactly as routes/money.ts injects it
+    // (MoneyStoreDeps.isKnownProduct says why it is not imported by the store).
+    const deps = { db: env.PLATFORM_DB, environment, nowMs, isKnownProduct };
+    for (const row of rows) {
+      const verifier = verifierFor(row.provider);
+      if (verifier === null) { bump('unknown_provider'); failed++; continue; }
+      const parsed = verifier.parse(row.payload);
+      if (!parsed.ok) { bump('unparseable'); failed++; continue; }
+      try {
+        bump((await deriveAndApply(deps, parsed.notification)).outcome);
+      } catch (err) {
+        bump('error');
+        failed++;
+        console.error(`[cron] ${MONEY_REDERIVE_JOB} ${row.provider}/${row.provider_event_id} threw`, err);
+      }
+    }
+  } catch (err) {
+    await recordHeartbeat(
+      env,
+      [
+        {
+          target: '(portfolio)',
+          ok: false,
+          detail: `candidates=${candidates} since=${since} — re-derivation FAILED: ${String(err)}`,
+        },
+      ],
+      MONEY_REDERIVE_JOB,
+    );
+    return;
+  }
+  const printed = Object.entries(counts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join(' ');
+  await recordHeartbeat(
+    env,
+    [
+      {
+        target: '(portfolio)',
+        ok: failed === 0,
+        detail: `candidates=${candidates} since=${since} capped=${candidates >= MAX_REDERIVE_PER_RUN ? 1 : 0}${printed === '' ? '' : ` ${printed}`}`,
+      },
+    ],
+    MONEY_REDERIVE_JOB,
+  );
+}
 
 /** The job name recorded in `cron_heartbeat` for the drain census.
  *
@@ -1851,6 +1978,11 @@ export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env
       // proving ground for the rail ops-watch will eventually move to.
       await dispatchGithubWorkflows(env);
       await renewalsFanOut(env);
+      // Re-derives stored money notifications that never concluded. Its position
+      // is not a safety property either: it writes through the one entitlement
+      // writer and the retention sweep never deletes an unconcluded row, so
+      // nothing here depends on running before or after anything else.
+      await moneyRederive(env);
       // READ-ONLY, so its position is NOT a safety property: it deletes nothing,
       // and `cancellation_requests` is a reasoned `keep` (tooling/ops/register.json
       // retention.d1.platform_db.cancellation_requests) that the sweep below never

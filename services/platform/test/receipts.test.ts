@@ -81,9 +81,11 @@ async function token() {
 /** One canned store answer, recorded per call so replay can be observed. */
 function stubStore(answers: Array<{ status: number; body: unknown }>) {
   const calls: string[] = [];
+  const bodies: string[] = [];
   let i = 0;
-  const impl = (async (input: RequestInfo | URL) => {
+  const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push(String(input));
+    bodies.push(typeof init?.body === 'string' ? init.body : '');
     const a = answers[Math.min(i, answers.length - 1)];
     i += 1;
     return new Response(JSON.stringify(a.body), {
@@ -91,9 +93,16 @@ function stubStore(answers: Array<{ status: number; body: unknown }>) {
       headers: { 'Content-Type': 'application/json' },
     });
   }) as unknown as typeof fetch;
-  return { impl, calls };
+  return { impl, calls, bodies };
 }
 
+/**
+ * The shape `purchases.subscriptionsv2.get` really answers. `startTime` is
+ * carried DELIBERATELY and is the same on every answer, exactly as Play sends
+ * it: it is "Time at which the subscription was granted" and never moves. A
+ * verifier that ordered by it would make every renewal below `stale`, and the
+ * renewal tests are what catch that.
+ */
 const PLAY_ACTIVE = (productId: string, expiry: string) => ({
   subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
   latestOrderId: 'GPA.1234',
@@ -101,9 +110,26 @@ const PLAY_ACTIVE = (productId: string, expiry: string) => ({
   lineItems: [{ productId, expiryTime: expiry }],
 });
 
-const MS_ACTIVE = (productId: string, endDate: string) => ({
+/**
+ * A `CollectionItemContractV6` item as the Collections reference names its
+ * fields. `acquiredDate` is constant across renewals — "The date on which the
+ * user acquired the item" — for the same reason as Play's `startTime`, and is
+ * carried so a verifier that read it is caught.
+ */
+const MS_ACTIVE = (
+  productId: string,
+  endDate: string,
+  modifiedDate = '2026-09-05T00:00:00.000Z',
+) => ({
   items: [
-    { id: 'ms-item-1', productId, status: 'Active', endDate, acquiredDate: '2026-09-05T00:00:00.000Z' },
+    {
+      itemId: 'ms-item-1',
+      productId,
+      status: 'Active',
+      endDate,
+      modifiedDate,
+      acquiredDate: '2026-09-05T00:00:00.000Z',
+    },
   ],
 });
 
@@ -196,9 +222,10 @@ function seedGrant(
     db.db
       .prepare(
         `INSERT INTO feature_set_members (name, version, product_slug, product_kind)
-         VALUES (?,?,?,'app') ON CONFLICT DO NOTHING`,
+         VALUES (?,?,?,?) ON CONFLICT DO NOTHING`,
       )
-      .run(NIKATRU_ALL.name, NIKATRU_ALL.version, slug);
+      // The seed records the register's kind, as the route does.
+      .run(NIKATRU_ALL.name, NIKATRU_ALL.version, slug, slug === 'fullshot' ? 'extension' : 'app');
   }
 }
 
@@ -350,6 +377,30 @@ describe('a verified receipt writes exactly one grant, and a REPLAY writes no se
     expect(h.db.count('bundle_grants')).toBe(1);
     // The version was PINNED, so the member list survives a register edit.
     expect(h.db.count('feature_set_members', 'name = ?', 'nikatru_all')).toBe(2);
+    // 🔴 AND EACH MEMBER'S KIND IS THE REGISTER'S, recorded as a fact at sale
+    // (0009). Until 2026-09-10 every member was pinned 'app', so the record
+    // would have called the extension an app.
+    // MUTATION PROOF: bind the literal 'app' again in pinFeatureSet — RED here.
+    const kinds = Object.fromEntries(
+      h.db.rows('SELECT product_slug, product_kind FROM feature_set_members WHERE name = ?', 'nikatru_all')
+        .map((r) => [r.product_slug, r.product_kind]),
+    );
+    expect(kinds).toEqual({ subscriptiontracker: 'app', fullshot: 'extension' });
+  });
+
+  it('a feature set naming a member NO register carries is an ERROR, and nothing is pinned or granted', async () => {
+    const store = stubStore([{ status: 200, body: PLAY_ACTIVE('ghost_sku', '2027-09-09T00:00:00.000Z') }]);
+    const ghost: ProductMap = new Map([
+      // Keyed exactly as products.ts keys it: `<store>` NUL `<product id>`.
+      [`google_play${String.fromCharCode(0)}ghost_sku`, { name: 'ghost_set', version: 1, products: ['subscriptiontracker', 'not_a_product'] }],
+    ]);
+    const h = harness({ credentials: PLAY_CREDS, fetchImpl: store.impl, map: ghost });
+    const res = await h.post('google_play', { token: 'tok-ghost' }, `Bearer ${await token()}`);
+    // Fail closed: the route's onError, not a row with a guessed kind.
+    expect(res.status).toBe(500);
+    expect(h.db.count('feature_sets')).toBe(0);
+    expect(h.db.count('feature_set_members')).toBe(0);
+    expect(h.db.count('bundle_grants')).toBe(0);
   });
 
   it('a REPLAYED token upserts onto the same row instead of appending a second grant', async () => {
@@ -370,18 +421,21 @@ describe('a verified receipt writes exactly one grant, and a REPLAY writes no se
     // measured against a NULL key column is what this asserts is absent.
     expect(h.db.count('bundle_grants')).toBe(1);
     expect(h.db.count('bundle_grants', 'user_id = ?', USER)).toBe(1);
+    // And the SAME state delivered twice is `stale`, not a second application:
+    // the store's clock did not move, so the ordering clause refused an equal
+    // clock. That refusal is correct for a true duplicate — the renewal tests
+    // below are what prove it is not ALSO refusing renewals.
+    expect((await second.json()) as Record<string, unknown>).toMatchObject({ written: 'stale' });
   });
 
-  it('an OLDER event arriving late is answered `stale` and does not move the expiry [5]M-2', async () => {
+  it('an OLDER state arriving late is answered `stale` and does not move the expiry [5]M-2', async () => {
+    // The late answer is an EARLIER snapshot of the same subscription — its
+    // paid-through instant is before the one already stored — as a delayed
+    // retry from before a renewal would be. Same `startTime` on both, because
+    // Play never changes it.
     const store = stubStore([
       { status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2027-09-09T00:00:00.000Z') },
-      {
-        status: 200,
-        body: {
-          ...PLAY_ACTIVE('nikatru_all_yearly', '2030-01-01T00:00:00.000Z'),
-          startTime: '2020-01-01T00:00:00.000Z',
-        },
-      },
+      { status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2026-12-01T00:00:00.000Z') },
     ]);
     const h = harness({
       credentials: PLAY_CREDS,
@@ -395,6 +449,156 @@ describe('a verified receipt writes exactly one grant, and a REPLAY writes no se
     const rows = h.db.rows('SELECT expires_at FROM bundle_grants');
     expect(rows).toHaveLength(1);
     expect(rows[0].expires_at).toBe('2027-09-09T00:00:00.000Z');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 RENEWALS. The ordering clause refuses an EQUAL clock, so the clock a store
+// receipt writes MUST move on every renewal. Play's `startTime` and Microsoft's
+// `acquiredDate` never move; keyed on either, the first period granted and every
+// renewal re-post was `stale`, and a paying subscriber lost access at the end of
+// period one. Each test below asserts the NEW EXPIRY in the row — a 200 and a
+// row count of 1 are exactly what the broken version answered.
+//
+// MUTATION PROOF: restore `occurredAt: isoFromStoreInstant(doc.startTime)` in
+// google.ts (or `held.acquiredDate` in microsoft.ts) and the matching test
+// below goes RED on `written: 'stale'` and on the unmoved `expires_at`.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a RENEWAL re-post ADVANCES the grant — the store clock must move per period', () => {
+  it('Google Play: the same token, one period later, moves expires_at to the new period end', async () => {
+    const store = stubStore([
+      { status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2027-09-09T00:00:00.000Z') },
+      // Period two. Same token, same `startTime`, new order id, later expiry —
+      // the document Play serves after a successful renewal.
+      {
+        status: 200,
+        body: {
+          ...PLAY_ACTIVE('nikatru_all_yearly', '2028-09-09T00:00:00.000Z'),
+          latestOrderId: 'GPA.1234..1',
+        },
+      },
+    ]);
+    const h = harness({
+      credentials: PLAY_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['google_play', 'nikatru_all_yearly']]),
+    });
+    const authz = `Bearer ${await token()}`;
+    const first = await h.post('google_play', { token: 'tok-renews' }, authz);
+    expect((await first.json()) as Record<string, unknown>).toMatchObject({ written: 'applied' });
+
+    const renewal = await h.post('google_play', { token: 'tok-renews' }, authz);
+    expect(renewal.status).toBe(200);
+    expect((await renewal.json()) as Record<string, unknown>).toMatchObject({
+      written: 'applied',
+      grant: { expires_at: '2028-09-09T00:00:00.000Z' },
+    });
+    const rows = h.db.rows('SELECT expires_at, occurred_at, provider_transaction_id FROM bundle_grants');
+    expect(rows).toHaveLength(1);
+    // 🔴 THE ASSERTION THAT WAS MISSING: the row's expiry is the NEW period end.
+    expect(rows[0].expires_at).toBe('2028-09-09T00:00:00.000Z');
+    expect(rows[0].occurred_at).toBe('2028-09-09T00:00:00.000Z');
+    expect(rows[0].provider_transaction_id).toBe('GPA.1234..1');
+  });
+
+  it('Google Play: the LATEST line-item expiry is the clock, so a multi-item document orders by the furthest paid-through instant', async () => {
+    const store = stubStore([
+      { status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2027-09-09T00:00:00.000Z') },
+      {
+        status: 200,
+        body: {
+          ...PLAY_ACTIVE('nikatru_all_yearly', '2027-09-09T00:00:00.000Z'),
+          lineItems: [
+            { productId: 'nikatru_all_yearly', expiryTime: '2027-09-09T00:00:00.000Z' },
+            { productId: 'nikatru_all_addon', expiryTime: '2029-01-01T00:00:00.000Z' },
+          ],
+        },
+      },
+    ]);
+    const h = harness({
+      credentials: PLAY_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['google_play', 'nikatru_all_yearly']]),
+    });
+    const authz = `Bearer ${await token()}`;
+    await h.post('google_play', { token: 'tok-multi' }, authz);
+    const second = await h.post('google_play', { token: 'tok-multi' }, authz);
+    expect((await second.json()) as Record<string, unknown>).toMatchObject({ written: 'applied' });
+    expect(h.db.rows('SELECT occurred_at FROM bundle_grants')[0].occurred_at).toBe('2029-01-01T00:00:00.000Z');
+  });
+
+  it('Google Play: an ACTIVE document with no readable expiry is refused as unreadable, never written as a lifetime grant', async () => {
+    const store = stubStore([
+      {
+        status: 200,
+        body: { ...PLAY_ACTIVE('nikatru_all_yearly', ''), lineItems: [{ productId: 'nikatru_all_yearly' }] },
+      },
+    ]);
+    const h = harness({
+      credentials: PLAY_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['google_play', 'nikatru_all_yearly']]),
+    });
+    const res = await h.post('google_play', { token: 'tok-no-expiry' }, `Bearer ${await token()}`);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: 'store_unreadable' });
+    expect(h.db.count('bundle_grants')).toBe(0);
+  });
+
+  it('Microsoft: the same Store ID key, one period later, moves expires_at to the new endDate', async () => {
+    const store = stubStore([
+      { status: 200, body: MS_ACTIVE('9NBLGGH4XYZ', '2027-06-01T00:00:00.000Z', '2026-09-05T00:00:00.000Z') },
+      // Period two: `endDate` and `modifiedDate` moved, `acquiredDate` did not.
+      { status: 200, body: MS_ACTIVE('9NBLGGH4XYZ', '2028-06-01T00:00:00.000Z', '2027-06-01T00:00:00.000Z') },
+    ]);
+    const h = harness({
+      credentials: MS_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['microsoft_store', '9NBLGGH4XYZ']]),
+    });
+    const authz = `Bearer ${await token()}`;
+    const first = await h.post('microsoft_store', { token: 'store-id-key-1' }, authz);
+    expect((await first.json()) as Record<string, unknown>).toMatchObject({ written: 'applied' });
+
+    const renewal = await h.post('microsoft_store', { token: 'store-id-key-2' }, authz);
+    expect(renewal.status).toBe(200);
+    expect((await renewal.json()) as Record<string, unknown>).toMatchObject({
+      written: 'applied',
+      grant: { expires_at: '2028-06-01T00:00:00.000Z' },
+    });
+    const rows = h.db.rows('SELECT expires_at, occurred_at FROM bundle_grants');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].expires_at).toBe('2028-06-01T00:00:00.000Z');
+    expect(rows[0].occurred_at).toBe('2027-06-01T00:00:00.000Z');
+  });
+
+  it('Microsoft: an unchanged item re-posted is `stale` — the clock is equal, so it is a true duplicate', async () => {
+    const store = stubStore([{ status: 200, body: MS_ACTIVE('9NBLGGH4XYZ', '2027-06-01T00:00:00.000Z') }]);
+    const h = harness({
+      credentials: MS_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['microsoft_store', '9NBLGGH4XYZ']]),
+    });
+    const authz = `Bearer ${await token()}`;
+    await h.post('microsoft_store', { token: 'store-id-key-1' }, authz);
+    const again = await h.post('microsoft_store', { token: 'store-id-key-2' }, authz);
+    expect((await again.json()) as Record<string, unknown>).toMatchObject({ written: 'stale' });
+    expect(h.db.count('bundle_grants')).toBe(1);
+  });
+
+  it('Microsoft: an Active item with neither modifiedDate nor endDate has no clock and is refused, not guessed', async () => {
+    const store = stubStore([
+      { status: 200, body: { items: [{ itemId: 'ms-item-1', productId: '9NBLGGH4XYZ', status: 'Active' }] } },
+    ]);
+    const h = harness({
+      credentials: MS_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['microsoft_store', '9NBLGGH4XYZ']]),
+    });
+    const res = await h.post('microsoft_store', { token: 'store-id-key' }, `Bearer ${await token()}`);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: 'store_unreadable' });
+    expect(h.db.count('bundle_grants')).toBe(0);
   });
 });
 
@@ -435,14 +639,16 @@ describe('double billing', () => {
     expect(db.count('bundle_grants')).toBe(1);
   });
 
-  it('does NOT refuse when the holder is the SAME rail — that is a renewal, not a second purchase', async () => {
+  it('does NOT refuse when the holder is the SAME rail — that is a renewal, and the renewal ADVANCES the expiry', async () => {
     const db = realPlatformDb();
+    // The stored clock is the FIRST period's paid-through instant — what the
+    // verifier wrote when period one was verified.
     seedGrant(db, {
       grantId: await mintGrantId('google_play', 'tok-renew'),
       provider: 'google_play',
       source: 'google_play_billing',
       subId: 'tok-renew',
-      occurredAt: '2026-09-01T00:00:00.000Z',
+      occurredAt: '2027-09-01T00:00:00.000Z',
       expiresAt: '2027-09-01T00:00:00.000Z',
     });
     const store = stubStore([{ status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2028-09-01T00:00:00.000Z') }]);
@@ -459,6 +665,12 @@ describe('double billing', () => {
     );
     expect(res.status).toBe(200);
     expect(db.count('bundle_grants')).toBe(1);
+    // 🔴 NOT a 200 and a row count — the row's expiry MOVED. The previous
+    // version of this test asserted only the two lines above and passed while
+    // every renewal was being discarded as `stale`.
+    expect((await res.json()) as Record<string, unknown>).toMatchObject({ written: 'applied' });
+    const rows = db.rows('SELECT expires_at FROM bundle_grants WHERE provider_subscription_id = ?', 'tok-renew');
+    expect(rows[0].expires_at).toBe('2028-09-01T00:00:00.000Z');
   });
 
   it('THE RACE: both grants are recorded, the union is served, the older is superseded and an operator alert is raised', async () => {
@@ -473,16 +685,12 @@ describe('double billing', () => {
       occurredAt: '2026-09-02T00:00:00.000Z',
       expiresAt: '2027-09-02T00:00:00.000Z',
     });
-    // The Play purchase happened LATER than the Microsoft one, so the older row
-    // is the rival — which is what `superseded_by` must point away from.
+    // The Microsoft grant was RECORDED first (its `created_at` is seeded in the
+    // past; the Play row's is now), so it is the older row — which is what
+    // `superseded_by` must point away from. "Older" is by our own clock, because
+    // the rails' `occurred_at` values measure different things.
     const store = stubStore([
-      {
-        status: 200,
-        body: {
-          ...PLAY_ACTIVE('nikatru_all_yearly', '2027-12-01T00:00:00.000Z'),
-          startTime: '2026-09-05T00:00:00.000Z',
-        },
-      },
+      { status: 200, body: PLAY_ACTIVE('nikatru_all_yearly', '2027-12-01T00:00:00.000Z') },
     ]);
     const alerts: string[] = [];
     const spy = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
@@ -531,6 +739,23 @@ describe('a verified Microsoft receipt is a PULL, because that rail has no push 
       grant: { grant_id: await mintGrantId('microsoft_store', 'ms-item-1'), source: 'microsoft_store' },
     });
     expect(store.calls[0]).toContain('collections.mp.microsoft.com');
+  });
+
+  it('asks Microsoft with the DOCUMENTED request body — the Store ID key as identityValue, productTypes present', async () => {
+    const store = stubStore([{ status: 200, body: MS_ACTIVE('9NBLGGH4XYZ', '2027-06-01T00:00:00.000Z') }]);
+    const h = harness({
+      credentials: MS_CREDS,
+      fetchImpl: store.impl,
+      map: productMap([['microsoft_store', '9NBLGGH4XYZ']]),
+    });
+    await h.post('microsoft_store', { token: 'store-id-key-xyz' }, `Bearer ${await token()}`);
+    const sent = JSON.parse(store.bodies[0]) as Record<string, unknown>;
+    // learn.microsoft.com/windows/uwp/monetize/query-for-products, "Request body".
+    expect(sent).toMatchObject({
+      beneficiaries: [{ identityType: 'b2b', identityValue: 'store-id-key-xyz' }],
+      productTypes: ['Durable'],
+    });
+    expect((sent.beneficiaries as Array<Record<string, unknown>>)[0]).toHaveProperty('localTicketReference');
   });
 
   it('answers 403 when Microsoft rejects the Store ID key', async () => {

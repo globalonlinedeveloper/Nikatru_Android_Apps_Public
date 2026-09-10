@@ -706,6 +706,28 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       const bounded = LIMITER_CALLS.some((fn) => new RegExp(`\\b${fn}\\s*\\(`).test(handler));
       if (bounded) continue;
       if (String(entry.noLimiterReason ?? '').trim()) {
+        // ── 4b · A "NO I/O" JUSTIFICATION IS GRADED AGAINST THE HANDLER ────
+        // CORRECTED 2026-09-10. Both Workers' /v1/health rows said "It does NO
+        // I/O — no D1 query, no KV read, no subrequest" while their handlers
+        // probed D1, KV and the Supabase JWKS (services/platform/src/index.ts
+        // :115-144), and this limb printed them green every run because it only
+        // checked that a reason was PRESENT. A reason is the licence for leaving
+        // a public route unlimited; a licence describing code that no longer
+        // exists is no licence. The one claim that was wrong is the one claim
+        // grep can check: a reason that says "no I/O" over a handler that reaches
+        // a binding or the network FAILS, naming what it found.
+        const reason = String(entry.noLimiterReason);
+        const claimsNoIo = /\bno\s+I\/O\b/i.test(reason);
+        const io = handler.match(/\.prepare\s*\(|\bprobeBinding\s*\(|\bprobeJwks\s*\(|\bfetch\s*\(|c\.env\.\w+\.(?:get|put|list|delete)\s*\(/g);
+        if (claimsNoIo && io !== null) {
+          problems.push(
+            `${k} — \`noLimiterReason\` claims NO I/O, but the handler in \`${m.owningFile}\` reaches ` +
+              `${[...new Set(io.map((s) => s.trim()))].join(', ')}. [B-13] The reason a public route may stay ` +
+              'unlimited must describe the code beside it; say what the I/O is and what bounds it (a ' +
+              'per-isolate memo, a TTL), or bound the route.',
+          );
+          continue;
+        }
         printed.push(`⚠  ${k} — PUBLIC AND UNLIMITED. · ${workerName} ${entry.noLimiterReason}`);
       } else {
         problems.push(

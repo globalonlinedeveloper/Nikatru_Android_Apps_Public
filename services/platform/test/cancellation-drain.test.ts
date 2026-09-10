@@ -373,7 +373,7 @@ describe('the census is actually wired into the nightly cron', () => {
     expect(tokens(mine[0].detail).undrained).toBe('1');
 
     // AND THE WHOLE CENSUS, not just this limb. `duty.platform-cron.watchedJobs`
-    // in tooling/ops/register.json names SEVEN jobs (six until 2026-09-03); a job the register watches
+    // in tooling/ops/register.json names EIGHT nightly jobs (seven until 2026-09-10, six until 2026-09-03); a job the register watches
     // and the handler never runs reads as "absent" forever, which is the
     // `analytics_liveness` incident. This is the only test in the tree that runs
     // the real handler, so it is the only place that fact is checkable.
@@ -416,6 +416,10 @@ describe('the census is actually wired into the nightly cron', () => {
       // that runs the real handler, so it is the only place a newly wired job
       // is checkable at all.
       'github_dispatch',
+      // Added 2026-09-10: the re-derivation backstop for money notifications
+      // whose derivation never concluded (test/money-rederive.test.ts). Same
+      // reason as the line above — this is where a newly wired job is checkable.
+      'money_rederive',
       'renewals',
       'retention_sweep',
       'supabase_keepalive',

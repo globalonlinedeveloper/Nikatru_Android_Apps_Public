@@ -36,14 +36,44 @@ import {
 
 const COLLECTIONS_QUERY = 'https://collections.mp.microsoft.com/v6.0/collections/query';
 
+/**
+ * The fields read from one `CollectionItemContractV6` item, named as the
+ * Collections reference names them
+ * (learn.microsoft.com/windows/uwp/monetize/query-for-products, "Response
+ * body"). Nothing not read is declared, so a reader cannot mistake a declared
+ * field for a consulted one.
+ */
 interface CollectionItem {
   productId?: unknown;
-  productKind?: unknown;
   status?: unknown;
+  /** "The end date of the item." Moves on every renewal. */
   endDate?: unknown;
-  acquiredDate?: unknown;
+  /** "The date this item was last modified." Moves on every state change. */
+  modifiedDate?: unknown;
   orderId?: unknown;
-  id?: unknown;
+  /** "An ID that identifies this collection item from other items the user owns. This ID is unique per product." */
+  itemId?: unknown;
+}
+
+/**
+ * 🔴 THE ORDERING CLOCK ON THIS RAIL IS THE LAST MODIFICATION, NOT THE PURCHASE.
+ *
+ * `occurredAt` feeds the [5]M-2 clause, which refuses an EQUAL clock. It
+ * therefore has to be a field that moves on every renewal. `acquiredDate` —
+ * "The date on which the user acquired the item" — is fixed for the item's
+ * whole life, so keyed on it every renewal re-post was `stale` and the grant's
+ * `expires_at` never advanced past period one.
+ *
+ * `modifiedDate` is the reference's "The date this item was last modified": a
+ * renewal modifies the item (its `endDate` moves), so the clock moves with it,
+ * and a re-delivery of an unchanged item leaves it equal — the true-duplicate
+ * case the clause is right to refuse. `endDate` is the fallback for a document
+ * that omits `modifiedDate` despite the reference marking it required; it moves
+ * on renewal too. A document carrying neither has no clock and is refused by
+ * the caller rather than ordered by a guess.
+ */
+function orderingClock(item: CollectionItem): string | null {
+  return isoFromStoreInstant(item.modifiedDate) ?? isoFromStoreInstant(item.endDate);
 }
 
 /**
@@ -81,12 +111,22 @@ export const microsoftStoreVerifier: ReceiptVerifier = {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        // The documented request body, field for field
+        // (learn.microsoft.com/windows/uwp/monetize/query-for-products,
+        // "Request body"): `beneficiaries[].identityType` = "b2b",
+        // `identityValue` = the Store ID key, `localTicketReference` = the
+        // caller's own correlation id echoed back per item, and `productTypes`
+        // is REQUIRED. The Store ID key IS the beneficiary identity and is
+        // passed through verbatim; nothing about the caller is asserted by us.
         body: JSON.stringify({
-          // The Store ID key IS the beneficiary identity. It is passed through
-          // verbatim; nothing about the caller is asserted by us.
-          beneficiaries: [{ identitytype: 'b2b', localTicket: input.token, identityValue: '' }],
+          beneficiaries: [
+            { identityType: 'b2b', identityValue: input.token, localTicketReference: 'nikatru' },
+          ],
           maxPageSize: 100,
-          entitlementFilters: [{ productType: 'Durable' }, { productType: 'Pass' }],
+          productTypes: ['Durable'],
+          // Only items valid NOW: "active status, start date < now, and end date
+          // > now". An expired item is not evidence of anything we would grant.
+          validityType: 'Valid',
         }),
       });
     } catch (err) {
@@ -132,22 +172,39 @@ export const microsoftStoreVerifier: ReceiptVerifier = {
     // read's rule 3 already means exactly that. `null` is carried through rather
     // than being turned into a far-future date nobody could audit.
     const end = isoFromStoreInstant(held.endDate);
+    const clock = orderingClock(held);
+    if (clock === null) {
+      // No `modifiedDate` and no `endDate`: the item cannot be placed in the
+      // ordering, and a write with no clock would either always apply (a
+      // guessed `now`) or never apply (NULL loses to everything). Neither is a
+      // fact Microsoft stated. Refuse as unreadable.
+      return refuse(
+        502,
+        'store_unreadable',
+        'Microsoft Collections returned an Active item with neither modifiedDate nor endDate, so it cannot ' +
+          'be ordered against the grant already held. Refusing rather than guessing a clock.',
+      );
+    }
     return {
       ok: true,
       receipt: {
         store: 'microsoft_store',
         productId,
-        // Microsoft's collection ITEM id is the stable per-user handle for this
-        // entitlement; the Store ID key is short-lived and would make every
-        // renewal look like a new subscription.
-        subscriptionId: typeof held.id === 'string' && held.id !== '' ? held.id : productId,
+        // Microsoft's collection ITEM id (`itemId`, "unique per product") is the
+        // stable per-user handle for this entitlement; the Store ID key is
+        // short-lived and would make every renewal look like a new
+        // subscription. The product id is the fallback for an item without one,
+        // and is per-user-stable for the same reason.
+        subscriptionId: typeof held.itemId === 'string' && held.itemId !== '' ? held.itemId : productId,
         transactionId: typeof held.orderId === 'string' ? held.orderId : null,
         status: ACTIVE_STATUS,
         isActive: true,
         expiresAt: end,
         currentPeriodEnd: end,
         trialEnd: null,
-        occurredAt: isoFromStoreInstant(held.acquiredDate) ?? new Date(input.nowMs).toISOString(),
+        // The clock that moves per renewal — see `orderingClock`. NEVER
+        // `acquiredDate`, which is constant and made every renewal `stale`.
+        occurredAt: clock,
       },
     };
   },
