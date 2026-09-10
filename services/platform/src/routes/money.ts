@@ -20,11 +20,21 @@
 //   3 · PARSE, OR REFUSE LOUDLY. A body whose shape the adapter does not
 //       recognise is a 400 and NOT a row. An invented shape that silently
 //       mis-parses writes a wrong entitlement that looks exactly like a right one.
-//   4 · PERSIST VERBATIM.
-//   5 · ANSWER 200 ON THE STRENGTH OF STEP 4.
-//   6 · DERIVE. In the same request today (a single D1 write pair is well inside
-//       the five-second delivery budget Paddle documents), but AFTER the record
+//   4 · PERSIST VERBATIM. Exactly once per event id; a re-delivery keeps the
+//       first copy.
+//   5 · DERIVE. In the same request (a single D1 write pair is well inside the
+//       five-second delivery budget Paddle documents), but AFTER the record
 //       exists, so a derivation defect can never lose a payment.
+//   6 · ANSWER BY WHAT DERIVATION CONCLUDED. 200 when it concluded — applied,
+//       stale, ignored, unclaimed — and 🔴 503 WHEN IT DID NOT: a `refused`
+//       outcome or a throw. Paddle re-delivers on any status but 200 (60 times
+//       within 3 days, live; developer.paddle.com/webhooks/respond-to-webhooks),
+//       and the re-delivery is RE-DERIVED here because step 4 kept the row and
+//       `isUnconcluded` says it never concluded. A 200 for an unconcluded
+//       derivation — what this route used to answer — was a false ack: the
+//       row stayed underived for good, and a refund that arrived before its
+//       grant left the refunded customer Pro. A re-delivery of a CONCLUDED
+//       notification is still `duplicate: true` with no second derivation.
 //
 // ⚠️ IT IS UNAUTHENTICATED IN THE SUPABASE SENSE AND THAT IS CORRECT: the sender
 // is a merchant of record, not a user. The signature IS the authentication, and
@@ -39,7 +49,7 @@ import { withinEdgeCeiling } from '../lib/edge-ceiling';
 import { isMoneyEnvironment, type MoneyEnvironment } from '../lib/mor/contract';
 import { verifierFor } from '../lib/mor/registry';
 import { isKnownProduct } from '../config';
-import { deriveAndApply, persistNotification } from '../lib/mor/store';
+import { deriveAndApply, derivationStateOf, isUnconcluded, persistNotification } from '../lib/mor/store';
 
 const money = new Hono<AppEnv>();
 
@@ -126,19 +136,38 @@ money.post('/:provider', async (c) => {
   }
 
   if (!fresh) {
-    // Already recorded. Ack so the rail stops retrying; do not re-derive.
-    return c.json({ ok: true, recorded: true, duplicate: true });
+    // Already recorded. If that derivation CONCLUDED, ack so the rail stops
+    // re-delivering and do not derive again. If it did not — it refused, or it
+    // threw before it could be stamped — this re-delivery is the retry the 503
+    // below asked for, and it falls through to derive again from the stored
+    // notification. A row that vanished between the two reads is acked: there
+    // is nothing left to derive from.
+    const state = await derivationStateOf(c.env.PLATFORM_DB, notification);
+    if (state === null || !isUnconcluded(state)) {
+      return c.json({ ok: true, recorded: true, duplicate: true });
+    }
+    console.log(`[money/${providerId}] rid=${rid} re-deriving a stored notification that had not concluded`);
   }
 
   let outcome: string;
   try {
     outcome = (await deriveAndApply(deps, notification)).outcome;
   } catch (err) {
-    // The notification IS recorded, which is the promise this 200 makes. A
-    // derivation failure is re-runnable from the stored payload and must not
-    // turn into a retry storm on a queue shared with events that move money.
+    // The notification IS recorded, so nothing is lost — and NOTHING IS
+    // CONCLUDED either, so this is not a 200. 503: Paddle re-delivers, the
+    // duplicate branch above re-derives. Retries are per notification on the
+    // rail's side (the doc names no shared queue and guarantees no order), so a
+    // 503 here delays no other event.
     console.error(`[money/${providerId}] rid=${rid} derivation failed after recording`, err);
-    return c.json({ ok: true, recorded: true, derived: 'error' });
+    return c.json({ ok: false, recorded: true, derived: 'error', retry: true }, 503);
+  }
+
+  if (outcome === 'refused') {
+    // Undecidable ⇒ deny, and deny is not done: the row stays unconcluded and
+    // the rail is asked to bring the notification back. The common case is a
+    // refund that arrived before the grant it reverses; the re-delivery finds
+    // the grant applied and revokes.
+    return c.json({ ok: false, recorded: true, derived: outcome, retry: true }, 503);
   }
 
   return c.json({ ok: true, recorded: true, derived: outcome });

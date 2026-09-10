@@ -150,8 +150,98 @@ export type ApplyResult =
   | { outcome: 'unclaimed'; detail: string }
   /** Not a money subject at all (a product, a customer, a report). */
   | { outcome: 'ignored'; detail: string }
-  /** UNDECIDABLE ⇒ DENY. Nothing was written; the rail will retry. */
+  /**
+   * UNDECIDABLE ⇒ DENY. Nothing was written. The route answers 503 for this
+   * outcome so the rail re-delivers, and the re-delivery is RE-DERIVED — see
+   * `isUnconcluded` below for what makes that true.
+   */
   | { outcome: 'refused'; detail: string };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 A DERIVATION THAT DID NOT CONCLUDE IS NOT FINISHED, AND TWO THINGS RE-RUN IT.
+//
+// The defect this closes: a `refused` outcome (a refund that arrived BEFORE the
+// grant it reverses, store.ts:applyAdjustment) and a derivation that THREW were
+// both answered HTTP 200, and because the notification was already stored, every
+// re-delivery of the same event id was answered `duplicate` and never derived
+// again. Nothing in `src/` re-read a row with `derived_at IS NULL`. The refunded
+// customer kept Pro, for good, and three comments said the rail would retry.
+//
+// What is true NOW, and both halves are proven by tests that seed the refund
+// first and the grant second:
+//   1 · routes/money.ts answers 503 for `refused` and for a throw. Paddle
+//       re-delivers on any status but 200 — 60 times within 3 days on a live
+//       account (developer.paddle.com/webhooks/respond-to-webhooks) — and the
+//       duplicate branch re-derives when `isUnconcluded` says the stored row
+//       never concluded. That is the minutes-scale path.
+//   2 · scheduled.ts `moneyRederive` re-derives every unconcluded row younger
+//       than its age bound on the nightly cron, for whatever outlives the rail's
+//       3-day window (a throw that was a bug until it was fixed).
+//
+// "Unconcluded" is defined ONCE, here, as a predicate over the stored row and as
+// the SQL that selects such rows; a test holds the two forms equal over every
+// derivation state the writer can produce. `unclaimed` and `ignored` are
+// CONCLUDED: the first is resolved through `unclaimed_payments`, the second has
+// nothing to derive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The two columns `markDerived` stamps. Both NULL until derivation ran. */
+export interface DerivationState {
+  derived_at: string | null;
+  derive_error: string | null;
+}
+
+/**
+ * Never stamped (derivation threw before `markDerived`), or stamped `refused`.
+ * `markDerived` writes `${outcome}: ${detail}`, so the prefix is the outcome.
+ */
+export function isUnconcluded(s: DerivationState): boolean {
+  return s.derived_at === null || (s.derive_error !== null && s.derive_error.startsWith('refused:'));
+}
+
+/** The stored row's derivation stamp, or null when no such row exists. */
+export async function derivationStateOf(
+  db: D1Database,
+  n: Pick<NormalizedNotification, 'provider' | 'eventId'>,
+): Promise<DerivationState | null> {
+  const row = await db
+    .prepare('SELECT derived_at, derive_error FROM provider_notifications WHERE provider = ? AND provider_event_id = ?')
+    .bind(n.provider, n.eventId)
+    .first<DerivationState>();
+  return row ?? null;
+}
+
+/** A stored notification as the re-derivation sweep needs it: enough to parse again. */
+export interface StoredNotification {
+  provider: string;
+  provider_event_id: string;
+  payload: string;
+  received_at: string;
+}
+
+/**
+ * Every unconcluded notification received at or after `sinceIso`, oldest first,
+ * at most `limit`. The WHERE is the SQL form of `isUnconcluded`, and
+ * test/money-rederive.test.ts asserts the two agree on every state.
+ */
+export async function unconcludedNotifications(
+  db: D1Database,
+  sinceIso: string,
+  limit: number,
+): Promise<StoredNotification[]> {
+  const res = await db
+    .prepare(
+      `SELECT provider, provider_event_id, payload, received_at
+         FROM provider_notifications
+        WHERE received_at >= ?
+          AND (derived_at IS NULL OR derive_error LIKE 'refused:%')
+        ORDER BY received_at
+        LIMIT ?`,
+    )
+    .bind(sinceIso, limit)
+    .all<StoredNotification>();
+  return res.results ?? [];
+}
 
 interface ExistingRow {
   user_id: string;
@@ -330,10 +420,13 @@ async function upsertEntitlement(
  * Interpret a stored notification and, when it decides something, write the row.
  *
  * Every branch that cannot decide returns `refused` and writes NOTHING. That is
- * the whole posture: the rail retries (Paddle 60 times over 3 days), the stored
- * entitlement keeps whatever it already said, and the stored notification
- * carries the reason. A branch that "did its best" here is a branch that grants
- * or removes access on a guess.
+ * the whole posture: the stored entitlement keeps whatever it already said and
+ * the stored notification carries the reason. The route answers 503 for this
+ * outcome, so the rail re-delivers (Paddle: 60 times within 3 days, live), and
+ * the re-delivery is re-derived because `isUnconcluded` still says so; the
+ * nightly `moneyRederive` limb re-runs anything that outlives that window. A
+ * branch that "did its best" here is a branch that grants or removes access on
+ * a guess.
  */
 export async function deriveAndApply(
   deps: MoneyStoreDeps,
@@ -430,8 +523,10 @@ async function applyAdjustment(
   if (existing === null) {
     // A refund for access we never granted. Refusing (rather than writing an
     // is_active = 0 row out of nowhere) keeps the rail honest: the row would
-    // assert a revocation of something that was never given, and the retry will
-    // succeed once the grant that preceded it has been processed.
+    // assert a revocation of something that was never given. The route answers
+    // 503 for this outcome and the re-delivery is RE-DERIVED (`isUnconcluded`),
+    // so it succeeds once the grant that preceded it has been processed —
+    // test/money.test.ts drives exactly that order.
     return {
       outcome: 'refused',
       detail: 'an adjustment arrived for an account with no entitlement row — the grant it reverses has not been applied yet',
