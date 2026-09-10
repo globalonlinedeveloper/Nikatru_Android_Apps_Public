@@ -3,7 +3,7 @@
 // able to FAIL, in every direction it claims to look.
 //
 // ⚠️ REAL-TREE MUTATIONS FIRST (2026-09-10, on the real worktree, green control
-// before, restore re-verified green after — recorded in PR #616's body):
+// before, restore re-verified green after — recorded in PR #617's body):
 //   OR-A  the pre-move private reader restored in the per-app route  -> exit 1
 //         (limb 1: an undeclared `entitlements` read; limb 2: `is_pro: isPro`)
 //   OR-B  a second `SELECT … FROM entitlements` added to receipts.ts  -> exit 1
