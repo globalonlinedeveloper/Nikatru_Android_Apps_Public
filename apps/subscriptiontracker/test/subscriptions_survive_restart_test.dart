@@ -8,8 +8,6 @@ import 'package:subscriptiontracker/data/local/subscription_store.dart';
 import 'package:subscriptiontracker/data/models/budget_info.dart';
 import 'package:subscriptiontracker/data/models/payment_record.dart';
 import 'package:subscriptiontracker/data/models/subscription.dart';
-import 'package:subscriptiontracker/state/providers/subscriptions.dart'
-    show cachedApiClientOver;
 import 'package:subscriptiontracker/data/subscriptions/subscription_repository.dart';
 import 'package:subscriptiontracker/state/providers.dart';
 
@@ -265,7 +263,10 @@ void main() {
         .read(subscriptionRepositoryProvider)
         .fetchAll();
     expect(after.length, subs.length, reason: 'rolled back — not half-saved');
-    expect(after.map((Subscription s) => s.name), isNot(contains('Claude Pro')));
+    expect(
+      after.map((Subscription s) => s.name),
+      isNot(contains('Claude Pro')),
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -278,46 +279,51 @@ void main() {
   // `cachedApiClientOver` return the network bare, or make the provider return
   // `DioApiClient` bare, and one of these goes red.
   // ═══════════════════════════════════════════════════════════════════════════
-  group('API configured: the list survives a restart with the network dead',
-      () {
-    test('through the wiring function the provider uses', () async {
-      final _MemStore kv = _MemStore();
-      LocalSubscriptionStore store() =>
-          LocalSubscriptionStore(Future<core.KeyValueStore>.value(kv));
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[
-        _draft('Netflix'),
-        _draft('Spotify'),
-      ]);
+  group(
+    'API configured: the list survives a restart with the network dead',
+    () {
+      test('through the wiring function the provider uses', () async {
+        final _MemStore kv = _MemStore();
+        LocalSubscriptionStore store() =>
+            LocalSubscriptionStore(Future<core.KeyValueStore>.value(kv));
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _draft('Netflix'),
+          _draft('Spotify'),
+        ]);
 
-      // Launch 1, online, through the app's own wiring.
-      final ApiClient first = cachedApiClientOver(net, store());
-      expect((await first.getSubscriptions()).length, 2);
+        // Launch 1, online, through the app's own wiring.
+        final ApiClient first = cachedApiClientOver(net, store());
+        expect((await first.getSubscriptions()).length, 2);
 
-      // Kill the network; launch 2 is a NEW client over the same bytes.
-      net.dead = true;
-      final ApiClient second = cachedApiClientOver(net, store());
-      expect(
-        (await second.getSubscriptions()).map((Subscription s) => s.name),
-        <String>['Netflix', 'Spotify'],
-      );
-    });
+        // Kill the network; launch 2 is a NEW client over the same bytes.
+        net.dead = true;
+        final ApiClient second = cachedApiClientOver(net, store());
+        expect(
+          (await second.getSubscriptions()).map((Subscription s) => s.name),
+          <String>['Netflix', 'Spotify'],
+        );
+      });
 
-    test('and the provider\'s configured branch still calls it', () {
-      // A SOURCE reading, because no test can flip the compile-time define.
-      final String src = File(
-        'lib/state/providers/subscriptions.dart',
-      ).readAsStringSync();
-      final int start = src.indexOf('apiClientProvider = Provider<ApiClient>');
-      final int end = src.indexOf('});', start);
-      final String body = src.substring(start, end);
-      expect(body, contains('cachedApiClientOver('));
-      expect(
-        body,
-        isNot(contains('return DioApiClient(')),
-        reason: 'a bare DioApiClient is the production path with no local copy',
-      );
-    });
-  });
+      test('and the provider\'s configured branch still calls it', () {
+        // A SOURCE reading, because no test can flip the compile-time define.
+        final String src = File(
+          'lib/state/providers/subscriptions.dart',
+        ).readAsStringSync();
+        final int start = src.indexOf(
+          'apiClientProvider = Provider<ApiClient>',
+        );
+        final int end = src.indexOf('});', start);
+        final String body = src.substring(start, end);
+        expect(body, contains('cachedApiClientOver('));
+        expect(
+          body,
+          isNot(contains('return DioApiClient(')),
+          reason:
+              'a bare DioApiClient is the production path with no local copy',
+        );
+      });
+    },
+  );
 }
 
 /// The Worker, reduced to a list and a kill switch.

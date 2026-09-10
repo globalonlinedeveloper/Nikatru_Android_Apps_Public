@@ -159,14 +159,10 @@ class CachedApiClient implements ApiClient {
     String id,
     Map<String, dynamic> changes,
   ) async {
-    final Subscription updated = await _network.updateSubscription(
-      id,
-      changes,
-    );
+    final Subscription updated = await _network.updateSubscription(id, changes);
     await _amendCachedList(
-      (List<Subscription> cached) => cached
-          .map((Subscription s) => s.id == id ? updated : s)
-          .toList(),
+      (List<Subscription> cached) =>
+          cached.map((Subscription s) => s.id == id ? updated : s).toList(),
     );
     return updated;
   }

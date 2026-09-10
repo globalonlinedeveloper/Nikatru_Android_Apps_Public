@@ -155,27 +155,29 @@ void main() {
   setUp(() => kv = _MemStore());
 
   group('🔴 KILL THE NETWORK — the list survives a restart', () {
-    test('a list the server returned once is served when the server is gone',
-        () async {
-      final _FakeNetwork net = _FakeNetwork(
-        <Subscription>[_sub('a', 'Netflix'), _sub('b', 'Spotify')],
-        _budget,
-      );
-      // Launch 1: online.
-      final CachedApiClient first = CachedApiClient(net, store());
-      expect((await first.getSubscriptions()).length, 2);
-      expect(first.lastReadWasFromCache, isFalse);
+    test(
+      'a list the server returned once is served when the server is gone',
+      () async {
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _sub('a', 'Netflix'),
+          _sub('b', 'Spotify'),
+        ], _budget);
+        // Launch 1: online.
+        final CachedApiClient first = CachedApiClient(net, store());
+        expect((await first.getSubscriptions()).length, 2);
+        expect(first.lastReadWasFromCache, isFalse);
 
-      // Launch 2: a NEW client over the SAME bytes, network dead.
-      net.failure = _offline;
-      final CachedApiClient second = CachedApiClient(net, store());
-      final List<Subscription> offline = await second.getSubscriptions();
-      expect(offline.map((Subscription s) => s.name), <String>[
-        'Netflix',
-        'Spotify',
-      ]);
-      expect(second.lastReadWasFromCache, isTrue);
-    });
+        // Launch 2: a NEW client over the SAME bytes, network dead.
+        net.failure = _offline;
+        final CachedApiClient second = CachedApiClient(net, store());
+        final List<Subscription> offline = await second.getSubscriptions();
+        expect(offline.map((Subscription s) => s.name), <String>[
+          'Netflix',
+          'Spotify',
+        ]);
+        expect(second.lastReadWasFromCache, isTrue);
+      },
+    );
 
     test('the budget survives the same way', () async {
       final _FakeNetwork net = _FakeNetwork(<Subscription>[], _budget);
@@ -186,54 +188,74 @@ void main() {
     });
 
     test('a row ADDED online is in the offline copy', () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+      ], _budget);
       final CachedApiClient first = CachedApiClient(net, store());
       await first.getSubscriptions();
       await first.createSubscription(_sub('', 'Claude Pro'));
       net.failure = _offline;
-      final List<Subscription> offline =
-          await CachedApiClient(net, store()).getSubscriptions();
+      final List<Subscription> offline = await CachedApiClient(
+        net,
+        store(),
+      ).getSubscriptions();
       expect(offline.map((Subscription s) => s.name), contains('Claude Pro'));
     });
 
     test('a row DELETED online is gone from the offline copy', () async {
-      final _FakeNetwork net = _FakeNetwork(
-        <Subscription>[_sub('a', 'A'), _sub('b', 'B')],
-        _budget,
-      );
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+        _sub('b', 'B'),
+      ], _budget);
       final CachedApiClient first = CachedApiClient(net, store());
       await first.getSubscriptions();
       await first.deleteSubscription('a');
       net.failure = _offline;
-      final List<Subscription> offline =
-          await CachedApiClient(net, store()).getSubscriptions();
+      final List<Subscription> offline = await CachedApiClient(
+        net,
+        store(),
+      ).getSubscriptions();
       expect(offline.map((Subscription s) => s.id), <String>['b']);
     });
 
     test('an EDIT made online is in the offline copy', () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+      ], _budget);
       final CachedApiClient first = CachedApiClient(net, store());
       await first.getSubscriptions();
       await first.updateSubscription('a', <String, dynamic>{'name': 'A+'});
       net.failure = _offline;
-      final List<Subscription> offline =
-          await CachedApiClient(net, store()).getSubscriptions();
+      final List<Subscription> offline = await CachedApiClient(
+        net,
+        store(),
+      ).getSubscriptions();
       expect(offline.single.name, 'A+');
     });
 
     test('a single row is answered from the copy too', () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+      ], _budget);
       await CachedApiClient(net, store()).getSubscriptions();
       net.failure = _offline;
-      final Subscription s = await CachedApiClient(net, store()).getSubscription('a');
+      final Subscription s = await CachedApiClient(
+        net,
+        store(),
+      ).getSubscription('a');
       expect(s.name, 'A');
     });
 
     test('a 5xx is "the server is gone" as much as no network is', () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+      ], _budget);
       await CachedApiClient(net, store()).getSubscriptions();
       net.failure = ApiException(503, 'Service Unavailable');
-      expect(await CachedApiClient(net, store()).getSubscriptions(), hasLength(1));
+      expect(
+        await CachedApiClient(net, store()).getSubscriptions(),
+        hasLength(1),
+      );
     });
   });
 
@@ -247,21 +269,31 @@ void main() {
       );
     });
 
-    test('🔴 a 401 is NOT offline — another account\'s copy is never served',
-        () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
-      await CachedApiClient(net, store()).getSubscriptions();
-      net.failure = ApiException(401, 'Unauthorized');
-      await expectLater(
-        CachedApiClient(net, store()).getSubscriptions(),
-        throwsA(
-          isA<ApiException>().having((ApiException e) => e.statusCode, 'status', 401),
-        ),
-      );
-    });
+    test(
+      '🔴 a 401 is NOT offline — another account\'s copy is never served',
+      () async {
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _sub('a', 'A'),
+        ], _budget);
+        await CachedApiClient(net, store()).getSubscriptions();
+        net.failure = ApiException(401, 'Unauthorized');
+        await expectLater(
+          CachedApiClient(net, store()).getSubscriptions(),
+          throwsA(
+            isA<ApiException>().having(
+              (ApiException e) => e.statusCode,
+              'status',
+              401,
+            ),
+          ),
+        );
+      },
+    );
 
     test('a 404 travels unchanged', () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
+      final _FakeNetwork net = _FakeNetwork(<Subscription>[
+        _sub('a', 'A'),
+      ], _budget);
       await CachedApiClient(net, store()).getSubscriptions();
       net.failure = ApiException(404, 'Not Found');
       await expectLater(
@@ -270,19 +302,23 @@ void main() {
       );
     });
 
-    test('writes go to the server FIRST and an offline write fails honestly',
-        () async {
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
-      final CachedApiClient c = CachedApiClient(net, store());
-      await c.getSubscriptions();
-      net.failure = _offline;
-      await expectLater(
-        c.createSubscription(_sub('', 'Nope')),
-        throwsA(isA<ApiException>()),
-      );
-      // And the copy was not touched: it still says what the server last said.
-      expect(await store().readSubscriptions(), hasLength(1));
-    });
+    test(
+      'writes go to the server FIRST and an offline write fails honestly',
+      () async {
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _sub('a', 'A'),
+        ], _budget);
+        final CachedApiClient c = CachedApiClient(net, store());
+        await c.getSubscriptions();
+        net.failure = _offline;
+        await expectLater(
+          c.createSubscription(_sub('', 'Nope')),
+          throwsA(isA<ApiException>()),
+        );
+        // And the copy was not touched: it still says what the server last said.
+        expect(await store().readSubscriptions(), hasLength(1));
+      },
+    );
 
     test('entitlements are NEVER served from this cache', () async {
       final _FakeNetwork net = _FakeNetwork(<Subscription>[], _budget);
@@ -297,20 +333,26 @@ void main() {
   });
 
   group('a cache write failure is never silent', () {
-    test('the operation succeeds (the server has it) AND the failure is reported',
-        () async {
-      final List<Object> reported = <Object>[];
-      final _FakeNetwork net = _FakeNetwork(<Subscription>[_sub('a', 'A')], _budget);
-      final CachedApiClient c = CachedApiClient(
-        net,
-        LocalSubscriptionStore(Future<core.KeyValueStore>.value(_BrokenStore())),
-        onCacheWriteFailed: reported.add,
-      );
-      expect(await c.getSubscriptions(), hasLength(1));
-      expect(c.cacheWriteFailures, 1);
-      expect(c.lastCacheWriteError, isA<LocalStoreWriteFailure>());
-      expect(reported, hasLength(1));
-      expect('${reported.single}', contains('disk full'));
-    });
+    test(
+      'the operation succeeds (the server has it) AND the failure is reported',
+      () async {
+        final List<Object> reported = <Object>[];
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _sub('a', 'A'),
+        ], _budget);
+        final CachedApiClient c = CachedApiClient(
+          net,
+          LocalSubscriptionStore(
+            Future<core.KeyValueStore>.value(_BrokenStore()),
+          ),
+          onCacheWriteFailed: reported.add,
+        );
+        expect(await c.getSubscriptions(), hasLength(1));
+        expect(c.cacheWriteFailures, 1);
+        expect(c.lastCacheWriteError, isA<LocalStoreWriteFailure>());
+        expect(reported, hasLength(1));
+        expect('${reported.single}', contains('disk full'));
+      },
+    );
   });
 }
