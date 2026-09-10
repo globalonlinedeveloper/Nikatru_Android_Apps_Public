@@ -70,9 +70,11 @@ void main() {
     digestBody: (int _, String _) => '',
   );
 
-  Map<Object?, Object?> scheduledArgs() => outgoing
-      .singleWhere((MethodCall c) => c.method == 'zonedSchedule')
-      .arguments as Map<Object?, Object?>;
+  Map<Object?, Object?> scheduledArgs() =>
+      outgoing
+              .singleWhere((MethodCall c) => c.method == 'zonedSchedule')
+              .arguments
+          as Map<Object?, Object?>;
 
   group('a 9 AM reminder under Asia/Kolkata', () {
     test('is scheduled at 03:30Z, not 09:00Z', () async {
@@ -88,7 +90,8 @@ void main() {
       expect(
         when.toUtc(),
         DateTime.utc(2030, 6, 10, 3, 30),
-        reason: '09:00 IST is 03:30Z; 09:00Z here means the service is '
+        reason:
+            '09:00 IST is 03:30Z; 09:00Z here means the service is '
             'scheduling in UTC and the reminder fires at 14:30 IST',
       );
     });
@@ -108,42 +111,48 @@ void main() {
 
   group('DST is carried by the zone, not by a fixed offset', () {
     // America/New_York enters DST on Sunday 2030-03-10.
-    test('09:00 New York is 14:00Z before the change and 13:00Z after',
-        () async {
-      final NotificationService s = NotificationService.forTesting();
-      await s.init(localTimezone: () async => 'America/New_York');
+    test(
+      '09:00 New York is 14:00Z before the change and 13:00Z after',
+      () async {
+        final NotificationService s = NotificationService.forTesting();
+        await s.init(localTimezone: () async => 'America/New_York');
 
-      expect(
-        s.whenFor(sub(DateTime(2030, 3, 3)), 2)!.toUtc(),
-        DateTime.utc(2030, 3, 1, 14),
-      );
-      expect(
-        s.whenFor(sub(DateTime(2030, 3, 13)), 2)!.toUtc(),
-        DateTime.utc(2030, 3, 11, 13),
-      );
-    });
+        expect(
+          s.whenFor(sub(DateTime(2030, 3, 3)), 2)!.toUtc(),
+          DateTime.utc(2030, 3, 1, 14),
+        );
+        expect(
+          s.whenFor(sub(DateTime(2030, 3, 13)), 2)!.toUtc(),
+          DateTime.utc(2030, 3, 11, 13),
+        );
+      },
+    );
   });
 
   group('the fallback is loud and is never UTC', () {
-    test('a resolver that throws leaves a reason and a device offset',
-        () async {
-      final NotificationService s = NotificationService.forTesting();
-      await s.init(localTimezone: () async => throw StateError('no channel'));
+    test(
+      'a resolver that throws leaves a reason and a device offset',
+      () async {
+        final NotificationService s = NotificationService.forTesting();
+        await s.init(localTimezone: () async => throw StateError('no channel'));
 
-      expect(s.timezoneFallbackReason, isNotNull);
-      expect(s.timezoneFallbackReason, contains('no channel'));
-      expect(tz.local.name, startsWith('device'));
-      expect(tz.local.name, isNot('UTC'));
-    });
+        expect(s.timezoneFallbackReason, isNotNull);
+        expect(s.timezoneFallbackReason, contains('no channel'));
+        expect(tz.local.name, startsWith('device'));
+        expect(tz.local.name, isNot('UTC'));
+      },
+    );
 
-    test('a zone the database does not carry is the same degradation',
-        () async {
-      final NotificationService s = NotificationService.forTesting();
-      await s.init(localTimezone: () async => 'Mars/Olympus_Mons');
+    test(
+      'a zone the database does not carry is the same degradation',
+      () async {
+        final NotificationService s = NotificationService.forTesting();
+        await s.init(localTimezone: () async => 'Mars/Olympus_Mons');
 
-      expect(s.timezoneFallbackReason, contains('Mars/Olympus_Mons'));
-      expect(tz.local.name, startsWith('device'));
-    });
+        expect(s.timezoneFallbackReason, contains('Mars/Olympus_Mons'));
+        expect(tz.local.name, startsWith('device'));
+      },
+    );
   });
 
   group('a clock or zone change is honoured at the next init()', () {
