@@ -80,7 +80,13 @@ export interface VerifiedReceipt {
   readonly expiresAt: string | null;
   readonly currentPeriodEnd: string | null;
   readonly trialEnd: string | null;
-  /** The store's own clock for this state. Feeds the [5]M-2 ordering clause. */
+  /**
+   * The store's own clock for this state. Feeds the [5]M-2 ordering clause,
+   * which refuses an EQUAL clock — so this MUST be a field that moves on every
+   * renewal (Play: the latest `lineItems[].expiryTime`; Microsoft:
+   * `modifiedDate`), and NEVER the purchase instant, which is constant for the
+   * subscription's whole life and would make every renewal `stale`.
+   */
   readonly occurredAt: string | null;
 }
 
