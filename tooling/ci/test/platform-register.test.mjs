@@ -576,6 +576,33 @@ describe('assert-platform-register', () => {
     assert.match(out, /⚠ {2}GET \/v1\/health — PUBLIC AND UNLIMITED\./);
   });
 
+  test('🔴 4b · a noLimiterReason that claims NO I/O over a handler that probes a binding FAILS', () => {
+    // The live defect, 2026-09-10: both /v1/health rows said "It does NO I/O"
+    // while the handlers probed D1, KV and the JWKS, and the limb printed them
+    // green because it only checked the field was present.
+    const probing = INDEX_TS.replace(
+      "app.get('/v1/health', (c) => c.json({ ok: true }));",
+      "app.get('/v1/health', async (c) => c.json({ ok: (await c.env.PLATFORM_DB.prepare('SELECT 1').first()) !== null }));",
+    );
+    assert.notEqual(probing, INDEX_TS, 'the fixture handler was not rewritten — the case would test nothing');
+    const { code, out } = run(tree({ files: { 'services/platform/src/index.ts': probing } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /GET \/v1\/health — `noLimiterReason` claims NO I\/O, but the handler in `services\/platform\/src\/index\.ts` reaches \.prepare\(/);
+  });
+
+  test('4b · the SAME probing handler with a reason that names the I/O and its bound PRINTS and passes', () => {
+    const probing = INDEX_TS.replace(
+      "app.get('/v1/health', (c) => c.json({ ok: true }));",
+      "app.get('/v1/health', async (c) => c.json({ ok: (await c.env.PLATFORM_DB.prepare('SELECT 1').first()) !== null }));",
+    );
+    const reg = baseRegister();
+    reg.routes.find((r) => r.id === 'health').noLimiterReason =
+      'One D1 read per request, memoised per isolate for 5 s; the account-wide request ceiling bounds the rest.';
+    const { code, out } = run(tree({ register: reg, files: { 'services/platform/src/index.ts': probing } }));
+    assert.equal(code, 0, out);
+    assert.match(out, /⚠ {2}GET \/v1\/health — PUBLIC AND UNLIMITED\./);
+  });
+
   test('🔴 the limiter check is scoped to THE HANDLER, not to the file', () => {
     // A second public route added beside a limited one must not inherit its
     // sibling's protection. Checking the file would pass this; checking the
