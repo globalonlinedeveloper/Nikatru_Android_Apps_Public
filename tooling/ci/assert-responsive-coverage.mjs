@@ -600,10 +600,25 @@ const REQUIRED_COVERAGE = [
     //      kPhone/kTablet/kDesktop requirement is NOT APPLIED here and the run
     //      says so on every line it prints. That is the weaker form, and it is
     //      named rather than glossed.
+    //
+    // 🔴 RE-MEASURED 2026-09-10, `DataStateView` — the shared loading / empty /
+    // failed treatment. THREE numbers moved and all three are read off the
+    // run's own output, never reasoned to:
+    //   surfaces        19 → 20  (one new public widget class)
+    //   widthTestFiles  17 → 19  (data_state_test.dart + a11y_data_state_test
+    //                             .dart; the corpus here is the WHOLE suite)
+    //   coveredSurfaces 11 → 12  (data_state_test.dart pumps it at 375, 768,
+    //                             1280 and 1920, so it does NOT join the
+    //                             UNMEASURED WIDTH list above)
+    // The window-class sentence above is now FALSE FOR THIS ROOT and is kept
+    // only as the record of what was true on 2026-09-05: kPhone/kTablet/
+    // kDesktop/kWide are declared inline in the two new files, so the run reads
+    // them from `test/*` and DOES apply the requirement. That is the stronger
+    // form arriving, not a floor being loosened.
     enforce: false,
-    surfaces: 19,
-    widthTestFiles: 17,
-    coveredSurfaces: 11,
+    surfaces: 20,
+    widthTestFiles: 19,
+    coveredSurfaces: 12,
     label:
       'the shared chassis [ADR 065 step 2] — nav_shell, app_scaffold, content_pane, two_pane and fifteen ' +
       'more, whose width decisions every stamped app inherits',
@@ -1102,7 +1117,23 @@ function analyseRoot(R) {
       // Construction/invocation, not a bare mention: `find.byType(HomeScreen)`
       // names a widget without pumping one, and a name in an argument list is
       // not a measurement.
-      if (!new RegExp(`\\b${symbol}\\s*\\(`).test(code)) continue;
+      // 🔴 A NAMED CONSTRUCTOR IS A CONSTRUCTION TOO, and until 2026-09-10 this
+      // pattern could not see one. It required `Symbol(`, so a widget whose ONLY
+      // public constructors are named — `DataStateView.loading(...)`,
+      // `.empty(...)`, `.failed(...)` — read as never constructed by any test,
+      // and a fully measured widget was PRINTED as a gap on every run. That is
+      // the "confidently wrong" shape this file exists to remove, pointed at
+      // itself: a guard that reports a covered surface as uncovered teaches the
+      // reader to skim its own output, which is how a REAL gap goes unread.
+      //
+      // The optional group is `.name` only, and the call paren is still
+      // required — this stays a construction test, never a bare mention.
+      // `find.byType(HomeScreen)` has no paren and does not match. `Foo.bar`
+      // without a call does not match. A method call on an INSTANCE
+      // (`pane.copyWith(`) cannot match either, because `symbol` is always one
+      // of the TYPE names `surfacesIn` returned rather than an arbitrary
+      // identifier, and a lowercase receiver is not one of them.
+      if (!new RegExp(`\\b${symbol}\\s*(?:\\.\\s*[A-Za-z_$][A-Za-z0-9_$]*\\s*)?\\(`).test(code)) continue;
       if (files.length > 1) {
         problem(
           `AMBIGUOUS SUBJECT — ${rel} imports ${files.length} files that each declare \`${symbol}\` ` +

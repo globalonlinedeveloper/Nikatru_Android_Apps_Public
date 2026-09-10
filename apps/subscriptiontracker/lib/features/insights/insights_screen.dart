@@ -21,8 +21,8 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/subscription.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/settings_controller.dart';
-import '../../state/subscriptions_controller.dart';
 import '../cancel/cancel_sheet.dart';
+import '../shared/async_gate.dart';
 import '../shared/neutrals.dart';
 import '../shared/painters.dart';
 import '../shared/widgets.dart';
@@ -237,95 +237,115 @@ class InsightsScreen extends ConsumerWidget {
       l10n.localeName,
       emptyCurrencyCode: currencyCode,
     );
-    final List<Subscription> subs =
-        ref.watch(subscriptionsControllerProvider).valueOrNull ??
-        const <Subscription>[];
-    final MoneyBag total = SubMath.totalMonthly(subs);
-    final List<CategoryTotal> cats = SubMath.categoryTotals(subs);
-    final List<Subscription> unused = SubMath.unused(subs);
-    final MoneyBag savings = SubMath.savings(subs);
+    // 🔴 `valueOrNull ?? const []` STOOD HERE (insights:234) AND IT MADE THE
+    // DONUT LIE. Every figure on this screen is DERIVED from the list —
+    // `totalMonthly`, `categoryTotals`, `unused`, `savings` — so an absent
+    // list did not blank the page, it produced a fully composed, confident
+    // report whose every number was 0.00. A spinner is obviously incomplete;
+    // a finished chart reading zero is not, and a user whose network had
+    // dropped was shown a spending breakdown of nothing and no reason to
+    // doubt it.
+    //
+    // The gate wraps the WHOLE body here, which is safe for the same reason
+    // it is safe on budget and not on notifications: this is a shell TAB, so
+    // `AppScaffold` owns the navigation and every state below keeps it.
+    return subscriptionsGate(
+      ref,
+      l10n: l10n,
+      emptyTitle: l10n.dataEmptyTitle,
+      emptyBody: l10n.dataEmptyBody,
+      builder: (List<Subscription> subs) {
+        final MoneyBag total = SubMath.totalMonthly(subs);
+        final List<CategoryTotal> cats = SubMath.categoryTotals(subs);
+        final List<Subscription> unused = SubMath.unused(subs);
+        final MoneyBag savings = SubMath.savings(subs);
 
-    // The page's card STACK, in reading order — built ONCE, then laid out in
-    // one column or two. Building it once is the whole trick: the commonest way
-    // a responsive branch rots is that one arm gains a card and the other does
-    // not, and nothing goes red because both arms still render something.
-    final List<Widget> cards = <Widget>[
-      _categoryCard(context, l10n, money, currencyCode, cats, total),
-      // 🔴 THE SAVINGS CARD IS GATED ON THERE BEING SOMETHING TO SAVE.
-      // `SubMath.savings` sums rows carrying `unused == true`, and NOTHING in
-      // this app ever sets `unused` — the add sheet constructs every draft
-      // without it and the API never writes it back. So for every real user the
-      // figure is exactly 0.00, and the card rendered a green "money you could
-      // keep" Pill saying `0.00/mo` immediately above the line that says nothing
-      // is flagged. Two opposite claims, one screen.
-      //
-      // Gated rather than deleted: the arithmetic is correct and the surface
-      // becomes true the moment anything writes `unused`. Inventing a usage
-      // signal to populate it would be the other, worse repair.
-      //
-      // ⚠️ IT IS ALSO WHAT DECIDES THE COLUMN COUNT. With the gate closed there
-      // is ONE card, and `_twoUp` refuses a second column for one card — so the
-      // shape every real user sees is unchanged by the two-column work below.
-      if (unused.isNotEmpty)
-        _savingsCard(context, l10n, money, unused, savings),
-    ];
+        // The page's card STACK, in reading order — built ONCE, then laid out in
+        // one column or two. Building it once is the whole trick: the commonest way
+        // a responsive branch rots is that one arm gains a card and the other does
+        // not, and nothing goes red because both arms still render something.
+        final List<Widget> cards = <Widget>[
+          _categoryCard(context, l10n, money, currencyCode, cats, total),
+          // 🔴 THE SAVINGS CARD IS GATED ON THERE BEING SOMETHING TO SAVE.
+          // `SubMath.savings` sums rows carrying `unused == true`, and NOTHING in
+          // this app ever sets `unused` — the add sheet constructs every draft
+          // without it and the API never writes it back. So for every real user the
+          // figure is exactly 0.00, and the card rendered a green "money you could
+          // keep" Pill saying `0.00/mo` immediately above the line that says nothing
+          // is flagged. Two opposite claims, one screen.
+          //
+          // Gated rather than deleted: the arithmetic is correct and the surface
+          // becomes true the moment anything writes `unused`. Inventing a usage
+          // signal to populate it would be the other, worse repair.
+          //
+          // ⚠️ IT IS ALSO WHAT DECIDES THE COLUMN COUNT. With the gate closed there
+          // is ONE card, and `_twoUp` refuses a second column for one card — so the
+          // shape every real user sees is unchanged by the two-column work below.
+          if (unused.isNotEmpty)
+            _savingsCard(context, l10n, money, unused, savings),
+        ];
 
-    // 🔴 THE `LayoutBuilder` SITS OUTSIDE THE PANE, AND THAT IS NOT STYLE.
-    // `app_spacing.dart`'s `pagePadding` tombstone records this exact trap: a
-    // `LayoutBuilder` INSIDE a `ContentPane` measures the PANE, so on a 1920
-    // window it reads 720 and every branch taken on it is confidently wrong
-    // with nothing to show for it. Out here it reads the body width the chassis
-    // handed down, which is the width there actually is to divide.
-    return LayoutBuilder(
-      builder: (BuildContext _, BoxConstraints constraints) {
-        // TWO COLUMNS FROM `AppBreakpoints.large` (1200) UP — see `_twoUp` for
-        // why the card count is half the condition and why 1200 of BODY is
-        // 1561 of WINDOW.
-        final bool twoUp = _twoUp(constraints.maxWidth, cards.length);
+        // 🔴 THE `LayoutBuilder` SITS OUTSIDE THE PANE, AND THAT IS NOT STYLE.
+        // `app_spacing.dart`'s `pagePadding` tombstone records this exact trap: a
+        // `LayoutBuilder` INSIDE a `ContentPane` measures the PANE, so on a 1920
+        // window it reads 720 and every branch taken on it is confidently wrong
+        // with nothing to show for it. Out here it reads the body width the chassis
+        // handed down, which is the width there actually is to divide.
+        return LayoutBuilder(
+          builder: (BuildContext _, BoxConstraints constraints) {
+            // TWO COLUMNS FROM `AppBreakpoints.large` (1200) UP — see `_twoUp` for
+            // why the card count is half the condition and why 1200 of BODY is
+            // 1561 of WINDOW.
+            final bool twoUp = _twoUp(constraints.maxWidth, cards.length);
 
-        return _pane(
-          twoUp: twoUp,
-          child: ListView(
-            // P3 PORT — PADDING RE-BASED FOR THE CHASSIS SHELL (home's
-            // precedent). Live was `fromLTRB(18, 58, 18, 108)`. Both odd
-            // numbers paid for the old shell: 58 cleared a status bar under a
-            // `Scaffold` with no app bar, 108 cleared `AppShell`'s floating
-            // pill bar plus its FAB. The chassis wraps the body in a `SafeArea`
-            // and puts navigation in `bottomNavigationBar`, so both insets
-            // would now be paid twice. 18 is `AppSpacing.gutterCompact`, the
-            // chassis's own page gutter.
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.gutterCompact,
-              AppSpacing.gutterCompact,
-              AppSpacing.gutterCompact,
-              AppSpacing.xl,
-            ),
-            children: <Widget>[
-              // The heading stays FULL WIDTH in both layouts. It is the page's
-              // one label, not a card, and splitting a title across a column
-              // boundary would make the grid look like two pages.
-              Text(
-                l10n.insightsTitle,
-                style: AppText.title.copyWith(fontSize: 26, color: neutral.ink),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                l10n.insightsSubtitle,
-                style: AppText.muted.copyWith(
-                  fontSize: 12,
-                  color: neutral.muted,
+            return _pane(
+              twoUp: twoUp,
+              child: ListView(
+                // P3 PORT — PADDING RE-BASED FOR THE CHASSIS SHELL (home's
+                // precedent). Live was `fromLTRB(18, 58, 18, 108)`. Both odd
+                // numbers paid for the old shell: 58 cleared a status bar under a
+                // `Scaffold` with no app bar, 108 cleared `AppShell`'s floating
+                // pill bar plus its FAB. The chassis wraps the body in a `SafeArea`
+                // and puts navigation in `bottomNavigationBar`, so both insets
+                // would now be paid twice. 18 is `AppSpacing.gutterCompact`, the
+                // chassis's own page gutter.
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.gutterCompact,
+                  AppSpacing.gutterCompact,
+                  AppSpacing.gutterCompact,
+                  AppSpacing.xl,
                 ),
-              ),
-              const SizedBox(height: 16),
-              if (twoUp)
-                _twoColumnCards(cards, _cardGap)
-              else
-                for (int i = 0; i < cards.length; i++) ...<Widget>[
-                  if (i > 0) const SizedBox(height: _cardGap),
-                  cards[i],
+                children: <Widget>[
+                  // The heading stays FULL WIDTH in both layouts. It is the page's
+                  // one label, not a card, and splitting a title across a column
+                  // boundary would make the grid look like two pages.
+                  Text(
+                    l10n.insightsTitle,
+                    style: AppText.title.copyWith(
+                      fontSize: 26,
+                      color: neutral.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.insightsSubtitle,
+                    style: AppText.muted.copyWith(
+                      fontSize: 12,
+                      color: neutral.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (twoUp)
+                    _twoColumnCards(cards, _cardGap)
+                  else
+                    for (int i = 0; i < cards.length; i++) ...<Widget>[
+                      if (i > 0) const SizedBox(height: _cardGap),
+                      cards[i],
+                    ],
                 ],
-            ],
-          ),
+              ),
+            );
+          },
         );
       },
     );

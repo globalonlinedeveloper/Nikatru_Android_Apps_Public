@@ -768,9 +768,23 @@ const REQUIRED_COVERAGE = [
     // This is the root [ADR 065] chassis step 2 moved the shared widgets into,
     // and it is the root whose absence made `NotFoundScreen`'s exclusion from
     // apps/subscriptiontracker a promise nothing kept.
-    surfaces: 19,
-    a11yFiles: 0,
-    cases: 0,
+    //
+    // 🔴 RE-MEASURED 2026-09-10 — THE `0` ABOVE IS NO LONGER TRUE AND THIS ROOT
+    // NOW HAS A SWEEP. `a11y_data_state_test.dart` is the FIRST `a11y_*` file
+    // this package has ever carried, and the four cases in it sweep
+    // `DataStateView` for contrast and tap-target.
+    //   surfaces  19 → 20  (the new widget)
+    //   a11yFiles  0 → 1
+    //   cases      0 → 4
+    // ⚠️ THE SWEEP WAS WRITTEN TWICE BEFORE IT COUNTED ONCE, and the reason is
+    // worth keeping: the semantics assertions were first written inside
+    // `data_state_test.dart`, where they ran green and this guard could not see
+    // them — the corpus is `a11y_*_test.dart` and nothing else. A green sweep
+    // outside the corpus is exactly the "measured but not counted" shape that
+    // leaves a surface reported as unswept forever. It was MOVED, not copied.
+    surfaces: 20,
+    a11yFiles: 1,
+    cases: 4,
     label:
       'the shared chassis [ADR 065 step 2] — nav_shell, app_scaffold, auth_field, ' +
       'destructive_confirm_dialog, two_pane and fourteen more, mounted by every stamped app',
@@ -941,7 +955,23 @@ const SWEPT_FLOOR_BY_ROOT = new Map([
       ].map((k) => `packages/chassis_screens/lib/${k}`),
     ),
   ],
-  ['packages/design_system', new Set()],
+  [
+    'packages/design_system',
+    // 🔴 THE FIRST ENTRY THIS ROOT HAS EVER HAD, 2026-09-10. Empty until now
+    // because the package carried no `a11y_*_test.dart` at all. A floor is a
+    // REGRESSION detector, not a target: listing this key means the day
+    // `DataStateView` stops being swept, the build FAILS and names it — which
+    // is the whole difference between "never done" (printed) and "was done and
+    // is gone" (failed) that this file is built around.
+    // ⚠️ KEYED BY THE **REPO-RELATIVE** PATH, not by the lib-relative one the
+    // apps/subscriptiontracker entries above use. A package root's reachable
+    // set is built from `dartFilesUnder(<root>/lib)`, which yields full paths;
+    // an app root's is built from the router. The lib-relative spelling was
+    // tried first and failed as FLOOR OVER NOTHING — measured, not guessed.
+    new Set([
+      'packages/design_system/lib/src/widgets/data_state.dart#DataStateView',
+    ]),
+  ],
 ]);
 
 // ── WHAT MAKES A CASE A SWEEP RATHER THAN A LABEL ASSERTION ────────────────
@@ -1443,7 +1473,23 @@ function analyseRoot(R) {
         if (files.length !== 1) continue; // already reported as AMBIGUOUS
         // Construction/invocation, not a bare mention: `find.byType(HomeScreen)`
         // names a widget without pumping one.
-        if (!new RegExp(`\\b${symbol}\\s*\\(`).test(body)) continue;
+      // 🔴 A NAMED CONSTRUCTOR IS A CONSTRUCTION TOO, and until 2026-09-10 this
+      // pattern could not see one. It required `Symbol(`, so a widget whose ONLY
+      // public constructors are named — `DataStateView.loading(...)`,
+      // `.empty(...)`, `.failed(...)` — read as never constructed by any test,
+      // and a fully measured widget was PRINTED as a gap on every run. That is
+      // the "confidently wrong" shape this file exists to remove, pointed at
+      // itself: a guard that reports a covered surface as uncovered teaches the
+      // reader to skim its own output, which is how a REAL gap goes unread.
+      //
+      // The optional group is `.name` only, and the call paren is still
+      // required — this stays a construction test, never a bare mention.
+      // `find.byType(HomeScreen)` has no paren and does not match. `Foo.bar`
+      // without a call does not match. A method call on an INSTANCE
+      // (`pane.copyWith(`) cannot match either, because `symbol` is always one
+      // of the TYPE names `surfacesIn` returned rather than an arbitrary
+      // identifier, and a lowercase receiver is not one of them.
+        if (!new RegExp(`\\b${symbol}\\s*(?:\\.\\s*[A-Za-z_$][A-Za-z0-9_$]*\\s*)?\\(`).test(body)) continue;
         const key = `${files[0]}#${symbol}`;
         if (!kinds.length) {
           if (!namedOnly.has(key)) namedOnly.set(key, new Set());

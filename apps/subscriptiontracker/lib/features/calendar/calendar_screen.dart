@@ -21,6 +21,7 @@ import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
 import '../../state/subscriptions_controller.dart';
 import '../shared/due.dart';
+import '../shared/async_gate.dart';
 import '../shared/neutrals.dart';
 import '../shared/widgets.dart';
 
@@ -115,9 +116,36 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       l10n.localeName,
       emptyCurrencyCode: ref.watch(currencyCodeProvider),
     );
-    final List<Subscription> subs =
-        ref.watch(subscriptionsControllerProvider).valueOrNull ??
-        const <Subscription>[];
+    // 🔴 `valueOrNull ?? const []` STOOD HERE (calendar:116) AND THE MONTH GRID
+    // IS WHAT MADE IT CONVINCING. Every other screen at least looked bare when
+    // the list was absent; this one drew a complete, correct, fully populated
+    // calendar for the current month with no dots on it — a finished answer to
+    // "when do my subscriptions renew" reading "never". A failed fetch was
+    // indistinguishable from a genuinely quiet month.
+    //
+    // ⚠️ THE WHOLE-SCREEN EMPTY STATE IS **NOT** `l10n.calendarEmpty`, AND THE
+    // TWO ARE NOT INTERCHANGEABLE. `calendarEmpty` ("No renewals this month")
+    // is a statement about a MONTH and is still printed, further down, by the
+    // by-date list; a user with five subscriptions and none due in September
+    // has a real month grid and must keep it. The state below is a statement
+    // about the ACCOUNT — no subscriptions at all — and only it may replace the
+    // grid. Collapsing them would put "No subscriptions yet" in front of a user
+    // who has five, which is the same family of false statement this change
+    // exists to remove.
+    //
+    // Returning early is safe here for the reason it is safe on budget and
+    // insights and not on notifications: this is a shell TAB, so `AppScaffold`
+    // owns the navigation and it survives every state.
+    final Widget? state = subscriptionsState(
+      ref,
+      l10n: l10n,
+      emptyTitle: l10n.dataEmptyTitle,
+      emptyBody: l10n.dataEmptyBody,
+    );
+    if (state != null) return state;
+    final List<Subscription> subs = ref
+        .watch(subscriptionsControllerProvider)
+        .requireValue;
     final DateTime Function() clockFn = widget.clock ?? ref.watch(nowProvider);
     final DateTime now = clockFn();
     final int y = now.year, m = now.month;
