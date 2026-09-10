@@ -33,6 +33,7 @@ import {
   type DerivationState,
 } from '../src/lib/mor/store';
 import { PADDLE_CUSTOM_DATA_APP_ID, PADDLE_CUSTOM_DATA_USER_ID, paddleVerifier } from '../src/lib/mor/paddle';
+import { isKnownProduct } from '../src/config';
 import { realPlatformDb, type RealDb } from './harness';
 import type { Env } from '../src/types';
 
@@ -84,7 +85,7 @@ function adjustmentBody(o: { eventId: string; occurredAt: string; subscriptionId
 async function deliver(db: RealDb, raw: string): Promise<string> {
   const parsed = paddleVerifier.parse(raw);
   if (!parsed.ok) throw new Error(`the real paddle adapter refused the fixture — ${parsed.reason}`);
-  const deps = { db: db as unknown as D1Database, environment: 'live' as const, nowMs: NOW_MS };
+  const deps = { db: db as unknown as D1Database, environment: 'live' as const, nowMs: NOW_MS, isKnownProduct };
   await persistNotification(deps, parsed.notification, raw);
   return (await deriveAndApply(deps, parsed.notification)).outcome;
 }
@@ -217,7 +218,7 @@ describe('"unconcluded" is ONE definition — the SQL and the predicate agree on
     // never stamped (persisted, derivation never ran)
     const parsed = paddleVerifier.parse(subscriptionBody({ eventId: 'evt_state_unstamped', occurredAt: '2026-09-02T00:00:00.000Z', status: 'active', periodEnd: '2027-01-01T00:00:00.000Z' }));
     if (!parsed.ok) throw new Error(parsed.reason);
-    await persistNotification({ db: db as unknown as D1Database, environment: 'live', nowMs: NOW_MS }, parsed.notification, 'raw');
+    await persistNotification({ db: db as unknown as D1Database, environment: 'live', nowMs: NOW_MS, isKnownProduct }, parsed.notification, 'raw');
 
     const all = db.rows('SELECT provider_event_id, derived_at, derive_error FROM provider_notifications') as unknown as Array<DerivationState & { provider_event_id: string }>;
     expect(all).toHaveLength(5);

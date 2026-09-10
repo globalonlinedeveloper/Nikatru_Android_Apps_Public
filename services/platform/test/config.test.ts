@@ -1,15 +1,97 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_CONFIGS,
+  KNOWN_PRODUCTS,
   baseConfig,
+  buildKnownProducts,
   buildRegistry,
   isKnownApp,
+  isKnownProduct,
   isValidAppId,
   mergeConfig,
+  productKindOf,
   resolveConfig,
 } from '../src/config';
 import catalogue from '../../../catalog/apps.json';
+import extensions from '../../../extensions/catalog/extensions.json';
 import configData from '../src/app-config-data.json';
+import { productsFromRegisters } from '../src/lib/bundle/availability';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE KNOWN-PRODUCT SET IS THE UNION OF EVERY REGISTER — apps, extensions,
+// scripts when one ships — because the bundle is products, and a bundle grant
+// unlocks the extension as much as the app. `isKnownApp` stays what it was (the
+// served /config set, apps only); `isKnownProduct` is what an entitlement
+// question is gated on.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the known-PRODUCT set spans every register', () => {
+  it('the committed extension is a known product but NOT a known app', () => {
+    for (const row of extensions as Array<{ slug: string }>) {
+      expect(isKnownProduct(row.slug), row.slug).toBe(true);
+      expect(productKindOf(row.slug), row.slug).toBe('extension');
+      // No /config is served for an extension; the app set is unchanged.
+      expect(isKnownApp(row.slug), row.slug).toBe(false);
+    }
+  });
+
+  it('every committed app is a known product of kind app, and the set is exactly the registers', () => {
+    for (const row of catalogue as Array<{ slug: string }>) {
+      expect(isKnownProduct(row.slug), row.slug).toBe(true);
+      expect(productKindOf(row.slug), row.slug).toBe('app');
+    }
+    const fromRegisters = productsFromRegisters().map((p) => p.slug).sort();
+    expect([...KNOWN_PRODUCTS.keys()].sort()).toEqual(fromRegisters);
+    // Not vacuous: at least one row of each shipping kind.
+    expect(fromRegisters.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('an inherited member of Object.prototype is not a product either', () => {
+    for (const id of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
+      expect(isKnownProduct(id), id).toBe(false);
+      expect(productKindOf(id), id).toBeNull();
+    }
+    expect(isKnownProduct(42)).toBe(false);
+    expect(isKnownProduct('not_a_product')).toBe(false);
+  });
+
+  it('🔴 an EXTENSION slug that violates APP_ID_PATTERN is an ERROR, never a silent drop', () => {
+    // The app half is the filtered registry (a bad app row is dropped and the
+    // CI guard reports it); an extension row has no such guard, so the only
+    // loud option is to refuse to build the set at all — naming the register
+    // and the slug. MUTATION PROOF: replace the throw with `continue` and this
+    // goes RED.
+    expect(() =>
+      buildKnownProducts([{ slug: 'full-shot', kind: 'extension', status: 'preview' }], ['subscriptiontracker']),
+    ).toThrow(/extension register row has slug "full-shot", which APP_ID_PATTERN rejects/);
+    expect(() =>
+      buildKnownProducts([{ slug: '__proto__', kind: 'extension', status: 'preview' }], []),
+    ).toThrow(/APP_ID_PATTERN rejects/);
+    // A kind the contract does not declare is an error too.
+    expect(() =>
+      buildKnownProducts([{ slug: 'thing', kind: 'gadget', status: 'live' }], []),
+    ).toThrow(/PRODUCT_KINDS does not declare/);
+    // One slug, two registers, two kinds: an error, not "last one wins".
+    expect(() =>
+      buildKnownProducts([{ slug: 'subscriptiontracker', kind: 'extension', status: 'live' }], ['subscriptiontracker']),
+    ).toThrow(/two registers with different kinds/);
+  });
+
+  it('a well-formed extension row builds; the app half comes from the filtered registry', () => {
+    const set = buildKnownProducts(
+      [
+        { slug: 'good_ext', kind: 'extension', status: 'preview' },
+        // An APP row in the products list is ignored in favour of `apps` — the
+        // served set already filtered by buildRegistry.
+        { slug: 'My App', kind: 'app', status: 'live' },
+      ],
+      ['good_app'],
+    );
+    expect([...set.entries()].sort()).toEqual([
+      ['good_app', 'app'],
+      ['good_ext', 'extension'],
+    ]);
+  });
+});
 
 describe('CFG-1 config resolution', () => {
   it('returns compiled defaults for a known app', () => {

@@ -91,6 +91,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readProducts } from '../bundle-availability.mjs';
 
 /**
  * The repository root, derived from THIS FILE rather than from cwd — a guard or
@@ -324,13 +325,21 @@ async function readEntitlements(db) {
  * look like one that did not.
  */
 export async function replayOrder(opts) {
-  const { deliveries, makeDb, persistNotification, deriveAndApply } = opts;
+  const { deliveries, makeDb, persistNotification, deriveAndApply, isKnownProduct } = opts;
   const environment = opts.environment ?? 'live';
   const nowMs = opts.nowMs ?? DEFAULT_NOW_MS;
   const maxRounds = opts.rounds ?? 3;
+  // The store validates a notification's `nikatru_app_id` against the product
+  // registers through THIS function (MoneyStoreDeps.isKnownProduct) — injected,
+  // because the store cannot import the Worker's config under bare node. No
+  // default: a replay that silently accepted every app id would attribute
+  // notifications production refuses, and agree with itself about it.
+  if (typeof isKnownProduct !== 'function') {
+    throw new Error('replayOrder: opts.isKnownProduct is required — the store refuses attribution to a product no register carries, and the replay must apply the same rule');
+  }
 
   const db = await makeDb();
-  const deps = { db, environment, nowMs };
+  const deps = { db, environment, nowMs, isKnownProduct };
   const outcomes = [];
   let pending = deliveries;
   let roundsUsed = 0;
@@ -640,10 +649,25 @@ async function main() {
 
   const deliveries = [...railA, ...relabelAsSecondRail(railA)];
   const makeDb = () => makeOpsDb(ROOT);
+  // The same product registers the Worker's config.ts reads, through the
+  // tooling reader that already exists for them. A register that cannot be
+  // read is COVERAGE LOST, not an empty set: an empty set would make every
+  // attributable notification `unclaimed` and the five orders would agree
+  // about a table nothing wrote to.
+  const registers = readProducts(ROOT);
+  if (registers.problems.length > 0) {
+    coverageLost([
+      'the product registers could not be read, so the replay cannot apply the attribution rule the store applies:',
+      ...registers.problems,
+    ]);
+  }
+  const knownProducts = new Set(registers.products.map((p) => p.slug));
+  const isKnownProduct = (id) => typeof id === 'string' && knownProducts.has(id);
   const shared = {
     makeDb,
     persistNotification: store.persistNotification,
     deriveAndApply: store.deriveAndApply,
+    isKnownProduct,
     nowMs,
     rounds,
   };

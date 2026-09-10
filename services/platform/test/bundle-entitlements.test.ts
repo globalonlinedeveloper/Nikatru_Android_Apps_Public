@@ -247,6 +247,12 @@ describe('G8 — a revocation propagates to EVERY member product', () => {
     // "pass" this test and the revocation would be proving nothing.
     const before = (await (await h.get(`/v1/entitlements?app_id=${APP}`, authz)).json()) as Record<string, unknown>;
     expect(before.is_pro).toBe(true);
+    // 🔴 AND THE EXTENSION IS ASKED ABOUT ON THE SAME ROUTE. Until 2026-09-10
+    // this test never did, and the route answered 404 for it — the name of this
+    // test claimed a denial it never observed.
+    const extBefore = await h.get(`/v1/entitlements?app_id=${EXT}`, authz);
+    expect(extBefore.status).toBe(200);
+    expect(((await extBefore.json()) as Record<string, unknown>).is_pro).toBe(true);
     const subjBefore = (await (await h.get('/v1/entitlements/subject', authz)).json()) as {
       products: { product: string }[];
     };
@@ -261,6 +267,9 @@ describe('G8 — a revocation propagates to EVERY member product', () => {
     expect(after.is_pro).toBe(false);
     expect(after.granted_via).toBe('none');
     expect(after.bundle).toBeUndefined();
+    const extAfter = await h.get(`/v1/entitlements?app_id=${EXT}`, authz);
+    expect(extAfter.status).toBe(200);
+    expect((await extAfter.json()) as Record<string, unknown>).toMatchObject({ is_pro: false, granted_via: 'none' });
 
     const subjAfter = (await (await h.get('/v1/entitlements/subject', authz)).json()) as {
       products: unknown[];
@@ -450,6 +459,46 @@ describe('the client contract does not change — [ADR 057] §6', () => {
   it('an unknown app is still a 404, never an empty list', async () => {
     const h = harness();
     const res = await h.get('/v1/entitlements?app_id=no-such-app', `Bearer ${await token('u1')}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🔴 THE BUNDLE IS PRODUCTS, NOT APPS. The extension is a register row
+// (extensions/catalog/extensions.json), a member of the pinned set, and a thing
+// a customer can ask "am I entitled" about. Until 2026-09-10 the route gated
+// `app_id` on the app catalogue alone and answered 404 for it — to a customer
+// holding a live grant.
+//
+// MUTATION PROOF: put `isKnownApp` back in routes/entitlements.ts and every case
+// below goes RED on `404`.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('the extension is a product this route answers for', () => {
+  it('a live bundle grant makes the EXTENSION entitled, via the bundle, on the per-product route', async () => {
+    const h = harness();
+    mintFeatureSet(h.db, 'nikatru_all', 1, [
+      [APP, 'app'],
+      [EXT, 'extension'],
+    ]);
+    seedGrant(h.db, { userId: 'u1' });
+    const res = await h.get(`/v1/entitlements?app_id=${EXT}`, `Bearer ${await token('u1')}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ app_id: EXT, is_pro: true, granted_via: 'bundle' });
+    expect(body.bundle).toMatchObject({ feature_set: 'nikatru_all', version: 1 });
+    expect((body.bundle as { products: string[] }).products.sort()).toEqual([EXT, APP].sort());
+  });
+
+  it('a known extension with NO grant is 200 and not entitled — a real answer, not "no such app"', async () => {
+    const h = harness();
+    const res = await h.get(`/v1/entitlements?app_id=${EXT}`, `Bearer ${await token('u1')}`);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Record<string, unknown>).toMatchObject({ is_pro: false, granted_via: 'none' });
+  });
+
+  it('a slug in NO register is still 404 — the set widened to every register, not to every string', async () => {
+    const h = harness();
+    const res = await h.get('/v1/entitlements?app_id=not_a_product', `Bearer ${await token('u1')}`);
     expect(res.status).toBe(404);
   });
 });

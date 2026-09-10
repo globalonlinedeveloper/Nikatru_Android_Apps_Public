@@ -48,6 +48,7 @@ import { readBoundedBody } from '../lib/body';
 import { withinEdgeCeiling } from '../lib/edge-ceiling';
 import { isMoneyEnvironment, type MoneyEnvironment } from '../lib/mor/contract';
 import { verifierFor } from '../lib/mor/registry';
+import { isKnownProduct } from '../config';
 import { deriveAndApply, derivationStateOf, isUnconcluded, persistNotification } from '../lib/mor/store';
 
 const money = new Hono<AppEnv>();
@@ -120,7 +121,10 @@ money.post('/:provider', async (c) => {
   }
   const notification = parsed.notification;
 
-  const deps = { db: c.env.PLATFORM_DB, environment, nowMs: Date.now() };
+  // `isKnownProduct` is handed in rather than imported by the store: see
+  // MoneyStoreDeps for the measured reason (the dry-run loads the store under
+  // bare node, where config.ts's JSON imports cannot resolve).
+  const deps = { db: c.env.PLATFORM_DB, environment, nowMs: Date.now(), isKnownProduct };
   let fresh: boolean;
   try {
     ({ fresh } = await persistNotification(deps, notification, read.text));
