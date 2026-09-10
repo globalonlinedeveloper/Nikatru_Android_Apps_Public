@@ -222,9 +222,10 @@ function seedGrant(
     db.db
       .prepare(
         `INSERT INTO feature_set_members (name, version, product_slug, product_kind)
-         VALUES (?,?,?,'app') ON CONFLICT DO NOTHING`,
+         VALUES (?,?,?,?) ON CONFLICT DO NOTHING`,
       )
-      .run(NIKATRU_ALL.name, NIKATRU_ALL.version, slug);
+      // The seed records the register's kind, as the route does.
+      .run(NIKATRU_ALL.name, NIKATRU_ALL.version, slug, slug === 'fullshot' ? 'extension' : 'app');
   }
 }
 
@@ -376,6 +377,30 @@ describe('a verified receipt writes exactly one grant, and a REPLAY writes no se
     expect(h.db.count('bundle_grants')).toBe(1);
     // The version was PINNED, so the member list survives a register edit.
     expect(h.db.count('feature_set_members', 'name = ?', 'nikatru_all')).toBe(2);
+    // 🔴 AND EACH MEMBER'S KIND IS THE REGISTER'S, recorded as a fact at sale
+    // (0009). Until 2026-09-10 every member was pinned 'app', so the record
+    // would have called the extension an app.
+    // MUTATION PROOF: bind the literal 'app' again in pinFeatureSet — RED here.
+    const kinds = Object.fromEntries(
+      h.db.rows('SELECT product_slug, product_kind FROM feature_set_members WHERE name = ?', 'nikatru_all')
+        .map((r) => [r.product_slug, r.product_kind]),
+    );
+    expect(kinds).toEqual({ subscriptiontracker: 'app', fullshot: 'extension' });
+  });
+
+  it('a feature set naming a member NO register carries is an ERROR, and nothing is pinned or granted', async () => {
+    const store = stubStore([{ status: 200, body: PLAY_ACTIVE('ghost_sku', '2027-09-09T00:00:00.000Z') }]);
+    const ghost: ProductMap = new Map([
+      // Keyed exactly as products.ts keys it: `<store>` NUL `<product id>`.
+      [`google_play${String.fromCharCode(0)}ghost_sku`, { name: 'ghost_set', version: 1, products: ['subscriptiontracker', 'not_a_product'] }],
+    ]);
+    const h = harness({ credentials: PLAY_CREDS, fetchImpl: store.impl, map: ghost });
+    const res = await h.post('google_play', { token: 'tok-ghost' }, `Bearer ${await token()}`);
+    // Fail closed: the route's onError, not a row with a guessed kind.
+    expect(res.status).toBe(500);
+    expect(h.db.count('feature_sets')).toBe(0);
+    expect(h.db.count('feature_set_members')).toBe(0);
+    expect(h.db.count('bundle_grants')).toBe(0);
   });
 
   it('a REPLAYED token upserts onto the same row instead of appending a second grant', async () => {

@@ -63,6 +63,8 @@ export interface ReplayOptions {
   makeDb: () => unknown;
   persistNotification: (deps: never, notification: never, raw: string) => Promise<{ fresh: boolean }>;
   deriveAndApply: (deps: never, notification: never) => Promise<{ outcome: string }>;
+  /** The store's attribution rule, injected (see MoneyStoreDeps.isKnownProduct). Required. */
+  isKnownProduct: (id: string) => boolean;
   environment?: string;
   nowMs?: number;
   rounds?: number;

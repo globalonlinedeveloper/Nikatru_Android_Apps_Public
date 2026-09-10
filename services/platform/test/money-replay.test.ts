@@ -44,6 +44,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveAndApply, persistNotification } from '../src/lib/mor/store';
 import { PADDLE_CUSTOM_DATA_APP_ID, PADDLE_CUSTOM_DATA_USER_ID, paddleVerifier } from '../src/lib/mor/paddle';
+import { isKnownProduct } from '../src/config';
 import { realPlatformDb, type RealDb } from './harness';
 import {
   DEFAULT_CORPUS_REL,
@@ -68,6 +69,8 @@ const injected = {
   makeDb: () => realPlatformDb(),
   persistNotification,
   deriveAndApply,
+  // The store's attribution rule, injected exactly as routes/money.ts injects it.
+  isKnownProduct,
   environment: 'live',
   nowMs: NOW_MS,
 };
@@ -201,7 +204,7 @@ describe('[5]M-2 · the final entitlement is the same in every delivery order', 
     // who has been refunded is Pro again, indefinitely, and nothing anywhere
     // says so.
     const db = realPlatformDb();
-    const deps = { db, environment: 'live', nowMs: NOW_MS } as unknown as Parameters<typeof deriveAndApply>[0];
+    const deps = { db, environment: 'live', nowMs: NOW_MS, isKnownProduct } as unknown as Parameters<typeof deriveAndApply>[0];
 
     const grantT0 = deliver('T0', subscriptionBody({ eventId: 'evt_grant_t0', occurredAt: '2026-09-01T00:00:00.000Z', status: 'active', periodEnd: '2027-01-01T00:00:00.000Z' }));
     const refundT2 = deliver('T2', adjustmentBody({ eventId: 'evt_refund_t2', occurredAt: '2026-09-03T00:00:00.000Z', action: 'refund' }));
