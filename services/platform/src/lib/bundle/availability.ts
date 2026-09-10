@@ -65,8 +65,24 @@ const REGISTER_MODULES: Record<string, unknown> = {
   'extensions/catalog/extensions.json': extensionsJson,
 };
 
-function productsFromRegisters(): { slug: string; kind: string; status: string }[] {
-  const out: { slug: string; kind: string; status: string }[] = [];
+/** One register row, as every product register spells it. */
+export interface RegisterProduct {
+  readonly slug: string;
+  readonly kind: string;
+  readonly status: string;
+}
+
+/**
+ * Every product row from every register `PRODUCT_REGISTERS` names.
+ *
+ * EXPORTED because it is the one reader of the product registers inside the
+ * Worker: src/config.ts builds the known-PRODUCT set from it, so the set that
+ * gates `/v1/entitlements?app_id=` and the set this derivation counts live
+ * products over are the same rows read once. A second reader would be the
+ * drift this file's header warns about, one file over.
+ */
+export function productsFromRegisters(): RegisterProduct[] {
+  const out: RegisterProduct[] = [];
   for (const entry of PRODUCT_REGISTERS) {
     if (entry.register === null) continue;
     const mod = REGISTER_MODULES[entry.register];

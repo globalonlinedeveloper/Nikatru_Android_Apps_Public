@@ -66,6 +66,7 @@ import {
 import { receiptVerifierFor } from '../lib/receipts/verifiers';
 import { type ProductMap, featureSetForProduct } from '../lib/receipts/products';
 import { nowIso } from '../lib/d1';
+import { isValidAppId, productKindOf } from '../config';
 
 const receipts = new Hono<AppEnv>();
 
@@ -139,6 +140,26 @@ async function pinFeatureSet(
   version: number,
   products: readonly string[],
 ): Promise<void> {
+  // 🔴 EVERY KIND IS RESOLVED FROM THE REGISTER BEFORE ANYTHING IS WRITTEN.
+  // `product_kind` is recorded as a fact at sale (migration 0009), and until
+  // 2026-09-10 this bound the literal 'app' for every member — so the pinned
+  // record would have called the extension an app. The kind comes from the
+  // product registers (config.ts `productKindOf`), and a member no register
+  // knows — or whose slug fails the shape rule 0009 states for
+  // `feature_set_members.product_slug` — is an ERROR before the first INSERT,
+  // not a row with a guessed kind and not a half-pinned version. The route's
+  // onError turns it into a 500 with nothing written.
+  const kinds = new Map<string, string>();
+  for (const slug of products) {
+    if (!isValidAppId(slug)) {
+      throw new Error(`feature set ${name}@${version} names member ${JSON.stringify(slug)}, which is not a product-slug shape`);
+    }
+    const kind = productKindOf(slug);
+    if (kind === null) {
+      throw new Error(`feature set ${name}@${version} names member ${JSON.stringify(slug)}, which no product register carries`);
+    }
+    kinds.set(slug, kind);
+  }
   const now = nowIso();
   await db
     .prepare(
@@ -147,18 +168,13 @@ async function pinFeatureSet(
     )
     .bind(name, version, now, 'catalog/bundles.json')
     .run();
-  for (const slug of products) {
+  for (const [slug, kind] of kinds) {
     await db
       .prepare(
         `INSERT INTO feature_set_members (name, version, product_slug, product_kind)
          VALUES (?,?,?,?) ON CONFLICT (name, version, product_slug) DO NOTHING`,
       )
-      // 'app' is the register's own default kind for a slug in catalog/apps.json;
-      // the extension case is carried by the register row and lands here as the
-      // same literal today because both draft members resolve through it. When a
-      // second kind is minted this reads the register's `kind` instead — a data
-      // change, which is exactly what `product_kind` exists to keep cheap.
-      .bind(name, version, slug, 'app')
+      .bind(name, version, slug, kind)
       .run();
   }
 }
