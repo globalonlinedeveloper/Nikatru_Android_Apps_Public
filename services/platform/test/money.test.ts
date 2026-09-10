@@ -490,7 +490,10 @@ describe('the money boundary FAILS CLOSED — undecidable ⇒ deny', () => {
     await send(subscriptionBody({ eventId: 'g', occurredAt: '2026-08-01T00:00:00.000Z', status: 'active', periodEnd: FUTURE, userId: USER, appId: APP }));
     const before = entRow(db);
     const res = await send(subscriptionBody({ eventId: 'c', occurredAt: '2026-08-02T00:00:00.000Z', status: 'canceled', periodEnd: null }));
-    expect(await res.json()).toMatchObject({ derived: 'refused' });
+    // 503, not 200: a refusal is not a conclusion, and only a non-200 makes
+    // Paddle bring the notification back.
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, derived: 'refused', retry: true });
     // The stored row is UNCHANGED — the rail retries; it does not guess.
     expect(entRow(db)).toEqual(before);
     const note = db.rows("SELECT derive_error FROM provider_notifications WHERE provider_event_id = 'c'")[0];
@@ -617,8 +620,111 @@ describe('refunds, chargebacks and the one path that gives access back', () => {
         "VALUES ('paddle','sub_0000000000000000000000001','subscriptiontracker','user-abc','2026-08-01T00:00:00.000Z')",
     );
     const res = await send(adjustmentBody({ eventId: 'r', occurredAt: '2026-08-02T00:00:00.000Z', action: 'refund' }));
-    expect(await res.json()).toMatchObject({ derived: 'refused' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, derived: 'refused', retry: true });
     expect(db.count('entitlements')).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 A REFUSED OR THROWN DERIVATION IS NOT LOST. Until 2026-09-10 the route
+// answered 200 for both, the notification was deduped on receipt, and no retry
+// ever derived it again: a refund that arrived before its grant left the
+// refunded customer Pro for good. The cases below deliver the refund FIRST, the
+// grant SECOND, then re-deliver the refund with the SAME event id — which is
+// what Paddle does after a 503 — and assert the customer is NOT entitled.
+//
+// MUTATION PROOF: make the `!fresh` branch in routes/money.ts answer
+// `duplicate: true` unconditionally (the pre-fix code) and the first two cases
+// go RED on `duplicate: true` and on `is_active: 1`.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a refused derivation is NOT lost — the rail re-delivers and the re-delivery is re-derived', () => {
+  const link = (db: RealDb) =>
+    db.db.exec(
+      "INSERT INTO provider_accounts (provider, provider_subscription_id, app_id, user_id, linked_at) " +
+        "VALUES ('paddle','sub_0000000000000000000000001','subscriptiontracker','user-abc','2026-08-01T00:00:00.000Z')",
+    );
+
+  it('refund BEFORE grant, then grant, then the refund re-delivered: the customer ends NOT entitled', async () => {
+    const { send, db } = harness();
+    link(db);
+    const refund = adjustmentBody({ eventId: 'evt_refund_first', occurredAt: '2026-08-03T00:00:00.000Z', action: 'refund' });
+
+    // 1 · the refund arrives first. Refused, 503, nothing written.
+    const first = await send(refund);
+    expect(first.status).toBe(503);
+    expect(await first.json()).toMatchObject({ derived: 'refused', retry: true });
+    expect(db.count('entitlements')).toBe(0);
+
+    // 2 · the grant it reverses arrives. Applied; the customer is Pro for now.
+    const grant = await send(subscriptionBody({ eventId: 'evt_grant_second', occurredAt: '2026-08-01T00:00:00.000Z', status: 'active', periodEnd: FUTURE }));
+    expect(grant.status).toBe(200);
+    expect(entRow(db).is_active).toBe(1);
+
+    // 3 · Paddle re-delivers the refund — same event id, same bytes.
+    const retry = await send(refund);
+    expect(retry.status).toBe(200);
+    // 🔴 NOT `duplicate: true`. The stored row had not concluded, so this
+    // delivery was derived — and now it decides.
+    expect(await retry.json()).toMatchObject({ ok: true, recorded: true, derived: 'applied' });
+    expect(entRow(db)).toMatchObject({ is_active: 0, revocation_reason: 'refund_approved' });
+    // The dedup held: one stored row per event, and the refund's row is now stamped.
+    expect(db.count('provider_notifications')).toBe(2);
+    const note = db.rows("SELECT derived_at, derive_error FROM provider_notifications WHERE provider_event_id = 'evt_refund_first'")[0];
+    expect(note.derived_at).not.toBeNull();
+    expect(note.derive_error).toBeNull();
+  });
+
+  it('a derivation that THROWS answers 503, and the re-delivery derives it', async () => {
+    // The throw is injected on the entitlement write ONCE, on the statement the
+    // store actually issues — the shape money-replay.test.ts uses for its red
+    // control — so the row is recorded and nothing is stamped.
+    const real = realPlatformDb();
+    let armed = true;
+    // A Proxy rather than a spread: the spread would drop RealDb's prototype
+    // methods and the interception must leave everything else real.
+    const db = new Proxy(real, {
+      get(target, prop, receiver) {
+        if (prop === 'prepare') {
+          return (sql: string) => {
+            if (armed && sql.includes('INSERT INTO entitlements')) {
+              armed = false;
+              return { bind: () => ({ run: () => Promise.reject(new Error('injected D1 failure')) }) };
+            }
+            return real.prepare(sql);
+          };
+        }
+        const v = Reflect.get(target, prop, receiver);
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+    const { send } = harness({ db });
+    const body = subscriptionBody({ eventId: 'evt_throws', occurredAt: '2026-08-01T00:00:00.000Z', status: 'active', periodEnd: FUTURE, userId: USER, appId: APP });
+
+    const first = await send(body);
+    expect(first.status).toBe(503);
+    expect(await first.json()).toMatchObject({ ok: false, recorded: true, derived: 'error', retry: true });
+    expect(real.count('provider_notifications')).toBe(1);
+    expect(real.rows('SELECT derived_at FROM provider_notifications')[0].derived_at).toBeNull();
+    expect(real.count('entitlements')).toBe(0);
+
+    const retry = await send(body);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ derived: 'applied' });
+    expect(real.count('provider_notifications')).toBe(1);
+    expect(real.rows('SELECT is_active FROM entitlements')[0].is_active).toBe(1);
+  });
+
+  it('a re-delivery of a CONCLUDED notification is still `duplicate: true` and is NOT derived twice', async () => {
+    const { send, db } = harness();
+    const body = subscriptionBody({ eventId: 'evt_once', occurredAt: '2026-08-01T00:00:00.000Z', status: 'active', periodEnd: FUTURE, userId: USER, appId: APP });
+    expect((await send(body)).status).toBe(200);
+    const stamped = db.rows("SELECT derived_at FROM provider_notifications WHERE provider_event_id = 'evt_once'")[0].derived_at;
+    const again = await send(body);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({ duplicate: true });
+    // The stamp did not move: no second derivation ran.
+    expect(db.rows("SELECT derived_at FROM provider_notifications WHERE provider_event_id = 'evt_once'")[0].derived_at).toBe(stamped);
   });
 });
 

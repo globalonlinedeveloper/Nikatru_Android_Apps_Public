@@ -250,7 +250,11 @@ export interface EntitlementDecision {
 
 export type DecisionOutcome =
   | { ok: true; decision: EntitlementDecision }
-  /** Undecidable ⇒ DENY. The row is not written; the rail retries. */
+  /**
+   * Undecidable ⇒ DENY. The row is not written. The store reports it as
+   * `refused`, the route answers 503 so the rail re-delivers, and the
+   * re-delivery is re-derived (store.ts `isUnconcluded`).
+   */
   | { ok: false; reason: string };
 
 /**

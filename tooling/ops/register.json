@@ -878,7 +878,13 @@
         "recovery.worker-d1-export has NEVER been drilled'. It runs at 02:30 so it lands before Box B's",
         "02:30 Drive sync picks it up and before the 06:00 retention sweep deletes anything. It is watched",
         "here for the same reason as every other job: check-heartbeats.mjs refuses a declared cron that no",
-        "job keeps, because a schedule firing with nothing watching what it did is how a backup stops."
+        "job keeps, because a schedule firing with nothing watching what it did is how a backup stops.",
+        "",
+        "🔴 `money_rederive` KEEPS THE NIGHTLY CRON, added 2026-09-10. It re-derives stored provider",
+        "notifications whose derivation never concluded (refused, or threw) — the backstop behind the",
+        "money route's 503-so-the-rail-re-delivers path, for whatever outlives Paddle's 3-day retry",
+        "window. Bounded by age (30 d) and count (200/run); every outcome is printed in its heartbeat",
+        "detail, and a candidate that is refused again is a printed count, not a red row."
       ],
       "watchedJobs": {
         "supabase_keepalive": [
@@ -900,6 +906,9 @@
           "0 6 * * *"
         ],
         "cancellation_drain": [
+          "0 6 * * *"
+        ],
+        "money_rederive": [
           "0 6 * * *"
         ],
         "github_dispatch": [
