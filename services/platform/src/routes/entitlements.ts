@@ -73,7 +73,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { allRows } from '../lib/d1';
-import { isKnownApp } from '../config';
+import { isKnownProduct } from '../config';
 import { isMoneyEnvironment } from '../lib/mor/contract';
 import {
   type BundleGrantRow,
@@ -106,13 +106,19 @@ entitlements.get('/entitlements', async (c) => {
   const userId = c.get('userId');
   const rid = c.get('requestId') ?? '-';
 
-  // THE APP IS A REQUEST PARAMETER, and it must be one this factory knows.
+  // THE PRODUCT IS A REQUEST PARAMETER, and it must be one this factory knows.
   // On a per-app Worker the app is `c.env.APP_ID`; on the SHARED host it cannot
   // be, or every app would read the same row. An unknown id is a 404 rather than
   // an empty list: an empty list says "you own nothing here", which is a
-  // different and misleading answer to "there is no such app".
+  // different and misleading answer to "there is no such product".
+  //
+  // 🔴 `isKnownProduct`, NOT `isKnownApp`. The parameter is still spelled
+  // `app_id` — a released contract — but the bundle is PRODUCTS (apps,
+  // extensions, scripts), a bundle grant unlocks every member, and an extension
+  // asking "am I entitled" through this route was answered 404 while gated on
+  // the app catalogue alone. The set is the union of every product register.
   const appId = c.req.query('app_id') ?? '';
-  if (!isKnownApp(appId)) {
+  if (!isKnownProduct(appId)) {
     return c.json({ error: 'unknown_app' }, 404);
   }
   c.set('appId', appId); // [pipeline B-16] attribution, post-validation.

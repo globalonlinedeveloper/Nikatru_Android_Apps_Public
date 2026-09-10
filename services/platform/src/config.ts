@@ -53,6 +53,8 @@
 import type { AppConfig } from './types';
 import catalogueJson from '../../../catalog/apps.json';
 import configDataJson from './app-config-data.json';
+import { isProductKind } from '../../../contracts/entitlement/bundle.js';
+import { type RegisterProduct, productsFromRegisters } from './lib/bundle/availability';
 
 /**
  * A row of the public catalogue, as post_gen.dart writes it. Declared as the
@@ -241,6 +243,83 @@ export const DEFAULT_CONFIGS: Readonly<Record<string, AppConfig>> = buildRegistr
  */
 export function isKnownApp(appId: unknown): appId is string {
   return typeof appId === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_CONFIGS, appId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE BUNDLE IS PRODUCTS, NOT APPS — apps, extensions, and scripts when one
+// ships (contracts/entitlement/bundle.js PRODUCT_REGISTERS). An entitlement
+// question can be asked about ANY of them: a bundle grant unlocks the extension
+// as much as the app, and `GET /v1/entitlements?app_id=fullshot` gated on
+// `isKnownApp` — whose domain is catalog/apps.json alone — answered 404 to a
+// customer holding a live grant. The known-PRODUCT set below is the union of
+// every register, read through the one reader the Worker already has.
+//
+// ⚠️ TWO REGISTERS, TWO BEHAVIOURS ON A BAD SLUG, AND THE DIFFERENCE IS STATED:
+//   · an APP row that fails APP_ID_PATTERN is DROPPED by `buildRegistry` above,
+//     silently at the edge and loudly in CI (tooling/ci/assert-config-registry.mjs
+//     limb 4 reads the same pattern over catalog/apps.json). That is a released
+//     behaviour with a guard, and it stays.
+//   · an EXTENSION (or script) row that fails it is an ERROR — `buildKnownProducts`
+//     throws, naming the register and the slug, at module load. The pattern is
+//     the one grammar every product id shares (`feature_set_members.product_slug`
+//     carries the same rule, migration 0009), and a row that vanished through a
+//     silent filter here would 404 a product nobody could see was missing. The
+//     suite imports this module (test/config.test.ts drives the throw with a
+//     hyphenated extension slug), so the error is a red build before it is a
+//     Worker that fails to start.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Slug → kind for every product in every register. `apps` are taken from the
+ * registry `buildRegistry` already filtered, so the app half of this set is
+ * exactly the served set; every other kind is taken from its register row and
+ * MUST pass the pattern.
+ */
+export function buildKnownProducts(
+  products: readonly RegisterProduct[],
+  apps: readonly string[],
+): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  for (const slug of apps) out.set(slug, 'app');
+  for (const p of products) {
+    if (p.kind === 'app') continue; // the served app set is the filtered registry above
+    if (!isProductKind(p.kind)) {
+      throw new Error(`product register row "${String(p.slug)}" carries kind ${JSON.stringify(p.kind)}, which PRODUCT_KINDS does not declare`);
+    }
+    if (!isValidAppId(p.slug)) {
+      throw new Error(
+        `${p.kind} register row has slug ${JSON.stringify(p.slug)}, which APP_ID_PATTERN rejects. A product id ` +
+          'shares the app-id grammar (no hyphens; ^[a-z][a-z0-9_]{0,31}$). Refusing to build the known-product ' +
+          'set rather than dropping the row: a product that vanished here would 404 on /v1/entitlements with nothing said.',
+      );
+    }
+    if (out.has(p.slug) && out.get(p.slug) !== p.kind) {
+      throw new Error(`product slug ${JSON.stringify(p.slug)} appears in two registers with different kinds`);
+    }
+    out.set(p.slug, p.kind);
+  }
+  return out;
+}
+
+/** Every product this Worker knows, resolved once at module load. */
+export const KNOWN_PRODUCTS: ReadonlyMap<string, string> = buildKnownProducts(
+  productsFromRegisters(),
+  Object.keys(DEFAULT_CONFIGS),
+);
+
+/**
+ * Is `id` a product in ANY register — app, extension, or script?
+ *
+ * A `Map` lookup: no prototype to read through, so `__proto__` and friends are
+ * simply absent, the same honest false `isKnownApp` reaches by `hasOwnProperty`.
+ */
+export function isKnownProduct(id: unknown): id is string {
+  return typeof id === 'string' && KNOWN_PRODUCTS.has(id);
+}
+
+/** The register kind of a known product, or null for an unknown id. */
+export function productKindOf(id: unknown): string | null {
+  return isKnownProduct(id) ? (KNOWN_PRODUCTS.get(id) ?? null) : null;
 }
 
 /** Base default config for a known app, or null if the app is unregistered. */

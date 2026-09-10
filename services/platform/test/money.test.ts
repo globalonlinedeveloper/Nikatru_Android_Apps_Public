@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Hono } from 'hono';
 import money, { MAX_MONEY_BODY_BYTES } from '../src/routes/money';
 import type { AppEnv } from '../src/types';
@@ -662,6 +662,27 @@ describe('[5]M-7 · attributable, or resolvably unclaimed', () => {
     expect(String(row.customer_email_hash)).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(row)).not.toMatch(/Buyer@Example/i);
     expect(db.count('entitlements')).toBe(0);
+  });
+
+  it('🔴 an UNKNOWN nikatru_app_id is refused as attribution — logged, no link, no row, never a grant', async () => {
+    // `custom_data` is client-settable through the overlay checkout. Before
+    // 2026-09-10 any string ≤128 chars was written into provider_accounts.app_id
+    // and entitlements.app_id — a row belonging to no registered product.
+    // MUTATION PROOF: drop the `isKnownProduct` check in store.ts resolveAccount
+    // and this goes RED on `provider_accounts` = 1 and `entitlements` = 1.
+    const { send, db } = harness();
+    const warned: string[] = [];
+    const spy = vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => { warned.push(a.map(String).join(' ')); });
+    const res = await send(subscriptionBody({ eventId: 'bogus', occurredAt: '2026-08-01T00:00:00.000Z', status: 'active', periodEnd: FUTURE, userId: USER, appId: 'not_a_product' }));
+    spy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ derived: 'unclaimed' });
+    expect(db.count('provider_accounts')).toBe(0);
+    expect(db.count('entitlements')).toBe(0);
+    // Kept, never discarded — and the unknown id is NOT written down as an app.
+    const row = db.rows('SELECT app_id FROM unclaimed_payments')[0];
+    expect(row.app_id).toBeNull();
+    expect(warned.some((l) => l.includes('not_a_product') && l.includes('not a registered product'))).toBe(true);
   });
 
   it('a later notification carrying DIFFERENT metadata cannot move a live subscription to another account', async () => {
