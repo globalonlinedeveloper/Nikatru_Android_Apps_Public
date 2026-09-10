@@ -46,8 +46,10 @@ edit here must not touch production.
 
 ### `on.push.paths`, above `services/_shared/**` — added 2026-09-06
 
-`services/_shared/src/{health,error-sink,auth}.ts` is the ONE HOME of the modules both Workers and
-the brick's Worker template used to carry three times ([ADR 067] decision 2). Every carrier reaches
+`services/_shared/src/{health,error-sink,auth,entitlement-read}.ts` is the ONE HOME of the modules both
+Workers and the brick's Worker template used to carry three times ([ADR 067] decision 2) — and, since
+2026-09-10, of THE ONE entitlement reader ([ADR 057] §5), which both Workers mount at `/v1/entitlements`
+and which is the reason a change there must redeploy BOTH. Every carrier reaches
 it by a bare RELATIVE import, which esbuild inlines exactly as it inlines
 `contracts/entitlement/contract.js` — so a file outside both service directories is a build input of
 both Workers.

@@ -1,132 +1,94 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// /v1/entitlements — read this user's entitlements for THIS app from PLATFORM_DB.
+// /v1/entitlements — read this user's entitlement for THIS app from PLATFORM_DB.
+//
+// ── ⏱ 2026-09-10 · THIS WORKER NO LONGER CARRIES A READER OF ITS OWN ─────────
+// Until today this file held its own `SELECT … FROM entitlements` — "a smaller
+// subset, not the same one" as the shared host's, its header said — with no
+// knowledge of `bundle_grants`, `granted_via` or a pinned feature set. The
+// bundle union ([ADR 057] §5, #587), the extension membership (#612) and the
+// receipts wave (#603) all landed in the OTHER reader, so a bundle purchase was
+// invisible to any caller of this route. Two readers of one money table is the
+// defect; the fix is that there is ONE, in services/_shared/src/entitlement-read.ts,
+// and this file is a carrier for it exactly as the shared host is. The answer
+// this route gives is now byte-identical to
+// `GET platform.nikatru.com/v1/entitlements?app_id=<APP_ID>` for the same user
+// and the same rows — services/platform/test/one-entitlement-reader.test.ts
+// drives one fixture through both and compares the bytes.
+//
+// ── WHAT THIS FILE INJECTS INTO THE READER, AND WHY ──────────────────────────
+//   · `isKnownProduct: (id) => id === c.env.APP_ID` — a per-app Worker answers
+//     for exactly ONE product, by construction: the id never comes from the
+//     request, it is the deploy's own `APP_ID` var. The reader still applies
+//     the check, so the [5]M-4 refusal is structural rather than skipped.
+//   · `isMoneyEnvironment` from ../lib/money — this Worker's copy of the
+//     two-value vocabulary (that file's header records why it restates rather
+//     than imports contracts/entitlement).
+//   · `allRows` from ../lib/d1 — this Worker's transient-D1 retry.
+//
+// ── THE WIRE SHAPE CHANGED, ADDITIVELY, AND ONE KEY LEFT ─────────────────────
+// Each row now carries `provider`, `provider_status`, `current_period_end`,
+// `trial_end` and `revocation_reason`; the envelope gains `granted_via` and,
+// only when a live grant exists, `bundle`. `provider_environment` is NO LONGER
+// on the wire: the money world is a deploy fact, the deny reason is logged
+// server-side against the request id (test/entitlements.test.ts asserts the
+// log names the world), and no released client ever read the key. The shared
+// host never sent it and its suite asserts it is absent, so keeping it here
+// would have kept the two answers different by one key forever.
+//
+// The `c.json({ … })` literal is written here rather than returned by the
+// reader so tooling/ci/assert-analytics-contract.mjs can keep reading route
+// files for the envelope it pins; the shared host writes the identical literal.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { allRows } from '../lib/d1';
 import { isMoneyEnvironment } from '../lib/money';
+import {
+  type EntitlementReadDeps,
+  readProductEntitlement,
+} from '../../../_shared/src/entitlement-read';
 
 const app = new Hono<AppEnv>();
 
-/** The row shape this route reads. Named columns, not `SELECT *`: the shared
- *  table grows a column with every platform migration, and `*` would ship each
- *  one to every client without anybody deciding that. Same reasoning as
- *  services/platform/src/routes/entitlements.ts — a smaller subset, not the
- *  same one. Exported for the schema-witness test, which asserts every field
- *  here is a real column of the shipped platform migrations. */
-export interface EntitlementRow {
-  entitlement: string;
-  product_id: string | null;
-  store: string | null;
-  is_active: number;
-  expires_at: string | null;
-  provider_environment: string | null;
-}
-
-// GET / — { app_id, is_pro, entitlements: [...] }
+// GET / — { app_id, is_pro, granted_via, entitlements: [...], bundle? }
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const appId = c.env.APP_ID;
+  const rid = c.get('requestId') ?? '-';
 
-  // This deploy's money world. Undeclared is a 503 for the same reason the
-  // webhook refuses: there is no safe default, and a read that guessed 'live'
-  // would honour sandbox rows in production. [5]M-12
-  const environment = c.env.MONEY_ENVIRONMENT;
-  if (!isMoneyEnvironment(environment)) {
-    console.error(
-      `[entitlements] rid=${c.get('requestId')} MONEY_ENVIRONMENT is ${JSON.stringify(environment)} — ` +
-        'refusing to decide access without knowing which money world this deploy is. [5]M-12',
-    );
+  const deps: EntitlementReadDeps = {
+    db: c.env.PLATFORM_DB,
+    allRows,
+    isMoneyEnvironment,
+    // ONE product per deploy. `APP_ID` is a wrangler var, never request input.
+    isKnownProduct: (id) => id === appId,
+    warn: (m) => console.warn(m),
+    error: (m) => console.error(m),
+  };
+  const read = await readProductEntitlement(deps, {
+    userId,
+    productId: appId,
+    environment: c.env.MONEY_ENVIRONMENT,
+    rid,
+  });
+
+  // Unreachable while `isKnownProduct` is the singleton above; kept so the
+  // carrier answers the reader's every outcome rather than assuming one away.
+  if (read.kind === 'unknown_product') {
+    return c.json({ error: 'unknown_app' }, 404);
+  }
+  // [5]M-12 — undeclared money world: no safe default, refuse.
+  if (read.kind === 'money_rail_not_configured') {
     return c.json({ error: 'money_rail_not_configured' }, 503);
   }
 
-  const rows = await allRows<EntitlementRow>(
-    c.env.PLATFORM_DB.prepare(
-      `SELECT entitlement, product_id, store, is_active, expires_at, provider_environment
-         FROM entitlements
-        WHERE user_id = ? AND app_id = ?`,
-    ).bind(userId, appId),
-  );
-
-  const nowMs = Date.now();
-  // `provider_environment` rides along so a denied row is DIAGNOSABLE from the
-  // payload: with the environment limb there are two denial reasons, and
-  // support cannot tell "wrong money world" from "unparseable expiry" if the
-  // response hides the world. Same reason the platform route returns provider
-  // and revocation fields.
-  const entitlements = rows.map((r) => ({
-    entitlement: r.entitlement,
-    product_id: r.product_id,
-    store: r.store,
-    is_active: r.is_active === 1,
-    expires_at: r.expires_at,
-    provider_environment: r.provider_environment,
-  }));
-
-  // ── THE MONEY BOUNDARY — IT MUST FAIL CLOSED ────────────────────────────────
-  // "Pro" = any active, unexpired entitlement for this app.
-  //
-  // The two absent-expiry cases are NOT the same and must not be collapsed:
-  //
-  //   · `expires_at IS NULL` — a LIFETIME grant. There is no end date because
-  //     there is no end. Grants. This is a real RevenueCat shape
-  //     (NON_RENEWING_PURCHASE), written deliberately by the webhook handler.
-  //   · `expires_at` present but UNPARSEABLE — we do not know when this grant
-  //     ends, which is not the same as knowing it never does. Previously this
-  //     read `Number.isNaN(exp) ? true`, i.e. an expiry we could not decide
-  //     GRANTED Pro, forever, to every reader of that row. A corrupted write, a
-  //     future schema change, or an upstream that starts sending epoch-ms
-  //     instead of ISO would all have silently unlocked the paywall rather than
-  //     surfacing as anything at all.
-  //
-  // So: undecidable ⇒ NO access. The row is still returned in `entitlements` so
-  // the client and support can see it exists; it just cannot buy anything.
-  //
-  // `''` moved SIDES with this change: the old `if (!r.expires_at) return true`
-  // read it as lifetime. Nothing we write can produce it (the webhook writes an
-  // ISO string or SQL NULL), so an empty string only ever means a row someone
-  // or something else damaged — which is the undecidable case, not the lifetime
-  // one. `Date.parse('')` is NaN, so it now denies. Same on the client
-  // (packages/core .../entitlement.dart), so the two ends cannot disagree.
-  const isPro = rows.some((r) => {
-    if (r.is_active !== 1) return false;
-    // [5]M-12 — the environment limb the platform route has had all along. A
-    // row from the OTHER money world grants nothing here, and a row with NO
-    // world at all is UNDECIDABLE — "written before the rail knew" is not
-    // evidence of a live payment, so it denies too (fail closed, both rails'
-    // writers stamp the column as of 2026-08-09).
-    if (r.provider_environment !== environment) {
-      console.warn(
-        `[entitlements] rid=${c.get('requestId')} app=${appId} entitlement=${r.entitlement} — row's ` +
-          `money environment is ${JSON.stringify(r.provider_environment)}, this deploy is '${environment}'. ` +
-          'Denying. [5]M-12',
-      );
-      return false;
-    }
-    if (r.expires_at === null || r.expires_at === undefined) {
-      return true; // lifetime
-    }
-    const exp = Date.parse(r.expires_at);
-    if (Number.isNaN(exp)) {
-      // Correlate by REQUEST ID, never by user id: `userId` is the Supabase JWT
-      // `sub`, and this line lands in Workers Logs / Logpush, outside the
-      // PiiScrubber seam every other sink goes through. The rid ties it to the
-      // request that can be traced properly; nothing else here identifies a
-      // person.
-      console.warn(
-        `[entitlements] rid=${c.get('requestId')} app=${appId} ` +
-          `entitlement=${r.entitlement} — unparseable expires_at, denying (fail closed)`,
-      );
-      return false;
-    }
-    return exp > nowMs;
-  });
-
   return c.json({
-    app_id: appId,
-    is_pro: isPro,
-    entitlements,
+    app_id: read.app_id,
+    is_pro: read.is_pro,
+    granted_via: read.granted_via,
+    entitlements: read.entitlements,
+    bundle: read.bundle ?? undefined,
   });
 });
 

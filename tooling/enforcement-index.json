@@ -1247,6 +1247,21 @@
   },
   {
     "claims": [
+      "ADR 057",
+      "ADR 067",
+      "M-12",
+      "M-4"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-legal"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-one-entitlement-reader.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 023",
       "ADR 054",
       "ADR 067",
@@ -2190,7 +2205,10 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 057",
+      "ADR 067"
+    ],
     "invokedBy": [],
     "kind": "guard",
     "ref": "tooling/ci/d1-sql-inventory.mjs",
