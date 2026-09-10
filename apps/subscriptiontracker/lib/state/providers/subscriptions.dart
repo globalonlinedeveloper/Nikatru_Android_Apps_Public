@@ -5,14 +5,17 @@
 // The two account-deletion outcome holders that stood here are in `auth.dart`,
 // with the erasure flow they report on.
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
 
 import '../../core/app_config.dart';
 import '../../data/api/api_client.dart';
+import '../../data/api/cached_api_client.dart';
 import '../../data/api/dio_api_client.dart';
 import '../../data/api/persisted_api_client.dart';
 import '../../data/api/seed_api_client.dart';
+import '../../data/local/subscription_store.dart';
 import '../../data/subscriptions/subscription_repository.dart';
 import 'auth.dart';
 import 'config.dart';
@@ -36,10 +39,16 @@ import 'persistence.dart';
 /// untouched and is still the one implementation of what a create or a cancel
 /// MEANS, which is why this is a wrapper and not a flag.
 ///
-/// ⚠️ THE CONFIGURED BRANCH IS UNCHANGED AND HAS NO LOCAL COPY. There the Worker
-/// is the system of record, and an offline write queue in front of it is a
-/// different piece of work — conflict resolution and replay ordering — that must
-/// not be smuggled in behind a demo-mode fix.
+/// 🔴 THE CONFIGURED BRANCH WAS THE ONE THAT SHIPS, AND IT HAD NO LOCAL COPY.
+/// `catalog/apps.json` sets `api` for every real build, so the paragraph above
+/// described the branch production never takes, and #590/#595 were inert in the
+/// field. [CachedApiClient] now wraps the network client too: the Worker stays
+/// the system of record and every write still goes to it first, but what it
+/// last answered is mirrored into the same [LocalSubscriptionStore], and served
+/// — only on a transport or 5xx failure — when it cannot be asked. It is a
+/// read-through cache and NOT a write queue: an offline add fails honestly.
+/// The decision is [apiClientFor], a pure function, so the configured branch
+/// is provable under `flutter test` (which carries no `--dart-define`).
 ///
 /// 🔴 `tokenProvider` TAKES [authTokenProvider], AND IT IS THE SAME RULE
 /// [platformRestClientProvider] IS BUILT ON — read that block, which explains how
@@ -64,19 +73,40 @@ import 'persistence.dart';
 /// client belongs on this shape; the brick's `restClientProvider` already is, and
 /// is why the brick never had this defect.
 final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
+  final LocalSubscriptionStore store = ref.watch(
+    localSubscriptionStoreProvider,
+  );
   if (!AppConfig.isApiConfigured) {
     return PersistedApiClient(
       SeedApiClient(),
-      ref.watch(localSubscriptionStoreProvider),
+      store,
     );
   }
   final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;
   final String baseUrl = cfg?.apiBaseUrl ?? '${AppConfig.apiBaseUrl}/v1';
-  return DioApiClient(
-    baseUrl: baseUrl,
-    tokenProvider: ref.watch(authTokenProvider),
+  return cachedApiClientOver(
+    DioApiClient(
+      baseUrl: baseUrl,
+      tokenProvider: ref.watch(authTokenProvider),
+    ),
+    store,
   );
 });
+
+/// The client the CONFIGURED posture gets: [network] behind the device cache.
+///
+/// 🔴 A NAMED FUNCTION SO THE PRODUCTION BRANCH IS TESTABLE.
+/// `AppConfig.isApiConfigured` is a compile-time `String.fromEnvironment`, so
+/// no `flutter test` can reach the branch above; the provider hands the
+/// configured client to this function, which a test can call with a fake
+/// network. `subscriptions_survive_restart_test.dart` proves the cache through
+/// it AND reads this file to assert the provider's configured branch still
+/// calls it — the two halves of one mutation proof: make this return
+/// [network] bare, or make the provider return `DioApiClient` bare, and one of
+/// them goes red.
+@visibleForTesting
+ApiClient cachedApiClientOver(ApiClient network, LocalSubscriptionStore store) =>
+    CachedApiClient(network, store);
 
 final Provider<SubscriptionRepository> subscriptionRepositoryProvider =
     Provider<SubscriptionRepository>(

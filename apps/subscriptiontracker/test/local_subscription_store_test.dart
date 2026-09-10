@@ -213,20 +213,43 @@ void main() {
       expect(await store.readSubscriptions(), isNull);
     });
 
-    test('a store that THROWS costs persistence and nothing else', () async {
+    // 🔴 THESE TWO USED TO ASSERT THE SILENCE. `completes`, then "nothing
+    // stored" — a test that a full disk costs the user their row and says
+    // nothing. Reads still degrade (a launch must never fail on a store that
+    // is not there); a WRITE now throws, because the caller is holding data
+    // the user just typed and is the only one who can roll back or tell them.
+    test('a store that THROWS on write SURFACES it — reads still degrade',
+        () async {
       final LocalSubscriptionStore store = LocalSubscriptionStore(
         Future<core.KeyValueStore>.value(_BrokenStore()),
       );
       await expectLater(
         store.writeSubscriptions(<Subscription>[_sub('1')]),
-        completes,
+        throwsA(
+          isA<LocalStoreWriteFailure>()
+              .having((LocalStoreWriteFailure f) => f.key, 'key',
+                  kLocalSubscriptionsKey)
+              .having((LocalStoreWriteFailure f) => '${f.cause}', 'cause',
+                  contains('no store')),
+        ),
       );
-      await expectLater(store.clear(), completes);
+      await expectLater(
+        store.writeBudget(
+          const BudgetInfo(
+            monthlyBudget: Money(100, 'USD'),
+            categories: <BudgetCap>[],
+          ),
+        ),
+        throwsA(isA<LocalStoreWriteFailure>()),
+      );
+      // A store that is THERE and refuses to forget is a broken promise too.
+      await expectLater(store.clear(), throwsA(isA<LocalStoreWriteFailure>()));
       expect(await store.readSubscriptions(), isNull);
       expect(await store.readBudget(), isNull);
     });
 
-    test('a store whose FUTURE fails is the same degradation', () async {
+    test('a store whose FUTURE fails: reads degrade, writes surface, clear is '
+        'a no-op (nothing was ever written there)', () async {
       final LocalSubscriptionStore store = LocalSubscriptionStore(
         Future<core.KeyValueStore>.error(StateError('no plugin')),
       );
@@ -237,8 +260,9 @@ void main() {
             categories: <BudgetCap>[],
           ),
         ),
-        completes,
+        throwsA(isA<LocalStoreWriteFailure>()),
       );
+      await expectLater(store.clear(), completes);
       expect(await store.readSubscriptions(), isNull);
     });
 

@@ -415,6 +415,13 @@ List<UserStateDrop> userStateDrops(WidgetRef ref) => <UserStateDrop>[
   ref.read(entitlementCacheProvider).clear,
   ref.read(notificationServiceProvider).cancelAll,
   ref.read(subscriptiontrackerNotificationServiceProvider).cancelAll,
+  // 🔴 THE CACHED SUBSCRIPTION LIST IS ACCOUNT STATE. In the configured
+  // posture `CachedApiClient` mirrors the server's last answer for THIS
+  // account into the device store, and serves it offline. Left behind, the
+  // next person to sign in on this device offline would be shown it. In the
+  // unconfigured posture the same store IS the user's data and there is no
+  // account to sign out of, so it is never dropped there.
+  if (AppConfig.isApiConfigured) ref.read(localSubscriptionStoreProvider).clear,
 ];
 
 /// Run the resolved drops — the half that is allowed to take as long as it likes.
