@@ -21,7 +21,6 @@
 // concurrent deliveries in which the check could be true for both.
 // ─────────────────────────────────────────────────────────────────────────────
 import { nowIso } from '../d1';
-import { isKnownProduct } from '../../config';
 import {
   type DecisionOutcome,
   type MoneyEnvironment,
@@ -45,6 +44,21 @@ export interface MoneyStoreDeps {
   /** From configuration, never from the payload — see contract.ts. */
   environment: MoneyEnvironment;
   nowMs: number;
+  /**
+   * Is this id a product in ANY register (app, extension, script)? Resolved by
+   * the CALLER from the product registers — `isKnownProduct` in src/config.ts
+   * for the Worker, the tooling register reader for the dry-run.
+   *
+   * 🔴 INJECTED, NOT IMPORTED, AND THE REASON IS MEASURED: this module is loaded
+   * under bare `node` by tooling/ops/money-dry-run.mjs (CI job "A stored
+   * notification replayed in any order reaches the same entitlement"), and
+   * config.ts imports the JSON registers without an import attribute, which
+   * bare node refuses (ERR_IMPORT_ATTRIBUTE_MISSING, run 34429437969). Nothing
+   * under src/lib/ may import src/config.ts for that reason. A missing function
+   * here is a TypeError at the first attributable notification — loud, and it
+   * grants nothing.
+   */
+  isKnownProduct: (id: string) => boolean;
 }
 
 /** SHA-256 hex of a lowercased, trimmed email — the unclaimed-payment lookup key. */
@@ -174,7 +188,7 @@ async function resolveAccount(
   // /v1/checkout is authenticated at all (index.ts). An unknown id is REFUSED as
   // attribution: logged, no link written, and the notification resolves through
   // an EXISTING link or lands in `unclaimed_payments` — never a grant.
-  const appIdKnown = fromMetadata.appId === null || isKnownProduct(fromMetadata.appId);
+  const appIdKnown = fromMetadata.appId === null || deps.isKnownProduct(fromMetadata.appId);
   if (!appIdKnown) {
     console.warn(
       `[money/${n.provider}] event ${n.eventId} carries nikatru_app_id ${JSON.stringify(fromMetadata.appId)}, ` +
@@ -363,7 +377,7 @@ async function applySubscription(
       // Only a REGISTERED product id is written down, even here: the unclaimed
       // row is still a row, and an unknown string in `app_id` would be the
       // [4]B-4a breach by another table. The refused value is in the log.
-      appId: isKnownProduct(s.accountAppId) ? s.accountAppId : null,
+      appId: s.accountAppId !== null && deps.isKnownProduct(s.accountAppId) ? s.accountAppId : null,
     });
     return {
       outcome: 'unclaimed',
