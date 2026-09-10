@@ -312,12 +312,16 @@ async function readEntitlements(db) {
 /**
  * Deliver one ordering into a fresh database and read the final state back.
  *
- * Round 1 IS the route: store verbatim first, and a notification already stored
- * is acked WITHOUT being re-derived (routes/money.ts:125). Later rounds are the
- * operator re-derivation described in the header — they exist so a corpus whose
- * refund arrived before its grant can still reach a fixed point, and the number
- * actually used is reported so a run that needed them cannot look like one that
- * did not.
+ * Round 1 models FIRST delivery: store verbatim, then derive; a payload that
+ * is already stored in round 1 is a true duplicate here and is `duplicate`.
+ * Later rounds re-derive whatever refused, which is what routes/money.ts now
+ * does on the rail's own re-delivery — it answers 503 for a derivation that
+ * did not conclude and re-derives the stored notification when Paddle brings it
+ * back (money.ts, `isUnconcluded`) — and what the nightly `moneyRederive` limb
+ * does for anything that outlives the rail's retry window. The rounds exist so
+ * a corpus whose refund arrived before its grant can still reach a fixed point,
+ * and the number actually used is reported so a run that needed them cannot
+ * look like one that did not.
  */
 export async function replayOrder(opts) {
   const { deliveries, makeDb, persistNotification, deriveAndApply } = opts;
