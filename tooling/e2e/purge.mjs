@@ -47,7 +47,7 @@
 // an upload that worked.
 //
 // Env: E2E_USER_ID, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
-//      SUBLY_D1_DATABASE_ID, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//      SUBSCRIPTIONTRACKER_D1_DATABASE_ID, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //      and, for the consent artifact only: E2E_APP_ID, PLATFORM_D1_DATABASE_ID,
 //      E2E_RESPONSE_DATA / E2E_DRIVE_LOG (the run's exported anon_id).
 //      E2E_APP_VERSION is OPTIONAL and is read for its message only — it is the
@@ -104,7 +104,7 @@ const token = need('CLOUDFLARE_API_TOKEN');
 // instead of the code that was asked for. Hoisting the credential checks keeps
 // the only `exit()` calls in this file on the side of the first fetch where they
 // are safe.
-const dbId = userId ? need('SUBLY_D1_DATABASE_ID') : null;
+const dbId = userId ? need('SUBSCRIPTIONTRACKER_D1_DATABASE_ID') : null;
 const supaUrl = userId ? need('SUPABASE_URL').replace(/\/+$/, '') : null;
 const serviceKey = userId ? need('SUPABASE_SERVICE_ROLE_KEY') : null;
 const appId = consent.id ? need('E2E_APP_ID') : null;
@@ -138,7 +138,7 @@ if (userId) {
     console.error(`WARN: user delete returned ${del.status}\n${await del.text()}`);
   }
 } else {
-  console.log('E2E_USER_ID unset (user was never provisioned) — no subly_db rows or identity to purge.');
+  console.log('E2E_USER_ID unset (user was never provisioned) — no subscriptiontracker_db rows or identity to purge.');
 }
 
 if (consent.id) {

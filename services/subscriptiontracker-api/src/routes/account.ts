@@ -3,13 +3,13 @@ import type { AppEnv } from '../types';
 import { allRows } from '../lib/d1';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DELETE /v1/account — SUBLY'S OWN ERASURE ROUTE, over subly_db (APP_DB).
+// DELETE /v1/account — SUBLY'S OWN ERASURE ROUTE, over subscriptiontracker_db (APP_DB).
 //
 // ── THE DEFECT THIS CLOSES ──────────────────────────────────────────────────
 // 🔴 THE ONLY APP IN THE FIELD WAS THE ONE APP NO ERASURE ROUTE REACHED. The
 // shared server's DELETE /v1/account (services/platform/src/routes/account.ts)
 // sweeps PLATFORM_DB and deletes the identity record — and touches nothing in
-// subly_db, because a route reads the database it reads and not the ones its
+// subscriptiontracker_db, because a route reads the database it reads and not the ones its
 // Worker happens to bind. So a Subly user could press "Delete account", watch it
 // succeed, lose their login, and leave every subscription, budget, budget
 // category and payment they had ever entered sitting in a database no login could
@@ -22,7 +22,7 @@ import { allRows } from '../lib/d1';
 // their data is gone and stops asking.
 //
 // ── WHY IT IS HERE AND NOT IN services/platform ─────────────────────────────
-// The shared Worker already BINDS subly_db (`SUBLY_DB`, for the nightly renewals
+// The shared Worker already BINDS subscriptiontracker_db (`SUBSCRIPTIONTRACKER_DB`, for the nightly renewals
 // fan-out), so it could have swept it directly in a dozen lines. That was
 // considered and rejected:
 //
@@ -46,7 +46,7 @@ import { allRows } from '../lib/d1';
 // credential in the account and currently lives in one place. So the division is:
 //
 //   services/platform  — platform_db + the identity, and the ORDERING
-//   services/subscriptiontracker-api — subly_db, and nothing else
+//   services/subscriptiontracker-api — subscriptiontracker_db, and nothing else
 //
 // The shared route calls this one (relaying the caller's own bearer token) AFTER
 // its service-role precondition and BEFORE it deletes the identity, so a failure
@@ -54,8 +54,8 @@ import { allRows } from '../lib/d1';
 // long note in services/platform/src/routes/account.ts.
 //
 // ⚠️ CONSEQUENCE, STATED RATHER THAN HIDDEN: `{ ok: true }` from THIS route means
-// "subly_db no longer holds this user", NOT "the account is gone". The response
-// says `scope: 'subly_db'` so no caller can read it as the latter.
+// "subscriptiontracker_db no longer holds this user", NOT "the account is gone". The response
+// says `scope: 'subscriptiontracker_db'` so no caller can read it as the latter.
 //
 // ── THE TABLE SET IS DERIVED FROM THE SCHEMA, NOT LISTED HERE ───────────────
 // 🔴 The brick template carries `const appTables = ['records'];` with a comment
@@ -64,12 +64,12 @@ import { allRows } from '../lib/d1';
 // the failure is SILENT and permanent: the route answers `{ ok: true }` and the
 // rows stay. Here, as in the platform route, the database answers: every table
 // carrying a `user_id` column is user-owned BY DEFINITION, so a migration that
-// adds a user-owned table to subly_db is covered by that migration alone.
+// adds a user-owned table to subscriptiontracker_db is covered by that migration alone.
 //
 // The second rule is the same one, for the other spelling:
 //   ·  user_id   → the row IS this person's        → DELETE the row
 //   · *_user_id  → the row REFERENCES this person  → NULL the column
-// subly_db has no `*_user_id` column today. The limb is still here, and it is not
+// subscriptiontracker_db has no `*_user_id` column today. The limb is still here, and it is not
 // speculative: `payment_history.subscription_id` shows this schema already models
 // cross-row references, and the day one of them names a user the rule covers it
 // with no edit. Its emptiness is asserted (not assumed) by the test that plants a
@@ -282,7 +282,7 @@ account.delete('/account', async (c) => {
   // no longer exists. Refuse instead.
   if (tables.length === 0) {
     console.error(
-      `[account] rid=${rid} app=${c.env.APP_ID} refusing deletion: no user-owned table was found in subly_db, so this request would report success while erasing nothing`,
+      `[account] rid=${rid} app=${c.env.APP_ID} refusing deletion: no user-owned table was found in subscriptiontracker_db, so this request would report success while erasing nothing`,
     );
     return c.json({ error: 'account_deletion_failed' }, 503);
   }
@@ -296,7 +296,7 @@ account.delete('/account', async (c) => {
     deleted[table] = res.meta.changes ?? 0;
   }
 
-  // Then the REFERENCES: after this, no `*_user_id` column in subly_db holds this
+  // Then the REFERENCES: after this, no `*_user_id` column in subscriptiontracker_db holds this
   // person's id. Table and column both come from sqlite_master.
   for (const { table, column } of references) {
     const res = await c.env.APP_DB.prepare(
@@ -311,7 +311,7 @@ account.delete('/account', async (c) => {
   // the shared tables are the platform Worker's, and a caller that read a bare
   // `{ ok: true }` as "the account is gone" would be wrong in the one direction
   // that matters. Naming the scope makes the partial result unmistakable.
-  return c.json({ ok: true, scope: 'subly_db', deleted, unlinked });
+  return c.json({ ok: true, scope: 'subscriptiontracker_db', deleted, unlinked });
 });
 
 export default account;

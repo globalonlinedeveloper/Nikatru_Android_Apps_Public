@@ -63,9 +63,10 @@
 # would not rename them in the account; it would point this file at something
 # that does not exist. Each is owed as its own change:
 #
-#   subly_db                 the Cloudflare D1 database NAME (the binding is by
-#                            id, so the name is display only). Moving it means
-#                            creating a database and migrating rows.
+#   subly_db                 MOVED 2026-09-11 ([ADR 079]): the rows were copied
+#                            to `subscriptiontracker_db` (verified identical) and
+#                            every binding moved. The old database is kept,
+#                            unbound, until the owner deletes it.
 #   subly.nikatru.com        the retired subdomain, now an internal origin only
 #                            ([ADR 075] / #562). It is a DNS label with a zone
 #                            Redirect Rule 301ing it to the path form; both are
@@ -131,7 +132,7 @@ hosts:
   # `subscriptiontracker-7qg.pages.dev` answered 522 until the first deployment
   # existed, which is what proves the suffix was newly minted for this account.
   pagesOrigin: subscriptiontracker-7qg.pages.dev
-  api: api.nikatru.com
+  api: subscriptiontracker.api.nikatru.com
 
 platforms:
   - web

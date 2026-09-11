@@ -220,7 +220,7 @@ could execute is the state this whole step exists to end.
 
 `id: deploy` is read by the record step at the bottom of this job — see
 the block there. It is the only step whose success means "the new code is
-what api.nikatru.com is running", so it is the fact the ledger entry is
+what subscriptiontracker.api.nikatru.com is running", so it is the fact the ledger entry is
 conditioned on.
 
 ### inside the `id: deploy` step, above `command:`
@@ -283,7 +283,7 @@ only place the shared entitlements/events/consent schema advances.
 This Worker is the portfolio's erasure ENTRY POINT: its DELETE
 /v1/account sweeps platform_db, relays to every app's own route and
 deletes the identity last. It is the route the rejected join broke first.
-It binds subly_db as well as platform_db, so the check executes its
+It binds subscriptiontracker_db as well as platform_db, so the check executes its
 statements against BOTH — a route reads the databases it reads, not the
 ones its Worker binds, and this is the seam where that stopped being true.
 

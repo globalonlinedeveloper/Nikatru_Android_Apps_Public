@@ -116,7 +116,7 @@ export class SqliteD1 {
 }
 
 /**
- * subly_db's migration set, IN APPLICATION ORDER, exactly as
+ * subscriptiontracker_db's migration set, IN APPLICATION ORDER, exactly as
  * `wrangler d1 migrations apply APP_DB` would apply it.
  *
  * Exported rather than kept inline in `realAppDb` because "this set re-applies

@@ -149,7 +149,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node tooling/ops/check-d1-accepts-live-sql.mjs
       # why: `id: deploy` is the only step whose success means "this is what
-      # api.nikatru.com is running"; the record step below is conditioned on it.
+      # subscriptiontracker.api.nikatru.com is running"; the record step below is conditioned on it.
       # why: the two `--var`s are supplied at DEPLOY time — GLITCHTIP_DSN is a
       # write-only ingest key, and RELEASE is the SHA, not API_VERSION.
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
@@ -166,7 +166,7 @@ jobs:
       - name: Smoke — the live Worker answers at THIS commit
         run: >
           node tooling/ops/post-deploy-smoke.mjs
-          --url https://api.nikatru.com/v1/health
+          --url https://subscriptiontracker.api.nikatru.com/v1/health
           --field build --expect ${{ github.sha }} --require-ok
 
       # why: conditioned on the DEPLOY, not on the smoke. A provenance record
@@ -176,7 +176,7 @@ jobs:
         if: always() && steps.deploy.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node tooling/ci/record-deployment.mjs subscriptiontracker-api https://api.nikatru.com
+        run: node tooling/ci/record-deployment.mjs subscriptiontracker-api https://subscriptiontracker.api.nikatru.com
 
   platform:
     name: Deploy platform
@@ -206,7 +206,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: services/platform
           command: d1 migrations apply PLATFORM_DB --remote
-      # why: [pipeline K-7] see the subscriptiontracker-api job. This Worker binds subly_db as
+      # why: [pipeline K-7] see the subscriptiontracker-api job. This Worker binds subscriptiontracker_db as
       # well as platform_db, so the check executes against both — a route reads
       # the databases it reads, not the ones its Worker binds.
       - name: The deployed SQL is SQL live D1 will run

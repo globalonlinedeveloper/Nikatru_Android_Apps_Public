@@ -143,7 +143,7 @@ describe('DELETE /v1/account survives a transient D1 reset in the preflight', ()
     // pass against a predicate that had quietly stopped matching.
     expect(flaky.injected).toBe(1);
     expect(status).toBe(200);
-    expect(body.scope).toBe('subly_db');
+    expect(body.scope).toBe('subscriptiontracker_db');
     // Not the status alone: the ROWS. A 200 that erased nothing is the failure
     // this whole route was written to make impossible.
     expect(remaining(db)).toEqual([BYSTANDER]);

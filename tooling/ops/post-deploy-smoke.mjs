@@ -110,7 +110,7 @@
 //     placeholder on purpose: this script derives everything from the URL it is
 //     handed and from the catalogue, and spells no app id anywhere.
 //   node tooling/ops/post-deploy-smoke.mjs \
-//     --url https://api.nikatru.com/v1/health --field build --expect <sha> --require-ok
+//     --url https://subscriptiontracker.api.nikatru.com/v1/health --field build --expect <sha> --require-ok
 //   node tooling/ops/post-deploy-smoke.mjs \
 //     --play-package com.example.app --expect <versionCode>
 //   node tooling/ops/post-deploy-smoke.mjs \

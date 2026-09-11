@@ -75,7 +75,7 @@ export const ANALYTICS_LIVENESS_WINDOW_HOURS = 24;
  * add their APP_DB binding here (or drive it from a platform_db registry).
  */
 export function appTargets(env: Env): AppTarget[] {
-  return [{ appId: 'subscriptiontracker', db: env.SUBLY_DB }];
+  return [{ appId: 'subscriptiontracker', db: env.SUBSCRIPTIONTRACKER_DB }];
 }
 
 /**

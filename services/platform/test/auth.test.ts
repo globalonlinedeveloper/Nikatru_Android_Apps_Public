@@ -147,7 +147,7 @@ beforeAll(async () => {
         authorization: new Headers(init?.headers).get('Authorization'),
       });
       if (appThrows) throw new TypeError('fetch failed');
-      return new Response(JSON.stringify({ ok: true, scope: 'subly_db' }), { status: appStatus });
+      return new Response(JSON.stringify({ ok: true, scope: 'subscriptiontracker_db' }), { status: appStatus });
     }
     throw new Error(`unexpected fetch in test: ${url}`);
   });
@@ -641,11 +641,11 @@ describe('DELETE /v1/account — three limbs, executed against a real engine', (
 // ═════════════════════════════════════════════════════════════════════════════
 describe("LIMB 3 — every app's OWN database, through that app's OWN route", () => {
   // 🔴 THE DEFECT THIS LIMB CLOSES. Everything above operates on PLATFORM_DB.
-  // This Worker also BINDS subly_db — and bound is not swept, because a route
+  // This Worker also BINDS subscriptiontracker_db — and bound is not swept, because a route
   // reads the databases it reads. So the only app in the field was the one app
   // account deletion did not reach: a Subly user could delete their account, lose
   // their login, and leave every subscription they had ever entered in a database
-  // no login could reach again. Sweeping SUBLY_DB from here was rejected (it puts
+  // no login could reach again. Sweeping SUBSCRIPTIONTRACKER_DB from here was rejected (it puts
   // one app's schema in the shared Worker, and makes any FUTURE binding an
   // erasure target the day somebody adds it); each app owns its own erasure and
   // this route orchestrates.

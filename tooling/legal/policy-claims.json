@@ -83,7 +83,7 @@
       "page": "delete-account.html",
       "claim": "What you created inside an app.",
       "type": "descriptive",
-      "why": "The four `subly_db` tables tooling/legal/data-inventory.json declares with erasure kind `no-route`: services/platform's DELETE /v1/account reads PLATFORM_DB only, and services/subscriptiontracker-api has no account route. assert-data-inventory.mjs PRINTS that gap on every run. The paragraph exists because [ADR 027] shipped the in-app control WITHOUT closing that gap, and a section headed 'What is kept, and why' that omitted the user's own app content would be the omission the section exists to prevent. It comes down with the row, when a route reaches those tables."
+      "why": "The four `subscriptiontracker_db` tables tooling/legal/data-inventory.json declares with erasure kind `no-route`: services/platform's DELETE /v1/account reads PLATFORM_DB only, and services/subscriptiontracker-api has no account route. assert-data-inventory.mjs PRINTS that gap on every run. The paragraph exists because [ADR 027] shipped the in-app control WITHOUT closing that gap, and a section headed 'What is kept, and why' that omitted the user's own app content would be the omission the section exists to prevent. It comes down with the row, when a route reaches those tables."
     },
     {
       "page": "delete-account.html",

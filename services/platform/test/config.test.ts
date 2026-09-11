@@ -98,7 +98,7 @@ describe('CFG-1 config resolution', () => {
     const cfg = baseConfig('subscriptiontracker');
     expect(cfg).not.toBeNull();
     expect(cfg!.app_id).toBe('subscriptiontracker');
-    expect(cfg!.api_base_url).toBe('https://api.nikatru.com/v1');
+    expect(cfg!.api_base_url).toBe('https://subscriptiontracker.api.nikatru.com/v1');
     expect(cfg!.features.renewals).toBe(true);
     expect(cfg!.paywall.enabled).toBe(false);
     expect(cfg!.min_supported_version).toBe('1.0.0');
@@ -131,7 +131,7 @@ describe('CFG-1 config resolution', () => {
     // siblings preserved from defaults
     expect(merged.features.renewals).toBe(true);
     expect(merged.features.budgets).toBe(true);
-    expect(merged.api_base_url).toBe('https://api.nikatru.com/v1');
+    expect(merged.api_base_url).toBe('https://subscriptiontracker.api.nikatru.com/v1');
   });
 
   it('ignores malformed KV JSON and falls back to defaults (never takes an app down)', () => {
@@ -261,7 +261,7 @@ describe('the served app set comes from the catalogue, not from this Worker', ()
     // client caches for five minutes, and `toEqual` on a subset would not have
     // caught the key reordering a spread introduces.
     expect(JSON.stringify(baseConfig('subscriptiontracker'))).toBe(
-      '{"app_id":"subscriptiontracker","api_base_url":"https://api.nikatru.com/v1",' +
+      '{"app_id":"subscriptiontracker","api_base_url":"https://subscriptiontracker.api.nikatru.com/v1",' +
         '"features":{"renewals":true,"budgets":true,"exports":true},"flags":{},' +
         '"paywall":{"enabled":false,"offerings":[' +
         '{"product_id":"pro_monthly","amount_minor":599,"currency_code":"USD","term":"month","trial_days":30},' +
