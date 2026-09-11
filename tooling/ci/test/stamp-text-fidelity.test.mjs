@@ -105,7 +105,6 @@ function tree({
   mutate = null,
 } = {}) {
   const root = join(TMP, `r${seq++}`);
-  const appDir = join(root, 'apps', app);
   const write = (rel, body) => {
     const p = join(root, rel);
     mkdirSync(dirname(p), { recursive: true });

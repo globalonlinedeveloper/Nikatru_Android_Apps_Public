@@ -77,7 +77,6 @@ const REQUIRED_COVERAGE = [
 
 const REGISTRY = 'services/platform/src/lib/mor/registry.ts';
 const CONTRACT = 'services/platform/src/lib/mor/contract.ts';
-const ROUTE = 'services/platform/src/routes/money.ts';
 const STORE = 'services/platform/src/lib/mor/store.ts';
 const TEST_DIR = 'services/platform/test';
 const WRANGLER = 'services/platform/wrangler.jsonc';

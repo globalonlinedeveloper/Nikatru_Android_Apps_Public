@@ -297,7 +297,7 @@ jobs:
           #
           # `flutter drive -d web-server` otherwise serves the app on
           # http://localhost:<RANDOM port>, and every Worker call the suite makes
-          # is therefore cross-origin. subscriptiontracker.api.nikatru.com tolerates that: its CORS
+          # is therefore cross-origin. subscriptiontracker-api.nikatru.com tolerates that: its CORS
           # middleware carries an explicit localhost-any-port exception
           # (services/subscriptiontracker-api/src/middleware/cors.ts:38) added as the INC13 fix,
           # which is why legs 1-2 have always passed.

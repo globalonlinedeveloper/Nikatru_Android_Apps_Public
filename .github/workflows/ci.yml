@@ -374,6 +374,8 @@ jobs:
         run: node tooling/ci/assert-store-identity.mjs
       - name: No live resource carries a retired name [ADR 079]
         run: node tooling/ci/assert-retired-names.mjs
+      - name: Every NIKATRU hostname is the apex or one label deep [ADR 080]
+        run: node tooling/ci/assert-hostname-depth.mjs
       - name: No submission endangers the store identity
         run: node tooling/ci/assert-submission-safety.mjs
       - name: No publishing lane finishes without a [10]D-9 record

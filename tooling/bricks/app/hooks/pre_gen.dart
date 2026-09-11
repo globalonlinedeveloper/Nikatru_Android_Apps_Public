@@ -370,6 +370,27 @@ void run(HookContext context) {
   }
 
   final String shortName = _shortName(displayName);
+  // ── THE SNAP NAME IS DERIVED FROM THE STORE TITLE, NEVER THE SLUG ────────
+  // store/linux-snap/snap-name.txt is the GLOBAL Snap Store namespace, claimed
+  // once at `snapcraft register` and never released. tooling/ci/
+  // assert-store-identity.mjs requires it to EQUAL param-case(apps/<id>/app.yaml
+  // name), and post_gen writes that `name` as `shortName`. Until 2026-09-11 the
+  // template stamped `app_id` through mason's paramCase — the slug — so every
+  // stamped app failed that guard on its first run (probe: `probe` against
+  // `probe-s-e-book-co`). The value is derived HERE, once, and the template
+  // stamps it; the algorithm is the guard's, restated in `_snapName`.
+  final String? snapName = _snapName(shortName);
+  if (snapName == null) {
+    problems.add(
+      'the snap name cannot be derived from the store title "$shortName". '
+      'store/linux-snap/snap-name.txt must equal param-case(apps/<id>/app.yaml '
+      'name) (tooling/ci/assert-store-identity.mjs), and this hook derives it '
+      'only from an ASCII title with at least one letter or digit: it has no '
+      'Unicode normalisation, and a snap name is a GLOBAL, permanent claim that '
+      'can only be ASCII anyway. Give the display name an ASCII store title '
+      'before its subtitle separator.',
+    );
+  }
   problems.addAll(
     _sourcedListingLimits(
       <String, String>{
@@ -475,6 +496,9 @@ void run(HookContext context) {
   // own `_shortName` and the templates had no access to it at all, which is how
   // a listing title could only ever have been hand-typed.
   vars['short_name'] = shortName;
+  // The GLOBAL snap name, derived above from the same `shortName` post_gen writes
+  // as app.yaml `name`. Only [a-z0-9-] can reach it, so a double stache is safe.
+  vars['snap_name'] = snapName ?? '';
   // The ICON label, not the store title — see the icon_label rules above. The
   // JSON-escaped twin exists for the same reason `display_name_json` does: it
   // lands inside a PWA manifest string body, where a raw `"` ends the value.
@@ -658,6 +682,33 @@ bool _sharesToken(String a, String b) {
     }
   }
   return false;
+}
+
+/// param-case of a store title, EXACTLY as tooling/ci/assert-store-identity.mjs
+/// computes it for an ASCII input: lower-case, every run of characters outside
+/// [a-z0-9] becomes one hyphen, and leading and trailing hyphens are dropped.
+///
+/// Returns null — and pre_gen refuses the stamp — when the title holds any
+/// non-ASCII character, or no letter or digit at all. The guard applies Unicode
+/// NFKD first (so `é` becomes `e`); Dart's core libraries have no normaliser, and
+/// an approximation that disagreed with the guard on one character would stamp
+/// a permanent global claim nobody reviewed. A refusal names the fix instead.
+String? _snapName(String storeTitle) {
+  final StringBuffer out = StringBuffer();
+  bool pendingHyphen = false;
+  for (final int rune in storeTitle.runes) {
+    if (rune > 0x7f) return null;
+    final int c = (rune >= 0x41 && rune <= 0x5a) ? rune + 0x20 : rune;
+    final bool alnum = (c >= 0x61 && c <= 0x7a) || (c >= 0x30 && c <= 0x39);
+    if (!alnum) {
+      pendingHyphen = true;
+      continue;
+    }
+    if (pendingHyphen && out.isNotEmpty) out.write('-');
+    pendingHyphen = false;
+    out.writeCharCode(c);
+  }
+  return out.isEmpty ? null : out.toString();
 }
 
 String _shortName(String displayName) {

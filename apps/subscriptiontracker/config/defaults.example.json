@@ -4,5 +4,5 @@
   "//keys": "KEY STYLE IS THE --dart-define NAME, NOT the CFG-1 wire name. A file of snake keys (app_id, api_base_url) supplies defines nothing reads and the app boots in DEMO mode looking configured — measured 2026-08-08, see the P2.5 manifest.",
   "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
   "SUPABASE_ANON_KEY": "sb_publishable_xxx  (modern publishable key; legacy anon JWT also works)",
-  "API_BASE_URL": "https://subscriptiontracker.api.nikatru.com"
+  "API_BASE_URL": "https://subscriptiontracker-api.nikatru.com"
 }

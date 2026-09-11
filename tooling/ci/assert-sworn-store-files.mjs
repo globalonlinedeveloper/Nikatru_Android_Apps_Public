@@ -755,7 +755,6 @@ if (!reg.json) {
   ]);
 }
 const perChannel = reg.json.storeMetadataContract?.perChannel ?? {};
-const channelRows = Array.isArray(reg.json.channels) ? reg.json.channels : [];
 /** Every channel that HAS a store tree — limb 9's subject set, derived from the
  *  same contract block the sworn set is derived from rather than listed here.
  *  `_why` is documentation, not a channel (same filter as the sworn derivation

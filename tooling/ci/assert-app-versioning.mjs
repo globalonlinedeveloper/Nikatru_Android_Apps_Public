@@ -308,7 +308,6 @@ if (tagFlag.value !== null) {
 
 // ── verify ───────────────────────────────────────────────────────────────────
 const problems = [];
-const coverage = [];
 
 const wfDir = join(repoRoot, '.github', 'workflows');
 if (!existsSync(wfDir)) {

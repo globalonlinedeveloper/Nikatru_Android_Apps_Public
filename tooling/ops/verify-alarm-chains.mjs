@@ -74,7 +74,7 @@
 // of --self-test found a real defect here, in limb B, by doing precisely that.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // 🔴 `process.exit()` IS BANNED IN THIS FILE, AND IT IS A BUG FIX. Calling it

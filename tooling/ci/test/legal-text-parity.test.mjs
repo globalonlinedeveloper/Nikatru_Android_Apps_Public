@@ -377,10 +377,40 @@ function runReal({ site = (t) => t, ext = (t) => t } = {}) {
 }
 
 describe('assert-legal-text-parity — assertion 3: the published BYTES are the renderer\'s', () => {
-  test('PASSES on the real files, and PRINTS that the only residue is the email_off markers', () => {
+  // ⏱ 2026-09-11 — the renderer emits the <!--email_off--> markers itself, so the
+  // real files are byte-identical to it and the residue print is RETIRED. It used
+  // to be asserted here as present; that case is inverted, not deleted.
+  test('PASSES on the real files, with NO email_off residue — the renderer emits the markers', () => {
     const r = runReal();
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /2 copy\/copies equal their renderer's bytes/);
+    assert.doesNotMatch(r.out, /ONLY by <!--email_off--> markers/);
+  });
+
+  test('the renderer\'s own --check exits 0 on the real files', () => {
+    const r = runReal();
+    const c = spawnSync(process.execPath, [join(r.root, REAL.renderer), '--check'], { encoding: 'utf8' });
+    assert.equal(c.status, 0, `${c.stdout ?? ''}${c.stderr ?? ''}`);
+  });
+
+  test('a fresh render wraps EVERY mailto anchor WHOLE in the served copy, and leaves the store copy unmarked', () => {
+    const r = runReal();
+    const w = spawnSync(process.execPath, [join(r.root, REAL.renderer)], { encoding: 'utf8' });
+    assert.equal(w.status, 0, `${w.stdout ?? ''}${w.stderr ?? ''}`);
+    const site = readFileSync(join(r.root, REAL.site), 'utf8');
+    const ext = readFileSync(join(r.root, REAL.ext), 'utf8');
+    const mailtos = site.split('mailto:').length - 1;
+    assert.ok(mailtos >= 2, `the served copy should carry the contact address at least twice, found ${mailtos}`);
+    const wrapped = site.split('<!--email_off--><a href="mailto:').length - 1;
+    const closed = site.split('</a><!--/email_off-->').length - 1;
+    assert.equal(wrapped, mailtos, 'every mailto: must open inside <!--email_off--> immediately before its <a>');
+    assert.equal(closed, mailtos, 'every wrapped anchor must close with <!--/email_off--> immediately after its </a>');
+    assert.equal(ext.includes('email_off'), false, 'the store copy is never served by Cloudflare and carries no markers');
+  });
+
+  test('a served copy MISSING the markers still passes parity but PRINTS the residue', () => {
+    const r = runReal({ site: (t) => t.replace(/<!--\s*\/?\s*email_off\s*-->/gi, '') });
+    assert.equal(r.code, 0, r.out);
     assert.match(r.out, /differs from contracts\/legal\/render-fullshot-privacy\.mjs's output ONLY by <!--email_off--> markers/);
   });
 
@@ -395,12 +425,6 @@ describe('assert-legal-text-parity — assertion 3: the published BYTES are the 
     const r = runReal({ ext: (t) => t.replace('</style>', '  /* hand edit */\n</style>') });
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /PRIVACY-POLICY\.html is not what contracts\/legal\/render-fullshot-privacy\.mjs renders/);
-  });
-
-  test('the print retires itself when the served copy is byte-identical to the renderer', () => {
-    const r = runReal({ site: (t) => t.replace(/<!--\s*\/?\s*email_off\s*-->/gi, '') });
-    assert.equal(r.code, 0, r.out);
-    assert.doesNotMatch(r.out, /ONLY by <!--email_off--> markers/);
   });
 
   test('an email_off marker is the ONLY thing set aside — moving the address is still drift', () => {

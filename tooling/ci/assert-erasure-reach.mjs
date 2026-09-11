@@ -421,7 +421,7 @@ if (userOwned.size === 0) {
 }
 
 // ── LIMB 1 · no user-owned table is orphaned ────────────────────────────────
-for (const [id, { table }] of userOwned) {
+for (const [id] of userOwned) {
   const row = rows.get(id);
   if (!row) {
     problems.push(

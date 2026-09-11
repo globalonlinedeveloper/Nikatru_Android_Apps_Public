@@ -754,7 +754,7 @@
       {
         "name": "BOXA_SUPABASE_URL",
         "kind": "build-config",
-        "why": "The SELF-HOSTED GoTrue endpoint on Box A (api-auth.nikatru.com), the `boxa` half of e2e.yml's auth_target axis. Same class as SUPABASE_URL and for the same reason: a URL, not a credential, held as a secret only so the address is not restated in the public tree. Added 2026-09-07 ([ADR 067] decision 6, unit cutover-blockers). ⚠️ NOT SET YET — a `boxa` dispatch fails at e2e.yml's preflight naming it, which is the designed behaviour; adding it is an owner step."
+        "why": "The SELF-HOSTED GoTrue endpoint on Box A (auth-api.nikatru.com since [ADR 080]; api-auth.nikatru.com is held until an auth_target=boxa run is green on it), the `boxa` half of e2e.yml's auth_target axis. Same class as SUPABASE_URL and for the same reason: a URL, not a credential, held as a secret only so the address is not restated in the public tree. Added 2026-09-07 ([ADR 067] decision 6, unit cutover-blockers). ⚠️ NOT SET YET — a `boxa` dispatch fails at e2e.yml's preflight naming it, which is the designed behaviour; adding it is an owner step."
       },
       {
         "name": "BOXA_SUPABASE_ANON_KEY",
@@ -2953,7 +2953,7 @@
       "deploymentEnvironment": "subscriptiontracker-api",
       "kind": "service",
       "name": "Subly backend Worker",
-      "url": "https://subscriptiontracker.api.nikatru.com",
+      "url": "https://subscriptiontracker-api.nikatru.com",
       "source": "services/subscriptiontracker-api",
       "notes": "App-scoped Worker. Deployed by .github/workflows/deploy-workers.yml."
     },

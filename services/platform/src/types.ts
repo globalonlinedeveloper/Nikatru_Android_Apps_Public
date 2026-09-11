@@ -242,7 +242,7 @@ export interface Env {
 
   /**
    * WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `"<appId>=<https origin>"`,
-   * comma-separated. Today: `"subscriptiontracker=https://subscriptiontracker.api.nikatru.com"`.
+   * comma-separated. Today: `"subscriptiontracker=https://subscriptiontracker-api.nikatru.com"`.
    *
    * 🔴 A COMMITTED VAR, NOT A SECRET, AND NOT OPTIONAL IN PRACTICE. DELETE
    * /v1/account is the portfolio's erasure entry point, and this Worker can only

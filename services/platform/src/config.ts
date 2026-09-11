@@ -10,7 +10,7 @@
 // Until 2026-08-07 the registry was an object literal here:
 //
 //     export const DEFAULT_CONFIGS: Readonly<Record<string, AppConfig>> = {
-//       subscriptiontracker: { app_id: 'subscriptiontracker', api_base_url: 'https://subscriptiontracker.api.nikatru.com/v1', … },
+//       subscriptiontracker: { app_id: 'subscriptiontracker', api_base_url: 'https://subscriptiontracker-api.nikatru.com/v1', … },
 //     };
 //
 // so the set of apps this Worker serves was a SOURCE EDIT away from changing.
@@ -178,7 +178,7 @@ function apiBaseUrl(row: CatalogueRow, shared: string): string {
   // contract, not the catalogue's. subscriptiontracker's row carried `https://api.nikatru.com`
   // and was served `https://api.nikatru.com/v1` — byte-identical to the literal
   // this file held before B-2, which is the property that made that a refactor.
-  // Since [ADR 079] the row carries `https://subscriptiontracker.api.nikatru.com`.
+  // Since [ADR 079] the row carries `https://subscriptiontracker-api.nikatru.com`.
   return api === '' ? shared : `${api.replace(/\/+$/, '')}/v1`;
 }
 
