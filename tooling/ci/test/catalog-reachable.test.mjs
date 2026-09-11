@@ -43,8 +43,8 @@
 //   ok  wildcard DNS answers — https://wc-3cc38997.nikatru.com/ returned HTTP 522
 //   ok  canonical hub answers — https://nikatru.com/apps/ returned 200
 // Both limb lines present, exit 0.
-// REAL-TREE RUN (2026-09-11, after [ADR 080] §4 deleted the wildcard): `ok  no wildcard DNS —
-//   https://wc-<hex>.nikatru.com/ does not resolve (…ENOTFOUND…)` and the hub 200, exit 0.
+// 2026-09-11: limb 2 became REPORT-ONLY after a runner still resolved a fresh name 29 minutes after the wildcard
+//   record was deleted (HTTP 530 at 17:42Z) while public resolvers returned NXDOMAIN.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,59 +234,55 @@ describe('assert-catalog-reachable', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [pipeline 10]D-11 LIMB 2 — the wildcard stays deleted ([ADR 080] §4).
+// [pipeline 10]D-11 LIMB 2 — the wildcard state is reported, never gating ([ADR 080] §4).
 // ─────────────────────────────────────────────────────────────────────────────
-describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard stays deleted)', () => {
+describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard state, reported only)', () => {
   const nonce = `https://wc-deadbeef.${WILDCARD_APEX}/`;
-  const wildcardName = new RegExp(`\\*\\.${WILDCARD_APEX.replace(/\./g, '\\.')}`);
 
-  // The production case since 2026-09-11: the record was deleted by owner decision.
-  test('PASSES when a name nobody registered does not resolve (ENOTFOUND) while others answered', () => {
+  // 🔴 THE DEFECT THIS SHAPE EXISTS FOR (2026-09-11): after the record was deleted, a GitHub runner still got HTTP 530 for a
+  // fresh name 29 minutes later while public resolvers said NXDOMAIN. A limb that fails on either reading turns every PR red
+  // whenever the record changes.
+  test('an HTTP answer from a name nobody registered is REPORTED as present and never fails the run', () => {
+    for (const status of [522, 530, 404, 200]) {
+      const v = wildcardVerdict({ url: nonce, verdict: { status }, othersAnswered: true });
+      assert.equal(v.ok, true, `HTTP ${status} must not fail the run`);
+      assert.equal(v.state, 'present');
+      assert.match(v.line, /^⚠ {2}wildcard DNS seen/);
+      assert.match(v.line, new RegExp(`returned HTTP ${status}`));
+      assert.match(v.line, /ADR 080/);
+      assert.match(v.line, /reported, not enforced/);
+    }
+  });
+
+  test('ENOTFOUND while others answered is REPORTED as absent', () => {
     const v = wildcardVerdict({ url: nonce, verdict: { transport: 'ENOTFOUND' }, othersAnswered: true });
     assert.equal(v.ok, true);
-    assert.match(v.line, /^ok {2}no wildcard DNS/);
-    assert.match(v.line, /ADR 080/);
+    assert.equal(v.state, 'absent');
+    assert.match(v.line, /^ok {2}no wildcard DNS seen/);
   });
 
-  // 🔴 THE REGRESSION THIS LIMB NOW EXISTS FOR: a wildcard re-created makes every
-  // retired and mistyped name answer again.
-  test('FAILS — naming the record class and ADR 080 — when a name nobody registered answers ANY HTTP status', () => {
-    for (const status of [522, 404, 200]) {
-      const v = wildcardVerdict({ url: nonce, verdict: { status }, othersAnswered: true });
-      assert.equal(v.ok, false, `HTTP ${status} must fail limb 2`);
-      assert.equal(v.coverageLost, false);
-      const text = v.lines.join('\n');
-      assert.match(text, /THE WILDCARD DNS RECORD IS BACK/);
-      assert.match(text, new RegExp(`returned HTTP ${status}`));
-      assert.match(text, /PROXIED WILDCARD CNAME/);
-      assert.match(text, wildcardName);
-      assert.match(text, /ADR 080/);
+  test('any other transport failure, or nothing answering at all, is REPORTED as unknown and never fails', () => {
+    for (const [transport, othersAnswered] of [['ETIMEDOUT', true], ['EAI_AGAIN', true], ['ENOTFOUND', false]]) {
+      const v = wildcardVerdict({ url: nonce, verdict: { transport }, othersAnswered });
+      assert.equal(v.ok, true, `${transport}/${othersAnswered}`);
+      assert.equal(v.state, 'unknown', `${transport}/${othersAnswered}`);
+      assert.match(v.line, /^⚠ {2}wildcard state unknown/);
     }
   });
 
-  // A timeout is not an answer about DNS: no verdict either way.
-  test('COVERAGE LOST — not a pass — when the failure is not ENOTFOUND, even if others answered', () => {
-    for (const transport of ['ETIMEDOUT', 'EAI_AGAIN', 'ECONNRESET']) {
-      const v = wildcardVerdict({ url: nonce, verdict: { transport }, othersAnswered: true });
-      assert.equal(v.ok, false, transport);
-      assert.equal(v.coverageLost, true, transport);
-      assert.ok(!/IS BACK/.test(v.lines.join('\n')), 'must not claim a record it did not see');
+  test('the verdict never carries a failure shape (no lines array, no coverageLost)', () => {
+    for (const verdict of [{ status: 522 }, { transport: 'ENOTFOUND' }, { transport: 'ETIMEDOUT' }, undefined]) {
+      for (const othersAnswered of [true, false]) {
+        const v = wildcardVerdict({ url: nonce, verdict, othersAnswered });
+        assert.equal(v.ok, true);
+        assert.equal('lines' in v, false);
+        assert.equal('coverageLost' in v, false);
+      }
     }
   });
 
-  // The honesty case, matching limb 1's convention: with nothing answering
-  // anywhere, "no wildcard" and "no network" are the same observation.
-  test('COVERAGE LOST — and no DNS claim — when nothing in the run answered', () => {
-    const v = wildcardVerdict({ url: nonce, verdict: { transport: 'ENOTFOUND' }, othersAnswered: false });
-    assert.equal(v.ok, false);
-    assert.equal(v.coverageLost, true);
-    const text = v.lines.join('\n');
-    assert.match(text, /COVERAGE LOST/);
-    assert.ok(!/IS BACK/.test(text), 'must not name a cause it cannot observe');
-  });
-
-  // FRESH is load-bearing: a fixed nonce could be created as a real record or
-  // cached, and limb 2 would then report on something other than a wildcard.
+  // FRESH is load-bearing: a fixed nonce could be created as a real record or cached, and the report would then describe
+  // something other than a wildcard.
   test('the nonce is fresh every call and sits under the apex derived from the hub URL', () => {
     const a = nonceUrl();
     const b = nonceUrl();
