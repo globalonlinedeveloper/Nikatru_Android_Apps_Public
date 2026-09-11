@@ -25,7 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, unlinkSync, statSync, appendFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-guard-coverage.mjs');
@@ -546,6 +546,25 @@ describe('assert-guard-coverage', () => {
       assert.match(r.stdout, /ratchet raised in/);
       assert.match(r.stdout, /↑ t0\.test\.mjs 1 → 5/);
       assert.equal(readManifest(root)['t0.test.mjs'], 5);
+    });
+
+    test('the rise reads the manifest ONCE and writes it without a second look at the path (CodeQL #78)', () => {
+      // The pre-fix shape: existsSync(MANIFEST), read, then existsSync(MANIFEST) again to
+      // decide the write — a decision taken on one look and acted on at another. The spy
+      // (fixtures/fs-spy-preload.mjs) records every check and use of a path under root.
+      const root = repo(compliant(), { manifest: { 't0.test.mjs': 1 } });
+      const out = join(dirname(root), `fs-spy-gc-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+      const spy = pathToFileURL(join(CI_DIR, 'test', 'fixtures', 'fs-spy-preload.mjs')).href;
+      const r = spawnSync(process.execPath, ['--import', spy, GUARD, root], {
+        encoding: 'utf8',
+        env: { ...process.env, FS_SPY_OUT: out, FS_SPY_UNDER: root },
+      });
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(readManifest(root)['t0.test.mjs'], 5, 'the ratchet did not rise, so the write under test never happened');
+      const verdict = JSON.parse(readFileSync(out, 'utf8'));
+      const onManifest = verdict.flagged.filter((x) => x.path.endsWith('/tooling/ci/test/coverage-manifest.json'));
+      assert.deepEqual(onManifest, [], `the manifest was checked, then written: ${JSON.stringify(onManifest)}`);
+      assert.ok(verdict.uses.some((u) => u.endsWith('/tooling/ci/test/coverage-manifest.json')), 'the spy saw no use of the manifest at all');
     });
 
     test('a brand-new test file is recorded automatically, not rejected', () => {
