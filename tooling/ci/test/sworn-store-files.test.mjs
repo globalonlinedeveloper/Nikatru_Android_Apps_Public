@@ -359,13 +359,15 @@ describe('the FOURTH declaration — the Apple privacy manifest audit [G-49]', (
   test('🔴 PM8 — every binary `basis` replaced with "stamped", caught by the AGGREGATE', () => {
     // The per-row floor here is 7 and "stamped" is 7 characters, so the per-row
     // limb passes it by one character — deliberately, because the shortest
-    // CORRECT basis in this document is also 7 ("As iOS."). 27 × 7 = 189 against
+    // CORRECT basis in this document is also 7 ("As iOS."). 29 × 7 = 203 against
     // the live total is what makes the regression visible.
     //
     // ⚠️ THE NUMBERS MOVE WHEN THE INVENTORY DOES, AND THAT IS THE POINT rather
     // than a maintenance tax: this assertion names the row COUNT, so adding a
     // binary without noticing lands here. It went 25 → 27 when
-    // `flutter_inappwebview_{ios,macos}` were linked in by cloudflare_turnstile.
+    // `flutter_inappwebview_{ios,macos}` were linked in by cloudflare_turnstile,
+    // and 27 → 29 on 2026-09-10 when `flutter_timezone` was linked on both
+    // Apple targets so `tz.local` is the device's zone rather than UTC.
     // Widening the regex to `\d+` would buy quiet and lose exactly the signal.
     withTree(
       (root) =>
@@ -374,7 +376,7 @@ describe('the FOURTH declaration — the Apple privacy manifest audit [G-49]', (
         }),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /carries 189 character\(s\) of `basis` across 27 row\(s\); the floor is 2000/);
+        assert.match(r.stderr, /carries 203 character\(s\) of `basis` across 29 row\(s\); the floor is 2000/);
       },
     );
   });
