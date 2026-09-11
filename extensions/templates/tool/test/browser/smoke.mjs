@@ -368,8 +368,7 @@ async function readInternals(ctx) {
       try {
         const got = await readInternals(ctx);
         entry = got.all.find(e => e.path && sameDir(e.path, EXT_DIR)) ||
-          got.all.find(e => e.location === 'COMMAND_LINE') ||
-          (extId ? got.all.find(e => e.id === extId) : null);
+          got.all.find(e => e.location === 'COMMAND_LINE') || null;
         if (entry) { note('chrome://extensions-internals read via ' + got.how); break; }
       } catch (e) {
         note('chrome://extensions-internals unavailable: ' + ((e && e.message) || e));
@@ -763,8 +762,12 @@ async function readInternals(ctx) {
 
         const rowButtons = await optionsPage.evaluate(() =>
           [...document.querySelectorAll('#itemList button')].map(b => b.getAttribute('aria-label')));
+        /* The origin the row above was seeded with, compared as a whole word of the label
+           (CodeQL #50): the host appearing anywhere also accepted a lookalike such as
+           https://example.com.evil, and a label that lost its origin slot but mentioned the host. */
+        const SEEDED_ORIGIN = 'https://example.com';
         check('a stored row is listed with its own delete control, named by its origin',
-          rowButtons.length === 1 && /example\.com/.test(rowButtons[0] || ''),
+          rowButtons.length === 1 && String(rowButtons[0] || '').split(/\s+/).some(w => w === SEEDED_ORIGIN),
           JSON.stringify(rowButtons));
 
         const [download] = await Promise.all([
@@ -815,10 +818,28 @@ async function readInternals(ctx) {
         check('what is on screen is the report itself, and it parses',
           !!report && report.report === 'skeleton-problem-report' && !!report.storage,
           report ? Object.keys(report).join(',') : 'unparseable');
+        /* Does any string in the report (keys and values) name the seeded host (CodeQL #7, #324)? Each
+           string is split into words; a word that parses as a URL on that host, or is the bare host, is
+           a leak. A substring search of the serialised report read to CodeQL as URL sanitization, and it
+           missed the same host behind http:// or a port. */
+        const SEEDED_HOST = new URL(SEEDED_ORIGIN).hostname;
+        const namesSeededHost = (v) => {
+          if (typeof v === 'string') {
+            return v.split(/\s+/).some((w) => {
+              const bare = w.replace(/^[("'<]+/, '').replace(/[)"'>.,;:]+$/, '');
+              if (bare === SEEDED_HOST) return true;
+              try { return new URL(bare).hostname === SEEDED_HOST; } catch (_) { return false; }
+            });
+          }
+          if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => namesSeededHost(k) || namesSeededHost(x));
+          return false;
+        };
         check('the report names no url, no page title and no user-agent string',
           !!report && JSON.stringify(report).indexOf('a stored row') < 0 &&
           JSON.stringify(report).indexOf('AppleWebKit') < 0 &&
-          JSON.stringify(report).indexOf('example.com/') < 0,
+          /* the seeded host itself (CodeQL #7): 'example.com/' could never match — the origin
+             has no trailing slash and the report builder adds none — so a leak passed */
+          !namesSeededHost(report),
           report ? 'platform=' + report.platform : 'no report');
         check('the preview is TEXT — a value that did leak would be shown, never rendered',
           preview.children === 0, preview.children + ' child elements inside the pane');
@@ -913,7 +934,7 @@ async function readInternals(ctx) {
        Taken before the sentinels below fire, and the sentinels' own network noise
        is filtered by URL as well, so this cannot be laundered by ordering. */
     await new Promise(r => setTimeout(r, 500));
-    const swErrors = extId && ctx.serviceWorkers()[0]
+    const swErrors = ctx.serviceWorkers()[0]
       ? await ctx.serviceWorkers()[0].evaluate(() => self.__smokeErrors || []).catch(() => [])
       : [];
     const isSentinel = (u) => !!u && [SENTINEL_ARM, SENTINEL_PAGE, SENTINEL_SW].some(s => u.indexOf(s) === 0);
