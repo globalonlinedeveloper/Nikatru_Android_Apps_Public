@@ -41,6 +41,7 @@
   "channel-register.test.mjs": 208,
   "chassis-delegation.test.mjs": 47,
   "chassis-ledger.test.mjs": 29,
+  "chrome-raster.test.mjs": 1,
   "chrome-splice.test.mjs": 26,
   "clone-contract.test.mjs": 38,
   "config-registry.test.mjs": 61,
