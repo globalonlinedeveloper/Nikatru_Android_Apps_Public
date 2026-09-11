@@ -1702,8 +1702,10 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
         // DERIVED from the rail's own amount and currency. Absolute, always: no
         // percentage, no "was", no countdown — see the class doc and
         // research/44 V6.
+        // 🔴 THROUGH `MoneyFormatter` UNDER THE READER'S LOCALE, as the
+        // paywall does — `offering.formattedPrice` has no grouping at all.
         priceLabel: l10n.promoCardPrice(
-          offering.formattedPrice,
+          MoneyFormatter(l10n.localeName).format(offering.price),
           offering.term.wire,
         ),
         primaryActionLabel: canSell ? l10n.paywallUpgrade : null,
