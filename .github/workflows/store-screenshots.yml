@@ -77,8 +77,18 @@ jobs:
           echo "Chrome: $CHROME_EXECUTABLE"
           node tooling/store/capture-play-screenshots.mjs --app subscriptiontracker
 
+      # 🔴 --single-threaded, like the other six steps that start a relaunching
+      # guard (#648: ci.yml ×3, build-platforms.yml, submit-play.yml ×2). The
+      # guard relaunches ITSELF with the flag, and the relaunching PARENT is not
+      # immune to the exit hang (nodejs/node#54918): measured under
+      # --stress-concurrent-allocation it hung 4 of 12 elf runs and 4 of 12 stamp
+      # runs AFTER the child had printed its whole verdict. With the flag on the
+      # command line there is no parent to hang. This step was the last one left,
+      # carried as the one declared gap in test/single-threaded-relaunch.test.mjs
+      # because the file belonged to another wave on 2026-09-11; that entry goes
+      # in the same commit, because a ratchet that outlives its gap is a lie.
       - name: The captured set satisfies the listing-asset guard
-        run: node tooling/ci/assert-listing-assets.mjs
+        run: node --single-threaded tooling/ci/assert-listing-assets.mjs
 
       - name: Upload the screenshot set
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
