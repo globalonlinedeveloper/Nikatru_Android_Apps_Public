@@ -1611,7 +1611,7 @@ describe('assert-play-declarations — limb 7a against the REAL data-safety.json
     for (const [pkg, version] of Object.entries(pinned)) {
       const block = lock.match(new RegExp(`^ {2}${pkg}:\\n(?: {4,}.*\\n)+`, 'm'));
       assert.ok(block, `pubspec.lock has no entry for the pinned package ${pkg}`);
-      assert.match(block[0], new RegExp(`^ {4}version: "?${version.replace(/\./g, '\\.')}"?\\s*$`, 'm'), `${pkg} is pinned to ${version} and the lock says otherwise`);
+      assert.match(block[0], new RegExp(`^ {4}version: "?${version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"?\\s*$`, 'm'), `${pkg} is pinned to ${version} and the lock says otherwise`);
     }
   });
 

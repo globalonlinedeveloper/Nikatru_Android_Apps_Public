@@ -1416,7 +1416,7 @@ describe('assert-ops-register — [14]O-3 · the record-query limb, whose domain
       // is chosen by the row's own declaration, and the WORD is asserted either way.
       const gated = row.ownerGated === true;
       const channel = (gated ? r.prints : r.errors).join(' | ');
-      const idRe = row.id.replace(/\./g, '\\.');
+      const idRe = row.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // every metacharacter, not only the dot (CodeQL #28)
       assert.match(channel, new RegExp(`${gated ? '🔴 KNOWN FAILING, NOT BLOCKING HERE: ' : ''}${idRe} — reader \`windows-scheduled-task\``), `${row.id} must not go green by going dark on a Linux runner`);
       assert.match(channel, new RegExp(`${idRe}[^|]*holds its last readable observation as FAILING`), `${row.id} must be named FAILING, not merely unreadable`);
       if (gated) assert.doesNotMatch(r.errors.join(' | '), new RegExp(idRe), `${row.id} declares \`ownerGated\`, so it must not block CI on work only the owner can do`);
@@ -3109,7 +3109,7 @@ describe('assert-ops-register — [14]O-4 · the absence of a scheduled duty mus
     assert.ok(victim, 'fixture must contain a NON-duty row with a mechanism, or this test asserts nothing');
     victim.mechanism.substrate = 'cloudflare-cron';
     assert.match(messages(r), /declares `mechanism\.substrate: "cloudflare-cron"`/);
-    assert.match(messages(r), new RegExp(`${victim.id.replace(/\./g, '\\.')} —`));
+    assert.match(messages(r), new RegExp(`${victim.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} —`) /* CodeQL #29 */);
   });
 
   test('the confinement scan has a NON-EMPTY domain and prints its size', () => {
