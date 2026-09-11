@@ -378,10 +378,15 @@ const WIRE_CONTRACTS = [
       // exactly the property ADR 057 §6 protects, and the reason each has to be
       // declared here rather than quietly tolerated: an undeclared extra is
       // indistinguishable from a field somebody forgot to wire up.
-      granted_via:
-        "WHICH BRANCH OF THE UNION DECIDED — 'app' | 'bundle' | 'none'. The ACCESS decision is `is_pro`, which the client already reads and which is deliberately unchanged; this says only WHERE the entitlement came from, and it exists for the account page's \"manage your subscription where you bought it\" copy. A client that branched on it would be re-deriving access from provenance, which is the same class of mistake as branching on revocation_reason one level down.",
-      bundle:
-        'THE PINNED FEATURE SET a live bundle grant was sold under — its name, version, member products, expiry and source rail. Present only when a grant exists, ABSENT (not null) otherwise. Support-visible and account-page material; nothing about it decides access, and the members it lists come from the version the grant PINNED rather than from whatever the register says today ([ADR 057] §4). ⚠️ IT IS NOT PERSISTED BY THE CACHE: packages/core Entitlements.toJson() does not carry it, so the offline answer keeps the DECISION and loses the attribution — recorded here because that is a client change nobody has made, not an oversight in this envelope.',
+      // ⏱ 2026-09-11 — `granted_via` and `bundle` LEFT this map. They were added
+      // here on 2026-09-09 as fields "no shipped client reads", and that stopped
+      // being true when packages/core's `Entitlements.fromJson` began reading both
+      // (`j['granted_via']`, `j['bundle']`). A key the client reads is a both-sides
+      // key: a rename on the server now breaks an installed build, which is what
+      // the READS limb below grades. Neither is in `requiredBoth` — `bundle` is
+      // ABSENT (not null) with no grant, and a pre-union host sends neither — and
+      // the limb that refuses a server-only declaration the client reads is what
+      // keeps them from drifting back in here.
       products:
         'GET /v1/entitlements/subject only — every product the caller is entitled to, each with the branch that granted it. The per-app route is scoped to one app by design and every shipped client depends on that scoping, so the subject-wide answer is a SECOND route rather than a wider first one. No Dart client fetches it yet; the account page is what will.',
       bundles:
@@ -1656,6 +1661,28 @@ for (const contract of WIRE_CONTRACTS) {
         `${contract.id}${label} — the released client READS key(s) the server does not send: ${dropped.join(', ')}. ` +
           `(${spec.client.file} vs ${contract.server}.) There is no forced-update mechanism on Windows, macOS or Linux, ` +
           'so "everyone has updated" is never a fact: a field renamed here breaks builds that are already installed.',
+      );
+    }
+    // ⏱ 2026-09-11 · A DECLARATION IS A CLAIM, AND BOTH HALVES ARE GRADED.
+    // `serverOnly` says "no client reads this" and `clientOnly` says "no server
+    // sends this". Neither was checked, so `granted_via` and `bundle` stayed
+    // declared server-only after the client began reading them — and a key in
+    // that map is exempt from `stray`, so the declaration was the one thing
+    // standing between a server rename and a silent break in installed builds.
+    const readButServerOnly = Object.keys(spec.serverOnly).filter((k) => reads.has(k)).sort();
+    if (readButServerOnly.length) {
+      fail(
+        `${contract.id}${label} — key(s) declared SERVER-ONLY are READ by the released client: ${readButServerOnly.join(', ')}. ` +
+          `(${spec.client.file}.) A server-only declaration says a rename cannot break an installed build; for a key the ` +
+          'client reads that is false. Remove it from `serverOnly` (and add it to `requiredBoth` if every response carries it).',
+      );
+    }
+    const sentButClientOnly = Object.keys(spec.clientOnly).filter((k) => serverKeys.has(k)).sort();
+    if (sentButClientOnly.length) {
+      fail(
+        `${contract.id}${label} — key(s) declared CLIENT-ONLY are SENT by the server: ${sentButClientOnly.join(', ')}. ` +
+          `(${contract.server}.) A client-only declaration is what exempts a read from the "server does not send it" ` +
+          'check; a server that sends it has taken over a field the client stamps for itself.',
       );
     }
     const stray = [...serverKeys].filter((k) => !reads.has(k) && !(k in spec.serverOnly)).sort();

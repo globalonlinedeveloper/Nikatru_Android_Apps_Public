@@ -79,15 +79,9 @@ const cfg = parseJsonc(raw) as {
 describe('the parse itself reached the config', () => {
   it('self-check — every assertion below would pass vacuously over an empty parse', () => {
     expect(raw).toContain('ALLOWED_ORIGINS');
-    // ⚠️ DELIBERATELY THE RETIRED SPELLING, and so is `database_name` below.
-    // The DIRECTORY is services/subscriptiontracker-api and every repo-side
-    // derivation moved with it, but the DEPLOYED Worker name did not: `wrangler
-    // deploy` addresses a Worker BY NAME, so a new name is a NEW WORKER, and
-    // `api.nikatru.com` is a CUSTOM DOMAIN bound to one Worker at a time. The
-    // reasoning, and the 2026-08-03 account read-back behind it, are at `name` in
-    // ../wrangler.jsonc. Deriving `${slug}-api` here would assert a Worker that
-    // does not exist in the account.
-    expect(cfg.name).toBe('subly-api');
+    // The DEPLOYED name moved with the slug on 2026-09-11 ([ADR 079]); until then
+    // it was the retired `subly-api`, recorded at `name` in ../wrangler.jsonc.
+    expect(cfg.name).toBe('subscriptiontracker-api');
     expect(Object.keys(cfg.vars ?? {}).length).toBeGreaterThanOrEqual(4);
     expect((cfg.d1_databases ?? []).length).toBe(2);
   });
@@ -127,12 +121,10 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
     // `--project-name=<workspace directory>`, so the slug rename re-pointed the
     // deploy at a NEW Direct Upload project and Cloudflare minted a new preview
     // subdomain for it (read back from the API, never derived -- the bare
-    // `subscriptiontracker.pages.dev` is a third party's live host). BOTH are
-    // required while the cutover is in flight: an exact allowlist fails closed
-    // and silently, so the retired one is dropped in its own later change.
+    // `subscriptiontracker.pages.dev` is a third party's live host). Both were
+    // held while the cutover was in flight; the retired one left on 2026-09-11.
     for (const origin of [
       'https://nikatru.com',
-      'https://subly-9cp.pages.dev',
       'https://subscriptiontracker-7qg.pages.dev',
     ]) {
       expect(listed, `missing ${origin}`).toContain(origin);
@@ -144,6 +136,16 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
     // host and a standing CORS grant, and re-adding it is a one-word edit.
     expect(listed, 'the subdomain serves only a 301 now [ADR 075]').not.toContain(
       'https://subly.nikatru.com',
+    );
+  });
+
+  it('no longer lists the retired pre-rename Pages origin', () => {
+    // ⏱ 2026-09-11, the NARROW step. `subly-9cp.pages.dev` is a *.pages.dev name:
+    // the day its Pages project is deleted anyone can register it, and a Worker
+    // still trusting it would reflect that stranger's Origin. Removed here FIRST,
+    // deployed, and only then may the project be deleted.
+    expect(listed, 'the retired Pages project must not keep a CORS grant').not.toContain(
+      'https://subly-9cp.pages.dev',
     );
   });
 
@@ -167,7 +169,7 @@ describe('the clone contract this Worker is the template for', () => {
   it('binds the PER-APP database with its own migrations dir', () => {
     const app = byBinding.get('APP_DB');
     expect(app).toBeDefined();
-    expect(app!.database_name).toBe('subly_db');
+    expect(app!.database_name).toBe('subscriptiontracker_db');
     expect(app!.migrations_dir).toBe('migrations');
   });
 

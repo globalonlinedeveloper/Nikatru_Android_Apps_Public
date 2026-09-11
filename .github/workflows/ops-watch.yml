@@ -65,7 +65,19 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node tooling/ops/check-heartbeats.mjs
+        # why: set +e, or exit 2 (COVERAGE LOST) fails this step exactly like
+        # exit 1 and the distinction check-heartbeats.mjs draws is lost here.
+        run: |
+          set +e
+          node tooling/ops/check-heartbeats.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=Heartbeats are UNKNOWN — the table was not read::check-heartbeats could not reach D1, could not read its schema, or found a job it has no expectation for. NOTHING was judged, so no job is known to be late; the step log names what could not be read."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=A scheduled job has stopped beating::The heartbeat table was read and a job is missing or late past its window. The step log names the job, its newest beat and its window."
+          fi
+          exit "$code"
 
       - name: Live D1 still runs every statement the Workers send it
         if: ${{ !cancelled() }}
@@ -150,7 +162,7 @@ jobs:
           code=$?
           set -e
           if [ "$code" -eq 2 ]; then
-            echo "::error title=Supabase drift is UNKNOWN — the duty did not run::The script found no SUPABASE_PAT / SUPABASE_PROJECT_REF, so NOTHING compared the live auth config against tooling/mail-transport.json or the DR templates in docs/platform/supabase/email-templates/. This fails on purpose: 'I could not look' must never read as 'I looked and it was fine'. OWNER ACTION — add SUPABASE_PAT and SUPABASE_PROJECT_REF as repository secrets. Until then this duty is unperformed, and on 2026-08-04 a one-field PATCH wiped the live SMTP block and reverted all three branded templates, recovering byte-for-byte only because those files happened to still match."
+            echo "::error title=Supabase drift is UNKNOWN — nothing was compared::The script found no SUPABASE_PAT / SUPABASE_PROJECT_REF, or could not read the live auth config from the Management API (the log above says which), so NOTHING compared the live auth config against tooling/mail-transport.json or the DR templates in docs/platform/supabase/email-templates/. This fails on purpose: 'I could not look' must never read as 'I looked and it was fine'. OWNER ACTION — add SUPABASE_PAT and SUPABASE_PROJECT_REF as repository secrets. Until then this duty is unperformed, and on 2026-08-04 a one-field PATCH wiped the live SMTP block and reverted all three branded templates, recovering byte-for-byte only because those files happened to still match."
           elif [ "$code" -eq 1 ]; then
             echo "::error title=Supabase auth config has DRIFTED::The live project no longer matches what the repo recorded. Decide which side is wrong before editing either — the log above names every field and file that differs."
           fi
@@ -279,13 +291,33 @@ jobs:
       - name: The register still matches the live GlitchTip monitors
         env:
           GLITCHTIP_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
-        run: node tooling/ops/verify-monitors.mjs
+        run: |
+          set +e
+          node tooling/ops/verify-monitors.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=Monitor reconciliation is UNKNOWN — GlitchTip was not read::The token is missing or refused, the instance did not answer, or the monitor list came back in a shape this script cannot read. NOTHING was reconciled, so nothing is known to have drifted."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=The monitor register and live GlitchTip disagree::A declared host has no live monitor, a live monitor matches no row, or the register disagrees with the app catalogue. The step log names each one."
+          fi
+          exit "$code"
 
       - name: …and every monitor can still reach a mailbox
         if: always()
         env:
           GLITCHTIP_TOKEN: ${{ secrets.GLITCHTIP_TOKEN }}
-        run: node tooling/ops/verify-alarm-chains.mjs
+        run: |
+          set +e
+          node tooling/ops/verify-alarm-chains.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=Alarm chains are UNKNOWN — GlitchTip was not read::The monitor list, the project list or a project's alerts could not be read. NOTHING about those chains was judged."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=An alarm chain no longer reaches a mailbox::A monitor has no project, a project has no alert with a recipient, or a chain has never been watched delivering. The step log names each one."
+          fi
+          exit "$code"
 
       - name: The app's federated-provider declaration matches the live project
         if: always()

@@ -116,7 +116,7 @@ export class SqliteD1 {
 }
 
 /**
- * subly_db's migration set, IN APPLICATION ORDER, exactly as
+ * subscriptiontracker_db's migration set, IN APPLICATION ORDER, exactly as
  * `wrangler d1 migrations apply APP_DB` would apply it.
  *
  * Exported rather than kept inline in `realAppDb` because "this set re-applies
@@ -238,7 +238,7 @@ export const TEST_ENV = {
   APP_ID: 'subscriptiontracker',
   SUPABASE_URL: 'https://project.supabase.co',
   API_VERSION: 'v1',
-  ALLOWED_ORIGINS: 'https://subly.nikatru.com,https://subly-9cp.pages.dev',
+  ALLOWED_ORIGINS: 'https://nikatru.com,https://subscriptiontracker-7qg.pages.dev',
   // [5]M-12 — the tests run as a LIVE deploy, like production wrangler.jsonc.
   // Suites that need the sandbox side override this per-harness.
   MONEY_ENVIRONMENT: 'live',

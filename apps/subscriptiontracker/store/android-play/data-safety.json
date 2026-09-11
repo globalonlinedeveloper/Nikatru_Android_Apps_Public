@@ -252,7 +252,7 @@
       "  isBackendLive        := isSupabaseConfigured && isApiConfigured",
       "and the app branches on them at four places that decide everything this form asks about:",
       "  providers/auth.dart:120          isBackendLive ? SupabaseAuthRepository : InMemoryAuthRepository",
-      "  providers/subscriptions.dart:69  !isApiConfigured -> SeedApiClient (wrapped by PersistedApiClient: device-local storage, never leaves the device)",
+      "  providers/subscriptions.dart:80  !isApiConfigured -> SeedApiClient (wrapped by PersistedApiClient: device-local storage, never leaves the device)",
       "  analytics_providers.dart:536  !isBackendLive (via analyticsEnabledProvider) -> NoOpAnalytics",
       "  app.dart:470                  the consent prompt shows only when analyticsEnabledProvider is true",
       "",
@@ -504,10 +504,10 @@
         "packages/api_client/lib/src/rest_client.dart"
       ],
       "inventoryRows": [
-        "table:subly_db.subscriptions",
-        "table:subly_db.budgets",
-        "table:subly_db.budget_categories",
-        "table:subly_db.payment_history"
+        "table:subscriptiontracker_db.subscriptions",
+        "table:subscriptiontracker_db.budgets",
+        "table:subscriptiontracker_db.budget_categories",
+        "table:subscriptiontracker_db.payment_history"
       ],
       "basis": "The Supabase `sub` (a UUID) keys every row this app writes server-side, and travels on every request inside the bearer JWT. Required — it is the account. Not shared; Cloudflare and Supabase are service providers. Under demo there is no account and SeedApiClient never leaves the device."
     },
@@ -682,7 +682,7 @@
       },
       "evidence": [],
       "inventoryRows": [],
-      "basis": "🔴 NO CARD, BANK OR ACCOUNT NUMBER IS STORED ANYWHERE, and that is already an asserted claim rather than a belief: tooling/legal/policy-claims.json carries it and assert-policy-claims.mjs checks it against every migration in the tree. subly_db.payment_history holds a date and an amount the USER recorded against their own subscription — a record OF payments, not a payment instrument. Since P2.4b (2026-08-08) Subly DOES carry the first-party client rail (nikatru_purchases — see the Purchase-history row below, flipped in the same commit), but that changes nothing in THIS row: the rail reads entitlement state and contains no checkout — payment happens on the apex web page ([ADR 038]) in a browser, so no payment instrument ever enters or transits the app. The RevenueCat tombstone (apps/subscriptiontracker/pubspec.yaml:123-131, updated with the same commit) records why no billing aggregator will reintroduce one."
+      "basis": "🔴 NO CARD, BANK OR ACCOUNT NUMBER IS STORED ANYWHERE, and that is already an asserted claim rather than a belief: tooling/legal/policy-claims.json carries it and assert-policy-claims.mjs checks it against every migration in the tree. subscriptiontracker_db.payment_history holds a date and an amount the USER recorded against their own subscription — a record OF payments, not a payment instrument. Since P2.4b (2026-08-08) Subly DOES carry the first-party client rail (nikatru_purchases — see the Purchase-history row below, flipped in the same commit), but that changes nothing in THIS row: the rail reads entitlement state and contains no checkout — payment happens on the apex web page ([ADR 038]) in a browser, so no payment instrument ever enters or transits the app. The RevenueCat tombstone (apps/subscriptiontracker/pubspec.yaml:123-131, updated with the same commit) records why no billing aggregator will reintroduce one."
     },
     {
       "category": "Financial info",
@@ -774,12 +774,12 @@
         "services/subscriptiontracker-api/src/routes/budget.ts"
       ],
       "inventoryRows": [
-        "table:subly_db.subscriptions",
-        "table:subly_db.budgets",
-        "table:subly_db.budget_categories",
-        "table:subly_db.payment_history"
+        "table:subscriptiontracker_db.subscriptions",
+        "table:subscriptiontracker_db.budgets",
+        "table:subscriptiontracker_db.budget_categories",
+        "table:subscriptiontracker_db.payment_history"
       ],
-      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subly_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only on the device: SeedApiClient's working set (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:20-21) mirrored by PersistedApiClient into the app's own namespaced key-value store (apps/subscriptiontracker/lib/data/local/subscription_store.dart). ⚠️ THEY NOW SURVIVE A RESTART, AND THAT DOES NOT CHANGE THIS ANSWER — Play defines collection as data TRANSMITTED OFF THE DEVICE, and the demo posture opens no socket for them at all. The previous wording rested this row on 'lost on restart', which was true of the old in-memory list but was never the criterion; resting it on 'never transmitted' is the same conclusion on the ground Play actually states. Nothing is shared, and no server holds a copy."
+      "basis": "DECLARED ON THE WIDE READING ON PURPOSE. What the user enters is the cost and billing cycle of services they subscribe to, plus an optional monthly budget and per-category caps. Play's 'Other financial info' is open-ended ('any other financial information'), and a recurring-spend total is a fact about somebody's money. Under backend-live these rows are transmitted to services/subscriptiontracker-api and stored in subscriptiontracker_db keyed on user_id. REQUIRED, because entering a subscription is the app. Under demo they live only on the device: SeedApiClient's working set (apps/subscriptiontracker/lib/data/api/seed_api_client.dart:20-21) mirrored by PersistedApiClient into the app's own namespaced key-value store (apps/subscriptiontracker/lib/data/local/subscription_store.dart). ⚠️ THEY NOW SURVIVE A RESTART, AND THAT DOES NOT CHANGE THIS ANSWER — Play defines collection as data TRANSMITTED OFF THE DEVICE, and the demo posture opens no socket for them at all. The previous wording rested this row on 'lost on restart', which was true of the old in-memory list but was never the criterion; resting it on 'never transmitted' is the same conclusion on the ground Play actually states. Nothing is shared, and no server holds a copy."
     },
     {
       "category": "Health and fitness",
@@ -1296,9 +1296,9 @@
         "services/subscriptiontracker-api/src/routes/subscriptions.ts"
       ],
       "inventoryRows": [
-        "table:subly_db.subscriptions"
+        "table:subscriptiontracker_db.subscriptions"
       ],
-      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subly_db.subscriptions; under demo it stays on the device, in the app's own namespaced key-value store, and is never transmitted. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
+      "basis": "The subscription NAME is free text the user types (add_subscription_sheet.dart:448). Under backend-live it is transmitted and stored in subscriptiontracker_db.subscriptions; under demo it stays on the device, in the app's own namespaced key-value store, and is never transmitted. Required — an app for tracking subscriptions cannot work without the subscription. The price and cycle from the same form are declared under Financial info > Other financial info; the same input is not double-counted, it is split by what each field IS."
     },
     {
       "category": "App activity",

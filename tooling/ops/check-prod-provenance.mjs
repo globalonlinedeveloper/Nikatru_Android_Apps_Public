@@ -269,6 +269,48 @@ function ledgerEnvironments() {
   return [...envs];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A REFUSED READ IS NOT A BAD ATTESTATION.
+//
+// Each entry of tooling/ops/manual-deploys.json is accepted only on two GitHub
+// witnesses: the sha is a commit on this repository, and record-deployment.mjs
+// wrote a Deployment for it. The loop in `main()` read ANY non-200 on the commit
+// as "not a commit" and ANY non-200 on the deployment list as "no Deployment
+// exists" — both pushed into `violations`, which is exit 1: "production carries
+// rows that trace to no released build". So an expired token, a 5xx, or
+// `API rate limit exceeded for installation` (the refusal that froze CI on
+// 2026-09-11) paged as a bad attestation. The two answers are classified here,
+// where every branch is reachable without a network: a 404/422 on the commit and
+// an EMPTY deployment list stay findings; every other status, a body that is not
+// JSON and a body that is not a list are CouldNotLook, exit 2. The requests stay
+// in `main()`.
+// ─────────────────────────────────────────────────────────────────────────────
+/** PURE. What one commit read says: `'commit'`, `'not-a-commit'`, or CouldNotLook. */
+export function attestationCommitRead(status, sha7) {
+  if (status === 200) return 'commit';
+  if (status === 404 || status === 422) return 'not-a-commit';
+  throw new CouldNotLook(`the GitHub API returned ${status} reading commit ${sha7} for manual-deploys.json — a refused read is not a missing commit, so that attestation was not checked`);
+}
+
+/** The Deployments one attestation rests on, from a fetch-shaped answer
+ *  (`status`, `json()`), or CouldNotLook. An empty list is returned, not thrown:
+ *  "no Deployment exists" is a finding. */
+export async function attestationDeployments(res, environment, sha7) {
+  if (res.status !== 200) {
+    throw new CouldNotLook(`the GitHub API returned ${res.status} listing the Deployments of ${environment} @ ${sha7} for manual-deploys.json — a refused read is not an empty ledger`);
+  }
+  let deps;
+  try {
+    deps = await res.json();
+  } catch (err) {
+    throw new CouldNotLook(`the Deployments of ${environment} @ ${sha7} came back as something other than JSON (${err.message})`);
+  }
+  if (!Array.isArray(deps)) {
+    throw new CouldNotLook(`the Deployments of ${environment} @ ${sha7} came back without a list, so "none exists" cannot be concluded from them`);
+  }
+  return deps;
+}
+
 // Named `ghJson` rather than `gh` because the manual-deploys block below
 // declares its own local `gh`; two helpers with one name in one file is how a
 // later edit ends up calling the wrong one.
@@ -638,12 +680,14 @@ async function main() {
         const gh = (path) => fetch(`https://api.github.com/repos/${ghRepo}${path}`, {
           headers: { Authorization: `Bearer ${ghToken}`, 'User-Agent': 'check-prod-provenance' },
         });
+        const sha7 = String(d.sha).slice(0, 7);
         const commit = await gh(`/commits/${d.sha}`);
-        if (commit.status !== 200) { attViolations.push(`manual-deploys.json: sha ${String(d.sha).slice(0, 7)} is not a commit on ${ghRepo} (HTTP ${commit.status})`); continue; }
+        // ⏱ 2026-09-11 — a refused read throws CouldNotLook (exit 2); see attestationCommitRead.
+        if (attestationCommitRead(commit.status, sha7) === 'not-a-commit') { attViolations.push(`manual-deploys.json: sha ${sha7} is not a commit on ${ghRepo} (HTTP ${commit.status})`); continue; }
         const depRes = await gh(`/deployments?environment=${encodeURIComponent(d.environment)}&sha=${d.sha}`);
-        const deps = depRes.status === 200 ? await depRes.json() : [];
-        if (!Array.isArray(deps) || deps.length === 0) {
-          attViolations.push(`manual-deploys.json: no GitHub Deployment exists for ${d.environment} @ ${String(d.sha).slice(0, 7)} — record-deployment.mjs never ran, so this attestation has no second witness`); continue;
+        const deps = await attestationDeployments(depRes, d.environment, sha7);
+        if (deps.length === 0) {
+          attViolations.push(`manual-deploys.json: no GitHub Deployment exists for ${d.environment} @ ${sha7} — record-deployment.mjs never ran, so this attestation has no second witness`); continue;
         }
         // `conclusion: 'success'` is explicit rather than defaulted: the two
         // witnesses above ARE this entry's validation, so it must not be sent

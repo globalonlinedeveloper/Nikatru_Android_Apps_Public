@@ -335,7 +335,7 @@ jobs:
       - name: Every Linux store channel can produce a complete snapcraft recipe
         run: node tooling/ci/assert-snapcraft-generable.mjs
       - name: The Play listing graphics exist, are the sourced size, and say where they came from
-        run: node tooling/ci/assert-listing-assets.mjs
+        run: node --single-threaded tooling/ci/assert-listing-assets.mjs
       - name: The Play screenshot set spans enough device types
         run: node tooling/ci/assert-play-device-coverage.mjs
       - name: The Data safety and content-rating declarations still describe the code
@@ -682,7 +682,7 @@ jobs:
       - name: No shipped app carries Flutter's default launcher icon
         run: |
           flutter --version
-          node tooling/ci/assert-launcher-icons.mjs
+          node --single-threaded tooling/ci/assert-launcher-icons.mjs
 
       - name: Stamp the default (client-only) app
         run: |
@@ -693,7 +693,7 @@ jobs:
       - name: Stamped app carries ITS brand assets, not Flutter's
         run: |
           SEED=$(node -p "require('./tooling/bricks/app/_probe_vars.json').seed_hex")
-          node tooling/ci/assert-stamp-brand-assets.mjs apps/probe --seed "$SEED"
+          node --single-threaded tooling/ci/assert-stamp-brand-assets.mjs apps/probe --seed "$SEED"
       - name: Stamped text is the spec's, its release id is its own, and blank hosts were DERIVED
         run: node tooling/ci/assert-stamp-text-fidelity.mjs --vars tooling/bricks/app/_probe_vars.json
       - name: A freshly stamped app carries a COMPLETE, spec-derived store listing

@@ -59,6 +59,8 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+// The one bounded directory listing — used to prove where the reader's cache lands.
+import { listDir } from '../tree-walk.mjs';
 // Limb 7's fixtures write what the generator derives, so the PASSING case models
 // "correctly generated" rather than one more hand-typed guess at the layout —
 // the mistake `assert-stamp-brand-assets.mjs`'s fixture made when it wrote real
@@ -550,10 +552,19 @@ function goneWithin(pid, ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
   }
 }
+// 🔴 THE READER'S CACHE GOES INTO THIS FILE'S OWN TEMP ROOT. flutter-stock-assets
+// caches one `flutter create` per SDK under os.tmpdir(), keyed by the SDK's path
+// — and every fixture here is a NEW SDK path, so each run used to leave one
+// `nikatru-flutter-stock-*` folder in the shared temp directory for ever: 44
+// after one run of this file, measured 2026-09-11 in a private TMPDIR. Pointing
+// the guard's temp directory at TMP (removed in `after`) keeps the guard's real
+// caching exactly as it is and leaves nothing behind. All three names, because
+// os.tmpdir() reads TMPDIR on POSIX and TEMP, then TMP, on Windows.
+const fixtureTemp = () => ({ TMPDIR: TMP, TEMP: TMP, TMP });
 const run = ({ root, sdkRoot }, env = {}) => {
   const r = spawnSync(process.execPath, [GUARD, root], {
     encoding: 'utf8',
-    env: { ...process.env, FLUTTER_ROOT: sdkRoot, ...env },
+    env: { ...process.env, ...fixtureTemp(), FLUTTER_ROOT: sdkRoot, ...env },
     timeout: RUN_TIMEOUT_MS,
     killSignal: 'SIGKILL',
     detached: POSIX,
@@ -586,6 +597,17 @@ describe('assert-launcher-icons', () => {
     // adding a file to SET must not require editing a number here, and a run
     // that compared nothing must not be able to print this line.
     assert.match(out, new RegExp(`${SET.length} icon\\(s\\) compared against ${SET.length} stock asset\\(s\\)`));
+  });
+
+  // 🔴 THE TEMP-CACHE LEAK, PINNED. Remove `fixtureTemp()` from `run` and the
+  // cache lands in the shared temp directory instead: this count stays put, and
+  // the case is RED.
+  test("the reader's `flutter create` cache lands in this file's temp root, which is removed afterwards", () => {
+    const stockCaches = () => listDir(TMP).filter((n) => n.startsWith('nikatru-flutter-stock-')).length;
+    const before = stockCaches();
+    const { code, out } = run(world());
+    assert.equal(code, 0, out);
+    assert.equal(stockCaches(), before + 1, 'a fresh SDK path must be cached under TMP, not in the shared temp dir');
   });
 
   // 🔴 THE HANG'S FIX, PINNED. Spawned exactly as CI runs it — plain `node
@@ -765,7 +787,7 @@ describe('assert-launcher-icons', () => {
   // passing. That must be a hard stop, not a quiet green.
   test('COVERAGE LOST when no app ships linux/ at all', () => {
     const { code, out } = run(world({ linux: false }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /no app under apps\/ ships linux\//);
     assert.match(out, /COVERAGE LOST/);
   });
@@ -855,7 +877,7 @@ describe('assert-launcher-icons', () => {
 
   test('FAILS when the storyboard names no LaunchImage resource at all', () => {
     const { code, out } = run(world({ storyboard: false }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     // The storyboard file is still written by the icon fixtures' absence of it;
     // with `storyboard: false` there is no file, which is the harder case.
     assert.match(out, /COVERAGE LOST|names no `LaunchImage` image resource/);
@@ -866,7 +888,7 @@ describe('assert-launcher-icons', () => {
   // passing, over an app whose launch screen is blank.
   test('COVERAGE LOST when nothing about the launch screen can be compared', () => {
     const { code, out } = run(world({ splash: false }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST|MISSING/);
   });
 
@@ -876,7 +898,7 @@ describe('assert-launcher-icons', () => {
     // PATH keeps node's own directory: stripping it entirely hides `node` too,
     // and a mutation that runs nothing proves nothing.
     const { code, out } = run(w, { FLUTTER_ROOT: join(w.root, 'no-such-sdk'), PATH: dirname(process.execPath) });
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
   });
 
@@ -886,7 +908,7 @@ describe('assert-launcher-icons', () => {
   // print a healthy count, which is exactly what both guards used to do.
   test('COVERAGE LOST when the stock icons are zero bytes', () => {
     const { code, out } = run(world({ emptyStockIcons: true }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /ZERO BYTES/);
   });
@@ -895,7 +917,7 @@ describe('assert-launcher-icons', () => {
   // look like "nothing to check".
   test('COVERAGE LOST when `flutter create` fails', () => {
     const { code, out } = run(world({ flutterFails: true }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /`flutter create` failed/);
   });
@@ -919,7 +941,7 @@ describe('assert-launcher-icons', () => {
   test('COVERAGE LOST, naming what was still running, when `flutter create` does not finish in time', { skip: POSIX_ONLY }, () => {
     const w = world({ flutterLeaves: 'stuck' });
     const { code, out } = run(w, { FLUTTER_CREATE_TIMEOUT_MS: '2000' });
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /`flutter create` did not finish within 2 s/);
     assert.match(out, /still running in its process group: .*sleep/);
@@ -936,7 +958,7 @@ describe('assert-launcher-icons', () => {
     rmSync(join(w.root, 'apps', 'demo', 'macos'), { recursive: true, force: true });
     rmSync(join(w.root, 'apps', 'demo', 'windows'), { recursive: true, force: true });
     const { code, out } = run(w);
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /no app under apps\/ ships/);
   });
@@ -945,7 +967,7 @@ describe('assert-launcher-icons', () => {
     const w = world();
     rmSync(join(w.root, 'tooling'), { recursive: true, force: true });
     const { code, out } = run(w);
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /the factory limb ranged over nothing/);
   });
@@ -1223,7 +1245,7 @@ describe('limb 9 — Android resource XML must parse', () => {
   // The coverage floor: an app that ships android/ and yields no XML at all.
   test('an app shipping android/ with ZERO XML under it is COVERAGE LOST, not a pass', () => {
     const { code, out } = run(world({ adaptive: false, splash: false }));
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST: apps\/demo ships android\/ and ZERO resource or manifest XML files/);
   });
 });

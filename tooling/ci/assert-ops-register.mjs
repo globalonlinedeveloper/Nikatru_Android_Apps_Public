@@ -228,7 +228,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, resolve, dirname, extname } from 'node:path';
+import { join, resolve, dirname, extname, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 // The ONE workflow parser. Four copies of it drift in the way that reports
@@ -990,6 +990,14 @@ export function evaluateRunRecords(reg, probes, nowMs) {
   if (multiplier === null) {
     errors.push('`_recordReaders._windowMultiplier` must be a number >= 1. A window shorter than the cadence reports a healthy duty dead.');
     return { errors, prints };
+  }
+  // ⏱ 2026-09-11 — THE LIVE READS WERE NOT MADE ON THIS HOST (`liveReadPlan`).
+  // Everything above is the register's own shape and has already decided;
+  // everything below classifies an ANSWER, and there is none to classify. No
+  // tally is printed, because a tally of zero reads is the line a reader mistakes
+  // for "zero failing", and `main()` prints why nothing was read instead.
+  if (probes === LIVE_READS_NOT_MADE) {
+    return { errors, prints, live: [], measurement: [], stats: { scheduled: scheduled.length, notRead: true } };
   }
 
   const tally = { pass: 0, fail: 0, unreadable: 0, unreachable: 0 };
@@ -2575,6 +2583,87 @@ export const RUN_UNIT = 'run';
 export const UNIT_PAGE = RUN_READ_WIDE;
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A RUN THAT DIED ON THE QUOTA DID NOT FAIL ITS DUTY.
+//
+// 🔴 MEASURED: CodeQL runs 34570837477 (06:43Z) and 34577720776 (08:12Z), push
+// on main, each concluded `failure` in ONE step — "Analyze" of job "Analyze
+// JavaScript and TypeScript" — and the only failure-level annotation GitHub
+// recorded on either job is `API rate limit exceeded for installation`. The
+// analysis never reached a verdict about the code; GitHub refused the job's
+// token. [14]O-3b graded both as duty.workflow.codeql.yml RED SINCE, main's
+// register went red, and the remedy it printed ("dispatch the workflow once the
+// cause is fixed") named a cause that does not exist in the repository.
+//
+// So a newest failure is looked at once more before it is called RED: every job
+// of that run that concluded failure is read for the failure annotations GitHub
+// recorded, and when EVERY one of them is the installation-quota refusal the row
+// is COVERAGE LOST (exit 2 wherever it blocks) — "I could not tell", which is
+// what that run is — never RED (exit 1, "the duty is failing"). Anything
+// unread, empty or mixed is NOT proven and keeps the verdict it had. The read
+// costs one job list and one annotation list per failed job, only for a row
+// whose newest failure is newer than its newest success.
+// ─────────────────────────────────────────────────────────────────────────────
+export const INSTALLATION_QUOTA_REFUSAL = /API rate limit exceeded for installation/;
+
+/** PURE. Did this run fail ONLY because GitHub refused its token the
+ *  installation quota? `jobs` is the run's /jobs answer; `annotationsOf(jobId)`
+ *  the annotation list of that job's check run, or null when it could not be
+ *  read. `{ quotaOnly, why }`: true only when at least one job failed, every
+ *  failed job carries a failure-level annotation, and every failure-level
+ *  annotation of every failed job is the refusal. */
+export function diedOnlyOnInstallationQuota(jobs, annotationsOf) {
+  if (!Array.isArray(jobs)) return { quotaOnly: false, why: 'the run came with no job list' };
+  const failed = jobs.filter((j) => FAILED_CONCLUSIONS.has(j?.conclusion));
+  if (failed.length === 0) return { quotaOnly: false, why: 'no job of the run concluded failure' };
+  for (const j of failed) {
+    const list = annotationsOf(j?.id);
+    if (!Array.isArray(list)) return { quotaOnly: false, why: `the annotations of job "${j?.name}" could not be read` };
+    const failures = list.filter((a) => a?.annotation_level === 'failure');
+    if (failures.length === 0) return { quotaOnly: false, why: `job "${j?.name}" recorded no failure annotation` };
+    const other = failures.find((a) => !INSTALLATION_QUOTA_REFUSAL.test(String(a?.message ?? '')));
+    if (other) return { quotaOnly: false, why: `job "${j?.name}" failed on: ${String(other.message ?? '').slice(0, 160)}` };
+  }
+  return {
+    quotaOnly: true,
+    why: `${failed.map((j) => `job "${j?.name}"`).join(' · ')} failed ONLY on \`API rate limit exceeded for installation\``,
+  };
+}
+
+/** IMPURE. The cause of one failed run, for `diedOnlyOnInstallationQuota`. A
+ *  read that throws is "not proven", never "quota". */
+async function quotaCauseOfRun(repo, runId, cache) {
+  let jobs;
+  try {
+    jobs = await jobsOfRun(repo, runId, cache);
+  } catch (e) {
+    return { quotaOnly: false, why: `the job list of run ${runId} could not be read (${e.message})` };
+  }
+  const annotations = new Map();
+  for (const j of jobs.filter((x) => FAILED_CONCLUSIONS.has(x?.conclusion))) {
+    try {
+      annotations.set(j.id, await ghJson(`/repos/${repo}/check-runs/${j.id}/annotations?per_page=100`));
+    } catch {
+      annotations.set(j.id, null);
+    }
+  }
+  return diedOnlyOnInstallationQuota(jobs, (id) => annotations.get(id) ?? null);
+}
+
+/** IMPURE. Marks a redness probe's failure with its cause when that failure is
+ *  the newer term — the only case in which the cause can change the verdict. */
+async function withQuotaCause(probe, repo, cache) {
+  const { success, failure } = probe ?? {};
+  if (!failure) return probe;
+  const failMs = Date.parse(failure.at);
+  const okMs = success ? Date.parse(success.at) : NaN;
+  if (success && !(Number.isFinite(failMs) && Number.isFinite(okMs) && failMs > okMs)) return probe;
+  const cause = await quotaCauseOfRun(repo, failure.id, cache);
+  failure.quotaOnly = cause.quotaOnly;
+  failure.cause = cause.why;
+  return probe;
+}
+
 /** PURE. The unit a run-history query names, normalised. An ABSENT unit reads as
  *  the whole run, so a row is graded exactly as before until `checkRunUnits`
  *  (which refuses the absence) is satisfied. */
@@ -2895,7 +2984,7 @@ async function probeUnitRedSince(q, repo, wf, cache) {
     [`branch=${encodeURIComponent(q.headBranch)}`, 'status=completed'],
     `the newest completed runs of ${q.workflow} on ${q.headBranch}`,
   );
-  return decideUnitRedSince(q, entries, pageFull);
+  return withQuotaCause(decideUnitRedSince(q, entries, pageFull), repo, cache);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3352,6 +3441,170 @@ export function hostPolicy(env, topology, eventsByFile) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · THE LIVE READS ARE NOT MADE WHERE THEIR VERDICT CANNOT BLOCK.
+//
+// 🔴 MEASURED the same day under a counting fetch preload: one run of this guard
+// makes 56 GitHub API requests (55 core, 1 search), and it runs in every CI run.
+// GITHUB_TOKEN is allowed 1,000 requests an hour per repository. 07:00–08:15Z
+// spent about 2,225 — this guard about 1,600 of them — and every CI run started
+// at 06:42Z and from 08:09Z to 08:15Z died on `API rate limit exceeded for
+// installation`.
+//
+// On a pull_request host those requests could not do what they exist for:
+// `hostPolicy` is ADVISORY there and `routeLiveVerdicts` prints every live verdict
+// and blocks none (INV1). The one thing the reads could still do was exit 2 when
+// the quota they had just spent refused them (INV6) — the red that froze every
+// open pull request at once. So on that host the reads are not made, and one
+// plain line says so. EVERY STRUCTURAL LIMB STILL RUNS: the register's shape,
+// the reader declarations and their ceilings, the unit each duty is judged by,
+// the redness domain and its census.
+//
+// THREE THINGS KEEP THIS FROM BECOMING A BLIND SPOT:
+//   · a proposal that changes a file the reads are BUILT FROM (`liveReadInputs`)
+//     makes every read, so a register, reader or workflow change is graded
+//     against the live world before it merges, exactly as before;
+//   · a changed-file set git cannot establish (`proposalChangedFiles`) makes
+//     every read — unknown is never "nothing changed";
+//   · an ENFORCING host never asks: push to main, ops-watch, a dispatch and a
+//     local run make the reads unconditionally and spawn no git (INV2).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Handed to both evaluators in place of a probe map when the reads were not
+ *  made. Each still runs every structural check it owns and returns before it
+ *  would classify an answer it does not have. */
+export const LIVE_READS_NOT_MADE = Symbol.for('assert-ops-register.live-reads-not-made');
+
+/** This guard's own checkout, where its imports live — not `ROOT`, which a test
+ *  points at a fixture tree. */
+const SCRIPT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/** PURE over `readSource(rel) → string`. Every repo-relative module `entryRel`
+ *  pulls in through a RELATIVE specifier, itself included, transitively. `null`
+ *  when any of them cannot be read: an unknown closure is not an empty one. A
+ *  specifier written only in a comment is followed too; that can only ADD a
+ *  file, which is the direction that makes a read. */
+export function localImportClosure(entryRel, readSource) {
+  const seen = new Set();
+  const queue = [posix.normalize(String(entryRel))];
+  while (queue.length) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    let src;
+    try {
+      src = String(readSource(rel));
+    } catch {
+      return null;
+    }
+    for (const m of src.matchAll(/\b(?:from|import)\s*\(?\s*(['"])(\.{1,2}\/[^'"\n]+)\1/g)) {
+      queue.push(posix.normalize(posix.join(posix.dirname(rel), m[2])));
+    }
+  }
+  return seen;
+}
+
+/** PURE. The files the live reads are BUILT FROM — what they ask, and how the
+ *  answer is graded and routed — derived, never listed:
+ *    · the register: every row, record query, reader declaration and ceiling;
+ *    · this guard and every module it imports: the reads and the verdicts;
+ *    · `assert-gate-passed.mjs`, whose `GATE` names the check the topology routes by;
+ *    · every workflow file: the unit a duty is judged by (INV3), the
+ *      `workflow_dispatch` half of the redness domain, the gate topology, and
+ *      the host policy itself;
+ *    · every wrangler config a record query names: the D1 database it reads.
+ *  `null` when the import closure is unknown, and a null makes every read. */
+export function liveReadInputs(reg, closure) {
+  if (!(closure instanceof Set) || closure.size === 0) return null;
+  const files = new Set([REGISTER_REL, GATE_SCRIPT_REL, ...closure]);
+  for (const r of reg?.rows ?? []) {
+    const q = r?.mechanism?.recordQuery;
+    for (const w of [q?.wrangler, q?.timer?.wrangler]) {
+      if (nonEmpty(w)) files.add(posix.normalize(String(w)));
+    }
+  }
+  return { files, prefixes: [`${WORKFLOW_DIR_REL}/`] };
+}
+
+/** IMPURE SHELL over an injected `git(args) → { status, stdout }`: the files a
+ *  pull request changes, from git alone — no API request.
+ *
+ *  On `pull_request`, actions/checkout checks out `refs/pull/N/merge`, the
+ *  two-parent commit GitHub built (`Merge <head> into <base>`, first parent the
+ *  base), and with `fetch-depth: 0` it fetches every branch into
+ *  `refs/remotes/origin/*` — both OBSERVED in the checkout step of CI run
+ *  34577566209, job "Guards — platform, data and ops". The proposal's changes
+ *  are then `diff <first parent> HEAD`, and they are believed only when every
+ *  link holds: the base branch is named (GITHUB_BASE_REF); HEAD is the commit
+ *  this run was started for (GITHUB_SHA); HEAD has exactly two parents; and the
+ *  first parent is on `origin/<base>`. Anything else is `known: false`. */
+export function proposalChangedFiles(env, git) {
+  const unknown = (why) => ({ known: false, why });
+  const exited = (r) => (Number.isInteger(r?.status) ? String(r.status) : 'without a status');
+  const base = String(env?.GITHUB_BASE_REF ?? '').trim();
+  if (!base) return unknown('GITHUB_BASE_REF is not set, so this run names no base branch to diff against');
+  if (!/^[A-Za-z0-9._/-]+$/.test(base) || base.includes('..') || base.startsWith('-')) {
+    return unknown(`GITHUB_BASE_REF ${JSON.stringify(base)} is not a branch name this guard will hand to git`);
+  }
+  const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']);
+  if (parents?.status !== 0) return unknown(`\`git rev-list --parents -n 1 HEAD\` exited ${exited(parents)}`);
+  const shas = String(parents.stdout ?? '').trim().split(/\s+/).filter(Boolean);
+  const [head, first] = shas;
+  const want = String(env?.GITHUB_SHA ?? '').trim();
+  if (!want || want !== head) {
+    return unknown(`HEAD ${String(head ?? 'none').slice(0, 8)} is not GITHUB_SHA ${want ? want.slice(0, 8) : '(unset)'}, the commit this run was started for`);
+  }
+  if (shas.length !== 3) {
+    return unknown(`HEAD has ${shas.length - 1} parent(s), not the two of the merge commit actions/checkout makes for a pull request`);
+  }
+  // Exit 1 is "not an ancestor"; 128 is "that object or ref is not in this clone".
+  // Both are UNKNOWN, and neither may be read as the other.
+  const onBase = git(['merge-base', '--is-ancestor', first, `refs/remotes/origin/${base}`]);
+  if (onBase?.status !== 0) {
+    return unknown(`HEAD's first parent ${first.slice(0, 8)} is not shown to be on origin/${base} (\`git merge-base --is-ancestor\` exited ${exited(onBase)})`);
+  }
+  const diff = git(['diff', '--name-only', '--no-renames', '-z', first, head]);
+  if (diff?.status !== 0) return unknown(`\`git diff --name-only ${first.slice(0, 8)} ${head.slice(0, 8)}\` exited ${exited(diff)}`);
+  return { known: true, base, head, first, files: String(diff.stdout ?? '').split('\0').filter(Boolean) };
+}
+
+/** PURE. Does this run make the live reads, and the one line it prints about it.
+ *  An ENFORCING host always reads and its `line` is null, so its output is
+ *  unchanged. An ADVISORY host skips ONLY on a `pull_request` whose changed files
+ *  are known and touch none of the inputs; every other answer makes the reads. */
+export function liveReadPlan(policy, changed, inputs) {
+  if (policy?.mode !== 'advisory') return { read: true, line: null, touched: [] };
+  const made = (why) => ({ read: true, line: `[LIVE] reads made on this host: ${why}`, touched: [] });
+  if (policy.event !== 'pull_request') {
+    return made(`\`${policy.event}\` is not \`pull_request\`, whose merge commit is the only proposal this guard can diff with git, so the reads are made (fail-safe)`);
+  }
+  if (!changed?.known) return made(`which files this change touches could not be established (${changed?.why ?? 'no answer'}), so the reads are made (fail-safe)`);
+  if (!inputs) return made('the files the live reads are built from could not be derived, so the reads are made (fail-safe)');
+  const touched = (changed.files ?? []).filter((f) => inputs.files.has(f) || inputs.prefixes.some((p) => f.startsWith(p)));
+  if (touched.length) {
+    return {
+      read: true,
+      touched,
+      line:
+        `[LIVE] reads made on this host: this change touches ${touched.length} file(s) the live reads are built from ` +
+        `(${touched.slice(0, 6).join(' · ')}${touched.length > 6 ? ' · …' : ''}), so it is graded against the live world before it merges`,
+    };
+  }
+  return {
+    read: false,
+    touched,
+    line:
+      '[LIVE] NOT READ ON THIS HOST — no GitHub, GlitchTip or Cloudflare request was made. On a pull request a live ' +
+      'verdict cannot block (INV1), and this change touches none of the files the live reads are built from ' +
+      `(${inputs.files.size} named files, and everything under ${inputs.prefixes.join(' · ')}). ` +
+      `The push run on ${changed.base} makes every one of them and enforces its verdict (INV2).`,
+  };
+}
+
+/** `git -C root …`, bounded, for `proposalChangedFiles`. A timeout or an
+ *  oversized answer comes back without a status, which is unknown. */
+const gitIn = (root) => (args) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, maxBuffer: 64 * 1024 * 1024 });
+
 /** A condition under which a job or step still RUNS after something it follows
  *  failed. Without one, a failure ahead of it SKIPS it. */
 export const RUNS_AFTER_FAILURE = /\balways\(\s*\)|\bfailure\(\s*\)|!\s*cancelled\(\s*\)/;
@@ -3736,6 +3989,17 @@ export function classifyRedSince(row, probe) {
   const fail = probe.failure ?? null;
   const ok = probe.success ?? null;
 
+  if (fail?.quotaOnly === true && (!ok || Date.parse(fail.at) > Date.parse(ok.at))) {
+    return {
+      verdict: 'quota',
+      line:
+        `${id} — ${where}: run ${fail.id} (${fail.at}) FAILED, and ${fail.cause}. That is GitHub refusing the job's token, ` +
+        'not the duty failing: the run never reached a verdict about what it exists to check. COVERAGE LOST for this row, ' +
+        `neither a pass nor a RED — ${ok ? `the newest success is run ${ok.id} at ${ok.at}` : 'no success exists to compare against'}. ` +
+        'The installation quota resets within the hour; the next run on that branch that reaches a verdict replaces this one.',
+    };
+  }
+
   if (!fail) {
     if (ok && probe.newestDecisive) {
       return {
@@ -3825,7 +4089,24 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
     };
   }
 
-  const tally = { green: 0, red: 0, unreadable: 0, blind: 0 };
+  // 🔴 THE SHRINK, PRINTED — see `redSinceTriggerCensus`. Built here, before any
+  // answer is classified, because it is a fact about the register and the
+  // workflow tree and prints whether or not the live reads were made.
+  const census = redSinceTriggerCensus(reg, dispatchable);
+  const censusLines = [
+    census.excluded.length
+      ? `[14]O-3b — TRIGGER ROWS NOT GRADED FOR REDNESS: ${census.excluded.length} (admitted: ${census.admitted.join(' · ') || 'none'})`
+      : `[14]O-3b — TRIGGER ROWS: every \`duty.workflow.*\` trigger row is graded for redness (${census.admitted.join(' · ') || 'there are none'}).`,
+    ...census.excluded.map((l) => `[14]O-3b — NOT GRADED · ${l}`),
+  ];
+  // ⏱ 2026-09-11 — no answers on this host (`liveReadPlan`): the shape rules and
+  // the empty-domain refusal above have run; nothing below has anything to order.
+  if (probes === LIVE_READS_NOT_MADE) {
+    prints.push(...censusLines);
+    return { errors, prints, live: [], stats: { domain: domain.length, notRead: true } };
+  }
+
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, quota: 0 };
   const darkLines = [];
   for (const r of domain) {
     const c = classifyRedSince(r, probes?.get?.(r.id));
@@ -3840,6 +4121,9 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
         'enough. The duty is NOT unwatched — the sibling [14]O-3 limb still grades "no successful run at all" as FAILING.';
       errors.push(line);
       live.push({ id: r.id, line, code: 2, limb: '[14]O-3b' });
+    } else if (c.verdict === 'quota') {
+      errors.push(c.line);
+      live.push({ id: r.id, line: c.line, code: 2, limb: '[14]O-3b' });
     } else if (c.verdict === 'unreadable') {
       darkLines.push(c.line);
     } else {
@@ -3851,24 +4135,19 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
   // `0 RED over 0 workflows` read identically unless the domain size is stated
   // beside the verdict, and the two admissions are counted SEPARATELY.
   const clocked = domain.filter((r) => TIME_CADENCE.test(String(r?.cadence ?? ''))).length;
-  const census = redSinceTriggerCensus(reg, dispatchable);
   prints.push(
     `[14]O-3b — RED SINCE: ${domain.length} workflow duty(ies) graded (${clocked} on a clock · ` +
       `${domain.length - clocked} \`trigger\` row(s) whose workflow declares \`workflow_dispatch\`, so a red lane ` +
       `has an exit that is not a merge) · ${tally.green} whose newest run on their own ` +
       `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
-      `${tally.blind} with no success to compare against — whether each RED blocks THIS host is decided once, for ` +
+      `${tally.blind} with no success to compare against · ${tally.quota} whose newest failure died ONLY on the installation ` +
+      'rate limit (COVERAGE LOST) — whether each RED blocks THIS host is decided once, for ' +
       'every live verdict, under HOST POLICY below',
   );
-  // 🔴 THE SHRINK, PRINTED — see `redSinceTriggerCensus`.
-  prints.push(
-    census.excluded.length
-      ? `[14]O-3b — TRIGGER ROWS NOT GRADED FOR REDNESS: ${census.excluded.length} (admitted: ${census.admitted.join(' · ') || 'none'})`
-      : `[14]O-3b — TRIGGER ROWS: every \`duty.workflow.*\` trigger row is graded for redness (${census.admitted.join(' · ') || 'there are none'}).`,
-  );
-  for (const l of census.excluded) prints.push(`[14]O-3b — NOT GRADED · ${l}`);
+  // 🔴 THE SHRINK, PRINTED — built above, before the answers were classified.
+  prints.push(...censusLines);
   for (const l of darkLines) prints.push(`[14]O-3b — ${l}`);
-  if (tally.green === 0 && tally.red === 0 && tally.blind === 0) {
+  if (tally.green === 0 && tally.red === 0 && tally.blind === 0 && tally.quota === 0) {
     prints.push(
       '[14]O-3b — 🔴 THE RED-SINCE LIMB ORDERED ZERO PAIRS ON THIS RUN. Every watched workflow was unreadable here ' +
         '(no token, or the API could not be reached), so nothing above could have failed. This line exists so that ' +
@@ -3905,7 +4184,7 @@ export function githubDarkness(redProbes) {
  *  real answers off it — so the newest-completed shape would let a cancellation
  *  change the verdict simply by being newest. Asking each conclusion for its own
  *  newest run cannot be moved by a third one. */
-async function probeGithubRedSince(q, repo) {
+async function probeGithubRedSince(q, repo, cache = new Map()) {
   const br = `branch=${encodeURIComponent(q.headBranch)}`;
   const newest = async (status) => {
     // Two reads, two widths, reconciled — see the RUN_READ_RACE_MS block above.
@@ -3938,7 +4217,7 @@ async function probeGithubRedSince(q, repo) {
     }
     return { id: run.id, at: run.updated_at };
   };
-  return { success: await newest('success'), failure: await newest('failure') };
+  return withQuotaCause({ success: await newest('success'), failure: await newest('failure') }, repo, cache);
 }
 
 /** The impure orchestrator. One row per workflow by construction (the register
@@ -3964,7 +4243,7 @@ async function probeRedSince(reg, dispatchable = null, parsedByFile = new Map(),
       probes.set(
         r.id,
         u.kind === 'run'
-          ? await probeGithubRedSince(q, repo)
+          ? await probeGithubRedSince(q, repo, jobsCache)
           : await probeUnitRedSince(q, repo, parsedByFile.get(String(q.workflow)) ?? null, jobsCache),
       );
     } catch (e) {
@@ -4782,18 +5061,28 @@ async function main() {
   // [INV1] [INV2] [INV5] — the host and the event come from the environment
   // GitHub sets, and the event is believed only from a host whose file declares it.
   const policy = hostPolicy(process.env, topology, workflowEventsByFile(allWorkflows));
+  // ⏱ 2026-09-11 — `liveReadPlan`. Only an ADVISORY host asks git anything; an
+  // enforcing host is handed `{ read: true }` without a spawn or a file read.
+  const readPlan =
+    policy.mode === 'advisory'
+      ? liveReadPlan(
+          policy,
+          proposalChangedFiles(process.env, gitIn(ROOT)),
+          liveReadInputs(reg, localImportClosure(GUARD_SCRIPT_REL, (rel) => readFileSync(join(SCRIPT_ROOT, rel), 'utf8'))),
+        )
+      : liveReadPlan(policy, null, null);
 
   // Last, because these are the only limbs that leave this machine, and
   // everything structural should already have decided by the time a socket opens.
   const jobsCache = new Map();
-  const recordProbes = await probeRunRecords(reg, ROOT, parsedByFile, jobsCache);
+  const recordProbes = readPlan.read ? await probeRunRecords(reg, ROOT, parsedByFile, jobsCache) : LIVE_READS_NOT_MADE;
   const rec = evaluateRunRecords(reg, recordProbes, now);
   if (rec.coverageLost) coverageLost(rec.coverageLost);
   prints.push(...(rec.prints ?? []));
 
   // [14]O-3b asks a DIFFERENT question of the same record — not "is the newest
   // success recent" but "is the newest FAILURE newer than it". See its header.
-  const redProbes = await probeRedSince(reg, dispatchable, parsedByFile, jobsCache);
+  const redProbes = readPlan.read ? await probeRedSince(reg, dispatchable, parsedByFile, jobsCache) : LIVE_READS_NOT_MADE;
   const red = evaluateRedSince(reg, redProbes, dispatchable);
   prints.push(...(red.prints ?? []));
   if (red.coverageLost) {
@@ -4812,7 +5101,7 @@ async function main() {
   for (const e of [...(rec.errors ?? []), ...(red.errors ?? [])]) {
     if (!liveLines.has(e) && !measured.has(e)) errors.push(e);
   }
-  const dark = githubDarkness(redProbes);
+  const dark = readPlan.read ? githubDarkness(redProbes) : null;
   if (dark) measurement.push(dark);
   const routed = routeLiveVerdicts(live, policy, topology, reg, parsedByFile);
 
@@ -4846,6 +5135,7 @@ async function main() {
   // green: an exemption nobody can see is a waiver, and a shrink nobody can see
   // is the defect.
   console.log(`⬜  [INV1/INV2] HOST POLICY — ${policy.mode.toUpperCase()}: ${policy.why}`);
+  if (readPlan.line) console.log(`⬜  ${readPlan.line}`);
   console.log(
     `⬜  [INV4] GATE TOPOLOGY: gate check \`${topology?.gateName ?? 'UNKNOWN'}\` is produced by ` +
       `\`${topology?.gateWorkflow ?? 'UNKNOWN'}\` · SELF-GATED (they run \`${GATE_SCRIPT_REL}\`, so a dispatch of ` +

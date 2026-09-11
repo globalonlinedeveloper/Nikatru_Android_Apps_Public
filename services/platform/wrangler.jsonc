@@ -46,9 +46,9 @@
     // or that app silently loses config resolution and analytics in the browser.
     // The brick's post_gen checklist prints this as a required step.
     //
-    //   subly.nikatru.com  — the live Subly web app
-    //   subly-9cp.pages.dev — its Cloudflare Pages preview domain (mirrors the
-    //                         same pair in services/subscriptiontracker-api)
+    //   nikatru.com         — every app's public origin since [ADR 075]
+    //   subscriptiontracker-7qg.pages.dev — the app's Cloudflare Pages preview
+    //                         domain (mirrored in services/subscriptiontracker-api)
     //   localhost:3000      — the local Subly web dev server (.claude/launch.json).
     //                         It fetches config.nikatru.com cross-origin from the
     //                         browser, so omitting it breaks local web dev.
@@ -59,8 +59,8 @@
     // note above — so the reason is written HERE, next to the value, rather than
     // only in the middleware two directories away:
     //
-    //   · the PAIR the note above claims is mirrored (subly.nikatru.com +
-    //     subly-9cp.pages.dev) IS mirrored, exactly, in both configs.
+    //   · the preview origin the note above claims is mirrored
+    //     (subscriptiontracker-7qg.pages.dev) IS mirrored, exactly, in both configs.
     //   · localhost is NOT, because it is not the same question in the two
     //     Workers. services/subscriptiontracker-api/src/middleware/cors.ts:38,57 allows ANY
     //     localhost origin BY REGEX — a recorded per-app trade, because
@@ -107,16 +107,21 @@
     // was READ BACK from the create call rather than guessed --
     // `subscriptiontracker-7qg.pages.dev` -- because the bare name is taken by a
     // THIRD PARTY (subscriptiontracker.pages.dev answers 200 and is not ours).
-    // Both preview origins are held for the length of the cutover; the old one
-    // leaves in its own later change, when nothing can be served from it.
-    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev,http://localhost:3000",
+    // Both preview origins were held for the length of the cutover; the old one
+    // left in its own later change.
+    // NARROWED 2026-09-11: `subly-9cp.pages.dev` left this list, the api Worker's,
+    // and the guard's EXTRAS together. It still resolved and served only the
+    // RETIRED Subly build, and a *.pages.dev name is claimable by anyone once its
+    // project is deleted -- so the grant leaves first, both Workers deploy, and
+    // only then may the owner delete the Pages project.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subscriptiontracker-7qg.pages.dev,http://localhost:3000",
     // WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `<appId>=<https origin>`.
     //
     // 🔴 DELETE /v1/account IS THE PORTFOLIO'S ERASURE ENTRY POINT AND THIS
     // WORKER CAN ONLY EMPTY platform_db. A route reads the databases it reads,
     // not the ones its Worker happens to bind — so before this list existed, a
     // Subly user could delete their account and leave every subscription, budget
-    // and payment they had entered in subly_db, behind a login that no longer
+    // and payment they had entered in the app database, behind a login that no longer
     // existed. The shared route now relays the caller's own bearer token to each
     // app's own DELETE /v1/account (services/subscriptiontracker-api/src/routes/account.ts),
     // AFTER the service-role precondition and BEFORE the identity is deleted.
@@ -126,7 +131,7 @@
     // (tooling/ci/assert-erasure-reach.mjs) rather than silently orphaning that
     // app's rows on every deletion. `https://` is required: the relay forwards a
     // live session token.
-    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://api.nikatru.com"
+    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://subscriptiontracker.api.nikatru.com"
   },
   "d1_databases": [
     {
@@ -137,11 +142,11 @@
       "migrations_dir": "migrations"
     },
     {
-      // Subly's per-app DB — bound for the nightly renewals fan-out only.
-      // (subscriptiontracker-api owns subly_db's own migrations; NO migrations_dir here.)
-      "binding": "SUBLY_DB",
-      "database_name": "subly_db",
-      "database_id": "88da9026-f72a-4cda-823d-431148fa8112"
+      // The app's per-app DB — bound for the nightly renewals fan-out only.
+      // (subscriptiontracker-api owns subscriptiontracker_db's migrations; NO migrations_dir here.)
+      "binding": "SUBSCRIPTIONTRACKER_DB",
+      "database_name": "subscriptiontracker_db",
+      "database_id": "0a36d6a0-c909-40aa-853e-970de3482321"
     }
   ],
   "kv_namespaces": [

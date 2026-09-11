@@ -34,7 +34,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -348,5 +348,72 @@ describe('assert-legal-text-parity — a document published twice says the same 
       'the comment pattern is what drops this note; the generic tag strip cannot, ' +
         `because it stops at the > inside it:\n${r.out}`,
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — ASSERTION 3, THE BYTES (REVIEW-stores-2026-09-10 #5). These cases run
+// against COPIES OF THE REAL FILES — the renderer, the Markdown and both published copies —
+// because the property under test is "the served page is what THIS renderer emits", and a
+// fixture renderer written for the test would only prove the guard agrees with its author.
+const REPO = resolve(CI_DIR, '..', '..');
+const REAL = {
+  renderer: 'contracts/legal/render-fullshot-privacy.mjs',
+  source: 'contracts/legal/fullshot-privacy.md',
+  site: 'sites/nikatru/fullshot/privacy.html',
+  ext: 'extensions/Extension/Full_Screen_Shot/publish/PRIVACY-POLICY.html',
+};
+
+function runReal({ site = (t) => t, ext = (t) => t } = {}) {
+  const root = join(TMP, `real-${(seq += 1)}`);
+  for (const rel of Object.values(REAL)) {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    copyFileSync(join(REPO, rel), join(root, rel));
+  }
+  writeFileSync(join(root, REAL.site), site(readFileSync(join(root, REAL.site), 'utf8')));
+  writeFileSync(join(root, REAL.ext), ext(readFileSync(join(root, REAL.ext), 'utf8')));
+  const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, root };
+}
+
+describe('assert-legal-text-parity — assertion 3: the published BYTES are the renderer\'s', () => {
+  test('PASSES on the real files, and PRINTS that the only residue is the email_off markers', () => {
+    const r = runReal();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /2 copy\/copies equal their renderer's bytes/);
+    assert.match(r.out, /differs from contracts\/legal\/render-fullshot-privacy\.mjs's output ONLY by <!--email_off--> markers/);
+  });
+
+  test('🔴 FAILS on drift the TEXT assertions cannot see — a changed meta description', () => {
+    const r = runReal({ site: (t) => t.replace(/<meta name="description" content="/, '<meta name="description" content="Edited by hand. ') });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /sites\/nikatru\/fullshot\/privacy\.html is not what contracts\/legal\/render-fullshot-privacy\.mjs renders from contracts\/legal\/fullshot-privacy\.md — BYTES, not words/);
+    assert.doesNotMatch(r.out, /PUBLISH DIFFERENT TEXT/, 'the visible text did not change, so assertions 1 and 2 must stay quiet');
+  });
+
+  test('FAILS on byte drift in the STORE copy too', () => {
+    const r = runReal({ ext: (t) => t.replace('</style>', '  /* hand edit */\n</style>') });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /PRIVACY-POLICY\.html is not what contracts\/legal\/render-fullshot-privacy\.mjs renders/);
+  });
+
+  test('the print retires itself when the served copy is byte-identical to the renderer', () => {
+    const r = runReal({ site: (t) => t.replace(/<!--\s*\/?\s*email_off\s*-->/gi, '') });
+    assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /ONLY by <!--email_off--> markers/);
+  });
+
+  test('an email_off marker is the ONLY thing set aside — moving the address is still drift', () => {
+    const r = runReal({ site: (t) => t.replace('support@nikatru.com</a>', 'help@nikatru.com</a>') });
+    assert.equal(r.code, 1, r.out);
+  });
+
+  test('COVERAGE LOST when the renderer cannot run', () => {
+    const r = runReal();
+    writeFileSync(join(r.root, REAL.renderer), 'process.exit(3);\n');
+    const again = spawnSync(process.execPath, [GUARD, r.root], { encoding: 'utf8' });
+    const out = `${again.stdout ?? ''}${again.stderr ?? ''}`;
+    assert.equal(again.status, 1, out);
+    assert.match(out, /COVERAGE LOST — contracts\/legal\/render-fullshot-privacy\.mjs exited 3/);
   });
 });

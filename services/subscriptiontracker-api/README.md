@@ -6,9 +6,9 @@ all six Flutter targets. Auth is **Supabase** — the Worker verifies Supabase J
 (it never issues them).
 
 > 🔴 **THIS IS A LIVE PRODUCTION WORKER.** It answers real traffic on
-> **`api.nikatru.com`** (a custom domain declared in `wrangler.jsonc` `routes` and
+> **`subscriptiontracker.api.nikatru.com`** (a custom domain declared in `wrangler.jsonc` `routes` and
 > read back from the live Cloudflare account on 2026-08-03) and it holds the
-> flagship app's **real user rows** in `subly_db`. Every push to `main` under
+> flagship app's **real user rows** in `subscriptiontracker_db`. Every push to `main` under
 > `services/subscriptiontracker-api/**` runs `.github/workflows/deploy-workers.yml`, which —
 > after `assert-gate-passed.mjs` confirms ci-gate went green for that commit —
 > applies `d1 migrations apply APP_DB --remote` and then `wrangler deploy`, and
@@ -37,7 +37,7 @@ all six Flutter targets. Auth is **Supabase** — the Worker verifies Supabase J
 | GET | `/v1/budget` | Supabase JWT | Monthly budget + category caps |
 | PUT | `/v1/budget` | Supabase JWT | Upsert budget + caps |
 | GET | `/v1/entitlements` | Supabase JWT | `is_pro` + `granted_via` + entitlements (+ `bundle` when a live grant exists) for this app — THE ONE reader, `services/_shared/src/entitlement-read.ts`, byte-identical to the shared host's answer |
-| DELETE | `/v1/account` | **ES256/JWKS only** | Erase this user from every user-owned table in `subly_db` |
+| DELETE | `/v1/account` | **ES256/JWKS only** | Erase this user from every user-owned table in `subscriptiontracker_db` |
 
 ### ⚠️ `GET /v1/renewals` and `GET /v1/entitlements` are SERVED AND UNCONSUMED
 
@@ -69,7 +69,7 @@ HAS NO CALLER.** The live path is `entitlementsProvider`
 `GET {PLATFORM_BASE_URL}/v1/entitlements?app_id=<id>`. `kPlatformBaseUrl` defaults
 to `https://platform.nikatru.com` (`apps/subscriptiontracker/lib/state/providers/analytics_envelope.dart:64`), so
 that read lands on **`services/platform`** — `platform/src/index.ts:105-106` — and
-never on `api.nikatru.com`. `PaywallGate`, `manage_plan_screen.dart:90` and
+never on `subscriptiontracker.api.nikatru.com`. `PaywallGate`, `manage_plan_screen.dart:90` and
 `refreshEntitlements()` all watch THAT provider. The two Workers expose the same
 path and answer the same question; only the platform one is wired, because
 `platform_db.entitlements` is shared portfolio-wide and lives behind that Worker.
@@ -206,11 +206,11 @@ independent limbs, because a mounting is one line somebody can move in a tidy-up
 `GET /v1/subscriptions` and refused here; `tooling/ci/assert-erasure-reach.mjs`
 fails the build if the route is ever put behind the permissive middleware.
 
-**It erases `subly_db` and nothing else.** The identity record and `platform_db`
+**It erases `subscriptiontracker_db` and nothing else.** The identity record and `platform_db`
 belong to `services/platform`, whose `DELETE /v1/account` relays the caller's own
 bearer token here — after its service-role precondition and *before* it deletes the
 identity, so a failure here leaves the user a working login and a retryable request.
-The response says `scope: "subly_db"` so no caller can read `ok: true` as "the
+The response says `scope: "subscriptiontracker_db"` so no caller can read `ok: true` as "the
 account is gone". The table set is derived from the schema (every table with a
 `user_id`), so a migration that adds a user-owned table is covered by that migration
 alone — and an empty derivation is a 503 refusal, never a fast path.
@@ -252,7 +252,7 @@ client mirrors both rules in `packages/core/lib/src/models/entitlement.dart`.
 ```bash
 npm install
 
-# Apply the per-app schema to a local D1 (subly_db):
+# Apply the per-app schema to a local D1 (subscriptiontracker_db):
 wrangler d1 migrations apply APP_DB --local        # npm run db:migrate:local
 
 # Apply the SHARED entitlements schema to the local platform_db.

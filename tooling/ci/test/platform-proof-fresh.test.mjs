@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   evaluateFreshness,
@@ -443,8 +443,53 @@ describe('the proof COMMIT is graded, not only its age', () => {
       const f = join(TMP, 'prov-nosha.json');
       writeFileSync(f, JSON.stringify([{ id: 701, conclusion: 'success', event: 'schedule', updated_at: '2026-08-11T00:00:00Z' }]));
       const r = spawnSync(process.execPath, [GUARD, '--runs-file', f, '--now', '2026-08-11T12:00:00Z'], { cwd: REPO, encoding: 'utf8' });
-      assert.equal(r.status, 1);
-      assert.match(r.stderr, /provenance unreadable/);
+      // ⏱ 2026-09-11 — exit 2: a run list with no commit in it could not be graded.
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /COULD NOT LOOK {2}platform proof provenance unreadable/);
+    });
+
+    // ⏱ 2026-09-11 · THE CONTROL FOR THE EXIT-2 CASES BELOW: a FINDING in the same
+    // run outranks "could not look". A stale proof whose runs carry no commit is
+    // exit 1 — the freshness clause judged it — with the provenance gap printed.
+    test('CONTROL — a stale proof with no head_sha is still exit 1: a finding outranks could-not-look', () => {
+      const f = join(TMP, 'prov-stale-nosha.json');
+      writeFileSync(f, JSON.stringify([{ id: 702, conclusion: 'success', event: 'schedule', updated_at: '2026-07-01T00:00:00Z' }]));
+      const r = spawnSync(process.execPath, [GUARD, '--runs-file', f, '--now', '2026-08-26T12:00:00Z'], { cwd: REPO, encoding: 'utf8' });
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.match(r.stderr, /platform proof is not fresh/);
+      assert.match(r.stderr, /COULD NOT LOOK {2}platform proof provenance unreadable/);
+    });
+
+    test('🔴 a run history that is not a list is COULD NOT LOOK (2), not a stale proof (1)', () => {
+      const f = join(TMP, 'prov-not-a-list.json');
+      writeFileSync(f, JSON.stringify({ message: 'API rate limit exceeded for installation.' }));
+      const r = spawnSync(process.execPath, [GUARD, '--runs-file', f, '--now', '2026-08-11T12:00:00Z'], { cwd: REPO, encoding: 'utf8' });
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /COULD NOT LOOK {2}platform proof freshness unreadable/);
+      assert.doesNotMatch(r.stderr, /FAIL {2}/, 'nothing was judged, so nothing may be reported as a failure');
+    });
+
+    test('🔴 a LIVE read refused with 403 (the installation quota) is COULD NOT LOOK (2), not a failure (1)', () => {
+      // The guard's own fetch, answered by a preload: no fixture flag, no network.
+      const preload = join(TMP, 'refuse-403.mjs');
+      const seen = join(TMP, 'refuse-403.seen');
+      writeFileSync(preload, `import { appendFileSync } from 'node:fs';\nglobalThis.fetch = async (u) => { appendFileSync(${JSON.stringify(seen)}, String(u) + '\\n'); return new Response(JSON.stringify({ message: 'API rate limit exceeded for installation.' }), { status: 403 }); };\n`);
+      const env = { ...process.env, GITHUB_TOKEN: 'fixture-token', GITHUB_REPOSITORY: 'o/r' };
+      delete env.GH_TOKEN;
+      const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, GUARD], { cwd: REPO, encoding: 'utf8', env });
+      const asked = readFileSync(seen, 'utf8').split('\n');
+      assert.ok(asked.some((u) => u.startsWith('https://api.github.com/repos/o/r/actions/workflows/build-platforms.yml/runs?')), `the guard never asked the refused endpoint: ${asked.join(' | ')}`);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /COULD NOT LOOK {2}the build-platforms\.yml run history could not be read — GitHub API returned 403/);
+    });
+
+    test('🔴 no token is COULD NOT LOOK (2) — the run history was never read', () => {
+      const env = { ...process.env };
+      delete env.GITHUB_TOKEN;
+      delete env.GH_TOKEN;
+      const r = spawnSync(process.execPath, [GUARD], { cwd: REPO, encoding: 'utf8', env });
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /COULD NOT LOOK {2}.*no GITHUB_TOKEN \/ GH_TOKEN in the environment/);
     });
 
     test('a proof from outside the graded history is refused immediately, with no grace', () => {

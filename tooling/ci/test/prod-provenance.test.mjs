@@ -27,6 +27,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { enumerateMigrationTables, sqlLiteral } from '../migration-tables.mjs';
+import { attestationCommitRead, attestationDeployments, CouldNotLook } from '../../ops/check-prod-provenance.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GATE = join(REPO, 'tooling', 'ci', 'assert-prod-provenance.mjs');
@@ -721,5 +722,62 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.deepEqual(r.stdout.trim().split('\n'), ['the-one-site']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A REFUSED GITHUB READ IS COULD NOT LOOK (exit 2), NEVER A BAD
+// ATTESTATION (exit 1). The attestation loop read any non-200 on the commit as
+// "not a commit" and any non-200 on the deployment list as "no Deployment
+// exists", so a quota 403 paged as production rows that trace to no build.
+// The three CONTROLS come first: the verdicts that ARE findings stay findings.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('check-prod-provenance — manual-deploys attestation: a refused read is COULD NOT LOOK, never a bad attestation', () => {
+  const SHA7 = 'e138f5b';
+  const ENV = 'subscriptiontracker-web';
+  const answer = (status, body) => ({ status, json: async () => body });
+  const QUOTA = { message: 'API rate limit exceeded for installation.' };
+
+  test('CONTROL — a commit GitHub finds is a commit', () => {
+    assert.equal(attestationCommitRead(200, SHA7), 'commit');
+  });
+
+  test('CONTROL — a sha GitHub says is not a commit (404, 422) is still a finding', () => {
+    assert.equal(attestationCommitRead(404, SHA7), 'not-a-commit');
+    assert.equal(attestationCommitRead(422, SHA7), 'not-a-commit');
+  });
+
+  test('CONTROL — a Deployment list is returned as read, and an EMPTY one is still a finding for the caller', async () => {
+    assert.deepEqual(await attestationDeployments(answer(200, [{ id: 1 }]), ENV, SHA7), [{ id: 1 }]);
+    assert.deepEqual(await attestationDeployments(answer(200, []), ENV, SHA7), []);
+  });
+
+  test('🔴 a refused COMMIT read (401, 403 installation quota, 500, 503) is COULD NOT LOOK, not "not a commit"', () => {
+    for (const status of [401, 403, 500, 503]) {
+      assert.throws(
+        () => attestationCommitRead(status, SHA7),
+        (e) => e instanceof CouldNotLook && new RegExp(`returned ${status} reading commit e138f5b`).test(e.message),
+        `HTTP ${status} on the commit must be CouldNotLook`,
+      );
+    }
+  });
+
+  test('🔴 a refused DEPLOYMENTS read is COULD NOT LOOK — it used to read as "no Deployment exists"', async () => {
+    for (const status of [401, 403, 502]) {
+      await assert.rejects(
+        attestationDeployments(answer(status, QUOTA), ENV, SHA7),
+        (e) => e instanceof CouldNotLook && new RegExp(`returned ${status} listing the Deployments of subscriptiontracker-web @ e138f5b`).test(e.message),
+        `HTTP ${status} on the deployment list must be CouldNotLook`,
+      );
+    }
+  });
+
+  test('🔴 a deployment answer that is not a list is COULD NOT LOOK', async () => {
+    await assert.rejects(attestationDeployments(answer(200, QUOTA), ENV, SHA7), (e) => e instanceof CouldNotLook && /without a list/.test(e.message));
+  });
+
+  test('🔴 a deployment answer that is not JSON is COULD NOT LOOK', async () => {
+    const notJson = { status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+    await assert.rejects(attestationDeployments(notJson, ENV, SHA7), (e) => e instanceof CouldNotLook && /other than JSON/.test(e.message));
   });
 });

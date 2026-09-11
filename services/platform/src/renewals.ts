@@ -71,8 +71,8 @@ export function advance(dateYmd: string, cycle: 'monthly' | 'yearly', anchorDay?
  * subscription whose stored value is the clamped 2026-02-28 comes back as a 28th
  * anchor on the next night's pass. That costs at most three days once a year and
  * never skips a cycle; recovering it fully needs an additive `renewal_anchor_day`
- * column in subly_db, which platform does not own (no `migrations_dir` for
- * SUBLY_DB in wrangler.jsonc). Pinned by a test so it stays a known limit.
+ * column in subscriptiontracker_db, which platform does not own (no `migrations_dir` for
+ * SUBSCRIPTIONTRACKER_DB in wrangler.jsonc). Pinned by a test so it stays a known limit.
  */
 export function rollForward(
   next: string,
@@ -141,7 +141,7 @@ export async function recomputeRenewals(
     );
     // ── payment_history.updated_at — THE ONLY WRITER, FINALLY WRITING IT ──────
     // 🔴 THIS INSERT IS THE TABLE'S ONLY WRITER ANYWHERE IN THE TREE, and until
-    // 2026-08-25 its column list ended at `paid_at`. subly_db's migration
+    // 2026-08-25 its column list ended at `paid_at`. subscriptiontracker_db's migration
     // 0002_schema_debt.sql had added `updated_at` and seeded the rows that
     // existed at the time from `paid_at`; every row written SINCE carried NULL
     // forever, so the one-shot backfill was the only value the column would ever
@@ -154,7 +154,7 @@ export async function recomputeRenewals(
     // function's own header says it is "generic over any app DB with
     // subscriptions + payment_history", and the fan-out is a `for` loop over
     // every app whose one rule is that one app's broken database must not take
-    // the rest down. `updated_at` is subly_db's 0002; the brick's starter schema
+    // the rest down. `updated_at` is subscriptiontracker_db's 0002; the brick's starter schema
     // has no payment_history at all, so a future app's table may legitimately
     // predate the column. An unconditional six-column INSERT would fail the whole
     // nightly batch for that app — every renewal missed, every payment row lost —

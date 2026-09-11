@@ -330,7 +330,7 @@
       "pathMonitors": [
         {
           "id": 3,
-          "name": "Subly web",
+          "name": "Subscription Tracker web",
           "type": "GET",
           "derivedFrom": "appCatalogue",
           "url": "https://nikatru.com/subscriptiontracker/",
@@ -355,7 +355,7 @@
             "the PUT. Merging the first without the second is the state this red is warning about, not a",
             "false alarm to be waited out.",
             "",
-            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. api.nikatru.com's `🔴 openBodyGap` block below",
+            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. subscriptiontracker.api.nikatru.com's `🔴 openBodyGap` block below",
             "shows the other move: WITHDRAW the assertion into a gap block so the declared-body limb has",
             "nothing to compare and the scheduled job stays green. That is right when the register would",
             "otherwise claim MORE coverage than exists. Here it would claim LESS than the truth in the",
@@ -447,10 +447,57 @@
       }
     },
     {
+      "hostname": "subscriptiontracker-7qg.pages.dev",
+      "what": "the Cloudflare Pages alias of the `subscriptiontracker` project — the ORIGIN the apex router (sites/nikatru/functions/_middleware.js) fetches every https://nikatru.com/subscriptiontracker/* request from ([ADR 075])",
+      "derivedFrom": "declared",
+      "why": "Declared 2026-09-11. assert-monitor-coverage.mjs has printed it as an \"app ORIGIN host with no row\" on every run since 2026-09-09. It is `declared` rather than a derivation of its own because tooling/ops/status.mjs requires every `derivedFrom` to be one of this file's `_derivation` keys, and catalog/apps.json `origin` is not one; the coverage guard corroborates the host against apps/subscriptiontracker/app.yaml `hosts.pagesOrigin` either way, so a stale row still fails by name. Measured 2026-09-11: GET https://subscriptiontracker-7qg.pages.dev/ → 200, 11,336 B, body carries `<base href=\"/subscriptiontracker/\">`.",
+      "monitor": null,
+      "gap": {
+        "why": "Nothing watches the origin. The nikatru.com row's pathMonitors entry (monitor 3) watches the apex PATH, which fails for an origin fault and a router fault alike without saying which — and the router now answers some app-path URLs from the static site (2026-09-11), so the two can diverge. No monitor is declared here: a row and its live monitor are one change, and the POST is an action on the GlitchTip instance.",
+        "action": "One GET monitor with a body matcher, so a Pages project that answers 200 with the wrong bytes (a rollback to an empty deployment, a renamed project) is caught: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"subscriptiontracker origin (pages.dev)\",\"url\":\"https://subscriptiontracker-7qg.pages.dev/\",\"expectedStatus\":200,\"expectedBody\":\"<base href=\\\"/subscriptiontracker/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<the project monitor 3 alerts into — read it from GET …/monitors/3/ first; do not guess>\"}. Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
+        "openedOn": "2026-09-11"
+      }
+    },
+    {
+      "hostname": "www.nikatru.com",
+      "what": "the www label of the factory's public site — it SERVES the site (200) rather than redirecting to the apex",
+      "derivedFrom": "declared",
+      "why": "Measured 2026-09-11: GET https://www.nikatru.com/ → 200 from Cloudflare, body carries `<link rel=\"canonical\" href=\"https://nikatru.com/\">`. No derivation source names it — `siteCanonicals` reads that canonical, which is the apex — so a hostname the site answers on was absent from this register. Search engines follow the canonical; a visitor or store reviewer who types www does not, and nothing watched what they get.",
+      "monitor": null,
+      "gap": {
+        "why": "No monitor: it is a POST to GlitchTip, not a repo edit. Whether www should keep SERVING or become a 301 to the apex is an account-side Cloudflare decision (a Redirect Rule, recorded in HANDOFF-stores.md), and it decides which monitor is right.",
+        "action": "If www keeps serving: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"www.nikatru.com\",\"url\":\"https://www.nikatru.com/\",\"expectedStatus\":200,\"expectedBody\":\"<link rel=\\\"canonical\\\" href=\\\"https://nikatru.com/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<monitor 4's project>\"} — the body matcher monitor 4 already uses on the apex. If www becomes a 301: expectedStatus 301 and no body, as subly.nikatru.com's pre-written monitor, with the same stated weakness (an edge redirect watches Cloudflare). Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
+        "openedOn": "2026-09-11"
+      }
+    },
+    {
+      "hostname": "www.rajasekarselvam.com",
+      "what": "the www label of the founder site — it SERVES the site (200) rather than redirecting to the apex",
+      "derivedFrom": "declared",
+      "why": "Measured 2026-09-11: GET https://www.rajasekarselvam.com/ → 200 from Cloudflare, body carries `<link rel=\"canonical\" href=\"https://rajasekarselvam.com/\">`. Same structural reason as www.nikatru.com: `siteCanonicals` derives the apex only.",
+      "monitor": null,
+      "gap": {
+        "why": "As www.nikatru.com — the serve-or-301 decision is account-side, and the monitor follows it.",
+        "action": "If www keeps serving: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"www.rajasekarselvam.com\",\"url\":\"https://www.rajasekarselvam.com/\",\"expectedStatus\":200,\"expectedBody\":\"<link rel=\\\"canonical\\\" href=\\\"https://rajasekarselvam.com/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<monitor 5's project>\"}. If it becomes a 301: expectedStatus 301, no body. Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
+        "openedOn": "2026-09-11"
+      }
+    },
+    {
       "hostname": "api.nikatru.com",
+      "what": "the pre-[ADR 079] host of the subscriptiontracker-api Worker, held as its second custom domain for the cutover only",
+      "derivedFrom": "workerCustomDomains",
+      "monitor": null,
+      "gap": {
+        "why": "A TRANSITION ROW, NOT A GAP TO CLOSE. Monitor 2 moved to subscriptiontracker.api.nikatru.com with the catalogue's `api` ([ADR 079]). This host stays a custom domain of the same Worker for the length of the cutover, so it is derived and must have a row; it has no monitor of its own because it serves the same Worker the monitored host serves.",
+        "action": "Remove this row in the same change that removes `api.nikatru.com` from services/subscriptiontracker-api/wrangler.jsonc `routes`.",
+        "openedOn": "2026-09-11"
+      }
+    },
+    {
+      "hostname": "subscriptiontracker.api.nikatru.com",
       "what": "the subscriptiontracker-api Worker",
       "derivedFrom": "appCatalogue",
-      "monitor": { "id": 2, "name": "Subly API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" },
+      "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" },
       "🔴 openBodyGap": {
         "why": "MONITOR 2 STAYS GREEN THROUGH EVERY FAULT PR #384 MADE DETECTABLE — it asserts `expectedStatus` 200 and NO body, while `/v1/health` deliberately answers 200 even when `ok` is false — so the matcher this row will carry, \"ok\":true, is knowingly NOT declared in `monitor` above until the live GlitchTip PUT lands, because tooling/ops/verify-monitors.mjs compares DECLARED bodies only and a register-only assertion makes it exit 1 inside the SCHEDULED `glitchtip` job at .github/workflows/ops-watch.yml:235, which opens the portfolio's never-auto-closed durable alert issue.",
         "openedOn": "2026-08-26",
@@ -652,7 +699,7 @@
         "⚠️ SO NOTHING WAS DECLARED IN ITS PLACE, and that is the point of writing this down instead. No",
         "row above carries an `sslMonitor` field, because a row claiming a check nobody is running is the",
         "same defect as a check that cannot see a fault, pointed the other way — the rule the",
-        "`🔴 openBodyGap` block on api.nikatru.com already applies to a body matcher."
+        "`🔴 openBodyGap` block on subscriptiontracker.api.nikatru.com already applies to a body matcher."
       ],
       "ownerChecklist": {
         "whyOwner": "NOT capability — creating monitors through the API is proven agent work (2026-08-05, and again for monitor 17 on 2026-09-03), and this file's own `🔴 whyItStayedOpen` warns that 'owner action' is a claim needing evidence rather than a category. What is owner work is the step that has to come FIRST: finding out why the SSL check path returns down in 0 ms with a null reason. That is a container log on a host this repository cannot reach.",

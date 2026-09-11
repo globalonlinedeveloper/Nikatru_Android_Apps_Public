@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// DELETE /v1/account ON subscriptiontracker-api — the route that finally reaches subly_db,
+// DELETE /v1/account ON subscriptiontracker-api — the route that finally reaches subscriptiontracker_db,
 // and the boundary that decides who may ask for it.
 //
 // Driven through the REAL Worker (`src/index.ts`), against the REAL migrations,
@@ -171,7 +171,7 @@ function rowsMentioning(db: SqliteD1, table: string, needle: string): number {
     .n as number;
 }
 
-/** Every table in subly_db, seeded for both users. Returns the table list. */
+/** Every table in subscriptiontracker_db, seeded for both users. Returns the table list. */
 function seedEveryTable(db: SqliteD1): string[] {
   const tables = tablesOf(db);
   for (const t of tables) {
@@ -182,7 +182,7 @@ function seedEveryTable(db: SqliteD1): string[] {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-describe('the DEPLOYED Worker erases subly_db for the caller — and only for them', () => {
+describe('the DEPLOYED Worker erases subscriptiontracker_db for the caller — and only for them', () => {
   it('purges every user-owned table and leaves the other user alone', async () => {
     const db = realAppDb();
     const tables = seedEveryTable(db);
@@ -200,7 +200,7 @@ describe('the DEPLOYED Worker erases subly_db for the caller — and only for th
     expect(body.ok).toBe(true);
     // The scope is part of the contract: this Worker erases ONE database, and a
     // caller must not be able to read a bare ok:true as "the account is gone".
-    expect(body.scope).toBe('subly_db');
+    expect(body.scope).toBe('subscriptiontracker_db');
 
     // Four tables today, and the assertion is over the DERIVED set rather than
     // over four names typed here — a fifth user-owned table added by a migration
@@ -412,7 +412,7 @@ describe('the table set is DERIVED FROM THE SCHEMA, not listed in the route', ()
   });
 
   it('UNLINKS a `*_user_id` REFERENCE instead of deleting the row that carries it', async () => {
-    // subly_db has no such column today, and the limb is still under test: the
+    // subscriptiontracker_db has no such column today, and the limb is still under test: the
     // rule is what makes a future `shared_with_user_id` safe on the day it is
     // created rather than on the day somebody remembers this file.
     const db = realAppDb([
@@ -465,7 +465,7 @@ describe('the table set is DERIVED FROM THE SCHEMA, not listed in the route', ()
     // would catch a `user_id` spelled `owner_id`, in a table nobody declared.
     const db = realAppDb();
     const tables = seedEveryTable(db);
-    // The fixture has to be able to FAIL: every table in subly_db is addressable
+    // The fixture has to be able to FAIL: every table in subscriptiontracker_db is addressable
     // today, so the planted count is derived from the table list rather than
     // written as a literal, and it must be non-zero or the sweep below would pass
     // on a database with no identifiers in it.
@@ -508,10 +508,10 @@ describe('the register and the schema are one system', () => {
   }
   const register = JSON.parse(registerRaw) as { stores: StoreRow[] };
   const declared = register.stores.filter(
-    (s) => s.kind === 'd1-table' && s.id.startsWith('table:subly_db.'),
+    (s) => s.kind === 'd1-table' && s.id.startsWith('table:subscriptiontracker_db.'),
   );
 
-  it('names EXACTLY the tables subly_db actually has', () => {
+  it('names EXACTLY the tables subscriptiontracker_db actually has', () => {
     // 🔴 THE DOMAIN ASSERTION. Without it every claim below quantifies over a set
     // somebody chose, and a migration adding a table with no register row — the
     // way an erasure gap is actually born — would change nothing here.

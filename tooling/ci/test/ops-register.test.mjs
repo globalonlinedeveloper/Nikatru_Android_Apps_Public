@@ -115,7 +115,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -147,6 +147,7 @@ import {
   redSinceDomain,
   classifyRedSince,
   evaluateRedSince,
+  diedOnlyOnInstallationQuota,
   hostWorkflowFile,
   dispatchableWorkflows,
   gateTopology,
@@ -174,6 +175,11 @@ import {
   decideUnitRedSince,
   checkRunUnits,
   githubDarkness,
+  LIVE_READS_NOT_MADE,
+  localImportClosure,
+  liveReadInputs,
+  proposalChangedFiles,
+  liveReadPlan,
 } from '../assert-ops-register.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -199,15 +205,26 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 // against here is the same `fetch` a CI runner gives it. It is serialised from a
 // real function, so it is parsed with the rest of this file.
 // ─────────────────────────────────────────────────────────────────────────────
-function replayStub(readFileSync) {
+function replayStub(readFileSync, writeFileSync) {
   const F = JSON.parse(readFileSync(process.env.OPS_REPLAY_FILE, 'utf8'));
   const NOW_MS = Date.parse(F.now);
   Date.now = () => NOW_MS;
   const ghStatus = Number(process.env.OPS_REPLAY_GITHUB_STATUS || 200);
   const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  // ⏱ 2026-09-11 — EVERY REQUEST THE GUARD MAKES IS COUNTED, by provider, and
+  // written on exit when OPS_REPLAY_COUNT_FILE names a file. The quota a CI run
+  // spends is a number, so the change that cuts it is proven by a number.
+  const counts = { github: 0, glitchtip: 0, cloudflare: 0, other: 0 };
+  if (process.env.OPS_REPLAY_COUNT_FILE) {
+    process.on('exit', () => writeFileSync(process.env.OPS_REPLAY_COUNT_FILE, JSON.stringify(counts)));
+  }
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     const parts = url.pathname.split('/').filter(Boolean);
+    if (url.hostname === 'api.github.com') counts.github += 1;
+    else if (url.hostname.startsWith('glitchtip')) counts.glitchtip += 1;
+    else if (url.hostname === 'api.cloudflare.com') counts.cloudflare += 1;
+    else counts.other += 1;
     if (url.hostname === 'api.github.com') {
       if (ghStatus !== 200) return json({ message: 'replayed refusal' }, ghStatus);
       const wfAt = parts.indexOf('workflows');
@@ -228,8 +245,16 @@ function replayStub(readFileSync) {
         const list = F.jobs?.[parts[runAt + 1]] ?? [];
         return json({
           total_count: list.length,
-          jobs: list.map(([name, conclusion, steps]) => ({ name, status: 'completed', conclusion, steps: (steps ?? []).map(([n, c]) => ({ name: n, conclusion: c })) })),
+          jobs: list.map(([name, conclusion, steps, jobId]) => ({ id: jobId, name, status: 'completed', conclusion, steps: (steps ?? []).map(([n, c]) => ({ name: n, conclusion: c })) })),
         });
+      }
+      // ⏱ 2026-09-11 — a failed job's check-run annotations, `annotations[jobId]`
+      // rows `[level, message]`; a job with none recorded is a 404, as it is live.
+      const crAt = parts.indexOf('check-runs');
+      if (crAt !== -1 && parts[crAt + 2] === 'annotations') {
+        const rows = F.annotations?.[parts[crAt + 1]];
+        if (!rows) return json({ message: 'Not Found' }, 404);
+        return json(rows.map(([level, message]) => ({ annotation_level: level, message })));
       }
       if (url.pathname === '/search/issues') {
         const hit = Object.entries(F.issues ?? {}).find(([t]) => (url.searchParams.get('q') ?? '').includes(t));
@@ -266,7 +291,7 @@ let replayStubHref = null;
 function replayStubUrl() {
   if (replayStubHref === null) {
     const p = join(TMP, 'ops-replay-stub.mjs');
-    writeFileSync(p, `import { readFileSync } from 'node:fs';\n(${replayStub.toString()})(readFileSync);\n`);
+    writeFileSync(p, `import { readFileSync, writeFileSync } from 'node:fs';\n(${replayStub.toString()})(readFileSync, writeFileSync);\n`);
     replayStubHref = pathToFileURL(p).href;
   }
   return replayStubHref;
@@ -1961,9 +1986,38 @@ describe('assert-ops-register — end to end, against the real repository', () =
   // file's: THE REGISTER IS STRUCTURALLY SOUND — every problem, if any, must be
   // a record-query verdict about a failing duty, never a schema, coverage or
   // delegation error. A structural break still reddens this test on every OS.
+  // ⏱ 2026-09-11 — THIS SPAWN SPENT THE CI QUOTA IT WAS NOT HERE TO MEASURE.
+  // It used to inherit the guard-meta job's environment, GITHUB_TOKEN included,
+  // and it ran once per test below: three live runs of the guard per CI run, 56
+  // GitHub requests each — 168, COUNTED under a pass-through fetch counter on
+  // origin/main 90414b02, against a token allowed 1,000 an hour for the whole
+  // repository. None of these tests is about the live world: they assert that
+  // the COMMITTED register is structurally sound and that each limb runs and
+  // prints its counts. So the guard now runs ONCE, against the committed tree,
+  // with every read answered by the replay stub from the 2026-09-11 freeze
+  // fixture (the same answers the INV1..INV6 suite below replays), from a
+  // scrubbed environment in the local host, where every read is made and every
+  // limb runs. The replay counts what the guard asked; the O-3 test requires
+  // that count, so a guard that stopped querying and a spawn that went back to
+  // the live API are both RED.
+  const REPLAY_FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
+  let realRun = null;
   const realGuard = () => {
-    const r = spawnSync(process.execPath, [GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8' });
-    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+    if (realRun) return realRun;
+    const countFile = join(TMP, `real-guard-count-${seq++}.json`);
+    const env = scrubbedEnv({
+      OPS_REPLAY_FILE: REPLAY_FIXTURE,
+      OPS_REPLAY_COUNT_FILE: countFile,
+      GITHUB_TOKEN: 'replay',
+      GLITCHTIP_TOKEN: 'replay',
+      CLOUDFLARE_API_TOKEN: 'replay',
+      CLOUDFLARE_ACCOUNT_ID: 'replay',
+      GITHUB_REPOSITORY: 'globalonlinedeveloper/Nikatru_Platform_Public',
+    });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8', env });
+    const counts = existsSync(countFile) ? JSON.parse(readFileSync(countFile, 'utf8')) : null;
+    realRun = { code: r.status, out: `${r.stdout}\n${r.stderr}`, counts };
+    return realRun;
   };
 
   /** The record-query verdicts that ARE "a duty is failing": a reachable record
@@ -2019,6 +2073,9 @@ describe('assert-ops-register — end to end, against the real repository', () =
     const stale = problems.filter((p) => HELD_BUT_HEALTHY.test(p));
     for (const p of problems) {
       if (stale.includes(p)) continue;
+      // ⏱ 2026-09-11 — a newest failure that died ONLY on the installation quota is
+      // COVERAGE LOST about one row: a measurement, not a malformed register.
+      if (/failed ONLY on `API rate limit exceeded for installation`/.test(p)) continue;
       assert.match(
         p,
         DUTY_IS_FAILING,
@@ -2107,8 +2164,16 @@ describe('assert-ops-register — end to end, against the real repository', () =
   test('the [14]O-3 record limb actually ran, and says how many records it queried', () => {
     // Without this the previous test is satisfiable by a guard that stopped
     // querying entirely — the defect the whole limb replaces, one level up.
-    const { out } = realGuard();
+    const { out, counts } = realGuard();
     assert.match(out, /\[14\]O-3 — scheduled=\d+ · queried_ok=\d+ · failing=\d+/);
+    // ⏱ 2026-09-11 — AND IT QUERIED THROUGH THE REPLAY, NEVER THE LIVE API. The
+    // replay stub writes what the guard asked, by provider, when it exits; no
+    // count file means the stub was not loaded and every read went to the network
+    // on the guard-meta job's token (168 requests per CI run, counted). A count
+    // of zero GitHub reads means the record limb stopped asking.
+    assert.ok(counts, `the end-to-end run left no replay count, so its reads were not answered by the replay:\n${out}`);
+    assert.ok(counts.github > 0, `the end-to-end run made no GitHub read through the replay (${JSON.stringify(counts)}), so the record limb did not query:\n${out}`);
+    assert.equal(counts.other, 0, `the end-to-end run asked a host the replay does not serve (${JSON.stringify(counts)}):\n${out}`);
     // 🔴 THE LABELS ARE PART OF THE ASSERTION. The previous shape of this line put
     // `22 record(s) QUERIED` and `(ceiling 12)` in one sentence with the unreadable
     // count between them, and on 2026-09-09 two reading passes filed "22 unreadable
@@ -2422,6 +2487,392 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
     }));
     assert.equal(r.code, 1);
     assert.match(r.out, /is not among the 1 host\(s\)/);
+  });
+
+  // ── ⏱ 2026-09-11 · THE LIVE READS ARE NOT MADE WHERE THEIR VERDICT CANNOT BLOCK ──
+  // Measured the same day: 56 GitHub requests per run of this guard, in every CI
+  // run, on a token allowed 1,000 an hour. On a pull_request host every live
+  // verdict prints and none blocks (INV1), so the reads are skipped there — unless
+  // the proposal changes a file they are built from, or git cannot say what it
+  // changes. These build, in a REAL git repository, the commit actions/checkout
+  // gives a pull_request run — a two-parent `Merge <head> into <base>` with
+  // origin/main fetched — and COUNT every request the guard makes.
+  const git = (cwd, ...args) => {
+    const r = spawnSync(
+      'git',
+      ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', '-c', 'init.defaultBranch=main', ...args],
+      { cwd, encoding: 'utf8' },
+    );
+    assert.equal(r.status, 0, `git ${args.join(' ')} exited ${r.status}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  /** A ci.yml that makes the fixture a GUARD HOST declaring both events, so the
+   *  policy is ADVISORY on pull_request and ENFORCING on push by derivation. The
+   *  fixture duty is judged by job `nightly`, which does not run this guard: a
+   *  whole-run unit on a guard host is refused by [INV4] ("No host requires
+   *  itself"), which is the guard working, not the fixture failing. */
+  const HOST_CI = [
+    'name: CI',
+    'on:',
+    '  push:',
+    '    branches: [main]',
+    '  pull_request:',
+    'jobs:',
+    '  nightly:',
+    '    runs-on: ubuntu-24.04',
+    '    steps:',
+    '      - run: echo the duty itself',
+    '  guards:',
+    '    runs-on: ubuntu-24.04',
+    '    steps:',
+    '      - name: Every failure has a detector, a response and a cadence',
+    '        run: node tooling/ci/assert-ops-register.mjs',
+    '',
+  ].join('\n');
+  const hostRoot = () =>
+    fixtureRoot((s, root) => {
+      const row = s.reg.rows.find((x) => x.id === 'duty.workflow.nightly');
+      assert.ok(row, 'the fixture lost the duty the host tests are judged by');
+      row.mechanism.recordQuery.unit = { jobs: ['nightly'] };
+      writeFileSync(join(root, '.github/workflows/ci.yml'), HOST_CI);
+    });
+  /** Commits `root` as main, makes `change` on a branch, checks out the merge. Returns HEAD. */
+  const asPullRequest = (root, change) => {
+    git(root, 'init', '-q');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'base');
+    const base = git(root, 'rev-parse', 'HEAD');
+    git(root, 'update-ref', 'refs/remotes/origin/main', base);
+    git(root, 'checkout', '-q', '-b', 'proposal');
+    change(root);
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'proposal');
+    const head = git(root, 'rev-parse', 'HEAD');
+    git(root, 'checkout', '-q', '--detach', base);
+    git(root, 'merge', '-q', '--no-ff', '-m', `Merge ${head} into ${base}`, head);
+    return git(root, 'rev-parse', 'HEAD');
+  };
+  const ON_PR = (sha) => ({
+    GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '7', GITHUB_WORKFLOW: 'CI', GITHUB_EVENT_NAME: 'pull_request', GITHUB_REF: 'refs/pull/7/merge',
+    GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/pull/7/merge', GITHUB_BASE_REF: 'main', GITHUB_SHA: sha,
+  });
+  const ON_PUSH = (sha) => ({
+    GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '8', GITHUB_WORKFLOW: 'CI', GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main',
+    GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/heads/main', GITHUB_BASE_REF: '', GITHUB_SHA: sha,
+  });
+  const TOUCH_README = (root) => writeFileSync(join(root, 'README.md'), 'a proposal that touches nothing the live reads are built from\n');
+  const TOUCH_REGISTER = (root) => {
+    const p = join(root, 'tooling/ops/register.json');
+    writeFileSync(p, `${JSON.stringify(JSON.parse(readFileSync(p, 'utf8')), null, 2)}\n`);
+  };
+  const TOUCH_WORKFLOW = (root) => writeFileSync(join(root, '.github/workflows/ci.yml'), `${HOST_CI}# touched by the proposal\n`);
+  /** `runRoot` as a named host, with every request counted. `ageHours` is how old the one green run is. */
+  const runCounted = (root, host, extra = {}, ageHours = 1) => {
+    const state = join(TMP, `root-replay-${seq++}.json`);
+    const countFile = join(TMP, `root-count-${seq++}.json`);
+    const now = new Date().toISOString();
+    writeFileSync(
+      state,
+      JSON.stringify({
+        now,
+        runs: { 'ci.yml': [[101, 'schedule', 'success', new Date(Date.parse(now) - ageHours * 3_600_000).toISOString()]] },
+        jobs: { 101: [['nightly', 'success', []], ['guards', 'success', []]] },
+        glitchtip: {},
+        d1: { jobs: {}, targets: {} },
+        issues: {},
+      }),
+    );
+    const env = scrubbedEnv({ OPS_REPLAY_FILE: state, OPS_REPLAY_COUNT_FILE: countFile, GITHUB_TOKEN: 'replay', GITHUB_REPOSITORY: 'o/r', ...host, ...extra });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD, root], { encoding: 'utf8', env });
+    const out = `${r.stdout}\n${r.stderr}`;
+    const counts = JSON.parse(readFileSync(countFile, 'utf8'));
+    const lines = out.split('\n');
+    const at = lines.findIndex((l) => /^✗ tooling\/ops\/register\.json — \d+ problem\(s\):$/.test(l));
+    const problems = at === -1 ? [] : lines.slice(at + 1).filter((l) => /^ {4}\S/.test(l)).map((l) => l.trim());
+    return { code: r.status, out, counts, problems };
+  };
+  const NONE = { github: 0, glitchtip: 0, cloudflare: 0, other: 0 };
+
+  // ⏱ 2026-09-11 · A NEWEST FAILURE THAT DIED ONLY ON THE INSTALLATION QUOTA.
+  // CodeQL runs 34570837477 and 34577720776 on main failed in one step whose
+  // only failure annotation was `API rate limit exceeded for installation`, and
+  // [14]O-3b called duty.workflow.codeql.yml RED SINCE. These drive the real
+  // guard, in the local (enforcing) host, over a history whose newest run on main
+  // FAILED an hour after a success, and differ ONLY in what the failed job's
+  // check run recorded — so the verdict can come from nowhere but that read.
+  const runRedPair = (root, annotations) => {
+    const state = join(TMP, `root-replay-${seq++}.json`);
+    const now = new Date().toISOString();
+    const ago = (h) => new Date(Date.parse(now) - h * 3_600_000).toISOString();
+    writeFileSync(
+      state,
+      JSON.stringify({
+        now,
+        runs: { 'ci.yml': [[101, 'schedule', 'success', ago(3)], [102, 'push', 'failure', ago(1)]] },
+        jobs: { 101: [['nightly', 'success', [], 9101], ['guards', 'success', [], 9102]], 102: [['nightly', 'failure', [], 9201], ['guards', 'success', [], 9202]] },
+        annotations,
+        glitchtip: {},
+        d1: { jobs: {}, targets: {} },
+        issues: {},
+      }),
+    );
+    const env = scrubbedEnv({ OPS_REPLAY_FILE: state, GITHUB_TOKEN: 'replay', GITHUB_REPOSITORY: 'o/r' });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD, root], { encoding: 'utf8', env });
+    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+  };
+  const QUOTA_REFUSAL = 'API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 2838:D9887:2019C45:67AA8DC:6AA3A2EE and timestamp 2026-09-11 06:42:54 UTC.';
+
+  test('CONTROL — a newest failure that failed on its own work is RED SINCE, exit 1, through the real guard', () => {
+    const r = runRedPair(hostRoot(), { 9201: [['failure', 'Process completed with exit code 1.']] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /duty\.workflow\.nightly — RED SINCE /);
+    assert.doesNotMatch(r.out, /failed ONLY on `API rate limit exceeded for installation`/);
+  });
+
+  test('🔴 a newest failure that died ONLY on the installation quota is COVERAGE LOST, exit 2 — never RED SINCE', () => {
+    const r = runRedPair(hostRoot(), { 9201: [['warning', 'Node.js 20 is deprecated.'], ['failure', QUOTA_REFUSAL], ['warning', QUOTA_REFUSAL]] });
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /duty\.workflow\.nightly — ci\.yml on main.* run 102 \([^)]+\) FAILED, and job "nightly" failed ONLY on `API rate limit exceeded for installation`/);
+    assert.match(r.out, /COVERAGE LOST for this row/);
+    assert.doesNotMatch(r.out, /duty\.workflow\.nightly — RED SINCE /);
+  });
+
+  test('CONTROL — the fixture pull request is a real guard host: ADVISORY on pull_request, ENFORCING on push, green on both', () => {
+    const root = hostRoot();
+    const sha = asPullRequest(root, TOUCH_REGISTER);
+    const pr = runCounted(root, ON_PR(sha));
+    assert.equal(pr.code, 0, pr.out);
+    assert.match(pr.out, /HOST POLICY — ADVISORY: ci\.yml on `pull_request`/);
+    const push = runCounted(root, ON_PUSH(sha));
+    assert.equal(push.code, 0, push.out);
+    assert.match(push.out, /HOST POLICY — ENFORCING: ci\.yml on `push`/);
+  });
+
+  test('pull_request, a change that touches none of the live reads\' inputs — ZERO requests, one plain line, exit 0, and the structural limbs still ran', () => {
+    const root = hostRoot();
+    const r = runCounted(root, ON_PR(asPullRequest(root, TOUCH_README)));
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(r.counts, NONE, r.out);
+    const line = r.out.split('\n').filter((l) => l.startsWith('⬜  [LIVE] NOT READ ON THIS HOST — '));
+    assert.equal(line.length, 1, `exactly one plain line says the reads were not made:\n${r.out}`);
+    assert.match(line[0], /no GitHub, GlitchTip or Cloudflare request was made\. On a pull request a live verdict cannot block \(INV1\)/);
+    assert.match(line[0], /The push run on main makes every one of them and enforces its verdict \(INV2\)\.$/);
+    assert.match(r.out, /⬜ {2}register: \d+ rows/);
+    assert.match(r.out, /\[14\]O-3b — (TRIGGER ROWS|NOT GRADED)/, 'the redness census is a fact about the tree and still prints');
+    assert.doesNotMatch(r.out, /\[14\]O-3 — scheduled=|\[14\]O-3b — RED SINCE: \d+/, 'no tally may be printed over reads that were not made');
+  });
+
+  test('…so a GitHub that refuses every request cannot redden that proposal: nothing asks it', () => {
+    const root = hostRoot();
+    const r = runCounted(root, ON_PR(asPullRequest(root, TOUCH_README)), { OPS_REPLAY_GITHUB_STATUS: '403' });
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(r.counts, NONE, r.out);
+    assert.doesNotMatch(r.out, /COVERAGE LOST/);
+  });
+
+  test('pull_request that changes tooling/ops/register.json — the reads ARE made, and a GitHub that refuses them is still COVERAGE LOST (INV6)', () => {
+    const root = hostRoot();
+    const sha = asPullRequest(root, TOUCH_REGISTER);
+    const r = runCounted(root, ON_PR(sha));
+    assert.equal(r.code, 0, r.out);
+    assert.ok(r.counts.github > 0, `no GitHub request was made for a register change:\n${r.out}`);
+    assert.match(r.out, /\[LIVE\] reads made on this host: this change touches 1 file\(s\) the live reads are built from \(tooling\/ops\/register\.json\)/);
+    assert.match(r.out, /\[14\]O-3 — scheduled=\d+ · queried_ok=1/);
+    const dark = runCounted(root, ON_PR(sha), { OPS_REPLAY_GITHUB_STATUS: '403' });
+    assert.equal(dark.code, 2, dark.out);
+  });
+
+  test('pull_request that changes a workflow file — the reads ARE made', () => {
+    const root = hostRoot();
+    const r = runCounted(root, ON_PR(asPullRequest(root, TOUCH_WORKFLOW)));
+    assert.equal(r.code, 0, r.out);
+    assert.ok(r.counts.github > 0, r.out);
+    assert.match(r.out, /this change touches 1 file\(s\) the live reads are built from \(\.github\/workflows\/ci\.yml\)/);
+  });
+
+  test('pull_request whose changed files git cannot establish — HEAD is an ordinary one-parent commit, not the merge — the reads are made, as before', () => {
+    const root = hostRoot();
+    git(root, 'init', '-q');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'base');
+    git(root, 'update-ref', 'refs/remotes/origin/main', git(root, 'rev-parse', 'HEAD'));
+    TOUCH_README(root);
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'a commit on top of main, checked out directly');
+    const sha = git(root, 'rev-parse', 'HEAD');
+    const r = runCounted(root, ON_PR(sha));
+    assert.equal(r.code, 0, r.out);
+    assert.ok(r.counts.github > 0, r.out);
+    assert.match(r.out, /\[LIVE\] reads made on this host: which files this change touches could not be established \(HEAD has 1 parent\(s\)/);
+  });
+
+  test('pull_request with no GITHUB_BASE_REF — unknown, so the reads are made', () => {
+    const root = hostRoot();
+    const r = runCounted(root, { ...ON_PR(asPullRequest(root, TOUCH_README)), GITHUB_BASE_REF: '' });
+    assert.ok(r.counts.github > 0, r.out);
+    assert.match(r.out, /could not be established \(GITHUB_BASE_REF is not set/);
+  });
+
+  test('push — the same merge commit reads exactly what a tree with no git at all reads, and a stale duty still BLOCKS there while the proposal is not blocked', () => {
+    const root = hostRoot();
+    const sha = asPullRequest(root, TOUCH_README);
+    const withGit = runCounted(root, ON_PUSH(sha));
+    const noGit = runCounted(hostRoot(), ON_PUSH(sha));
+    assert.equal(withGit.code, 0, withGit.out);
+    assert.ok(withGit.counts.github > 0, withGit.out);
+    assert.deepEqual(withGit.counts, noGit.counts, 'the push host must not read less because a merge commit is checked out');
+    assert.doesNotMatch(withGit.out, /\[LIVE\] (NOT READ|reads made)/, 'an enforcing host prints nothing new');
+    // A duty whose newest success is 50 hours old on a 1d cadence (window 36h).
+    // Each run replays its own `now`, so only the replayed instant is masked.
+    const instant = (ps) => ps.map((p) => p.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<replayed instant>'));
+    const stalePush = runCounted(root, ON_PUSH(sha), {}, 50);
+    const staleNoGit = runCounted(hostRoot(), ON_PUSH(sha), {}, 50);
+    assert.equal(stalePush.code, 1, stalePush.out);
+    assert.ok(stalePush.problems.some((p) => p.startsWith('duty.workflow.nightly —')), stalePush.problems.join('\n'));
+    assert.deepEqual(instant(stalePush.problems), instant(staleNoGit.problems), 'the push verdict is the verdict a run with no git gives');
+    const stalePr = runCounted(root, ON_PR(sha), {}, 50);
+    assert.equal(stalePr.code, 0, stalePr.out);
+    assert.deepEqual(stalePr.counts, NONE, stalePr.out);
+  });
+});
+
+describe('⏱ 2026-09-11 · which runs make the live reads — the pure half', () => {
+  const REPO_ROOT = resolve(CI_DIR, '..', '..');
+  const readReal = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
+  const realReg = () => JSON.parse(readReal('tooling/ops/register.json'));
+  const ADVISORY = (event = 'pull_request') => ({ host: 'ci.yml', event, mode: 'advisory', why: 'test' });
+  const ENFORCING = { host: 'ci.yml', event: 'push', mode: 'enforcing', why: 'test' };
+  const inputsOfReal = () => liveReadInputs(realReg(), localImportClosure(GUARD_SCRIPT_REL, readReal));
+  const known = (files) => ({ known: true, base: 'main', head: 'h', first: 'f', files });
+  const namedWranglers = (reg) =>
+    [...new Set(reg.rows.flatMap((r) => [r?.mechanism?.recordQuery?.wrangler, r?.mechanism?.recordQuery?.timer?.wrangler]).filter(Boolean))];
+
+  test('the inputs are DERIVED from the real tree: register, guard, every module it imports, the gate script, every workflow, every wrangler a query names', () => {
+    const inputs = inputsOfReal();
+    assert.ok(inputs, 'the real guard\'s import closure could not be derived — every pull request would read, silently');
+    for (const f of ['tooling/ops/register.json', GUARD_SCRIPT_REL, GATE_SCRIPT_REL]) assert.ok(inputs.files.has(f), `${f} is not a live-read input`);
+    // Read independently of the closure's own pattern: each relative import the guard declares.
+    const declared = [...readReal(GUARD_SCRIPT_REL).matchAll(/^import [^;]*? from '\.\/([^']+)';$/gms)].map((m) => `tooling/ci/${m[1]}`);
+    assert.ok(declared.length >= 3, `found only ${declared.length} relative imports in the guard`);
+    for (const f of declared) assert.ok(inputs.files.has(f), `${f} is imported by the guard and is not a live-read input`);
+    const wranglers = namedWranglers(realReg());
+    assert.ok(wranglers.length >= 1, 'no record query names a wrangler config, so this limb of the derivation ranges over nothing');
+    for (const w of wranglers) assert.ok(inputs.files.has(w), `${w} is named by a record query and is not a live-read input`);
+    assert.deepEqual(inputs.prefixes, ['.github/workflows/']);
+  });
+
+  test('localImportClosure follows relative imports transitively, survives a cycle, and is null — never smaller — when a module cannot be read', () => {
+    const src = {
+      'a/x.mjs': "import { y } from './y.mjs';\nimport z from '../b/z.mjs';\n",
+      'a/y.mjs': "export * from './x.mjs';\nimport fs from 'node:fs';\n",
+      'b/z.mjs': "const w = await import('./w.mjs');\n",
+      'b/w.mjs': '',
+    };
+    const read = (rel) => {
+      if (!(rel in src)) throw new Error(`ENOENT ${rel}`);
+      return src[rel];
+    };
+    assert.deepEqual([...localImportClosure('a/x.mjs', read)].sort(), ['a/x.mjs', 'a/y.mjs', 'b/w.mjs', 'b/z.mjs']);
+    const lost = localImportClosure('a/x.mjs', (rel) => {
+      if (rel === 'b/w.mjs') throw new Error('ENOENT');
+      return read(rel);
+    });
+    assert.equal(lost, null);
+    assert.equal(liveReadInputs(realReg(), null), null);
+  });
+
+  test('proposalChangedFiles believes git only when every link holds — base named, HEAD is GITHUB_SHA, two parents, first parent on origin/<base>', () => {
+    const M = 'a'.repeat(40);
+    const F = 'b'.repeat(40);
+    const H = 'c'.repeat(40);
+    const gitOf = ({ parents = `${M} ${F} ${H}\n`, revList = 0, ancestor = 0, diff = { status: 0, stdout: 'README.md\0tooling/ops/register.json\0' } } = {}) => {
+      const calls = [];
+      const fn = (args) => {
+        calls.push(args);
+        if (args[0] === 'rev-list') return { status: revList, stdout: parents };
+        if (args[0] === 'merge-base') return { status: ancestor, stdout: '' };
+        if (args[0] === 'diff') return diff;
+        return { status: 99, stdout: '' };
+      };
+      fn.calls = calls;
+      return fn;
+    };
+    const ENV = { GITHUB_BASE_REF: 'main', GITHUB_SHA: M };
+    const g = gitOf();
+    const ok = proposalChangedFiles(ENV, g);
+    assert.equal(ok.known, true, ok.why);
+    assert.deepEqual(ok.files, ['README.md', 'tooling/ops/register.json']);
+    assert.deepEqual(g.calls[1], ['merge-base', '--is-ancestor', F, 'refs/remotes/origin/main']);
+    assert.deepEqual(g.calls[2], ['diff', '--name-only', '--no-renames', '-z', F, M]);
+    for (const [env, git, why] of [
+      [{ ...ENV, GITHUB_BASE_REF: '' }, gitOf(), /GITHUB_BASE_REF is not set/],
+      [{ ...ENV, GITHUB_BASE_REF: '--output=x' }, gitOf(), /is not a branch name this guard will hand to git/],
+      [{ ...ENV, GITHUB_BASE_REF: 'main..evil' }, gitOf(), /is not a branch name/],
+      [{ ...ENV, GITHUB_SHA: H }, gitOf(), /is not GITHUB_SHA/],
+      [{ ...ENV, GITHUB_SHA: '' }, gitOf(), /is not GITHUB_SHA \(unset\)/],
+      [ENV, gitOf({ revList: 128 }), /rev-list --parents -n 1 HEAD` exited 128/],
+      [ENV, gitOf({ parents: `${M} ${F}\n` }), /HEAD has 1 parent\(s\)/],
+      [ENV, gitOf({ parents: `${M} ${F} ${H} ${'d'.repeat(40)}\n` }), /HEAD has 3 parent\(s\)/],
+      [ENV, gitOf({ ancestor: 1 }), /is not shown to be on origin\/main \(`git merge-base --is-ancestor` exited 1\)/],
+      [ENV, gitOf({ ancestor: 128 }), /exited 128/],
+      [ENV, gitOf({ diff: { status: null, stdout: '' } }), /exited without a status/],
+    ]) {
+      const r = proposalChangedFiles(env, git);
+      assert.equal(r.known, false, `believed: ${JSON.stringify(env)}`);
+      assert.match(r.why, why);
+    }
+  });
+
+  test('liveReadPlan — an enforcing host always reads and prints nothing new; an advisory one skips ONLY on a known change that touches no input', () => {
+    const inputs = inputsOfReal();
+    const reads = (plan) => assert.equal(plan.read, true, plan.line);
+    assert.deepEqual(liveReadPlan(ENFORCING, known(['README.md']), inputs), { read: true, line: null, touched: [] });
+    assert.deepEqual(liveReadPlan(ENFORCING, null, null), { read: true, line: null, touched: [] });
+    for (const ev of ['pull_request_target', 'merge_group']) {
+      const p = liveReadPlan(ADVISORY(ev), known(['README.md']), inputs);
+      reads(p);
+      assert.match(p.line, /is not `pull_request`/);
+    }
+    reads(liveReadPlan(ADVISORY(), { known: false, why: 'no base' }, inputs));
+    reads(liveReadPlan(ADVISORY(), null, inputs));
+    reads(liveReadPlan(ADVISORY(), known(['README.md']), null));
+    const wrangler = namedWranglers(realReg())[0];
+    for (const f of ['tooling/ops/register.json', '.github/workflows/ops-watch.yml', 'tooling/ci/workflow-scan.mjs', GUARD_SCRIPT_REL, GATE_SCRIPT_REL, wrangler]) {
+      const p = liveReadPlan(ADVISORY(), known(['README.md', f]), inputs);
+      reads(p);
+      assert.deepEqual(p.touched, [f]);
+    }
+    for (const files of [['README.md', 'apps/x/lib/main.dart', 'tooling/ci/assert-no-do-alarms.mjs'], []]) {
+      const p = liveReadPlan(ADVISORY(), known(files), inputs);
+      assert.equal(p.read, false, `${files.join(' ')} made the reads`);
+      assert.match(p.line, /^\[LIVE\] NOT READ ON THIS HOST — .*The push run on main makes every one of them and enforces its verdict \(INV2\)\.$/);
+    }
+  });
+
+  test('handed LIVE_READS_NOT_MADE, both evaluators still run every structural check they own, and classify nothing', () => {
+    const now = Date.now();
+    const rec = evaluateRunRecords(realReg(), LIVE_READS_NOT_MADE, now);
+    assert.equal(rec.coverageLost, undefined, rec.coverageLost?.join(' '));
+    assert.deepEqual([rec.live, rec.measurement], [[], []]);
+    assert.ok(!rec.prints.some((p) => /scheduled=\d+/.test(p)), 'a tally over reads that were not made');
+
+    const broken = realReg();
+    broken._recordReaders['never-used-reader'] = { why: 'declared, and no row uses it' };
+    const skipped = evaluateRunRecords(broken, LIVE_READS_NOT_MADE, now);
+    const read = evaluateRunRecords(broken, new Map(), now);
+    assert.ok(skipped.errors.some((e) => /`_recordReaders\.never-used-reader` is declared and no row uses it/.test(e)), skipped.errors.join('\n'));
+    for (const e of skipped.errors) assert.ok(read.errors.includes(e), `a structural error only the skip path reports: ${e}`);
+
+    const dispatchable = dispatchableWorkflows(REPO_ROOT);
+    const red = evaluateRedSince(realReg(), LIVE_READS_NOT_MADE, dispatchable);
+    assert.deepEqual(red.live, []);
+    assert.ok(red.prints.some((p) => /\[14\]O-3b — TRIGGER ROWS/.test(p)), red.prints.join('\n'));
+    assert.ok(!red.prints.some((p) => /RED SINCE: \d+/.test(p)));
+    const redRead = evaluateRedSince(realReg(), new Map(), dispatchable);
+    for (const p of red.prints) assert.ok(redRead.prints.includes(p), `a census line the read path does not print: ${p}`);
+    const emptied = realReg();
+    emptied.rows = emptied.rows.filter((r) => !String(r.id).startsWith('duty.workflow.'));
+    assert.ok(evaluateRedSince(emptied, LIVE_READS_NOT_MADE, dispatchable).coverageLost, 'the empty-domain refusal was skipped with the reads');
   });
 });
 
@@ -4428,6 +4879,97 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
 // build-platforms.yml is RED SINCE (the Android release build is broken), and the
 // laptop pipeline-driver has not beaten since 2026-09-09T04:21Z.
 // ─────────────────────────────────────────────────────────────────────────────
+describe('assert-ops-register — [14]O-3b · a run that died ONLY on the installation quota is COVERAGE LOST, not RED (2026-09-11)', () => {
+  // The annotation text and the job are the ones GitHub recorded on CodeQL run
+  // 34577720776 (job 103193893384), read from /check-runs/{id}/annotations.
+  const QUOTA = 'API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8038:1078A0:41122:D7FF2:6AA3B7DC and timestamp 2026-09-11 08:12:12 UTC.';
+  const JOB = { id: 103193893384, name: 'Analyze JavaScript and TypeScript', conclusion: 'failure' };
+  const annotationsOf = (m) => (id) => m[id] ?? null;
+  const row = {
+    id: 'duty.workflow.codeql.yml',
+    kind: 'duty',
+    what: 'the scheduled code scan',
+    detector: 'this guard',
+    response: 'read the failed run',
+    cadence: '1d',
+    mechanism: {
+      substrate: 'github-actions',
+      anchor: 'renovate.json',
+      record: 'GitHub Actions run history',
+      failingValue: 'conclusion = failure',
+      readBy: 'this guard',
+      recordQuery: { reader: 'github-run-history', workflow: 'codeql.yml', unit: 'run', event: 'schedule', headBranch: 'main' },
+    },
+  };
+  const OK = { id: 34540000001, at: '2026-09-10T20:53:00Z' };
+  const failOf = (over = {}) => ({ id: 34577720776, at: '2026-09-11T08:12:30Z', ...over });
+  const probesOf = (failure, success = OK) => new Map([[row.id, { success, failure }]]);
+  const quotaCause = () => diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'warning', message: 'Node.js 20 is deprecated.' }, { annotation_level: 'failure', message: QUOTA }] }));
+
+  test('GREEN CONTROL — a failed job whose failure annotation is its own error is NOT quota-only', () => {
+    const c = diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'failure', message: 'Process completed with exit code 1.' }] }));
+    assert.equal(c.quotaOnly, false);
+    assert.match(c.why, /failed on: Process completed with exit code 1\./);
+  });
+
+  test('🔴 every failure annotation of every failed job is the refusal: quota-only, and the job is named', () => {
+    const c = quotaCause();
+    assert.equal(c.quotaOnly, true);
+    assert.equal(c.why, 'job "Analyze JavaScript and TypeScript" failed ONLY on `API rate limit exceeded for installation`');
+  });
+
+  test('🔴 NOT PROVEN is never quota — mixed failures, an unread list, no failure annotation, no failed job, no job list', () => {
+    const second = { id: 2, name: 'second', conclusion: 'failure' };
+    const quotaList = [{ annotation_level: 'failure', message: QUOTA }];
+    assert.equal(diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [...quotaList, { annotation_level: 'failure', message: 'boom' }] })).quotaOnly, false, 'a real failure beside the refusal');
+    assert.equal(diedOnlyOnInstallationQuota([JOB, second], annotationsOf({ [JOB.id]: quotaList, 2: [{ annotation_level: 'failure', message: 'boom' }] })).quotaOnly, false, 'a second failed job that failed on its own work');
+    assert.equal(diedOnlyOnInstallationQuota([JOB, second], annotationsOf({ [JOB.id]: quotaList })).quotaOnly, false, 'a failed job whose annotations could not be read');
+    assert.equal(diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'warning', message: QUOTA }] })).quotaOnly, false, 'a refusal recorded only as a warning');
+    assert.equal(diedOnlyOnInstallationQuota([{ ...JOB, conclusion: 'success' }], annotationsOf({ [JOB.id]: quotaList })).quotaOnly, false, 'no failed job');
+    assert.equal(diedOnlyOnInstallationQuota(null, annotationsOf({})).quotaOnly, false, 'no job list');
+  });
+
+  test('CONTROL — a newest failure with no quota cause is still RED SINCE at exit 1', () => {
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: false, cause: 'job "Analyze" failed on: boom' })));
+    assert.equal(r.stats.red, 1);
+    assert.equal(r.stats.quota, 0);
+    assert.equal(r.live.length, 1);
+    assert.equal(r.live[0].code, 1);
+    assert.match(r.live[0].line, /RED SINCE 2026-09-11T08:12:30Z/);
+  });
+
+  test('🔴 a quota-only newest failure is COVERAGE LOST at exit 2, counted apart from RED', () => {
+    const c = quotaCause();
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: c.quotaOnly, cause: c.why })));
+    assert.equal(r.stats.red, 0);
+    assert.equal(r.stats.quota, 1);
+    assert.equal(r.live.length, 1);
+    assert.equal(r.live[0].code, 2, 'COVERAGE LOST is exit 2 — never 1, which is "the duty is failing" (INV6)');
+    assert.match(r.live[0].line, /run 34577720776 \(2026-09-11T08:12:30Z\) FAILED, and job "Analyze JavaScript and TypeScript" failed ONLY on `API rate limit exceeded for installation`/);
+    assert.match(r.live[0].line, /COVERAGE LOST for this row/);
+    assert.match(r.live[0].line, /the newest success is run 34540000001/);
+    assert.doesNotMatch(r.live[0].line, /RED SINCE/);
+    assert.ok(r.errors.includes(r.live[0].line));
+    assert.ok(r.prints.some((p) => /· 1 whose newest failure died ONLY on the installation rate limit \(COVERAGE LOST\)/.test(p)), r.prints.join('\n'));
+  });
+
+  test('🔴 with NO success at all, a quota-only failure is still the quota verdict, not the blind one', () => {
+    const c = quotaCause();
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: true, cause: c.why }), null));
+    assert.equal(r.stats.blind, 0);
+    assert.equal(r.stats.quota, 1);
+    assert.equal(r.live[0].code, 2);
+    assert.match(r.live[0].line, /no success exists to compare against/);
+  });
+
+  test('a quota-only failure OLDER than the newest success changes nothing: the branch is green', () => {
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ at: '2026-09-09T00:00:00Z', quotaOnly: true, cause: 'x' })));
+    assert.equal(r.stats.green, 1);
+    assert.equal(r.stats.quota, 0);
+    assert.deepEqual(r.live, []);
+  });
+});
+
 describe('the 2026-09-11 freeze, replayed — INV1..INV6 against the exact answers run 34546423386 received', () => {
   const REPO = resolve(CI_DIR, '..', '..');
   const FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
@@ -4550,6 +5092,20 @@ describe('the 2026-09-11 freeze, replayed — INV1..INV6 against the exact answe
     const r = replay({ ...HOST.OPS, GITHUB_EVENT_NAME: 'pull_request' });
     assert.equal(r.code, 1, r.out.slice(-2000));
     assert.match(r.out, /HOST POLICY — ENFORCING: ops-watch\.yml on `pull_request` — but \.github\/workflows\/ops-watch\.yml declares no `pull_request`/);
+  });
+
+  test('⏱ 2026-09-11 · COUNTED — push and a pull request with no known base make the SAME requests, so the not-read path has not leaked into either', () => {
+    const counted = (host) => {
+      const file = join(TMP, `freeze-count-${seq++}.json`);
+      const r = replay(host, { OPS_REPLAY_COUNT_FILE: file });
+      return { ...r, counts: JSON.parse(readFileSync(file, 'utf8')) };
+    };
+    const push = counted(HOST.PUSH);
+    const pr = counted(HOST.PR);
+    assert.ok(push.counts.github > 0, push.out.slice(-2000));
+    assert.deepEqual(pr.counts, push.counts, `PR ${JSON.stringify(pr.counts)} vs push ${JSON.stringify(push.counts)}`);
+    assert.match(pr.out, /\[LIVE\] reads made on this host: which files this change touches could not be established \(GITHUB_BASE_REF is not set/);
+    assert.doesNotMatch(push.out, /\[LIVE\] (NOT READ|reads made)/);
   });
 
   test('INV6 · a GitHub API that refuses every read is COVERAGE LOST — exit 2 in the proposal host AND on push, never 0 and never 1', () => {

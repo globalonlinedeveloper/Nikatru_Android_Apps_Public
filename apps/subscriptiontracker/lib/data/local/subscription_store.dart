@@ -133,8 +133,32 @@ class SubscriptionCodec {
   }
 }
 
+/// A write to the device store failed, and the caller is being told.
+///
+/// 🔴 THIS USED TO BE A `catch (_) {}`. `_write` swallowed every failure —
+/// full disk, blocked storage, a plugin that is not there — and
+/// `PersistedApiClient.createSubscription` then returned the created row as if
+/// it had been kept. On the next launch it was gone, and three tests ASSERTED
+/// that silence (`completes`, then `readSubscriptions()` is null). A write the
+/// user cannot see fail is a write the user finds out about a week later, so
+/// the failure now travels: the persisted client rolls back and rethrows, and
+/// the cache client counts and reports it.
+class LocalStoreWriteFailure implements Exception {
+  const LocalStoreWriteFailure(this.key, this.cause);
+
+  /// The store key the write was for.
+  final String key;
+
+  /// What the store threw.
+  final Object cause;
+
+  @override
+  String toString() => 'LocalStoreWriteFailure: could not write $key — $cause';
+}
+
 /// The durable home of the subscriptions and the budget in the unconfigured
-/// (no `API_BASE_URL`) posture.
+/// (no `API_BASE_URL`) posture, and the read-through cache of the server's
+/// last answer in the configured one (see `CachedApiClient`).
 ///
 /// ⚠️ IT TAKES A `Future<core.KeyValueStore>`, NOT A STORE. `keyValueStoreProvider`
 /// is a `FutureProvider` — `SharedPreferences.getInstance()` is asynchronous on
@@ -144,15 +168,13 @@ class SubscriptionCodec {
 /// synchronously and resolved on first use, which is also when the first read
 /// happens anyway.
 ///
-/// 🔴 EVERY METHOD DEGRADES INSTEAD OF THROWING, matching `SettingsController`'s
-/// contract exactly ("a broken store degrades to the pre-fix in-memory
-/// behaviour"). A store that is missing, locked or unwritable must cost
-/// persistence and never a launch: on Linux `StorageCapabilities` records that a
-/// *secure* store is conditional on a running unlocked Secret Service daemon,
-/// and while THIS store is `shared_preferences` and not affected by that, the
-/// same principle applies to any platform channel that is not there — under
+/// 🔴 READS DEGRADE, WRITES DO NOT. A store that is missing, locked or unreadable
+/// answers a read with "nothing stored" so a launch never fails on it — under
 /// `flutter test` there is no `shared_preferences` plugin at all unless a test
-/// installs one, and an unconfigured build must still run.
+/// installs one, and an unconfigured build must still run. A WRITE that fails
+/// throws [LocalStoreWriteFailure]: the caller holds data the user just typed,
+/// and only the caller can decide whether to roll back, retry or tell them.
+/// Swallowing it here was how a full disk turned into "it was there yesterday".
 class LocalSubscriptionStore {
   /// Persist through [store] once it resolves.
   LocalSubscriptionStore(this._store);
@@ -180,7 +202,9 @@ class LocalSubscriptionStore {
     return raw == null ? null : SubscriptionCodec.decodeSubscriptions(raw);
   }
 
-  /// Replace the stored subscriptions with [subs]. Best-effort.
+  /// Replace the stored subscriptions with [subs].
+  ///
+  /// Throws [LocalStoreWriteFailure] when the store refuses — never silently.
   Future<void> writeSubscriptions(List<Subscription> subs) => _write(
     kLocalSubscriptionsKey,
     SubscriptionCodec.encodeSubscriptions(subs),
@@ -192,7 +216,9 @@ class LocalSubscriptionStore {
     return raw == null ? null : SubscriptionCodec.decodeBudget(raw);
   }
 
-  /// Replace the stored budget with [budget]. Best-effort.
+  /// Replace the stored budget with [budget].
+  ///
+  /// Throws [LocalStoreWriteFailure] when the store refuses — never silently.
   Future<void> writeBudget(BudgetInfo budget) =>
       _write(kLocalBudgetKey, SubscriptionCodec.encodeBudget(budget));
 
@@ -200,13 +226,22 @@ class LocalSubscriptionStore {
   ///
   /// Exists so account deletion and a consent withdrawal have one call to make
   /// rather than a list of keys to keep in step with this file.
+  ///
+  /// A store that was never reachable has nothing to forget and answers
+  /// normally; a store that IS there and refuses throws [LocalStoreWriteFailure],
+  /// because "forgotten" is a promise `forgetSignedInUser` relays to the user.
   Future<void> clear() async {
+    final core.KeyValueStore kv;
     try {
-      final core.KeyValueStore kv = await _store;
+      kv = await _store;
+    } catch (_) {
+      return; // never reachable ⇒ nothing was ever written here
+    }
+    try {
       await kv.remove(kLocalSubscriptionsKey);
       await kv.remove(kLocalBudgetKey);
-    } catch (_) {
-      // Nothing to forget if the store was never reachable.
+    } catch (e) {
+      throw LocalStoreWriteFailure(kLocalSubscriptionsKey, e);
     }
   }
 
@@ -221,8 +256,9 @@ class LocalSubscriptionStore {
   Future<void> _write(String key, String value) async {
     try {
       await (await _store).write(key, value);
-    } catch (_) {
-      // A failed write costs persistence, never the current session.
+    } catch (e) {
+      // 🔴 NOT SWALLOWED. The caller is holding the user's data; it decides.
+      throw LocalStoreWriteFailure(key, e);
     }
   }
 }

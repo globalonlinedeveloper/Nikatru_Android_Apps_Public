@@ -226,6 +226,62 @@ describe('LIMB 3 — the erasure route must not be reachable through the shared 
       },
     );
   });
+
+  // ⏱ 2026-09-11 · REVIEW-guards-vacuous-2026-09-10 #2, replayed on the real
+  // Worker. Each case deletes the strict boundary AND respells the secret read in
+  // auth.ts. Before the fix the bracket spelling went rc=0 and printed "never
+  // uses SUPABASE_JWT_SECRET" over a Worker that still used it.
+  const DELETE_BOUNDARY = (s) => s.replace("app.use('/v1/account', erasureAuth);", '');
+  const SECRET_SPELLINGS = [
+    ['a single-quoted bracket read — M8 replayed', "env['SUPABASE_JWT_SECRET']"],
+    ['a double-quoted bracket read', 'env["SUPABASE_JWT_SECRET"]'],
+    ['a template-literal bracket read', 'env[`SUPABASE_JWT_SECRET`]'],
+    ['an optional-chained read', 'env?.SUPABASE_JWT_SECRET'],
+    ['a destructured read', '(({ SUPABASE_JWT_SECRET: s }) => s)(env)'],
+    ['a name assembled from pieces', "env['SUPABASE_' + 'JWT_SECRET']"],
+    ['a computed key the scan cannot name', "env[['SUPABASE', 'JWT', 'SECRET'].join('_')]"],
+  ];
+  for (const [label, spelling] of SECRET_SPELLINGS) {
+    test(`FAILS when the boundary is deleted and the secret is read as ${label}`, () => {
+      withTree(
+        (root) => {
+          edit(root, SUBLY_INDEX, DELETE_BOUNDARY);
+          edit(root, SUBLY_AUTH, (s) => s.replace(/env\.SUPABASE_JWT_SECRET/g, spelling));
+        },
+        (r) => {
+          assert.equal(r.status, 1, r.stdout + r.stderr);
+          assert.match(r.stderr, /no path-scoped `use\('…account…', …\)` guards it/);
+          assert.doesNotMatch(r.stdout, /subscriptiontracker-api — src\/middleware\/auth\.ts never uses SUPABASE_JWT_SECRET/);
+        },
+      );
+    });
+  }
+
+  test('FAILS when the secret is read by a HELPER that is passed the environment, and the boundary is gone', () => {
+    withTree(
+      (root) => {
+        edit(root, SUBLY_INDEX, DELETE_BOUNDARY);
+        edit(root, SUBLY_AUTH, (s) =>
+          `${s.replace(/env\.SUPABASE_JWT_SECRET/g, "pickSecret(env, ['SUPABASE', 'JWT', 'SECRET'].join('_'))")}\n` +
+          'function pickSecret(bag: Record<string, string | undefined>, k: string) {\n  return bag[k];\n}\n',
+        );
+      },
+      (r) => {
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        assert.match(r.stderr, /no path-scoped `use\('…account…', …\)` guards it/);
+      },
+    );
+  });
+
+  test('with the boundary IN PLACE, a bracket-spelled secret still passes — the respelling alone is not punished', () => {
+    withTree(
+      (root) => edit(root, SUBLY_AUTH, (s) => s.replace(/env\.SUPABASE_JWT_SECRET/g, "env['SUPABASE_JWT_SECRET']")),
+      (r) => {
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /1 erasure route\(s\) sit on a Worker whose default middleware CAN fall back/);
+      },
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,8 +333,11 @@ describe("the guard's own reachability walk", () => {
   });
 
   test('a walk that stops following calls is COVERAGE LOST', () => {
+    // ⏱ 2026-09-11 · the walk follows REFERENCES now, not only calls (an alias
+    // `const verify = verifySupabaseToken` is the same function); the mutation
+    // still switches the whole step off.
     withMutatedGuard(
-      (s) => s.replace('new RegExp(`\\\\b${other}\\\\s*\\\\(`).test(body)', 'false'),
+      (s) => s.replace('new RegExp(`(?<![\\\\w$])${escapeRe(other)}(?![\\\\w$])`).test(code)', 'false'),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /COVERAGE LOST/);
@@ -289,7 +348,7 @@ describe("the guard's own reachability walk", () => {
 
   test('a walk that always answers yes is COVERAGE LOST — it would fail correct code', () => {
     withMutatedGuard(
-      (s) => s.replace('if (body.includes(needle)) return true;', 'return true;'),
+      (s) => s.replace('if (readsEnvName(body, needle, seeds)) return true;', 'return true;'),
       (r) => {
         assert.equal(r.status, 1);
         assert.match(r.stderr, /COVERAGE LOST/);
@@ -322,15 +381,15 @@ describe('LIMB 2 — a route file that nothing mounts is a dead seam', () => {
 });
 
 describe('LIMB 1 — a table with a user_id may not declare itself unreachable', () => {
-  test('FAILS when a subly_db row goes back to `no-route`', () => {
+  test('FAILS when a subscriptiontracker_db row goes back to `no-route`', () => {
     // The exact state the register carried until this change: four honest rows
     // saying nothing reaches these tables, and every guard green.
     withTree(
       (root) =>
         edit(root, REGISTER, (s) => {
           const j = JSON.parse(s);
-          const row = j.stores.find((x) => x.id === 'table:subly_db.subscriptions');
-          row.erasure = { kind: 'no-route', blockedBy: 'nothing reaches subly_db' };
+          const row = j.stores.find((x) => x.id === 'table:subscriptiontracker_db.subscriptions');
+          row.erasure = { kind: 'no-route', blockedBy: 'nothing reaches subscriptiontracker_db' };
           return JSON.stringify(j, null, 2);
         }),
       (r) => {
@@ -345,7 +404,7 @@ describe('LIMB 1 — a table with a user_id may not declare itself unreachable',
       (root) =>
         edit(root, REGISTER, (s) => {
           const j = JSON.parse(s);
-          j.stores = j.stores.filter((x) => x.id !== 'table:subly_db.budgets');
+          j.stores = j.stores.filter((x) => x.id !== 'table:subscriptiontracker_db.budgets');
           return JSON.stringify(j, null, 2);
         }),
       (r) => {

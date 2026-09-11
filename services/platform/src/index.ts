@@ -97,7 +97,7 @@ app.use('*', corsMiddleware);
 //                  fails, DELETE /v1/account 401s for everybody while the Worker
 //                  itself is perfectly well — invisible to any status check.
 //
-// SUBLY_DB is deliberately NOT probed: nothing on the request path touches it,
+// SUBSCRIPTIONTRACKER_DB is deliberately NOT probed: nothing on the request path touches it,
 // only the nightly renewals fan-out does, and the cron's liveness is already
 // carried by the `cron_heartbeat` table (migration 0003) rather than by a
 // per-request probe. Probing it here would spend a D1 query on every health

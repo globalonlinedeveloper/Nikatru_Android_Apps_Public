@@ -26,7 +26,7 @@ Screenshots are uploaded as the `e2e-screenshots` artifact.
 |---|---|
 | `SUPABASE_URL` | already set (web deploy) |
 | `SUPABASE_ANON_KEY` | already set (publishable key) |
-| `API_BASE_URL` | already set (`https://api.nikatru.com`) |
+| `API_BASE_URL` | already set (`https://subscriptiontracker.api.nikatru.com`) |
 | `CLOUDFLARE_ACCOUNT_ID` | already set |
 | `CLOUDFLARE_API_TOKEN` | already set — **must include D1 read+write** |
 | `SUPABASE_SERVICE_ROLE_KEY` | **NEW** — add to enable the job |
@@ -43,6 +43,6 @@ flutter drive \
   --target=integration_test/app_test.dart \
   -d web-server --browser-name=chrome \
   --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... \
-  --dart-define=API_BASE_URL=https://api.nikatru.com \
+  --dart-define=API_BASE_URL=https://subscriptiontracker.api.nikatru.com \
   --dart-define=E2E_EMAIL=... --dart-define=E2E_PASSWORD=...
 ```

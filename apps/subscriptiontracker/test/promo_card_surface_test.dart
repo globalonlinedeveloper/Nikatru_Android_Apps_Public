@@ -94,6 +94,32 @@ class _SellingRail implements PurchaseRail {
       CancellationOutcome.noActivePlan;
 }
 
+/// Twelve and a half lakh rupees — where Indian and Western grouping differ in
+/// every separator position. Used ONLY by the locale-grouping case.
+class _InrSellingRail implements PurchaseRail {
+  @override
+  List<Offering> get offerings => const <Offering>[
+    Offering(
+      productId: 'pro_year_inr',
+      amountMinor: 125000000,
+      currencyCode: 'INR',
+      term: OfferingTerm.year,
+      trialDays: 0,
+    ),
+  ];
+
+  @override
+  bool get canStartCheckout => true;
+
+  @override
+  Future<CheckoutStart> startCheckout(Offering offering) async =>
+      const CheckoutRefused(CheckoutRefusal.railNotConfigured);
+
+  @override
+  Future<CancellationOutcome> requestCancellation() async =>
+      CancellationOutcome.noActivePlan;
+}
+
 core.AppConfig _config({
   bool promoEnabled = false,
   bool withOfferings = true,
@@ -255,6 +281,38 @@ void main() {
       // the served amount and this string changes with it — which is the whole
       // difference between a price and a decoration that looks like one.
       expect(find.text(r'$4.99, billed per month'), findsOneWidget);
+    });
+
+    // 🔴 THE PROMO CARD'S PRICE GOES THROUGH `MoneyFormatter` UNDER THE
+    // READER'S LOCALE, as the paywall's does. It used `formattedPrice`, which
+    // has no grouping at all: `₹1250000.00` in every language.
+    // MUTATION PROOF (run and recorded in the PR): put
+    // `offering.formattedPrice` back in home_screen.dart and this goes red.
+    testWidgets('the price is grouped for the READER — the lakh in Tamil, the '
+        'thousand in English', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _host(
+          _MemStore(),
+          _config(promoEnabled: true),
+          rail: _InrSellingRail(),
+          locale: const Locale('ta'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('₹12,50,000.00'), findsOneWidget);
+      expect(find.textContaining('1250000'), findsNothing);
+
+      await tester.pumpWidget(
+        _host(
+          _MemStore(),
+          _config(promoEnabled: true),
+          rail: _InrSellingRail(),
+          locale: const Locale('en'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('₹1,250,000.00'), findsOneWidget);
+      expect(find.textContaining('1250000'), findsNothing);
     });
 
     testWidgets('ABSOLUTE ONLY — no percentage, no "was", no countdown', (

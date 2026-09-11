@@ -623,6 +623,30 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     assert.match(r.out, /server SENDS key\(s\) no client reads and that are not declared server-only: trial_end_at/);
   });
 
+  // ⏱ 2026-09-11 · THE DECLARATIONS ARE GRADED TOO. `granted_via` and `bundle`
+  // were declared server-only while the client read both; nothing noticed, and a
+  // declared server-only key is exempt from the SENDS check above. The real tree
+  // passing (first case in this describe) is the control for both.
+  test('FAILS when the released client READS a key declared server-only', () => {
+    const r = run(makeRepo((f) =>
+      mutate(f, 'packages/core/lib/src/models/entitlement.dart',
+        "final Object? rawVia = j['granted_via'];",
+        "final Object? rawVia = j['granted_via'];\n    final Object? unusedSubjectProducts = j['products'];")));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /entitlements — key\(s\) declared SERVER-ONLY are READ by the released client: products/);
+  });
+
+  test('FAILS when the server SENDS a key declared client-only', () => {
+    const r = run(makeRepo((f) =>
+      // The TOP-LEVEL keys are the route's own `c.json({ … })` literal; only the
+      // item shape is followed into services/_shared.
+      mutate(f, 'services/platform/src/routes/entitlements.ts',
+        '    granted_via: read.granted_via,\n',
+        '    granted_via: read.granted_via,\n    verified_at: null,\n')));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /entitlements — key\(s\) declared CLIENT-ONLY are SENT by the server: verified_at/);
+  });
+
   test('FAILS when the RELEASED CLIENT reads a key the server does not send', () => {
     // The direction that breaks a shipped app rather than a build. There is no
     // forced-update mechanism on Windows, macOS or Linux, so the installed build

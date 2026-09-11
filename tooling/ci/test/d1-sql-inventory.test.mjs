@@ -358,7 +358,7 @@ describe('R2 — required coverage, both directions', () => {
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R2 i\] services\/subscriptiontracker-api owns subly_db and not one of its/);
+        assert.match(r.stderr, /\[R2 i\] services\/subscriptiontracker-api owns subscriptiontracker_db and not one of its/);
       },
     );
   });

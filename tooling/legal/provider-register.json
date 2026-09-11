@@ -183,7 +183,8 @@
     "iap_aggregator": "normalises store purchase events into one entitlement feed. Holds purchase state, not payment instruments.",
     "infrastructure": "runs or hosts the Services. Sees traffic and whatever the Services store, and is disclosed as a processor rather than as a seller.",
     "identity": "authenticates users and holds account credentials.",
-    "email_delivery": "sends the transactional email the Services generate — sign-in links, verification. Holds the recipient address in order to deliver to it, and is disclosed as a processor. NOT a marketing channel: a mailing list is a separate purpose with its own consent (ConsentPurpose.marketingEmail) and would be its own disclosure."
+    "email_delivery": "sends the transactional email the Services generate — sign-in links, verification. Holds the recipient address in order to deliver to it, and is disclosed as a processor. NOT a marketing channel: a mailing list is a separate purpose with its own consent (ConsentPurpose.marketingEmail) and would be its own disclosure.",
+    "content_delivery": "serves a file the Services load into the visitor's browser at run time — a script, a font, a WebAssembly runtime. It sees that request (the visitor's IP address, user agent and referrer) and nothing the Services store. Disclosed as a party the browser contacts, not as a processor of stored data, and never a seller."
   },
   "dataCategories": {
     "_why": [
@@ -287,6 +288,19 @@
         "denial": "do not knowingly collect personal information from anyone under 18",
         "why": "§8, the age requirement. This denies collecting anything at all FROM A CLASS OF PERSON (anyone under 18 - the single floor set by [ADR 068] on the DPDP Act 2023 threshold, replacing the earlier under-13 wording on 2026-09-05) — it is scoped by WHO, not by WHAT. Scoping it against a sink's category list would be a category error in the literal sense: every category would intersect it, and the guard would go red on a sentence that is true. The duty it belongs to is age-assurance, which is carried as a row in tooling/legal/duty-matrix.json where the trigger can be stated."
       }
+    ]
+  },
+  "firstPartyDomains": {
+    "_why": [
+      "Read by the EGRESS limb of tooling/ci/assert-policy-claims.mjs (2026-09-11), which takes every host a shipped Content-Security-Policy",
+      "(apps/*/web/_headers, sites/*/_headers) lets a browser reach and requires it to be ours or to carry a provider row's tell.",
+      "A host on one of these domains, or any subdomain of one, is ours. The vendor BEHIND it — Cloudflare for api.nikatru.com, Hostinger",
+      "for glitchtip.nikatru.com — is already its own row and is disclosed as that vendor, not as a hostname.",
+      "Declared here, not inside the guard, for the reason `roles` is: a list inside a guard is a list nobody reviews with the register."
+    ],
+    "domains": [
+      "nikatru.com",
+      "rajasekarselvam.com"
     ]
   },
   "providers": [
@@ -787,9 +801,78 @@
         "no sender and no list ([ADR 040] decision 5). Describing a channel we do not operate would be a",
         "promise to keep true for nothing."
       ]
+    },
+    {
+      "id": "sentry-cdn",
+      "name": "Sentry (Functional Software, Inc.) — browser SDK CDN",
+      "role": "content_delivery",
+      "status": "live",
+      "reachableAt": null,
+      "tells": [
+        "sentry"
+      ],
+      "namedIn": [],
+      "privateRecord": null,
+      "notes": [
+        "REGISTERED 2026-09-11 (REVIEW-stores-2026-09-10 #11). The WEB build of an app makes the visitor's browser load the Sentry browser SDK",
+        "from Sentry's CDN; apps/subscriptiontracker/web/_headers allows it as `script-src https://browser.sentry-cdn.com`.",
+        "MEASURED, not inferred: `curl -sS https://nikatru.com/subscriptiontracker/main.dart.js` (200, 4,445,101 B) contains",
+        "`browser.sentry-cdn.com/10.38.0/bundle.tracing.min.js`, 2026-09-11.",
+        "WHAT IT RECEIVES: the request for a script — IP address, user agent, referrer — on a web visit. Crash REPORTS are not sent to Sentry:",
+        "they land on the self-hosted GlitchTip (`hostinger` row). So this is a CDN row, not a crash sink.",
+        "NAMED IN NO PAGE — disclosure gap `web-boot-third-parties-unnamed` prints on every run until the owner names it or the egress is",
+        "closed (serve the SDK from the app origin)."
+      ]
+    },
+    {
+      "id": "google-gstatic",
+      "name": "Google (gstatic.com content delivery)",
+      "role": "content_delivery",
+      "status": "live",
+      "reachableAt": null,
+      "tells": [
+        "gstatic"
+      ],
+      "namedIn": [],
+      "privateRecord": null,
+      "notes": [
+        "REGISTERED 2026-09-11 (REVIEW-stores-2026-09-10 #11). A Flutter WEB build fetches its CanvasKit renderer from www.gstatic.com and",
+        "fallback fonts from fonts.gstatic.com unless built with --no-web-resources-cdn; apps/subscriptiontracker/web/_headers allows both.",
+        "MEASURED 2026-09-11 in the live https://nikatru.com/subscriptiontracker/main.dart.js: `www.gstatic.com/flutter-canvaskit/a804b261…`",
+        "and `fonts.gstatic.com/s/`.",
+        "WHAT IT RECEIVES: the requests for those files — IP address, user agent, referrer — on a web visit.",
+        "⚠️ THE TELL IS `gstatic`, NOT `google`, ON PURPOSE: privacy.html already names \"Google Play\" (the `google-play` row), and a `google`",
+        "tell would read that sentence as this disclosure and close the gap below on a page that says nothing about a CDN.",
+        "NAMED IN NO PAGE — see gap `web-boot-third-parties-unnamed`."
+      ]
     }
   ],
-  "disclosureGaps": [],
+  "disclosureGaps": [
+    {
+      "id": "web-boot-third-parties-unnamed",
+      "page": "privacy.html",
+      "ownerItem": "O-3",
+      "stillTrue": "We rely on trusted third parties to deliver the Services.",
+      "closedWhenNamed": [
+        "sentry-cdn",
+        "google-gstatic"
+      ],
+      "what": "The web app at nikatru.com/subscriptiontracker makes every visitor's browser fetch the Sentry browser SDK from browser.sentry-cdn.com and the CanvasKit renderer and fallback fonts from www.gstatic.com / fonts.gstatic.com (measured in the live main.dart.js, 2026-09-11). §4 \"Third-party services\" names neither Sentry nor Google as a party the browser contacts.",
+      "resolution": "Owner copy (O-3): name both in privacy.html §4 with a policy version bump — or close the egress instead (build the web app with --no-web-resources-cdn, bundle the fonts, serve the Sentry SDK from the app origin) and retire both provider rows. When the page names either, this gap FAILS and asks to be retired, and the row gains `namedIn`."
+    },
+    {
+      "id": "web-boot-third-parties-unnamed-per-app-notice",
+      "page": "subscriptiontracker/privacy.html",
+      "ownerItem": "O-3",
+      "stillTrue": "4 service providers.",
+      "closedWhenNamed": [
+        "sentry-cdn",
+        "google-gstatic"
+      ],
+      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists four service providers and neither Sentry's CDN nor Google's gstatic CDN, which the same app's web build contacts on every visit.",
+      "resolution": "Owner decision on the declaration (apps/subscriptiontracker/privacy.yaml), re-rendered — or close the egress as above. Adding a processor changes the count in the sentence this gap probes, which retires it by itself."
+    }
+  ],
   "retiredDisclosureGaps": [
     {
       "_note": "🔴 RETIRED, NOT DELETED — 2026-08-10, by the owner signature that bumped sites/nikatru/privacy.html to version 2026-08-10. All four were live rows in `disclosureGaps` until that commit, and each one is a sentence that was WRONG or MISSING on a published legal page for weeks; deleting the record would delete the only evidence of how long. assert-policy-claims.mjs reads `disclosureGaps` ONLY, so nothing in this array is checked — which is exactly why each row carries `closedBy`, naming the span that now says the true thing and the tooling/legal/policy-claims.json row that pairs it. If a future edit drops one of those spans, THAT row fails; this list is a record, not a guard, and does not pretend to be one."

@@ -359,13 +359,15 @@ describe('the FOURTH declaration — the Apple privacy manifest audit [G-49]', (
   test('🔴 PM8 — every binary `basis` replaced with "stamped", caught by the AGGREGATE', () => {
     // The per-row floor here is 7 and "stamped" is 7 characters, so the per-row
     // limb passes it by one character — deliberately, because the shortest
-    // CORRECT basis in this document is also 7 ("As iOS."). 27 × 7 = 189 against
+    // CORRECT basis in this document is also 7 ("As iOS."). 29 × 7 = 203 against
     // the live total is what makes the regression visible.
     //
     // ⚠️ THE NUMBERS MOVE WHEN THE INVENTORY DOES, AND THAT IS THE POINT rather
     // than a maintenance tax: this assertion names the row COUNT, so adding a
     // binary without noticing lands here. It went 25 → 27 when
-    // `flutter_inappwebview_{ios,macos}` were linked in by cloudflare_turnstile.
+    // `flutter_inappwebview_{ios,macos}` were linked in by cloudflare_turnstile,
+    // and 27 → 29 on 2026-09-10 when `flutter_timezone` was linked on both
+    // Apple targets so `tz.local` is the device's zone rather than UTC.
     // Widening the regex to `\d+` would buy quiet and lose exactly the signal.
     withTree(
       (root) =>
@@ -374,7 +376,7 @@ describe('the FOURTH declaration — the Apple privacy manifest audit [G-49]', (
         }),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /carries 189 character\(s\) of `basis` across 27 row\(s\); the floor is 2000/);
+        assert.match(r.stderr, /carries 203 character\(s\) of `basis` across 29 row\(s\); the floor is 2000/);
       },
     );
   });
@@ -797,21 +799,41 @@ describe('limb 6 — the UI anchor, which limb 5 cannot see', () => {
 });
 
 describe('limb 8 — a `file.dart:NNN` citation still points at what it describes', () => {
-  test('🔴 INSERTING LINES ABOVE THE CITED LINE FAILS — the drift no human re-walks', () => {
-    // The measured case, and it is not hypothetical: three of the four
-    // citations in `buildPosture._why` were 500–1300 lines out on 2026-08-10,
-    // and the FOURTH drifted from :376 to :396 the same day, in the very edit
-    // that shipped the prose telling a human to re-walk them. Ten inserted
-    // lines reproduce it exactly.
+  // ⏱ 2026-09-11 · RE-SHAPED: THE ANCHOR TEXT IS GRADED, THE NUMBER IS PRINTED.
+  // This case used to require red for ten inserted lines. #591 and #618 each broke
+  // the build that way in one week with nothing wrong in the declaration. The three
+  // cases below are the contract now: MOVE the anchored line → green and printed;
+  // DELETE it → red; put it on a SECOND line → red.
+  test('MOVING THE ANCHORED LINE DOWN 20 LINES IS GREEN, AND PRINTED — the anchor text still resolves', () => {
     withTree(
       (root) => {
         const p = join(root, 'apps/subscriptiontracker/lib/app.dart');
-        writeFileSync(p, `${'// pad\n'.repeat(10)}${readFileSync(p, 'utf8')}`);
+        writeFileSync(p, `${'// pad\n'.repeat(20)}${readFileSync(p, 'utf8')}`);
       },
       (r) => {
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.stdout, /CITATION LINE MOVED — .*app\.dart:\d+ for .*if \(asking\) const _ConsentPrompt\(\)," is on line \d+ today/);
+        assert.match(r.stdout, /1 cited number\(s\) moved, printed above/);
+      },
+    );
+  });
+
+  test('🔴 DELETING THE ANCHORED LINE FAILS — a sworn sentence may not outlive the gate it rests on', () => {
+    withTree(
+      (root) => editText(root, 'apps/subscriptiontracker/lib/app.dart', (t) => t.replace('if (asking) const _ConsentPrompt(),', 'const SizedBox.shrink(),')),
+      (r) => {
         assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stderr, /DRIFTED CITATION/);
-        assert.match(r.stderr, /const _ConsentPrompt\(\)/);
+        assert.match(r.stderr, /STALE LINE ANCHOR — apps\/subscriptiontracker\/lib\/app\.dart no longer contains "if \(asking\) const _ConsentPrompt\(\),"/);
+      },
+    );
+  });
+
+  test('🔴 THE ANCHOR ON A SECOND LINE FAILS — a text anchor must resolve to exactly one line', () => {
+    withTree(
+      (root) => editText(root, 'apps/subscriptiontracker/lib/app.dart', (t) => `${t}\n// if (asking) const _ConsentPrompt(),\n`),
+      (r) => {
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stderr, /AMBIGUOUS ANCHOR — apps\/subscriptiontracker\/lib\/app\.dart contains "if \(asking\) const _ConsentPrompt\(\)," on 2 lines/);
       },
     );
   });
@@ -862,13 +884,15 @@ describe('limb 8 — a `file.dart:NNN` citation still points at what it describe
     // nothing able to notice.
     withTree(
       (root) =>
+        // ⏱ 2026-09-11 — re-pointed from a wrong NUMBER (now printed, not failed) to
+        // the sentence itself: the defect this case exists for is that the second
+        // file had no row, and only a row can say its sentence is gone.
         editText(root, CR, (t) =>
-          t.replace(/(analytics_providers\.dart:)\d+(, 'Never a device ad-ID')/, '$19999$2'),
+          t.replace(/(analytics_providers\.dart):\d+(, 'Never a device ad-ID')/, '$1$2'),
         ),
       (r) => {
         assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stderr, /DRIFTED CITATION/);
-        assert.match(r.stderr, /content-rating\.json/);
+        assert.match(r.stderr, /STALE LINE ANCHOR — .*content-rating\.json no longer carries the sentence/);
         assert.match(r.stderr, /Never a device ad-ID/);
       },
     );
@@ -885,13 +909,13 @@ describe('limb 8 — a `file.dart:NNN` citation still points at what it describe
           t.replace(/(analytics_providers\.dart:)\d+( says 'Never a device ad-ID')/, '$11$2'),
         ),
       (r) => {
-        assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stderr, /DRIFTED CITATION/);
-        assert.match(r.stderr, /analytics_providers\.dart:1 for/);
-        assert.match(r.stderr, /Never a device ad-ID/);
-        // Exactly ONE row fired: the sibling `:534` row is still green, which is
-        // the half that used to answer for both.
-        assert.equal(r.stderr.match(/DRIFTED CITATION/g).length, 1);
+        // ⏱ 2026-09-11 — a wrong number is PRINTED now, not failed. What this case
+        // still proves is that ONE row answered for ONE sentence: exactly one moved
+        // line is reported, and it is the sentence that was broken.
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        const moved = r.stdout.split('\n').filter((l) => l.includes('CITATION LINE MOVED'));
+        assert.equal(moved.length, 1, r.stdout);
+        assert.match(moved[0], /analytics_providers\.dart:1 for .*Never a device ad-ID/);
       },
     );
   });

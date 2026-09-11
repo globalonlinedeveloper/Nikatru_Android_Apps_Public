@@ -2,12 +2,12 @@
 // live D1: counts subscription rows for the E2E user via the Cloudflare D1 HTTP
 // API. Fails the job if none exist. Node 20 global fetch only.
 //
-// Env: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, SUBLY_D1_DATABASE_ID,
+// Env: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, SUBSCRIPTIONTRACKER_D1_DATABASE_ID,
 //      E2E_USER_ID
 // NOTE: CLOUDFLARE_API_TOKEN must have D1 read access for this account.
 
 const acct = need('CLOUDFLARE_ACCOUNT_ID');
-const dbId = need('SUBLY_D1_DATABASE_ID');
+const dbId = need('SUBSCRIPTIONTRACKER_D1_DATABASE_ID');
 const token = need('CLOUDFLARE_API_TOKEN');
 const userId = need('E2E_USER_ID');
 

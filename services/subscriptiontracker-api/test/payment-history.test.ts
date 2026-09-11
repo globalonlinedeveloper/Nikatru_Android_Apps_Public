@@ -17,7 +17,7 @@
 //     while `Payment` in src/types.ts declared five fields and not that one.
 //
 // ⚠️ THE CROSS-SERVICE IMPORT IS DELIBERATE. The writer lives in the shared
-// platform Worker and the schema it writes into is subly_db's, so the claim
+// platform Worker and the schema it writes into is subscriptiontracker_db's, so the claim
 // "the cron writes the column subscriptiontracker's migration bought" cannot be made from
 // either side alone. `test/harness.ts` already imports across this boundary for
 // the same reason (`PLATFORM_MIGRATIONS`, `0001_entitlements.sql?raw`).
@@ -59,7 +59,7 @@ describe('the nightly renewals pass writes payment_history.updated_at', () => {
   it('the whole nightly batch still lands when the column does NOT exist', async () => {
     // `recomputeRenewals` calls itself "generic over any app DB with
     // subscriptions + payment_history", and the fan-out's one rule is that one
-    // app's database must not take the rest of the loop down. subly_db has this
+    // app's database must not take the rest of the loop down. subscriptiontracker_db has this
     // column because of ITS 0002; the brick's starter schema has no
     // payment_history at all, so a future app's table may legitimately predate
     // it. An unconditional six-column INSERT would fail the entire batch — every

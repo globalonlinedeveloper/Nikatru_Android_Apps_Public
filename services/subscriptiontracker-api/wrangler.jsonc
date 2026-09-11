@@ -5,7 +5,7 @@
   // SUPABASE_URL are SHARED across every NIKATRU app (one entitlements table,
   // one identity project). Matches tooling/bricks/app __brick__ services template.
   //
-  // Migrations: APP_DB only (services/subscriptiontracker-api/migrations = subly_db). The
+  // Migrations: APP_DB only (services/subscriptiontracker-api/migrations = subscriptiontracker_db). The
   // shared platform_db (entitlements) is owned + migrated by services/platform.
   // Cron: the nightly scheduler is CONSOLIDATED into services/platform (Supabase
   // keep-alive + per-app renewals fan-out) — subscriptiontracker-api no longer carries a cron.
@@ -14,29 +14,19 @@
   //   wrangler secret put SUPABASE_JWT_SECRET       # optional HS256 legacy fallback
   //   wrangler secret put REVENUECAT_WEBHOOK_SECRET  # RevenueCat webhook auth
   // ───────────────────────────────────────────────────────────────────────────
-  // 🔴 THE DEPLOYED NAME DELIBERATELY DID NOT MOVE WITH THE SLUG, AND THIS IS
-  // THE ONE PLACE IN THIS FILE THAT STILL SPELLS THE RETIRED ID. The directory
-  // is `services/subscriptiontracker-api` and every repo-side derivation moved
-  // with it (assert-cors-allowlist.mjs maps `services/<slug>-api` by DIRECTORY,
-  // and check-migrations.mjs's REQUIRED_COVERAGE names the directory too).
-  //
-  // WHAT A NAME CHANGE HERE WOULD ACTUALLY DO, and the evidence is nine lines
-  // below rather than in an argument: `wrangler deploy` addresses a Worker BY
-  // NAME, so a new name is a NEW WORKER, not a rename. The old one keeps
-  // `api.nikatru.com`, which is a CUSTOM DOMAIN and is attached to exactly one
-  // Worker at a time. The 2026-08-03 read-back below was written precisely
-  // because "custom_domain: true would have fought the existing binding on the
-  // next deploy" — and a rename creates that fight by construction. Best case
-  // the deploy fails loudly and the live API goes on being served by the Worker
-  // that still holds the domain; worst case the domain moves to a Worker whose
-  // first deploy has not finished.
-  //
-  // ⚠️ OWED, AS ITS OWN SEQUENCED CHANGE, alongside the `subly_db` rename: move
-  // the custom domain, then the name, with the account read back at each step.
-  // It is the same class as the Cloudflare Pages project migration — a LIVE
-  // resource, not a declaration — and bundling two of those into one commit is
-  // how a rollback stops being possible.
-  "name": "subly-api",
+  // ✅ THE DEPLOYED NAME MOVED WITH THE SLUG ON 2026-09-11 ([ADR 079]).
+  // Until then this file deployed as `subly-api` and recorded the rename as
+  // owed "as its own sequenced change": `wrangler deploy` addresses a Worker BY
+  // NAME, so a new name is a NEW WORKER, and a custom domain is attached to
+  // exactly one Worker at a time. It was done in that order, with the account
+  // read back at each step: `subscriptiontracker.api.nikatru.com` was attached
+  // to the running `subly-api` and served /v1/health 200 BEFORE this line
+  // changed; the first deploy under this name claims BOTH custom domains in
+  // `routes` (wrangler 4.129.0 answers its "Custom Domains already exist ...
+  // Update them to point to this script instead?" prompt with its
+  // non-interactive fallback, which is `yes`); and `subly-api` is deleted only
+  // after this Worker is verified on both hosts.
+  "name": "subscriptiontracker-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
   "observability": { "enabled": true },
@@ -60,7 +50,12 @@
     // exact allowlist fails CLOSED and silently, so the old one is dropped in a
     // SEPARATE, LATER change -- widen, cut over, then narrow, the same order the
     // subdomain removal used. See services/platform/wrangler.jsonc.
-    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev",
+    // NARROWED 2026-09-11: `subly-9cp.pages.dev` (the old project's origin) left
+    // this list, services/platform's, and the guard's EXTRAS together. It still
+    // served only the RETIRED Subly build, and a *.pages.dev name is claimable by
+    // anyone once its project is deleted -- so the grant leaves first, the Workers
+    // deploy, and only then may the project be deleted.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subscriptiontracker-7qg.pages.dev",
     // [5]M-12 — this deploy's money world. The RevenueCat webhook ignores
     // events from the other world and /v1/entitlements grants nothing from it.
     // Absent/unrecognised ⇒ 503 on both (fail closed, src/lib/money.ts).
@@ -71,8 +66,8 @@
     {
       // Per-app SQLite database (this app's private data). One per app.
       "binding": "APP_DB",
-      "database_name": "subly_db",
-      "database_id": "88da9026-f72a-4cda-823d-431148fa8112",
+      "database_name": "subscriptiontracker_db",
+      "database_id": "0a36d6a0-c909-40aa-853e-970de3482321",
       "migrations_dir": "migrations"
     },
     {
@@ -105,7 +100,7 @@
   // than assumed. Read back from the live account 2026-08-03 via
   // GET /accounts/:id/workers/domains: `api.nikatru.com` is already a CUSTOM
   // DOMAIN attached to `subly-api` (the name the account returned on that date, and
-  // the name this Worker still deploys under — see the block at `name` above), and
+  // the name this Worker deployed under until [ADR 079] — see the block at `name` above), and
   // GET /zones/:id/workers/routes for
   // nikatru.com returns an EMPTY list. So this declares exactly what is already
   // there. Had it been a pattern-based Route instead, `custom_domain: true`
@@ -113,6 +108,14 @@
   // check came first.
   // ───────────────────────────────────────────────────────────────────────────
   "routes": [
+    // [ADR 079] an app's API is `<id>.api.nikatru.com`. Its certificate is the
+    // free advanced pack a Worker custom domain creates, and the custom domain
+    // writes its own DNS record: the `*.nikatru.com` wildcard does not resolve a
+    // two-label name and does not need to.
+    { "pattern": "subscriptiontracker.api.nikatru.com", "custom_domain": true },
+    // ⏱ TRANSITION ONLY: the pre-079 host, held so no client loses its API while
+    // the web build, the catalogue and the e2e lane move to the host above. It
+    // leaves in the change that follows a green end-to-end run on that host.
     { "pattern": "api.nikatru.com", "custom_domain": true }
   ]
 

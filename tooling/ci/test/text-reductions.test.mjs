@@ -28,18 +28,9 @@
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import {
-  stripInert,
-  visibleText,
-  decodeEntities,
-  normaliseForMatch,
-  emphasisedSpans,
-  stripSourceComments,
-  stripStringLiterals,
-  codeMask,
-  NON_CODE,
-} from '../text-reductions.mjs';
+import { stripInert, visibleText, decodeEntities, normaliseForMatch, emphasisedSpans, stripSourceComments, stripStringLiterals, codeMask, NON_CODE } from '../text-reductions.mjs';
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { execFile, execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -267,6 +258,64 @@ describe('stripSourceComments — NEVER DELETES CODE IT DID NOT COMMENT OUT', ()
     const out = stripSourceComments(ts, '.ts');
     assert.ok(out.includes('const alsoKeep = 2;'), 'code after an unclosed opener must survive');
     assert.equal(out.length, ts.length);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A `${…}` SUBSTITUTION IS CODE. Both shapes below were live in the
+// tracked tree (24 comment starts survived the reduction, in two files), and the
+// corpus case measures every tracked tooling source against `codeMask` — an
+// independent scanner that already read both shapes correctly.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('stripSourceComments — a ${…} substitution is scanned as CODE', () => {
+  const BT = String.fromCharCode(96);
+  const leaks = (src) => stripSourceComments(src, '.mjs').includes('COMMENT');
+
+  test('CONTROL — a substitution with no quote and no comment in it changes nothing about the comments after it', () => {
+    const src = `const a = ${BT}n=\${s.split(/x/).length}${BT};\n// COMMENT\nconst b = ${BT}x${BT};\n`;
+    assert.equal(leaks(src), false);
+  });
+
+  test('🔴 a regex holding a quote inside ${…} does not open a phantom string that swallows the comments after it', () => {
+    const src = `const a = ${BT}n=\${s.split(/'/).length}${BT};\n// COMMENT one\nconst b = ${BT}x${BT};\n`;
+    const out = stripSourceComments(src, '.mjs');
+    assert.equal(out.includes('COMMENT'), false, out);
+    assert.ok(out.includes("s.split(/'/).length"), 'the code inside the substitution is kept');
+    assert.equal(out.length, src.length);
+  });
+
+  test('🔴 a comment INSIDE a ${…} substitution is blanked — the shape tooling/store/capture-play-screenshots.mjs had', () => {
+    const src = `const a = ${BT}\${JSON.stringify({\n  a: 1, // COMMENT: measured off the frames, not computed\n  b: 2,\n})}${BT};\nconst c = 'kept';\n`;
+    const out = stripSourceComments(src, '.mjs');
+    assert.equal(out.includes('COMMENT'), false, out);
+    assert.ok(out.includes("const c = 'kept';"), out);
+    assert.ok(out.includes('b: 2,'), out);
+  });
+
+  test('THE CORPUS — no tracked tooling source keeps a comment that codeMask can see', () => {
+    // A comment START per codeMask is a NON_CODE run beginning with `//` or `/*`
+    // right after a code byte (a string's run begins with its quote instead). The
+    // reduction must have blanked that byte. Measured before the fix: 24 leaks in
+    // 2 files; after it, none.
+    const files = execFileSync('git', ['ls-files', 'tooling/*.mjs', 'tooling/**/*.mjs', 'tooling/*.js', 'tooling/**/*.js'], { cwd: REPO_ROOT, encoding: 'utf8' })
+      .split('\n')
+      .filter((f) => f && !f.includes('__brick__') && !f.includes('node_modules'));
+    assert.ok(files.length > 100, `the corpus is ${files.length} file(s), which is not the tooling tree`);
+    const leaked = [];
+    for (const f of [...new Set(files)]) {
+      const src = readFileSync(join(REPO_ROOT, f), 'utf8');
+      const mask = codeMask(src);
+      const out = stripSourceComments(src, '.mjs');
+      for (let i = 1; i < src.length - 1; i++) {
+        if (mask[i] !== NON_CODE || mask[i - 1] === NON_CODE) continue;
+        const two = src.slice(i, i + 2);
+        if ((two === '//' || two === '/*') && out[i] === '/') {
+          leaked.push(`${f}:${src.slice(0, i).split('\n').length}`);
+          break;
+        }
+      }
+    }
+    assert.deepEqual(leaked, [], `comment(s) survived stripSourceComments:\n${leaked.join('\n')}`);
   });
 });
 

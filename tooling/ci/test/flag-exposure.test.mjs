@@ -269,6 +269,82 @@ final FutureProvider<core.FeatureFlags> featureFlagsProvider =
     })));
     assert.equal(r.code, 0, r.out);
   });
+
+  // ⏱ 2026-09-11 · REVIEW-guards-vacuous-2026-09-10 #1, replayed. Before the fix
+  // the named constructor below went rc=0 with "2/2 … wrapped": the matcher saw
+  // only the unnamed `FeatureFlags(`. Every spelling here is the same raw reader.
+  const RAW_SPELLINGS = [
+    ['a NAMED constructor — M1 replayed', 'final f = core.FeatureFlags.raw(rollouts: {}, stableId: "x");\n'],
+    ['a CONST named constructor', 'const f = core.FeatureFlags.raw(rollouts: {}, stableId: "x");\n'],
+    ['a GENERIC construction', 'final f = core.FeatureFlags<Object>(rollouts: {}, stableId: "x");\n'],
+    ['a nested GENERIC named constructor', 'final f = FeatureFlags<Map<String, int>>.empty();\n'],
+    ['a constructor TEAR-OFF, called later under another name', 'final make = core.FeatureFlags.new;\nfinal f = make(rollouts: {}, stableId: "x");\n'],
+    ['a static INSTANCE of the type', 'final f = core.FeatureFlags.disabled;\n'],
+    ['a spelling split across lines', 'final f = core.FeatureFlags\n    .raw(rollouts: {}, stableId: "x");\n'],
+  ];
+  for (const [label, body] of RAW_SPELLINGS) {
+    test(`FAILS on ${label} outside any wrapper`, () => {
+      const r = run(makeRepo((f) => ({ ...f, 'apps/demo/lib/flags.dart': body })));
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /apps\/demo\/lib\/flags\.dart:1 constructs a raw `FeatureFlags\(` outside any `ObservedFeatureFlags\(`/);
+    });
+  }
+
+  test('a NAMED raw constructor INSIDE the wrapper passes — the cure is not punished', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      [BRICK_REL]: 'final o = core.ObservedFeatureFlags(\n  flags: core.FeatureFlags.raw(rollouts: {}, stableId: "x"),\n  analytics: a,\n);\n',
+    })));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1\/1 raw FeatureFlags construction\(s\) wrapped/);
+  });
+
+  test('a raw construction inside a NAMED or GENERIC wrapper passes too', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      [BRICK_REL]:
+        'final o = core.ObservedFeatureFlags.forTesting(flags: core.FeatureFlags(rollouts: {}, stableId: "x"));\n' +
+        'final p = core.ObservedFeatureFlags<Object>(flags: core.FeatureFlags<Object>(rollouts: {}, stableId: "y"));\n',
+    })));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /2\/2 raw FeatureFlags construction\(s\) wrapped/);
+  });
+
+  test('FeatureFlags as a TYPE ARGUMENT is not a construction', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/lib/types.dart': 'final List<core.FeatureFlags> all = <core.FeatureFlags>[];\nFutureProvider<core.FeatureFlags>? p;\n',
+    })));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1\/1 raw FeatureFlags construction\(s\) wrapped/);
+  });
+
+  test('FAILS on a SUBTYPE — a raw reader under another name', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/lib/quiet.dart': 'class QuietFlags extends core.FeatureFlags {\n  QuietFlags() : super(rollouts: {}, stableId: "x");\n}\n',
+    })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /apps\/demo\/lib\/quiet\.dart:1 declares a subtype of `FeatureFlags`/);
+  });
+
+  test('FAILS on an IMPLEMENTS subtype listed after a generic interface', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/lib/quiet.dart': 'class QuietFlags implements Comparable<QuietFlags>, FeatureFlags {\n}\n',
+    })));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /declares a subtype of `FeatureFlags`/);
+  });
+
+  test('a type-parameter BOUND and a generic SUPERTYPE ARGUMENT are not subtypes', () => {
+    const r = run(makeRepo((f) => ({
+      ...f,
+      'apps/demo/lib/holder.dart':
+        'class Holder<T extends FeatureFlags> {\n}\nclass Box extends ValueNotifier<FeatureFlags?> {\n  Box() : super(null);\n}\n',
+    })));
+    assert.equal(r.code, 0, r.out);
+  });
 });
 
 describe('assert-flag-exposure — the vacuity is printed, not hidden', () => {
