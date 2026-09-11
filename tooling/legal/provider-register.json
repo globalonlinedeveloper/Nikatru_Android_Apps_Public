@@ -823,7 +823,7 @@
       "id": "sentry-cdn",
       "name": "Sentry (Functional Software, Inc.) — browser SDK CDN",
       "role": "content_delivery",
-      "status": "live",
+      "status": "not-named-not-wired",
       "reachableAt": null,
       "tells": [
         "sentry"
@@ -838,7 +838,14 @@
         "WHAT IT RECEIVES: the request for a script — IP address, user agent, referrer — on a web visit. Crash REPORTS are not sent to Sentry:",
         "they land on the self-hosted GlitchTip (`hostinger` row). So this is a CDN row, not a crash sink.",
         "NAMED IN NO PAGE — disclosure gap `web-boot-third-parties-unnamed` prints on every run until the owner names it or the egress is",
-        "closed (serve the SDK from the app origin)."
+        "closed (serve the SDK from the app origin).",
+        "⏱ 2026-09-12 — EGRESS CLOSED (W5), so this row is `not-named-not-wired`: named in no page, and no shipped Content-Security-Policy",
+        "lets a browser reach browser.sentry-cdn.com any more. sentry_flutter 9.26.0-9.30.0 hard-codes that URL as a `const`",
+        "(lib/src/web/sentry_js_bundle.dart), so it cannot be re-pointed at the app origin. packages/telemetry/lib/src/telemetry_bootstrap.dart",
+        "`useHttpTransportOnWeb` turns `autoInitializeNativeSdk` off on web (no injection) AND installs the SDK's own `HttpTransport`,",
+        "without which the already-installed JavascriptTransport would drop every event silently. Crash reports still go to the",
+        "self-hosted GlitchTip (`hostinger` row); only the CDN script request is gone. Kept as a row so a future SDK or app that",
+        "re-adds the script re-meets a named provider."
       ]
     },
     {
@@ -871,30 +878,7 @@
       ]
     }
   ],
-  "disclosureGaps": [
-    {
-      "id": "web-boot-third-parties-unnamed",
-      "page": "privacy.html",
-      "ownerItem": "O-3",
-      "stillTrue": "We rely on trusted third parties to deliver the Services.",
-      "closedWhenNamed": [
-        "sentry-cdn"
-      ],
-      "what": "The web app at nikatru.com/subscriptiontracker makes every visitor's browser fetch the Sentry browser SDK from browser.sentry-cdn.com (measured in the live main.dart.js, 2026-09-11). §4 \"Third-party services\" does not name Sentry as a party the browser contacts. ⏱ 2026-09-12: the Google half (CanvasKit, fonts) was closed rather than named — see the google-gstatic row.",
-      "resolution": "Owner copy (O-3): name both in privacy.html §4 with a policy version bump — or close the egress instead (build the web app with --no-web-resources-cdn, bundle the fonts, serve the Sentry SDK from the app origin) and retire both provider rows. When the page names either, this gap FAILS and asks to be retired, and the row gains `namedIn`."
-    },
-    {
-      "id": "web-boot-third-parties-unnamed-per-app-notice",
-      "page": "subscriptiontracker/privacy.html",
-      "ownerItem": "O-3",
-      "stillTrue": "5 service providers.",
-      "closedWhenNamed": [
-        "sentry-cdn"
-      ],
-      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists five service providers (four until hostinger was added on 2026-09-11) and not Sentry's CDN, which the same app's web build contacts on every visit. ⏱ 2026-09-12: Google's gstatic CDN was closed rather than named — see the google-gstatic row.",
-      "resolution": "Owner decision on the declaration (apps/subscriptiontracker/privacy.yaml), re-rendered — or close the egress as above. Adding a processor changes the count in the sentence this gap probes, and that FAILS the gap rather than retiring it: restate the count while Sentry and Google are still unnamed (done 2026-09-11 when hostinger was added, 4 -> 5), retire it once either is named."
-    }
-  ],
+  "disclosureGaps": [],
   "retiredDisclosureGaps": [
     {
       "_note": "🔴 RETIRED, NOT DELETED — 2026-08-10, by the owner signature that bumped sites/nikatru/privacy.html to version 2026-08-10. All four were live rows in `disclosureGaps` until that commit, and each one is a sentence that was WRONG or MISSING on a published legal page for weeks; deleting the record would delete the only evidence of how long. assert-policy-claims.mjs reads `disclosureGaps` ONLY, so nothing in this array is checked — which is exactly why each row carries `closedBy`, naming the span that now says the true thing and the tooling/legal/policy-claims.json row that pairs it. If a future edit drops one of those spans, THAT row fails; this list is a record, not a guard, and does not pretend to be one."
@@ -931,6 +915,28 @@
       "was": "§3 named no identity provider although Supabase is wired as one. Nothing was stored under it because no shipped app offers accounts — a disclosure that had to land BEFORE the first account, not one that was already wrong.",
       "closedBy": "§4 names Supabase as the store of account credentials and sign-in sessions. Paired by the `Supabase` provider row in tooling/legal/policy-claims.json.",
       "closedIn": "2026-08-10"
+    },
+    {
+      "id": "web-boot-third-parties-unnamed",
+      "providers": [
+        "google-gstatic",
+        "sentry-cdn"
+      ],
+      "page": "privacy.html",
+      "was": "The web app at nikatru.com/subscriptiontracker makes every visitor's browser fetch the Sentry browser SDK from browser.sentry-cdn.com (measured in the live main.dart.js, 2026-09-11). §4 \"Third-party services\" does not name Sentry as a party the browser contacts. ⏱ 2026-09-12: the Google half (CanvasKit, fonts) was closed rather than named — see the google-gstatic row.",
+      "closedBy": "The egress was CLOSED rather than disclosed: no visitor request reaches Google or Sentry any more (W5 PRs, 2026-09-12). CanvasKit and the font fallback are served from the app origin (google-gstatic row) and the web build sends events with the Dart SDK's HTTP transport instead of loading Sentry's browser SDK (sentry-cdn row). The page did not change, and needed not to.",
+      "closedIn": "2026-09-12"
+    },
+    {
+      "id": "web-boot-third-parties-unnamed-per-app-notice",
+      "providers": [
+        "google-gstatic",
+        "sentry-cdn"
+      ],
+      "page": "subscriptiontracker/privacy.html",
+      "was": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists five service providers (four until hostinger was added on 2026-09-11) and not Sentry's CDN, which the same app's web build contacts on every visit. ⏱ 2026-09-12: Google's gstatic CDN was closed rather than named — see the google-gstatic row.",
+      "closedBy": "As web-boot-third-parties-unnamed: the two CDNs are no longer contacted, so the processor count in the per-app notice is correct as it stands.",
+      "closedIn": "2026-09-12"
     }
   ]
 }

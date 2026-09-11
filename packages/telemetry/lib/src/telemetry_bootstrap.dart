@@ -1,4 +1,12 @@
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+// The SDK's own HTTP transport and rate limiter. Neither is exported from
+// package:sentry/sentry.dart, and `useHttpTransportOnWeb` below explains why
+// the web build needs them. Pinned by pubspec.lock; an SDK upgrade that moves
+// them fails to COMPILE, loudly, rather than dropping events quietly.
+// ignore: implementation_imports
+import 'package:sentry/src/transport/http_transport.dart';
+// ignore: implementation_imports
+import 'package:sentry/src/transport/rate_limiter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'noop_telemetry_client.dart';
@@ -33,44 +41,86 @@ class TelemetryBootstrap {
     }
 
     await SentryFlutter.init(
-      (options) {
-        options.dsn = config.dsn;
-        options.release = config.release;
-        options.environment = config.environment;
-        // 🔴 SET ONLY WHEN DECLARED, AND THE `if` IS THE WHOLE POINT.
-        // [pipeline 9]R-7, web limb. A source-map artifact is stored under
-        // (release, dist) and matched against the event's (release, dist), so
-        // an EMPTY string is not "no dist" — it is a dist value that matches
-        // no bundle, which is strictly worse than sending none. Two open
-        // production issues were unreadable on 2026-09-03 for want of the
-        // upload; sending a dist nobody uploaded under would leave them
-        // unreadable with the upload in place, and look configured while doing
-        // it. Apps that declare a channel pass it (`AppConfig.releaseChannel`);
-        // a developer build declares nothing and sends nothing.
-        if (config.dist.isNotEmpty) {
-          options.dist = config.dist;
-        }
-        options.tracesSampleRate = config.tracesSampleRate;
-        // Belt and braces: never attach default PII (ip address, ...).
-        options.sendDefaultPii = false;
-        // 🔴 SESSIONS ARE OFF, AND THAT IS AN HONESTY FIX, NOT A SAVING.
-        // [pipeline 11]E-10. sentry_flutter defaults this ON, so the SDK was
-        // computing and shipping session start/end envelopes to a server that
-        // has no concept of them: GlitchTip does not implement Sentry's release
-        // health, so nothing on the receiving end ever stored one. The visible
-        // consequence is worse than the wasted bytes — "crash-free sessions" is
-        // the metric every crash-health conversation reaches for, and leaving
-        // this on implies the number is available when it can never be
-        // computed. Turning it off makes the gap explicit: crash health here
-        // has to be defined against a denominator we actually hold (`app_open`
-        // rows in `events`), not against a session count nobody records.
-        options.enableAutoSessionTracking = false;
-        options.beforeSend = (event, hint) => scrubEvent(event);
-      },
+      optionsCallback(config),
       appRunner: appRunner,
     );
 
     return const SentryTelemetryClient();
+  }
+
+  /// The options every app gets. A function of [config] and of whether this is
+  /// a web build, so a test can drive the WEB branch on the VM.
+  @visibleForTesting
+  static FlutterOptionsConfiguration optionsCallback(
+    TelemetryConfig config, {
+    bool isWeb = kIsWeb,
+  }) {
+    return (options) {
+      options.dsn = config.dsn;
+      options.release = config.release;
+      options.environment = config.environment;
+      // 🔴 SET ONLY WHEN DECLARED, AND THE `if` IS THE WHOLE POINT.
+      // [pipeline 9]R-7, web limb. A source-map artifact is stored under
+      // (release, dist) and matched against the event's (release, dist), so
+      // an EMPTY string is not "no dist" — it is a dist value that matches
+      // no bundle, which is strictly worse than sending none. Two open
+      // production issues were unreadable on 2026-09-03 for want of the
+      // upload; sending a dist nobody uploaded under would leave them
+      // unreadable with the upload in place, and look configured while doing
+      // it. Apps that declare a channel pass it (`AppConfig.releaseChannel`);
+      // a developer build declares nothing and sends nothing.
+      if (config.dist.isNotEmpty) {
+        options.dist = config.dist;
+      }
+      options.tracesSampleRate = config.tracesSampleRate;
+      // Belt and braces: never attach default PII (ip address, ...).
+      options.sendDefaultPii = false;
+      // 🔴 SESSIONS ARE OFF, AND THAT IS AN HONESTY FIX, NOT A SAVING.
+      // [pipeline 11]E-10. sentry_flutter defaults this ON, so the SDK was
+      // computing and shipping session start/end envelopes to a server that
+      // has no concept of them: GlitchTip does not implement Sentry's release
+      // health, so nothing on the receiving end ever stored one. The visible
+      // consequence is worse than the wasted bytes — "crash-free sessions" is
+      // the metric every crash-health conversation reaches for, and leaving
+      // this on implies the number is available when it can never be
+      // computed. Turning it off makes the gap explicit: crash health here
+      // has to be defined against a denominator we actually hold (`app_open`
+      // rows in `events`), not against a session count nobody records.
+      options.enableAutoSessionTracking = false;
+      options.beforeSend = (event, hint) => scrubEvent(event);
+      // LAST, because the transport reads `options.dsn` when it is built.
+      if (isWeb) {
+        useHttpTransportOnWeb(options);
+      }
+    };
+  }
+
+  /// 🔴 ON WEB, SEND EVENTS WITH THE DART SDK'S HTTP TRANSPORT, NOT THE BROWSER
+  /// SDK FROM SENTRY'S CDN. ⏱ 2026-09-12 (W5).
+  ///
+  /// sentry_flutter 9.26.0 (and every release through 9.30.0) injects
+  /// `https://browser.sentry-cdn.com/<ver>/bundle.tracing.min.js` from a `const`
+  /// (`lib/src/web/sentry_js_bundle.dart`), so every visitor's browser contacted a
+  /// third party the privacy notice does not name, and there is no option to
+  /// re-point it. Turning `autoInitializeNativeSdk` off stops the injection, but
+  /// ON ITS OWN IT IS AN OUTAGE: `SentryFlutter.init` has already installed
+  /// `JavascriptTransport`, which hands envelopes to a JS client that is only
+  /// created by the skipped integration — no script, no events, no error. This
+  /// callback runs after that assignment, so replacing the transport here is
+  /// what keeps crash reports flowing: the same `HttpTransport` `SentryClient`
+  /// installs on every non-native platform, POSTing to the DSN host (already in
+  /// the app CSP `connect-src`; GlitchTip answers the CORS preflight for
+  /// `x-sentry-auth`, measured 2026-09-12).
+  ///
+  /// What the web build gives up, stated rather than implied: the browser SDK's
+  /// window-level JS error handlers, and debug-id images on events. Dart errors
+  /// are still captured by sentry_flutter's Flutter/zone integrations, and
+  /// GlitchTip resolves web source maps by (release, file name) as well as by
+  /// debug id (tooling/ops/upload-web-sourcemaps.mjs header).
+  @visibleForTesting
+  static void useHttpTransportOnWeb(SentryFlutterOptions options) {
+    options.autoInitializeNativeSdk = false;
+    options.transport = HttpTransport(options, RateLimiter(options));
   }
 
   /// Scrubs PII from every user-influenced field of [event]: the message and
