@@ -110,15 +110,15 @@ export const mimeFor = (file) => MIME.get(extname(file).toLowerCase()) ?? 'appli
 /** One log line per value (CodeQL #40). A newline inside a value — a --chrome path, a spawn
  *  error, a page's exception text — would otherwise start a line of its own, and a line that
  *  begins "::" is read by GitHub Actions as a workflow command, not as output. */
-// Each line terminator is replaced on its own — CodeQL's log-injection sanitizer reads literal
-// "\r\n", "\r" and "\n" replacements, not a character class (#326) — and a run of them is then
-// collapsed back into one mark, which is what /[\r\n]+/g used to print.
+// Each line terminator is replaced on its own, and one of those replaces is the LAST thing done to
+// the value: CodeQL's log-injection sanitizer reads a call replacing literal "\r\n", "\r" or "\n",
+// so a character class, or a later tidying replace, leaves the value unsanitized to the query (#326).
+// A run of terminators therefore prints one mark each, which is the only visible change.
 export const oneLine = (d) =>
   String(d)
     .replace(/\r\n/g, ' ⏎ ')
     .replace(/\r/g, ' ⏎ ')
-    .replace(/\n/g, ' ⏎ ')
-    .replace(/(?: ⏎ )+/g, ' ⏎ ');
+    .replace(/\n/g, ' ⏎ ');
 
 /** The path prefix a bundle was COMPILED FOR, read out of its own index.html.
  *
