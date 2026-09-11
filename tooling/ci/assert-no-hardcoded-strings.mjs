@@ -490,7 +490,12 @@ const NOT_USER_FACING = [
   // A nested brace inside `${…}` simply does not match, which fails CLOSED —
   // the literal is enforced. That is the safe direction to be wrong in.
   {
-    re: /^(?:[^a-zA-Z$]*(?:\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*))+[^a-zA-Z$]*$/,
+    // ONE WAY TO SPLIT (CodeQL #3): a trailing digit or underscore could belong to the
+    // identifier OR to the separator run after it, so '$A' + '0$A' repeated backtracked
+    // exponentially (75 characters: 2.6 s). The identifier now takes every character it
+    // can; anything it gives back is also accepted by the separator run, so no literal
+    // changes answer.
+    re: /^(?:[^a-zA-Z$]*(?:\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*(?![A-Za-z0-9_])))+[^a-zA-Z$]*$/,
     why: 'composed only of interpolations — every letter comes from a value, so there is no prose here to translate',
   },
 ];
@@ -1045,7 +1050,11 @@ const CONSUMER_EXTS = ['.mjs', '.js', '.ts', '.tsx', '.dart'];
 const CONSUMER_PRUNE = new Set(['build', 'node_modules']);
 /** Path shapes that make a file a test. Stated rather than assumed, because it
  *  is what separates "a guard reads this key" from "only a test names it". */
-const IS_TEST_PATH = /(^|\/)(tests?|integration_test)\/|(_|\.)test\.[a-z]+$/;
+// TWO TESTS, written as two (CodeQL #57): a test DIRECTORY anywhere in the path, or a
+// test FILE name at its end. As one alternation the $ read as if it anchored both, and
+// grouping them under it would stop excluding tooling/ci/test/x.mjs. Both call sites use
+// only .test(rel).
+const IS_TEST_PATH = { test: (rel) => /(^|\/)(tests?|integration_test)\//.test(rel) || /(_|\.)test\.[a-z]+$/.test(rel) };
 /**
  * ⚠️ A SANITY CEILING, NOT A FLOOR TO RE-PIN. Measured 2026-08-21: 5 of 309
  * keys, 1.6%. If `ACCESSOR_OF` stops matching, EVERY key becomes "unread" and
