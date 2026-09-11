@@ -210,7 +210,8 @@ import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-r
 // inline copies would drift in exactly what cannot be seen from a green run.
 // `coverageLost` is a hoisted function declaration, so passing it here, before
 // its text, is safe.
-relaunchSingleThreaded(import.meta.url, coverageLost);
+const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), coverageLost);
+if (relaunched !== null) process.exit(relaunched);
 
 const repoRoot = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? process.cwd());
 const APPS = join(repoRoot, 'apps');

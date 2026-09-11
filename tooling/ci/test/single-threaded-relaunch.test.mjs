@@ -17,7 +17,7 @@
 //   R5 the working process is KILLED      → the caller's reporter, exit 2 (POSIX)
 //
 // Mutations run against the module (2026-09-11, predictions written first):
-//   · the backstop `process.exit(2)` after a failed relaunch made `return` → R4b RED
+//   · the `return 2` after a failed relaunch made `return null`           → R4b RED
 //     (R4 stays green: its reporter exits by itself, which is why R4b exists)
 //   · the `child.status === null` branch disabled                          → R5 RED
 //   · `...process.argv.slice(2)` dropped from the relaunch                 → R2 RED
@@ -59,7 +59,8 @@ function script(body, { preamble = '', returningReporter = false } = {}) {
       `  ${returningReporter ? '' : 'process.exit(2);'}\n` +
       `}\n` +
       `${preamble}\n` +
-      `relaunchSingleThreaded(import.meta.url, coverageLost);\n` +
+      `const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), coverageLost);\n` +
+      `if (relaunched !== null) process.exit(relaunched);\n` +
       `${body}\n`,
   );
   return p;

@@ -155,7 +155,8 @@ import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-r
 // with --single-threaded. Work on a worker thread is what Node's shutdown can
 // deadlock on after the verdict is printed (nodejs/node#54918). `coverageLost`
 // is a hoisted function declaration, so handing it over before its text is safe.
-relaunchSingleThreaded(import.meta.url, coverageLost);
+const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), coverageLost);
+if (relaunched !== null) process.exit(relaunched);
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 /** No argument means CI's own invocation against the real repository, where a

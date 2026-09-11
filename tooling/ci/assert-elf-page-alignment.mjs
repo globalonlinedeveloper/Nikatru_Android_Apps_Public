@@ -89,7 +89,8 @@ import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-r
 // runs; with --single-threaded, in 0 of 8. The zip walk and inflate loop are
 // exactly the hot code a background compile is for. `coverageLost` is a hoisted
 // function declaration, so handing it over before its text is safe.
-relaunchSingleThreaded(import.meta.url, coverageLost);
+const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), coverageLost);
+if (relaunched !== null) process.exit(relaunched);
 
 const DUTY_REL = 'tooling/legal/duty-matrix.json';
 const DUTY_ID = 'play-16kb-page-size';

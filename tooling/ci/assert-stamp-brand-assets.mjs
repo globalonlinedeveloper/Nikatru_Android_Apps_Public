@@ -94,9 +94,10 @@ import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-r
 // pixel of every icon — exactly the hot code a background compile is for.
 // `coverageLost` is a hoisted function declaration, so handing it over here,
 // before its text, is safe.
-relaunchSingleThreaded(import.meta.url, (lines) =>
+const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), (lines) =>
   coverageLost([`✗ COVERAGE LOST — ${lines[0]}`, ...lines.slice(1).map((l) => `  ${l}`)]),
 );
+if (relaunched !== null) process.exit(relaunched);
 
 const args = process.argv.slice(2);
 const appDir = resolve(args.find((a) => !a.startsWith('--')) ?? '.');
