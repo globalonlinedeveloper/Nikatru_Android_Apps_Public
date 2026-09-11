@@ -77,18 +77,12 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
     localSubscriptionStoreProvider,
   );
   if (!AppConfig.isApiConfigured) {
-    return PersistedApiClient(
-      SeedApiClient(),
-      store,
-    );
+    return PersistedApiClient(SeedApiClient(), store);
   }
   final core.AppConfig? cfg = ref.watch(appConfigProvider).valueOrNull;
   final String baseUrl = cfg?.apiBaseUrl ?? '${AppConfig.apiBaseUrl}/v1';
   return cachedApiClientOver(
-    DioApiClient(
-      baseUrl: baseUrl,
-      tokenProvider: ref.watch(authTokenProvider),
-    ),
+    DioApiClient(baseUrl: baseUrl, tokenProvider: ref.watch(authTokenProvider)),
     store,
   );
 });
@@ -105,8 +99,10 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
 /// [network] bare, or make the provider return `DioApiClient` bare, and one of
 /// them goes red.
 @visibleForTesting
-ApiClient cachedApiClientOver(ApiClient network, LocalSubscriptionStore store) =>
-    CachedApiClient(network, store);
+ApiClient cachedApiClientOver(
+  ApiClient network,
+  LocalSubscriptionStore store,
+) => CachedApiClient(network, store);
 
 final Provider<SubscriptionRepository> subscriptionRepositoryProvider =
     Provider<SubscriptionRepository>(

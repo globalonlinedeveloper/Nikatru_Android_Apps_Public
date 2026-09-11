@@ -153,8 +153,7 @@ class LocalStoreWriteFailure implements Exception {
   final Object cause;
 
   @override
-  String toString() =>
-      'LocalStoreWriteFailure: could not write $key — $cause';
+  String toString() => 'LocalStoreWriteFailure: could not write $key — $cause';
 }
 
 /// The durable home of the subscriptions and the budget in the unconfigured
