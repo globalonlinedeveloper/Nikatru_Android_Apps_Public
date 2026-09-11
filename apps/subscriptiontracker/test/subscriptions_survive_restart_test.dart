@@ -1,8 +1,12 @@
+import 'dart:io' show File;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikatru_core/nikatru_core.dart' as core;
+import 'package:subscriptiontracker/data/api/api_client.dart';
 import 'package:subscriptiontracker/data/local/subscription_store.dart';
 import 'package:subscriptiontracker/data/models/budget_info.dart';
+import 'package:subscriptiontracker/data/models/payment_record.dart';
 import 'package:subscriptiontracker/data/models/subscription.dart';
 import 'package:subscriptiontracker/data/subscriptions/subscription_repository.dart';
 import 'package:subscriptiontracker/state/providers.dart';
@@ -234,20 +238,157 @@ void main() {
     );
   });
 
-  test('a store that is not there costs persistence and nothing else', () async {
+  test('🔴 a store that is not there: the app still RUNS, and an add FAILS '
+      'HONESTLY with the list unchanged', () async {
     // No `keyValueStoreProvider` override at all: under `flutter test` there is
     // no `shared_preferences` plugin, so the real provider's future FAILS. The
     // app must still run — this is the same degradation a browser with storage
     // blocked, or a device with no writable profile, produces in the field.
+    //
+    // THIS USED TO ASSERT THAT THE ADD SUCCEEDED. It "succeeded" into memory
+    // and was gone at the next launch, with nothing said. Now the write fails
+    // where the user can see it (the add sheet re-arms and says so) and the
+    // seed is rolled back, so the list never shows a row the device refused.
     final ProviderContainer c = ProviderContainer();
     addTearDown(c.dispose);
     final List<Subscription> subs = await c
         .read(subscriptionRepositoryProvider)
         .fetchAll();
     expect(subs, isNotEmpty);
-    final Subscription created = await c
+    await expectLater(
+      c.read(subscriptionRepositoryProvider).add(_draft('Claude Pro')),
+      throwsA(isA<LocalStoreWriteFailure>()),
+    );
+    final List<Subscription> after = await c
         .read(subscriptionRepositoryProvider)
-        .add(_draft('Claude Pro'));
-    expect(created.name, 'Claude Pro');
+        .fetchAll();
+    expect(after.length, subs.length, reason: 'rolled back — not half-saved');
+    expect(
+      after.map((Subscription s) => s.name),
+      isNot(contains('Claude Pro')),
+    );
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔴 THE CONFIGURED BRANCH — THE ONE EVERY REAL BUILD TAKES.
+  //
+  // `AppConfig.isApiConfigured` is compile-time and false under `flutter test`,
+  // so the provider's configured branch is proven through the named function
+  // it delegates to, PLUS a reading of the provider's own source that the
+  // branch still delegates. Two halves of one mutation: make
+  // `cachedApiClientOver` return the network bare, or make the provider return
+  // `DioApiClient` bare, and one of these goes red.
+  // ═══════════════════════════════════════════════════════════════════════════
+  group(
+    'API configured: the list survives a restart with the network dead',
+    () {
+      test('through the wiring function the provider uses', () async {
+        final _MemStore kv = _MemStore();
+        LocalSubscriptionStore store() =>
+            LocalSubscriptionStore(Future<core.KeyValueStore>.value(kv));
+        final _FakeNetwork net = _FakeNetwork(<Subscription>[
+          _draft('Netflix'),
+          _draft('Spotify'),
+        ]);
+
+        // Launch 1, online, through the app's own wiring.
+        final ApiClient first = cachedApiClientOver(net, store());
+        expect((await first.getSubscriptions()).length, 2);
+
+        // Kill the network; launch 2 is a NEW client over the same bytes.
+        net.dead = true;
+        final ApiClient second = cachedApiClientOver(net, store());
+        expect(
+          (await second.getSubscriptions()).map((Subscription s) => s.name),
+          <String>['Netflix', 'Spotify'],
+        );
+      });
+
+      test('and the provider\'s configured branch still calls it', () {
+        // A SOURCE reading, because no test can flip the compile-time define.
+        final String src = File(
+          'lib/state/providers/subscriptions.dart',
+        ).readAsStringSync();
+        final int start = src.indexOf(
+          'apiClientProvider = Provider<ApiClient>',
+        );
+        final int end = src.indexOf('});', start);
+        final String body = src.substring(start, end);
+        expect(body, contains('cachedApiClientOver('));
+        expect(
+          body,
+          isNot(contains('return DioApiClient(')),
+          reason:
+              'a bare DioApiClient is the production path with no local copy',
+        );
+      });
+    },
+  );
+}
+
+/// The Worker, reduced to a list and a kill switch.
+class _FakeNetwork implements ApiClient {
+  _FakeNetwork(this.subs);
+  List<Subscription> subs;
+  bool dead = false;
+  void _gate() {
+    if (dead) throw ApiException(0, 'Network error');
+  }
+
+  @override
+  Future<List<Subscription>> getSubscriptions() async {
+    _gate();
+    return subs;
+  }
+
+  @override
+  Future<Subscription> createSubscription(Subscription draft) async {
+    _gate();
+    return draft;
+  }
+
+  @override
+  Future<Subscription> getSubscription(String id) async {
+    _gate();
+    return subs.firstWhere((Subscription s) => s.id == id);
+  }
+
+  @override
+  Future<Subscription> updateSubscription(
+    String id,
+    Map<String, dynamic> changes,
+  ) async {
+    _gate();
+    return subs.firstWhere((Subscription s) => s.id == id);
+  }
+
+  @override
+  Future<void> deleteSubscription(String id) async => _gate();
+
+  @override
+  Future<List<PaymentRecord>> getPaymentHistory(String id) async {
+    _gate();
+    return const <PaymentRecord>[];
+  }
+
+  @override
+  Future<BudgetInfo> getBudget() async {
+    _gate();
+    return const BudgetInfo(
+      monthlyBudget: Money(1, 'USD'),
+      categories: <BudgetCap>[],
+    );
+  }
+
+  @override
+  Future<BudgetInfo> updateBudget(BudgetInfo budget) async {
+    _gate();
+    return budget;
+  }
+
+  @override
+  Future<core.Entitlements> getEntitlements() async {
+    _gate();
+    return core.Entitlements.none;
+  }
 }
