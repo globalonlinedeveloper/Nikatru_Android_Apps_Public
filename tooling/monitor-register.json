@@ -400,36 +400,48 @@
       "what": "the Cloudflare Pages alias of the `subscriptiontracker` project — the ORIGIN the apex router (sites/nikatru/functions/_middleware.js) fetches every https://nikatru.com/subscriptiontracker/* request from ([ADR 075])",
       "derivedFrom": "declared",
       "why": "Declared 2026-09-11. assert-monitor-coverage.mjs has printed it as an \"app ORIGIN host with no row\" on every run since 2026-09-09. It is `declared` rather than a derivation of its own because tooling/ops/status.mjs requires every `derivedFrom` to be one of this file's `_derivation` keys, and catalog/apps.json `origin` is not one; the coverage guard corroborates the host against apps/subscriptiontracker/app.yaml `hosts.pagesOrigin` either way, so a stale row still fails by name. Measured 2026-09-11: GET https://subscriptiontracker-7qg.pages.dev/ → 200, 11,336 B, body carries `<base href=\"/subscriptiontracker/\">`.",
-      "monitor": null,
-      "gap": {
-        "why": "Nothing watches the origin. The nikatru.com row's pathMonitors entry (monitor 3) watches the apex PATH, which fails for an origin fault and a router fault alike without saying which — and the router now answers some app-path URLs from the static site (2026-09-11), so the two can diverge. No monitor is declared here: a row and its live monitor are one change, and the POST is an action on the GlitchTip instance.",
-        "action": "One GET monitor with a body matcher, so a Pages project that answers 200 with the wrong bytes (a rollback to an empty deployment, a renamed project) is caught: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"subscriptiontracker origin (pages.dev)\",\"url\":\"https://subscriptiontracker-7qg.pages.dev/\",\"expectedStatus\":200,\"expectedBody\":\"<base href=\\\"/subscriptiontracker/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<the project monitor 3 alerts into — read it from GET …/monitors/3/ first; do not guess>\"}. Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
-        "openedOn": "2026-09-11"
-      }
+      "monitor": {
+        "id": 34,
+        "name": "subscriptiontracker origin (pages.dev)",
+        "type": "GET",
+        "expectedStatus": 200,
+        "expectedBody": "<base href=\"/subscriptiontracker/\">",
+        "intervalSeconds": 60,
+        "verifiedOn": "2026-09-12"
+      },
+      "monitorNote": "Monitor created 2026-09-12 (W5): GET, 200 and the body <base href=\"/subscriptiontracker/\">, so a Pages project answering 200 with the wrong bytes (a rollback to an empty deployment, a renamed project) goes Down. Alerts into project 1 (subscriptiontracker), copied from monitor 3 rather than guessed; interval 60 s, timeout 20 s, confirmationThreshold 2, as monitor 3."
     },
     {
       "hostname": "www.nikatru.com",
-      "what": "the www label of the factory's public site — it SERVES the site (200) rather than redirecting to the apex",
+      "what": "the www label of the factory's public site — it answers 301 to the apex (since 2026-09-11); the monitor follows the hop and grades the apex site",
       "derivedFrom": "declared",
       "why": "Measured 2026-09-11: GET https://www.nikatru.com/ → 200 from Cloudflare, body carries `<link rel=\"canonical\" href=\"https://nikatru.com/\">`. No derivation source names it — `siteCanonicals` reads that canonical, which is the apex — so a hostname the site answers on was absent from this register. Search engines follow the canonical; a visitor or store reviewer who types www does not, and nothing watched what they get.",
-      "monitor": null,
-      "gap": {
-        "why": "No monitor: it is a POST to GlitchTip, not a repo edit. Whether www should keep SERVING or become a 301 to the apex is an account-side Cloudflare decision (a Redirect Rule, recorded in HANDOFF-stores.md), and it decides which monitor is right.",
-        "action": "If www keeps serving: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"www.nikatru.com\",\"url\":\"https://www.nikatru.com/\",\"expectedStatus\":200,\"expectedBody\":\"<link rel=\\\"canonical\\\" href=\\\"https://nikatru.com/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<monitor 4's project>\"} — the body matcher monitor 4 already uses on the apex. If www becomes a 301: expectedStatus 301 and no body, as subly.nikatru.com's pre-written monitor, with the same stated weakness (an edge redirect watches Cloudflare). Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
-        "openedOn": "2026-09-11"
-      }
+      "monitor": {
+        "id": 35,
+        "name": "www.nikatru.com",
+        "type": "GET",
+        "expectedStatus": 200,
+        "expectedBody": "<link rel=\"canonical\" href=\"https://nikatru.com/\">",
+        "intervalSeconds": 60,
+        "verifiedOn": "2026-09-12"
+      },
+      "monitorNote": "Monitor created 2026-09-12 (W5). www now answers 301 to the apex (live since 2026-09-11), but the monitor asserts 200 + the apex canonical, NOT 301, and that is measured, not a preference: GlitchTip's HTTP check (glitchtip/ssrf_protection.py request_with_validated_redirects) follows redirects and compares the FINAL response, so an expectedStatus of 301 could never be Up; tooling/ops/status.mjs probes with redirect: 'follow' for the same reason. What it proves: a visitor who types www reaches the apex site's real bytes. What it does not prove: that the hop is a 301 rather than www serving the site itself — that is a zone-rule fact for an authoritative Cloudflare-API check, not an uptime probe."
     },
     {
       "hostname": "www.rajasekarselvam.com",
-      "what": "the www label of the founder site — it SERVES the site (200) rather than redirecting to the apex",
+      "what": "the www label of the founder site — it answers 301 to the apex (since 2026-09-11); the monitor follows the hop and grades the apex site",
       "derivedFrom": "declared",
       "why": "Measured 2026-09-11: GET https://www.rajasekarselvam.com/ → 200 from Cloudflare, body carries `<link rel=\"canonical\" href=\"https://rajasekarselvam.com/\">`. Same structural reason as www.nikatru.com: `siteCanonicals` derives the apex only.",
-      "monitor": null,
-      "gap": {
-        "why": "As www.nikatru.com — the serve-or-301 decision is account-side, and the monitor follows it.",
-        "action": "If www keeps serving: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"www.rajasekarselvam.com\",\"url\":\"https://www.rajasekarselvam.com/\",\"expectedStatus\":200,\"expectedBody\":\"<link rel=\\\"canonical\\\" href=\\\"https://rajasekarselvam.com/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<monitor 5's project>\"}. If it becomes a 301: expectedStatus 301, no body. Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
-        "openedOn": "2026-09-11"
-      }
+      "monitor": {
+        "id": 36,
+        "name": "www.rajasekarselvam.com",
+        "type": "GET",
+        "expectedStatus": 200,
+        "expectedBody": "<link rel=\"canonical\" href=\"https://rajasekarselvam.com/\">",
+        "intervalSeconds": 60,
+        "verifiedOn": "2026-09-12"
+      },
+      "monitorNote": "Monitor created 2026-09-12 (W5). Same shape and the same measured reason as www.nikatru.com: GlitchTip follows the 301 and grades the final 200 + <link rel=\"canonical\" href=\"https://rajasekarselvam.com/\">."
     },
     {
       "hostname": "subscriptiontracker-api.nikatru.com",
@@ -466,7 +478,16 @@
       "what": "the crash sink and the monitor host itself",
       "derivedFrom": "declared",
       "why": "No wrangler.jsonc, app row or site canonical names it: it is not something this repo deploys, it is the thing watching what this repo deploys. Declared here so 'who watches the watcher' is at least askable.",
-      "monitor": { "id": 1, "name": "GlitchTip", "type": "GET", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" }
+      "monitor": {
+        "id": 1,
+        "name": "GlitchTip",
+        "type": "GET",
+        "expectedStatus": 200,
+        "expectedBody": "<title>GlitchTip</title>",
+        "intervalSeconds": 60,
+        "verifiedOn": "2026-09-12"
+      },
+      "monitorNote": "Body matcher added 2026-09-12 (W5) by a full-replace PUT that echoed every accepted field (project \"1\" included) and read back with no other field moved. A status alone proved nothing here: an edge error page or a default nginx page also answers 200. <title>GlitchTip</title> is in the 28,671-byte SPA shell GlitchTip itself serves at / (read three times, identical). /_health/ answers a 2-byte \"ok\", deliberately not used: a substring matcher on \"ok\" matches almost any page."
     },
     {
       "hostname": "platform.nikatru.com",
