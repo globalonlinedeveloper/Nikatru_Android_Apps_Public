@@ -1268,7 +1268,7 @@ final Provider<RestClient> restClientProvider = Provider<RestClient>(
 /// and it is the only one left. Named here, and in [signOutAndForgetUser]'s doc,
 /// so the count in that doc stays honest.
 Future<void> signOutOnlyIfSessionIsGone(core.AuthRepository auth) async {
-  if (await auth.currentAccessToken() == null) {
+  if (await auth.sessionIsGone()) {
     await auth.signOut();
   }
 }
