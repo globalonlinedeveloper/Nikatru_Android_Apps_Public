@@ -173,11 +173,12 @@ class InMemoryAuthRepository implements core.AuthRepository {
     required String email,
     required String password,
     String? captchaToken,
-  }) async => signInWithEmail(
-    email: email,
-    password: password,
-    captchaToken: captchaToken,
-  );
+  }) async =>
+      signInWithEmail(
+        email: email,
+        password: password,
+        captchaToken: captchaToken,
+      );
 
   /// The captcha token most recently handed to any method here, or null.
   ///
@@ -288,6 +289,11 @@ class InMemoryAuthRepository implements core.AuthRepository {
     if (exp != null && !exp.isAfter(DateTime.now().toUtc())) return null;
     return s.accessToken;
   }
+
+  /// No refresh exists here, so there is no "unreachable" state to tell
+  /// apart: an expired session is a gone one, exactly as before.
+  @override
+  Future<bool> sessionIsGone() async => await currentAccessToken() == null;
 
   @override
   Future<core.AuthSession?> currentSession() async => _session;

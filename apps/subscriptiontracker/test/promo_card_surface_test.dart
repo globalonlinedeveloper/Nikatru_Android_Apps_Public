@@ -142,11 +142,18 @@ Widget _host(
   // limb under test is really on the path.
   bool entitled = false,
   Locale? locale,
+  // 🔴 THE REAL RAIL ONLY WHEN A CASE ASKS FOR IT. flutter_test's default
+  // target platform is Android, where the real rail CANNOT sell — and a rail
+  // that cannot sell now shows no card at all. So every case that is about
+  // the card itself hosts a selling rail, and the two that are about the real
+  // rail's refusal say so.
+  bool realRail = false,
 }) => ProviderScope(
   overrides: <Override>[
     keyValueStoreProvider.overrideWith((_) async => store),
     appConfigProvider.overrideWith((_) async => cfg),
-    if (rail != null) purchaseRailProvider.overrideWithValue(rail),
+    if (!realRail)
+      purchaseRailProvider.overrideWithValue(rail ?? _SellingRail()),
     if (entitled)
       entitlementsProvider.overrideWith(
         (_) async => core.Entitlements(
@@ -349,7 +356,11 @@ void main() {
       'an offering-less rail shows nothing (C-6, not a silent show)',
       (WidgetTester tester) async {
         await tester.pumpWidget(
-          _host(_MemStore(), _config(promoEnabled: true, withOfferings: false)),
+          _host(
+            _MemStore(),
+            _config(promoEnabled: true, withOfferings: false),
+            realRail: true,
+          ),
         );
         await tester.pumpAndSettle();
         expect(
@@ -362,16 +373,23 @@ void main() {
       },
     );
 
-    testWidgets('the real rail cannot sell today, so there is no buy button', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(_host(_MemStore(), _config(promoEnabled: true)));
+    // 🔴 THIS CASE USED TO ASSERT THE DEFECT. It was "the real rail cannot
+    // sell today, so there is no buy button" and it expected the card — price
+    // included — with only the button gone. On a store build that is a price
+    // for something the app cannot sell in-app (App Store 3.1.1/3.1.3(b),
+    // Google's payments policy). A build that cannot sell quotes no price.
+    // MUTATION PROOF (run and recorded in the PR): put
+    // `hasContent: offerings.isNotEmpty` back in home_screen.dart and this
+    // goes red.
+    testWidgets('a build whose rail CANNOT sell shows no card and quotes no '
+        'price', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _host(_MemStore(), _config(promoEnabled: true), realRail: true),
+      );
       await tester.pumpAndSettle();
-      // `HostedCheckoutRail.canStartCheckout` is false with no
-      // `checkout_url_template` (OWNER_QUEUE A-1). This is the shipped state,
-      // and a card that offered a button here would open nothing.
+      expect(find.byType(PromoCard), findsNothing);
+      expect(find.textContaining(r'$4.99'), findsNothing);
       expect(find.byType(FilledButton), findsNothing);
-      expect(find.text('Manage subscription'), findsOneWidget);
     });
 
     testWidgets('a rail that CAN sell gets the buy button', (
