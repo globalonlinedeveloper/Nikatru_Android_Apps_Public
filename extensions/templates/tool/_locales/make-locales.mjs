@@ -95,11 +95,6 @@ const PLURAL_CATEGORIES = ['zero', 'one', 'two', 'few', 'many', 'other'];
 function intlTag(locale) { return String(locale).replace(/_/g, '-'); }
 function baseLanguage(locale) { return String(locale).split('_')[0]; }
 
-function pluralCategoriesFor(locale) {
-  try { return new Intl.PluralRules(intlTag(locale)).resolvedOptions().pluralCategories; }
-  catch (_) { return ['other']; }
-}
-
 function isRtl(locale) {
   try {
     const info = new Intl.Locale(intlTag(locale));
