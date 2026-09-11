@@ -48,12 +48,13 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   evaluateJob,
   cronIntervalHours,
   lastExpectedFireMs,
+  firstFireAfterMs,
   deriveWatchedJobs,
 } from '../../ops/check-heartbeats.mjs';
 
@@ -347,6 +348,7 @@ describe('check-heartbeats — the watched set is DERIVED, and cannot silently e
         kind: 'duty',
         cadence: '1d',
         watchedJobs: { demo_job: ['0 6 * * *'] },
+        watchedJobsDeclaredAt: { demo_job: '2026-08-01T00:00:00Z' },
         mechanism: { substrate: 'cloudflare-cron', anchor: 'services/svc/wrangler.jsonc' },
       },
     };
@@ -405,6 +407,7 @@ describe('check-heartbeats — the watched set is DERIVED, and cannot silently e
         // Declared, watched, and never passed to anything.
         s.source += "export const GHOST_JOB = 'ghost_job';\n";
         s.row.watchedJobs = { demo_job: ['0 6 * * *'], ghost_job: ['0 6 * * *'] };
+        s.row.watchedJobsDeclaredAt = { demo_job: '2026-08-01T00:00:00Z', ghost_job: '2026-08-01T00:00:00Z' };
       }),
     );
     assert.match(problems.join(' '), /`GHOST_JOB` \(job "ghost_job"\) is declared .* and NEVER USED/s);
@@ -608,14 +611,16 @@ describe('check-heartbeats — end to end through the real register', () => {
   });
 
   test('an empty result set exits non-zero through the real derivation', () => {
+    // ⏱ 2026-09-11 — graded on a day when every watched job's first slot after its
+    // declaration has passed: before that, an empty record is NOT YET DUE by design.
     const empty = Object.fromEntries(WATCHED.map((job) => [job, []]));
-    assert.equal(run(fixture(empty), '2026-08-02T09:00:00Z').status, 1);
+    assert.equal(run(fixture(empty), '2026-09-11T09:00:00Z').status, 1);
   });
 
   test('an unreadable --now is refused rather than silently becoming "now"', () => {
     const f = fixture(healthy());
     const r = spawnSync(process.execPath, [READER, '--rows-file', f, '--now', 'lunchtime'], { cwd: REPO, encoding: 'utf8' });
-    assert.equal(r.status, 1);
+    assert.equal(r.status, 2, 'an input that cannot be parsed is COVERAGE LOST, exit 2 (INV6)');
     assert.match(r.stderr, /not a parseable date/);
   });
 
@@ -624,7 +629,136 @@ describe('check-heartbeats — end to end through the real register', () => {
       cwd: REPO,
       encoding: 'utf8',
     });
-    assert.equal(r.status, 1);
+    assert.equal(r.status, 2, 'a record that could not be read is COVERAGE LOST, exit 2 (INV6)');
     assert.match(r.stderr, /could not read fixture/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · NOT YET DUE, AND UNREADABLE IS EXIT 2 (INV6).
+//
+// Two defects of one shape. (1) A Cloudflare read failure was pushed into the
+// same list as a failing duty, so a 401, a 5xx or a missing token printed
+// "scheduled duty is not reporting healthy" and exited 1 — and through ops-watch
+// that false red reached the merge queue (REVIEW-guards-2026-09-10 #1). (2) A job
+// with NO row at all was ABSENT the moment it was declared, even when its first
+// slot had not yet arrived; the only fact that separates "not yet due" from
+// "never ran" is when the register began watching it, and nothing recorded that.
+// GREEN CONTROL FIRST in each pair.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('check-heartbeats — NOT YET DUE, and a read failure is COVERAGE LOST', () => {
+  const at = (s) => Date.parse(s);
+
+  test('firstFireAfterMs is STRICTLY after, for a daily and a weekly cron, and refuses what the parser refuses', () => {
+    assert.equal(firstFireAfterMs('0 6 * * *', at('2026-08-02T05:00:00Z')), at('2026-08-02T06:00:00Z'));
+    assert.equal(firstFireAfterMs('0 6 * * *', at('2026-08-02T06:00:00Z')), at('2026-08-03T06:00:00Z'), 'declared AT a slot, a job owes the NEXT one');
+    assert.equal(firstFireAfterMs('0 6 * * *', at('2026-08-02T06:30:00Z')), at('2026-08-03T06:00:00Z'));
+    // 2026-08-04 is a Tuesday; `1` is Monday.
+    assert.equal(new Date(at('2026-08-04T00:00:00Z')).getUTCDay(), 2);
+    assert.equal(firstFireAfterMs('0 6 * * 1', at('2026-08-04T12:00:00Z')), at('2026-08-10T06:00:00Z'));
+    assert.equal(firstFireAfterMs('*/5 * * * *', at('2026-08-02T05:00:00Z')), null);
+    assert.equal(firstFireAfterMs('0 6 * * *', NaN), null);
+  });
+
+  test('⬜ NOT YET DUE — a job declared AFTER its last slot, with no row yet, passes and PRINTS until its first slot plus the grace', () => {
+    const v = evaluateJob('j', [], CRON, at('2026-08-02T09:00:00Z'), at('2026-08-02T06:30:00Z'));
+    assert.equal(v.ok, true, v.reason);
+    assert.equal(v.pending, true);
+    assert.match(v.reason, /NOT YET DUE/);
+    assert.match(v.reason, /first slot after that is 2026-08-03T06:00:00\.000Z/);
+    assert.match(v.reason, /grace on that slot ends 2026-08-03T08:00:00\.000Z/, 'the instant it stops waiting must be in the line');
+  });
+
+  test('🔴 …and it is ABSENT the moment that grace ends, with nobody editing the row', () => {
+    const v = evaluateJob('j', [], CRON, at('2026-08-03T08:00:01Z'), at('2026-08-02T06:30:00Z'));
+    assert.equal(v.ok, false);
+    assert.equal(v.kind, 'absent');
+    assert.notEqual(v.pending, true);
+    assert.match(v.reason, /NO heartbeat row has ever been written/);
+    assert.match(v.reason, /ended its 2h grace/);
+  });
+
+  test('🔴 a job declared BEFORE its last slot with no row is ABSENT — the wait is one slot, never a waiver', () => {
+    const v = evaluateJob('j', [], CRON, at('2026-08-02T09:00:00Z'), at('2026-08-02T05:00:00Z'));
+    assert.equal(v.ok, false);
+    assert.equal(v.kind, 'absent');
+  });
+
+  test('the declaration never touches a job that has EVER written a row, and without one an empty record is ABSENT as before', () => {
+    const old = evaluateJob('j', [row({ ran_at: '2026-08-01T06:00:00Z' })], CRON, at('2026-08-02T09:00:00Z'), at('2026-08-02T06:30:00Z'));
+    assert.equal(old.ok, false, 'a missed occurrence is still ABSENT however recently the job was declared');
+    assert.equal(old.kind, 'absent');
+    const undeclared = evaluateJob('j', [], CRON, at('2026-08-02T09:00:00Z'));
+    assert.equal(undeclared.ok, false);
+    assert.equal(undeclared.kind, 'absent');
+  });
+
+  const miniRepo = (declared) => {
+    const root = join(TMP, `nd${seq++}`);
+    mkdirSync(join(root, 'services/svc/src'), { recursive: true });
+    mkdirSync(join(root, 'tooling/ops'), { recursive: true });
+    writeFileSync(
+      join(root, 'services/svc/wrangler.jsonc'),
+      JSON.stringify({ name: 'svc', d1_databases: [{ binding: 'DB', database_name: 'demo', database_id: 'abc', migrations_dir: 'migrations' }], triggers: { crons: ['0 6 * * *'] } }),
+    );
+    writeFileSync(join(root, 'services/svc/src/scheduled.ts'), "export const KEEPALIVE_JOB = 'demo_job';\nawait recordHeartbeat(env, rows, KEEPALIVE_JOB);\n");
+    const r = { id: 'duty.cron', kind: 'duty', cadence: '1d', watchedJobs: { demo_job: ['0 6 * * *'] }, mechanism: { substrate: 'cloudflare-cron', anchor: 'services/svc/wrangler.jsonc' } };
+    if (declared !== undefined) r.watchedJobsDeclaredAt = declared;
+    writeFileSync(join(root, 'tooling/ops/register.json'), JSON.stringify({ rows: [r] }));
+    return root;
+  };
+
+  test('deriveWatchedJobs carries the declaration instant, and refuses a missing, unparseable, FUTURE or orphan one', () => {
+    const green = deriveWatchedJobs(miniRepo({ demo_job: '2026-08-01T00:00:00Z' }));
+    assert.deepEqual(green.problems, []);
+    assert.equal(green.jobs[0].declaredAtMs, at('2026-08-01T00:00:00Z'));
+    assert.match(deriveWatchedJobs(miniRepo(undefined)).problems.join(' '), /^COVERAGE LOST — duty\.cron\.watchedJobsDeclaredAt must be a MAP/);
+    assert.match(deriveWatchedJobs(miniRepo({ demo_job: 'soon' })).problems.join(' '), /COVERAGE LOST — .*"demo_job"\] is "soon", not an ISO instant/);
+    const future = deriveWatchedJobs(miniRepo({ demo_job: '2099-01-01T00:00:00Z' })).problems.join(' ');
+    assert.match(future, /in the FUTURE/);
+    assert.match(future, /INV5/);
+    assert.match(deriveWatchedJobs(miniRepo({ demo_job: '2026-08-01T00:00:00Z', ghost: '2026-08-01T00:00:00Z' })).problems.join(' '), /names job "ghost", which duty\.cron\.watchedJobs does not watch/);
+  });
+
+  test('the COMMITTED register declares every watched job, and none in the future', () => {
+    const { jobs, problems } = deriveWatchedJobs(REPO);
+    assert.deepEqual(problems, []);
+    assert.ok(jobs.length > 0);
+    for (const j of jobs) {
+      assert.ok(Number.isFinite(j.declaredAtMs), `${j.job} carries no declaration instant`);
+      assert.ok(j.declaredAtMs <= Date.now(), `${j.job} is declared in the future`);
+    }
+  });
+
+  const cleanEnv = (extra) => {
+    const env = {};
+    for (const [k, v] of Object.entries(process.env)) if (!/^(CLOUDFLARE_|GITHUB_)/.test(k)) env[k] = v;
+    return { ...env, ...extra };
+  };
+  const refusingFetch = (status) => {
+    const p = join(TMP, `hb-fetch-${status}-${seq++}.mjs`);
+    writeFileSync(
+      p,
+      `globalThis.fetch = async () => new Response(JSON.stringify({ success: false, errors: [{ message: 'replayed refusal' }] }), { status: ${status}, headers: { 'content-type': 'application/json' } });\n`,
+    );
+    return pathToFileURL(p).href;
+  };
+
+  test('🔴 INV6 — a D1 API that answers 403 is COVERAGE LOST: exit 2, and never "not reporting healthy"', () => {
+    const r = spawnSync(process.execPath, ['--import', refusingFetch(403), READER], {
+      cwd: REPO,
+      encoding: 'utf8',
+      env: cleanEnv({ CLOUDFLARE_API_TOKEN: 'replay', CLOUDFLARE_ACCOUNT_ID: 'replay' }),
+    });
+    assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stderr, /COVERAGE LOST — \d+ scheduled duty\(ies\) could not be READ/);
+    assert.match(r.stderr, /the D1 API returned 403/);
+    assert.doesNotMatch(r.stderr, /is not reporting healthy/, 'a read failure must never print as a duty failure');
+  });
+
+  test('🔴 INV6 — no Cloudflare credential at all is exit 2 as well', () => {
+    const r = spawnSync(process.execPath, [READER], { cwd: REPO, encoding: 'utf8', env: cleanEnv({}) });
+    assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stderr, /are not both in the environment/);
   });
 });

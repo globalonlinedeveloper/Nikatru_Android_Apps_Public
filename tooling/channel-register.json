@@ -1097,6 +1097,25 @@
       "storeMetadataGradedBy": "extensions/scripts/check-store-metadata.mjs"
     }
   },
+  "retiredIdentityTokens": {
+    "_why": [
+      "Names this portfolio has RETIRED and must never bind to a store record again. A store identity binds",
+      "PERMANENTLY at first upload — Play at the first APK, the Snap Store at `snapcraft register` — so a",
+      "retired name reaching one of them is not a rename away from fixed; it is a second app forever.",
+      "",
+      "`subly` was the working name until the 2026-09-09 rename ([ADR 075]; apps/subscriptiontracker/app.yaml",
+      "records what moved and what deliberately did not). tooling/ci/assert-store-identity.mjs matches each",
+      "token CASE- AND SEPARATOR-INSENSITIVELY against every resolved store identity and every snap name, so",
+      "`Subly`, `sub-ly`, `nikatru_subly` and `com.nikatru.subly` are all the same refusal.",
+      "",
+      "⚠️ SCOPE: store IDENTIFIERS only. Live resources that still carry the old name on purpose (`subly_db`,",
+      "the `subly.nikatru.com` 301 source, historical GlitchTip release stamps) are not identifiers a store",
+      "binds, and this list does not reach them."
+    ],
+    "tokens": [
+      "subly"
+    ]
+  },
   "channels": [
     {
       "id": "web",
@@ -2181,6 +2200,28 @@
         ],
         "kind": "cmake-application-id",
         "declaredIn": "apps/{app}/linux/CMakeLists.txt"
+      },
+      "snapName": {
+        "_why": [
+          "🔴 THE ONE SNAP FIELD THAT BINDS FOREVER, AND UNTIL 2026-09-11 IT WAS SHAPE-CHECKED ONLY.",
+          "submit-snap.mjs and generate-snapcraft.mjs test that snap-name.txt is one line of lowercase letters,",
+          "digits and hyphens — so `subly`, `nikatru-subly` and `subscriptiontracker` all passed, and the correct",
+          "value on disk (`nikatru-subscription-tracker`) was correct by authoring, not by enforcement",
+          "(REVIEW-stores-2026-09-10 #7). tooling/ci/assert-store-identity.mjs now requires the file to EQUAL the",
+          "derivation below and refuses every `retiredIdentityTokens` token in it.",
+          "",
+          "THE DERIVATION is the param-case of the app declaration's top-level `name` (the store title) — the",
+          "rename table in apps/subscriptiontracker/app.yaml lists `nikatru-subscription-tracker` beside",
+          "`name: Nikatru Subscription Tracker` for exactly this reason: the brand prefix keeps a GLOBAL namespace",
+          "claim unambiguous, and the slug (`subscriptiontracker`) alone would not.",
+          "",
+          "⚠️ KNOWN DIVERGENCE, RECORDED NOT FIXED HERE: the app brick stamps snap-name.txt as",
+          "`{{app_id.paramCase()}}` — the slug — which is NOT this derivation. The next stamped app would fail",
+          "this guard on its first run, loudly, before any `snapcraft register`. The brick is outside the unit",
+          "that wrote this block (HANDOFF-stores.md)."
+        ],
+        "declaredIn": "apps/{app}/store/linux-snap/snap-name.txt",
+        "derivation": "param-case(apps/{app}/app.yaml name)"
       },
       "accountStatus": {
         "status": "none",
