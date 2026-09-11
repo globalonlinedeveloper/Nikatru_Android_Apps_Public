@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:nikatru_core/nikatru_core.dart' show Entitlements;
 
 import '../local/subscription_store.dart';
@@ -79,8 +80,40 @@ class PersistedApiClient implements ApiClient {
     // Whatever the device did not have yet is written now, so the set the user
     // sees on a first launch is the set they keep — including the case where a
     // half-written store left one of the two behind.
-    if (storedSubs == null) await _persistSubscriptions();
-    if (storedBudget == null) await _persistBudget();
+    //
+    // ⚠️ A FAILURE HERE IS REPORTED, NOT THROWN. Nothing the user typed is at
+    // stake yet — this is the demo seed — and a launch must not fail on a
+    // store that is not there. It is still said out loud, because it is the
+    // earliest warning that the writes below will fail too.
+    try {
+      if (storedSubs == null) await _persistSubscriptions();
+      if (storedBudget == null) await _persistBudget();
+    } on LocalStoreWriteFailure catch (e) {
+      debugPrint('🔴 [subscriptions] could not persist the seed: $e');
+    }
+  }
+
+  /// Run [write] against the seed, persist the result, and if persisting fails
+  /// PUT THE SEED BACK and rethrow.
+  ///
+  /// 🔴 THE ROLLBACK IS WHAT MAKES THE FAILURE HONEST. Without it the row the
+  /// user just added sits in memory for the rest of the session, looks saved,
+  /// and is gone at the next launch — the exact defect `_write`'s old
+  /// `catch (_)` produced. With it, "could not save" is true in both places at
+  /// once: the store did not take it and the list does not show it.
+  Future<T> _writeThrough<T>(Future<T> Function() write) async {
+    await _ready();
+    final List<Subscription> subsBefore = await _seed.getSubscriptions();
+    final BudgetInfo budgetBefore = await _seed.getBudget();
+    final T result = await write();
+    try {
+      await _persistSubscriptions();
+      await _persistBudget();
+    } on LocalStoreWriteFailure {
+      _seed.restore(subs: subsBefore, budget: budgetBefore);
+      rethrow;
+    }
+    return result;
   }
 
   Future<void> _persistSubscriptions() async =>
@@ -95,13 +128,11 @@ class PersistedApiClient implements ApiClient {
     return _seed.getSubscriptions();
   }
 
+  /// Throws [LocalStoreWriteFailure] — with the seed rolled back — when the
+  /// device refuses the write. The add sheet renders that as "could not save".
   @override
-  Future<Subscription> createSubscription(Subscription draft) async {
-    await _ready();
-    final Subscription created = await _seed.createSubscription(draft);
-    await _persistSubscriptions();
-    return created;
-  }
+  Future<Subscription> createSubscription(Subscription draft) =>
+      _writeThrough(() => _seed.createSubscription(draft));
 
   @override
   Future<Subscription> getSubscription(String id) async {
@@ -113,19 +144,11 @@ class PersistedApiClient implements ApiClient {
   Future<Subscription> updateSubscription(
     String id,
     Map<String, dynamic> changes,
-  ) async {
-    await _ready();
-    final Subscription updated = await _seed.updateSubscription(id, changes);
-    await _persistSubscriptions();
-    return updated;
-  }
+  ) => _writeThrough(() => _seed.updateSubscription(id, changes));
 
   @override
-  Future<void> deleteSubscription(String id) async {
-    await _ready();
-    await _seed.deleteSubscription(id);
-    await _persistSubscriptions();
-  }
+  Future<void> deleteSubscription(String id) =>
+      _writeThrough(() => _seed.deleteSubscription(id));
 
   @override
   Future<List<PaymentRecord>> getPaymentHistory(String id) async {
@@ -140,12 +163,8 @@ class PersistedApiClient implements ApiClient {
   }
 
   @override
-  Future<BudgetInfo> updateBudget(BudgetInfo budget) async {
-    await _ready();
-    final BudgetInfo saved = await _seed.updateBudget(budget);
-    await _persistBudget();
-    return saved;
-  }
+  Future<BudgetInfo> updateBudget(BudgetInfo budget) =>
+      _writeThrough(() => _seed.updateBudget(budget));
 
   /// ⚠️ NOT PERSISTED, AND THAT IS THE POINT. Entitlements are granted by the
   /// server and only by the server ([ADR 026]); the demo posture's answer is a

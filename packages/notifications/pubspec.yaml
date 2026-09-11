@@ -28,6 +28,10 @@ dependencies:
   flutter_local_notifications: ^17.2.0
   # Timezone-correct scheduling for zonedSchedule (pure Dart, all platforms).
   timezone: ^0.9.4
+  # The device's IANA zone name on all seven targets (android/ios/macos/linux/
+  # windows/web; apps.gov.in is the Android artefact). Without it `tz.local`
+  # is UTC and every 09:00 reminder fires at 14:30 IST — see device_timezone.dart.
+  flutter_timezone: ^5.1.0
 
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.

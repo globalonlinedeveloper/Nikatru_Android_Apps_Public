@@ -6,7 +6,12 @@ import 'package:nikatru_core/nikatru_core.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'device_timezone.dart';
 import 'notification_capabilities.dart';
+
+// The fixed-offset fallback moved to device_timezone.dart with the resolver it
+// serves; re-exported so a caller of this file finds it where it always was.
+export 'device_timezone.dart' show deviceOffsetLocation;
 
 /// Native factory (Android/iOS/macOS/Linux/Windows) — selected by the conditional
 /// import when `dart.library.io` is available.
@@ -66,12 +71,19 @@ class LocalNotificationService implements NotificationService {
   final NotificationPlugin _plugin;
   final NotificationCapabilities _caps;
 
-  /// NULLABLE, and the null case is the interesting one — see
-  /// [LocalTimezoneResolver] and [_resolveLocation].
+  /// NULLABLE, and null means the CHASSIS DEFAULT — the device's IANA zone via
+  /// `flutter_timezone` — see [resolveLocalTimezone]. Inject only from a test.
   final LocalTimezoneResolver? _resolveTimezone;
   final TZDateTimeNow? _now;
   final DeviceUtcOffset _deviceUtcOffset;
   bool _initialized = false;
+
+  /// Why `tz.local` is a fixed device offset rather than the device's IANA
+  /// zone — null when the real zone was resolved. Set by [init]; a settings
+  /// screen or a crash breadcrumb can carry it, which is what makes the
+  /// fallback loud rather than silent.
+  String? get timezoneFallbackReason => _timezoneFallbackReason;
+  String? _timezoneFallbackReason;
 
   /// BROADCAST, and created eagerly rather than on first listen.
   ///
@@ -100,7 +112,15 @@ class LocalNotificationService implements NotificationService {
   Future<void> init() async {
     if (_initialized) return;
     tz_data.initializeTimeZones();
-    tz.setLocalLocation(await _resolveLocation());
+    // 🔴 THE ONE RESOLUTION BOTH SERVICES SHARE — see device_timezone.dart.
+    // `tz.local` is process-global and this is the only correct value for it:
+    // the device's IANA zone, or a LOUD fixed-offset fallback, never UTC.
+    final LocalTimezoneResolution zone = await resolveLocalTimezone(
+      resolver: _resolveTimezone,
+      deviceUtcOffset: _deviceUtcOffset,
+    );
+    tz.setLocalLocation(zone.location);
+    _timezoneFallbackReason = zone.fallbackReason;
     if (_caps.canNotify) {
       // 🔴 THE INBOUND HALF. Handing `_taps.add` to the port here is the whole
       // registration: the adapter below turns it into the plugin's
@@ -155,67 +175,6 @@ class LocalNotificationService implements NotificationService {
     if (!_caps.canNotify) return;
     await _plugin.cancelAll();
   }
-
-  /// The location `tz.local` is set to, and therefore the wall clock every
-  /// reminder is anchored to.
-  ///
-  /// 🔴 THE FALLBACK IS NOT `UTC`, AND THAT IS THE FIX. Falling back to UTC is
-  /// indistinguishable from working — the code runs, the notification is
-  /// scheduled, every test passes, and the reminder fires at the wrong hour in
-  /// every market that is not on UTC. The device's own offset is always
-  /// available (`DateTime.timeZoneOffset` comes from the OS) and is exact for
-  /// the schedule being made, so there is no honest reason to prefer a zone the
-  /// user is not in.
-  Future<tz.Location> _resolveLocation() async {
-    final LocalTimezoneResolver? resolve = _resolveTimezone;
-    if (resolve != null) {
-      try {
-        return tz.getLocation(await resolve());
-      } catch (_) {
-        // A resolver that throws, or names a zone the tz database does not
-        // carry, falls through to the device offset — never to UTC.
-      }
-    }
-    return deviceOffsetLocation(_deviceUtcOffset());
-  }
-}
-
-/// A [tz.Location] that is simply "wherever this device currently is": one zone,
-/// no transitions, [offset] from UTC.
-///
-/// Exact for a schedule made now, and knowingly incomplete: with no DST rules it
-/// cannot predict that the offset changes next month, so a schedule made before
-/// a transition fires an hour out until it is re-armed. That is a bounded,
-/// twice-a-year, one-hour error — against an unbounded, permanent, up-to-14-hour
-/// one for the UTC default it replaces. Inject a real IANA
-/// [LocalTimezoneResolver] to remove even that.
-///
-/// `transitionAt` starts at [minTime] so the single zone covers all time; the
-/// `timezone` package binary-searches that list and takes the last entry at or
-/// before the instant it is asked about.
-tz.Location deviceOffsetLocation(Duration offset) {
-  final int ms = offset.inMilliseconds;
-  final String label = _offsetLabel(offset);
-  return tz.Location(
-    // Not an IANA name, and deliberately shaped so it cannot be mistaken for
-    // one if it ever shows up in a log.
-    'device$label',
-    <int>[_minTime],
-    <int>[0],
-    <tz.TimeZone>[tz.TimeZone(ms, isDst: false, abbreviation: label)],
-  );
-}
-
-/// `timezone`'s own lower bound for an instant, inlined rather than imported:
-/// the package exports `Location` but not its `minTime` constant.
-const int _minTime = -8640000000000000;
-
-String _offsetLabel(Duration offset) {
-  final Duration abs = offset.isNegative ? -offset : offset;
-  final String sign = offset.isNegative ? '-' : '+';
-  final String h = abs.inHours.toString().padLeft(2, '0');
-  final String m = (abs.inMinutes % 60).toString().padLeft(2, '0');
-  return '$sign$h$m';
 }
 
 /// The next [tz.TZDateTime] at [hour]:[minute] in [now]'s location, strictly

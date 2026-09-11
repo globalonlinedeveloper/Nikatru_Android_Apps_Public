@@ -5,6 +5,7 @@ import 'package:nikatru_design_system/nikatru_design_system.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 import '../../core/app_config.dart';
+import '../../core/format/money_format.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/money_providers.dart';
 import '../../state/providers.dart';
@@ -275,7 +276,15 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 // CURRENCY. There is no price literal anywhere in this file, and
                 // `tooling/ci/assert-no-price-literals.mjs` fails the build if
                 // one appears.
-                title: Text(o.formattedPrice),
+                //
+                // 🔴 AND UNDER THE READER'S LOCALE. This was
+                // `o.formattedPrice`: `toStringAsFixed` with a glued symbol and
+                // NO grouping, so twelve and a half lakh rupees rendered as
+                // `₹1250000.00` on the one screen that takes money, while every
+                // other amount in the app went through `MoneyFormatter`. The
+                // rail still supplies the amount and the ISO code (`o.price`);
+                // only the rendering moved to the formatter every screen uses.
+                title: Text(MoneyFormatter(l10n.localeName).format(o.price)),
                 subtitle: Text(
                   o.trialDays > 0
                       ? l10n.paywallTermWithTrial(o.term.wire, o.trialDays)
