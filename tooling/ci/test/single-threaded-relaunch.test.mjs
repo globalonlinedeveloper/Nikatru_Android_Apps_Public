@@ -130,3 +130,65 @@ describe('single-threaded-relaunch', () => {
     assert.match(out, /COVERAGE LOST: the working process was killed by SIGKILL before it delivered a verdict/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · IN CI THE FLAG IS ON THE COMMAND LINE, SO NO RELAUNCH PARENT EXISTS.
+//
+// The relaunch leaves a parent process, and the parent is not immune: under
+// `--stress-concurrent-allocation` it hung at exit AFTER its single-threaded
+// child printed the whole verdict (elf 4 of 12, stamp 4 of 12; hang-class sweep,
+// 2026-09-11). With default flags its worker ticks measured 0 — safe by
+// measurement, not by construction. `node --single-threaded <guard>` in the
+// workflow step makes `relaunchSingleThreaded` return null at once, so there is
+// no parent to hang. The guards that need it are DERIVED — every tooling/ci file
+// that imports this module — so a fifth importer is held to the same rule the
+// day it lands, with no list to update.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('every workflow step that runs a relaunching guard runs it as node --single-threaded', () => {
+  const HERE = new URL('.', import.meta.url);
+  const REPO_ROOT = new URL('../../../', HERE);
+  // ⬜ ONE DECLARED GAP, and it is a ratchet: store-screenshots.yml belongs to the
+  // Subly rename wave on 2026-09-11, so its step is written up in
+  // HANDOFF-guards-remainder.md rather than edited here. The entry must still be
+  // TRUE — the day the flag lands there, this list must lose the entry.
+  const PENDING = new Map([['store-screenshots.yml', ['assert-listing-assets.mjs']]]);
+
+  test('the importers are derived from the tree, and there are some', async () => {
+    const { readdirSync, readFileSync: read } = await import('node:fs');
+    const ci = new URL('tooling/ci/', REPO_ROOT);
+    const importers = readdirSync(ci).filter((f) => f.endsWith('.mjs') && f !== 'single-threaded-relaunch.mjs' && /from '\.\/single-threaded-relaunch\.mjs'/.test(read(new URL(f, ci), 'utf8')));
+    assert.ok(importers.length >= 4, `expected the four heavy guards to import the relaunch, found: ${importers.join(', ')}`);
+    for (const g of ['assert-launcher-icons.mjs', 'assert-elf-page-alignment.mjs', 'assert-listing-assets.mjs', 'assert-stamp-brand-assets.mjs']) {
+      assert.ok(importers.includes(g), `${g} no longer imports the relaunch`);
+    }
+  });
+
+  test('no workflow invokes a relaunching guard without --single-threaded (declared gaps excepted, and still true)', async () => {
+    const { readdirSync, readFileSync: read } = await import('node:fs');
+    const ci = new URL('tooling/ci/', REPO_ROOT);
+    const importers = readdirSync(ci).filter((f) => f.endsWith('.mjs') && f !== 'single-threaded-relaunch.mjs' && /from '\.\/single-threaded-relaunch\.mjs'/.test(read(new URL(f, ci), 'utf8')));
+    const wfDir = new URL('.github/workflows/', REPO_ROOT);
+    const bare = [];
+    const flagged = [];
+    const stillPending = new Map();
+    for (const wf of readdirSync(wfDir).filter((f) => /\.ya?ml$/.test(f))) {
+      read(new URL(wf, wfDir), 'utf8').split('\n').forEach((line, i) => {
+        if (/^\s*#/.test(line)) return;
+        for (const g of importers) {
+          const m = line.match(new RegExp(`\\bnode((?:\\s+--[\\w-]+)*)\\s+tooling/ci/${g.replace('.', '\\.')}\\b`));
+          if (!m) continue;
+          if (/(^|\s)--single-threaded(\s|$)/.test(m[1])) { flagged.push(`${wf}:${i + 1} ${g}`); continue; }
+          if ((PENDING.get(wf) ?? []).includes(g)) { stillPending.set(`${wf}|${g}`, true); continue; }
+          bare.push(`${wf}:${i + 1} runs ${g} without --single-threaded`);
+        }
+      });
+    }
+    assert.deepEqual(bare, [], `a relaunching guard runs under a relaunch parent in CI:\n${bare.join('\n')}`);
+    assert.ok(flagged.length >= 6, `expected the six heavy-guard steps (ci.yml ×3, build-platforms.yml, submit-play.yml ×2) to carry the flag, found ${flagged.length}:\n${flagged.join('\n')}`);
+    for (const [wf, gs] of PENDING) {
+      for (const g of gs) {
+        assert.ok(stillPending.has(`${wf}|${g}`), `the declared gap ${wf} → ${g} is closed: remove it from PENDING`);
+      }
+    }
+  });
+});
