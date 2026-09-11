@@ -71,9 +71,13 @@ permissions:
 
 concurrency:
   # why: a TAG run is never cancelled -- it is the only path that publishes, and a
-  # cancelled publish notifies nobody. Branch and PR runs do supersede.
+  # cancelled publish notifies nobody. Nor is a run on MAIN (REVIEW-guards #12): main
+  # is the ref of every scheduled run, and duty.workflow.extensions.yml and the CWS
+  # keepalive depend on that run concluding; a cancel concludes `cancelled`, which
+  # no alarm sees. Feature-branch and PR runs do supersede. Held by
+  # assert-workflow-hardening limb 7.
   group: extensions-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 defaults:
   run:
