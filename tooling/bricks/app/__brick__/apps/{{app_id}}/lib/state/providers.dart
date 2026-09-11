@@ -1590,9 +1590,14 @@ class RemindersEnabledController extends Notifier<bool> {
     try {
       // `init()` first: cancel is undefined before the plugin is initialised.
       await svc.init();
-      // cancelAll, not cancel(kDailyReminderId): "reminders off" is a promise
-      // about all of them, including any an app schedules on top of the chassis.
-      await svc.cancelAll();
+      // 🔴 `cancel(kDailyReminderId)`, NOT `cancelAll()`. This used to say the
+      // opposite — "reminders off is a promise about all of them, including any
+      // an app schedules on top" — and that sentence was the defect: this
+      // service shares ONE FlutterLocalNotificationsPlugin with anything the
+      // app schedules itself, so cancelAll() here wiped the app's own reminders
+      // (and ran at every launch, since the stored intent defaults to false).
+      // Each owner cancels what it scheduled.
+      await svc.cancel(kDailyReminderId);
     } catch (_) {
       // A platform channel that is not there must not become a crash.
     }
