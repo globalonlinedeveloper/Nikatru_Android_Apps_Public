@@ -845,7 +845,7 @@
       "id": "google-gstatic",
       "name": "Google (gstatic.com content delivery)",
       "role": "content_delivery",
-      "status": "live",
+      "status": "not-named-not-wired",
       "reachableAt": null,
       "tells": [
         "gstatic"
@@ -860,7 +860,14 @@
         "WHAT IT RECEIVES: the requests for those files — IP address, user agent, referrer — on a web visit.",
         "⚠️ THE TELL IS `gstatic`, NOT `google`, ON PURPOSE: privacy.html already names \"Google Play\" (the `google-play` row), and a `google`",
         "tell would read that sentence as this disclosure and close the gap below on a page that says nothing about a CDN.",
-        "NAMED IN NO PAGE — see gap `web-boot-third-parties-unnamed`."
+        "NAMED IN NO PAGE — see gap `web-boot-third-parties-unnamed`.",
+        "⏱ 2026-09-12 — EGRESS CLOSED (W5), so this row is `not-named-not-wired`: named in no page, and no shipped Content-Security-Policy",
+        "lets a browser reach gstatic any more. deploy-web.yml builds with `--no-web-resources-cdn` (CanvasKit from the bundle's /canvaskit/),",
+        "apps/subscriptiontracker/web/flutter_bootstrap.js passes `fontFallbackBaseUrl: \"fallback-fonts/\"`, and",
+        "tooling/web/self-host-fallback-fonts.mjs copies the engine's 725-file fallback set (21,803,256 B for Flutter 3.47.2) into",
+        "build/web/fallback-fonts/, pinned by tooling/web/fallback-fonts.lock.json, and refuses to deploy a bundle missing either setting.",
+        "Google still serves those files to the DEPLOY RUNNER at build time; no visitor request reaches it. Kept as a row, not deleted,",
+        "so the next Flutter web app that loses the flag re-meets a named provider instead of an unregistered host."
       ]
     }
   ],
@@ -871,10 +878,9 @@
       "ownerItem": "O-3",
       "stillTrue": "We rely on trusted third parties to deliver the Services.",
       "closedWhenNamed": [
-        "sentry-cdn",
-        "google-gstatic"
+        "sentry-cdn"
       ],
-      "what": "The web app at nikatru.com/subscriptiontracker makes every visitor's browser fetch the Sentry browser SDK from browser.sentry-cdn.com and the CanvasKit renderer and fallback fonts from www.gstatic.com / fonts.gstatic.com (measured in the live main.dart.js, 2026-09-11). §4 \"Third-party services\" names neither Sentry nor Google as a party the browser contacts.",
+      "what": "The web app at nikatru.com/subscriptiontracker makes every visitor's browser fetch the Sentry browser SDK from browser.sentry-cdn.com (measured in the live main.dart.js, 2026-09-11). §4 \"Third-party services\" does not name Sentry as a party the browser contacts. ⏱ 2026-09-12: the Google half (CanvasKit, fonts) was closed rather than named — see the google-gstatic row.",
       "resolution": "Owner copy (O-3): name both in privacy.html §4 with a policy version bump — or close the egress instead (build the web app with --no-web-resources-cdn, bundle the fonts, serve the Sentry SDK from the app origin) and retire both provider rows. When the page names either, this gap FAILS and asks to be retired, and the row gains `namedIn`."
     },
     {
@@ -883,10 +889,9 @@
       "ownerItem": "O-3",
       "stillTrue": "5 service providers.",
       "closedWhenNamed": [
-        "sentry-cdn",
-        "google-gstatic"
+        "sentry-cdn"
       ],
-      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists five service providers (four until hostinger was added on 2026-09-11) and neither Sentry's CDN nor Google's gstatic CDN, which the same app's web build contacts on every visit.",
+      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists five service providers (four until hostinger was added on 2026-09-11) and not Sentry's CDN, which the same app's web build contacts on every visit. ⏱ 2026-09-12: Google's gstatic CDN was closed rather than named — see the google-gstatic row.",
       "resolution": "Owner decision on the declaration (apps/subscriptiontracker/privacy.yaml), re-rendered — or close the egress as above. Adding a processor changes the count in the sentence this gap probes, and that FAILS the gap rather than retiring it: restate the count while Sentry and Google are still unnamed (done 2026-09-11 when hostinger was added, 4 -> 5), retire it once either is named."
     }
   ],

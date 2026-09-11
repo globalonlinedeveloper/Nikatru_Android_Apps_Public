@@ -2968,5 +2968,15 @@
     "ref": "tooling/store/capture-play-screenshots.mjs",
     "references": [],
     "state": "WIRED"
+  },
+  {
+    "claims": [],
+    "invokedBy": [
+      ".github/workflows/deploy-web.yml#deploy-web"
+    ],
+    "kind": "script",
+    "ref": "tooling/web/self-host-fallback-fonts.mjs",
+    "references": [],
+    "state": "WIRED"
   }
 ]
