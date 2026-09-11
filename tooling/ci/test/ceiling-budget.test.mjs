@@ -547,7 +547,8 @@ describe('assert-ceiling-budget — a cap without a sourced ceiling is the failu
     assert.match(r.out, /EXCEEDS its declared ceiling/);
     // The message must carry the citation, not just the number — a reviewer
     // cannot check a bound whose source is not in front of them.
-    assert.match(r.out, /developers\.cloudflare\.com\/d1\/platform\/limits/);
+    // The citation as printed, ending where the URL ends (CodeQL #60).
+    assert.match(r.out, /Source: https:\/\/developers\.cloudflare\.com\/d1\/platform\/limits\/(?:\s|$)/m);
   });
 
   test('an over-ceiling constant with `@ceiling-exceeds` PRINTS instead [MC20 inverse]', () => {

@@ -280,7 +280,8 @@ describe('assert-elf-page-alignment', () => {
     const a = artifact(dir, 'app-release.aab', [{ name: 'base/lib/arm64-v8a/libapp.so', data: elf64([8192]) }]);
     const { code, out } = run(dir, [a]);
     assert.equal(code, 1);
-    assert.match(out, /developer\.android\.com\/guide\/practices\/page-sizes/);
+    // The citation as printed — URL, then its fetch date (CodeQL #62).
+    assert.match(out, /Source: https:\/\/developer\.android\.com\/guide\/practices\/page-sizes \(fetched /);
     assert.match(out, /16 KB memory page sizes/);
   });
 

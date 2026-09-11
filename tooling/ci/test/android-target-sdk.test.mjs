@@ -178,7 +178,8 @@ describe('the guard end to end', () => {
     const r = run(root({ gradle: baseGradle.replace('targetSdk = 36', 'targetSdk = 35') }));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /below Google Play's floor of 36/);
-    assert.match(r.out, /developer\.android\.com/);
+    // The whole citation the guard prints, not the host anywhere in the output (CodeQL #58).
+    assert.match(r.out, /Source: https:\/\/developer\.android\.com\/google\/play\/requirements\/target-sdk \(read /);
     assert.match(r.out, /read 2026-08-04/);
   });
 

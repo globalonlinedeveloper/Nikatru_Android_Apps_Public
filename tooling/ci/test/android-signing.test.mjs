@@ -27,7 +27,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -566,6 +566,24 @@ describe('android-signing — the secret is never printed and never half-written
     assert.equal(r.status, 0, out(r));
     const written = readFileSync(ghEnv, 'utf8').match(/^ANDROID_KEYSTORE_PATH=(.+)$/m)[1];
     assert.notEqual(resolve(dirname(written)), resolve(TMP), 'the keystore landed in the working directory');
+  });
+
+  test('with neither --out nor $RUNNER_TEMP the keystore goes into a FRESH private directory, not a name anyone could plant (the CodeQL #93 class)', () => {
+    const shared = mkdtempSync(join(TMP, 'shared-tmp-'));
+    const decoy = join(shared, 'subscriptiontracker-upload.keystore');
+    writeFileSync(decoy, 'planted by someone else');
+    const ghEnv = join(TMP, `ghenv-shared${seq++}.txt`);
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({}), '--github-env', ghEnv], {
+      encoding: 'utf8',
+      cwd: TMP,
+      env: { ...process.env, RUNNER_TEMP: '', TMPDIR: shared, TEMP: shared, TMP: shared, GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', ...FULL() },
+    });
+    assert.equal(r.status, 0, out(r));
+    const written = readFileSync(ghEnv, 'utf8').match(new RegExp(`^${'ANDROID_KEYSTORE_PATH'}=(.+)$`, 'm'))[1];
+    assert.notEqual(resolve(written), resolve(decoy), 'the keystore was written over a predictable name in the shared temp dir');
+    assert.match(basename(dirname(written)), /^android-signing-[A-Za-z0-9]{6}$/, `not a fresh private directory: ${written}`);
+    assert.equal(resolve(dirname(dirname(written))), resolve(shared));
+    assert.equal(readFileSync(decoy, 'utf8'), 'planted by someone else');
   });
 
   test('the exported path is ABSOLUTE — Gradle resolves a relative storeFile elsewhere', () => {

@@ -407,7 +407,9 @@ describe('assert-catalog-contract.mjs — `listings` [ADR 055]', () => {
     // check is both weaker (any host containing it satisfies it) and flagged as
     // js/incomplete-url-substring-sanitization; asserting the exact string the
     // fixture wrote is narrower and says what the case actually means.
-    assert.ok(out.includes(BAD_LISTING), out);
+    // The listing value exactly as the guard prints it — quoted, then ` but ` — not the
+    // URL anywhere in the output, which a lookalike host would also satisfy (CodeQL #292).
+    assert.ok(out.includes(`= ${JSON.stringify(BAD_LISTING)} but `), out);
     assert.match(out, /SAME fact/);
   });
 
