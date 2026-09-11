@@ -653,7 +653,86 @@ if (exprSelfTestFailures.length) {
   ]);
 }
 
+// ── limb 7: a run the default branch depends on is never cancelled by the next ──
+// ⏱ 2026-09-11 (REVIEW-guards-2026-09-10 #5 and #12). deploy-web.yml's job-level
+// `cancel-in-progress: true` held on `main` too: a second push cancelled an
+// in-flight deploy — possibly mid `wrangler pages deploy` — and record-deployment
+// (`if: always() && steps.deploy.outcome == 'success'`) does not run on a cancel.
+// docs/ci/deploy-web.md already records the incident ("Runs 145/146 were
+// concurrency-cancelled, so that unrecorded build stayed live"). extensions.yml's
+// `${{ !startsWith(github.ref, 'refs/tags/') }}` is TRUE on refs/heads/main, the
+// ref of every scheduled run, so a dispatch on main cancelled the scheduled run
+// its register row and the CWS keepalive depend on. A cancelled run concludes
+// `cancelled`, which no failure alarm sees — the cost is silence. ci.yml:22 and
+// codeql.yml:72 already write it the way docs/ci/README.md §2 says; nothing held
+// the rest to it, and safe-rerun's parser collapses any `${{ … }}` to cancelling.
+//
+// A workflow REACHES the default branch unless every trigger is a pull request
+// or a tags-only push. For one that does, every `cancel-in-progress:` must be
+// `false` or an expression that carries `github.ref != 'refs/heads/main'` with no
+// `||` that could re-open it on main.
+const CANCEL_LINE = /^\s*cancel-in-progress:\s*(.*?)\s*$/;
+const FALSE_ON_MAIN = /github\.ref\s*!=\s*'refs\/heads\/main'/;
+const NEVER_MAIN_TRIGGERS = new Set(['pull_request', 'pull_request_target']);
+
+/** Which triggers the workflow declares, and whether any of them can run on
+ *  refs/heads/main. `lines` is `parseWorkflow(...).lines` (comments blanked). An
+ *  `on:` this cannot read is treated as reaching main — never as exempt. */
+function reachesDefaultBranch(lines) {
+  const text = lines.map((l) => l.text);
+  const at = text.findIndex((t) => /^(?:on|"on"|'on'):/.test(t));
+  if (at === -1) return { reaches: true, why: 'no `on:` key could be read, so it is treated as reaching main' };
+  const inline = text[at].replace(/^(?:on|"on"|'on'):\s*/, '').trim();
+  const triggers = [];
+  const pushKeys = new Set();
+  if (inline) {
+    for (const t of inline.replace(/^\[|\]$/g, '').split(',')) if (t.trim()) triggers.push(t.trim());
+  } else {
+    let inPush = false;
+    for (let i = at + 1; i < text.length; i++) {
+      const t = text[i];
+      if (t.trim() === '') continue;
+      if (/^\S/.test(t)) break;
+      const trig = t.match(/^ {2}([A-Za-z_]+):/);
+      if (trig) {
+        triggers.push(trig[1]);
+        inPush = trig[1] === 'push';
+        continue;
+      }
+      const sub = t.match(/^ {4}([A-Za-z_-]+):/);
+      if (inPush && sub) pushKeys.add(sub[1]);
+    }
+  }
+  const tagsOnlyPush = pushKeys.has('tags') && !pushKeys.has('branches') && !pushKeys.has('branches-ignore');
+  const reaching = triggers.filter((t) => !NEVER_MAIN_TRIGGERS.has(t) && !(t === 'push' && tagsOnlyPush));
+  return {
+    reaches: triggers.length === 0 || reaching.length > 0,
+    why: triggers.length === 0 ? 'no trigger could be read' : `\`on:\` ${reaching.length ? reaching.join(', ') : triggers.join(', ')}`,
+  };
+}
+
+/** Limb 7 over one workflow. Returns the declarations judged and the defects. */
+function cancelOnMainDefects(rel, lines) {
+  const found = lines.filter((l) => CANCEL_LINE.test(l.text));
+  if (found.length === 0) return { judged: 0, defects: [] };
+  const reach = reachesDefaultBranch(lines);
+  const defects = [];
+  for (const l of found) {
+    const value = l.text.match(CANCEL_LINE)[1].replace(/^(['"])(.*)\1$/, '$2');
+    if (value === 'false' || !reach.reaches) continue;
+    if (value.startsWith('${{') && FALSE_ON_MAIN.test(value) && !value.includes('||')) continue;
+    defects.push(
+      `${rel}:${l.n} \`cancel-in-progress: ${value}\` can cancel an in-flight run on \`main\` (${reach.why}). ` +
+        'A run the default branch depends on — a deploy and its record, a scheduled duty the ops register reads, the ' +
+        'ci-gate a deploy polls — must finish: a cancelled run concludes `cancelled`, which no failure alarm sees. ' +
+        "Write `${{ github.ref != 'refs/heads/main' }}` (docs/ci/README.md §2), or `false`.",
+    );
+  }
+  return { judged: found.length, defects };
+}
+
 let jobsChecked = 0;
+let cancelJudged = 0;
 let exprWorkflowsScanned = 0;
 let exprLinesScanned = 0;
 let exprShellLines = 0;
@@ -692,6 +771,9 @@ for (const f of files) {
     exprLinesScanned += expr.scanned;
     exprShellLines += expr.shellLines;
     for (const d of expr.defects) problems.push(d);
+    const cancel = cancelOnMainDefects(f, parsed.lines);
+    cancelJudged += cancel.judged;
+    for (const d of cancel.defects) problems.push(d);
   }
   if (parsed === null || parsed.jobs.size === 0) {
     // Every GitHub workflow has jobs, so zero is never a fact about the tree —
@@ -1686,4 +1768,8 @@ console.log(`    limb 5 — ${liveLine}`);
 console.log(
   `    limb 6 — no single-brace \`\${ … }\` expression in ${exprLinesScanned} judged line(s) ` +
     `across ${exprWorkflowsScanned} workflow(s) (${exprShellLines} \`run:\` line(s) left to the shell, unjudged)`,
+);
+console.log(
+  `    limb 7 — ${cancelJudged} \`cancel-in-progress\` declaration(s) judged across ${exprWorkflowsScanned} workflow(s); ` +
+    'none can cancel an in-flight run on the default branch',
 );
