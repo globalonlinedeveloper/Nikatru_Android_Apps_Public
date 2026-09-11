@@ -90,7 +90,7 @@
   "licence-register.test.mjs": 57,
   "lint-inheritance.test.mjs": 12,
   "listing-assets.test.mjs": 58,
-  "mail-transport-claims.test.mjs": 35,
+  "mail-transport-claims.test.mjs": 39,
   "modal-detection.test.mjs": 42,
   "money-config.test.mjs": 37,
   "money-dry-run.test.mjs": 16,

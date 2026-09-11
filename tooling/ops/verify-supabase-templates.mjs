@@ -30,7 +30,8 @@
 //
 // Reads SUPABASE_PAT + SUPABASE_PROJECT_REF from the environment, or from
 // .claude/secrets.env when run from the repo root. **Read-only — it never writes
-// to Supabase.** Exits non-zero on drift so it can be scheduled.
+// to Supabase.** Exit 0 = in sync · 1 = DRIFT (a readable config differs) ·
+// 2 = UNKNOWN (no credential, or the live config could not be read).
 //
 // Usage:  node tooling/ops/verify-supabase-templates.mjs [repoRoot]
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,14 +86,34 @@ if (!pat || !ref) {
   process.exit(2); // deliberately distinct from 0 (match) and 1 (drift)
 }
 
-const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
-  headers: { Authorization: `Bearer ${pat}` },
-});
-if (!res.ok) {
-  console.error(`verify-supabase-templates: API ${res.status} — ${await res.text()}`);
-  process.exit(1);
+// 🔴 A READ THAT FAILED IS UNKNOWN, NEVER DRIFT — exit 2, the code a missing
+// credential already uses. Until 2026-09-11 any non-OK status exited 1, and
+// ops-watch printed "Supabase auth config has DRIFTED" for run 34511747076,
+// where the Management API had answered a 504 gateway time-out page and NOTHING
+// had been compared. A thrown request, or a body that is not JSON, is the same case.
+const unreadable = (why) => {
+  console.error(`verify-supabase-templates: COULD NOT READ the live auth config — ${why}`);
+  console.error('  Nothing was compared, so drift is UNKNOWN: a real gap, not a pass, and not drift.');
+  process.exit(2);
+};
+let res;
+try {
+  res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
+    headers: { Authorization: `Bearer ${pat}` },
+  });
+} catch (e) {
+  unreadable(`the request failed (${e?.message ?? e}).`);
 }
-const live = await res.json();
+if (!res.ok) {
+  const body = String(await res.text().catch(() => '')).replace(/\s+/g, ' ').trim().slice(0, 200);
+  unreadable(`the Management API answered HTTP ${res.status}${body ? ` — ${body}` : ''}.`);
+}
+let live;
+try {
+  live = await res.json();
+} catch (e) {
+  unreadable(`the Management API answered HTTP ${res.status} with a body that is not JSON (${e?.message ?? e}).`);
+}
 
 const drift = [];
 const ok = [];

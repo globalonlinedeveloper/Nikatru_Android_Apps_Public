@@ -59,7 +59,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
@@ -447,5 +447,40 @@ describe('verify-supabase-templates — the owner-gated branch ops-watch.yml dep
     const r = runChecker(root);
     assert.equal(r.status, 1, out(r));
     assert.match(out(r), /mail-transport\.json/);
+  });
+
+  // A credentialled run whose READ fails. `fetch` is replaced by a preload, so
+  // nothing reaches the network; the credential is a placeholder.
+  const withFetch = (root, stubSource) => {
+    const pre = join(TMP, `fetch-stub-${seq++}.mjs`);
+    writeFileSync(pre, stubSource);
+    const env = { ...process.env, SUPABASE_PAT: 'sbp_placeholder_for_tests', SUPABASE_PROJECT_REF: 'placeholderref' };
+    return spawnSync(process.execPath, ['--import', pathToFileURL(pre).href, LIVE_CHECKER, root], { encoding: 'utf8', env });
+  };
+
+  test('exit 2 — the Management API answering 504 is UNKNOWN, not drift (run 34511747076)', () => {
+    const r = withFetch(makeRoot(), "globalThis.fetch = async () => new Response('<html><title>504: Gateway time-out</title></html>', { status: 504 });\n");
+    assert.equal(r.status, 2, out(r));
+    assert.match(out(r), /COULD NOT READ/);
+    assert.match(out(r), /HTTP 504/);
+    assert.doesNotMatch(out(r), /: DRIFT/);
+  });
+
+  test('exit 2 — a request that throws is UNKNOWN, not drift', () => {
+    const r = withFetch(makeRoot(), "globalThis.fetch = async () => { throw new TypeError('fetch failed'); };\n");
+    assert.equal(r.status, 2, out(r));
+    assert.match(out(r), /request failed \(fetch failed\)/);
+  });
+
+  test('exit 2 — a 200 whose body is not JSON is UNKNOWN, not drift', () => {
+    const r = withFetch(makeRoot(), "globalThis.fetch = async () => new Response('<html>maintenance</html>', { status: 200 });\n");
+    assert.equal(r.status, 2, out(r));
+    assert.match(out(r), /not JSON/);
+  });
+
+  test('CONTROL: a READABLE config that differs is still exit 1 — the unknown branch does not swallow drift', () => {
+    const r = withFetch(makeRoot(), "globalThis.fetch = async () => new Response(JSON.stringify({}), { status: 200, headers: { 'content-type': 'application/json' } });\n");
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /verify-supabase-templates: DRIFT/);
   });
 });
