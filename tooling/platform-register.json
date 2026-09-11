@@ -112,8 +112,7 @@
       "entrypoint": "services/subscriptiontracker-api/src/index.ts",
       "config": "services/subscriptiontracker-api/wrangler.jsonc",
       "hosts": [
-        "subscriptiontracker.api.nikatru.com",
-        "api.nikatru.com"
+        "subscriptiontracker.api.nikatru.com"
       ],
       "clientBasePath": "/v1",
       "_clientBasePathWhy": [

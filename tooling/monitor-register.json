@@ -396,57 +396,6 @@
       }
     },
     {
-      "hostname": "subly.nikatru.com",
-      "what": "the app's OWN ORIGIN host. Since [ADR 075] it is NOT the app's published address any more — it is what the apex router proxies to, and the source of the permanent 301 that keeps every bookmark, store listing and inbound link working",
-      "derivedFrom": "declared",
-      "why": "It stopped being derivable on 2026-09-09 and it did NOT stop existing — those are different facts and this row is here to keep them apart. `appCatalogue` reads the catalogue's `url` and `api`; [ADR 075] moved `url` to https://nikatru.com/<id>, so no derivation source names this host any more. It is still live: apps/<id>/app.yaml declares it as `hosts.web`, it still terminates TLS under [ADR 006]'s proxied wildcard, and it still answers — measured live 2026-09-09, GET https://subly.nikatru.com/version.json → 200 with the app's real version document. A host that quietly leaves this file the day its catalogue field moves is the register shrinking without a decision, which is the one failure the whole file is written against.",
-      "monitor": null,
-      "gap": {
-        "why": "Monitor 3 was this row's monitor and it FOLLOWED THE APP rather than the hostname — it is now the `pathMonitors` entry on the nikatru.com row, watching https://nikatru.com/<id>/. Nothing watches this hostname today. That is a real gap and it is stated rather than implied: after the migration this host serves a permanent 301 and proxied traffic, and both can break silently — a Redirect Rule deleted, a zone change, an expired origin — with every guard in this repository green. No monitor was DECLARED in its place, because declaring one before the POST lands is the same defect as a monitor that cannot see a fault, pointed the other way.",
-        "action": "One GET monitor asserting the REDIRECT, not the app: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"subly.nikatru.com 301\",\"url\":\"https://subly.nikatru.com/\",\"expectedStatus\":301,\"expectedBody\":\"\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"2\"} — `project` is NOT optional (monitor 6's defect: no project, therefore no alert rule, therefore no recipient). ⚠️ EXPECTED STATUS 301 AND NO BODY MATCHER IS A DELIBERATE WEAKNESS, NOT AN OVERSIGHT: Cloudflare produces a zone Redirect Rule's 301 AT THE EDGE, before the origin is consulted, so this check watches Cloudflare and says nothing about the Pages project behind it — the identical reasoning this file already applies to the Access-fronted 302 on beszel.nikatru.com. What it DOES catch is the redirect being deleted or retargeted, which is the failure that strands every existing link. The stronger check — that the 301's Location resolves to the app — is not expressible as a GlitchTip GET and belongs to tooling/ops/status.mjs, which follows redirects. Then add the new id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only guard that fails when a monitor is deleted.",
-        "openedOn": "2026-09-09"
-      },
-      "🔴 andTHISIsTheRowTheSSLDECISIONHangsOn": [
-        "The `observability.🔴 tlsExpiry.ownerChecklist.step2_ifItIsRepaired` list at the bottom of this file",
-        "names subly.nikatru.com among the hostnames that get an SSL monitor if the SSL type is ever repaired.",
-        "DECIDED 2026-09-09: IT STAYS ON THAT LIST. It is not an accident of the list predating [ADR 075].",
-        "",
-        "WHY, and the argument runs the other way from the app monitor's. Moving the app's PUBLISHED address",
-        "off this host did not stop a browser from performing a TLS handshake here — it made that handshake",
-        "the FIRST thing every legacy visitor does. A 301 is delivered over TLS: a certificate this host could",
-        "not present would fail the redirect before the Location header is ever read, and the user gets a",
-        "browser interstitial rather than the new address. Every bookmark, every store listing already",
-        "published, every inbound link and every already-installed client that has the old origin compiled in",
-        "reaches the new address THROUGH this certificate. The host is also the router's proxy origin",
-        "(apps/<id>/app.yaml `hosts.web`, used when `hosts.pagesOrigin` is absent), and that subrequest is TLS",
-        "too. So the certificate matters MORE after the move than before it, not less.",
-        "",
-        "⚠️ AND THE COUNTER-ARGUMENT IS RECORDED RATHER THAN OMITTED, because it is the one somebody will",
-        "raise: 'the subdomain is retired, drop it from the list'. It fails on a measurement this file already",
-        "carries — every one of these hostnames presents the CLOUDFLARE EDGE certificate on a ~90-day cycle",
-        "Cloudflare renews itself (measured 2026-09-03, Google Trust Services WE1). What an SSL monitor here",
-        "catches is therefore not a forgotten renewal but a ZONE OR PROXY REGRESSION — a hostname falling out",
-        "of the proxied wildcard, an orange-cloud flipped grey, a certificate scoped to the apex only. Those",
-        "are exactly the regressions a path migration makes MORE likely on the retired subdomain, because it",
-        "is the host nobody looks at any more. Removing it from the list would remove the check that notices",
-        "the retirement went too far.",
-        "",
-        "📌 UNCHANGED BY THIS DECISION: no SSL monitor exists for any host, the SSL MonitorType is broken on",
-        "this instance (probed 2026-09-03, and the GET control on the same id proves it is the type and not",
-        "the certificate), and no row in this file carries an `sslMonitor` field. This is a decision about",
-        "WHAT THE LIST SHOULD CONTAIN when the type is repaired, recorded now while the reason is measured,",
-        "and it claims no coverage whatsoever today."
-      ],
-      "closedGap": {
-        "⏱ 2026-09-09 thisWholeBlockIsHISTORY": "It records how the monitor for THIS HOSTNAME was closed on 2026-08-11 and is kept verbatim because it was true on its date and because the reasoning in it — why `<base href=…>` was chosen over the title and over flutter_bootstrap.js, and what a GET can never see — is unchanged and moved WITH the monitor to the nikatru.com row's `pathMonitors`. What is superseded is only the ADDRESS and the literal: the app is published at https://nikatru.com/<id>/ and the shell now carries `<base href=\"/<id>/\">`. Read every `subly.nikatru.com` below as the address that was current until 2026-09-09.",
-        "why": "The sharpest of the three. This is the only shipping client, it is a Flutter web build, and a Ping is green whenever the door opens — including when `flutter_bootstrap.js` is missing and the page renders nothing at all.",
-        "openedOn": "2026-08-03",
-        "closedOn": "2026-08-11",
-        "howItWasClosed": "PUT /api/0/organizations/nikatru/monitors/3/ with every existing value re-sent and only monitorType and expectedStatus changed; read back as GET / 200. The save's off-cadence check at 2026-08-10T19:22:21.062Z UTC came back up in 42 ms.",
-        "note": "⚠️ THE BODY LIMB IS NOW ASSERTED AND IT STILL DOES NOT PROVE THE APP BOOTS — read the second half of this note before trusting the first. expectedBody is <base href=\"/\">, measured live 2026-08-11: GET https://subly.nikatru.com/ → 200, 772 UTF-8 bytes. It was chosen over the <title> and over flutter_bootstrap.js because it is the ONE byte sequence in the served shell that exists only if a real flutter build web ran — the source template apps/subscriptiontracker/web/index.html carries the literal <base href=\"$FLUTTER_BASE_HREF\">, and $FLUTTER_BASE_HREF does not appear in the live body at all. So it catches an edge error page, an empty or wrong Pages project, and a deploy of the SOURCE directory instead of build/web; and tooling/ci/test/smoke-web-artifact.test.mjs already records a failing case for this exact string — <base href=\"/\"> rewritten to /nope/ → exit 1 naming four 404s, run against a real flutter build web. 🔴 WHAT IT STILL CANNOT SEE, AND NO GET EVER WILL: this shell is a loader and a monitor runs no JavaScript, so flutter_bootstrap.js 404ing, main() throwing, or the first frame never rasterizing ALL still answer 200 with this exact body. That is also precisely why flutter_bootstrap.js was REJECTED as the string — it is present in the shell exactly when the file it names is missing, so it would read as coverage of the failure it cannot see. The did-it-boot half stays with the nightly e2e and with tooling/smoke/smoke-web-artifact.mjs's flutter-first-frame signal. Note also that GET /__no_such_page__ on this host returns 200 with this same shell (SPA fallback, measured), so this body says nothing about routing either."
-      }
-    },
-    {
       "hostname": "subscriptiontracker-7qg.pages.dev",
       "what": "the Cloudflare Pages alias of the `subscriptiontracker` project — the ORIGIN the apex router (sites/nikatru/functions/_middleware.js) fetches every https://nikatru.com/subscriptiontracker/* request from ([ADR 075])",
       "derivedFrom": "declared",
@@ -479,17 +428,6 @@
       "gap": {
         "why": "As www.nikatru.com — the serve-or-301 decision is account-side, and the monitor follows it.",
         "action": "If www keeps serving: POST https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/ with {\"monitorType\":\"GET\",\"name\":\"www.rajasekarselvam.com\",\"url\":\"https://www.rajasekarselvam.com/\",\"expectedStatus\":200,\"expectedBody\":\"<link rel=\\\"canonical\\\" href=\\\"https://rajasekarselvam.com/\\\">\",\"interval\":60,\"timeout\":20,\"confirmationThreshold\":2,\"project\":\"<monitor 5's project>\"}. If it becomes a 301: expectedStatus 301, no body. Then replace `monitor: null` with the returned id, name, type GET, expectedStatus, expectedBody, intervalSeconds and a dated verifiedOn, and add the id to tooling/ops/alarm-chains.json → expectedMonitors, which is the only check that fails when a monitor is deleted.",
-        "openedOn": "2026-09-11"
-      }
-    },
-    {
-      "hostname": "api.nikatru.com",
-      "what": "the pre-[ADR 079] host of the subscriptiontracker-api Worker, held as its second custom domain for the cutover only",
-      "derivedFrom": "workerCustomDomains",
-      "monitor": null,
-      "gap": {
-        "why": "A TRANSITION ROW, NOT A GAP TO CLOSE. Monitor 2 moved to subscriptiontracker.api.nikatru.com with the catalogue's `api` ([ADR 079]). This host stays a custom domain of the same Worker for the length of the cutover, so it is derived and must have a row; it has no monitor of its own because it serves the same Worker the monitored host serves.",
-        "action": "Remove this row in the same change that removes `api.nikatru.com` from services/subscriptiontracker-api/wrangler.jsonc `routes`.",
         "openedOn": "2026-09-11"
       }
     },

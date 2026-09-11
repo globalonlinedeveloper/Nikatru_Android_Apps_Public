@@ -1111,7 +1111,7 @@
       "⚠️ SCOPE: store IDENTIFIERS. The sentence that stood here said live resources kept the old name ON PURPOSE",
       "(`subly_db`, the `subly.nikatru.com` 301 source). [ADR 079] superseded it on 2026-09-11 on the owner's word,",
       "\"Rename all, remove redirects too\": the D1 database and the Worker are renamed, the subdomain and its 301",
-      "are removed, and live resource names are held to this same list. Historical GlitchTip release stamps",
+      "are removed, and live resource names are held to this same list by tooling/ci/assert-retired-names.mjs. Historical GlitchTip release stamps",
       "and issue ids are records, not names, and this list does not reach them."
     ],
     "tokens": [
