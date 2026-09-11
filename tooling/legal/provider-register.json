@@ -874,7 +874,13 @@
         "tooling/web/self-host-fallback-fonts.mjs copies the engine's 725-file fallback set (21,803,256 B for Flutter 3.47.2) into",
         "build/web/fallback-fonts/, pinned by tooling/web/fallback-fonts.lock.json, and refuses to deploy a bundle missing either setting.",
         "Google still serves those files to the DEPLOY RUNNER at build time; no visitor request reaches it. Kept as a row, not deleted,",
-        "so the next Flutter web app that loses the flag re-meets a named provider instead of an unregistered host."
+        "so the next Flutter web app that loses the flag re-meets a named provider instead of an unregistered host.",
+        "MEASURED LIVE 2026-09-12 on the deployed build 1.0.361 (#676, merge 3e012242, deploy-web run 34638710419), headless Chrome loading",
+        "https://nikatru.com/subscriptiontracker/ and #/sign-in to first frame: requests to www.gstatic.com 0 and fonts.gstatic.com 0 (1.0.360, one",
+        "build earlier, same probe: 2 and 2). CanvasKit from /subscriptiontracker/canvaskit/chromium/, the on-demand Noto fallback from",
+        "/subscriptiontracker/fallback-fonts/ (200 font/woff2, byte-identical to the lock). What the bytes still carry, stated so a grep is not",
+        "misread: main.dart.js keeps the engine's runtime default string https://fonts.gstatic.com/s/ (overridden by the bootstrap config) and",
+        "flutter_bootstrap.js keeps Flutter's loader branch naming www.gstatic.com (not taken when useLocalCanvasKit is true). Neither is a request."
       ]
     }
   ],
