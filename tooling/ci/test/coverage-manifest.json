@@ -59,7 +59,7 @@
   "dead-repo-names.test.mjs": 17,
   "deletion-control.test.mjs": 35,
   "deploy-triggers.test.mjs": 17,
-  "deployment-record.test.mjs": 58,
+  "deployment-record.test.mjs": 61,
   "desktop-runner-identity.test.mjs": 16,
   "discovery-surface.test.mjs": 136,
   "dod-sync.test.mjs": 20,
