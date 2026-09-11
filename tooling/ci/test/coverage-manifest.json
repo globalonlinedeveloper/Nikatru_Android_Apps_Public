@@ -175,6 +175,7 @@
   "supabase-templates.test.mjs": 17,
   "sworn-store-files.test.mjs": 55,
   "text-reductions.test.mjs": 42,
+  "triage-failed-runs.test.mjs": 56,
   "update-coverage.test.mjs": 35,
   "vacuity-a.test.mjs": 4,
   "vacuity-b.test.mjs": 22,
