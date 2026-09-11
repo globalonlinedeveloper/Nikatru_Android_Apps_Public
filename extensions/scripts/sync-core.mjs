@@ -114,7 +114,9 @@ if (sourceFiles.length === 0) {
 
 const vendorDir = path.join(tool.dirAbs, 'vendor', 'core');
 const metaPath = path.join(vendorDir, '.coremeta.json');
-const oldMeta = fs.existsSync(metaPath) ? readJson(metaPath).value : null;
+/* One look (CodeQL #76): readJson never throws — a missing or unreadable file comes back as
+   {error} — so no existence check is needed before it, and none is left for the write below. */
+const oldMeta = readJson(metaPath).value || null;
 const oldFiles = oldMeta && oldMeta.files ? Object.keys(oldMeta.files) : [];
 
 const added = [], updated = [], unchanged = [];

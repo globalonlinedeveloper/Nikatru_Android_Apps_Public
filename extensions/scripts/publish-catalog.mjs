@@ -396,7 +396,11 @@ if (args.bool('print')) {
    question a published interface also has to answer: are these the bytes we
    said we would serve? That question is answered here, on the Buffer. */
 const BOM = Buffer.from([0xEF, 0xBB, 0xBF]);
-const existingBytes = fs.existsSync(outAbs) ? fs.readFileSync(outAbs) : null;
+/* READ ONCE (CodeQL #74): the rewrite below is decided on these bytes, not on a separate
+   existence check. ENOENT/ENOTDIR are "absent"; any other failure throws. */
+let existingBytes = null;
+try { existingBytes = fs.readFileSync(outAbs); }
+catch (e) { if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e; }
 const existingHasBom = existingBytes !== null && existingBytes.subarray(0, 3).equals(BOM);
 const existing = existingBytes === null
   ? null

@@ -81,6 +81,33 @@ function expect(label, { script, argv, root, code, contains, env }) {
     '--- output ---\n' + r.out.trim());
 }
 
+/* ---- fs spy (CodeQL #71-#76) ----
+   Runs a script under test/fs-spy-preload.mjs — a copy of tooling/ci/test/fixtures/fs-spy-preload.mjs,
+   kept in this tree because this tree is self-contained — and returns the spy's verdict: every
+   existence/stat/open look at a path and every read/write of it. The helpers are CALLED, never
+   written as "script:" keys, so they add no case to the gate-coverage ratchet below. */
+const SPY = path.join(__dirname, 'fs-spy-preload.mjs');
+function spied(script, argv, root, { repoRoot = true } = {}) {
+  const dir = fs.mkdtempSync(path.join(TMP, 'spy-'));
+  const out = path.join(dir, 'verdict.json');
+  const res = spawnSync(process.execPath,
+    ['--import', require('url').pathToFileURL(SPY).href, path.join(SCRIPTS, script), ...argv, ...(repoRoot ? ['--repo-root', root] : [])],
+    { encoding: 'utf8', cwd: REPO, timeout: 120000, env: { ...process.env, FS_SPY_OUT: out, FS_SPY_UNDER: root } });
+  let verdict = null;
+  try { verdict = JSON.parse(fs.readFileSync(out, 'utf8')); } catch (_) { /* reported by readOnce */ }
+  return { code: res.status, out: (res.stdout || '') + (res.stderr || ''), verdict };
+}
+/* The spy records paths with forward slashes, lower-cased on Windows ONLY. */
+const spyKey = s => (process.platform === 'win32' ? s.toLowerCase() : s);
+function readOnce(label, r, matches, { key = 'flagged', minUses = 1 } = {}) {
+  if (!r.verdict) return bad(label, 'the spy wrote no verdict (exit ' + r.code + ')\n' + r.out.slice(-1500));
+  const used = r.verdict.uses.filter(matches);
+  const racy = r.verdict[key].filter(x => x.sameFunction && matches(x.path));
+  if (used.length >= minUses && racy.length === 0) return ok(label, used.length + ' file(s) used, none looked at first');
+  bad(label, (used.length < minUses ? 'only ' + used.length + ' matching file(s) were used\n' : '') +
+    racy.slice(0, 5).map(x => x.check + ' -> ' + x.use + '  ' + x.path).join('\n') + '\n--- output ---\n' + r.out.slice(-1200));
+}
+
 /* ---------------- fixture ---------------- */
 function w(root, rel, content) {
   const abs = path.join(root, rel);
@@ -1024,9 +1051,48 @@ expect('and by publish --check, whose content comparison alone would call it up 
 /* =====================================================================
    new-tool
    ===================================================================== */
+console.log('\nfs read-once (CodeQL #71 #74 #75 #76)');
+{
+  /* CONTROL for the spy: readFileSync(path) with no encoding, and writeFileSync(path, Buffer), open the
+     file through fs.openSync inside node. That open is part of the one call, not a second look, so one
+     read followed by one write (and one write followed by one read) must record no pair. */
+  const dir = fs.mkdtempSync(path.join(TMP, 'spyctl-'));
+  const script = path.join(dir, 'buffer-read-write.mjs');
+  fs.writeFileSync(script, "import { readFileSync, writeFileSync } from 'node:fs';\n" +
+    "const a = process.argv[2], b = process.argv[3];\n" +
+    "if (readFileSync(a).toString() !== 'x') writeFileSync(a, 'x');\n" +
+    "writeFileSync(b, Buffer.from('y'));\nreadFileSync(b, 'utf8');\n");
+  fs.writeFileSync(path.join(dir, 'a.bin'), 'hello');
+  readOnce('CONTROL spy — a buffer read then a write, and a buffer write then a read, record no look-then-use',
+    spied(path.relative(SCRIPTS, script), [path.join(dir, 'a.bin'), path.join(dir, 'b.bin')], dir, { repoRoot: false }),
+    p => p.endsWith(spyKey('/a.bin')) || p.endsWith(spyKey('/b.bin')), { key: 'pairs', minUses: 2 });
+}
+{
+  const root = fixture();
+  readOnce('gen-catalog rewrites the README with no separate look at it first (CodeQL #71)',
+    spied('gen-catalog.mjs', [], root), p => p.endsWith(spyKey('/README.md')));
+}
+{
+  const root = fs.mkdtempSync(path.join(TMP, 'catseed-'));
+  fs.cpSync(CAT_SEED, root, { recursive: true });
+  fs.rmSync(path.join(root, CATALOGUE), { force: true });
+  readOnce('publish-catalog writes the catalogue with no separate look at it first (CodeQL #74)',
+    spied('publish-catalog.mjs', [], root), p => p.endsWith(spyKey('/' + CATALOGUE)));
+}
+{
+  const root = fixture(withCore);
+  readOnce('sync-core writes .coremeta.json with no separate look at it first (CodeQL #76)',
+    spied('sync-core.mjs', ['goodtool'], root), p => p.endsWith(spyKey('/vendor/core/.coremeta.json')));
+}
+{
+  const root = fixture();
+  readOnce('secret-scan reads every file it scans with no stat of its path first (CodeQL #75)',
+    spied('secret-scan.mjs', ['.'], root), () => true, { minUses: 5 });
+}
+
 console.log('\nnew-tool.mjs');
 {
-  const root = fixture(r2 => {
+  const NEW_TOOL_TEMPLATE = r2 => {
     /* A minimal templates/tool so the copy is fast and the precedence rule
        (templates/tool wins over _skeleton) is the thing under test. */
     w(r2, 'templates/tool/manifest.json', JSON.stringify({
@@ -1039,7 +1105,8 @@ console.log('\nnew-tool.mjs');
     w(r2, 'templates/tool/publish/identity.json', JSON.stringify({ slug: 'skeleton', ownerDomain: 'REPLACE-WITH-YOUR-DOMAIN.example' }, null, 2) + '\n');
     w(r2, 'templates/tool/publish/old-release-1.0.0.zip', 'PK-not-really\n');
     w(r2, 'templates/tool/skeleton.json', JSON.stringify({ skeletonVersion: '1.1.0', tool: '', copiedAt: '' }, null, 2) + '\n');
-  });
+  };
+  const root = fixture(NEW_TOOL_TEMPLATE);
 
   expect('--dry-run writes nothing', {
     script: 'new-tool.mjs', argv: ['--category', 'Extension', '--name', 'Tab Digest', '--id', 'tabdigest', '--dry-run'],
@@ -1063,6 +1130,16 @@ console.log('\nnew-tool.mjs');
     ['permission justifications are EMPTY, so policy-check is red by design', JSON.parse(fs.readFileSync(path.join(made, 'tool.json'), 'utf8')).policy.permissions.storage === '']
   ];
   for (const [label, cond] of checks) cond ? ok(label) : bad(label, 'condition false');
+
+  {
+    /* CodeQL #72 #73 — the stamps are decided from the copied list, not from a second look at the
+       destination. A fresh root, so this case is independent of the scaffold above. */
+    const spyRoot = fixture(NEW_TOOL_TEMPLATE);
+    const made2 = '/Extension/Spy_Digest/';
+    readOnce('new-tool stamps skeleton.json, identity.json and CHANGELOG.md with no look at them first (CodeQL #72 #73)',
+      spied('new-tool.mjs', ['--category', 'Extension', '--name', 'Spy Digest', '--id', 'spydigest'], spyRoot),
+      p => ['skeleton.json', 'publish/identity.json', 'CHANGELOG.md'].some(f => p.endsWith(spyKey(made2 + f))), { minUses: 2 });
+  }
 
   expect('and the new tool is discovered', { script: 'discover.mjs', argv: ['--json'], root, code: 0, contains: 'tabdigest' });
   expect('its empty justification really does fail policy-check', {

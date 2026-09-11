@@ -551,14 +551,22 @@ for (const rel of subject) {
   }
 
   const abs = path.join(scanRoot, rel);
-  let st;
-  try { st = fs.statSync(abs); }
+  /* ONE OPEN (CodeQL #75): the size cap and the bytes come from the same descriptor, so the file
+     measured is the file scanned. Every failure still lands in "unreadable" with its errno. */
+  let fd;
+  try { fd = fs.openSync(abs, 'r'); }
   catch (e) { unreadable.push('  ' + rel + ': ' + (e.code || 'error') + ' — ' + e.message); continue; }
-  if (st.size > MAX_BYTES) { oversize.push('  ' + rel + '  (' + st.size + ' bytes)'); continue; }
-
-  let buf;
-  try { buf = fs.readFileSync(abs); }
-  catch (e) { unreadable.push('  ' + rel + ': ' + (e.code || 'error') + ' — ' + e.message); continue; }
+  let buf = null;
+  try {
+    const size = fs.fstatSync(fd).size;
+    if (size > MAX_BYTES) oversize.push('  ' + rel + '  (' + size + ' bytes)');
+    else buf = fs.readFileSync(fd);
+  } catch (e) {
+    unreadable.push('  ' + rel + ': ' + (e.code || 'error') + ' — ' + e.message);
+  } finally {
+    fs.closeSync(fd);
+  }
+  if (buf === null) continue;
   scanned++;
   bytes += buf.length;
 
