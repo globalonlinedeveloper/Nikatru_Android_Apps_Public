@@ -818,12 +818,28 @@ async function readInternals(ctx) {
         check('what is on screen is the report itself, and it parses',
           !!report && report.report === 'skeleton-problem-report' && !!report.storage,
           report ? Object.keys(report).join(',') : 'unparseable');
+        /* Does any string in the report (keys and values) name the seeded host (CodeQL #7, #324)? Each
+           string is split into words; a word that parses as a URL on that host, or is the bare host, is
+           a leak. A substring search of the serialised report read to CodeQL as URL sanitization, and it
+           missed the same host behind http:// or a port. */
+        const SEEDED_HOST = new URL(SEEDED_ORIGIN).hostname;
+        const namesSeededHost = (v) => {
+          if (typeof v === 'string') {
+            return v.split(/\s+/).some((w) => {
+              const bare = w.replace(/^[("'<]+/, '').replace(/[)"'>.,;:]+$/, '');
+              if (bare === SEEDED_HOST) return true;
+              try { return new URL(bare).hostname === SEEDED_HOST; } catch (_) { return false; }
+            });
+          }
+          if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => namesSeededHost(k) || namesSeededHost(x));
+          return false;
+        };
         check('the report names no url, no page title and no user-agent string',
           !!report && JSON.stringify(report).indexOf('a stored row') < 0 &&
           JSON.stringify(report).indexOf('AppleWebKit') < 0 &&
-          /* the seeded origin itself (CodeQL #7): 'example.com/' could never match — the origin
+          /* the seeded host itself (CodeQL #7): 'example.com/' could never match — the origin
              has no trailing slash and the report builder adds none — so a leak passed */
-          JSON.stringify(report).indexOf(SEEDED_ORIGIN) < 0,
+          !namesSeededHost(report),
           report ? 'platform=' + report.platform : 'no report');
         check('the preview is TEXT — a value that did leak would be shown, never rendered',
           preview.children === 0, preview.children + ' child elements inside the pane');
