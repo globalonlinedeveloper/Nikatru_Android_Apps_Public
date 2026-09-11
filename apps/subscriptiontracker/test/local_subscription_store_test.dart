@@ -126,16 +126,48 @@ void main() {
       final BudgetInfo read = (await LocalSubscriptionStore(
         Future<core.KeyValueStore>.value(kv),
       ).readBudget())!;
-      // ⚠️ THE BUDGET IS THE ONE FIGURE THE WIRE CARRIES NO CURRENCY FOR, so
-      // `BudgetInfo.fromJson` reads it under the code the CALLER names and the
-      // codec has none to name — see `BudgetInfo.inCurrency`, which is how the
-      // budget screen relabels it with the user's own choice. The AMOUNT still
-      // round-trips exactly: `monthly_budget` is a decimal that came from an
-      // integer count of minor units, and it rounds back to that integer.
+      // 🔴 THE CURRENCY ROUND-TRIPS TOO. This comment used to say the budget
+      // was "the one figure the wire carries no currency for" and that the
+      // codec read it under the caller's code — which was a description of
+      // the defect: `toJson` wrote `currency` and `monthly_budget_minor`, and
+      // `fromJson` read neither, so an INR budget came back USD. Both keys
+      // are read now (`readMoney`), and the case below is the one that used
+      // to be impossible to write.
       expect(read.monthlyBudget, const Money(12000, 'USD'));
       expect(read.categories.single.name, 'Streaming');
       expect(read.categories.single.cap, const Money(4000, 'USD'));
     });
+
+    test('a budget in a NON-default currency keeps its currency', () async {
+      final _MemStore kv = _MemStore();
+      const BudgetInfo written = BudgetInfo(
+        monthlyBudget: Money(500000, 'INR'),
+        categories: <BudgetCap>[BudgetCap('Streaming', Money(40000, 'INR'))],
+      );
+      await LocalSubscriptionStore(
+        Future<core.KeyValueStore>.value(kv),
+      ).writeBudget(written);
+      final BudgetInfo read = (await LocalSubscriptionStore(
+        Future<core.KeyValueStore>.value(kv),
+      ).readBudget())!;
+      expect(read.monthlyBudget, const Money(500000, 'INR'));
+      expect(read.categories.single.cap, const Money(40000, 'INR'));
+    });
+
+    test(
+      'a row with NO currency key still takes the code the CALLER names (an older '
+      'store), and a decimal-only row still reads',
+      () {
+        final BudgetInfo legacy = BudgetInfo.fromJson(<String, dynamic>{
+          'monthly_budget': 120.0,
+          'categories': <Map<String, dynamic>>[
+            <String, dynamic>{'name': 'Streaming', 'cap': 40.0},
+          ],
+        }, currencyCode: 'EUR');
+        expect(legacy.monthlyBudget, const Money(12000, 'EUR'));
+        expect(legacy.categories.single.cap, const Money(4000, 'EUR'));
+      },
+    );
 
     test('the persisted keys carry the nikatru. family prefix', () async {
       final _MemStore kv = _MemStore();
@@ -213,20 +245,54 @@ void main() {
       expect(await store.readSubscriptions(), isNull);
     });
 
-    test('a store that THROWS costs persistence and nothing else', () async {
-      final LocalSubscriptionStore store = LocalSubscriptionStore(
-        Future<core.KeyValueStore>.value(_BrokenStore()),
-      );
-      await expectLater(
-        store.writeSubscriptions(<Subscription>[_sub('1')]),
-        completes,
-      );
-      await expectLater(store.clear(), completes);
-      expect(await store.readSubscriptions(), isNull);
-      expect(await store.readBudget(), isNull);
-    });
+    // 🔴 THESE TWO USED TO ASSERT THE SILENCE. `completes`, then "nothing
+    // stored" — a test that a full disk costs the user their row and says
+    // nothing. Reads still degrade (a launch must never fail on a store that
+    // is not there); a WRITE now throws, because the caller is holding data
+    // the user just typed and is the only one who can roll back or tell them.
+    test(
+      'a store that THROWS on write SURFACES it — reads still degrade',
+      () async {
+        final LocalSubscriptionStore store = LocalSubscriptionStore(
+          Future<core.KeyValueStore>.value(_BrokenStore()),
+        );
+        await expectLater(
+          store.writeSubscriptions(<Subscription>[_sub('1')]),
+          throwsA(
+            isA<LocalStoreWriteFailure>()
+                .having(
+                  (LocalStoreWriteFailure f) => f.key,
+                  'key',
+                  kLocalSubscriptionsKey,
+                )
+                .having(
+                  (LocalStoreWriteFailure f) => '${f.cause}',
+                  'cause',
+                  contains('no store'),
+                ),
+          ),
+        );
+        await expectLater(
+          store.writeBudget(
+            const BudgetInfo(
+              monthlyBudget: Money(100, 'USD'),
+              categories: <BudgetCap>[],
+            ),
+          ),
+          throwsA(isA<LocalStoreWriteFailure>()),
+        );
+        // A store that is THERE and refuses to forget is a broken promise too.
+        await expectLater(
+          store.clear(),
+          throwsA(isA<LocalStoreWriteFailure>()),
+        );
+        expect(await store.readSubscriptions(), isNull);
+        expect(await store.readBudget(), isNull);
+      },
+    );
 
-    test('a store whose FUTURE fails is the same degradation', () async {
+    test('a store whose FUTURE fails: reads degrade, writes surface, clear is '
+        'a no-op (nothing was ever written there)', () async {
       final LocalSubscriptionStore store = LocalSubscriptionStore(
         Future<core.KeyValueStore>.error(StateError('no plugin')),
       );
@@ -237,8 +303,9 @@ void main() {
             categories: <BudgetCap>[],
           ),
         ),
-        completes,
+        throwsA(isA<LocalStoreWriteFailure>()),
       );
+      await expectLater(store.clear(), completes);
       expect(await store.readSubscriptions(), isNull);
     });
 
