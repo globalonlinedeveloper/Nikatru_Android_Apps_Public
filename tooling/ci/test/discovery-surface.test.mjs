@@ -482,6 +482,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn } from './fixtures/fs-spy-run.mjs';
 import {
   planDiscovery,
   renderSitemap,
@@ -823,6 +824,15 @@ const CV = ({ robots = 'noindex, nofollow' } = {}) =>
   mirrored({ robots, skipClass: null, main: false, focusVisible: false, og: false, body: '<h2>[Job title] — [Company]</h2>' });
 
 describe('the generator', () => {
+  test('writes every page without a separate look at its path first (CodeQL #90)', () => {
+    const root = tree([SUBLY]);
+    const { code, text, verdict } = spiedRun([GENERATOR, root], { under: root });
+    assert.equal(code, 0, text);
+    assert.ok(verdict.uses.some((u) => u.endsWith('/apps/subscriptiontracker.html')), 'the app page was never written');
+    const racy = verdict.flagged.filter((x) => x.path.includes('/sites/') && x.sameFunction);
+    assert.deepEqual(racy.slice(0, 5), [], `${racy.length} page(s) were looked at, then written`);
+  });
+
   test('a generated tree passes the guard, and is idempotent', () => {
     const root = tree([SUBLY]);
     assert.equal(generate(root).code, 0);
