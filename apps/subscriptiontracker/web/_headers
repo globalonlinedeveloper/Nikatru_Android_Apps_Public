@@ -36,10 +36,10 @@
 #     substitution does not disturb it. assert-web-cache-policy.mjs recomputes it
 #     on every run, so an edit to that script that forgets this line goes RED
 #     instead of silently disabling the loader.
-#   · 🔴 `https://browser.sentry-cdn.com` — a THIRD-PARTY CDN ON THIS APP'S BOOT
-#     PATH: sentry_flutter injects the Sentry browser SDK from it. Still listed
-#     because a policy that does not describe the running app is worse than none;
-#     closing it is its own change (docs/ci/deploy-web.md).
+#   · ⏱ 2026-09-12 — `https://browser.sentry-cdn.com` IS GONE. sentry_flutter injected
+#     the Sentry browser SDK from it; packages/telemetry now turns that off on web and
+#     sends events with the Dart SDK's HTTP transport to glitchtip.nikatru.com
+#     (`useHttpTransportOnWeb`, telemetry_bootstrap.dart). No third-party CDN is left.
 #   · ⏱ 2026-09-12 — `https://www.gstatic.com` AND `https://fonts.gstatic.com` ARE
 #     GONE, measured 2026-09-09 as CanvasKit and the Roboto/Noto font fallback.
 #     The build now passes `--no-web-resources-cdn` (CanvasKit from `/canvaskit/*`)
@@ -63,7 +63,7 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM=' https://browser.sentry-cdn.com https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co https://subscriptiontracker-api.nikatru.com https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM=' https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co https://subscriptiontracker-api.nikatru.com https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com; upgrade-insecure-requests
 # ═══════════════════════════════════════════════════════════════════════════
 #
 # 🔴 WHY THIS FILE EXISTS — [pipeline 9]R-9, the cache limb.

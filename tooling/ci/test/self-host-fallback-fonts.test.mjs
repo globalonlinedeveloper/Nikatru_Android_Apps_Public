@@ -32,7 +32,7 @@ const GOOD_MAIN = `r($,"a","b",()=>A.ez().gabG()+"${ROBOTO}")\nB.x=s([A.N("Noto 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 
 /** Third-party CDN hosts the web app must never let a browser reach. Compared as exact hostnames. */
-const FORBIDDEN_HOSTS = ['www.gstatic.com', 'fonts.gstatic.com'];
+const FORBIDDEN_HOSTS = ['www.gstatic.com', 'fonts.gstatic.com', 'browser.sentry-cdn.com'];
 /** The hostnames a CSP line allows, parsed from each source that carries a scheme. */
 function cspHosts(line) {
   const value = line.slice(line.indexOf(':') + 1);
