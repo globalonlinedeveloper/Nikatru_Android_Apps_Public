@@ -90,6 +90,19 @@
 //   8. THE LAUNCH SCREEN — the iOS `LaunchImage.imageset` and the Android
 //      `launch_image` drawables, RE-DERIVED from the same master, plus the two
 //      declarations that decide whether they are drawn at all. See the limb.
+//   9. ANDROID XML PARSES — every `.xml` under an app's `android/**/res/`, and
+//      every `AndroidManifest.xml`, is well-formed XML 1.0 (the brick template
+//      and packages/ are walked too). ADDED 2026-09-11 after #597 put `--`
+//      inside a launch_background.xml comment: limbs 5 and 8b read these files
+//      through a comment-stripping regex and were GREEN, while aapt refused the
+//      file and `assembleRelease` failed on the next scheduled build-platforms
+//      run (34468887825). No pull-request lane builds Android release, so this
+//      parse is the PR-time catch. See `xmlWellFormednessError`.
+//      ⚠️ Measured the same day and NOT covered here: both PrivacyInfo.xcprivacy
+//      files carry `--` in their generated header comment too. Xcode accepted
+//      them (that run's macOS + iOS job was green), they are byte-derived by
+//      tooling/store/render-apple-privacy-manifest.mjs, and extending this limb
+//      to them belongs with a change to that generator.
 //
 // ── 🔴 LIMB 7 REPLACED A PRINT, AND THE PRINT WAS RIGHT WHEN IT WAS WRITTEN ──
 // Until 2026-08-04 this header said Linux "has no artefact to compare and
@@ -184,6 +197,262 @@ function coverageLost(lines) {
   console.error(`COVERAGE LOST: ${lines[0]}`);
   for (const l of lines.slice(1)) console.error(`  ${l}`);
   process.exit(1);
+}
+
+// ── limb 9's reader: XML 1.0 WELL-FORMEDNESS ────────────────────────────────
+/**
+ * The FIRST well-formedness error in `text` as `{ line, col, message }`, or
+ * `null` when it is well-formed XML 1.0 with well-formed namespaces — the
+ * grammar Android's resource compiler and manifest merger refuse a build over.
+ *
+ * 🔴 A PARSE, NOT A STRIP. Every other reading of a res XML in this guard (and
+ * `stripXmlComments` in render-splash.mjs) removes `<!-- … -->` with a regex
+ * and looks at what is left, which is the right tool for "is this item live"
+ * and exactly the wrong one for "will aapt accept this file": a regex that
+ * matches `<!--[\s\S]*?-->` is satisfied by a comment containing `--`, and
+ * XML 1.0 §2.5 is not. That is how #597 shipped
+ * `launch_background.xml:24:50: The string "--" is not permitted within
+ * comments.` through a green PR and broke `assembleRelease` on the next
+ * scheduled build-platforms run (34468887825).
+ *
+ * Deliberately a SUBSET of a validating parser: it checks what makes a
+ * document not XML at all (comments, PIs, CDATA, tags, attribute quoting and
+ * uniqueness, `<`/`&` in values and content, references, one root, legal
+ * characters, bound prefixes) and nothing about what the elements mean. A
+ * DOCTYPE is skipped; if it carries an internal subset, undeclared named
+ * entities are not reported, because that subset may declare them.
+ */
+function xmlWellFormednessError(text) {
+  const n = text.length;
+  let i = text.charCodeAt(0) === 0xfeff ? 1 : 0;
+  const at = (pos, message) => {
+    let line = 1;
+    let last = -1;
+    for (let k = 0; k < pos && k < n; k++) {
+      if (text.charCodeAt(k) === 10) {
+        line += 1;
+        last = k;
+      }
+    }
+    return { line, col: pos - last, message };
+  };
+  for (let k = 0; k < n; k++) {
+    const c = text.charCodeAt(k);
+    if ((c < 0x20 && c !== 9 && c !== 10 && c !== 13) || c === 0xfffe || c === 0xffff) {
+      return at(k, `the character U+${c.toString(16).toUpperCase().padStart(4, '0')} is not permitted in an XML document`);
+    }
+  }
+  const starts = (s) => text.startsWith(s, i);
+  const skipWs = () => {
+    const from = i;
+    while (i < n && ' \t\r\n'.includes(text[i])) i += 1;
+    return i > from;
+  };
+  const NAME = /[A-Za-z_:\u00C0-\uFFFD][-A-Za-z0-9_:.\u00B7\u00C0-\uFFFD]*/y;
+  const readName = () => {
+    NAME.lastIndex = i;
+    const m = NAME.exec(text);
+    if (!m) return null;
+    i = NAME.lastIndex;
+    return m[0];
+  };
+  let internalSubset = false;
+  const REF = /&(?:#([0-9]+)|#x([0-9a-fA-F]+)|([A-Za-z_:][-A-Za-z0-9_:.]*));/y;
+  const reference = (where) => {
+    REF.lastIndex = i;
+    const r = REF.exec(text);
+    if (!r) return at(i, `"&" ${where} must begin a reference ending in ";" (write &amp; for a literal ampersand)`);
+    if (r[3] !== undefined) {
+      if (!internalSubset && !['amp', 'lt', 'gt', 'quot', 'apos'].includes(r[3])) {
+        return at(i, `the entity "&${r[3]};" is referenced ${where} but never declared`);
+      }
+    } else {
+      const cp = r[1] !== undefined ? Number.parseInt(r[1], 10) : Number.parseInt(r[2], 16);
+      const legal =
+        cp === 9 || cp === 10 || cp === 13 || (cp >= 0x20 && cp <= 0xd7ff) || (cp >= 0xe000 && cp <= 0xfffd) || (cp >= 0x10000 && cp <= 0x10ffff);
+      if (!legal) return at(i, `the character reference "${r[0]}" names a character XML does not permit`);
+    }
+    i = REF.lastIndex;
+    return null;
+  };
+  const comment = () => {
+    const open = i;
+    const end = text.indexOf('--', i + 4);
+    if (end === -1) return at(open, 'a comment is never closed');
+    if (text[end + 2] !== '>') return at(end, 'the string "--" is not permitted within comments');
+    i = end + 3;
+    return null;
+  };
+  const pi = () => {
+    const open = i;
+    i += 2;
+    const target = readName();
+    if (!target) return at(open, 'a processing instruction has no target name');
+    if (target.toLowerCase() === 'xml') {
+      return at(open, 'an XML declaration is permitted only at the very start of the document');
+    }
+    const end = text.indexOf('?>', i);
+    if (end === -1) return at(open, `the processing instruction <?${target} is never closed`);
+    i = end + 2;
+    return null;
+  };
+  const doctype = () => {
+    const open = i;
+    let quote = null;
+    let depth = 0;
+    for (i += 9; i < n; i += 1) {
+      const c = text[i];
+      if (quote) {
+        if (c === quote) quote = null;
+      } else if (c === '"' || c === "'") {
+        quote = c;
+      } else if (c === '[') {
+        depth += 1;
+        internalSubset = true;
+      } else if (c === ']') {
+        depth -= 1;
+      } else if (c === '>' && depth <= 0) {
+        i += 1;
+        return null;
+      }
+    }
+    return at(open, 'the DOCTYPE declaration is never closed');
+  };
+  const stack = [];
+  const unbound = (qname, pos, kind) => {
+    const colon = qname.indexOf(':');
+    if (colon === -1) return null;
+    const prefix = qname.slice(0, colon);
+    const local = qname.slice(colon + 1);
+    if (prefix === '' || local === '' || local.includes(':')) return at(pos, `"${qname}" is not a legal namespaced name`);
+    if (prefix === 'xml' || prefix === 'xmlns') return null;
+    for (let s = stack.length - 1; s >= 0; s -= 1) if (stack[s].prefixes.has(prefix)) return null;
+    return at(
+      pos,
+      `the prefix "${prefix}" of ${kind} "${qname}" is not bound to a namespace (declare xmlns:${prefix} on this element or an ancestor)`,
+    );
+  };
+  const startTag = () => {
+    const open = i;
+    i += 1;
+    const qname = readName();
+    if (!qname) return at(open, 'a "<" must begin markup (write &lt; for a literal less-than sign)');
+    const attrs = [];
+    const seen = new Set();
+    for (;;) {
+      const hadWs = skipWs();
+      if (i >= n) return at(open, `the start tag <${qname}> is never closed`);
+      if (starts('/>') || starts('>')) break;
+      if (!hadWs) return at(i, `an unexpected character in the start tag <${qname}>`);
+      const apos = i;
+      const an = readName();
+      if (!an) return at(i, `an unexpected character in the start tag <${qname}>`);
+      if (seen.has(an)) return at(apos, `attribute "${an}" appears twice on <${qname}>`);
+      seen.add(an);
+      skipWs();
+      if (text[i] !== '=') return at(i, `attribute "${an}" on <${qname}> has no "=" and value`);
+      i += 1;
+      skipWs();
+      const q = text[i];
+      if (q !== '"' && q !== "'") return at(i, `the value of attribute "${an}" on <${qname}> is not quoted`);
+      i += 1;
+      for (;;) {
+        if (i >= n) return at(apos, `the value of attribute "${an}" on <${qname}> is never closed`);
+        const c = text[i];
+        if (c === q) {
+          i += 1;
+          break;
+        }
+        if (c === '<') return at(i, `"<" is not permitted in the value of attribute "${an}" (write &lt;)`);
+        if (c === '&') {
+          const e = reference(`in the value of attribute "${an}"`);
+          if (e) return e;
+          continue;
+        }
+        i += 1;
+      }
+      attrs.push([an, apos]);
+    }
+    const selfClosing = starts('/>');
+    i += selfClosing ? 2 : 1;
+    const prefixes = new Set(attrs.filter(([an]) => an.startsWith('xmlns:')).map(([an]) => an.slice(6)));
+    stack.push({ qname, open, prefixes });
+    const e =
+      unbound(qname, open + 1, 'element') ??
+      attrs.filter(([an]) => an !== 'xmlns' && !an.startsWith('xmlns:')).reduce((found, [an, apos]) => found ?? unbound(an, apos, 'attribute'), null);
+    if (e) return e;
+    if (selfClosing) stack.pop();
+    return null;
+  };
+  const endTag = () => {
+    const open = i;
+    i += 2;
+    const qname = readName();
+    skipWs();
+    if (!qname || text[i] !== '>') return at(open, 'a malformed end tag');
+    i += 1;
+    const top = stack.pop();
+    if (!top) return at(open, `the end tag </${qname}> has no matching start tag`);
+    if (top.qname !== qname) {
+      return at(open, `the end tag </${qname}> does not match the start tag <${top.qname}> opened on line ${at(top.open, '').line}`);
+    }
+    return null;
+  };
+
+  if (starts('<?xml') && ' \t\r\n?'.includes(text[i + 5] ?? '')) {
+    const end = text.indexOf('?>', i);
+    if (end === -1) return at(i, 'the XML declaration is never closed');
+    i = end + 2;
+  }
+  let rootSeen = false;
+  let doctypeSeen = false;
+  while (i < n) {
+    let e = null;
+    if (stack.length === 0) {
+      skipWs();
+      if (i >= n) break;
+      if (starts('<!--')) e = comment();
+      else if (starts('<?')) e = pi();
+      else if (starts('<!DOCTYPE')) {
+        if (rootSeen || doctypeSeen) return at(i, 'a DOCTYPE is permitted once, before the root element');
+        doctypeSeen = true;
+        e = doctype();
+      } else if (text[i] === '<' && text[i + 1] !== '/' && text[i + 1] !== '!') {
+        if (rootSeen) return at(i, 'a second root element — a document has exactly one');
+        rootSeen = true;
+        e = startTag();
+      } else {
+        return at(i, rootSeen ? 'content after the root element has closed' : 'content before the root element');
+      }
+      if (e) return e;
+      continue;
+    }
+    const c = text[i];
+    if (c === '<') {
+      if (starts('</')) e = endTag();
+      else if (starts('<!--')) e = comment();
+      else if (starts('<![CDATA[')) {
+        const end = text.indexOf(']]>', i + 9);
+        if (end === -1) e = at(i, 'a CDATA section is never closed');
+        else i = end + 3;
+      } else if (starts('<?')) e = pi();
+      else if (starts('<!')) e = at(i, 'a markup declaration is not permitted inside an element');
+      else e = startTag();
+    } else if (c === '&') {
+      e = reference('in element content');
+    } else if (c === ']' && starts(']]>')) {
+      return at(i, 'the sequence "]]>" is not permitted in element content');
+    } else {
+      i += 1;
+    }
+    if (e) return e;
+  }
+  if (stack.length) {
+    const top = stack[stack.length - 1];
+    return at(top.open, `the element <${top.qname}> is never closed`);
+  }
+  if (!rootSeen) return at(i, 'the document has no root element');
+  return null;
 }
 
 // ── locate the SDK's stock assets ───────────────────────────────────────────
@@ -354,6 +623,67 @@ let linuxChecked = 0;
 /** Limb 8's accounting, separate for the same reason as limb 7's. */
 let splashApps = 0;
 let splashChecked = 0;
+
+/** Limb 9's accounting, separate for the same reason as limbs 7 and 8. */
+let xmlAndroidTrees = 0;
+let xmlParsed = 0;
+
+/** Build output and tool state under an android/ tree. Never source: aapt
+ *  reads the checkout's res/, and a stale intermediate is not this tree's. */
+const XML_PRUNE = new Set(['build', '.gradle', '.cxx', '.idea', '.dart_tool', 'node_modules']);
+
+/** Every file under `androidDir` that the Android toolchain parses as XML from
+ *  source: anything `.xml` beneath a `res/` directory, plus every
+ *  `AndroidManifest.xml`, which the manifest merger reads with the same
+ *  strictness. */
+function androidXmlFiles(androidDir) {
+  const out = [];
+  const walk = (dir, underRes) => {
+    for (const e of listDir(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!XML_PRUNE.has(e.name)) walk(p, underRes || e.name === 'res');
+      } else if (e.isFile() && (e.name === 'AndroidManifest.xml' || (underRes && e.name.endsWith('.xml')))) {
+        out.push(p);
+      }
+    }
+  };
+  walk(androidDir, false);
+  return out.sort();
+}
+
+/** Every `android/` directory beneath `root` (the brick, packages/), pruned the
+ *  same way. Zero is a legitimate answer there — the brick ships no native
+ *  folders by design — which is why only the apps/ half is a coverage floor. */
+function androidTreesUnder(root) {
+  const out = [];
+  if (!existsSync(root)) return out;
+  const walk = (dir) => {
+    for (const e of listDir(dir, { withFileTypes: true })) {
+      if (!e.isDirectory() || XML_PRUNE.has(e.name)) continue;
+      const p = join(dir, e.name);
+      if (e.name === 'android') out.push(p);
+      else walk(p);
+    }
+  };
+  walk(root);
+  return out.sort();
+}
+
+/** Limb 9's verdict on one file, pushed as a problem naming file:line:col. */
+function checkAndroidXml(abs) {
+  xmlParsed += 1;
+  const where = abs.slice(repoRoot.length + 1).split('\\').join('/');
+  const err = xmlWellFormednessError(readFileSync(abs, 'utf8'));
+  if (err === null) return;
+  problems.push(
+    `🔴 ${where}:${err.line}:${err.col} — not well-formed XML: ${err.message}. Android's resource ` +
+      'compiler refuses the WHOLE build over one such file: #597 put `--` inside a comment in ' +
+      'launch_background.xml and `assembleRelease` died at :app:parseReleaseLocalResources ' +
+      '(build-platforms run 34468887825). No pull-request lane builds Android release, so this limb is ' +
+      'the check that sees it before merge.',
+  );
+}
 
 for (const slug of listDir(APPS).sort()) {
   const appDir = join(APPS, slug);
@@ -530,6 +860,24 @@ for (const slug of listDir(APPS).sort()) {
         }
       }
     }
+  }
+
+  // ── limb 9: EVERY ANDROID RESOURCE AND MANIFEST IS WELL-FORMED XML ──────
+  // Before limbs 7 and 8 so its own coverage floor is decided first: an app
+  // that ships android/ and yields no XML at all is the walk no longer
+  // reaching the tree, and nothing after this point should report over it.
+  // See `xmlWellFormednessError` for why this is a parse and not a strip.
+  if (existsSync(join(appDir, 'android'))) {
+    xmlAndroidTrees += 1;
+    const files = androidXmlFiles(join(appDir, 'android'));
+    if (files.length === 0) {
+      coverageLost([
+        `apps/${slug} ships android/ and ZERO resource or manifest XML files were found under it, so limb 9 parsed nothing.`,
+        '`flutter create` writes AndroidManifest.xml and res/ XML, so an empty set is this walk no longer reaching',
+        'the tree — not an app with nothing for the resource compiler to refuse.',
+      ]);
+    }
+    for (const f of files) checkAndroidXml(f);
   }
 
   // ── limb 7: LINUX — the desktop entry and the hicolor icon theme ────────
@@ -1142,6 +1490,33 @@ prints.push(
     '68-byte 1x1 TRANSPARENT LaunchImage.png, so "not identical to Flutter\'s" is satisfied by a second ' +
     'blank image — and the Android half is a `<bitmap>` inside an XML comment, which no byte comparison ' +
     'of any PNG can see at all.',
+);
+// ── limb 9, beyond apps/: the brick template and packages/ ──────────────────
+// The brick carries no native folders today (see limb 6), and no package ships
+// an android/ tree, so both sets are legitimately EMPTY — which is why neither
+// is a coverage floor. They are walked anyway: the day either grows an android/
+// tree, every app stamped or built from it inherits its XML, and a malformed
+// file there fails fifty builds rather than one.
+const factoryAndroidTrees = [
+  ...androidTreesUnder(join(repoRoot, 'tooling', 'bricks')),
+  ...androidTreesUnder(join(repoRoot, 'packages')),
+];
+for (const tree of factoryAndroidTrees) for (const f of androidXmlFiles(tree)) checkAndroidXml(f);
+
+// 🔴 LIMB 9'S OWN REQUIRED_COVERAGE. Android's resource compiler is the only
+// parser in the pipeline that refuses these files, and it runs on no pull
+// request; if this limb stops reaching the tree, the next malformed resource is
+// found by a scheduled release build again.
+if (xmlAndroidTrees > 0 && xmlParsed === 0) {
+  coverageLost([
+    `${xmlAndroidTrees} app(s) ship android/ and ZERO XML files were parsed.`,
+    'Well-formedness ranged over nothing, which is indistinguishable from every resource being valid.',
+  ]);
+}
+prints.push(
+  `XML (limb 9) — ${xmlParsed} Android resource/manifest file(s) PARSED as well-formed XML 1.0 across ` +
+    `${xmlAndroidTrees} app android/ tree(s) and ${factoryAndroidTrees.length} brick/package android/ tree(s) · ` +
+    'a parse, not a comment-stripping regex: the regex is satisfied by the `--` inside a comment that aapt refuses',
 );
 for (const s of icoSizes) prints.push(`ico entries — ${s}`);
 
