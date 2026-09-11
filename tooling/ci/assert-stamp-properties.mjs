@@ -983,7 +983,13 @@ const REQUIRED_COVERAGE = [
       // routine (the SDK stops its refresh ticker while the app is paused), so
       // the normal act of resuming the app logged people out of it.
       { file: PROVIDERS, re: /onUnauthorized:\s*\(\)\s*=>\s*\n?\s*signOutOnlyIfSessionIsGone\(/, what: 'a 401 must go through signOutOnlyIfSessionIsGone — signing out on ANY 401 turns a routine expired token into a forced logout' },
-      { file: PROVIDERS, re: /await auth\.currentAccessToken\(\) == null/, what: 'that decision must ASK the seam for a token first — without the check the function is an unconditional sign-out under a reassuring name' },
+      // ⏱ 2026-09-11 — RE-ANCHORED from `await auth.currentAccessToken() == null`.
+      // A null token is ALSO what a refresh that could not REACH the provider leaves,
+      // which is every token that expires while the device is offline, so that check
+      // signed people out for being on a plane. `AuthRepository.sessionIsGone()`
+      // (packages/core) is true only when the provider REFUSED the session; the app
+      // moved to it, and anchoring the old text kept the defect alive in the brick.
+      { file: PROVIDERS, re: /await auth\.sessionIsGone\(\)/, what: 'that decision must ASK the seam whether the session is GONE — a null access token is also what an offline refresh leaves, and without the check the function is an unconditional sign-out under a reassuring name' },
     ],
     why: 'the auth seam had no home: the only implementations lived inside apps/subscriptiontracker, and the brick wired no auth and no tokenProvider',
   },

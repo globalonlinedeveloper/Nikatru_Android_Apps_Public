@@ -1268,7 +1268,11 @@ final Provider<RestClient> restClientProvider = Provider<RestClient>(
 /// and it is the only one left. Named here, and in [signOutAndForgetUser]'s doc,
 /// so the count in that doc stays honest.
 Future<void> signOutOnlyIfSessionIsGone(core.AuthRepository auth) async {
-  if (await auth.currentAccessToken() == null) {
+  // 🔴 `sessionIsGone()`, NOT `currentAccessToken() == null`. The token is
+  // null both when the provider REFUSED a refresh and when it could not be
+  // REACHED — and the second is every token that expires while the device is
+  // offline. Signing out on it logged people out for being on a plane.
+  if (await auth.sessionIsGone()) {
     await auth.signOut();
   }
 }
