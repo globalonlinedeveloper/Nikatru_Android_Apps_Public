@@ -107,7 +107,7 @@ interface Body {
 
 async function health(bindings: Record<string, unknown> = {}) {
   const worker = await freshWorker();
-  const res = await worker.fetch(new Request('https://subscriptiontracker.api.nikatru.com/v1/health'), env(bindings), ctx);
+  const res = await worker.fetch(new Request('https://subscriptiontracker-api.nikatru.com/v1/health'), env(bindings), ctx);
   const text = await res.text();
   return { res, text, body: JSON.parse(text) as Body };
 }
@@ -234,7 +234,7 @@ describe('🔴 "I did not look" is NOT "healthy"', () => {
     vi.useFakeTimers();
     const worker = await freshWorker();
     const pending = worker.fetch(
-      new Request('https://subscriptiontracker.api.nikatru.com/v1/health'),
+      new Request('https://subscriptiontracker-api.nikatru.com/v1/health'),
       env({ APP_DB: hangingDb() }),
       ctx,
     );
@@ -258,12 +258,12 @@ describe('the cache carries its AGE', () => {
     const t0 = 1_700_000_000_000;
     const clock = vi.spyOn(Date, 'now').mockReturnValue(t0);
 
-    const first = await worker.fetch(new Request('https://subscriptiontracker.api.nikatru.com/v1/health'), bindings, ctx);
+    const first = await worker.fetch(new Request('https://subscriptiontracker-api.nikatru.com/v1/health'), bindings, ctx);
     expect(reading(JSON.parse(await first.text()) as Body, 'app_db').ageMs).toBe(0);
     expect(db.calls).toBe(1);
 
     clock.mockReturnValue(t0 + 900);
-    const second = await worker.fetch(new Request('https://subscriptiontracker.api.nikatru.com/v1/health'), bindings, ctx);
+    const second = await worker.fetch(new Request('https://subscriptiontracker-api.nikatru.com/v1/health'), bindings, ctx);
     const b2 = JSON.parse(await second.text()) as Body;
     expect(db.calls).toBe(1); // the fan-out was collapsed
     expect(reading(b2, 'app_db').ageMs).toBe(900); // and the response says so
@@ -284,11 +284,11 @@ describe('the cache carries its AGE', () => {
     const worker = await freshWorker();
     const t0 = 1_700_000_000_000;
     const clock = vi.spyOn(Date, 'now').mockReturnValue(t0);
-    const first = await worker.fetch(new Request('https://subscriptiontracker.api.nikatru.com/v1/health'), bindings, ctx);
+    const first = await worker.fetch(new Request('https://subscriptiontracker-api.nikatru.com/v1/health'), bindings, ctx);
     expect((JSON.parse(await first.text()) as Body).ok).toBe(true);
 
     clock.mockReturnValue(t0 + 5100);
-    const second = await worker.fetch(new Request('https://subscriptiontracker.api.nikatru.com/v1/health'), bindings, ctx);
+    const second = await worker.fetch(new Request('https://subscriptiontracker-api.nikatru.com/v1/health'), bindings, ctx);
     const text = await second.text();
     expect(flaky.calls).toBe(2);
     expect((JSON.parse(text) as Body).ok).toBe(false);

@@ -27,7 +27,7 @@ flutter run --dart-define-from-file=config/defaults.json
 |---|---|
 | `SUPABASE_URL` | `https://lcrkiurkvzhkonjwhpiv.supabase.co` (Cross_Platform_Auth, Mumbai) |
 | `SUPABASE_ANON_KEY` | the project **publishable** key (`sb_publishable_…`) |
-| `API_BASE_URL` | `https://subscriptiontracker.api.nikatru.com` (Cloudflare Worker custom domain; `subscriptiontracker-api.rajasekarjavaee.workers.dev` still works as a fallback) |
+| `API_BASE_URL` | `https://subscriptiontracker-api.nikatru.com` (Cloudflare Worker custom domain; `subscriptiontracker-api.rajasekarjavaee.workers.dev` still works as a fallback) |
 
 🔴 **THE KEYS ARE `--dart-define` NAMES, NOT THE CFG-1 WIRE NAMES.** The chassis file this pair is
 named after (`config/defaults.json` in a freshly stamped app) ships snake keys — `app_id`,
@@ -45,7 +45,7 @@ slot if a pinned SDK rejects the publishable format.)
 
 ⚠️ **`AppConfig._phApiBase` is a SENTINEL, not the host.** It stays
 `https://subscriptiontracker-api.YOUR_SUBDOMAIN.workers.dev`. `isApiConfigured` is `apiBaseUrl != _phApiBase`, so
-writing the real `https://subscriptiontracker.api.nikatru.com` into the constant makes that comparison false for exactly
+writing the real `https://subscriptiontracker-api.nikatru.com` into the constant makes that comparison false for exactly
 the builds that pass the correct value — production would resolve `SeedApiClient()` and
 `NoOpAnalytics`. `assert-store-build-config.mjs` cannot catch it; it checks that the define is
 passed, and prints on every run that it cannot see values.

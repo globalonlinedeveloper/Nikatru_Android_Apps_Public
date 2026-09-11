@@ -134,7 +134,7 @@ hosts:
   # `subscriptiontracker-7qg.pages.dev` answered 522 until the first deployment
   # existed, which is what proves the suffix was newly minted for this account.
   pagesOrigin: subscriptiontracker-7qg.pages.dev
-  api: subscriptiontracker.api.nikatru.com
+  api: subscriptiontracker-api.nikatru.com
 
 platforms:
   - web

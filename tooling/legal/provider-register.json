@@ -294,7 +294,7 @@
     "_why": [
       "Read by the EGRESS limb of tooling/ci/assert-policy-claims.mjs (2026-09-11), which takes every host a shipped Content-Security-Policy",
       "(apps/*/web/_headers, sites/*/_headers) lets a browser reach and requires it to be ours or to carry a provider row's tell.",
-      "A host on one of these domains, or any subdomain of one, is ours. The vendor BEHIND it — Cloudflare for subscriptiontracker.api.nikatru.com, Hostinger",
+      "A host on one of these domains, or any subdomain of one, is ours. The vendor BEHIND it — Cloudflare for subscriptiontracker-api.nikatru.com, Hostinger",
       "for glitchtip.nikatru.com — is already its own row and is disclosed as that vendor, not as a hostname.",
       "Declared here, not inside the guard, for the reason `roles` is: a list inside a guard is a list nobody reviews with the register."
     ],

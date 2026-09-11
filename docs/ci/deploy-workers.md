@@ -220,7 +220,7 @@ could execute is the state this whole step exists to end.
 
 `id: deploy` is read by the record step at the bottom of this job — see
 the block there. It is the only step whose success means "the new code is
-what subscriptiontracker.api.nikatru.com is running", so it is the fact the ledger entry is
+what subscriptiontracker-api.nikatru.com is running", so it is the fact the ledger entry is
 conditioned on.
 
 ### inside the `id: deploy` step, above `command:`
