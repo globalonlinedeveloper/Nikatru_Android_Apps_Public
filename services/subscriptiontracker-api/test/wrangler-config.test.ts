@@ -127,12 +127,10 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
     // `--project-name=<workspace directory>`, so the slug rename re-pointed the
     // deploy at a NEW Direct Upload project and Cloudflare minted a new preview
     // subdomain for it (read back from the API, never derived -- the bare
-    // `subscriptiontracker.pages.dev` is a third party's live host). BOTH are
-    // required while the cutover is in flight: an exact allowlist fails closed
-    // and silently, so the retired one is dropped in its own later change.
+    // `subscriptiontracker.pages.dev` is a third party's live host). Both were
+    // held while the cutover was in flight; the retired one left on 2026-09-11.
     for (const origin of [
       'https://nikatru.com',
-      'https://subly-9cp.pages.dev',
       'https://subscriptiontracker-7qg.pages.dev',
     ]) {
       expect(listed, `missing ${origin}`).toContain(origin);
@@ -144,6 +142,16 @@ describe('vars.ALLOWED_ORIGINS — load-bearing since CORS fails closed', () => 
     // host and a standing CORS grant, and re-adding it is a one-word edit.
     expect(listed, 'the subdomain serves only a 301 now [ADR 075]').not.toContain(
       'https://subly.nikatru.com',
+    );
+  });
+
+  it('no longer lists the retired pre-rename Pages origin', () => {
+    // ⏱ 2026-09-11, the NARROW step. `subly-9cp.pages.dev` is a *.pages.dev name:
+    // the day its Pages project is deleted anyone can register it, and a Worker
+    // still trusting it would reflect that stranger's Origin. Removed here FIRST,
+    // deployed, and only then may the project be deleted.
+    expect(listed, 'the retired Pages project must not keep a CORS grant').not.toContain(
+      'https://subly-9cp.pages.dev',
     );
   });
 

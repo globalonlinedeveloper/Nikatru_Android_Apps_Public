@@ -181,9 +181,24 @@ function artifact(dir, name, files, opts) {
   return p;
 }
 
+// BOUNDED, so a guard that hangs at exit (nodejs/node#54918, reproduced on this
+// guard 2026-09-11) fails its case BY NAME instead of holding the job open until CI
+// cancels it with no name at all. `status null` beside the complete output means
+// the guard was still alive when the bound fired: an exit hang, not a slow scan.
+const RUN_TIMEOUT_MS = 120_000;
 const run = (dir, args) => {
-  const r = spawnSync(process.execPath, [GUARD, ...args, '--repo-root', dir], { cwd: dir, encoding: 'utf8' });
-  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  const r = spawnSync(process.execPath, [GUARD, ...args, '--repo-root', dir], {
+    cwd: dir,
+    encoding: 'utf8',
+    timeout: RUN_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+  });
+  const died =
+    r.error || r.signal
+      ? `\n[elf-page-alignment.test] guard did not finish — ${r.error ? r.error.message : 'no spawn error'} · ` +
+        `status ${r.status} · signal ${r.signal} · bound ${RUN_TIMEOUT_MS} ms`
+      : '';
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}${died}` };
 };
 
 const GOOD_64 = { name: 'base/lib/arm64-v8a/libapp.so', data: elf64([16384, 16384]) };
@@ -199,6 +214,21 @@ describe('assert-elf-page-alignment', () => {
     assert.match(out, /3 64-bit LOAD segment\(s\) across 2 library\(ies\) in 1 artifact\(s\)/);
     assert.match(out, /at least 16384 \(2\*\*14\)/);
     assert.match(out, /abi\(s\) seen: arm64-v8a, x86_64/);
+  });
+
+  // 🔴 THE EXIT HANG, PINNED. Spawned exactly as CI runs it — plain `node <guard>`,
+  // no flags — the process that does the work must have started with
+  // --single-threaded, so no V8 worker thread runs a background compile or GC
+  // that Node's shutdown can deadlock on (nodejs/node#54918). Measured 2026-09-11
+  // on a CI-sized AAB under --stress-concurrent-allocation: 2 of 12 runs printed
+  // their full OK verdict and never exited. Deterministic, unlike the hang:
+  // delete the relaunch and this line says ON.
+  test('the working guard runs with V8 background tasks OFF, so its exit cannot deadlock', () => {
+    const dir = root();
+    const a = artifact(dir, 'app-release.aab', [GOOD_64]);
+    const { code, out } = run(dir, [a]);
+    assert.equal(code, 0, out);
+    assert.match(out, /V8 background tasks: OFF \(--single-threaded\)/);
   });
 
   test('an .apk lays its libraries at lib/<abi>/ with no module prefix, and is read the same way', () => {
@@ -307,14 +337,14 @@ describe('assert-elf-page-alignment', () => {
   test('COVERAGE LOST when no artifact is named', () => {
     const dir = root();
     const { code, out } = run(dir, []);
-    assert.equal(code, 1, 'an empty argument list must not read as "nothing to check"');
+    assert.equal(code, 2, 'an empty argument list must not read as "nothing to check"');
     assert.match(out, /COVERAGE LOST — no artifact was named/);
   });
 
   test('COVERAGE LOST when the named artifact does not exist', () => {
     const dir = root();
     const { code, out } = run(dir, [join(dir, 'never-built.aab')]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /does not exist/);
   });
@@ -323,7 +353,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root();
     const a = artifact(dir, 'app-release.aab', [{ name: 'base/manifest/AndroidManifest.xml', data: Buffer.from('<manifest/>') }]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1, 'zero native libraries must not read as "all libraries are aligned"');
+    assert.equal(code, 2, 'zero native libraries must not read as "all libraries are aligned"');
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /ZERO lib\/<abi>\/\*\.so entries/);
   });
@@ -332,7 +362,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root();
     const a = artifact(dir, 'app-release.aab', [{ name: 'base/lib/armeabi-v7a/libapp.so', data: elf32([16384]) }]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1, 'an all-32-bit artifact is broken, not passing');
+    assert.equal(code, 2, 'an all-32-bit artifact is broken, not passing');
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /ZERO 64-bit LOAD segments were compared/);
   });
@@ -342,7 +372,7 @@ describe('assert-elf-page-alignment', () => {
     const p = join(dir, 'app-release.aab');
     writeFileSync(p, Buffer.alloc(500, 0x00));
     const { code, out } = run(dir, [p]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /no zip end-of-central-directory record/);
   });
@@ -351,7 +381,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root();
     const a = artifact(dir, 'app-release.aab', [GOOD_64], { zip64Locator: true });
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /ZIP64/);
   });
@@ -361,7 +391,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root({ duty: 'absent' });
     const a = artifact(dir, 'app-release.aab', [GOOD_64]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /duty-matrix\.json does not exist/);
   });
@@ -370,7 +400,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root({ duty: 'no-row' });
     const a = artifact(dir, 'app-release.aab', [GOOD_64]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /declares no duty with id "play-16kb-page-size"/);
   });
@@ -379,7 +409,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root({ duty: 'no-number' });
     const a = artifact(dir, 'app-release.aab', [GOOD_64]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /no integer `enforced\.loadSegmentAlignAtLeast`/);
   });
@@ -388,7 +418,7 @@ describe('assert-elf-page-alignment', () => {
     const dir = root({ duty: 'no-source' });
     const a = artifact(dir, 'app-release.aab', [GOOD_64]);
     const { code, out } = run(dir, [a]);
-    assert.equal(code, 1, 'an uncited number must not be enforced');
+    assert.equal(code, 2, 'an uncited number must not be enforced');
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /with no `source\.url` \+ `source\.quote`/);
   });

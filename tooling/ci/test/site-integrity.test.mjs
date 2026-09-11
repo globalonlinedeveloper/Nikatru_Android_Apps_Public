@@ -34,7 +34,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 // The same function the guard and the generator both evaluate. [12]W-3a
 import { today } from '../../sites/lastmod.mjs';
 
@@ -1451,5 +1451,192 @@ describe('check-site-integrity · the new limbs cannot go vacuously quiet', () =
     const r = run(dir, { from: selfHosted(dir, { root: 'a' }) });
     assert.equal(r.code, 1);
     assert.match(r.out, /sites\/nikatru is no longer scanned for legal pages/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — THE APEX ROUTER (REVIEW-stores-2026-09-10 #4). https://nikatru.com/
+// subscriptiontracker/privacy — the URL sitemap.xml, llms.txt and support.html advertise and
+// a store reviewer opens — answered with the Flutter app shell, because the router claimed
+// the whole app prefix. Two suites: the guard limb that RUNS the router over a tree, and the
+// router's own behaviour driven directly.
+const MIDDLEWARE = resolve(CI_DIR, '..', '..', 'sites', 'nikatru', 'functions', '_middleware.js');
+const ROUTER_IMPORT = /^import\s+table\s+from\s+['"]\.\.\/app-routes\.json['"];?[ \t]*$/m;
+const ROUTES = [{ path: '/demo', origin: 'https://demo-origin.example.test' }];
+const NOTICE = '<!doctype html><html><head><meta name="robots" content="noindex"><title>Demo notice</title></head><body><h1>What Demo collects</h1></body></html>\n';
+
+/** Everything a deploy root needs for the router limb to run on it. */
+const routerFiles = ({ middleware = readFileSync(MIDDLEWARE, 'utf8'), docs = { 'sites/a/demo/notice.html': NOTICE }, links = ['/demo/notice'] } = {}) => ({
+  'sites/a/functions/_middleware.js': middleware,
+  'sites/a/app-routes.json': JSON.stringify(ROUTES),
+  'sites/a/support.html': `<html><head><meta name="robots" content="noindex"></head><body>${links.map((l) => `<a href="${l}">x</a>`).join('')}</body></html>\n`,
+  ...docs,
+});
+
+/** The router as it stood before 2026-09-11, reduced to the behaviour that shipped the
+ *  defect: the whole app prefix is proxied and the static site is never asked. */
+const PROXY_EVERYTHING = [
+  "import table from '../app-routes.json';",
+  'export async function onRequest({ request, next }) {',
+  '  const url = new URL(request.url);',
+  "  const segment = `/${url.pathname.split('/')[1] ?? ''}`;",
+  '  const row = table.find((r) => r.path === segment);',
+  '  if (!row) return next();',
+  '  return fetch(new Request(new URL(url.pathname.slice(segment.length), row.origin), request));',
+  '}',
+  '',
+].join('\n');
+
+describe('check-site-integrity · the apex router never answers a published document with the app', () => {
+  test('PASSES when the advertised document comes back as its own bytes, and COUNTS it', () => {
+    const r = run(build('router-ok', { extra: routerFiles() }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1 app-path document\(s\) served as their own bytes by the apex router, not the app shell, across 1 router root\(s\)/);
+  });
+
+  test('🔴 FAILS against the router that shipped the defect — the whole prefix proxied', () => {
+    const r = run(build('router-proxy-all', { extra: routerFiles({ middleware: PROXY_EVERYTHING }) }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /\/demo\/notice \(advertised by on disk, support\.html\) answers WITH THE APP/);
+  });
+
+  test('FAILS an advertised app-path URL with no document behind it', () => {
+    const r = run(build('router-missing', { extra: routerFiles({ links: ['/demo/notice', '/demo/terms'] }) }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /\/demo\/terms is advertised \(support\.html\) under the app path \/demo, and no static document exists there/);
+  });
+
+  test('FAILS a root with no 404.html — Pages would answer every app deep link with the home page', () => {
+    const dir = build('router-no-404', { extra: routerFiles() });
+    rmSync(join(dir, 'sites', 'a', '404.html'));
+    const r = run(dir);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /answered \/demo\/apex-router-control-deep-link WITHOUT asking the app/);
+    assert.match(r.out, /Add sites\/a\/404\.html/);
+  });
+
+  test('FAILS a static index.html under an app path — a directory form is always the app', () => {
+    const r = run(build('router-index', { extra: routerFiles({ docs: { 'sites/a/demo/notice.html': NOTICE, 'sites/a/demo/help/index.html': NOTICE } }) }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /demo\/help\/index\.html is a static index under the app path \/demo/);
+  });
+
+  test('FAILS when the router stops importing its table the way the limb loads it', () => {
+    const src = readFileSync(MIDDLEWARE, 'utf8').replace(ROUTER_IMPORT, "import table from '../routes.json';");
+    const r = run(build('router-import', { extra: routerFiles({ middleware: src }) }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no longer imports its route table/);
+  });
+});
+
+/** Load the REAL router with a table, the same one-line swap the guard makes. */
+async function loadRouter(table = ROUTES) {
+  const dir = mkdtempSync(join(ROOT, 'router-module-'));
+  const file = join(dir, 'router.mjs');
+  writeFileSync(file, readFileSync(MIDDLEWARE, 'utf8').replace(ROUTER_IMPORT, `const table = ${JSON.stringify(table)};`));
+  return import(pathToFileURL(file).href);
+}
+
+async function drive(router, pathname, { method = 'GET', assets = {}, nextThrows = false, fetchThrows = false } = {}) {
+  const calls = { next: 0, fetch: 0, fetchUrl: null };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (req) => {
+    calls.fetch++;
+    calls.fetchUrl = req.url;
+    if (fetchThrows) throw new Error('origin down');
+    return new Response('APP SHELL', { status: 200 });
+  };
+  try {
+    const res = await router.onRequest({
+      request: new Request(`https://nikatru.test${pathname}`, { method }),
+      next: async () => {
+        calls.next++;
+        if (nextThrows) throw new Error('asset stage down');
+        const a = assets[pathname];
+        return a
+          ? new Response(a.body ?? null, { status: a.status ?? 200, headers: a.headers ?? {} })
+          : new Response('NOT FOUND PAGE', { status: 404 });
+      },
+      env: {},
+    });
+    return { res, text: await res.text(), calls };
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+describe('sites/nikatru/functions/_middleware.js — a static document under an app path is served before the app', () => {
+  test('a document the static site HAS is served from it, and the origin is never asked', async () => {
+    const router = await loadRouter();
+    const { res, text, calls } = await drive(router, '/demo/privacy', { assets: { '/demo/privacy': { body: 'THE NOTICE' } } });
+    assert.equal(res.status, 200);
+    assert.equal(text, 'THE NOTICE');
+    assert.deepEqual([calls.next, calls.fetch], [1, 0]);
+  });
+
+  test('the app root is proxied WITHOUT asking the static site', async () => {
+    const router = await loadRouter();
+    const { text, calls } = await drive(router, '/demo/');
+    assert.equal(text, 'APP SHELL');
+    assert.deepEqual([calls.next, calls.fetch], [0, 1]);
+    assert.equal(calls.fetchUrl, 'https://demo-origin.example.test/');
+  });
+
+  test('an app deep link the static site does not have is proxied after one 404 lookup', async () => {
+    const router = await loadRouter();
+    const { text, calls } = await drive(router, '/demo/settings');
+    assert.equal(text, 'APP SHELL');
+    assert.deepEqual([calls.next, calls.fetch], [1, 1]);
+  });
+
+  test('an app ASSET goes straight to the origin — no lookup on the bytes the app loads', async () => {
+    const router = await loadRouter();
+    const { calls } = await drive(router, '/demo/main.dart.js', { assets: { '/demo/main.dart.js': { body: 'STATIC SHADOW' } } });
+    assert.deepEqual([calls.next, calls.fetch], [0, 1]);
+  });
+
+  test('a POST is never answered by the static site', async () => {
+    const router = await loadRouter();
+    const { calls } = await drive(router, '/demo/privacy', { method: 'POST', assets: { '/demo/privacy': { body: 'THE NOTICE' } } });
+    assert.deepEqual([calls.next, calls.fetch], [0, 1]);
+  });
+
+  test("`.html` relays the asset stage's own 308, so the extension form reaches the document too", async () => {
+    const router = await loadRouter();
+    const { res, calls } = await drive(router, '/demo/privacy.html', {
+      assets: { '/demo/privacy.html': { status: 308, headers: { location: '/demo/privacy' } } },
+    });
+    assert.equal(res.status, 308);
+    assert.equal(res.headers.get('location'), '/demo/privacy');
+    assert.equal(calls.fetch, 0);
+  });
+
+  test('a failing asset stage does not take the app down — the request is proxied', async () => {
+    const router = await loadRouter();
+    const { text } = await drive(router, '/demo/settings', { nextThrows: true });
+    assert.equal(text, 'APP SHELL');
+  });
+
+  test('a failing origin falls back to the static answer already in hand, not a 500', async () => {
+    const router = await loadRouter();
+    const { res, text, calls } = await drive(router, '/demo/settings', { fetchThrows: true });
+    assert.equal(res.status, 404);
+    assert.equal(text, 'NOT FOUND PAGE');
+    assert.equal(calls.next, 1);
+  });
+
+  test('the bare app path still 301s to the slashed form', async () => {
+    const router = await loadRouter();
+    const { res, calls } = await drive(router, '/demo');
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('location'), 'https://nikatru.test/demo/');
+    assert.deepEqual([calls.next, calls.fetch], [0, 0]);
+  });
+
+  test('a path outside every app is the static site, untouched', async () => {
+    const router = await loadRouter();
+    const { text, calls } = await drive(router, '/pricing');
+    assert.equal(text, 'NOT FOUND PAGE');
+    assert.deepEqual([calls.next, calls.fetch], [1, 0]);
   });
 });

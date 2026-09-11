@@ -6,7 +6,9 @@
 //                │
 //                ├─ first path segment in app-routes.json?
 //                │     no  → next()                    → sites/nikatru asset
-//                │     yes → fetch(row.origin + rest)  → that app's own Pages project
+//                │     yes → a document the static site HAS at this path?
+//                │             yes → that file (a per-app notice)   [since 2026-09-11]
+//                │             no  → fetch(row.origin + rest)  → that app's own Pages project
 //                │
 //                └─ /apps/subscriptiontracker, /pricing, /privacy, /legal/**  served as before
 //
@@ -140,8 +142,48 @@ const SECURITY_HEADERS = {
     "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
 };
 
+/** 🔴 A STATIC DOCUMENT UNDER AN APP PATH IS SERVED BEFORE THE APP IS ASKED.
+ *
+ *  ⏱ 2026-09-11 — REVIEW-stores-2026-09-10 #4. tooling/app-yaml/render-privacy.mjs
+ *  writes each app's privacy notice to `sites/nikatru/<id>/privacy.html`, and
+ *  sitemap.xml, llms.txt and support.html advertise it at `/<id>/privacy` — the
+ *  URL a store reviewer opens. This function claimed the WHOLE `/<id>/` prefix,
+ *  so that URL answered 200 with the Flutter app shell (measured live 2026-09-10
+ *  and again 2026-09-11: 11,336 B, `<base href="/subscriptiontracker/">`), and
+ *  the generated notice was served by nothing.
+ *
+ *  The rule is "the static site wins where it HAS a file", decided by ASKING the
+ *  asset stage rather than by a list of paths: a list is a second copy of what the
+ *  generator emits, and the next sibling document would be shadowed again the day
+ *  it appeared. `next()` and not `env.ASSETS.fetch`, because `_headers` is measured
+ *  to land on a `next()` response (the header of this file) — so the notice keeps
+ *  the static site's own CSP.
+ *
+ *  Only DOCUMENT-SHAPED requests are asked about: GET or HEAD, with a last segment
+ *  that has no extension or ends `.html`. The app's own bytes (`main.dart.js`,
+ *  `assets/…`, `canvaskit/…`) all carry an extension and go straight to the origin
+ *  with no extra lookup — and so do `/<id>/` and every directory form, because the
+ *  app shell is the app's. A static `index.html` under an app path could therefore
+ *  never be served, and tooling/ci/check-site-integrity.mjs fails one by name.
+ *
+ *  🔴 THIS DEPENDS ON `404.html` EXISTING AT THE SITE ROOT. Without it Pages serves
+ *  the project as a single-page app and answers EVERY unknown path 200 with
+ *  index.html — so every app deep link would be answered by the marketing home
+ *  page. check-site-integrity.mjs runs this function against the tree with that
+ *  rule modelled, and fails a root where an app deep link is not proxied. */
+function asksStaticFirst(request, url, segment) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  const rest = url.pathname.slice(segment.length);
+  const last = rest.slice(rest.lastIndexOf('/') + 1);
+  if (last === '') return false;
+  return !last.includes('.') || last.toLowerCase().endsWith('.html');
+}
+
 export async function onRequest(context) {
   const { request, next } = context;
+  // The static site's answer, when it was asked. Held OUTSIDE the try so a failing
+  // proxy falls back to the answer already in hand instead of a second `next()`.
+  let local = null;
   try {
     const url = new URL(request.url);
 
@@ -163,6 +205,20 @@ export async function onRequest(context) {
       return Response.redirect(`${url.origin}${segment}/${url.search}`, 301);
     }
 
+    if (asksStaticFirst(request, url, segment)) {
+      try {
+        local = await next();
+      } catch {
+        local = null; // the asset stage failing must not take the app path down with it
+      }
+      if (local && (local.ok || local.status === 304)) return local;
+      // Pages 308s `/x.html` to `/x` for a file that exists. Relay that hop for a
+      // `.html` request ONLY, so `/<id>/privacy.html` reaches the notice as well.
+      if (local && (local.status === 301 || local.status === 308) && url.pathname.toLowerCase().endsWith('.html')) {
+        return local;
+      }
+    }
+
     const rest = url.pathname.slice(segment.length);
     const target = new URL(rest + url.search, row.origin);
 
@@ -170,13 +226,16 @@ export async function onRequest(context) {
     // here — following it would hide an upstream redirect loop inside a single
     // apex response, and the browser is the right place to see the hop.
     const upstream = await fetch(new Request(target, request), { redirect: 'manual' });
+    // The static 404 that was asked for is not the answer; release its body.
+    local?.body?.cancel().catch(() => {});
     const out = new Response(upstream.body, upstream);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
       if (!out.headers.has(name)) out.headers.set(name, value);
     }
     return out;
   } catch {
-    // Every failure is the static site, never a 500 on the apex.
-    return next();
+    // Every failure is the static site, never a 500 on the apex — and when the
+    // static site was already asked, its answer IS that fallback.
+    return local ?? next();
   }
 }

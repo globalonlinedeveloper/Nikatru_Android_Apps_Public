@@ -433,6 +433,20 @@ if (pending > 0 && configured > 0) {
   prints.push(
     `PACKAGE IDENTITY NOT YET CONFIGURED — all ${pending} field(s) are ${SENTINEL}. Assigned by Partner Center after OWNER_QUEUE A-2 (Product → Product identity). The .msix BUILDS and is NOT SUBMITTABLE; that is the expected state, not a fault.`,
   );
+  // ⏱ 2026-09-11 — "NOT SUBMITTABLE" ABOVE WAS A SENTENCE, NOT A CHECK. With every field
+  // still the sentinel this branch only PRINTED, so `--submit` walked on to `msstore publish`
+  // under `identity_name: PARTNER-CENTER-PENDING` (REVIEW-stores-2026-09-10 #3). On the dry run
+  // the placeholder stays a print — it is owner work (A-2), not a defect. On a real submission
+  // it is a REFUSAL, raised here so it lands in the same problems block as the credential check
+  // and exits before any preflight that talks to GitHub or Microsoft. The phrase
+  // "PLACEHOLDER PACKAGE IDENTITY — --submit REFUSED" is read by
+  // tooling/ci/assert-store-identity.mjs, which runs this script with every credential blanked
+  // on every push to prove the refusal still stands.
+  if (SUBMIT) {
+    problems.push(
+      `PLACEHOLDER PACKAGE IDENTITY — --submit REFUSED: all ${pending} identity field(s) are still ${SENTINEL} in both ${REGISTER} and ${pubspecRel}. Microsoft binds a product to its Package/Identity/Name at the first upload; publishing under a placeholder is a package no Partner Center product owns. Copy the three values from Partner Center → Product → Product identity into packageIdentity AND msix_config (OWNER_QUEUE A-2), then submit.`,
+    );
+  }
 } else {
   ok(`package identity — ${configured} field(s), register and ${pubspecRel} agree`);
 }

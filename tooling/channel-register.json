@@ -1891,6 +1891,28 @@
         "asOf": "2026-08-05",
         "note": "COMPANY account created and SUBMITTED 2026-08-05 via storedeveloper.microsoft.com. Email ✅ and employment ✅ verified INSTANTLY (the sign-in domain matches the company domain — a Google Workspace identity, see nikatru/vendors/google.md); business verification under review, Microsoft quotes ~5 business days, follow-up armed 13 Aug. D-U-N-S auto-retrieved and validated with nothing uploaded and no document reviewed. ⚠️ THIS FIELD SAID \"none\" AND \"OWNER_QUEUE A-2 currently points at Individual\", AND BOTH WERE FALSE — A-2 stopped pointing at Individual on 2026-07-29 and the account was created as a COMPANY on 2026-08-05. The commit that fixed the very same stale claim in this row's `deferral.alsoBlockedBy` (5cefd88, 2026-08-05) did not touch this field, so one fact lived in two fields of one object and only one was corrected. That is the duplication failure the vendor-file restructure exists to remove, reproduced inside a single JSON row. The one-way door is REAL and retained as the reason the Company choice was deliberate: Microsoft does not support converting Individual to Company, and the only remedy is a second publisher account — exactly the related-account posture [10]D-6 and L21 exist to avoid. The account record is nikatru/vendors/microsoft.md."
       },
+      "identity": {
+        "_why": [
+          "[10]D-3 for WINDOWS. Until 2026-09-11 this row declared no `identity` block, and",
+          "tooling/ci/assert-store-identity.mjs ranges over the rows that declare one — so the channel most likely",
+          "to upload under a placeholder was the one channel that guard never saw (REVIEW-stores-2026-09-10 #3).",
+          "",
+          "⚠️ THE EXPECTED VALUE IS NOT com.nikatru.<slug>. An MSIX Package/Identity/Name is ASSIGNED by Partner",
+          "Center and cannot be derived from the slug. Its one declaration is `packageIdentity.identityName`",
+          "below; `expectedFrom` NAMES that field instead of copying its value, because two copies of an",
+          "identity is how the wrong one ships ([pipeline F-2]).",
+          "",
+          "🔴 `placeholderValue` IS A PLACEHOLDER, NOT AN IDENTITY — it must equal",
+          "`packageIdentity.notYetConfiguredSentinel`. While apps/{app}/pubspec.yaml carries it, the guard PRINTS",
+          "the owner-gated gap (OWNER_QUEUE A-2) AND runs `submission.script --submit` with no credentials in",
+          "its environment to prove the submitter REFUSES the placeholder, so it cannot reach `msstore publish`.",
+          "This row turning `served: true` while the placeholder is still packaged is a FAILURE."
+        ],
+        "kind": "msix-identity-name",
+        "declaredIn": "apps/{app}/pubspec.yaml",
+        "expectedFrom": "packageIdentity.identityName",
+        "placeholderValue": "PARTNER-CENTER-PENDING"
+      },
       "packageIdentity": {
         "_why": [
           "🔴 THE SINGLE DECLARATION OF THE MSIX PACKAGE IDENTITY — this row's field, per the note",
