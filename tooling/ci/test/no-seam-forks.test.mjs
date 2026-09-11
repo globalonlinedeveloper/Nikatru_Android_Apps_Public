@@ -1096,3 +1096,44 @@ describe('the landed-behaviour limb', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — MoneyFormatter HAS ONE IMPLEMENTATION, IN nikatru_core.
+// The app and the brick each carried a copy and this guard's LANDED_PAIRS row
+// pinned only the promo call site, so deleting or editing the brick copy left
+// everything green. The class moved to packages/core beside Money; both old files
+// are one re-export. These cases read the REAL tree.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MoneyFormatter has ONE implementation, in nikatru_core', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  const HOME = 'packages/core/lib/src/money/money_format.dart';
+  const SHIMS = [
+    'apps/subscriptiontracker/lib/core/format/money_format.dart',
+    'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/core/format/money_format.dart',
+  ];
+  const SKIP = /(^|[\\/])(\.dart_tool|build|\.git|node_modules)([\\/]|$)/;
+  const dartUnder = (rel) =>
+    readdirSync(join(REPO, rel), { recursive: true })
+      .map((p) => String(p))
+      .filter((p) => p.endsWith('.dart') && !SKIP.test(p))
+      .map((p) => join(rel, p).replaceAll('\\', '/'));
+  const declares = (text) => /^\s*(?:(?:abstract|base|final|sealed|interface)\s+)*class\s+MoneyFormatter\b/m.test(text);
+
+  test('exactly one class MoneyFormatter across packages/, apps/ and the brick — in nikatru_core', () => {
+    const found = [...dartUnder('packages'), ...dartUnder('apps'), ...dartUnder('tooling/bricks')].filter((rel) =>
+      declares(readFileSync(join(REPO, rel), 'utf8')),
+    );
+    assert.deepEqual(found, [HOME]);
+  });
+
+  test('the app and the brick carry the SAME re-export and no implementation', () => {
+    const [appShim, brickShim] = SHIMS.map((rel) => readFileSync(join(REPO, rel), 'utf8'));
+    assert.equal(brickShim, appShim, 'the brick and the app must re-export identically');
+    assert.match(appShim, /export 'package:nikatru_core\/nikatru_core\.dart'\s+show Money, MoneyBag, MoneyFormatter;/);
+    assert.doesNotMatch(appShim, /\bNumberFormat\b|^\s*import\s/m, 'a re-export imports nothing and formats nothing');
+  });
+
+  test('nikatru_core exports the implementation', () => {
+    const barrel = readFileSync(join(REPO, 'packages/core/lib/nikatru_core.dart'), 'utf8');
+    assert.match(barrel, /^export 'src\/money\/money_format\.dart';$/m);
+  });
+});

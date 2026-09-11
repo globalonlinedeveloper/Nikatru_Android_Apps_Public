@@ -20,7 +20,7 @@
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged. ⏱ THE FIGURES IN THIS NOTE MOVED ON 2026-09-08 AND ARE CORRECTED RATHER THAN REWRITTEN: the Worker half is now 14 files and 1,021 lines, because the template gained src/lib/error-sink.ts — a stamped backend had NO crash sink at all and failed tooling/ci/assert-worker-error-sink.mjs on limbs 2, 3 and 5 at its first CI run. The guard PRINTS both figures per root on every run, which is the number to read; this sentence is prose and prose rots.",
   "totals": {
     "files": 119,
-    "lines": 16996,
+    "lines": 16909,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -83,9 +83,11 @@
     },
     {
       "path": "lib/core/format/money_format.dart",
-      "lines": 94,
-      "verdict": "STAYS",
-      "why": "A COPY of apps/subscriptiontracker/lib/core/format/money_format.dart, added by the brick port (REVIEW-app-2026-09-10 row 13, review item 5). STAYS: the template's lib/features/home/home_screen.dart imports it, so deleting it breaks the stamp's compile. It cannot MOVE to a package yet: packages/design_system (which owns intl) must stay domain-free (assert-package-boundaries rule B) and Money lives in nikatru_core, so a shared home needs a boundary decision (handed off). MEASURED 2026-09-11: deleting it leaves assert-no-seam-forks at exit 0, because LANDED_PAIRS pins the call site (promoCardPrice(MoneyFormatter(...)), not this body, and no stamped-app test exercises it; only this row and the compile notice the file."
+      "lines": 7,
+      "verdict": "MOVES",
+      "why": "⏱ 2026-09-11 — was a 94-line COPY of apps/subscriptiontracker/lib/core/format/money_format.dart held equal by nothing (deleting it left assert-no-seam-forks at exit 0). MoneyFormatter now has ONE implementation in nikatru_core, beside Money; this file and the app's are the same 7-line re-export, kept so the call sites' import path does not move. Measured: 94 -> 7 brick lines. tooling/ci/test/no-seam-forks.test.mjs refuses a second implementation anywhere under apps/ or the brick.",
+      "target": "packages/core/lib/src/money/money_format.dart",
+      "callSiteDelta": -87
     },    {
       "path": "lib/core/router.dart",
       "lines": 552,

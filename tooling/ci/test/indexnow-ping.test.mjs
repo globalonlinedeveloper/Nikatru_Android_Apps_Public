@@ -133,7 +133,8 @@ describe('the ping refuses everything it cannot verify', () => {
     assert.equal(code, 1);
     assert.match(out, /INDEXNOW KEY ABSENT/);
     assert.match(out, /OWNER_QUEUE A-11/);
-    assert.match(out, /https:\/\/nikatru\.com\//);
+    // The waiting-URL line exactly as die() prints it, so a lookalike host cannot satisfy it (CodeQL #64).
+    assert.match(out, /^ {4}Changed URLs that are waiting: https:\/\/nikatru\.com\/$/m);
   });
 
   test('🔴 a key file that does not contain its own key exits 1 — it fails at the far end otherwise', () => {
