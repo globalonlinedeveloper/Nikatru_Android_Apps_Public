@@ -104,9 +104,14 @@ if (args.bool('print')) {
 /* ---------------- splice ---------------- */
 const fileRel = typeof args.get('file') === 'string' ? args.get('file') : 'README.md';
 const fileAbs = path.join(root, fileRel);
-if (!fs.existsSync(fileAbs)) die(fileRel + ' does not exist (looked in ' + root + ').');
-
-const before = readText(fileAbs);
+/* READ ONCE (CodeQL #71): the rewrite at the end is decided on these bytes, not on a separate
+   existence check of the path. ENOENT/ENOTDIR are "does not exist"; any other failure throws. */
+let before;
+try { before = readText(fileAbs); }
+catch (e) {
+  if (e.code === 'ENOENT' || e.code === 'ENOTDIR') die(fileRel + ' does not exist (looked in ' + root + ').');
+  throw e;
+}
 const iStart = before.indexOf(START);
 const iEnd = before.indexOf(END);
 

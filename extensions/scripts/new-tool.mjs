@@ -278,7 +278,9 @@ r.pass('copied ' + written + ' file(s) from ' + templateRel);
    answerable at all. skeletonVersion is NEVER touched — it records the version
    copied FROM, which is the entire point. */
 const skeletonJsonAbs = path.join(destAbs, 'skeleton.json');
-if (fs.existsSync(skeletonJsonAbs)) {
+/* The destination was empty and was filled from sourceFiles alone, so "the template had it" IS
+   "it is here" — asked of that list, not of the disk a second time before the write (CodeQL #72). */
+if (sourceFiles.includes('skeleton.json')) {
   const p = readJson(skeletonJsonAbs);
   if (p.value) {
     p.value.tool = dirName;
@@ -292,7 +294,8 @@ if (fs.existsSync(skeletonJsonAbs)) {
 /* TEMPLATE.md §1: the identity is the FIRST edit, and the slug is the signal
    the tool's own test tier reads to decide whether it is still the skeleton. */
 const identityAbs = path.join(destAbs, 'publish', 'identity.json');
-if (fs.existsSync(identityAbs)) {
+/* Answered from the copied list, as skeleton.json is above (CodeQL #73). */
+if (sourceFiles.includes('publish/identity.json')) {
   const p = readJson(identityAbs);
   if (p.value) {
     p.value.slug = id;
@@ -315,7 +318,8 @@ const toolJsonAbs = path.join(destAbs, 'tool.json');
 fs.writeFileSync(toolJsonAbs, JSON.stringify(toolJson, null, 2) + '\n', 'utf8');
 r.pass('wrote ' + relDir + '/tool.json', 'status "wip", ' + Object.keys(permissions).length + ' permission(s) with EMPTY justifications');
 
-if (!fs.existsSync(path.join(destAbs, 'CHANGELOG.md'))) {
+/* The same shape with no alert of its own: answered from the copied list (the CodeQL #72 class). */
+if (!sourceFiles.includes('CHANGELOG.md')) {
   const v = templateManifest.version || '0.0.1';
   fs.writeFileSync(path.join(destAbs, 'CHANGELOG.md'),
     '# Changelog\n\nAll notable changes to ' + String(name).trim() + '.\n' +
