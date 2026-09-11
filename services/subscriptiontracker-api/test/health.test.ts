@@ -306,8 +306,8 @@ describe('🔴 THE MONITOR GAP THIS CHANGE CANNOT CLOSE FROM HERE', () => {
     // COVERAGE SELF-CHECK: a register that stopped parsing would make every
     // assertion below hold vacuously.
     expect(hosts.length).toBeGreaterThan(0);
-    const mine = hosts.find((h) => h.hostname === 'subscriptiontracker.api.nikatru.com');
-    expect(mine, 'subscriptiontracker.api.nikatru.com is no longer in the monitor register').toBeTruthy();
+    const mine = hosts.find((h) => h.hostname === 'subscriptiontracker-api.nikatru.com');
+    expect(mine, 'subscriptiontracker-api.nikatru.com is no longer in the monitor register').toBeTruthy();
     const monitor = mine?.monitor ?? {};
     expect(monitor.path).toBe('/v1/health');
     expect(monitor.expectedStatus).toBe(200);
