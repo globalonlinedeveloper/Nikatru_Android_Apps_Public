@@ -1,12 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
-// The SDK's own HTTP transport and rate limiter. Neither is exported from
-// package:sentry/sentry.dart, and `useHttpTransportOnWeb` below explains why
-// the web build needs them. Pinned by pubspec.lock; an SDK upgrade that moves
-// them fails to COMPILE, loudly, rather than dropping events quietly.
-// ignore: implementation_imports
-import 'package:sentry/src/transport/http_transport.dart';
-// ignore: implementation_imports
-import 'package:sentry/src/transport/rate_limiter.dart';
+import 'package:http/http.dart' as http;
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'noop_telemetry_client.dart';
@@ -14,6 +7,7 @@ import 'pii_scrubber.dart';
 import 'sentry_telemetry_client.dart';
 import 'telemetry_client.dart';
 import 'telemetry_config.dart';
+import 'web_envelope_transport.dart';
 
 /// One-shot initializer wiring [TelemetryConfig], Sentry and the PII
 /// scrubber together.
@@ -54,6 +48,7 @@ class TelemetryBootstrap {
   static FlutterOptionsConfiguration optionsCallback(
     TelemetryConfig config, {
     bool isWeb = kIsWeb,
+    http.Client? webClient,
   }) {
     return (options) {
       options.dsn = config.dsn;
@@ -90,7 +85,7 @@ class TelemetryBootstrap {
       options.beforeSend = (event, hint) => scrubEvent(event);
       // LAST, because the transport reads `options.dsn` when it is built.
       if (isWeb) {
-        useHttpTransportOnWeb(options);
+        useHttpTransportOnWeb(options, client: webClient);
       }
     };
   }
@@ -107,10 +102,11 @@ class TelemetryBootstrap {
   /// `JavascriptTransport`, which hands envelopes to a JS client that is only
   /// created by the skipped integration — no script, no events, no error. This
   /// callback runs after that assignment, so replacing the transport here is
-  /// what keeps crash reports flowing: the same `HttpTransport` `SentryClient`
-  /// installs on every non-native platform, POSTing to the DSN host (already in
-  /// the app CSP `connect-src`; GlitchTip answers the CORS preflight for
-  /// `x-sentry-auth`, measured 2026-09-12).
+  /// what keeps crash reports flowing: [WebEnvelopeTransport], which POSTs to
+  /// the DSN host (already in the app CSP `connect-src`; GlitchTip answers the
+  /// CORS preflight for `x-sentry-auth`, measured 2026-09-12) using only the
+  /// SDK's public API — the SDK's own `HttpTransport` is not exported, and
+  /// reaching it would need a suppression in a package every app links.
   ///
   /// What the web build gives up, stated rather than implied: the browser SDK's
   /// window-level JS error handlers, and debug-id images on events. Dart errors
@@ -118,9 +114,12 @@ class TelemetryBootstrap {
   /// GlitchTip resolves web source maps by (release, file name) as well as by
   /// debug id (tooling/ops/upload-web-sourcemaps.mjs header).
   @visibleForTesting
-  static void useHttpTransportOnWeb(SentryFlutterOptions options) {
+  static void useHttpTransportOnWeb(
+    SentryFlutterOptions options, {
+    http.Client? client,
+  }) {
     options.autoInitializeNativeSdk = false;
-    options.transport = HttpTransport(options, RateLimiter(options));
+    options.transport = WebEnvelopeTransport(options, client: client);
   }
 
   /// Scrubs PII from every user-influenced field of [event]: the message and

@@ -25,9 +25,8 @@ dependencies:
   # sentry_flutter 9.x requires Dart >=3.5.0 / Flutter >=3.24.0. Data classes are
   # mutable in 9.x (beforeSend mutates in place).
   sentry_flutter: ^9.26.0
-  # Direct, not only via sentry_flutter: the web build uses the SDK's own
-  # HttpTransport (lib/src/telemetry_bootstrap.dart, useHttpTransportOnWeb).
-  sentry: ^9.26.0
+  # The web build posts envelopes itself (lib/src/web_envelope_transport.dart).
+  http: ^1.2.0
 
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.
@@ -35,6 +34,4 @@ dev_dependencies:
     path: ../analysis
   flutter_test:
     sdk: flutter
-  # MockClient, to assert what the web transport sends without a network.
-  http: ^1.2.0
   flutter_lints: ^6.0.0
