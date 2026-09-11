@@ -161,7 +161,7 @@
 //   node tooling/ci/assert-mutation-proofs.mjs [repoRoot]
 //   node tooling/ci/assert-mutation-proofs.mjs [repoRoot] --execute [--only <row name>]
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, openSync, closeSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, openSync, closeSync, mkdtempSync, rmSync, fstatSync, readSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -522,22 +522,48 @@ const POSIX = process.platform !== 'win32';
 const DEFAULT_TEST_TIMEOUT_MS = 20 * 60 * 1000;
 const testTimeoutMs = () => Math.max(1_000, Number(process.env.MUTATION_TEST_TIMEOUT_MS ?? DEFAULT_TEST_TIMEOUT_MS) || DEFAULT_TEST_TIMEOUT_MS);
 
+/** Everything written to `fd`, read back THROUGH THE SAME DESCRIPTOR from byte 0.
+ *  ⏱ 2026-09-11 — not by re-opening the path (CodeQL js/file-system-race on #655:
+ *  the file may change between the open and a second open), and not with
+ *  `readFileSync(fd)`, which reads from the CURRENT position: the child's inherited
+ *  handle shares that position and leaves it at the end, so it would read nothing. */
+function readWholeFd(fd) {
+  const size = fstatSync(fd).size;
+  const buf = Buffer.alloc(size);
+  let off = 0;
+  while (off < size) {
+    const n = readSync(fd, buf, off, size - off, off);
+    if (n === 0) break;
+    off += n;
+  }
+  return buf.toString('utf8', 0, off);
+}
+
+/** A test path the harness will hand to a shell: relative, under the app, a .dart
+ *  file, and nothing a shell could read as syntax. It is DERIVED from the tree
+ *  (testFileFor), so anything else is a tree this harness does not understand. */
+const SAFE_TEST_REL = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.dart$/;
+
 function runTest(appDir, testRel, label) {
   const started = Date.now();
   const timeoutMs = testTimeoutMs();
+  if (!SAFE_TEST_REL.test(testRel) || testRel.includes('..')) {
+    console.error(`     ${label} REFUSED — ${JSON.stringify(testRel)} is not a plain relative .dart path`);
+    return { status: null, out: '', secs: 0, timedOut: false, timeoutMs, error: new Error(`unsafe test path ${JSON.stringify(testRel)}`) };
+  }
   const logDir = mkdtempSync(join(tmpdir(), 'nikatru-mutproof-run-'));
-  const logPath = join(logDir, 'flutter-test.log');
-  const fd = openSync(logPath, 'w');
+  const fd = openSync(join(logDir, 'flutter-test.log'), 'w+');
   let res;
+  let out;
   try {
     const opts = { cwd: join(ROOT, appDir), stdio: ['ignore', fd, fd], timeout: timeoutMs, killSignal: 'SIGKILL', detached: POSIX };
     res = POSIX ? spawnSync('flutter', ['test', testRel], opts) : spawnSync('cmd.exe', ['/c', 'flutter', 'test', testRel], opts);
+    out = readWholeFd(fd);
   } finally {
     closeSync(fd);
+    rmSync(logDir, { recursive: true, force: true });
   }
   const survivors = POSIX && res.pid ? reapProcessGroup(res.pid) : [];
-  const out = readFileSync(logPath, 'utf8');
-  rmSync(logDir, { recursive: true, force: true });
   const timedOut = res.error?.code === 'ETIMEDOUT';
   const secs = Math.round((Date.now() - started) / 1000);
   console.error(
