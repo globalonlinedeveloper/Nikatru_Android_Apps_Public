@@ -348,6 +348,8 @@ jobs:
           sudo mv "$built" "$collected"
           sudo chown "$(id -u):$(id -g)" "$collected"
           ls -l "$collected"
+      # why: CONFIRM is the TYPED word, passed through -- a literal `--confirm` here made the
+      # script's own confirm check a tautology. Same shape as submit-play.yml.
       - name: Upload to the Snap Store
         id: upload
         env:
@@ -355,9 +357,10 @@ jobs:
           SNAPCRAFT_STORE_CREDENTIALS_EXPIRES: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS_EXPIRES }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          CONFIRM: ${{ inputs.confirm }}
         run: >
           node tooling/release/submit-snap.mjs --submit --app subscriptiontracker
-          --confirm SUBMIT-TO-SNAP-STORE
+          --confirm "$CONFIRM"
       - name: Record the submission in the [10]D-9 ledger
         if: always() && steps.upload.outcome == 'success'
         env:

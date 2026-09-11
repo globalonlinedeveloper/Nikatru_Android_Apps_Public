@@ -9,7 +9,9 @@
 //     exercised against a fixture register rather than against the live one,
 //     which today would only ever produce `pending`.
 //   · tooling/ci/assert-publish-steps-guarded.mjs — the check that every
-//     publishing surface in a release job carries `inputs.dry_run != true`.
+//     publishing surface in a release job carries `inputs.dry_run != true`
+//     (limb 1), and that every STORE publish in every workflow waits for the
+//     owner's typed dispatch word (limb 2, PART 3).
 //
 // 🔴 EVERY MUTATION HERE HAS A GREEN CONTROL FIRST. A red that is red for the
 // wrong reason is the failure mode these cases exist to avoid: `shell-16`
@@ -21,7 +23,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, cpSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -242,13 +244,13 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       ...filler(),
       { name: 'publish', if: "github.event_name == 'push' && inputs.dry_run != true", run: 'gh release create x' },
     ]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 0, out);
   });
 
   test('an UNGUARDED publishing step FAILS', () => {
     const root = workflowRoot([...EXEMPT, ...filler(), { name: 'publish', run: 'gh release create x' }]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, out);
     assert.match(out, /UNGUARDED {2}publishing surface/);
   });
@@ -259,14 +261,14 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       ...filler(),
       { name: 'publish', if: 'inputs.dry_run != true || true', run: 'gh release create x' },
     ]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, out);
     assert.match(out, /carries a \|\|/);
   });
 
   test('an unguarded THIRD-PARTY action is a surface too', () => {
     const root = workflowRoot([...EXEMPT, ...filler(), { name: 'evil', uses: 'someone/else@ccccccc' }, { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' }]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, out);
     assert.match(out, /third-party action {2}someone\/else/);
   });
@@ -274,7 +276,7 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
   test('each of the three new store scripts is recognised as a publishing surface', () => {
     for (const script of ['publish-amo.mjs', 'publish-cws.mjs', 'publish-edge.mjs']) {
       const root = workflowRoot([...EXEMPT, ...filler(), { name: `submit via ${script}`, run: `node scripts/${script} --tool fullshot` }]);
-      const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+      const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
       assert.equal(code, 1, `${script} was not graded as a publishing surface\n${out}`);
       assert.match(out, /UNGUARDED {2}publishing surface/);
     }
@@ -282,38 +284,39 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
 
   test('the arming PREFLIGHT is deliberately NOT a publishing surface — a rehearsal must be able to run it', () => {
     const root = workflowRoot([...EXEMPT, ...filler(), { name: 'preflight', run: 'node scripts/publish-arming.mjs --channel amo' }, { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' }]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 0, out);
     assert.match(out, /1 publishing-surface step\(s\)/);
   });
 
   test('ZERO publishing surfaces is NOT a pass', () => {
     const root = workflowRoot([...EXEMPT, ...filler()]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
-    assert.equal(code, 1, out);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
+    assert.equal(code, 2, out);
+    assert.match(out, /COVERAGE LOST/);
     assert.match(out, /NO publishing surface graded at all/);
     assert.match(out, /ZERO IS NOT A PASS/);
   });
 
   test('a COLLAPSED region is COVERAGE LOST, not a clean sweep', () => {
     const root = workflowRoot([{ name: 'only one', if: 'inputs.dry_run != true', run: 'gh release create x' }]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
-    assert.equal(code, 1, out);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /step boundaries and the floor is/);
   });
 
   test('a job that is not there is COVERAGE LOST — the job IS the region', () => {
     const root = workflowRoot([...EXEMPT, ...filler(), { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' }]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'nosuchjob']);
-    assert.equal(code, 1, out);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'nosuchjob', '--limb', 'dry-run']);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /declares no job "nosuchjob"/);
   });
 
   test('a workflow that is not there is COVERAGE LOST', () => {
-    const { code, out } = runGuard(['--repo-root', TMP, '--workflow', '.github/workflows/absent.yml', '--job', 'release']);
-    assert.equal(code, 1, out);
+    const { code, out } = runGuard(['--repo-root', TMP, '--workflow', '.github/workflows/absent.yml', '--job', 'release', '--limb', 'dry-run']);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
   });
 
@@ -323,7 +326,7 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       ...filler(),
       { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' },
     ]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, out);
     assert.match(out, /actions\/setup-node.*exemption list/s);
   });
@@ -348,7 +351,7 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       [...EXEMPT, ...filler(), { name: 'submit to Opera GX', run: 'node scripts/publish-operagx.mjs --tool fullshot' }],
       { scripts },
     );
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, `a declared fourth store was not graded at all:\n${out}`);
     assert.match(out, /UNGUARDED {2}publishing surface/);
     assert.match(out, /publish-operagx\.mjs/);
@@ -365,7 +368,7 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       [...EXEMPT, ...filler(), { name: 'submit to Opera GX', if: 'inputs.dry_run != true', run: 'node scripts/publish-operagx.mjs --tool fullshot' }],
       { scripts },
     );
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 0, out);
     assert.match(out, /1 publishing-surface step\(s\)/);
   });
@@ -377,15 +380,15 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
       { name: 'submit to Opera GX', if: 'inputs.dry_run != true', run: 'node scripts/publish-operagx.mjs --tool fullshot' },
       { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' },
     ]);
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
     assert.equal(code, 1, `an undeclared publish script passed unnoticed:\n${out}`);
     assert.match(out, /UNDECLARED publish script {2}publish-operagx\.mjs/);
   });
 
   test('a register that declares NO publishScript for this lane is COVERAGE LOST, never "nothing to grade"', () => {
     const root = workflowRoot([...EXEMPT, ...filler(), { name: 'publish', if: 'inputs.dry_run != true', run: 'gh release create x' }], { scripts: [] });
-    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release']);
-    assert.equal(code, 1, out);
+    const { code, out } = runGuard(['--repo-root', root, '--workflow', '.github/workflows/fixture.yml', '--job', 'release', '--limb', 'dry-run']);
+    assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /declares no channel with `publishScript`/);
   });
@@ -407,5 +410,201 @@ describe('assert-publish-steps-guarded — the region is the job, and zero is no
     const yml = readFileSync(join(REPO, '.github', 'workflows', 'extensions.yml'), 'utf8');
     assert.ok(!yml.includes('>>> RELEASE LANE >>>'), 'a comment sentinel is back; the region must be the job');
     assert.match(yml, /assert-publish-steps-guarded\.mjs/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PART 3 — assert-publish-steps-guarded, LIMB 2: the owner's word
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 MEASURED 2026-09-11 on origin/main d9d3579e: a TAG PUSH reached the Chrome Web
+// Store, Edge Add-ons and Firefox AMO submit steps with no typed word, and the Snap
+// and Windows lanes passed --confirm as a literal. Limb 1 graded all three extension
+// steps GUARDED, correctly — it asks a different question. Every mutation below
+// starts from a COPY OF THE REAL TREE, after a green control on the unmutated copy,
+// so each red is about its one edit and not about the copy.
+
+/** A copy of everything limb 2 reads: every workflow, the register, and the scripts
+ *  whose text the lane-gate property reads. */
+function realCopy(mutate = () => {}) {
+  const root = join(TMP, `owner${seq++}`);
+  cpSync(join(REPO, '.github', 'workflows'), join(root, '.github', 'workflows'), { recursive: true });
+  cpSync(join(REPO, 'tooling', 'channel-register.json'), join(root, 'tooling', 'channel-register.json'));
+  for (const f of readdirSync(join(REPO, 'tooling', 'release')).filter((n) => /^submit-.*[.]mjs$/.test(n))) {
+    cpSync(join(REPO, 'tooling', 'release', f), join(root, 'tooling', 'release', f));
+  }
+  cpSync(join(REPO, 'extensions', 'scripts'), join(root, 'extensions', 'scripts'), { recursive: true });
+  mutate(root);
+  return root;
+}
+/** Replace an anchor that MUST be present — a mutation whose anchor moved would
+ *  otherwise be a green control wearing a mutation's name. */
+const mutateFile = (root, rel, from, to) => {
+  const p = join(root, rel);
+  const text = readFileSync(p, 'utf8');
+  assert.ok(text.includes(from), `the mutation anchor is not in ${rel}: ${from}`);
+  writeFileSync(p, text.split(from).join(to));
+};
+const ownerWord = (root, limb = 'owner-word') => runGuard(['--repo-root', root, '--limb', limb]);
+const EXT = '.github/workflows/extensions.yml';
+const EDGE_IF = "github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true && inputs.confirm == 'SUBMIT-TO-EDGE-ADDONS'";
+
+describe("assert-publish-steps-guarded limb 2 — a store publish waits for the owner's typed word", () => {
+  test('GREEN CONTROL: the real tree grades at least six store publish steps, every one owner-gated', () => {
+    const { code, out } = runGuard([]);
+    assert.equal(code, 0, out);
+    const m = out.match(/owner-word: (\d+) store publish step\(s\)/);
+    assert.ok(m !== null, out);
+    assert.ok(Number(m[1]) >= 6, `expected AMO, Chrome, Edge, Play, Snap and Windows at least, read ${m[1]}\n${out}`);
+    for (const lane of ['extensions.yml', 'submit-play.yml', 'submit-snap.yml', 'submit-windows-store.yml']) {
+      assert.match(out, new RegExp(`OWNER-WORD {2}[.]github/workflows/${lane.split('.').join('[.]')}`), `${lane} was not graded\n${out}`);
+    }
+    // Snap's lane gate is its script's own; a NOTE for it would mean (d) stopped reading scripts.
+    assert.doesNotMatch(out, /NOTE {2}[.]github\/workflows\/submit-snap[.]yml/);
+  });
+
+  test('GREEN CONTROL: an unmutated COPY of the tree passes, so every red below is its one edit', () => {
+    const { code, out } = ownerWord(realCopy());
+    assert.equal(code, 0, out);
+  });
+
+  test("(a) a publish condition that names the push event is REACHABLE FROM PUSH", () => {
+    const root = realCopy((r) => mutateFile(r, EXT, EDGE_IF, EDGE_IF.replace("'workflow_dispatch'", "'push'")));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /NOT OWNER-GATED {2}[.]github\/workflows\/extensions[.]yml:\d+ job "release" step "Submit to Microsoft Edge Add-ons"/);
+    assert.match(out, /\(a\) REACHABLE FROM PUSH/);
+    assert.match(out, /\(a\) NAMES THE PUSH EVENT/);
+  });
+
+  test('THE MEASURED DEFECT: the old tag-push condition fails limb 2 — and limb 1 alone still calls it guarded', () => {
+    const root = realCopy((r) => mutateFile(r, EXT, EDGE_IF, "github.event_name == 'push' && inputs.dry_run != true"));
+    const two = ownerWord(root);
+    assert.equal(two.code, 1, two.out);
+    assert.match(two.out, /\(a\) REACHABLE FROM PUSH/);
+    assert.match(two.out, /\(b\) NO TYPED OWNER WORD/);
+    const one = ownerWord(root, 'dry-run');
+    assert.equal(one.code, 0, `limb 1 was expected to pass this shape — it is the reason limb 2 exists\n${one.out}`);
+  });
+
+  test('(c) snap handed a LITERAL instead of ${{ inputs.confirm }} is refused', () => {
+    const root = realCopy((r) => mutateFile(r, '.github/workflows/submit-snap.yml', 'CONFIRM: ${{ inputs.confirm }}', 'CONFIRM: SUBMIT-TO-SNAP-STORE'));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /NOT OWNER-GATED {2}[.]github\/workflows\/submit-snap[.]yml/);
+    assert.match(out, /\(c\) THE WORD IS NOT HANDED OVER FROM inputs/);
+  });
+
+  test('(c) a literal --confirm is refused — the tautology submit-snap.yml shipped', () => {
+    const root = realCopy((r) => mutateFile(r, '.github/workflows/submit-snap.yml', '--confirm "$CONFIRM"', '--confirm SUBMIT-TO-SNAP-STORE'));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /\(c\) LITERAL CONFIRM — --confirm SUBMIT-TO-SNAP-STORE/);
+  });
+
+  test('(d) the Windows lane with its lane gate removed, and a script with none, is refused', () => {
+    const root = realCopy((r) => {
+      const rel = join(r, '.github', 'workflows', 'submit-windows-store.yml');
+      const lines = readFileSync(rel, 'utf8').split('\n');
+      const at = lines.findIndex((l) => l.includes('$env:GITHUB_ACTIONS -ne'));
+      assert.ok(at !== -1, 'the Windows lane gate is not in submit-windows-store.yml');
+      let end = at;
+      while (lines[end].trim() !== '}') end++;
+      lines.splice(at, end - at + 1);
+      writeFileSync(rel, lines.join('\n'));
+      // A stub without the gate, so this case stays about the YAML the day the script gains its own.
+      writeFileSync(join(r, 'tooling', 'release', 'submit-windows-store.mjs'), '// a submission script with no lane gate\n');
+    });
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /NOT OWNER-GATED {2}[.]github\/workflows\/submit-windows-store[.]yml/);
+    assert.match(out, /\(d\) NO LANE GATE/);
+  });
+
+  test('a BRAND-NEW store publish step with none of the properties is refused on all four', () => {
+    const root = realCopy((r) =>
+      write(
+        r,
+        '.github/workflows/sneak-publish.yml',
+        [
+          'name: Sneak publish',
+          'on:',
+          '  push:',
+          "    tags: ['*']",
+          'permissions:',
+          '  contents: read',
+          'jobs:',
+          '  ship:',
+          '    runs-on: ubuntu-24.04',
+          '    timeout-minutes: 10',
+          '    steps:',
+          '      - name: Upload the snap',
+          '        run: snapcraft upload --release=stable app.snap',
+          '',
+        ].join('\n'),
+      ),
+    );
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /NOT OWNER-GATED {2}[.]github\/workflows\/sneak-publish[.]yml:\d+ job "ship" step "Upload the snap"/);
+    for (const limb of [/\(a\) REACHABLE FROM PUSH/, /\(b\) NO TYPED OWNER WORD/, /\(c\) THE WORD IS NOT HANDED OVER/, /\(d\) NO LANE GATE/]) assert.match(out, limb);
+  });
+
+  test("a || in a store publish step's if: is not evidence", () => {
+    const root = realCopy((r) => mutateFile(r, EXT, EDGE_IF, `${EDGE_IF} || github.event_name == 'schedule'`));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /not a plain conjunction/);
+  });
+
+  test('a dispatch input whose DEFAULT is the word is typed by nobody', () => {
+    const root = realCopy((r) => mutateFile(r, '.github/workflows/submit-play.yml', "default: 'dry-run-only'", "default: 'SUBMIT-TO-PLAY'"));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /DEFAULTS to 'SUBMIT-TO-PLAY'/);
+  });
+
+  test('two stores gated on ONE word is refused — every store takes its own', () => {
+    const root = realCopy((r) => mutateFile(r, EXT, "inputs.confirm == 'SUBMIT-TO-EDGE-ADDONS'", "inputs.confirm == 'SUBMIT-TO-CHROME-WEB-STORE'"));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /SHARED WORD {2}'SUBMIT-TO-CHROME-WEB-STORE' gates 2 store publish steps/);
+  });
+
+  test('EMPTY SUBJECT: zero store publish steps is COVERAGE LOST, exit 2 — never a pass', () => {
+    const root = realCopy((r) => {
+      for (const f of ['extensions.yml', 'submit-play.yml', 'submit-snap.yml', 'submit-windows-store.yml']) rmSync(join(r, '.github', 'workflows', f));
+      writeFileSync(join(r, 'tooling', 'channel-register.json'), JSON.stringify({ channels: [] }));
+    });
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 2, out);
+    assert.match(out, /COVERAGE LOST — ZERO store publish steps found/);
+  });
+
+  test('no workflow to read at all is COVERAGE LOST, exit 2', () => {
+    const root = join(TMP, `owner${seq++}`);
+    write(root, 'tooling/channel-register.json', JSON.stringify({ channels: [] }));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 2, out);
+    assert.match(out, /COVERAGE LOST — no workflow parsed/);
+  });
+
+  test('a register publishScript that no step invokes is COVERAGE LOST — respelled past the scan', () => {
+    const root = realCopy((r) => mutateFile(r, EXT, 'node scripts/publish-edge.mjs', 'node scripts/publish_edge.mjs'));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 2, out);
+    assert.match(out, /declares publishScript extensions\/scripts\/publish-edge[.]mjs and no store publish step in any workflow invokes it/);
+  });
+
+  test('a submit lane whose --submit verb is respelled past the scan is COVERAGE LOST', () => {
+    const root = realCopy((r) => mutateFile(r, '.github/workflows/submit-play.yml', 'submit-play.mjs --submit', 'submit-play.mjs "--submit"'));
+    const { code, out } = ownerWord(root);
+    assert.equal(code, 2, out);
+    assert.match(out, /channel "android-play" submits through tooling\/release\/submit-play[.]mjs/);
+  });
+
+  test('an unknown --limb is COVERAGE LOST, exit 2 — a typo must not run nothing and pass', () => {
+    const { code, out } = runGuard(['--limb', 'owner_word']);
+    assert.equal(code, 2, out);
+    assert.match(out, /names no limb/);
   });
 });

@@ -30,7 +30,7 @@
 import { test, describe } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { stripInert, visibleText, decodeEntities, normaliseForMatch, emphasisedSpans, stripSourceComments, stripStringLiterals, codeMask, NON_CODE } from '../text-reductions.mjs';
+import { visibleText, decodeEntities, normaliseForMatch, emphasisedSpans, stripSourceComments, stripStringLiterals, codeMask, NON_CODE } from '../text-reductions.mjs';
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { execFile, execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';

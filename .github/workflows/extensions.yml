@@ -39,30 +39,41 @@ on:
     inputs:
       lane:
         description: >-
-          Which lane to run. `release` is a REHEARSAL in every case — see
-          dry_run below, which the release lane refuses to run without.
+          Which lane to run. `release` is a REHEARSAL unless dry_run is
+          unchecked AND confirm names one store AND the dispatch runs on the
+          release tag.
         type: choice
         options: [ci, e2e, release]
         default: ci
         required: true
-      # why: a dispatch can only REHEARSE. Unchecking dry_run makes the run refuse, not
-      # publish -- releases come from a tag push and from nothing else.
+      # why: publishing to a STORE is the owner's word alone. A tag push builds, packages and
+      # cuts the GitHub Release; it never reaches a store. Only a dispatch ON the tag, with
+      # dry_run unchecked and confirm typed, can -- and it reaches the one store it names.
       dry_run:
         description: >-
-          Run every gate on a real build and stop before publishing. This is the
-          only mode a dispatch has: unchecking it makes the run refuse, not
-          publish. Releases come from a tag push and from nothing else.
+          Run every gate on a real build and stop before publishing. Leave it
+          checked to rehearse. Unchecking it publishes ONLY with confirm typed
+          and the dispatch run on the release tag; otherwise the run refuses.
         type: boolean
         required: true
         default: true
+      confirm:
+        description: >-
+          Type SUBMIT-TO-FIREFOX-AMO, SUBMIT-TO-CHROME-WEB-STORE or
+          SUBMIT-TO-EDGE-ADDONS to publish this tag to that ONE store (dry_run
+          unchecked, dispatched on the tag). Anything else publishes nothing.
+        type: string
+        required: false
+        default: ''
       tag:
         description: >-
           The tag a release rehearsal stands in for, e.g. fullshot-v1.10.1. A
-          dispatch has no tag in GITHUB_REF_NAME, so the tool id and version are
-          read from here. Deliberately not defaulted: a stale default would
-          rehearse a version the CHANGELOG has moved past and fail in
+          dispatch from a branch has no tag in GITHUB_REF_NAME, so the tool id and
+          version are read from here. Deliberately not defaulted: a stale default
+          would rehearse a version the CHANGELOG has moved past and fail in
           check-version, which reads like a defect in the tool rather than a typo
-          in the dispatch. Ignored by the ci and e2e lanes.
+          in the dispatch. A dispatch ON a tag may leave it empty. Ignored by the
+          ci and e2e lanes.
         type: string
         required: false
 
@@ -70,12 +81,12 @@ permissions:
   contents: read
 
 concurrency:
-  # why: a TAG run is never cancelled -- it is the only path that publishes, and a
-  # cancelled publish notifies nobody. Nor is a run on MAIN (REVIEW-guards #12): main
-  # is the ref of every scheduled run, and duty.workflow.extensions.yml and the CWS
-  # keepalive depend on that run concluding; a cancel concludes `cancelled`, which
-  # no alarm sees. Feature-branch and PR runs do supersede. Held by
-  # assert-workflow-hardening limb 7.
+  # why: a TAG-ref run is never cancelled -- a tag push cuts the GitHub Release and a
+  # dispatch on the tag is the only path to a store; a cancelled publish notifies nobody.
+  # Nor is a run on MAIN (REVIEW-guards #12): main is the ref of every scheduled run, and
+  # duty.workflow.extensions.yml and the CWS keepalive depend on that run concluding; a
+  # cancel concludes `cancelled`, which no alarm sees. Feature-branch and PR runs do
+  # supersede. Held by assert-workflow-hardening limb 7.
   group: extensions-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
@@ -1725,11 +1736,32 @@ jobs:
       actions: read          # read-only, and it buys the ci-conclusion check
       deployments: write     # the [10]D-9 ledger row is written by the step below.
     steps:
-      - name: A dispatch is a rehearsal, so dry_run must stay checked
+      # why: the owner's word is checked BEFORE anything is built, so a dispatch that cannot
+      # publish says so in its first step rather than after 40 minutes of gates.
+      - name: A dispatch rehearses unless the owner typed one store's word, on the tag
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run != true
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          LANE: ${{ inputs.lane }}
         run: |
-          echo "::error::dry_run was unchecked on a workflow_dispatch run. This lane publishes from a tag push and from nothing else — a dispatch carries no tag in GITHUB_REF_NAME, so a dispatched release would be created under the branch name. Re-run with dry_run checked to rehearse every gate on real bytes, or push the tag."
-          exit 1
+          set -euo pipefail
+          case "$CONFIRM" in
+            SUBMIT-TO-FIREFOX-AMO|SUBMIT-TO-CHROME-WEB-STORE|SUBMIT-TO-EDGE-ADDONS) ;;
+            *)
+              echo "::error::dry_run was unchecked and confirm is '${CONFIRM}', which names no store. Publishing to a store is the owner's word alone: type SUBMIT-TO-FIREFOX-AMO, SUBMIT-TO-CHROME-WEB-STORE or SUBMIT-TO-EDGE-ADDONS to publish to that one store, or re-run with dry_run checked to rehearse every gate on real bytes."
+              exit 1 ;;
+          esac
+          if [ "$LANE" != release ]; then
+            echo "::error::confirm names a store but lane is '${LANE}'. Only lane=release builds the packages a store receives; re-dispatch with lane=release."
+            exit 1
+          fi
+          case "$GITHUB_REF" in
+            refs/tags/*) ;;
+            *)
+              echo "::error::confirm names a store but this dispatch runs on ${GITHUB_REF}, not on a release tag. A store receives the TAGGED commit's bytes and nothing else: re-dispatch with 'Use workflow from' set to the tag (gh workflow run extensions.yml --ref <tool>-v<x.y.z> ...)."
+              exit 1 ;;
+          esac
+          echo "owner word ${CONFIRM} on ${GITHUB_REF_NAME}: this run may publish to that one store and to no other."
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0, persist-credentials: false }
@@ -1772,10 +1804,20 @@ jobs:
         shell: bash
         env:
           DISPATCH_TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             TAG="$DISPATCH_TAG"
+            case "$GITHUB_REF" in
+              refs/tags/*)
+                if [ -z "$TAG" ]; then
+                  TAG="$GITHUB_REF_NAME"
+                elif [ "$TAG" != "$GITHUB_REF_NAME" ]; then
+                  echo "::error::this dispatch runs on the tag ${GITHUB_REF_NAME} and the tag input says '${TAG}'. The bytes built here are ${GITHUB_REF_NAME}'s, so a second name for them is refused rather than chosen between. Leave the tag input empty on a tag dispatch."
+                  exit 1
+                fi ;;
+            esac
             if ! printf '%s' "$TAG" | grep -qE '^[a-z0-9][a-z0-9-]*-v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
               echo "::error::the tag input was '$TAG', which is not a release tag. Expected <tool-id>-v<major>.<minor>.<patch> with an optional fourth store-only component, e.g. fullshot-v1.10.1. This value is interpolated into later steps, so it is rejected here rather than passed on."
               exit 1
@@ -1784,7 +1826,11 @@ jobs:
               echo "::error::core is versioned and tagged but it is not a tool: it ships no package and has no store listing, so every gate below would go looking for a tool called 'core'. The push trigger excludes core-v* and a dispatch has to exclude it too, because a tag filter cannot see a dispatch."
               exit 1
             fi
-            echo "rehearsing $TAG (workflow_dispatch; nothing will be published)"
+            if [ "${DRY_RUN:-}" = true ]; then
+              echo "rehearsing $TAG (workflow_dispatch; nothing will be published)"
+            else
+              echo "building $TAG for the one store the confirm input names (workflow_dispatch on the tag)"
+            fi
           else
             TAG="${GITHUB_REF_NAME}"
           fi
@@ -2114,12 +2160,42 @@ jobs:
             exit 1
           fi
 
+      # why: a STORE publish is the owner's word alone -- reachable only from a dispatch on the
+      # release tag with this store's word typed. The word is compared twice (the if: is one
+      # deletable line), the lane refuses outside Actions, and a run that sent nothing goes red
+      # saying NOT PUBLISHED, so "published" and "not published" never share a green tick.
+      # tooling/ci/assert-publish-steps-guarded.mjs holds every one of those properties.
       - name: Submit to Firefox Add-ons (AMO)
-        if: github.event_name == 'push' && inputs.dry_run != true
+        id: amo
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true && inputs.confirm == 'SUBMIT-TO-FIREFOX-AMO'
+        shell: bash
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
-        run: node scripts/publish-amo.mjs --tool ${{ steps.tag.outputs.id }} --source-dir dist/unpacked-firefox
+          CONFIRM: ${{ inputs.confirm }}
+          TOOL: ${{ steps.tag.outputs.id }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_ACTIONS:-}" != true ] || [ -z "${GITHUB_REPOSITORY:-}" ]; then
+            echo "::error::NOT PUBLISHED to Firefox Add-ons: a store publish runs only inside GitHub Actions (GITHUB_ACTIONS=true and GITHUB_REPOSITORY set)."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || [ "$CONFIRM" != SUBMIT-TO-FIREFOX-AMO ]; then
+            echo "::error::NOT PUBLISHED to Firefox Add-ons: reached on event '${GITHUB_EVENT_NAME}' with confirm '${CONFIRM}'. Only a dispatch carrying SUBMIT-TO-FIREFOX-AMO may publish here, so this step's if: has been widened."
+            exit 1
+          fi
+          code=0
+          out=$(node scripts/publish-amo.mjs --tool "$TOOL" --source-dir dist/unpacked-firefox 2>&1) || code=$?
+          printf '%s\n' "$out"
+          if [ "$code" -ne 0 ]; then
+            echo "::error::NOT PUBLISHED to Firefox Add-ons: the AMO publisher exited ${code}."
+            exit "$code"
+          fi
+          if ! grep -q '^publish-amo: SUBMITTED' <<< "$out"; then
+            echo "::error::NOT PUBLISHED to Firefox Add-ons: the AMO publisher exited 0 without printing SUBMITTED, which is its answer for a channel the register does not arm. The owner asked for this store, so a run that sent nothing is a failure, not a pass."
+            exit 1
+          fi
+          echo "published=yes" >> "$GITHUB_OUTPUT"
 
       # why: the Chrome lane authenticates with a SERVICE ACCOUNT as of 2026-09-09
       # (https://developer.chrome.com/docs/webstore/service-accounts). CWS_CLIENT_ID,
@@ -2140,12 +2216,38 @@ jobs:
             exit 1
           fi
 
+      # why: the owner's word for THIS store only -- same four properties as the AMO step.
       - name: Submit to the Chrome Web Store
-        if: github.event_name == 'push' && inputs.dry_run != true
+        id: cws
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true && inputs.confirm == 'SUBMIT-TO-CHROME-WEB-STORE'
+        shell: bash
         env:
           CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
-        run: node scripts/publish-cws.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
+          CONFIRM: ${{ inputs.confirm }}
+          TOOL: ${{ steps.tag.outputs.id }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_ACTIONS:-}" != true ] || [ -z "${GITHUB_REPOSITORY:-}" ]; then
+            echo "::error::NOT PUBLISHED to the Chrome Web Store: a store publish runs only inside GitHub Actions (GITHUB_ACTIONS=true and GITHUB_REPOSITORY set)."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || [ "$CONFIRM" != SUBMIT-TO-CHROME-WEB-STORE ]; then
+            echo "::error::NOT PUBLISHED to the Chrome Web Store: reached on event '${GITHUB_EVENT_NAME}' with confirm '${CONFIRM}'. Only a dispatch carrying SUBMIT-TO-CHROME-WEB-STORE may publish here, so this step's if: has been widened."
+            exit 1
+          fi
+          code=0
+          out=$(node scripts/publish-cws.mjs --tool "$TOOL" --zip "dist/${TOOL}-chromium.zip" 2>&1) || code=$?
+          printf '%s\n' "$out"
+          if [ "$code" -ne 0 ]; then
+            echo "::error::NOT PUBLISHED to the Chrome Web Store: the Chrome publisher exited ${code}."
+            exit "$code"
+          fi
+          if ! grep -q '^publish-cws: SUBMITTED' <<< "$out"; then
+            echo "::error::NOT PUBLISHED to the Chrome Web Store: the Chrome publisher exited 0 without printing SUBMITTED, which is its answer for a channel the register does not arm. The owner asked for this store, so a run that sent nothing is a failure, not a pass."
+            exit 1
+          fi
+          echo "published=yes" >> "$GITHUB_OUTPUT"
 
       - name: Edge Add-ons — credentials present, or the owner step
         env:
@@ -2164,12 +2266,38 @@ jobs:
       # why: the SAME chromium zip Chrome takes, byte-identical -- tool.json declares both
       # stores' target as `chromium`, which is what makes one artifact and two listings a
       # declaration rather than an accident.
+      # why: the owner's word for THIS store only -- same four properties as the AMO step.
       - name: Submit to Microsoft Edge Add-ons
-        if: github.event_name == 'push' && inputs.dry_run != true
+        id: edge
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true && inputs.confirm == 'SUBMIT-TO-EDGE-ADDONS'
+        shell: bash
         env:
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-        run: node scripts/publish-edge.mjs --tool ${{ steps.tag.outputs.id }} --zip dist/${{ steps.tag.outputs.id }}-chromium.zip
+          CONFIRM: ${{ inputs.confirm }}
+          TOOL: ${{ steps.tag.outputs.id }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_ACTIONS:-}" != true ] || [ -z "${GITHUB_REPOSITORY:-}" ]; then
+            echo "::error::NOT PUBLISHED to Microsoft Edge Add-ons: a store publish runs only inside GitHub Actions (GITHUB_ACTIONS=true and GITHUB_REPOSITORY set)."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || [ "$CONFIRM" != SUBMIT-TO-EDGE-ADDONS ]; then
+            echo "::error::NOT PUBLISHED to Microsoft Edge Add-ons: reached on event '${GITHUB_EVENT_NAME}' with confirm '${CONFIRM}'. Only a dispatch carrying SUBMIT-TO-EDGE-ADDONS may publish here, so this step's if: has been widened."
+            exit 1
+          fi
+          code=0
+          out=$(node scripts/publish-edge.mjs --tool "$TOOL" --zip "dist/${TOOL}-chromium.zip" 2>&1) || code=$?
+          printf '%s\n' "$out"
+          if [ "$code" -ne 0 ]; then
+            echo "::error::NOT PUBLISHED to Microsoft Edge Add-ons: the Edge publisher exited ${code}."
+            exit "$code"
+          fi
+          if ! grep -q '^publish-edge: SUBMITTED' <<< "$out"; then
+            echo "::error::NOT PUBLISHED to Microsoft Edge Add-ons: the Edge publisher exited 0 without printing SUBMITTED, which is its answer for a channel the register does not arm. The owner asked for this store, so a run that sent nothing is a failure, not a pass."
+            exit 1
+          fi
+          echo "published=yes" >> "$GITHUB_OUTPUT"
 
       - name: Record what shipped, per channel this release is the origin for
         if: github.event_name == 'push' && inputs.dry_run != true
@@ -2183,10 +2311,41 @@ jobs:
           for environment in $(node tooling/ci/release-manifest.mjs --emit-environments extensions/dist --app "$TOOL"); do
             node tooling/ci/record-deployment.mjs "$environment" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" --state pending_manual_publish
           done
-      - name: Rehearsal complete — nothing was published
-        if: github.event_name == 'workflow_dispatch'
+      # why: a SKIPPED step prints nothing, so every run ends by saying, store by store, whether
+      # it published -- a tag push or a rehearsal must never read as a release that reached a store.
+      - name: Store publication — what this run did and did not publish
+        if: always()
+        shell: bash
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          TOOL: ${{ steps.tag.outputs.id }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          AMO: ${{ steps.amo.outputs.published }}
+          CWS: ${{ steps.cws.outputs.published }}
+          EDGE: ${{ steps.edge.outputs.published }}
         run: |
-          echo "::notice::dry run finished. Every gate above ran on a real --release build of ${{ steps.tag.outputs.id }} v${{ steps.tag.outputs.version }}; the publish step was skipped by its if:, so no GitHub Release exists and nothing was sent to a store. Push the tag to release."
+          set -euo pipefail
+          published=0
+          for row in "Firefox Add-ons (AMO);${AMO:-};SUBMIT-TO-FIREFOX-AMO" "the Chrome Web Store;${CWS:-};SUBMIT-TO-CHROME-WEB-STORE" "Microsoft Edge Add-ons;${EDGE:-};SUBMIT-TO-EDGE-ADDONS"; do
+            store="${row%%;*}"; rest="${row#*;}"; sent="${rest%%;*}"; word="${rest#*;}"
+            if [ "$sent" = yes ]; then
+              echo "PUBLISHED to ${store}: ${TOOL:-?} v${VERSION:-?}, on the owner's word ${word}."
+              published=$((published + 1))
+              continue
+            fi
+            if [ "$GITHUB_EVENT_NAME" = push ]; then
+              why="a tag push builds and packages and never publishes to a store"
+            elif [ "${DRY_RUN:-}" = true ]; then
+              why="dry_run was checked, so this dispatch was a rehearsal"
+            elif [ "${CONFIRM:-}" = "$word" ]; then
+              why="the owner typed ${word} and the publish step did not complete; read its log above"
+            else
+              why="confirm did not name this store"
+            fi
+            echo "::notice::NOT PUBLISHED to ${store}: ${why}. To publish, dispatch extensions.yml ON the release tag with lane=release, dry_run unchecked and confirm=${word}."
+          done
+          echo "${published} store(s) published by this run."
 
 
   # why: RETIRED DUTY, REPLACED DUTY -- 2026-09-09. This job existed because a Google OAuth
