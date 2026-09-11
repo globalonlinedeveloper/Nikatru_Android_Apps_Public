@@ -152,7 +152,7 @@
   "selection-record.test.mjs": 12,
   "signup-consent-shape.test.mjs": 21,
   "signup-retention.test.mjs": 11,
-  "single-threaded-relaunch.test.mjs": 6,
+  "single-threaded-relaunch.test.mjs": 8,
   "sink-disclosure.test.mjs": 34,
   "site-integrity.test.mjs": 93,
   "smoke-web-artifact.test.mjs": 12,
