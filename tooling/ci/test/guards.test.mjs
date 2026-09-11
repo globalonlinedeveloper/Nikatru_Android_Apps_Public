@@ -414,9 +414,13 @@ describe('assert-cors-allowlist', () => {
   const APEX = 'https://nikatru.com';
   /** 🔴 THE OLD PAGES PROJECT ORIGIN, DECLARED ONCE AND NEVER RE-SPELLED.
    *
-   *  `subly-9cp.pages.dev` is a LIVE Cloudflare Pages origin — the app's real
-   *  deployment target until the project itself is migrated — so it did not move
-   *  with the app slug and must not be renamed here. It stopped being written
+   *  ⏱ RETIRED 2026-09-11 — the NARROW step. `subly-9cp.pages.dev` left both
+   *  Workers' ALLOWED_ORIGINS and the guard's EXTRAS in one change, so it is no
+   *  longer in the fixture lists below; it is kept ONLY as the input for the case
+   *  that must still red: the retired origin put back into either config. While
+   *  its Pages project exists nobody else can claim the name; the day the project
+   *  is deleted, a Worker still trusting it would grant credentialed CORS to
+   *  whoever registers it next. It stopped being written
    *  twice on 2026-09-09 because the two assertions below had been re-spelling
    *  it as an escaped regex: the `subly` -> `subscriptiontracker` rename rewrote
    *  those ESCAPED copies and left the plain ones in the fixture lists alone, so
@@ -426,7 +430,7 @@ describe('assert-cors-allowlist', () => {
    *  One declaration, derived on both sides, cannot be split that way. */
   const PAGES = 'https://subly-9cp.pages.dev';
   const PAGES_HOST = new URL(PAGES).host;
-  /** 🔴 THE NEW PAGES PROJECT ORIGIN, AND BOTH ARE IN THESE LISTS ON PURPOSE.
+  /** 🔴 THE NEW PAGES PROJECT ORIGIN — THE ONLY PREVIEW ORIGIN IN THESE LISTS SINCE 2026-09-11.
    *
    *  deploy-web.yml deploys with `--project-name=<workspace directory>`, so the
    *  slug rename moved this app's Direct Upload project and Cloudflare minted a
@@ -435,16 +439,16 @@ describe('assert-cors-allowlist', () => {
    *  and belongs to a THIRD PARTY, so `<id>.pages.dev` here would be somebody
    *  else's host rather than merely an unproven one.
    *
-   *  The fixture carries BOTH preview origins because the live configs do: an
-   *  exact allowlist fails CLOSED and silently, so the retired origin leaves in
-   *  a separate later change — widen, cut over, then narrow. A fixture carrying
-   *  only one would assert a config shape that does not exist yet, and would go
-   *  green again the day the narrow lands for a reason nobody checked. */
+   *  The fixture carried BOTH preview origins while the live configs did (an
+   *  exact allowlist fails CLOSED and silently, so the order was widen, cut
+   *  over, then narrow). The narrow landed 2026-09-11, so the fixture carries
+   *  only this one — the live config shape — and the retired origin is an
+   *  INPUT below, for the case that must red when it is put back. */
   const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
   const PAGES_NEW_HOST = new URL(PAGES_NEW).host;
-  const PLATFORM = [APEX, PAGES, PAGES_NEW, 'http://localhost:3000'];
+  const PLATFORM = [APEX, PAGES_NEW, 'http://localhost:3000'];
   // No localhost here: the per-app Worker allows it by regex (recorded trade).
-  const SUBLY = [APEX, PAGES, PAGES_NEW];
+  const SUBLY = [APEX, PAGES_NEW];
 
   const config = (origins, { appId = null } = {}) =>
     `{\n  // a Worker\n  "vars": { ${appId === null ? '' : `"APP_ID": ${JSON.stringify(appId)}, `}"ALLOWED_ORIGINS": "${origins.join(',')}" }\n}\n`;
@@ -492,10 +496,9 @@ describe('assert-cors-allowlist', () => {
     const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
     assert.equal(code, 1);
     assert.match(out, /services\/subscriptiontracker-api/);
-    // The slice drops BOTH preview origins, so the guard has to name both.
-    // Naming one and going quiet about the other is the half-report that would
-    // let the second one be forgotten in exactly the window it is needed.
-    assert.ok(out.includes(PAGES_HOST), out);
+    // The slice drops the preview origin, so the guard has to name it. (It used
+    // to drop BOTH preview origins and assert both were named; the retired one
+    // left the configs on 2026-09-11, so it is no longer a requirement to name.)
     assert.ok(out.includes(PAGES_NEW_HOST), out);
   });
 
@@ -524,12 +527,22 @@ describe('assert-cors-allowlist', () => {
   });
 
   test('is STRUCTURAL — an origin mentioned only in a comment does not satisfy it', () => {
-    const subscriptiontracker = `{\n  // ${PAGES} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${APEX}" }\n}\n`;
+    const subscriptiontracker = `{\n  // ${PAGES_NEW} used to be here\n  "vars": { "ALLOWED_ORIGINS": "${APEX}" }\n}\n`;
     const { code, out } = run('assert-cors-allowlist.mjs', {
       cwd: build('cors-comment', { subscriptiontracker }),
     });
     assert.equal(code, 1);
+    assert.ok(out.includes(PAGES_NEW_HOST), out);
+  });
+
+  test('FAILS when the RETIRED pre-rename Pages origin is put back — the narrow is permanent', () => {
+    const dir = build('cors-retired-pages', {
+      subscriptiontracker: config([...SUBLY, PAGES], { appId: 'subscriptiontracker' }),
+    });
+    const { code, out } = run('assert-cors-allowlist.mjs', { cwd: dir });
+    assert.equal(code, 1, out);
     assert.ok(out.includes(PAGES_HOST), out);
+    assert.match(out, /NOTHING justifies it/);
   });
 
   test('FAILS on a Worker it was never TAUGHT about — a new service is untaught scope, not out of scope', () => {

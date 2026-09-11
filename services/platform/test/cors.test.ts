@@ -102,6 +102,12 @@ describe('the fixture below IS the deployed allowlist', () => {
     // nothing but a 301 and a standing CORS grant, and re-adding it is one word.
     expect(SHIPPED.split(',').map((s) => s.trim())).not.toContain('https://subly.nikatru.com');
   });
+
+  it('no longer carries the retired pre-rename Pages origin', () => {
+    // ⏱ 2026-09-11, the NARROW step. A *.pages.dev name is claimable by anyone
+    // once its project is deleted, so this grant must leave BEFORE the project does.
+    expect(SHIPPED.split(',').map((s) => s.trim())).not.toContain('https://subly-9cp.pages.dev');
+  });
 });
 
 describe('platform CORS (shared Worker — ADR 020, exact allowlist)', () => {
