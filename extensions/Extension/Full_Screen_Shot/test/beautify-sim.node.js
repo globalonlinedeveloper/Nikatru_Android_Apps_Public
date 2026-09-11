@@ -2,7 +2,7 @@
    from pages/beautify.js and asserts layout geometry + a solid-background
    render pixel-sampled via the shared FakeCanvas shim. */
 'use strict';
-const { fsBeautifyLayout, fsRenderBeautified, FS_PRESETS } = require('../pages/beautify.js');
+const { fsBeautifyLayout, fsRenderBeautified } = require('../pages/beautify.js');
 const { FakeCanvas } = require('./pixel-sim/canvas2d');
 
 let FAILS = 0;

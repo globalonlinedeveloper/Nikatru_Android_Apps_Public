@@ -1283,7 +1283,7 @@ const imp = p => import(pathToFileURL(path.join(ROOT, p)).href);
       'pages/scrollclip.html': 'pages/scrollclip.js', 'popup/popup.html': 'popup/popup.js'
     };
     const unwired = [];
-    for (const [html, js] of Object.entries(PAGE_SCRIPT)) {
+    for (const [, js] of Object.entries(PAGE_SCRIPT)) {
       const src = stripComments(read(js));
       const callsPass = /fsApplyI18n\s*\(|fsMessage\s*\(|fsPluralMessage\s*\(/.test(src);
       const contentKey = /getMessage\(\s*(?!['"]@@)/.test(src);

@@ -1549,7 +1549,6 @@ await T('tool keys', async () => {
     ed.env.toolBtns.rect.classList.contains('active'), '');
   const input = ed.el('textInput');
   const before = ed.env.toolBtns.rect.classList.contains('active');
-  const out = [];
   for (const fn of (ed.env.docOn.keydown || [])) {
     fn({ target: input, key: 'p', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false,
          preventDefault() {}, stopPropagation() {} });
