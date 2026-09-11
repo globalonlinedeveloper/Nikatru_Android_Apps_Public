@@ -93,6 +93,11 @@ class SettingsScreen extends ConsumerWidget {
     'weekly',
   ];
 
+  /// The preference keys that schedule an OS notification — the rows that
+  /// become a sentence rather than a switch where the platform cannot
+  /// schedule. `unused` is an in-app flag and stays a switch everywhere.
+  static bool _isReminderPref(String key) => key == 'alerts' || key == 'weekly';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -123,6 +128,13 @@ class SettingsScreen extends ConsumerWidget {
     final bool isLight = theme.brightness == Brightness.light;
     final ColorScheme scheme = theme.colorScheme;
 
+    // Whether this platform can deliver a SCHEDULED reminder at all — the
+    // app service's own reading of the chassis matrix, so the two reminder
+    // preference rows below and the chassis tile further down agree.
+    final bool remindersDeliverable = ref
+        .watch(subscriptiontrackerNotificationServiceProvider)
+        .capabilities
+        .canSchedule;
     final List<List<String>> toggles = <List<String>>[
       <String>['alerts', l10n.prefRenewalAlerts, l10n.prefRenewalAlertsDesc],
       <String>['unused', l10n.prefUnusedPlans, l10n.prefUnusedPlansDesc],
@@ -510,13 +522,38 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      child: _prefRow(
-                        context,
-                        toggles[i][1],
-                        toggles[i][2],
-                        settings.prefs[toggles[i][0]] ?? false,
-                        () => controller.toggle(toggles[i][0]),
-                      ),
+                      // 🔴 THE APP'S OWN REMINDER SWITCHES ARE GATED ON THE
+                      // SAME MATRIX AS THE CHASSIS TILE BELOW. "Renewal
+                      // alerts" and "Weekly digest" schedule through
+                      // `NotificationService`, which on Linux cannot
+                      // schedule and on Windows (pinned 17.x) has no plugin
+                      // at all. Until now these two rows were switches on
+                      // every target: a user on Windows could turn on a
+                      // reminder that nothing would ever deliver. Parity is
+                      // the feature everywhere or an honest sentence — the
+                      // row keeps its name so the user can see WHAT is
+                      // unavailable, and the subtitle says it is.
+                      child:
+                          _isReminderPref(toggles[i][0]) &&
+                              !remindersDeliverable
+                          ? ListTile(
+                              key: Key(
+                                'settings.pref.${toggles[i][0]}.unavailable',
+                              ),
+                              leading: const Icon(
+                                Icons.notifications_off_outlined,
+                              ),
+                              title: Text(toggles[i][1]),
+                              subtitle: Text(l10n.remindersUnavailable),
+                              enabled: false,
+                            )
+                          : _prefRow(
+                              context,
+                              toggles[i][1],
+                              toggles[i][2],
+                              settings.prefs[toggles[i][0]] ?? false,
+                              () => controller.toggle(toggles[i][0]),
+                            ),
                     ),
                 ],
               ),

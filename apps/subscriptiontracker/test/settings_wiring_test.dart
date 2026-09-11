@@ -51,6 +51,11 @@ class _RecordingNotificationService extends NotificationService {
   }
 
   @override
+  Future<void> cancelOwnedRenewals() async {
+    calls.add('cancelOwnedRenewals');
+  }
+
+  @override
   Future<void> scheduleWeeklyDigest({
     required ReminderCopy copy,
     required int count,
@@ -226,10 +231,17 @@ void main() {
 
       expect(
         notifier.calls,
-        contains('cancelAll'),
+        contains('cancelOwnedRenewals'),
         reason:
             'switching alerts off must unschedule the reminders NOW — '
             'otherwise they keep firing after the user said stop',
+      );
+      // 🔴 AND ONLY THE RENEWALS. `cancelAll()` here used to take the chassis
+      // daily reminder (id 1) with it — the two services share one plugin.
+      expect(
+        notifier.calls,
+        isNot(contains('cancelAll')),
+        reason: '"Renewal alerts" off must not cancel the chassis reminder',
       );
     });
   });
