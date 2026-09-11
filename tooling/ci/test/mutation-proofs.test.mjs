@@ -330,6 +330,15 @@ describe('assert-mutation-proofs', () => {
     assert.match(r.out, /THE MUTANT DID NOT REDDEN THE TEST/);
   });
 
+  // The CONTROL for the two stall cases: output still reaches the guard. The fake
+  // fails, printing the row's recorded message, ONLY when the mutation is in the
+  // effect file — so a CAUGHT verdict requires the captured output to be read back.
+  test('--execute: CONTROL — the output `flutter test` writes is read back, so a real catch is CAUGHT', { skip: POSIX_ONLY }, () => {
+    const r = withFakeFlutter('#!/bin/sh\nif grep -q "_saving = true" lib/add.dart; then echo "00:01 -1: a failed save re-arms the button [E]"; exit 1; fi\necho "00:01 +1: All tests passed!"\nexit 0\n');
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /CAUGHT — green control 0, mutant non-zero, and the recorded message was printed/);
+  });
+
   test('--execute: a `flutter test` that never finishes is COVERAGE LOST within MUTATION_TEST_TIMEOUT_MS', { skip: POSIX_ONLY }, () => {
     const r = withFakeFlutter('#!/bin/sh\nsleep 60\n', { MUTATION_TEST_TIMEOUT_MS: '2000' });
     assert.ok(r.secs < 30, `the limb ran ${r.secs.toFixed(1)}s past a 2s bound:\n${r.out}`);
