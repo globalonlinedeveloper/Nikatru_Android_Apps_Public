@@ -242,7 +242,6 @@ r.check('the catalogue publishes exactly the extensions on disk',
   'Run:  node scripts/publish-catalog.mjs');
 
 /* ── LIMBS 2-4: THE ROWS ──────────────────────────────────────────────────── */
-const byId = new Map(extensions.map((t) => [t.id, t]));
 const shapeProblems = [];
 const statusProblems = [];
 const urlProblems = [];
