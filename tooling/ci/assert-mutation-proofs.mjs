@@ -161,13 +161,15 @@
 //   node tooling/ci/assert-mutation-proofs.mjs [repoRoot]
 //   node tooling/ci/assert-mutation-proofs.mjs [repoRoot] --execute [--only <row name>]
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, openSync, closeSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 import { stripDartComments } from './dart-source.mjs';
+import { reapProcessGroup } from './flutter-stock-assets.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -504,19 +506,45 @@ if (unproven.length < UNPROVEN_FLOOR) {
 //    the only limb that observes the program.
 const LOAD_FAILURE = /Failed to load|Compilation failed|Error: .*\.dart:|Unhandled exception|Could not find a file named|error • /i;
 
+// ⏱ 2026-09-11 · `flutter test` IS BOUNDED, IN ITS OWN PROCESS GROUP, WITH OUTPUT TO A FILE.
+// It had a time-out and neither of the other two (hang-class sweep, HANDOFF item 1:
+// "highest risk"). `flutter` starts dart and gradle daemons that inherit its pipes,
+// and a pipe-reading spawnSync returns only when EVERY holder has closed them, so a
+// daemon left behind kept this limb waiting for as long as it lived — the shape of
+// the `flutter create` stall fixed in #619. The pattern is flutter-stock-assets.mjs's,
+// and its reaper is imported rather than copied: output goes to a file (spawnSync
+// waits for the child alone), the child leads its own group on POSIX, and after
+// EVERY run — clean exit or time-out — whatever is left in that group is named and
+// killed. Windows has no group: the time-out still fires, on the `cmd.exe` it runs.
+// A run that times out is COVERAGE LOST at the call sites, never a red for some
+// other reason. The bound is MUTATION_TEST_TIMEOUT_MS (default 20 min).
+const POSIX = process.platform !== 'win32';
+const DEFAULT_TEST_TIMEOUT_MS = 20 * 60 * 1000;
+const testTimeoutMs = () => Math.max(1_000, Number(process.env.MUTATION_TEST_TIMEOUT_MS ?? DEFAULT_TEST_TIMEOUT_MS) || DEFAULT_TEST_TIMEOUT_MS);
+
 function runTest(appDir, testRel, label) {
   const started = Date.now();
-  const res = spawnSync('flutter', ['test', testRel], {
-    cwd: join(ROOT, appDir),
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-    maxBuffer: 1 << 28,
-    timeout: 20 * 60 * 1000,
-  });
-  const out = `${res.stdout ?? ''}${res.stderr ?? ''}`;
+  const timeoutMs = testTimeoutMs();
+  const logDir = mkdtempSync(join(tmpdir(), 'nikatru-mutproof-run-'));
+  const logPath = join(logDir, 'flutter-test.log');
+  const fd = openSync(logPath, 'w');
+  let res;
+  try {
+    const opts = { cwd: join(ROOT, appDir), stdio: ['ignore', fd, fd], timeout: timeoutMs, killSignal: 'SIGKILL', detached: POSIX };
+    res = POSIX ? spawnSync('flutter', ['test', testRel], opts) : spawnSync('cmd.exe', ['/c', 'flutter', 'test', testRel], opts);
+  } finally {
+    closeSync(fd);
+  }
+  const survivors = POSIX && res.pid ? reapProcessGroup(res.pid) : [];
+  const out = readFileSync(logPath, 'utf8');
+  rmSync(logDir, { recursive: true, force: true });
+  const timedOut = res.error?.code === 'ETIMEDOUT';
   const secs = Math.round((Date.now() - started) / 1000);
-  console.error(`     ${label} exit=${res.status} (${secs}s)`);
-  return { status: res.status, out, secs };
+  console.error(
+    `     ${label} exit=${res.status}${timedOut ? ` — TIMED OUT after ${Math.round(timeoutMs / 1000)}s` : ''} (${secs}s)` +
+      (survivors.length ? ` — still running in its process group, killed: ${survivors.join(', ')}` : ''),
+  );
+  return { status: res.status, out, secs, timedOut, timeoutMs, error: res.error ?? null };
 }
 
 /** Which test FILE declares the row's named test. The row records a test NAME,
@@ -618,6 +646,10 @@ if (EXECUTE) {
       greenControls.set(key, control);
     }
     const control = greenControls.get(key);
+    if (control.timedOut) {
+      fail(`${where} — COVERAGE LOST: THE GREEN CONTROL did not finish within ${Math.round(control.timeoutMs / 1000)}s (MUTATION_TEST_TIMEOUT_MS), so nothing was observed. Its process group was killed.`);
+      continue;
+    }
     if (control.status !== 0) {
       fail(`${where} — THE GREEN CONTROL FAILED (exit ${control.status}). Nothing can be concluded from a mutant's red when the unmutated tree is already red.`);
       continue;
@@ -629,7 +661,9 @@ if (EXECUTE) {
     try {
       writeFileSync(absEff, original.replace(f.mutation[EDIT_KEY].find, f.mutation[EDIT_KEY].replace));
       const mutant = runTest(r.appDir, testRel, 'mutant      ');
-      if (mutant.status === 0) {
+      if (mutant.timedOut) {
+        fail(`${where} — COVERAGE LOST: THE MUTANT did not finish within ${Math.round(mutant.timeoutMs / 1000)}s (MUTATION_TEST_TIMEOUT_MS). A run that never ended is not a caught mutation; its process group was killed.`);
+      } else if (mutant.status === 0) {
         fail(`${where} — THE MUTANT DID NOT REDDEN THE TEST (exit 0). Either the proof is a fossil or, per rule 9, the mutated branch is dead code.`);
       } else if (LOAD_FAILURE.test(mutant.out) && !mutant.out.includes(f.mutation.observedRed)) {
         fail(
