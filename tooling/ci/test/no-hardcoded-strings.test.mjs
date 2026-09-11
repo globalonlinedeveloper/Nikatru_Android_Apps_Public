@@ -773,6 +773,21 @@ describe('assert-no-hardcoded-strings', () => {
         assert.match(out, /shows a hardcoded string/);
       });
     }
+
+    // 🔴 CodeQL #3 — THE BACKTRACKING INPUT. A trailing digit could belong to the identifier
+    // or to the separator after it, so a run of '0$A' took exponential time. The literal
+    // still has a letter outside any interpolation ('!a'), so the guard must still FAIL on it;
+    // the spawn carries its own timeout, because run() has none and the old regex never ends.
+    test('reads a long run of $A0 interpolations in bounded time, and still fails on the trailing letter (CodeQL #3)', () => {
+      const root = tree({ subscriptiontracker: `${CLEAN_SUBLY}\nconst x = Text('$A${'0$A'.repeat(20000)}!a');\n` });
+      const t0 = Date.now();
+      const r = spawnSync(process.execPath, [GUARD], { cwd: root, encoding: 'utf8', timeout: 30_000 });
+      const ms = Date.now() - t0;
+      assert.notEqual(r.status, null, `the guard did not finish within 30 s (${ms} ms): the exemption regex backtracked`);
+      assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+      assert.match(`${r.stdout}${r.stderr}`, /shows a hardcoded string/);
+      assert.ok(ms < 20_000, `took ${ms} ms`);
+    });
   });
 
   describe('a string shown to a person must come from l10n', () => {

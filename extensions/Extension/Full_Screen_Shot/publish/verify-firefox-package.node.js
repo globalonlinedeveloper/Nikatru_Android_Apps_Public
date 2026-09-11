@@ -85,7 +85,9 @@ const CH_PATH = path.join(ROOT, 'manifest.json');
 /* The placeholder shipped in the first Firefox manifest. It is not a domain the
    owner controls, so an add-on signed under it would be signed under a name
    belonging to nobody — this is the reason the script exists. */
-const PLACEHOLDER_ID = /REPLACE-WITH-YOUR-DOMAIN|\.example$/i;
+/* TWO tests, written as two (CodeQL #41): the slot token ANYWHERE, or the reserved .example
+   TLD at the END. One alternation read as if both were anchored. */
+const PLACEHOLDER_ID = { test: (s) => /REPLACE-WITH-YOUR-DOMAIN/i.test(s) || /\.example$/i.test(s) };
 /* MDN: email-style id, 80 characters or less. */
 const GECKO_ID_RE = /^[a-zA-Z0-9\-._]*@[a-zA-Z0-9\-._]+$/;
 

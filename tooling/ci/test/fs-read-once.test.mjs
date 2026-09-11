@@ -116,6 +116,83 @@ describe('CONTROL — the spy sees a check followed by a use', () => {
     assert.deepEqual(onTarget(v, 'pairs'), ['existsSync->readFileSync']);
     assert.deepEqual(onTarget(v, 'flagged'), []);
   });
+
+  test('existsSync, then openSync for READING, is recorded but NOT flagged — it is a read, like readFileSync', () => {
+    const [s, dir] = scratchScript(
+      'exists-open-read.mjs',
+      "import { existsSync, openSync, readFileSync, closeSync } from 'node:fs';\nconst p = process.argv[2];\nif (existsSync(p)) { const fd = openSync(p, 'r'); readFileSync(fd, 'utf8'); closeSync(fd); }\n",
+    );
+    writeFileSync(join(dir, 'target.txt'), 'hello');
+    const v = spied([s, join(dir, 'target.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    assert.deepEqual(onTarget(v, 'pairs'), ['existsSync->openSync:r']);
+    assert.deepEqual(onTarget(v, 'flagged'), []);
+  });
+
+  test('existsSync, then openSync for WRITING, is flagged — the open can create or truncate what the check saw', () => {
+    const [s, dir] = scratchScript(
+      'exists-open-write.mjs',
+      "import { existsSync, openSync, closeSync } from 'node:fs';\nconst p = process.argv[2];\nif (!existsSync(p)) closeSync(openSync(p, 'w'));\n",
+    );
+    const v = spied([s, join(dir, 'target.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    assert.deepEqual(onTarget(v, 'flagged'), ['existsSync->openSync:w']);
+  });
+
+  test('a check in one function and a use in another is marked sameFunction: false; within one function, true', () => {
+    const [s, dir] = scratchScript(
+      'two-functions.mjs',
+      "import { statSync, readFileSync } from 'node:fs';\nconst p = process.argv[2];\nfunction look(x) { return statSync(x).size; }\nfunction use(x) { return readFileSync(x, 'utf8'); }\nfunction both(x) { statSync(x); return readFileSync(x, 'utf8'); }\nlook(p); use(p);\nconst q = process.argv[3];\nboth(q);\n",
+    );
+    writeFileSync(join(dir, 'target.txt'), 'hello');
+    writeFileSync(join(dir, 'other.txt'), 'hello');
+    const v = spied([s, join(dir, 'target.txt'), join(dir, 'other.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    const pick = (name) => v.pairs.filter((x) => x.path.endsWith('/' + name)).map((x) => x.sameFunction);
+    assert.deepEqual(pick('target.txt'), [false], JSON.stringify(v.pairs));
+    assert.deepEqual(pick('other.txt'), [true], JSON.stringify(v.pairs));
+  });
+
+  test('a helper that looked first does not hide the function that then looks and reads itself — sameFunction: true', () => {
+    // The secret-scan shape: a directory walk stats every file, then the main loop stats the same
+    // file for a size cap and reads it. The pair that matters is the loop's own stat then read.
+    const [s, dir] = scratchScript(
+      'walk-then-loop.mjs',
+      "import { statSync, readFileSync } from 'node:fs';\nconst p = process.argv[2];\nfunction walk(x) { return statSync(x).isFile(); }\nfunction loop(x) { if (statSync(x).size < 100) return readFileSync(x, 'utf8'); }\nwalk(p);\nloop(p);\n",
+    );
+    writeFileSync(join(dir, 'target.txt'), 'hello');
+    const v = spied([s, join(dir, 'target.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    const onTarget = v.flagged.filter((x) => x.path.endsWith('/target.txt'));
+    assert.deepEqual(onTarget.map((x) => [x.check, x.use, x.sameFunction]), [['statSync', 'readFileSync', true]], JSON.stringify(v.pairs));
+  });
+
+  test('a BUFFER read (no encoding) then a write of the same path is one read and one write — nothing flagged', () => {
+    // readFileSync(path) with no encoding opens the file through fs.openSync inside node; that open
+    // is part of the read, not a second look that the write then acts on.
+    const [s, dir] = scratchScript(
+      'buffer-read-then-write.mjs',
+      "import { readFileSync, writeFileSync } from 'node:fs';\nconst p = process.argv[2];\nconst before = readFileSync(p);\nif (before.toString() !== 'x') writeFileSync(p, 'x');\n",
+    );
+    writeFileSync(join(dir, 'target.txt'), 'hello');
+    const v = spied([s, join(dir, 'target.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    assert.deepEqual(onTarget(v, 'flagged'), [], JSON.stringify(v.pairs));
+    assert.deepEqual(onTarget(v, 'pairs'), [], JSON.stringify(v.pairs));
+    assert.ok(v.uses.some((u) => u.endsWith('/target.txt')), 'the spy recorded no use of target.txt');
+  });
+
+  test('a BUFFER write then a read of the same path is one write and one read — nothing flagged', () => {
+    // writeFileSync(path, buffer) also opens through fs.openSync inside node.
+    const [s, dir] = scratchScript(
+      'buffer-write-then-read.mjs',
+      "import { readFileSync, writeFileSync } from 'node:fs';\nconst p = process.argv[2];\nwriteFileSync(p, Buffer.from('y'));\nreadFileSync(p, 'utf8');\n",
+    );
+    const v = spied([s, join(dir, 'target.txt')], { under: dir });
+    assert.equal(v.code, 0, v.text);
+    assert.deepEqual(onTarget(v, 'pairs'), [], JSON.stringify(v.pairs));
+    assert.ok(v.uses.some((u) => u.endsWith('/target.txt')), 'the spy recorded no use of target.txt');
+  });
 });
 
 const SCANNED = (p) => !/\.(?:mjs|cjs|js)$/.test(p);

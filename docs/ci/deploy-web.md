@@ -403,6 +403,14 @@ fetched from Google by the RUNNER at build time, and no visitor request goes the
 upgrade that rolls the list fails that step by name, and the fix is `--write-lock` plus a
 reviewed diff. `browser.sentry-cdn.com` is the remaining boot-path third party.
 
+⏱ **2026-09-12 — SENTRY'S CDN IS CLOSED TOO (W5).** Option (a) above, in its smallest
+form: `packages/telemetry` keeps `sentry_flutter` (every Flutter integration stays) and,
+on web only, sets `autoInitializeNativeSdk = false` AND replaces the transport with the
+SDK's own `HttpTransport` (`useHttpTransportOnWeb`). The second half is what prevents
+the (a') outage described above. Events POST to the DSN host, which is already in
+`connect-src`, and GlitchTip answers the CORS preflight for `x-sentry-auth`. The browser
+no longer loads `bundle.tracing.min.js`, and the app CSP names no third-party CDN.
+
 ### in step **Build web (release, no service worker)**, above `- uses: ./.github/actions/setup-node`
 
 ── [pipeline 9]R-13 · THE ARTIFACT IS STARTED ONCE, BEFORE PUBLICATION ──

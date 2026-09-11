@@ -730,7 +730,9 @@ function verifyPackage(zipPath, kind) {
   if (kind === 'firefox') {
     const gecko = (mf.browser_specific_settings || {}).gecko || {};
     const id = gecko.id || '';
-    const placeholder = /REPLACE-WITH-YOUR-DOMAIN|\.example$/i.test(id);
+    /* Two refusals, not one alternation (CodeQL #42): the slot token ANYWHERE, or the
+       reserved .example TLD at the END. Grouped under one $ it would accept x@REPLACE-WITH-YOUR-DOMAIN.com. */
+    const placeholder = /REPLACE-WITH-YOUR-DOMAIN/i.test(id) || /\.example$/i.test(id);
     if (placeholder) {
       console.log('  BLOCK  gecko.id is still the placeholder  — ' + id);
       action('OWNER', 'set a real browser_specific_settings.gecko.id in publish/manifest.firefox.json '

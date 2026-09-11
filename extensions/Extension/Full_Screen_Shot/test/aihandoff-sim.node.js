@@ -221,7 +221,9 @@ globalThis.createImageBitmap = async blob => {
   return ({
   width: blob.__w || 1, height: blob.__h || 1, data: blob.__data, close() {}
 });};
-globalThis.fsCanvasToBlob = async canvas => ({
+/* The same parameters as pages/common.js fsCanvasToBlob(canvas, type, quality), so the pages'
+   three-argument calls resolve against a stub that takes three (CodeQL #233-#242). */
+globalThis.fsCanvasToBlob = async (canvas, type, quality) => ({
   __w: canvas.width, __h: canvas.height, __data: canvas._data && canvas._data.slice(),
   size: canvas.width * canvas.height * 4, type: 'image/png'
 });
