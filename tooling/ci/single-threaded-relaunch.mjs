@@ -35,6 +35,21 @@
 // compile in the background. It carries no timeout of its own: a second bound
 // would have to be kept in step with each guard's own.
 //
+// ⚠️ THE RELAUNCHING PARENT IS NOT IMMUNE, AND THAT WAS MEASURED (2026-09-11).
+// It still runs with background tasks on; it is safe only because it gives them
+// nothing to do. With default flags its worker threads burned 0 CPU ticks on
+// every measured run (elf 8/8, stamp 8/8). But run the guard as
+// `node --stress-concurrent-allocation <guard>` and the flag lives in the
+// PARENT's own startup too: the amplifier posts background allocation tasks to
+// the idle parent (16-100 ticks), and that parent then hung at exit in 4 of 12
+// and 1 of 24 elf runs, AFTER the single-threaded child had printed its whole
+// verdict. The work itself, stressed on its own (`--single-threaded
+// --stress-concurrent-allocation`), hung 0 of 12 for elf, stamp and listing.
+// So the amplifier cannot prove the parent safe; the zero-tick measurement is
+// the evidence it rests on. The shape with no parent at all is
+// `node --single-threaded <guard>` in the workflow step, where this module
+// returns at once.
+//
 // "I COULD NOT LOOK" IS EXIT 2, NEVER 0 AND NEVER 1. A relaunch that cannot start,
 // or a working process killed by a signal before it delivered a verdict, is
 // handed to the CALLER's COVERAGE LOST reporter — the caller frames it and exits
