@@ -36,19 +36,16 @@
 #     substitution does not disturb it. assert-web-cache-policy.mjs recomputes it
 #     on every run, so an edit to that script that forgets this line goes RED
 #     instead of silently disabling the loader.
-#   · 🔴 `https://www.gstatic.com`, `https://fonts.gstatic.com`,
-#     `https://browser.sentry-cdn.com` — THREE THIRD-PARTY CDNs ON THIS APP'S BOOT
-#     PATH, discovered by this measurement and invisible before it, because
-#     without a CSP nothing reports them. The engine fetches CanvasKit and the
-#     Roboto fallback from Google's CDN, and the telemetry SDK loads its bundle
-#     from Sentry's. `web/index.html` states the opposite about itself ("no CDN
-#     font, script or stylesheet … no third party on the boot path") — true of the
-#     markup it was written about, false of the running page.
-#     They are listed here because a policy that does not describe the running app
-#     is worse than none. REMOVING them is a separate, owed change, not a header
-#     edit: `flutter build web --no-web-resources-cdn` serves CanvasKit and the
-#     font from `/canvaskit/*` (already in this bundle — measured 200 today, and
-#     already declared below), and the telemetry loader needs its own decision.
+#   · 🔴 `https://browser.sentry-cdn.com` — a THIRD-PARTY CDN ON THIS APP'S BOOT
+#     PATH: sentry_flutter injects the Sentry browser SDK from it. Still listed
+#     because a policy that does not describe the running app is worse than none;
+#     closing it is its own change (docs/ci/deploy-web.md).
+#   · ⏱ 2026-09-12 — `https://www.gstatic.com` AND `https://fonts.gstatic.com` ARE
+#     GONE, measured 2026-09-09 as CanvasKit and the Roboto/Noto font fallback.
+#     The build now passes `--no-web-resources-cdn` (CanvasKit from `/canvaskit/*`)
+#     and web/flutter_bootstrap.js passes `fontFallbackBaseUrl: "fallback-fonts/"`,
+#     which deploy-web.yml fills with sha256-pinned copies
+#     (tooling/web/self-host-fallback-fonts.mjs) and refuses to deploy without.
 #   · `worker-src`/`child-src blob:` — the engine spawns its wasm workers from
 #     blob URLs.
 #   · `challenges.cloudflare.com` — Turnstile, in script-src AND frame-src. It is
@@ -66,7 +63,7 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM=' https://www.gstatic.com https://browser.sentry-cdn.com https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co https://subscriptiontracker-api.nikatru.com https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com https://www.gstatic.com https://fonts.gstatic.com; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-SqMf+O735lfNTprKa7S7jIWl1q79qFSdJCsyK+SUFsM=' https://browser.sentry-cdn.com https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co https://subscriptiontracker-api.nikatru.com https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com; upgrade-insecure-requests
 # ═══════════════════════════════════════════════════════════════════════════
 #
 # 🔴 WHY THIS FILE EXISTS — [pipeline 9]R-9, the cache limb.
@@ -177,4 +174,11 @@
 /assets/*
   Cache-Control: public, max-age=0, must-revalidate
 /canvaskit/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# The engine's text fallback fonts, copied into build/web/fallback-fonts/ by
+# tooling/web/self-host-fallback-fonts.mjs (see apps/<id>/web/flutter_bootstrap.js).
+# Not shipped from web/, and the SAME rule as the bundle's other build output:
+# a fixed name per engine version, so revalidate rather than assume immutability.
+/fallback-fonts/*
   Cache-Control: public, max-age=0, must-revalidate

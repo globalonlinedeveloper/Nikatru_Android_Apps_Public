@@ -1,0 +1,235 @@
+// self-host-fallback-fonts.test.mjs — the web app's CanvasKit and text fallback
+// fonts come from its own origin, and a bundle that would reach Google's CDN at
+// runtime is refused before it is deployed.
+//
+// Two halves:
+//   · the script, on synthetic build directories (hermetic: `--source` reads a
+//     local mirror, nothing is fetched);
+//   · the tree — the three edits that make the egress closed (build flag,
+//     bootstrap config, CSP) and the workflow wiring that runs the script before
+//     the pre-publication smoke. Restoring any one of them turns a test here RED.
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const SCRIPT = join(REPO, 'tooling', 'web', 'self-host-fallback-fonts.mjs');
+const { extractFallbackPaths, inspectBootstrap, FONT_PATH, FONT_FALLBACK_BASE_URL } = await import(
+  new URL(`file:///${SCRIPT.replace(/\\/g, '/')}`).href
+);
+
+const ROBOTO = 'roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2';
+const SYMBOLS = 'notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71ypPqfX71-AI.woff2';
+const GOOD_BOOT =
+  '_flutter.buildConfig = {"engineRevision":"abc","useLocalCanvasKit":true,"builds":[]};\n' +
+  '_flutter.loader.load({\n  config: {\n    fontFallbackBaseUrl: "fallback-fonts/",\n  },\n});\n';
+const GOOD_MAIN = `r($,"a","b",()=>A.ez().gabG()+"${ROBOTO}")\nB.x=s([A.N("Noto Sans Symbols 2","${SYMBOLS}")]);\nreturn(s==null?"canvaskit/":s)+a`;
+const sha = (b) => createHash('sha256').update(b).digest('hex');
+
+function fixture({ main = GOOD_MAIN, boot = GOOD_BOOT, canvaskit = true, lockFiles, sourceBytes } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'w5-fonts-'));
+  const build = join(root, 'build');
+  const source = join(root, 'source');
+  mkdirSync(build, { recursive: true });
+  writeFileSync(join(build, 'main.dart.js'), main);
+  writeFileSync(join(build, 'flutter_bootstrap.js'), boot);
+  if (canvaskit) {
+    mkdirSync(join(build, 'canvaskit'));
+    writeFileSync(join(build, 'canvaskit', 'canvaskit.wasm'), 'wasm');
+  }
+  const bytes = sourceBytes ?? { [ROBOTO]: Buffer.from('roboto-bytes'), [SYMBOLS]: Buffer.from('symbols-bytes') };
+  for (const [p, b] of Object.entries(bytes)) {
+    mkdirSync(dirname(join(source, p)), { recursive: true });
+    writeFileSync(join(source, p), b);
+  }
+  const files =
+    lockFiles ??
+    Object.fromEntries(
+      [ROBOTO, SYMBOLS].map((p) => {
+        const b = p === ROBOTO ? Buffer.from('roboto-bytes') : Buffer.from('symbols-bytes');
+        return [p, { sha256: sha(b), bytes: b.length }];
+      }),
+    );
+  const lock = join(root, 'lock.json');
+  writeFileSync(lock, JSON.stringify({ files }));
+  return { root, build, source, lock };
+}
+
+function run(fx, extra = []) {
+  const r = spawnSync(process.execPath, [SCRIPT, fx.build, '--lock', fx.lock, '--source', fx.source, ...extra], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+}
+
+describe('self-host-fallback-fonts — the script', () => {
+  test('a well-formed bundle gets every fallback font placed under fallback-fonts/, byte-identical to the lock', () => {
+    const fx = fixture();
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /ok {2}2 fallback font\(s\)/);
+      assert.equal(readFileSync(join(fx.build, 'fallback-fonts', ROBOTO), 'utf8'), 'roboto-bytes');
+      assert.equal(readFileSync(join(fx.build, 'fallback-fonts', SYMBOLS), 'utf8'), 'symbols-bytes');
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('a font whose bytes differ from the lock is refused and NOT written', () => {
+    const fx = fixture({ sourceBytes: { [ROBOTO]: Buffer.from('tampered'), [SYMBOLS]: Buffer.from('symbols-bytes') } });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /roboto\/v32\/KFOmCnqEu92Fr1Me4GZLCzYlKw\.woff2: fetched 8 bytes sha256 [0-9a-f]{64}; the lock pins 12 bytes/);
+      assert.equal(existsSync(join(fx.build, 'fallback-fonts', ROBOTO)), false);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('a bundle naming a font the lock does not hold (a rolled engine list) fails and names the path', () => {
+    const b = Buffer.from('roboto-bytes');
+    const fx = fixture({ lockFiles: { [ROBOTO]: { sha256: sha(b), bytes: b.length } } });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /1 fallback font path\(s\) in this bundle are not in the lock/);
+      assert.ok(r.out.includes(SYMBOLS), r.out);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('a bootstrap that does not pass fontFallbackBaseUrl is refused — the engine would fetch fonts.gstatic.com', () => {
+    const fx = fixture({ boot: '_flutter.buildConfig = {"useLocalCanvasKit":true};\n_flutter.loader.load();\n' });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /passes fontFallbackBaseUrl null, not "fallback-fonts\/"/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('a bootstrap pointing the fallback at Google explicitly is refused too', () => {
+    const fx = fixture({ boot: GOOD_BOOT.replace('"fallback-fonts/"', '"https://fonts.gstatic.com/s/"') });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /passes fontFallbackBaseUrl "https:\/\/fonts\.gstatic\.com\/s\/"/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('a build without --no-web-resources-cdn is refused on BOTH of its tells', () => {
+    const fx = fixture({
+      boot: GOOD_BOOT.replace('"useLocalCanvasKit":true,', ''),
+      main: GOOD_MAIN.replace('"canvaskit/"', '"https://www.gstatic.com/flutter-canvaskit/a804b261/"'),
+    });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /does not set useLocalCanvasKit: true/);
+      assert.match(r.out, /main\.dart\.js still carries the CanvasKit CDN default/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('COVERAGE LOST (exit 2) when the bundle names no fallback font at all', () => {
+    const fx = fixture({ main: 'return(s==null?"canvaskit/":s)+a' });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 2, r.out);
+      assert.match(r.out, /COVERAGE LOST/);
+      assert.match(r.out, /names ZERO fallback font paths/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('COVERAGE LOST (exit 2) when the extraction finds fonts but not Roboto, the one loaded on every boot', () => {
+    const fx = fixture({ main: GOOD_MAIN.replace(`+"${ROBOTO}"`, '') });
+    try {
+      const r = run(fx);
+      assert.equal(r.code, 2, r.out);
+      assert.match(r.out, /none is Roboto/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('path shape: a lock or bundle path can never climb out of fallback-fonts/', () => {
+    assert.ok(FONT_PATH.test(ROBOTO));
+    for (const bad of ['../x/v1/a.woff2', 'roboto/v32/../../etc.woff2', 'roboto/v32/.hidden.woff2', 'Roboto/v32/a.woff2', 'roboto/v32/a.js']) {
+      assert.equal(FONT_PATH.test(bad), false, bad);
+    }
+    assert.deepEqual(extractFallbackPaths(`"../x/v1/a.woff2" "${ROBOTO}"`), [ROBOTO]);
+  });
+});
+
+describe('the tree — the Google CDN is off the web app\'s runtime path', () => {
+  const appsWithWeb = readdirSync(join(REPO, 'apps'), { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(REPO, 'apps', e.name, 'web', 'index.html')))
+    .map((e) => e.name);
+
+  test('the scan reaches at least one Flutter web app (a walk over nothing is not a pass)', () => {
+    assert.ok(appsWithWeb.length >= 1, 'no apps/*/web/index.html found');
+  });
+
+  test('every Flutter web app ships a bootstrap passing the self-hosted fallback base', () => {
+    for (const app of appsWithWeb) {
+      const p = join(REPO, 'apps', app, 'web', 'flutter_bootstrap.js');
+      assert.ok(existsSync(p), `apps/${app}/web/flutter_bootstrap.js is missing — Flutter would generate one that loads fonts from fonts.gstatic.com`);
+      const text = readFileSync(p, 'utf8');
+      assert.equal(inspectBootstrap(text).fontFallbackBaseUrl, FONT_FALLBACK_BASE_URL, `apps/${app}/web/flutter_bootstrap.js`);
+      assert.ok(text.includes('{{flutter_js}}') && text.includes('{{flutter_build_config}}'), `apps/${app}: the template lost a Flutter token`);
+    }
+  });
+
+  test('no shipped app Content-Security-Policy lets a browser reach gstatic.com', () => {
+    for (const app of appsWithWeb) {
+      const csp = readFileSync(join(REPO, 'apps', app, 'web', '_headers'), 'utf8')
+        .split(/\r?\n/)
+        .filter((l) => /^\s*Content-Security-Policy\s*:/i.test(l));
+      assert.ok(csp.length >= 1, `apps/${app}/web/_headers declares no CSP`);
+      for (const line of csp) assert.doesNotMatch(line, /gstatic\.com/, `apps/${app}/web/_headers`);
+    }
+  });
+
+  test('deploy-web.yml builds with --no-web-resources-cdn and places the fonts after the build and before the smoke', () => {
+    const wf = readFileSync(join(REPO, '.github', 'workflows', 'deploy-web.yml'), 'utf8');
+    const lines = wf.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join('\n');
+    const build = lines.indexOf('flutter build web --release');
+    const flag = lines.indexOf('--no-web-resources-cdn');
+    const fonts = lines.indexOf('node tooling/web/self-host-fallback-fonts.mjs apps/${{ matrix.app }}/build/web');
+    const smoke = lines.indexOf('node tooling/smoke/smoke-web-artifact.mjs');
+    assert.ok(build >= 0 && smoke >= 0, 'build or smoke step not found');
+    assert.ok(flag > build && flag < lines.indexOf('--dart-define', build), '--no-web-resources-cdn is not on the release build line');
+    assert.ok(fonts > build && fonts < smoke, 'the fonts step must run after the build and before the pre-publication smoke');
+    assert.match(lines, /^\s*- 'tooling\/web\/\*\*'$/m, "deploy-web.yml paths: must include 'tooling/web/**' or editing the script deploys nothing");
+  });
+
+  test('the committed lock is well-formed and non-empty', () => {
+    const lock = JSON.parse(readFileSync(join(REPO, 'tooling', 'web', 'fallback-fonts.lock.json'), 'utf8'));
+    const keys = Object.keys(lock.files);
+    assert.ok(keys.length > 100, `lock holds ${keys.length} files`);
+    assert.equal(lock.count, keys.length);
+    assert.ok(keys.includes(ROBOTO), 'the lock has no Roboto');
+    let total = 0;
+    for (const k of keys) {
+      assert.ok(FONT_PATH.test(k), k);
+      assert.match(lock.files[k].sha256, /^[0-9a-f]{64}$/);
+      total += lock.files[k].bytes;
+    }
+    assert.equal(lock.bytes, total);
+  });
+});

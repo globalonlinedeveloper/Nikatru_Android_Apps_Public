@@ -30,6 +30,7 @@ on:
       - 'tooling/ci/assert-catalog-reachable.mjs'
       - 'tooling/ci/record-deployment.mjs'
       - 'tooling/smoke/smoke-web-artifact.mjs'
+      - 'tooling/web/**'
       - 'tooling/ops/post-deploy-smoke.mjs'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
@@ -158,7 +159,7 @@ jobs:
 
       - name: Build web (release, no service worker)
         run: >
-          flutter build web --release --pwa-strategy=none --source-maps
+          flutter build web --release --pwa-strategy=none --source-maps --no-web-resources-cdn
           --base-href ${{ steps.base.outputs.base_href }}
           --build-name=${{ steps.ver.outputs.release_line }}.${{ github.run_number }}
           --build-number=${{ github.run_number }}
@@ -172,6 +173,11 @@ jobs:
           --dart-define=RELEASE_CHANNEL=web
 
       - uses: ./.github/actions/setup-node
+
+      # why: fallback fonts come from the app origin, never fonts.gstatic.com; sha256-pinned (docs/ci/deploy-web.md).
+      - name: Self-host the engine's fallback fonts, pinned by sha256
+        working-directory: .
+        run: node tooling/web/self-host-fallback-fonts.mjs apps/${{ matrix.app }}/build/web
 
       - name: Install glitchtip-cli (pinned by version AND by digest)
         working-directory: .

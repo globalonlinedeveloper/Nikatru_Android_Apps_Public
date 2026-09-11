@@ -154,6 +154,7 @@
   "screen-set.test.mjs": 31,
   "seams-wired.test.mjs": 22,
   "selection-record.test.mjs": 12,
+  "self-host-fallback-fonts.test.mjs": 14,
   "signup-consent-shape.test.mjs": 21,
   "signup-retention.test.mjs": 11,
   "single-threaded-relaunch.test.mjs": 8,
