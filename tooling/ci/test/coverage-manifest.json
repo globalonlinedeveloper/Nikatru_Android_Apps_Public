@@ -34,7 +34,7 @@
   "captcha-gated-call-sites.test.mjs": 16,
   "case-count-honest.test.mjs": 40,
   "catalog-contract.test.mjs": 39,
-  "catalog-reachable.test.mjs": 21,
+  "catalog-reachable.test.mjs": 22,
   "ceiling-budget.test.mjs": 73,
   "channel-arming.test.mjs": 27,
   "channel-claims.test.mjs": 48,

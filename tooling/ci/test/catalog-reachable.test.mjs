@@ -43,6 +43,8 @@
 //   ok  wildcard DNS answers — https://wc-3cc38997.nikatru.com/ returned HTTP 522
 //   ok  canonical hub answers — https://nikatru.com/apps/ returned 200
 // Both limb lines present, exit 0.
+// 2026-09-11: limb 2 became REPORT-ONLY after a runner still resolved a fresh name 29 minutes after the wildcard
+//   record was deleted (HTTP 530 at 17:42Z) while public resolvers returned NXDOMAIN.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,62 +234,55 @@ describe('assert-catalog-reachable', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [pipeline 10]D-11 LIMB 2 — the wildcard is asserted, not assumed.
+// [pipeline 10]D-11 LIMB 2 — the wildcard state is reported, never gating ([ADR 080] §4).
 // ─────────────────────────────────────────────────────────────────────────────
-describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard)', () => {
-  // The production case, and the one that reads backwards until you hold it
-  // next to limb 1: a 522 is a FAILURE for a named app and a PASS here. The name
-  // is random, so answering AT ALL is the proof.
-  test('ANY HTTP status from a name nobody registered proves the wildcard answers', () => {
-    for (const status of [522, 404, 200]) {
-      const v = wildcardVerdict({
-        url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-        verdict: { status },
-        othersAnswered: true,
-      });
-      assert.equal(v.ok, true, `HTTP ${status} should settle limb 2`);
-      assert.match(v.line, new RegExp(`^ok {2}wildcard DNS answers`));
+describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard state, reported only)', () => {
+  const nonce = `https://wc-deadbeef.${WILDCARD_APEX}/`;
+
+  // 🔴 THE DEFECT THIS SHAPE EXISTS FOR (2026-09-11): after the record was deleted, a GitHub runner still got HTTP 530 for a
+  // fresh name 29 minutes later while public resolvers said NXDOMAIN. A limb that fails on either reading turns every PR red
+  // whenever the record changes.
+  test('an HTTP answer from a name nobody registered is REPORTED as present and never fails the run', () => {
+    for (const status of [522, 530, 404, 200]) {
+      const v = wildcardVerdict({ url: nonce, verdict: { status }, othersAnswered: true });
+      assert.equal(v.ok, true, `HTTP ${status} must not fail the run`);
+      assert.equal(v.state, 'present');
+      assert.match(v.line, /^⚠ {2}wildcard DNS seen/);
       assert.match(v.line, new RegExp(`returned HTTP ${status}`));
+      assert.match(v.line, /ADR 080/);
+      assert.match(v.line, /reported, not enforced/);
     }
   });
 
-  // 🔴 THE DEFECT D-11 EXISTS FOR. Deleting the wildcard record leaves every
-  // catalogue hostname NXDOMAIN, and limb 1 alone reads that as "the runner is
-  // offline". This limb must name the RECORD, not the network.
-  test('FAILS — naming the DNS record class — when the nonce is unreachable while others answered', () => {
-    const v = wildcardVerdict({
-      url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-      verdict: { transport: 'ENOTFOUND' },
-      othersAnswered: true,
-    });
-    assert.equal(v.ok, false);
-    assert.equal(v.coverageLost, false);
-    const text = v.lines.join('\n');
-    assert.match(text, /THE WILDCARD DNS RECORD IS GONE/);
-    assert.match(text, /ENOTFOUND/);
-    assert.match(text, /PROXIED WILDCARD CNAME/);
-    assert.match(text, new RegExp(`\\*\\.${WILDCARD_APEX.replace(/\./g, '\\.')}`));
+  test('ENOTFOUND while others answered is REPORTED as absent', () => {
+    const v = wildcardVerdict({ url: nonce, verdict: { transport: 'ENOTFOUND' }, othersAnswered: true });
+    assert.equal(v.ok, true);
+    assert.equal(v.state, 'absent');
+    assert.match(v.line, /^ok {2}no wildcard DNS seen/);
   });
 
-  // The honesty case, matching limb 1's existing convention exactly: with
-  // nothing answering anywhere, "the record is gone" and "this runner has no
-  // network" are the same observation, so neither is claimed.
-  test('COVERAGE LOST — and no DNS claim — when nothing in the run answered', () => {
-    const v = wildcardVerdict({
-      url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-      verdict: { transport: 'EAI_AGAIN' },
-      othersAnswered: false,
-    });
-    assert.equal(v.ok, false);
-    assert.equal(v.coverageLost, true);
-    const text = v.lines.join('\n');
-    assert.match(text, /COVERAGE LOST/);
-    assert.ok(!/RECORD IS GONE/.test(text), 'must not name a cause it cannot observe');
+  test('any other transport failure, or nothing answering at all, is REPORTED as unknown and never fails', () => {
+    for (const [transport, othersAnswered] of [['ETIMEDOUT', true], ['EAI_AGAIN', true], ['ENOTFOUND', false]]) {
+      const v = wildcardVerdict({ url: nonce, verdict: { transport }, othersAnswered });
+      assert.equal(v.ok, true, `${transport}/${othersAnswered}`);
+      assert.equal(v.state, 'unknown', `${transport}/${othersAnswered}`);
+      assert.match(v.line, /^⚠ {2}wildcard state unknown/);
+    }
   });
 
-  // FRESH is load-bearing: a fixed nonce could be created as a real record (or
-  // cached) and would then answer for a reason unrelated to the wildcard — a
-  // probe that has quietly stopped testing its subject.
+  test('the verdict never carries a failure shape (no lines array, no coverageLost)', () => {
+    for (const verdict of [{ status: 522 }, { transport: 'ENOTFOUND' }, { transport: 'ETIMEDOUT' }, undefined]) {
+      for (const othersAnswered of [true, false]) {
+        const v = wildcardVerdict({ url: nonce, verdict, othersAnswered });
+        assert.equal(v.ok, true);
+        assert.equal('lines' in v, false);
+        assert.equal('coverageLost' in v, false);
+      }
+    }
+  });
+
+  // FRESH is load-bearing: a fixed nonce could be created as a real record or cached, and the report would then describe
+  // something other than a wildcard.
   test('the nonce is fresh every call and sits under the apex derived from the hub URL', () => {
     const a = nonceUrl();
     const b = nonceUrl();
