@@ -2408,7 +2408,7 @@ function auditPropertyRoot(root, sink) {
     for (const s of sources) {
       const path = resolveSource(root, s.file);
       let src = '';
-      let domain = [path];
+      let domain;
       try {
         // 🔴 2026-08-21 · THIS WAS THE ONE RAW READ IN THIS FILE. Every other
         // read here goes through `stripDartComments` — 7 sites — and this one

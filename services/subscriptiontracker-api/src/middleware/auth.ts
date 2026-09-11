@@ -107,7 +107,7 @@ async function warmJwksCache(env: Env): Promise<void> {
  * DIFFERENT WAYS, ONE OF THEM SILENT.
  *
  * `services/platform` got this fix in #433. THIS file did not, and it is
- * `subscriptiontracker.api.nikatru.com` — the product's data API. Read from jose's own source
+ * `subscriptiontracker-api.nikatru.com` — the product's data API. Read from jose's own source
  * (`src/jwks/remote.ts`): `createRemoteJWKSet` keeps a per-isolate, in-memory
  * cache and **on a failed fetch the error propagates — there is no fallback to a
  * previously cached key set.** `warmJwksCache` above already kept a copy in KV

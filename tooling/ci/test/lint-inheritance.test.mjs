@@ -198,7 +198,7 @@ describe('assert-lint-inheritance', () => {
     // silently stops applying to that package.
     test('FAILS when the include is kept but the dependency is dropped', () => {
       const { code, out } = run(tree({ dropPubspec: [] , overrides: {} }));
-      assert.equal(code, 0); // baseline
+      assert.equal(code, 0, out); // baseline
       const bad = tree({});
       writeFileSync(join(bad, BRICK, 'pubspec.yaml'), 'name: x\ndev_dependencies:\n  flutter_test:\n    sdk: flutter\n');
       const r = run(bad);

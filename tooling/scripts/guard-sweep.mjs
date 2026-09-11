@@ -55,9 +55,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { readdirSync, readFileSync, existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname, resolve, basename } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync, execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');

@@ -100,7 +100,7 @@
 //
 // Usage:  node tooling/ci/assert-provider-graph-acyclic.mjs [repoRoot] [--graph]
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join, resolve, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';

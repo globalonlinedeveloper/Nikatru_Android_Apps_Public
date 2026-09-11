@@ -237,6 +237,19 @@ function apiBaseLine(appId) {
   );
 }
 
+/** The host `_phApiBase` is ASSIGNED, read from the string literal on its line.
+ *  CodeQL #11: "the host name appears on the line" was also satisfied by a
+ *  trailing comment, and by a lookalike such as platform.nikatru.com.evil.test. */
+function apiBaseHost(line) {
+  const m = /_phApiBase\s*=\s*(['"])([^'"]*)\1/.exec(line);
+  if (!m) return null;
+  try {
+    return new URL(m[2]).hostname;
+  } catch {
+    return null;
+  }
+}
+
 // ── The DEFAULT stamp: client-only ──────────────────────────────────────────
 if (clientApp) {
   console.log(`default stamp "${clientApp}" — client-only:`);
@@ -288,7 +301,7 @@ if (clientApp) {
     const line = apiBaseLine(clientApp);
     if (line === null) {
       fail(`apps/${clientApp}/lib/core/app_config.dart missing or has no _phApiBase`);
-    } else if (!line.includes('platform.nikatru.com')) {
+    } else if (apiBaseHost(line) !== 'platform.nikatru.com') {
       fail(`_phApiBase is not the shared platform Worker: ${line.trim()}`);
     } else if (line.includes(`api-${clientApp}`)) {
       fail(`_phApiBase still carries a per-app API host: ${line.trim()}`);

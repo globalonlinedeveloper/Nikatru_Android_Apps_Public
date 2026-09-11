@@ -520,7 +520,6 @@ if (PROOF) defines.push('--dart-define', 'STORE_CAPTURE_ALLOW_DEMO=true');
  *  that `binding.takeScreenshot` would honour. The driver process is started
  *  once and reused, because the handshake is the slow part and a second
  *  chromedriver on the same port would simply fail to bind. */
-let exitCode = 1;
 try {
   if (!(await waitForDriver())) {
     fail([`chromedriver did not become ready on port 4444.`, cdErr.trim() || '(no stderr)']);
@@ -601,7 +600,7 @@ try {
       shell: process.platform === 'win32',
       env: { ...process.env, STORE_SHOT_DIR: dir.replace(/\\/g, '/') },
     });
-    exitCode = run.status ?? 1;
+    const exitCode = run.status ?? 1;
     // Stop at the FIRST failing viewport. Continuing would leave a half-captured
     // listing whose later sets look complete, and the failure below names the
     // viewport rather than "the capture".

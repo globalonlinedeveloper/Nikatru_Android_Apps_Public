@@ -54,7 +54,7 @@
 // Usage:  node tooling/ci/assert-channel-claims.mjs [repoRoot]
 // Exit 0 = every public claim is backed by a served channel. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
@@ -140,7 +140,9 @@ const PLACEHOLDER_CUES = [
   { cue: 'X-run', re: /X{4,}/i },
   { cue: 'ellipsis', re: /\.\.\./ },
   { cue: 'bracketed slot', re: /\[[^\]]*\]/ },
-  { cue: 'example.com', re: /example\.com/i },
+  // The reserved host at a host boundary (CodeQL #53): `io.myexample.compass` and
+  // `?ref=example.com` are real destinations that merely contain the letters.
+  { cue: 'example.com', re: /(?:^|[/.@])example\.com(?![a-z0-9-])/i },
   { cue: 'YOUR- slot', re: /(?:^|[/=])YOUR[_ -]/i },
   { cue: 'angle slot', re: /<[A-Z_]+>/ },
 ];
@@ -206,8 +208,16 @@ function quotedValueAround(text, index) {
  * one domain genuinely serving whichever of windows-direct/linux-appimage
  * exists first is honest with either.
  */
+/** The host of a destination, which may be a full URL or a scheme-less token.
+ *  CodeQL #54: the iOS-only narrowing is earned by the HOST being
+ *  itunes.apple.com, not by that name appearing anywhere in the URL. */
+function destinationHost(destination) {
+  const m =
+    /^(?:[a-z][a-z0-9+.-]*:)?\/\/([^/?#:@\s]+)/i.exec(destination) ?? /^([a-z0-9.-]+)(?=[/?#:]|$)/i.exec(destination);
+  return m ? m[1].toLowerCase() : '';
+}
 function appleSolo(destination) {
-  if (/itunes\.apple\.com/i.test(destination) || /[?&]mt=8(?!\d)/i.test(destination)) return ['ios'];
+  if (destinationHost(destination) === 'itunes.apple.com' || /[?&]mt=8(?!\d)/i.test(destination)) return ['ios'];
   if (/[?&]mt=12(?!\d)/i.test(destination)) return ['macos'];
   return null;
 }
