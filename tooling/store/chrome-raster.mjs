@@ -26,11 +26,10 @@
 // because "I assumed PNG output is always RGBA" is exactly the kind of belief
 // that ships a file the Play Console silently refuses.
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 
 /** Thrown rather than exiting, so each caller can phrase its own refusal. */
 export class RasterUnavailable extends Error {
@@ -81,8 +80,10 @@ export function render({ markup, ext, out, width, height, alpha = false }) {
   // 260-character limit and logged a cache error on every single run. Noisy
   // enough that a working pipeline gets abandoned as "flaky". This repo already
   // sets core.longpaths for the same class of problem.
-  const work = join(tmpdir(), `nk-raster-${randomBytes(4).toString('hex')}`);
-  mkdirSync(work, { recursive: true });
+  // PRIVATE, and never an existing directory (CodeQL #96): mkdtempSync makes a fresh
+  // owner-only directory with a random suffix, where mkdirSync({ recursive }) silently
+  // ADOPTED whatever already sat at that name. The name stays short, for the reason above.
+  const work = mkdtempSync(join(tmpdir(), 'nk-raster-'));
   const page = join(work, `page.${ext}`);
   writeFileSync(page, markup, 'utf8');
   const args = [
