@@ -2243,9 +2243,15 @@ void main() {
       '[en] the DPDP withdrawal row announces its STATE, not just its name',
       (WidgetTester tester) async {
         await semantically(tester, () async {
+          // TALL, because Settings is a lazy `ListView`: when the currency
+          // chooser grew from four glyphs to one chip per money-table row
+          // (wrapping to a second line), the Privacy section fell below a
+          // phone's fold and was never BUILT — "not found" would then say
+          // nothing about the row. The width is still a phone's.
           final ProviderContainer c = await pumpScreen(
             tester,
             const SettingsScreen(),
+            size: const Size(375, 2400),
           );
           final AppLocalizations l10n = await _load('en');
           final Iterable<SemanticsData> row = _nodes(tester)
@@ -2312,13 +2318,13 @@ void main() {
             .map((SemanticsNode n) => n.getSemanticsData())
             .where(
               (SemanticsData d) =>
-                  const <String>[r'$', '€', '£', '₹'].contains(d.label) &&
+                  core.Money.symbols.containsKey(d.label) &&
                   d.announcesSelectedState,
             )
             .toList();
         expect(
           chips,
-          hasLength(4),
+          hasLength(core.Money.symbols.length),
           reason:
               'the four currency chips are hand-rolled GestureDetectors and '
               'the ONLY thing that said which one is on was the gradient. '
