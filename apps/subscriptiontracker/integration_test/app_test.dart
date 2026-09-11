@@ -29,6 +29,8 @@ import 'package:nikatru_platform_storage/nikatru_platform_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
+import 'package:subscriptiontracker/core/a11y/web_semantics.dart'
+    show releaseWebSemantics;
 import 'package:subscriptiontracker/core/app_config.dart';
 import 'package:subscriptiontracker/core/e2e_keys.dart';
 import 'package:subscriptiontracker/features/auth/legal_consent_fields.dart';
@@ -624,11 +626,22 @@ void main() {
   /// fails before restoring, a suite-wide "pristine" value would no longer match
   /// the NEXT test's snapshot, and that test would fail this check on someone
   /// else's bug.
+  ///
+  /// 🔴 AND THE SEMANTICS HANDLE, IN THE SAME CALLBACK AND FOR THE SAME REASON.
+  /// On web `app.main()` forces semantics on by holding a `SemanticsHandle`
+  /// (`lib/core/a11y/web_semantics.dart`), and `_verifySemanticsHandlesWereDisposed`
+  /// runs in the very post-body block described above. While `main()` dropped
+  /// that handle, nightly run 34453685391 and every run after it failed the
+  /// first test with `A SemanticsHandle was active at the end of the test.` —
+  /// after its body had passed. The handle is now owned, and released here.
   Future<VoidCallback> launchApp(WidgetTester tester) async {
     final ErrorWidgetBuilder builderBeforeTest = ErrorWidget.builder;
     await app.main();
     await pumpFor(tester, const Duration(seconds: 3));
-    return () => ErrorWidget.builder = builderBeforeTest;
+    return () {
+      ErrorWidget.builder = builderBeforeTest;
+      releaseWebSemantics();
+    };
   }
 
   /// Moves past first-run onboarding IF it is showing, and says whether it was.

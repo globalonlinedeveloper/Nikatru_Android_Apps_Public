@@ -30,6 +30,10 @@ Future<void> main() async {
   // telemetry bootstrap for the same reason `AppErrorScreen.install()` is first
   // inside `appRunner` — the error screen is a surface too, and on web it must
   // be readable.
+  //
+  // The handle is HELD by web_semantics.dart for the life of the process, not
+  // returned here to be dropped: a dropped handle is one no test harness that
+  // boots this function can dispose (nightly e2e, 2026-09-10).
   enableWebSemantics();
 
   // [pipeline K-10/K-11] The licences of assets that ship in the bundle but that
