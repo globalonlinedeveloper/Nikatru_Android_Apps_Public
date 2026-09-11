@@ -299,7 +299,9 @@ if (fs.existsSync(identityAbs)) {
     fs.writeFileSync(identityAbs, JSON.stringify(p.value, null, 2) + '\n', 'utf8');
     r.pass('set publish/identity.json slug to "' + id + '"',
       'TEMPLATE.md §1 — the tool\'s own sim reads this to know it is no longer the skeleton');
-    if (/REPLACE|\.example$/i.test(String(p.value.ownerDomain || ''))) {
+    const ownerDomain0 = String(p.value.ownerDomain || '');
+    /* The slot token anywhere, or the reserved TLD at the end — two tests (CodeQL #46). */
+    if (/REPLACE/i.test(ownerDomain0) || /\.example$/i.test(ownerDomain0)) {
       r.owner('publish/identity.json ownerDomain is still a placeholder',
         'The Firefox add-on id is derived as ' + id + '@<ownerDomain>, and AMO FIXES THE ADD-ON IDENTITY AT\n' +
         'FIRST SIGNING — a placeholder that ships once is an add-on that belongs to nobody, permanently.\n' +
