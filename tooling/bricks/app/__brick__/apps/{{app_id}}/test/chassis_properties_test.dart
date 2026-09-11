@@ -128,6 +128,10 @@ class _MemStore implements core.KeyValueStore {
 class _FakeNotifications implements core.NotificationService {
   int initCalls = 0;
   int cancelAllCalls = 0;
+
+  /// Every id passed to [cancel], in order — "reminders off" now cancels ONLY
+  /// `kDailyReminderId`, because the plugin is shared with app schedules.
+  final List<int> cancelledIds = <int>[];
   bool permission = true;
   final List<core.DailyReminder> scheduled = <core.DailyReminder>[];
 
@@ -173,8 +177,10 @@ class _FakeNotifications implements core.NotificationService {
   }
 
   @override
-  Future<void> cancel(int id) async =>
-      scheduled.removeWhere((core.DailyReminder r) => r.id == id);
+  Future<void> cancel(int id) async {
+    cancelledIds.add(id);
+    scheduled.removeWhere((core.DailyReminder r) => r.id == id);
+  }
 
   @override
   // 🔴 IT REALLY DROPS THEM. Counting the call and leaving the list populated is
@@ -459,9 +465,13 @@ ProviderContainer _moneyContainer({
   bool paywallEnabled = true,
   bool promoEnabled = false,
   Map<String, String> promoCopy = const <String, String>{},
+  // The promo card shows only where the rail CAN sell, so a case about the
+  // card itself passes a selling rail; null keeps the real one.
+  PurchaseRail? rail,
 }) => ProviderContainer(
   overrides: <Override>[
     keyValueStoreProvider.overrideWith((_) async => store),
+    if (rail != null) purchaseRailProvider.overrideWithValue(rail),
     // This user has accepted the current terms. Stated, not defaulted: a
     // signed-in user with NO acceptance on record is sent to /reaccept-terms
     // by the router (research/43 rider), which is correct and is what every
@@ -2902,7 +2912,9 @@ void main() {
       await controller.applyReminderChoice(on: true, title: 'T', body: 'B');
       await controller.applyReminderChoice(on: false, title: 'T', body: 'B');
 
-      expect(notes.cancelAllCalls, 1);
+      expect(notes.cancelledIds, contains(kDailyReminderId));
+      expect(notes.cancelAllCalls, 0);
+      expect(notes.scheduled, isEmpty);
       expect(c.read(remindersEnabledProvider), isFalse);
     });
 
@@ -2957,8 +2969,8 @@ void main() {
       await controller.set(false);
 
       expect(
-        notes.cancelAllCalls,
-        greaterThan(0),
+        notes.cancelledIds,
+        contains(kDailyReminderId),
         reason:
             'a second writer of the intent must reach the OS; before this it '
             'did not, and the schedule outlived the switch',
@@ -3017,7 +3029,8 @@ void main() {
           .read(remindersEnabledProvider.notifier)
           .resyncOnStart(title: 'T', body: 'B');
 
-      expect(notes.cancelAllCalls, greaterThan(0));
+      expect(notes.cancelledIds, contains(kDailyReminderId));
+      expect(notes.cancelAllCalls, 0);
       expect(notes.scheduled, isEmpty);
     });
 
@@ -3044,6 +3057,9 @@ void main() {
             'a transient disk error is not an instruction to disable the '
             'feature; cancelling here would silently turn reminders off',
       );
+      // The controller no longer reaches `cancelAll` at all, so the line above
+      // alone could not fail. This one can.
+      expect(notes.cancelledIds, isEmpty);
       expect(notes.scheduled, isEmpty);
     });
 
@@ -4638,12 +4654,14 @@ void main() {
       // would assert that a boolean makes a widget change, which was never in
       // doubt; this drives the entitlement that lock is computed from.
       bool pro = false,
+      bool realRail = false,
     }) async {
       final ProviderContainer c = _moneyContainer(
         store: _onboardedStore(store),
         server: _FakeEntitlements(pro: pro),
         promoEnabled: promoEnabled,
         promoCopy: promoCopy,
+        rail: realRail ? null : _FakeRail(),
       );
       // SIGNED IN, or the router's redirect guard sends this to /sign-in and
       // the test measures the auth gate instead of the home body.
@@ -4654,6 +4672,26 @@ void main() {
       await c.read(entitlementsProvider.future);
       return c;
     }
+
+    // 🔴 A BUILD WHOSE RAIL CANNOT SELL QUOTES NO PRICE. The real rail refuses
+    // under flutter_test's Android default (the android-play row), so with the
+    // flag ON the card must still not render: a price for what the build
+    // cannot sell in-app is steering. Mirrors the app's promo_card_surface_test.
+    testWidgets('the flag ON but a rail that CANNOT sell ⇒ no promo card', (
+      WidgetTester tester,
+    ) async {
+      final ProviderContainer c = await signedIn(
+        promoEnabled: true,
+        realRail: true,
+      );
+      addTearDown(c.dispose);
+      expect(c.read(purchaseRailProvider).canStartCheckout, isFalse);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: c, child: const {{app_id.pascalCase()}}App()),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PromoCard), findsNothing);
+    });
 
     testWidgets('the flag ABSENT ⇒ the home body renders no promo at all', (
       WidgetTester tester,
