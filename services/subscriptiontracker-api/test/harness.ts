@@ -238,7 +238,7 @@ export const TEST_ENV = {
   APP_ID: 'subscriptiontracker',
   SUPABASE_URL: 'https://project.supabase.co',
   API_VERSION: 'v1',
-  ALLOWED_ORIGINS: 'https://subly.nikatru.com,https://subly-9cp.pages.dev',
+  ALLOWED_ORIGINS: 'https://nikatru.com,https://subscriptiontracker-7qg.pages.dev',
   // [5]M-12 — the tests run as a LIVE deploy, like production wrangler.jsonc.
   // Suites that need the sandbox side override this per-harness.
   MONEY_ENVIRONMENT: 'live',
