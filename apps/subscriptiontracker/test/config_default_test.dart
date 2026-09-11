@@ -59,7 +59,10 @@ void main() {
       );
       final core.AppConfig? resolved = cache.get(AppConfig.appId);
       expect(resolved, isNotNull, reason: 'offline launch would throw');
-      expect(resolved!.apiBaseUrl, 'https://subscriptiontracker.api.nikatru.com/v1');
+      expect(
+        resolved!.apiBaseUrl,
+        'https://subscriptiontracker.api.nikatru.com/v1',
+      );
     });
 
     test(
