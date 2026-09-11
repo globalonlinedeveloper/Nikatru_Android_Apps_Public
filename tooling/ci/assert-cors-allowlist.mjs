@@ -77,12 +77,8 @@ const SERVICE_POLICY = {
 const EXTRAS = {
   platform: [
     {
-      origin: 'https://subly-9cp.pages.dev',
-      why: 'Subly’s Cloudflare Pages preview domain. Not in apps.json — the catalogue advertises production URLs to the public and a preview host has no business there. HELD ONLY FOR THE CUTOVER: the slug rename moved the Direct Upload project to `subscriptiontracker`, and this entry leaves in the NARROW step, once nothing can be served from the retired project.',
-    },
-    {
       origin: 'https://subscriptiontracker-7qg.pages.dev',
-      why: 'the app’s Cloudflare Pages preview domain AFTER the slug rename. deploy-web.yml deploys with --project-name=<directory>, so `apps/subscriptiontracker` deploys to a new project; its subdomain was read back from the Pages API (the bare `subscriptiontracker.pages.dev` is a third party’s). Same reason as the row above: a preview host has no business in the public catalogue.',
+      why: 'the app’s Cloudflare Pages preview domain AFTER the slug rename. deploy-web.yml deploys with --project-name=<directory>, so `apps/subscriptiontracker` deploys to a new project; its subdomain was read back from the Pages API (the bare `subscriptiontracker.pages.dev` is a third party’s). A preview host has no business in the public catalogue. (The PRE-rename origin `subly-9cp.pages.dev` left both Workers and this list on 2026-09-11, the NARROW step of widen, cut over, narrow; re-adding it is refused as unjustified.)',
     },
     {
       origin: 'http://localhost:3000',
@@ -90,10 +86,6 @@ const EXTRAS = {
     },
   ],
   'subscriptiontracker-api': [
-    {
-      origin: 'https://subly-9cp.pages.dev',
-      why: 'Subly’s Cloudflare Pages preview domain — mirrors services/platform. Held only for the cutover; it leaves in the NARROW step.',
-    },
     {
       origin: 'https://subscriptiontracker-7qg.pages.dev',
       why: 'the post-rename Cloudflare Pages preview domain — mirrors services/platform, and read back from the Pages API rather than derived from the id.',

@@ -33,9 +33,10 @@ function appWith(allowedOrigins: string | undefined) {
 
 /** Mirrors the deployed `vars.ALLOWED_ORIGINS`. Read 2026-09-09, after [ADR 075]
  *  moved the app to a PATH on the apex and the old subdomain was retired behind a
- *  301 -- so the live browser origin is the apex, and the subdomain is gone. */
+ *  301 -- so the live browser origin is the apex, and the subdomain is gone.
+ *  Re-read 2026-09-11: the pre-rename Pages origin `subly-9cp.pages.dev` left too. */
 const SHIPPED =
-  'https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev';
+  'https://nikatru.com,https://subscriptiontracker-7qg.pages.dev';
 
 describe('subscriptiontracker-api CORS — exact allowlist', () => {
   it('reflects an origin that is on the list, exactly', async () => {
@@ -59,6 +60,7 @@ describe('subscriptiontracker-api CORS — exact allowlist', () => {
       'https://nikatru.com/', // trailing slash is a different origin
       'https://nikatru.com/subscriptiontracker', // an origin is not a URL: the PATH is not part of it
       'https://subly.nikatru.com', // the RETIRED subdomain is refused, not grandfathered
+      'https://subly-9cp.pages.dev', // the RETIRED pre-rename Pages origin, likewise (2026-09-11)
       'https://evil.test',
       'not-a-url',
     ]) {
