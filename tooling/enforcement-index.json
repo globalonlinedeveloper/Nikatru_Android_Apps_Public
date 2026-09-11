@@ -2275,6 +2275,18 @@
   },
   {
     "claims": [
+      "F-2"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#security-scan"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/install-pinned-tool.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "K-10",
       "P-5"
     ],

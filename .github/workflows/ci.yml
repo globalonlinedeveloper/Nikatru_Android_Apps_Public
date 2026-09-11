@@ -450,12 +450,29 @@ jobs:
     name: Security — secret and workflow scanners
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      # Read by tooling/ci/install-pinned-tool.mjs. Unset means "no cache", which
+      # is what every local run of that module gets.
+      PINNED_TOOL_CACHE: ${{ runner.temp }}/pinned-tool-cache
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
       - uses: ./.github/actions/setup-node
+      # 🔴 A CHECKSUM-VERIFIED CACHE, NOT A TRUSTED ONE. An Actions cache entry is
+      # writable from any branch, so a restored entry is untrusted input:
+      # install-pinned-tool.mjs compares its sha256 against the digest in
+      # tooling/versions.json before using it, and downloads anyway when it does
+      # not match. What the cache buys is that the four scanners cost no network
+      # at all on a re-run — which is exactly the situation the 2026-09-12 red
+      # left main in (wget exit 4, gitleaks never installed, ci-gate not green,
+      # deploy-web refused). The key carries the digest of versions.json, so
+      # advancing any pin is a different cache.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/pinned-tool-cache
+          key: pinned-tools-${{ runner.os }}-${{ hashFiles('tooling/versions.json') }}
       # 🔴 THE VERSION AND THE DIGEST ARE READ FROM tooling/versions.json, NOT
       # WRITTEN HERE. Until 2026-09-06 all four scanners below carried their pin
       # as an `env:` literal in this job and nowhere else, which put them outside
@@ -481,16 +498,20 @@ jobs:
       # assert-version-consistency.mjs, with scan-secrets.mjs as a REQUIRED
       # target. The other three keys have no second literal — measured, see
       # $scanners_comment in tooling/versions.json for the command.
+      # 🔴 BOUNDED RETRY, THEN THE VERIFIED CACHE — the four steps below were
+      # `wget -q -O`, which retries NOTHING. On 2026-09-12 the gitleaks line
+      # failed with exit 4 (network) on a push to main; the scanner never ran, so
+      # ci-gate recorded main as not green and deploy-web REFUSED. A single re-run
+      # fixed it. Every other pinned download in this repository already used
+      # `curl … --retry 3 --retry-all-errors`; these four scanners, the ones that
+      # gate a deploy, were the exception. The URL, the archive kind and the
+      # member are now DATA in tooling/ci/install-pinned-tool.mjs, and the
+      # behaviour has tests (a failed attempt then a good one, a bound that
+      # binds, a cache entry whose bytes are wrong) that no `run:` block can have.
       - name: Install gitleaks (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          ver="$(node -p "require('./tooling/versions.json').gitleaks")"
-          sum="$(node -p "require('./tooling/versions.json').gitleaks_sha256")"
-          tarball="${RUNNER_TEMP}/gitleaks_${ver}_linux_x64.tar.gz"
-          wget -q -O "$tarball" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz"
-          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
-          tar -xzf "$tarball" -C "${RUNNER_TEMP}" gitleaks
+          node tooling/ci/install-pinned-tool.mjs gitleaks --out "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/gitleaks" version
       - name: Secret scan (self-tests, then scans)
         run: node tooling/ci/scan-secrets.mjs . --gitleaks "${RUNNER_TEMP}/gitleaks"
@@ -502,13 +523,7 @@ jobs:
       - name: Install zizmor (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          ver="$(node -p "require('./tooling/versions.json').zizmor")"
-          sum="$(node -p "require('./tooling/versions.json').zizmor_sha256")"
-          tarball="${RUNNER_TEMP}/zizmor_${ver}_linux_x64.tar.gz"
-          wget -q -O "$tarball" \
-            "https://github.com/zizmorcore/zizmor/releases/download/v${ver}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
-          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
-          tar -xzf "$tarball" -C "${RUNNER_TEMP}" zizmor
+          node tooling/ci/install-pinned-tool.mjs zizmor --out "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/zizmor" --version
       - name: Workflow static analysis (self-tests, then scans)
         run: node tooling/ci/scan-workflows.mjs . --zizmor "${RUNNER_TEMP}/zizmor"
@@ -519,14 +534,8 @@ jobs:
       - name: Install OSV-Scanner (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          ver="$(node -p "require('./tooling/versions.json').osv_scanner")"
-          sum="$(node -p "require('./tooling/versions.json').osv_scanner_sha256")"
-          bin="${RUNNER_TEMP}/osv-scanner"
-          wget -q -O "$bin" \
-            "https://github.com/google/osv-scanner/releases/download/v${ver}/osv-scanner_linux_amd64"
-          printf '%s  %s\n' "$sum" "$bin" | sha256sum -c -
-          chmod +x "$bin"
-          "$bin" --version
+          node tooling/ci/install-pinned-tool.mjs osv-scanner --out "${RUNNER_TEMP}"
+          "${RUNNER_TEMP}/osv-scanner" --version
       - name: Known-vulnerable dependencies, INCLUDING the Dart ones
         # why: the only scanner in this stack that reads pubspec.lock. Play
         # Console flags vulnerable SDK versions and can block updates, so this is
@@ -543,13 +552,7 @@ jobs:
       - name: Install Trivy (version and digest from tooling/versions.json)
         run: |
           set -euo pipefail
-          ver="$(node -p "require('./tooling/versions.json').trivy")"
-          sum="$(node -p "require('./tooling/versions.json').trivy_sha256")"
-          tarball="${RUNNER_TEMP}/trivy_${ver}_Linux-64bit.tar.gz"
-          wget -q -O "$tarball" \
-            "https://github.com/aquasecurity/trivy/releases/download/v${ver}/trivy_${ver}_Linux-64bit.tar.gz"
-          printf '%s  %s\n' "$sum" "$tarball" | sha256sum -c -
-          tar -xzf "$tarball" -C "${RUNNER_TEMP}" trivy
+          node tooling/ci/install-pinned-tool.mjs trivy --out "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/trivy" --version
       - name: Vulnerabilities and misconfigurations in the filesystem
         # why: HIGH and CRITICAL only, and only what has a fix. A gate that goes
