@@ -382,9 +382,10 @@ class SupabaseAuthRepository implements core.AuthRepository {
   /// caller. The future is cleared in `finally`, so a later expiry refreshes
   /// again rather than replaying a stale result forever.
   ///
-  /// Returns null only when there is no session, or when refresh genuinely
-  /// failed — which is the signal the brick's `onUnauthorized` uses to decide
-  /// whether a 401 really means the session is gone.
+  /// Returns null when there is no session, or when a needed refresh did not
+  /// produce a token — for EITHER reason: the provider refused it, or the
+  /// provider could not be reached. A null here is therefore NOT the signal
+  /// that the session is gone; [sessionIsGone] is.
   @override
   Future<String?> currentAccessToken() async {
     final sb.Session? s = _auth.currentSession;
@@ -419,6 +420,25 @@ class SupabaseAuthRepository implements core.AuthRepository {
     } finally {
       _refreshInFlight = null;
     }
+  }
+
+  /// Gone ⇔ gotrue itself no longer holds a session.
+  ///
+  /// 🔴 THE CLASSIFICATION IS GOTRUE'S, NOT A GUESS OF OURS. In gotrue 2.27.2
+  /// `_doRefresh` (`gotrue_client.dart:1624-1633`) REMOVES the session and
+  /// emits `signedOut` for every refresh failure that is NOT an
+  /// `AuthRetryableFetchException` — a revoked, reused or invalid refresh
+  /// token — and KEEPS it for a retryable one, which is what a transport
+  /// failure is (a non-`AuthException` error keeps it too: `:1635-1640`). So
+  /// after a failed refresh, "is there still a current session?" is exactly
+  /// "was the refresh refused, or merely unreachable?", answered by the SDK
+  /// that made the call. Re-deriving it from exception types here would be a
+  /// second copy of that rule, free to drift from the one that acts on it.
+  @override
+  Future<bool> sessionIsGone() async {
+    if (_auth.currentSession == null) return true;
+    if (await currentAccessToken() != null) return false;
+    return _auth.currentSession == null;
   }
 
   @override

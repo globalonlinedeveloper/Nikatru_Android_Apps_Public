@@ -21,9 +21,14 @@
          at a density other than the device's. Nothing does that with a splash.
 
          DERIVED, NOT PLACED: the PNGs are written by
-         `node tooling/store/render-splash.mjs --app subscriptiontracker` from
+         `node tooling/store/render-splash.mjs`, with its app flag set to subscriptiontracker, from
          assets/icon/app_icon_1024.png, and assert-launcher-icons.mjs limb 8
-         re-derives them and compares decoded pixels. Do not hand-edit them. -->
+         re-derives them and compares decoded pixels. Do not hand-edit them.
+
+         The flag above is named in words ON PURPOSE. XML 1.0 forbids a
+         double hyphen anywhere inside a comment, and the Android resource
+         compiler refuses the whole build over one: the literal flag here
+         failed assembleRelease in build-platforms run 34468887825. -->
     <item>
         <bitmap
             android:gravity="center"
