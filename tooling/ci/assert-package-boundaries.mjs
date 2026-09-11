@@ -117,6 +117,7 @@ function packageImports(dir) {
 const CORE_ALLOWED = {
   crypto: 'pure Dart, Dart-team maintained, all six platforms incl. web — sha256 for content-pack integrity',
   cryptography: 'pure Dart (Apache-2.0, verified publisher), works on web incl. WASM — the Ed25519 pack verifier [ADR 007 AMENDED]',
+  intl: 'pure Dart, Dart-team maintained, all six platforms incl. web — MoneyFormatter (src/money/money_format.dart) renders Money through NumberFormat; moved here from two copies 2026-09-11, same constraint as design_system and the app (flutter_localizations hard-pins it)',
 };
 
 const coreDeps = depsOf('packages/core');
