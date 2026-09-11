@@ -385,7 +385,14 @@ function main(argv) {
   for (const platform of PLATFORMS) {
     const path = join(appDir, MANIFEST_REL[platform]);
     const want = rendered[platform];
-    const have = existsSync(path) ? readFileSync(path, 'utf8') : null;
+    // READ ONCE (CodeQL #91): --check compares, and the write mode rewrites, on these bytes —
+    // not on a separate existence check. ENOENT/ENOTDIR are "missing"; any other failure throws.
+    let have = null;
+    try {
+      have = readFileSync(path, 'utf8');
+    } catch (e) {
+      if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+    }
     if (check) {
       if (have === want) {
         console.log(`ok    ${app}/${MANIFEST_REL[platform]} (${want.length} bytes)`);

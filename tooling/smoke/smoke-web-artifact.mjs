@@ -107,6 +107,11 @@ const MIME = new Map([
  *  which would fail the smoke for a reason that is the harness's fault. */
 export const mimeFor = (file) => MIME.get(extname(file).toLowerCase()) ?? 'application/octet-stream';
 
+/** One log line per value (CodeQL #40). A newline inside a value — a --chrome path, a spawn
+ *  error, a page's exception text — would otherwise start a line of its own, and a line that
+ *  begins "::" is read by GitHub Actions as a workflow command, not as output. */
+export const oneLine = (d) => String(d).replace(/[\r\n]+/g, ' ⏎ ');
+
 /** The path prefix a bundle was COMPILED FOR, read out of its own index.html.
  *
  *  `flutter build web --base-href /<id>/` writes that value into
@@ -182,7 +187,13 @@ export function serveBundle(dir, onRequest = () => {}) {
       return;
     }
     const abs = join(dir, normalize(stripped).replace(/^[/\\]+/, ''));
-    if (!existsSync(abs) || !statSync(abs).isFile()) {
+    // READ ONCE (CodeQL #89): the bytes are the answer. A missing path, a directory, or a path
+    // through a file is a 404; any other failure to read throws, as the read did before.
+    let body;
+    try {
+      body = readFileSync(abs);
+    } catch (e) {
+      if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR' && e?.code !== 'EISDIR') throw e;
       onRequest({ path: p, status: 404 });
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('not found');
@@ -190,7 +201,7 @@ export function serveBundle(dir, onRequest = () => {}) {
     }
     onRequest({ path: p, status: 200 });
     res.writeHead(200, { 'content-type': mimeFor(abs) });
-    res.end(readFileSync(abs));
+    res.end(body);
   });
   return server;
 }
@@ -250,8 +261,8 @@ async function run() {
   };
 
   const die = (msg, detail = []) => {
-    console.error(`FAIL smoke-web-artifact: ${msg}`);
-    for (const d of detail) console.error(`     ${d}`);
+    console.error(`FAIL smoke-web-artifact: ${oneLine(msg)}`);
+    for (const d of detail) console.error(`     ${oneLine(d)}`);
     cleanup();
     process.exit(1);
   };
