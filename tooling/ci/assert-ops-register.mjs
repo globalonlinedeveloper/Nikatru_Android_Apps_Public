@@ -2583,6 +2583,87 @@ export const RUN_UNIT = 'run';
 export const UNIT_PAGE = RUN_READ_WIDE;
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A RUN THAT DIED ON THE QUOTA DID NOT FAIL ITS DUTY.
+//
+// 🔴 MEASURED: CodeQL runs 34570837477 (06:43Z) and 34577720776 (08:12Z), push
+// on main, each concluded `failure` in ONE step — "Analyze" of job "Analyze
+// JavaScript and TypeScript" — and the only failure-level annotation GitHub
+// recorded on either job is `API rate limit exceeded for installation`. The
+// analysis never reached a verdict about the code; GitHub refused the job's
+// token. [14]O-3b graded both as duty.workflow.codeql.yml RED SINCE, main's
+// register went red, and the remedy it printed ("dispatch the workflow once the
+// cause is fixed") named a cause that does not exist in the repository.
+//
+// So a newest failure is looked at once more before it is called RED: every job
+// of that run that concluded failure is read for the failure annotations GitHub
+// recorded, and when EVERY one of them is the installation-quota refusal the row
+// is COVERAGE LOST (exit 2 wherever it blocks) — "I could not tell", which is
+// what that run is — never RED (exit 1, "the duty is failing"). Anything
+// unread, empty or mixed is NOT proven and keeps the verdict it had. The read
+// costs one job list and one annotation list per failed job, only for a row
+// whose newest failure is newer than its newest success.
+// ─────────────────────────────────────────────────────────────────────────────
+export const INSTALLATION_QUOTA_REFUSAL = /API rate limit exceeded for installation/;
+
+/** PURE. Did this run fail ONLY because GitHub refused its token the
+ *  installation quota? `jobs` is the run's /jobs answer; `annotationsOf(jobId)`
+ *  the annotation list of that job's check run, or null when it could not be
+ *  read. `{ quotaOnly, why }`: true only when at least one job failed, every
+ *  failed job carries a failure-level annotation, and every failure-level
+ *  annotation of every failed job is the refusal. */
+export function diedOnlyOnInstallationQuota(jobs, annotationsOf) {
+  if (!Array.isArray(jobs)) return { quotaOnly: false, why: 'the run came with no job list' };
+  const failed = jobs.filter((j) => FAILED_CONCLUSIONS.has(j?.conclusion));
+  if (failed.length === 0) return { quotaOnly: false, why: 'no job of the run concluded failure' };
+  for (const j of failed) {
+    const list = annotationsOf(j?.id);
+    if (!Array.isArray(list)) return { quotaOnly: false, why: `the annotations of job "${j?.name}" could not be read` };
+    const failures = list.filter((a) => a?.annotation_level === 'failure');
+    if (failures.length === 0) return { quotaOnly: false, why: `job "${j?.name}" recorded no failure annotation` };
+    const other = failures.find((a) => !INSTALLATION_QUOTA_REFUSAL.test(String(a?.message ?? '')));
+    if (other) return { quotaOnly: false, why: `job "${j?.name}" failed on: ${String(other.message ?? '').slice(0, 160)}` };
+  }
+  return {
+    quotaOnly: true,
+    why: `${failed.map((j) => `job "${j?.name}"`).join(' · ')} failed ONLY on \`API rate limit exceeded for installation\``,
+  };
+}
+
+/** IMPURE. The cause of one failed run, for `diedOnlyOnInstallationQuota`. A
+ *  read that throws is "not proven", never "quota". */
+async function quotaCauseOfRun(repo, runId, cache) {
+  let jobs;
+  try {
+    jobs = await jobsOfRun(repo, runId, cache);
+  } catch (e) {
+    return { quotaOnly: false, why: `the job list of run ${runId} could not be read (${e.message})` };
+  }
+  const annotations = new Map();
+  for (const j of jobs.filter((x) => FAILED_CONCLUSIONS.has(x?.conclusion))) {
+    try {
+      annotations.set(j.id, await ghJson(`/repos/${repo}/check-runs/${j.id}/annotations?per_page=100`));
+    } catch {
+      annotations.set(j.id, null);
+    }
+  }
+  return diedOnlyOnInstallationQuota(jobs, (id) => annotations.get(id) ?? null);
+}
+
+/** IMPURE. Marks a redness probe's failure with its cause when that failure is
+ *  the newer term — the only case in which the cause can change the verdict. */
+async function withQuotaCause(probe, repo, cache) {
+  const { success, failure } = probe ?? {};
+  if (!failure) return probe;
+  const failMs = Date.parse(failure.at);
+  const okMs = success ? Date.parse(success.at) : NaN;
+  if (success && !(Number.isFinite(failMs) && Number.isFinite(okMs) && failMs > okMs)) return probe;
+  const cause = await quotaCauseOfRun(repo, failure.id, cache);
+  failure.quotaOnly = cause.quotaOnly;
+  failure.cause = cause.why;
+  return probe;
+}
+
 /** PURE. The unit a run-history query names, normalised. An ABSENT unit reads as
  *  the whole run, so a row is graded exactly as before until `checkRunUnits`
  *  (which refuses the absence) is satisfied. */
@@ -2903,7 +2984,7 @@ async function probeUnitRedSince(q, repo, wf, cache) {
     [`branch=${encodeURIComponent(q.headBranch)}`, 'status=completed'],
     `the newest completed runs of ${q.workflow} on ${q.headBranch}`,
   );
-  return decideUnitRedSince(q, entries, pageFull);
+  return withQuotaCause(decideUnitRedSince(q, entries, pageFull), repo, cache);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3908,6 +3989,17 @@ export function classifyRedSince(row, probe) {
   const fail = probe.failure ?? null;
   const ok = probe.success ?? null;
 
+  if (fail?.quotaOnly === true && (!ok || Date.parse(fail.at) > Date.parse(ok.at))) {
+    return {
+      verdict: 'quota',
+      line:
+        `${id} — ${where}: run ${fail.id} (${fail.at}) FAILED, and ${fail.cause}. That is GitHub refusing the job's token, ` +
+        'not the duty failing: the run never reached a verdict about what it exists to check. COVERAGE LOST for this row, ' +
+        `neither a pass nor a RED — ${ok ? `the newest success is run ${ok.id} at ${ok.at}` : 'no success exists to compare against'}. ` +
+        'The installation quota resets within the hour; the next run on that branch that reaches a verdict replaces this one.',
+    };
+  }
+
   if (!fail) {
     if (ok && probe.newestDecisive) {
       return {
@@ -4014,7 +4106,7 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
     return { errors, prints, live: [], stats: { domain: domain.length, notRead: true } };
   }
 
-  const tally = { green: 0, red: 0, unreadable: 0, blind: 0 };
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, quota: 0 };
   const darkLines = [];
   for (const r of domain) {
     const c = classifyRedSince(r, probes?.get?.(r.id));
@@ -4029,6 +4121,9 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
         'enough. The duty is NOT unwatched — the sibling [14]O-3 limb still grades "no successful run at all" as FAILING.';
       errors.push(line);
       live.push({ id: r.id, line, code: 2, limb: '[14]O-3b' });
+    } else if (c.verdict === 'quota') {
+      errors.push(c.line);
+      live.push({ id: r.id, line: c.line, code: 2, limb: '[14]O-3b' });
     } else if (c.verdict === 'unreadable') {
       darkLines.push(c.line);
     } else {
@@ -4045,13 +4140,14 @@ export function evaluateRedSince(reg, probes, dispatchable = null) {
       `${domain.length - clocked} \`trigger\` row(s) whose workflow declares \`workflow_dispatch\`, so a red lane ` +
       `has an exit that is not a merge) · ${tally.green} whose newest run on their own ` +
       `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
-      `${tally.blind} with no success to compare against — whether each RED blocks THIS host is decided once, for ` +
+      `${tally.blind} with no success to compare against · ${tally.quota} whose newest failure died ONLY on the installation ` +
+      'rate limit (COVERAGE LOST) — whether each RED blocks THIS host is decided once, for ' +
       'every live verdict, under HOST POLICY below',
   );
   // 🔴 THE SHRINK, PRINTED — built above, before the answers were classified.
   prints.push(...censusLines);
   for (const l of darkLines) prints.push(`[14]O-3b — ${l}`);
-  if (tally.green === 0 && tally.red === 0 && tally.blind === 0) {
+  if (tally.green === 0 && tally.red === 0 && tally.blind === 0 && tally.quota === 0) {
     prints.push(
       '[14]O-3b — 🔴 THE RED-SINCE LIMB ORDERED ZERO PAIRS ON THIS RUN. Every watched workflow was unreadable here ' +
         '(no token, or the API could not be reached), so nothing above could have failed. This line exists so that ' +
@@ -4088,7 +4184,7 @@ export function githubDarkness(redProbes) {
  *  real answers off it — so the newest-completed shape would let a cancellation
  *  change the verdict simply by being newest. Asking each conclusion for its own
  *  newest run cannot be moved by a third one. */
-async function probeGithubRedSince(q, repo) {
+async function probeGithubRedSince(q, repo, cache = new Map()) {
   const br = `branch=${encodeURIComponent(q.headBranch)}`;
   const newest = async (status) => {
     // Two reads, two widths, reconciled — see the RUN_READ_RACE_MS block above.
@@ -4121,7 +4217,7 @@ async function probeGithubRedSince(q, repo) {
     }
     return { id: run.id, at: run.updated_at };
   };
-  return { success: await newest('success'), failure: await newest('failure') };
+  return withQuotaCause({ success: await newest('success'), failure: await newest('failure') }, repo, cache);
 }
 
 /** The impure orchestrator. One row per workflow by construction (the register
@@ -4147,7 +4243,7 @@ async function probeRedSince(reg, dispatchable = null, parsedByFile = new Map(),
       probes.set(
         r.id,
         u.kind === 'run'
-          ? await probeGithubRedSince(q, repo)
+          ? await probeGithubRedSince(q, repo, jobsCache)
           : await probeUnitRedSince(q, repo, parsedByFile.get(String(q.workflow)) ?? null, jobsCache),
       );
     } catch (e) {
