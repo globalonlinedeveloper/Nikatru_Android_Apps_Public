@@ -58,7 +58,7 @@
     "there is no hostname to file it under, the position monitors 6 and 16 have held since they were",
     "made. 17 and 18 DO have hostnames, and are still not rows in tooling/monitor-register.json: that",
     "file derives its rows from what THIS REPO deploys, and its rows are also [14]O-2's unauthenticated",
-    "probe set — api-auth.nikatru.com has no surface that probe can call healthy, measured. The full",
+    "probe set — auth-api.nikatru.com (api-auth before [ADR 080]) has no surface that probe can call healthy, measured. The full",
     "reasoning is in that file under `_notInThisRegister`; a first attempt on 2026-09-03 made them rows",
     "and had to be reverted. So THIS list is the only place a delete of any of the three fails a guard,",
     "which is exactly what an id-keyed canary is for.",
