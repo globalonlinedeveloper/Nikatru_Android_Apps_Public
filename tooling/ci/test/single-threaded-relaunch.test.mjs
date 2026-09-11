@@ -147,11 +147,15 @@ describe('single-threaded-relaunch', () => {
 describe('every workflow step that runs a relaunching guard runs it as node --single-threaded', () => {
   const HERE = new URL('.', import.meta.url);
   const REPO_ROOT = new URL('../../../', HERE);
-  // ⬜ ONE DECLARED GAP, and it is a ratchet: store-screenshots.yml belongs to the
-  // Subly rename wave on 2026-09-11, so its step is written up in
-  // HANDOFF-guards-remainder.md rather than edited here. The entry must still be
-  // TRUE — the day the flag lands there, this list must lose the entry.
-  const PENDING = new Map([['store-screenshots.yml', ['assert-listing-assets.mjs']]]);
+  // ⬜ NO DECLARED GAPS. There was one: store-screenshots.yml:81 ran
+  // assert-listing-assets.mjs bare, because that file belonged to the Subly
+  // rename wave on 2026-09-11 and the fix was written up in
+  // HANDOFF-guards-remainder.md instead of made. The flag landed on 2026-09-12
+  // and the entry went with it in the same commit — this map is a ratchet in
+  // BOTH directions, and it already fails a gap that is no longer true, so a
+  // stale entry could not have survived anyway. Leave it empty: a new gap has to
+  // be declared deliberately, in writing, by whoever opens it.
+  const PENDING = new Map();
 
   test('the importers are derived from the tree, and there are some', async () => {
     const { readdirSync, readFileSync: read } = await import('node:fs');
@@ -184,7 +188,7 @@ describe('every workflow step that runs a relaunching guard runs it as node --si
       });
     }
     assert.deepEqual(bare, [], `a relaunching guard runs under a relaunch parent in CI:\n${bare.join('\n')}`);
-    assert.ok(flagged.length >= 6, `expected the six heavy-guard steps (ci.yml ×3, build-platforms.yml, submit-play.yml ×2) to carry the flag, found ${flagged.length}:\n${flagged.join('\n')}`);
+    assert.ok(flagged.length >= 7, `expected the seven heavy-guard steps (ci.yml ×3, build-platforms.yml, submit-play.yml ×2, store-screenshots.yml) to carry the flag, found ${flagged.length}:\n${flagged.join('\n')}`);
     for (const [wf, gs] of PENDING) {
       for (const g of gs) {
         assert.ok(stillPending.has(`${wf}|${g}`), `the declared gap ${wf} → ${g} is closed: remove it from PENDING`);
