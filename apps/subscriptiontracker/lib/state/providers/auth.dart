@@ -349,9 +349,10 @@ final Provider<RestClient> restClientProvider = Provider<RestClient>(
 
 /// What a 401 means, decided in one place.
 ///
-/// Ask the seam for a token first. `currentAccessToken()` refreshes on expiry
-/// and returns null ONLY when there is no session or the refresh really failed —
-/// which is the one case where signing out is the truthful action. A 401 that
+/// Ask the seam whether the session is GONE — signed out, or a refresh the
+/// identity provider refused — which is the one case where signing out is the
+/// truthful action. A refresh that could not reach the provider (offline) is
+/// not that case: the session is intact and the request simply failed. A 401 that
 /// survives a good token means the server rejected a LIVE session (revoked, or a
 /// permissions problem); that is a failed request, not a reason to destroy local
 /// state the user can still use.
@@ -367,7 +368,11 @@ final Provider<RestClient> restClientProvider = Provider<RestClient>(
 /// and it is the only one left. Named here, and in [signOutAndForgetUser]'s doc,
 /// so the count in that doc stays honest.
 Future<void> signOutOnlyIfSessionIsGone(core.AuthRepository auth) async {
-  if (await auth.currentAccessToken() == null) {
+  // 🔴 `sessionIsGone()`, NOT `currentAccessToken() == null`. The token is
+  // null both when the provider REFUSED a refresh and when it could not be
+  // REACHED — and the second is every token that expires while the device is
+  // offline. Signing out on it logged people out for being on a plane.
+  if (await auth.sessionIsGone()) {
     await auth.signOut();
   }
 }

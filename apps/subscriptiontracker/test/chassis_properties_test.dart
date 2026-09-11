@@ -419,9 +419,13 @@ ProviderContainer _moneyContainer({
   bool paywallEnabled = true,
   bool promoEnabled = false,
   Map<String, String> promoCopy = const <String, String>{},
+  // The promo card shows only where the rail CAN sell, so a case about the
+  // card itself passes a selling rail; null keeps the real one.
+  PurchaseRail? rail,
 }) => ProviderContainer(
   overrides: <Override>[
     keyValueStoreProvider.overrideWith((_) async => store),
+    if (rail != null) purchaseRailProvider.overrideWithValue(rail),
     secureStoreProvider.overrideWithValue(secure ?? _MemSecureStore()),
     entitlementTransportProvider.overrideWithValue(server),
     // This user has accepted the current terms. Stated, not defaulted: a
@@ -4084,12 +4088,14 @@ void main() {
       // would assert that a boolean makes a widget change, which was never in
       // doubt; this drives the entitlement that lock is computed from.
       bool pro = false,
+      bool realRail = false,
     }) async {
       final ProviderContainer c = _moneyContainer(
         store: _onboardedStore(store),
         server: _FakeEntitlements(pro: pro),
         promoEnabled: promoEnabled,
         promoCopy: promoCopy,
+        rail: realRail ? null : _FakeRail(),
       );
       // SIGNED IN, or the router's redirect guard sends this to /sign-in and
       // the test measures the auth gate instead of the home body.
@@ -4100,6 +4106,27 @@ void main() {
       await c.read(entitlementsProvider.future);
       return c;
     }
+
+    // 🔴 A BUILD WHOSE RAIL CANNOT SELL QUOTES NO PRICE. The real rail refuses
+    // under flutter_test's Android default (the android-play row), so with the
+    // flag ON the card must still not render: a price for what the build
+    // cannot sell in-app is steering (App Store 3.1.1/3.1.3(b), Google Play
+    // payments policy). Every other case in this group hosts a selling rail.
+    testWidgets('the flag ON but a rail that CANNOT sell ⇒ no promo card', (
+      WidgetTester tester,
+    ) async {
+      final ProviderContainer c = await signedIn(
+        promoEnabled: true,
+        realRail: true,
+      );
+      addTearDown(c.dispose);
+      expect(c.read(purchaseRailProvider).canStartCheckout, isFalse);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: c, child: const SublyApp()),
+      );
+      await _turnsAndSettleRoute(tester);
+      expect(find.byType(PromoCard), findsNothing);
+    });
 
     testWidgets('the flag ABSENT ⇒ the home body renders no promo at all', (
       WidgetTester tester,
