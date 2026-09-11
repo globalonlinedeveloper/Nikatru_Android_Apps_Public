@@ -56,7 +56,7 @@ import 'support/width_harness.dart';
 const Color kSublySeed = Color(0xFF6459F5);
 
 /// The currency an empty [MemStore] resolves to — `SettingsState`'s default
-/// `currencySymbol` (`settings_controller.dart`) read back as an ISO code.
+/// `currencyCode` (`settings_controller.dart`).
 /// Named rather than inlined so that if the default ever moves, the equality
 /// below fails with both sentences printed instead of with a bare mismatch.
 const String kDefaultCurrencyCode = 'USD';
