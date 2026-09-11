@@ -490,3 +490,41 @@ describe('assert-store-identity — Windows: a store-assigned identity, and a pl
     assert.equal(code, 0, out);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — THE BRICK STAMPS THE DERIVED SNAP NAME, NOT THE SLUG.
+// The snap limb above requires snap-name.txt to EQUAL param-case(app.yaml name).
+// The brick stamped `app_id` through mason's paramCase instead, so a freshly
+// stamped app built for Linux failed this guard on its first run — MEASURED on a
+// probe stamped from 7a102b78 with a linux/ folder: `"probe"` against the derived
+// `"probe-s-e-book-co"`. These cases read the BRICK, because the stamp itself
+// needs mason and this runner has none: the template must stamp the var pre_gen
+// derives, pre_gen must derive it from the same `shortName` post_gen writes as
+// app.yaml `name`, and it must refuse what it cannot derive exactly.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the app brick stamps the snap name this guard derives', () => {
+  const BRICK_REPO = resolve(CI_DIR, '..', '..');
+  const brick = (rel) => readFileSync(join(BRICK_REPO, 'tooling', 'bricks', 'app', rel), 'utf8');
+
+  test('the snap-name template stamps pre_gen\'s derived `snap_name` — no case filter over the slug', () => {
+    const tpl = brick('__brick__/apps/{{app_id}}/store/linux-snap/snap-name.txt');
+    assert.equal(tpl, '{{snap_name}}\n');
+    assert.equal(tpl.includes('app_id'), false, 'the slug is not the derivation');
+  });
+
+  test('pre_gen derives `snap_name` from `shortName`, the value post_gen writes as app.yaml `name`', () => {
+    const pre = brick('hooks/pre_gen.dart');
+    const post = brick('hooks/post_gen.dart');
+    assert.ok(pre.includes('final String shortName = _shortName(displayName);'), 'shortName is computed in pre_gen');
+    assert.ok(pre.includes('final String? snapName = _snapName(shortName);'), 'the snap name is derived from shortName');
+    assert.ok(pre.includes("vars['snap_name'] = snapName ?? '';"), 'the derived value is handed to the templates');
+    assert.ok(post.includes("name: (v['short_name'] ?? displayName).toString(),"), 'post_gen writes shortName as app.yaml name');
+  });
+
+  test('pre_gen REFUSES a title it cannot derive exactly, and says why', () => {
+    const pre = brick('hooks/pre_gen.dart');
+    assert.ok(pre.includes('if (rune > 0x7f) return null;'), 'a non-ASCII title is refused, not approximated');
+    assert.ok(pre.includes('return out.isEmpty ? null : out.toString();'), 'a title with no letter or digit is refused');
+    assert.ok(pre.includes('the snap name cannot be derived from the store title'), 'the refusal names the problem');
+  });
+});
