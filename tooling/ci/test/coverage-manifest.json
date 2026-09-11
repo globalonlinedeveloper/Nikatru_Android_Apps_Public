@@ -121,7 +121,7 @@
   "play-device-coverage.test.mjs": 52,
   "play-submission.test.mjs": 86,
   "policy-archive.test.mjs": 31,
-  "policy-claims.test.mjs": 34,
+  "policy-claims.test.mjs": 43,
   "post-deploy-smoke.test.mjs": 146,
   "price-literals.test.mjs": 15,
   "privacy-manifest.test.mjs": 20,
