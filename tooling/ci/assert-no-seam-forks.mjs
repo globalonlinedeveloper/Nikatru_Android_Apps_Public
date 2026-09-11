@@ -998,6 +998,112 @@ if (parityGaps.length) {
   fail(lines);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LANDED BEHAVIOUR PARITY — A FIX THAT REACHES THE APP MUST REACH THE STAMP
+// (REVIEW-app-2026-09-10 row 13 · app-blockers wave, 2026-09-11)
+//
+// 🔴 THE CAPS LIMB ABOVE COMPARES GATES AND IS BLIND TO EVERYTHING ELSE. Review
+// row 13 measured the cost: none of the week's landings reached the brick, and
+// no guard compared the two trees — so every app stamped tomorrow would have
+// been born with defects the rail-prover had already fixed.
+//
+// Each row names ONE behaviour by two shapes, read with comments and string
+// literals blanked:
+//   · LANDED — must match in the stamp AND in the app;
+//   · DEFECT — may match in NEITHER.
+// Both halves, because either alone passes a half-port: a file can gain the
+// fix and keep the old call beside it.
+//
+// A missing file is COVERAGE LOST, never a pass, and MIN_LANDED_PAIRS makes
+// deleting a row loud. A row is added the day a fix lands on one side; it is
+// removed only in the change that removes the behaviour from BOTH trees.
+// ─────────────────────────────────────────────────────────────────────────────
+const LANDED_PAIRS = [
+  {
+    id: 'reminders-off-cancels-only-its-own-id',
+    chassis: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart',
+    fork: 'apps/subscriptiontracker/lib/state/providers/notifications.dart',
+    landed: /\bsvc\.cancel\(\s*kDailyReminderId\s*\)/,
+    defect: /\bsvc\.cancelAll\(\s*\)/,
+    why:
+      'the chassis notification service shares ONE FlutterLocalNotificationsPlugin with anything the app ' +
+      'schedules, so cancelAll() on "reminders off" wiped the app\'s own reminders (review blocker #4)',
+  },
+  {
+    id: 'promo-price-through-money-formatter',
+    chassis: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/home/home_screen.dart',
+    fork: 'apps/subscriptiontracker/lib/features/home/home_screen.dart',
+    landed: /promoCardPrice\(\s*MoneyFormatter\(/,
+    defect: /promoCardPrice\(\s*offering\.formattedPrice\b/,
+    why:
+      '`Offering.formattedPrice` has no grouping — twelve and a half lakh rupees read ₹1250000.00 on the one ' +
+      'surface that sells; the reader\'s locale decides grouping (review item 5)',
+  },
+  {
+    id: 'promo-card-only-where-the-rail-can-sell',
+    chassis: 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/features/home/home_screen.dart',
+    fork: 'apps/subscriptiontracker/lib/features/home/home_screen.dart',
+    landed: /hasContent:\s*offerings\.isNotEmpty\s*&&\s*rail\.canStartCheckout\b/,
+    defect: /hasContent:\s*offerings\.isNotEmpty\s*,/,
+    why:
+      'a price quoted where the build cannot sell in-app is steering (App Store 3.1.1/3.1.3(b), Google Play ' +
+      'payments policy): a store build that cannot sell shows no promo card at all (review item 2)',
+  },
+];
+/** 3: the rows that exist. Raise it with the list; a lowered floor is a deleted check. */
+const MIN_LANDED_PAIRS = 3;
+
+if (LANDED_PAIRS.length < MIN_LANDED_PAIRS) {
+  fail([
+    `✗ COVERAGE LOST — ${LANDED_PAIRS.length} landed-behaviour row(s), expected at least ${MIN_LANDED_PAIRS}.`,
+    '  A row is removed only with the behaviour it names, from BOTH trees, in the same change.',
+  ]);
+}
+
+const landedLost = [];
+const landedGaps = [];
+const landedOk = [];
+for (const row of LANDED_PAIRS) {
+  const missingFiles = [row.chassis, row.fork].filter((rel) => !existsSync(join(ROOT, rel)));
+  if (missingFiles.length) {
+    for (const rel of missingFiles) {
+      landedLost.push(`    ${rel} — the file is not there, so [${row.id}] cannot be compared at all.`);
+    }
+    continue;
+  }
+  const said = [];
+  for (const [side, rel] of [['stamp', row.chassis], ['app', row.fork]]) {
+    const src = stripStringLiterals(stripComments(readFileSync(join(ROOT, rel), 'utf8')));
+    if (!row.landed.test(src)) said.push(`the ${side} (${rel}) does not have the landed shape ${row.landed}`);
+    if (row.defect.test(src)) said.push(`the ${side} (${rel}) still carries the defect shape ${row.defect}`);
+  }
+  if (said.length) landedGaps.push({ row, said });
+  else landedOk.push(row);
+}
+
+if (landedLost.length) {
+  fail([
+    `✗ COVERAGE LOST — the landed-behaviour limb reached nothing in ${landedLost.length} place(s):`,
+    ...landedLost,
+    '',
+    '  Re-point the row at where the code went, or remove the row in the change that removes the',
+    '  behaviour from BOTH trees.',
+  ]);
+}
+
+if (landedGaps.length) {
+  const lines = [`✗ ${landedGaps.length} landed behaviour(s) differ between the stamp and the app:`];
+  for (const g of landedGaps) {
+    lines.push(`    [${g.row.id}]`);
+    for (const s of g.said) lines.push(`      ${s}`);
+    lines.push(`      why it matters: ${g.row.why}`);
+  }
+  lines.push('');
+  lines.push('  A fix that exists in one tree is a defect the other tree still ships. Port it, in the same');
+  lines.push('  change, to whichever side lacks it.');
+  fail(lines);
+}
+
 for (const h of homeless) {
   console.log(
     `⚠  ${h.file} — class ${h.className} implements \`${h.contract}\`, and packages/ provides NO ` +
@@ -1006,6 +1112,9 @@ for (const h of homeless) {
 }
 for (const w of waived) {
   console.log(`⚠  ${w.file} — declared fork of \`${w.contract}\` (see the register's violations).`);
+}
+for (const r of landedOk) {
+  console.log(`✓  landed parity — ${r.id}: the stamp and the app agree`);
 }
 for (const p of parityOk) {
   console.log(
@@ -1053,7 +1162,8 @@ console.log(
   `ok  no seam forks — ${contracts.size} contract(s), ${sharedFiles.length + suspectFiles.length} .dart file(s) read, ` +
     `classifiable per root [${split}]; ` +
     `${shared.length} shared implementation(s), ${homeless.length} homeless, ${waived.length} declared, ` +
-    `${parityOk.length} accepted fork(s) at parity, ${WATCHED_PAIRS.length} watched` +
+    `${parityOk.length} accepted fork(s) at parity, ${WATCHED_PAIRS.length} watched, ` +
+    `${landedOk.length} landed behaviour(s) at parity` +
     (IS_FULL_CHECKOUT
       ? ''
       : '. NOTE: this root is not a checkout of this repository, so the per-root floors were NOT applied — ' +
