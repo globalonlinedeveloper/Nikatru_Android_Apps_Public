@@ -78,7 +78,7 @@
 // Exit 0 = the stamp calls what it declares, 1 = it does not.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
-import { join, resolve, dirname, posix } from 'node:path';
+import { join, resolve, posix } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 
 // cwd, not this file's location. Resolving from `import.meta.url` pins the guard

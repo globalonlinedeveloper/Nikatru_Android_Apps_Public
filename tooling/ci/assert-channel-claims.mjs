@@ -54,7 +54,7 @@
 // Usage:  node tooling/ci/assert-channel-claims.mjs [repoRoot]
 // Exit 0 = every public claim is backed by a served channel. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';

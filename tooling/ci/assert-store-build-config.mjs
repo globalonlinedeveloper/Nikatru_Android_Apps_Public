@@ -110,7 +110,6 @@ const TARGET_PLATFORM = new Map([
 
 const problems = [];
 const prints = [];
-const ok = (m) => console.log(`ok   ${m}`);
 const read = (rel) => (existsSync(join(ROOT, rel)) ? readFileSync(join(ROOT, rel), 'utf8') : null);
 
 function coverageLost(lines) {

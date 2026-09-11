@@ -4743,7 +4743,7 @@ async function main() {
   }
 
   // ── wrangler configs: crons and custom-domain routes ──────────────────────
-  const { found: wranglers, excluded } = findWranglerConfigs(ROOT);
+  const { found: wranglers } = findWranglerConfigs(ROOT);
   if (wranglers.length === 0) {
     coverageLost([
       `no live wrangler config found under ${ROOT}.`,

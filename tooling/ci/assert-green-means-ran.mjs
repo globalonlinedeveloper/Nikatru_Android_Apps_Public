@@ -63,7 +63,7 @@
 // Exit 0 = every aggregate verdict is complete, no job can green-skip, and every
 //          drift check proves its artifact was written.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { parseWorkflow } from './workflow-scan.mjs';
 import { fileURLToPath } from 'node:url';
@@ -97,8 +97,6 @@ const AGGREGATORS = [
 const REQUIRED_SECRET_GATES = ['.github/workflows/e2e.yml'];
 
 const problems = [];
-const abs = (rel) => join(ROOT, rel);
-const read = (rel) => (existsSync(abs(rel)) ? readFileSync(abs(rel), 'utf8') : null);
 
 /** COVERAGE LOST is fatal on the spot: every remaining check quantifies over the
  *  thing that just went missing, so continuing prints "clean" over nothing. */
