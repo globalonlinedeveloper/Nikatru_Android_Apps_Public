@@ -115,7 +115,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1977,16 +1977,38 @@ describe('assert-ops-register — end to end, against the real repository', () =
   // file's: THE REGISTER IS STRUCTURALLY SOUND — every problem, if any, must be
   // a record-query verdict about a failing duty, never a schema, coverage or
   // delegation error. A structural break still reddens this test on every OS.
-  // ⏱ 2026-09-11 — GITHUB_BASE_REF is removed so this spawn cannot take the
-  // not-read path `liveReadPlan` gives a pull request that touches none of the
-  // live reads' inputs: the suite runs inside such a pull request in CI, and
-  // these tests assert that the record limb RAN. Without a base branch the
-  // changed-file set is unknown, and an unknown set makes the reads.
+  // ⏱ 2026-09-11 — THIS SPAWN SPENT THE CI QUOTA IT WAS NOT HERE TO MEASURE.
+  // It used to inherit the guard-meta job's environment, GITHUB_TOKEN included,
+  // and it ran once per test below: three live runs of the guard per CI run, 56
+  // GitHub requests each — 168, COUNTED under a pass-through fetch counter on
+  // origin/main 90414b02, against a token allowed 1,000 an hour for the whole
+  // repository. None of these tests is about the live world: they assert that
+  // the COMMITTED register is structurally sound and that each limb runs and
+  // prints its counts. So the guard now runs ONCE, against the committed tree,
+  // with every read answered by the replay stub from the 2026-09-11 freeze
+  // fixture (the same answers the INV1..INV6 suite below replays), from a
+  // scrubbed environment in the local host, where every read is made and every
+  // limb runs. The replay counts what the guard asked; the O-3 test requires
+  // that count, so a guard that stopped querying and a spawn that went back to
+  // the live API are both RED.
+  const REPLAY_FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
+  let realRun = null;
   const realGuard = () => {
-    const env = { ...process.env };
-    delete env.GITHUB_BASE_REF;
-    const r = spawnSync(process.execPath, [GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8', env });
-    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+    if (realRun) return realRun;
+    const countFile = join(TMP, `real-guard-count-${seq++}.json`);
+    const env = scrubbedEnv({
+      OPS_REPLAY_FILE: REPLAY_FIXTURE,
+      OPS_REPLAY_COUNT_FILE: countFile,
+      GITHUB_TOKEN: 'replay',
+      GLITCHTIP_TOKEN: 'replay',
+      CLOUDFLARE_API_TOKEN: 'replay',
+      CLOUDFLARE_ACCOUNT_ID: 'replay',
+      GITHUB_REPOSITORY: 'globalonlinedeveloper/Nikatru_Platform_Public',
+    });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8', env });
+    const counts = existsSync(countFile) ? JSON.parse(readFileSync(countFile, 'utf8')) : null;
+    realRun = { code: r.status, out: `${r.stdout}\n${r.stderr}`, counts };
+    return realRun;
   };
 
   /** The record-query verdicts that ARE "a duty is failing": a reachable record
@@ -2130,8 +2152,16 @@ describe('assert-ops-register — end to end, against the real repository', () =
   test('the [14]O-3 record limb actually ran, and says how many records it queried', () => {
     // Without this the previous test is satisfiable by a guard that stopped
     // querying entirely — the defect the whole limb replaces, one level up.
-    const { out } = realGuard();
+    const { out, counts } = realGuard();
     assert.match(out, /\[14\]O-3 — scheduled=\d+ · queried_ok=\d+ · failing=\d+/);
+    // ⏱ 2026-09-11 — AND IT QUERIED THROUGH THE REPLAY, NEVER THE LIVE API. The
+    // replay stub writes what the guard asked, by provider, when it exits; no
+    // count file means the stub was not loaded and every read went to the network
+    // on the guard-meta job's token (168 requests per CI run, counted). A count
+    // of zero GitHub reads means the record limb stopped asking.
+    assert.ok(counts, `the end-to-end run left no replay count, so its reads were not answered by the replay:\n${out}`);
+    assert.ok(counts.github > 0, `the end-to-end run made no GitHub read through the replay (${JSON.stringify(counts)}), so the record limb did not query:\n${out}`);
+    assert.equal(counts.other, 0, `the end-to-end run asked a host the replay does not serve (${JSON.stringify(counts)}):\n${out}`);
     // 🔴 THE LABELS ARE PART OF THE ASSERTION. The previous shape of this line put
     // `22 record(s) QUERIED` and `(ceiling 12)` in one sentence with the unreadable
     // count between them, and on 2026-09-09 two reading passes filed "22 unreadable
