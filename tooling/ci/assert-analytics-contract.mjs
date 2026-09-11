@@ -356,7 +356,12 @@ const WIRE_CONTRACTS = [
   {
     id: 'entitlements',
     kind: 'body',
-    server: 'services/platform/src/routes/entitlements.ts',
+    // ⏱ 2026-09-11 · NOT A NAMED PATH. The server half is the register row's
+    // `owningFile` (assert-platform-register.mjs proves that file is where the
+    // route is really declared), and the item literal is FOLLOWED from that
+    // file's `c.json` member to wherever it is written — since #617, the one
+    // reader in services/_shared. See `followToLiteral`.
+    serverFrom: 'register',
     client: {
       file: 'packages/core/lib/src/models/entitlement.dart',
       member: 'factory Entitlements.fromJson(',
@@ -486,9 +491,14 @@ const ok = (m) => console.log(`ok   ${m}`);
  *  vendor) can close blocks all CI on work this increment cannot do, while
  *  hiding it is how "one route of four" reads as done. */
 const gap = (m) => console.log(`GAP  ${m}`);
+/** ⏱ 2026-09-11 · EXIT 2, NOT 1. "I could not look" must never read as the same
+ *  outcome as "I looked and found a disagreement": a FAIL (exit 1) is a real
+ *  contract break; COVERAGE LOST (exit 2) means the scan itself could not read
+ *  its subject, and nothing it would have printed after that point means
+ *  anything. Both fail CI; only one says the tree was measured. */
 const coverageLost = (m) => {
   console.error(`✗ COVERAGE LOST — ${m}`);
-  process.exit(1);
+  process.exit(2);
 };
 
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -929,6 +939,196 @@ function parseJsonResponses(src) {
   return out;
 }
 
+// ── WHERE AN ITEM LITERAL IS WRITTEN IS DERIVED, NEVER NAMED ────────────────
+// ⏱ 2026-09-11 · #617 moved the entitlement read into
+// services/_shared/src/entitlement-read.ts and the route kept only
+// `entitlements: read.entitlements`. This limb had NAMED the route file as where
+// the item literal is written, so it printed "COVERAGE LOST — entitlements: the
+// item shape … could not be parsed out of services/platform/src/routes/
+// entitlements.ts" over a wire shape that had not changed at all — and naming the
+// new path would break the same way on the next move. So the literal is FOLLOWED
+// from the route's own `c.json` member:
+//   · an identifier or member chain → its nearest PRECEDING declaration in the
+//     same module (`const read = …`), with the chain's members carried along;
+//   · a call → the function it names, declared locally or imported by a
+//     relative specifier, and that function's `return { … }` literals;
+//   · an object literal with members still to read → that member's value;
+//   · a value expression holding a `{` with no members left to read → the item
+//     literal, parsed exactly where the in-file parse used to parse it.
+// Every step that cannot be taken is an ERROR carrying the trail it walked, and
+// the caller turns it into COVERAGE LOST — never a guess, never a pass. When
+// several return literals carry the member, they must all name the same keys.
+const MAX_HOPS = 8;
+
+/** The expression starting at `from`, up to the first `;` or unmatched closer at depth 0. */
+function expressionAt(src, from) {
+  let depth = 0;
+  let quote = null;
+  for (let i = from; i < src.length; i++) {
+    const ch = src[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') { depth++; continue; }
+    if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) return src.slice(from, i);
+      depth--;
+      continue;
+    }
+    if (ch === ';' && depth === 0) return src.slice(from, i);
+  }
+  return src.slice(from);
+}
+
+const reName = (name) => name.replace(/\$/g, '\\$');
+
+/** The initializer of the LAST `const|let|var <name> =` that begins before `pos`. */
+function bindingBefore(src, name, pos) {
+  let last = null;
+  for (const m of src.matchAll(new RegExp(String.raw`\b(?:const|let|var)\s+${reName(name)}\s*(?::[^=;]+)?=(?![=>])`, 'g'))) {
+    if (m.index < pos) last = m;
+  }
+  if (!last) return null;
+  const at = last.index + last[0].length;
+  return { init: expressionAt(src, at).trim(), at };
+}
+
+/** The value expression of member `key` in the object literal `literal` (which opens at 0). */
+function memberValue(literal, key) {
+  const span = balanced(literal, 0);
+  if (!span) return null;
+  for (const part of splitTopLevel(span.body)) {
+    if (part === key) return key; // shorthand `{ key }`
+    const m = part.match(/^['"]?([A-Za-z_$][\w$]*)['"]?\s*:/);
+    if (m && m[1] === key) return part.slice(part.indexOf(':') + 1).trim();
+  }
+  return null;
+}
+
+/** The module a named import of `name` comes from, resolved against `rel`. */
+function importOf(rel, src, name) {
+  for (const m of src.matchAll(/\bimport\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+    const hit = m[1]
+      .split(',')
+      .map((s) => s.trim().replace(/^type\s+/, ''))
+      .find((s) => s && s.split(/\s+as\s+/).pop().trim() === name);
+    if (!hit) continue;
+    const spec = m[2];
+    if (!spec.startsWith('.')) return { error: `\`${name}\` is imported from the package \`${spec}\`, which this scan does not read` };
+    const base = join(dirname(rel), spec).replaceAll('\\', '/');
+    for (const cand of [`${base}.ts`, `${base}/index.ts`]) {
+      if (has(cand)) return { rel: cand, exported: hit.split(/\s+as\s+/)[0].trim() };
+    }
+    return { error: `\`${name}\` is imported from \`${spec}\`, which resolves to no .ts file (${base})` };
+  }
+  return null;
+}
+
+/** The `return { … }` literals inside the function `name` declared in `src`, with absolute offsets. */
+function returnedLiterals(src, name) {
+  const heads = [
+    new RegExp(String.raw`\b(?:export\s+)?(?:async\s+)?function\s*\*?\s*${reName(name)}\s*(?:<[^>]*>)?\s*\(`),
+    new RegExp(String.raw`\b(?:export\s+)?(?:const|let)\s+${reName(name)}\s*(?::[^=;]+)?=\s*(?:async\s*)?(?:<[^>]*>)?\s*\(`),
+  ];
+  for (const re of heads) {
+    const m = re.exec(src);
+    if (!m) continue;
+    const params = balanced(src, m.index + m[0].length - 1);
+    if (!params) return null;
+    // The body is the first `{` after the parameter list that is not inside a return type's `<…>`.
+    let i = params.end + 1;
+    for (let angle = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === '<') angle++;
+      else if (ch === '>' && src[i - 1] !== '=') angle = Math.max(0, angle - 1);
+      else if (ch === '{' && angle === 0) break;
+    }
+    const body = balanced(src, i);
+    if (!body) return null;
+    const literals = [];
+    for (const r of body.body.matchAll(/\breturn\s*\{/g)) {
+      const open = r.index + r[0].length - 1;
+      const lit = balanced(body.body, open);
+      if (lit) literals.push({ text: body.body.slice(open, lit.end + 1), at: i + 1 + open });
+    }
+    return literals;
+  }
+  return null;
+}
+
+/** Follow `expr` — read in `rel` (comment-stripped `src`) at offset `pos` — through
+ *  `props` still to be read, to the item literal. Returns `{ parsed, rel, trail }`
+ *  or `{ error, trail }`. */
+function followToLiteral(rel, src, pos, expr, props, trail, hops = 0) {
+  if (hops > MAX_HOPS) return { error: `the chain is longer than ${MAX_HOPS} hops`, trail };
+  const e = expr.trim().replace(/^await\s+/, '').replace(/\s*\?\?\s*(?:undefined|null|\[\s*\])\s*$/, '').trim();
+
+  // No members left to read and a `{` in the expression: this IS the item
+  // literal (`rows.map((r) => ({ … }))`), parsed where the in-file parse did.
+  if (props.length === 0 && e.includes('{')) {
+    const parsed = objectKeysAt(e, e.indexOf('{'));
+    if (!parsed || parsed.keys.length === 0) return { error: `the literal in \`${e.slice(0, 80)}\` (${rel}) has no nameable member`, trail };
+    return { parsed, rel, trail };
+  }
+
+  if (e.startsWith('{') && props.length > 0) {
+    const v = memberValue(e, props[0]);
+    if (v === null) return { error: `the object literal in ${rel} carries no \`${props[0]}\``, trail };
+    return followToLiteral(rel, src, pos, v, props.slice(1), [...trail, `.${props[0]}`], hops + 1);
+  }
+
+  const chain = e.match(/^([A-Za-z_$][\w$]*)((?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)$/);
+  if (chain) {
+    const [, root, rest] = chain;
+    const members = rest.split(/\??\./).map((s) => s.trim()).filter(Boolean);
+    const b = bindingBefore(src, root, pos);
+    if (!b) return { error: `no \`const|let|var ${root} =\` precedes its use in ${rel} (a parameter or a destructuring is not followed)`, trail };
+    return followToLiteral(rel, src, b.at, b.init, [...members, ...props], [...trail, `${rel}: ${root}`], hops + 1);
+  }
+
+  const call = e.match(/^([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/);
+  if (call && balanced(e, call[0].length - 1)?.end === e.length - 1) {
+    const callee = call[1];
+    let targetRel = rel;
+    let targetSrc = src;
+    let fnName = callee;
+    let literals = returnedLiterals(src, callee);
+    if (literals === null) {
+      const imp = importOf(rel, src, callee);
+      if (!imp) return { error: `\`${callee}\` is neither declared in nor imported by ${rel}`, trail };
+      if (imp.error) return { error: imp.error, trail };
+      targetRel = imp.rel;
+      targetSrc = stripSourceComments(read(imp.rel), '.ts');
+      fnName = imp.exported;
+      literals = returnedLiterals(targetSrc, fnName);
+      if (literals === null) return { error: `${targetRel} declares no function \`${fnName}\` with a body`, trail };
+    }
+    const hopTrail = [...trail, `${fnName}() → ${targetRel}`];
+    const carrying = literals.map((l) => ({ l, v: memberValue(l.text, props[0]) })).filter((x) => x.v !== null);
+    if (carrying.length === 0) {
+      return { error: `none of the ${literals.length} \`return { … }\` literal(s) of \`${fnName}\` in ${targetRel} carries \`${props[0]}\``, trail: hopTrail };
+    }
+    const results = carrying.map(({ l, v }) =>
+      followToLiteral(targetRel, targetSrc, l.at, v, props.slice(1), [...hopTrail, `.${props[0]}`], hops + 1),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) return failed;
+    const shapes = new Set(results.map((r) => [...r.parsed.keys].sort().join(',')));
+    if (shapes.size > 1) {
+      return { error: `\`${fnName}\` in ${targetRel} returns \`${props[0]}\` with ${shapes.size} different item shapes`, trail: hopTrail };
+    }
+    return results[0];
+  }
+
+  if (props.length === 0) {
+    return { error: `\`${e.slice(0, 80)}\` in ${rel} holds no object literal and names nothing this scan can follow`, trail };
+  }
+  return { error: `\`${e.slice(0, 80)}\` in ${rel} is an expression this scan cannot follow`, trail };
+}
+
 /** The balanced body of the Dart member that `marker` opens — `{ … }` for a
  *  block body, or everything up to the terminating `;` for an `=>` body. Both
  *  forms are real here (`Entitlement.fromJson` is a block, `CancellationReceipt.
@@ -1020,6 +1220,18 @@ if (unpinned.length || unmounted.length) {
 }
 if (new Set(contractIds).size !== contractIds.length) {
   coverageLost('WIRE_CONTRACTS has a duplicate id, so one route\'s contract is shadowing another\'s.');
+}
+// The server half of a contract that asks for it is the register's `owningFile`
+// for the same route id — derived, so a moved route is followed rather than
+// reported as lost.
+for (const contract of WIRE_CONTRACTS) {
+  if (contract.serverFrom !== 'register') continue;
+  const row = (register.routes ?? []).find((r) => r.id === contract.id);
+  const owning = typeof row?.owningFile === 'string' ? row.owningFile.replaceAll('\\', '/').trim() : '';
+  if (!owning) {
+    coverageLost(`${contract.id}: ${WIRE_REGISTER} names no \`owningFile\` for this route, so its server half cannot be derived.`);
+  }
+  contract.server = owning;
 }
 
 /** Success/error split for one route file, plus the refusals it can answer. */
@@ -1460,10 +1672,13 @@ for (const contract of WIRE_CONTRACTS) {
 
   let nestedNote = '';
   if (contract.nested) {
-    // The item shape lives inside the value expression of ONE key, so it is read
-    // out of that expression's own first balanced literal — never off the file.
+    // The item shape lives inside the value expression of ONE key of a `c.json`
+    // literal in the server half. When that expression is not itself the literal
+    // (`entitlements: read.entitlements`), it is FOLLOWED to where the literal is
+    // written — see `followToLiteral`.
     const src = stripSourceComments(read(contract.server), '.ts');
-    let itemKeys = null;
+    let found = null;
+    let lastError = null;
     const jsonRe = /\bc\.json\s*\(/g;
     let m;
     while ((m = jsonRe.exec(src)) !== null) {
@@ -1471,28 +1686,27 @@ for (const contract of WIRE_CONTRACTS) {
       if (!span) continue;
       const first = splitTopLevel(span.body)[0] ?? '';
       if (!first.startsWith('{')) continue;
-      const objSpan = balanced(first, 0);
-      if (!objSpan) continue;
-      const member = splitTopLevel(objSpan.body).find((p) => p.startsWith(`${contract.nested.key}:`));
-      if (!member) continue;
-      const value = member.slice(member.indexOf(':') + 1);
-      const open = value.indexOf('{');
-      if (open === -1) continue;
-      const parsed = objectKeysAt(value, open);
-      if (parsed && parsed.keys.length) { itemKeys = parsed; break; }
+      const value = memberValue(first, contract.nested.key);
+      if (value === null) continue;
+      const r = followToLiteral(contract.server, src, m.index, value, [], [`${contract.server}: c.json({ ${contract.nested.key} })`]);
+      if (r.error) { lastError = r; continue; }
+      found = r;
+      break;
     }
-    if (!itemKeys) {
+    if (!found) {
       coverageLost(
-        `${contract.id}: the item shape under \`${contract.nested.key}\` could not be parsed out of ${contract.server}. ` +
-          'The list is the part of this response the client actually walks; a top-level pin alone would certify the ' +
-          'envelope and say nothing about the rows inside it.',
+        `${contract.id}: the item shape under \`${contract.nested.key}\` could not be parsed out of ${contract.server}` +
+          (lastError ? ` or followed from it — ${lastError.error} (walked: ${lastError.trail.join(' → ')})` : '') +
+          '. The list is the part of this response the client actually walks; a top-level pin alone would certify ' +
+          'the envelope and say nothing about the rows inside it.',
       );
     }
+    const itemKeys = found.parsed;
     if (itemKeys.spreads || itemKeys.unparsed) {
-      coverageLost(`${contract.server}: the \`${contract.nested.key}\` item literal has members this scan cannot name.`);
+      coverageLost(`${found.rel}: the \`${contract.nested.key}\` item literal has members this scan cannot name.`);
     }
     const nested = pinLevel(`.${contract.nested.key}[]`, new Set(itemKeys.keys), contract.nested);
-    nestedNote = `, item ${itemKeys.keys.length} sent / ${nested.reads.size} read`;
+    nestedNote = `, item ${itemKeys.keys.length} sent / ${nested.reads.size} read (item literal in ${found.rel})`;
   }
 
   if (contract.request) {

@@ -80,8 +80,9 @@ bundle branch, so a customer holding a live bundle grant and no per-app row was
 `is_pro: false` here and `is_pro: true, granted_via: 'bundle'` on the shared host — an
 unconsumed route, but one wiring change (`SubscriptionRepository.entitlements()`) from a
 consumed one. Both Workers now mount THE ONE reader, `services/_shared/src/entitlement-read.ts`
-([ADR 057] §5); `services/platform/test/one-entitlement-reader.test.ts` drives one fixture
-through both routes and compares the bytes, and `tooling/ci/assert-one-entitlement-reader.mjs`
+([ADR 057] §5); `test/one-entitlement-reader.test.ts` here and its twin in `services/platform`
+seed the same rows and assert the same expected bytes (`services/_shared/test/entitlement-parity.ts`),
+each against its own route, and `tooling/ci/assert-one-entitlement-reader.mjs`
 refuses a second reader. The envelope here gained `granted_via` and (only with a live grant)
 `bundle`, each row gained `provider`, `provider_status`, `current_period_end`, `trial_end`
 and `revocation_reason`, and `provider_environment` left the wire (the deny reason is logged

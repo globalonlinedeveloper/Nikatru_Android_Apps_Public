@@ -82,9 +82,12 @@
 // This module returns a DECISION (`ProductEntitlementRead`); each route writes
 // the `c.json({ … })` literal itself so tooling/ci/assert-analytics-contract.mjs
 // can keep pinning the envelope against the released Dart client by reading the
-// route file. The two literals are held byte-identical at runtime by
-// services/platform/test/one-entitlement-reader.test.ts, which drives the SAME
-// fixture through BOTH Workers' routes and compares the response bytes.
+// route file — and it FOLLOWS the route's `entitlements: read.entitlements` into
+// `readProductEntitlement` below for the item literal. The two envelopes are
+// held byte-identical at runtime by each Worker's
+// test/one-entitlement-reader.test.ts, which seed the SAME rows and assert the
+// SAME expected bytes (services/_shared/test/entitlement-parity.ts) against
+// their own carrier — neither suite imports the other Worker.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** What a carrier hands the reader. Every member is the carrier's own plumbing. */

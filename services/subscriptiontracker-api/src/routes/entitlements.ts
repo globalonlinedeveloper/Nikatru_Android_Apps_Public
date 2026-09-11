@@ -12,8 +12,9 @@
 // and this file is a carrier for it exactly as the shared host is. The answer
 // this route gives is now byte-identical to
 // `GET platform.nikatru.com/v1/entitlements?app_id=<APP_ID>` for the same user
-// and the same rows — services/platform/test/one-entitlement-reader.test.ts
-// drives one fixture through both and compares the bytes.
+// and the same rows — test/one-entitlement-reader.test.ts here and its twin in
+// services/platform seed the SAME rows and assert the SAME expected bytes
+// (services/_shared/test/entitlement-parity.ts), each against its own carrier.
 //
 // ── WHAT THIS FILE INJECTS INTO THE READER, AND WHY ──────────────────────────
 //   · `isKnownProduct: (id) => id === c.env.APP_ID` — a per-app Worker answers

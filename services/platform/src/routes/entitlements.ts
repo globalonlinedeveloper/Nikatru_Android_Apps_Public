@@ -46,8 +46,11 @@
 // ── THE RESPONSE LITERAL IS WRITTEN HERE ON PURPOSE ──────────────────────────
 // tooling/ci/assert-analytics-contract.mjs pins the envelope of THIS route
 // against the released Dart client by parsing the `c.json({ … })` literal in
-// this file. The per-app carrier writes the identical literal, and
-// test/one-entitlement-reader.test.ts holds the two byte-identical at runtime.
+// this file, and FOLLOWS `entitlements: read.entitlements` into the reader for
+// the item shape. The per-app carrier writes the identical literal, and each
+// Worker's test/one-entitlement-reader.test.ts asserts its own carrier against
+// the same expected bytes (services/_shared/test/entitlement-parity.ts) — the
+// two are held byte-identical without either suite importing the other Worker.
 //
 // 🔴 `bundle` IS A NAMED KEY, NOT A SPREAD, AND THAT IS NOT A STYLE CHOICE. The
 // first version wrote `...(bundleBlock === null ? {} : { bundle })`, and
