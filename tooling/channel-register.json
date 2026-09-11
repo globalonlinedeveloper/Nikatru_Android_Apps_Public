@@ -2239,10 +2239,11 @@
           "`name: Nikatru Subscription Tracker` for exactly this reason: the brand prefix keeps a GLOBAL namespace",
           "claim unambiguous, and the slug (`subscriptiontracker`) alone would not.",
           "",
-          "⚠️ KNOWN DIVERGENCE, RECORDED NOT FIXED HERE: the app brick stamps snap-name.txt as",
-          "`{{app_id.paramCase()}}` — the slug — which is NOT this derivation. The next stamped app would fail",
-          "this guard on its first run, loudly, before any `snapcraft register`. The brick is outside the unit",
-          "that wrote this block (HANDOFF-stores.md)."
+          "⏱ 2026-09-12 — THE BRICK NOW STAMPS THIS DERIVATION. Until #665 (squash 17177979, 2026-09-11) the app brick stamped",
+          "snap-name.txt as `{{app_id.paramCase()}}` (the slug), which is not the derivation, so the next stamped app would have failed",
+          "this guard on its first run. The brick's pre_gen now derives `snap_name` from `shortName` (the value post_gen writes as",
+          "app.yaml `name`) with this guard's algorithm, and the template stamps `{{snap_name}}`. Measured when #665 landed, on a probe",
+          "with a linux/ folder: old brick → \"probe\", assert-store-identity exit 1; new brick → \"probe-s-e-book-co\", exit 0."
         ],
         "declaredIn": "apps/{app}/store/linux-snap/snap-name.txt",
         "derivation": "param-case(apps/{app}/app.yaml name)"
