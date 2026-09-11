@@ -232,7 +232,8 @@ describe('assert-play-device-coverage', () => {
 
   test('the shortfall carries its primary source, so it can be re-checked from the output alone', () => {
     const { out } = run(tree());
-    assert.match(out, /support\.google\.com\/googleplay\/android-developer\/answer\/9866151/);
+    // The citation as printed — URL, then its fetch date (CodeQL #66).
+    assert.match(out, /Source: https:\/\/support\.google\.com\/googleplay\/android-developer\/answer\/9866151 \(fetched /);
     assert.match(out, /minimum of two screenshots across different device types/);
   });
 

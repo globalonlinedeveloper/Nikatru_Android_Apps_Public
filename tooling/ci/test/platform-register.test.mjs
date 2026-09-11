@@ -1386,8 +1386,9 @@ describe('stripComments — strings are tracked even when they are not blanked',
   test('the same holds for a `//` inside a string — a URL must not become a line comment', () => {
     const src = ["const base = 'https://api.nikatru.com';", 'app.route(x);'].join('\n');
     const out = stripComments(src);
-    assert.match(out, /app\.route\(x\);/);
-    assert.match(out, /https:\/\/api\.nikatru\.com/);
+    // The input has no comment at all, so the reducer must hand it back UNCHANGED —
+    // stronger than finding the URL somewhere in the output (CodeQL #65).
+    assert.equal(out, src);
   });
 
   test('real comments are STILL removed — the fix must not disable comment stripping', () => {
