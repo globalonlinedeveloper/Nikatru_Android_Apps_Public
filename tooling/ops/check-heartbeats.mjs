@@ -49,6 +49,17 @@
 //                 expression. ALL FAIL CLOSED. "I could not tell" must never
 //                 read as "it is fine"; that is precisely how the original claim
 //                 became unfalsifiable.
+//   ⬜ NOT YET DUE — not a fourth red: a job with NO row at all whose first slot
+//                 after the instant the register began watching it
+//                 (`watchedJobsDeclaredAt`) has not yet ended its grace. It
+//                 PRINTS, and becomes ABSENT at that instant by arithmetic.
+//
+// EXIT CODES (INV6, 2026-09-11): 0 every duty fresh or not yet due · 1 a duty is
+// ABSENT or RED · 2 COVERAGE LOST — the watched set could not be derived, the
+// heartbeat table could not be READ (no token, a non-200, not JSON, no results
+// array), or an input could not be parsed. 2 beats 1. Until 2026-09-11 a read
+// failure printed "scheduled duty is not reporting healthy" and exited 1, and
+// through ops-watch that false red reached every merge (REVIEW-guards-2026-09-10 #1).
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // COVERAGE SELF-CHECK, because a watcher watching a name nothing writes is the
@@ -225,6 +236,22 @@ export function lastExpectedFireMs(expr, nowMs) {
 }
 
 /**
+ * Cron expression → the FIRST time it is due strictly AFTER `fromMs`, or null.
+ *
+ * Built on `lastExpectedFireMs`, so the two can never disagree about the grammar:
+ * exactly one occurrence falls in any half-open period after `fromMs`, so the
+ * latest occurrence at or before `fromMs + interval` is the first one after it.
+ * It answers ONE question — "has the first slot after this job was declared come
+ * and gone?" — which is what lets an empty record be NOT YET DUE rather than ABSENT.
+ */
+export function firstFireAfterMs(expr, fromMs) {
+  const hours = cronIntervalHours(expr);
+  if (hours === null || !Number.isFinite(fromMs)) return null;
+  const t = lastExpectedFireMs(expr, fromMs + hours * 3_600_000);
+  return t !== null && t > fromMs ? t : null;
+}
+
+/**
  * The decision, kept pure. `rows` are the newest-first heartbeat rows for ONE
  * job; `cronExpr` is that job's declared cron expression.
  *
@@ -233,11 +260,43 @@ export function lastExpectedFireMs(expr, nowMs) {
  * different question from "did the run that was due actually run". See
  * MISSED_RUN_GRACE_HOURS for the real event that separated them.
  */
-export function evaluateJob(job, rows, cronExpr, nowMs) {
+export function evaluateJob(job, rows, cronExpr, nowMs, declaredAtMs = null) {
   if (!Array.isArray(rows)) {
     return { ok: false, kind: 'unknown', reason: `${job}: the query result was not an array — an unreadable answer is a failure, not a pass` };
   }
   if (rows.length === 0) {
+    // ⬜ NOT YET DUE, 2026-09-11. An empty record is owed nothing until the first
+    // slot after the job was DECLARED has passed its grace. Bounded three ways: it
+    // applies only to ZERO rows (a job that has ever written is graded as always),
+    // only from a declaration instant `deriveWatchedJobs` refuses in the future,
+    // and it expires by arithmetic at one period plus the grace.
+    const cronList = Array.isArray(cronExpr) ? cronExpr : [cronExpr];
+    const firsts = Number.isFinite(declaredAtMs) ? cronList.map((c) => firstFireAfterMs(c, declaredAtMs)) : [];
+    if (firsts.length && firsts.every((t) => t !== null)) {
+      const firstMs = Math.min(...firsts);
+      const graceEndsMs = firstMs + MISSED_RUN_GRACE_HOURS * 3_600_000;
+      const iso = (ms) => new Date(ms).toISOString();
+      if (nowMs <= graceEndsMs) {
+        return {
+          ok: true,
+          pending: true,
+          kind: 'pending',
+          reason:
+            `${job}: NOT YET DUE — no heartbeat row has been written and none is owed yet. The register began watching it ` +
+            `${iso(declaredAtMs)}; its first slot after that is ${iso(firstMs)} (cron \`${cronList.join('` `')}\`), and the ` +
+            `${MISSED_RUN_GRACE_HOURS}h grace on that slot ends ${iso(graceEndsMs)}. From that instant an empty record is ` +
+            'ABSENT, whether or not anybody edits the row.',
+        };
+      }
+      return {
+        ok: false,
+        kind: 'absent',
+        reason:
+          `${job}: NO heartbeat row has ever been written, and the first slot after the register began watching it ` +
+          `(${iso(declaredAtMs)} -> ${iso(firstMs)}) ended its ${MISSED_RUN_GRACE_HOURS}h grace ` +
+          `${((nowMs - graceEndsMs) / 3_600_000).toFixed(1)}h ago. The job has never run, or it cannot write its own record.`,
+      };
+    }
     return { ok: false, kind: 'absent', reason: `${job}: NO heartbeat row has ever been written. The job has never run, or it cannot write its own record.` };
   }
   const newest = rows.reduce((a, b) => (Date.parse(b.ran_at) > Date.parse(a.ran_at) ? b : a));
@@ -456,6 +515,42 @@ export function deriveWatchedJobs(root) {
       }
     }
     if (mapBroken) continue;
+    // ⬜ THE DECLARATION INSTANT, PER JOB (2026-09-11). A job with NO row at all is
+    // either NOT YET DUE or ABSENT, and the only fact that separates them is when
+    // the register began watching it. Required, an ISO instant, never in the
+    // FUTURE: a date parked ahead would keep an empty record "not yet due" for as
+    // long as somebody keeps moving it, which is a waiver (INV5).
+    const declaredAt = row.watchedJobsDeclaredAt;
+    if (!declaredAt || typeof declaredAt !== 'object' || Array.isArray(declaredAt)) {
+      problems.push(
+        `COVERAGE LOST — ${row.id}.watchedJobsDeclaredAt must be a MAP of job -> the ISO instant the register began ` +
+          'watching it. Without it a job with no row at all cannot be told apart: "not yet due" and "never ran" are the ' +
+          'same zero rows, and this reader would have to call one of them the other.',
+      );
+      continue;
+    }
+    const declaredAtMs = new Map();
+    let declBroken = false;
+    for (const job of Object.keys(watched)) {
+      const at = declaredAt[job];
+      const ms = typeof at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(at) ? Date.parse(at) : NaN;
+      if (Number.isNaN(ms)) {
+        problems.push(`COVERAGE LOST — ${row.id}.watchedJobsDeclaredAt["${job}"] is ${JSON.stringify(at ?? null)}, not an ISO instant, so an empty record for "${job}" has no declaration to measure its first slot from.`);
+        declBroken = true;
+      } else if (ms > Date.now()) {
+        problems.push(`COVERAGE LOST — ${row.id}.watchedJobsDeclaredAt["${job}"] is ${at}, in the FUTURE. That is the one way this field becomes a waiver: an empty record would stay "not yet due" for as long as the date is kept ahead (INV5).`);
+        declBroken = true;
+      } else {
+        declaredAtMs.set(job, ms);
+      }
+    }
+    for (const job of Object.keys(declaredAt)) {
+      if (!Object.prototype.hasOwnProperty.call(watched, job)) {
+        problems.push(`${row.id}.watchedJobsDeclaredAt names job "${job}", which ${row.id}.watchedJobs does not watch — a declaration instant for nothing reads as coverage that does not exist.`);
+        declBroken = true;
+      }
+    }
+    if (declBroken) continue;
     // The self-check: the job name must exist in the Worker's own source.
     const srcDir = join(root, dirname(cfgRel), 'src');
     const src = existsSync(srcDir) ? readSourceTree(srcDir) : '';
@@ -472,7 +567,7 @@ export function deriveWatchedJobs(root) {
         );
         continue;
       }
-      jobs.push({ id: row.id, job, databaseId: dbId, cron: jobCrons });
+      jobs.push({ id: row.id, job, databaseId: dbId, cron: jobCrons, declaredAtMs: declaredAtMs.get(job) });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -600,18 +695,25 @@ export async function queryD1(databaseId, job, target = null) {
   return rows;
 }
 
+// ⚠️ `process.exitCode` and return, NEVER `process.exit()`: exiting while a fetch
+// handle is still closing aborts Node on Windows with 127 for every outcome
+// (tooling/ci/assert-gate-passed.mjs records the measurement).
 async function main() {
   const { jobs, problems } = deriveWatchedJobs(ROOT);
   if (problems.length) {
     for (const p of problems) console.error(`✗ ${p}`);
-    process.exit(1);
+    // A watched set that could not be DERIVED is COVERAGE LOST (2); a register that
+    // derives and is wrong is a finding (1). 2 beats 1.
+    process.exitCode = problems.some((p) => p.startsWith('COVERAGE LOST')) ? 2 : 1;
+    return;
   }
 
   const nowFlag = flag('--now');
   const nowMs = nowFlag ? Date.parse(nowFlag) : Date.now();
   if (Number.isNaN(nowMs)) {
-    console.error(`✗ --now is not a parseable date: ${nowFlag}`);
-    process.exit(1);
+    console.error(`✗ COVERAGE LOST — --now is not a parseable date: ${nowFlag}`);
+    process.exitCode = 2;
+    return;
   }
 
   const rowsFile = flag('--rows-file');
@@ -621,39 +723,61 @@ async function main() {
     try {
       fixture = JSON.parse(readFileSync(rowsFile, 'utf8'));
     } catch (e) {
-      console.error(`✗ could not read fixture ${rowsFile}: ${e.message}`);
-      process.exit(1);
+      console.error(`✗ COVERAGE LOST — could not read fixture ${rowsFile}: ${e.message}`);
+      process.exitCode = 2;
+      return;
     }
   }
 
   const failures = [];
+  const unreadable = [];
+  const pending = [];
   const okLines = [];
   for (const j of jobs) {
     let rows;
     try {
       rows = fixture ? (fixture[j.job] ?? []) : await queryD1(j.databaseId, j.job);
     } catch (e) {
-      failures.push(`${j.job}: ${e.message}`);
+      // 🔴 A READ FAILURE IS NOT A DUTY FAILURE (INV6). Until 2026-09-11 this line
+      // was `failures.push(...)`, so a 401, a 5xx or a missing token printed as
+      // "scheduled duty is not reporting healthy" and exited 1.
+      unreadable.push(`${j.job}: ${e.message}`);
       continue;
     }
-    const verdict = evaluateJob(j.job, rows, j.cron, nowMs);
-    if (verdict.ok) okLines.push(verdict.reason);
+    const verdict = evaluateJob(j.job, rows, j.cron, nowMs, j.declaredAtMs);
+    if (verdict.pending) pending.push(verdict.reason);
+    else if (verdict.ok) okLines.push(verdict.reason);
     else failures.push(verdict.reason);
   }
 
   console.log(`⬜  watching ${jobs.length} cron job(s) derived from ${REGISTER_REL}: ${jobs.map((j) => `${j.job} (${j.cron})`).join(', ')}`);
   for (const l of okLines) console.log(`ok  ${l}`);
+  for (const l of pending) console.log(`⬜  ${l}`);
 
+  if (unreadable.length) {
+    console.error(
+      `✗ COVERAGE LOST — ${unreadable.length} scheduled duty(ies) could not be READ, so NOTHING was judged about them. ` +
+        'This is not "not reporting healthy", and it is not healthy either:',
+    );
+    for (const u of unreadable) console.error(`    ${u}`);
+  }
   if (failures.length) {
     console.error(`✗ ${failures.length} scheduled duty is not reporting healthy:`);
     for (const f of failures) console.error(`    ${f}`);
     console.error('');
     console.error('    This reader runs on GitHub Actions ON PURPOSE — a different provider from the cron it');
     console.error('    watches, so it survives the outage it is meant to report. [pipeline O-4]');
-    process.exit(1);
+  }
+  if (unreadable.length) {
+    process.exitCode = 2;
+    return;
+  }
+  if (failures.length) {
+    process.exitCode = 1;
+    return;
   }
 
-  console.log(`ok  every declared cron duty is fresh and reporting success [pipeline O-4]`);
+  console.log(`ok  every declared cron duty is fresh and reporting success${pending.length ? `, ${pending.length} NOT YET DUE (printed above)` : ''} [pipeline O-4]`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {

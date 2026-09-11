@@ -118,7 +118,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseAllWorkflows } from '../workflow-scan.mjs';
 
 import {
   evaluate,
@@ -152,12 +153,27 @@ import {
   gateCheckName,
   workflowRunsScript,
   feedsTheGate,
-  deadlockExemption,
   GATE_SCRIPT_REL,
   GUARD_SCRIPT_REL,
   redSinceTriggerCensus,
   redSinceTriggerShape,
   rowWorkflowFile,
+  PROPOSAL_EVENTS,
+  RUN_UNIT,
+  workflowEventsByFile,
+  hostPolicy,
+  jobSteps,
+  unitNeedsGuard,
+  unitNeedsHosts,
+  routeLiveVerdicts,
+  unitOf,
+  describeUnit,
+  apiJobMatcher,
+  unitConclusion,
+  decideUnitFreshness,
+  decideUnitRedSince,
+  checkRunUnits,
+  githubDarkness,
 } from '../assert-ops-register.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -173,6 +189,98 @@ const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-ops-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · THE REPLAY STUB. A spawned guard reads GitHub, GlitchTip and D1
+// over `fetch`; this module, loaded with `node --import`, answers every one of
+// those reads from a JSON state file and pins `Date.now` to that file's `now`.
+// It lives in the TEST and never in the guard: the guard has no fixture flag, no
+// replay mode and no environment switch of its own (INV5), and what it runs
+// against here is the same `fetch` a CI runner gives it. It is serialised from a
+// real function, so it is parsed with the rest of this file.
+// ─────────────────────────────────────────────────────────────────────────────
+function replayStub(readFileSync) {
+  const F = JSON.parse(readFileSync(process.env.OPS_REPLAY_FILE, 'utf8'));
+  const NOW_MS = Date.parse(F.now);
+  Date.now = () => NOW_MS;
+  const ghStatus = Number(process.env.OPS_REPLAY_GITHUB_STATUS || 200);
+  const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (url.hostname === 'api.github.com') {
+      if (ghStatus !== 200) return json({ message: 'replayed refusal' }, ghStatus);
+      const wfAt = parts.indexOf('workflows');
+      if (wfAt !== -1 && parts[wfAt + 2] === 'runs') {
+        const wf = decodeURIComponent(parts[wfAt + 1]);
+        const sp = url.searchParams;
+        const want = sp.get('status');
+        const rows = (F.runs[wf] ?? [])
+          .map(([id, event, conclusion, updatedAt]) => ({ id, event, conclusion, status: 'completed', updated_at: updatedAt, created_at: updatedAt, head_branch: 'main' }))
+          .filter((r) => !sp.get('branch') || r.head_branch === sp.get('branch'))
+          .filter((r) => !sp.get('event') || r.event === sp.get('event'))
+          .filter((r) => !want || want === 'completed' || r.conclusion === want)
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        return json({ total_count: rows.length, workflow_runs: rows.slice(0, Number(sp.get('per_page') || 30)) });
+      }
+      const runAt = parts.indexOf('runs');
+      if (runAt !== -1 && parts[runAt + 2] === 'jobs') {
+        const list = F.jobs?.[parts[runAt + 1]] ?? [];
+        return json({
+          total_count: list.length,
+          jobs: list.map(([name, conclusion, steps]) => ({ name, status: 'completed', conclusion, steps: (steps ?? []).map(([n, c]) => ({ name: n, conclusion: c })) })),
+        });
+      }
+      if (url.pathname === '/search/issues') {
+        const hit = Object.entries(F.issues ?? {}).find(([t]) => (url.searchParams.get('q') ?? '').includes(t));
+        return json({ items: hit ? [{ number: hit[1][0], title: hit[0], updated_at: hit[1][1] }] : [] });
+      }
+      return json({ message: 'Not Found' }, 404);
+    }
+    if (url.hostname.startsWith('glitchtip')) {
+      const monAt = parts.indexOf('monitors');
+      const g = monAt === -1 ? null : (F.glitchtip ?? {})[parts[monAt + 1]];
+      if (!g) return json({ detail: 'Not found.' }, 404);
+      const [newestUp, interval, checks, misses] = g;
+      if (parts[monAt + 2] !== 'checks') return json({ id: Number(parts[monAt + 1]), monitorType: 'Heartbeat', interval });
+      const up = Date.parse(newestUp);
+      const out = [{ isUp: true, startCheck: newestUp }];
+      for (let i = 1; i < checks; i += 1) out.push({ isUp: i <= checks - 1 - misses, startCheck: new Date(up - i * interval * 1000).toISOString() });
+      return json(out);
+    }
+    if (url.hostname === 'api.cloudflare.com') {
+      const body = JSON.parse(init.body ?? '{}');
+      let results;
+      if (String(body.sql ?? '').includes('GROUP BY job')) {
+        results = Object.entries(F.d1?.jobs ?? {}).map(([job, ranAt]) => ({ job, ran_at: ranAt }));
+      } else {
+        const [job, target] = body.params ?? [];
+        results = [{ job, target, ran_at: (F.d1?.targets ?? {})[target] ?? null }];
+      }
+      return json({ success: true, result: [{ results }] });
+    }
+    return json({ message: `the replay has no answer for ${url.href}` }, 599);
+  };
+}
+let replayStubHref = null;
+function replayStubUrl() {
+  if (replayStubHref === null) {
+    const p = join(TMP, 'ops-replay-stub.mjs');
+    writeFileSync(p, `import { readFileSync } from 'node:fs';\n(${replayStub.toString()})(readFileSync);\n`);
+    replayStubHref = pathToFileURL(p).href;
+  }
+  return replayStubHref;
+}
+/** A child environment with every inherited GitHub, GlitchTip, Cloudflare and
+ *  replay variable removed — a guard-meta job runs this suite INSIDE a
+ *  pull_request run, and a spawned guard must not inherit that host by accident. */
+function scrubbedEnv(extra = {}) {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!/^(GITHUB_|GH_TOKEN$|GLITCHTIP_|CLOUDFLARE_|OPS_REPLAY_)/.test(k)) env[k] = v;
+  }
+  return { ...env, ...extra };
+}
 
 let seq = 0;
 
@@ -1867,7 +1975,10 @@ describe('assert-ops-register — end to end, against the real repository', () =
   // no success has landed since. Without it here, the very first red `main`
   // would have made this test call the new limb doing exactly its job a
   // "structural break" — and the reflex fix for that is to delete the limb.
-  const DUTY_IS_FAILING = /its record IS reachable and (holds NO SUCCESSFUL RUN AT ALL|the newest SUCCESSFUL run)|the mechanism its `recordQuery` names DOES NOT EXIST|reader `[^`]+` .+ AND the register holds its last readable observation as FAILING \(|— RED SINCE \d{4}-\d{2}-\d{2}T/;
+  // ⏱ 2026-09-11 — the fifth shape joined with INV6: a watched workflow with
+  // FAILED runs and no success at all is a live verdict at exit 2 now, not a
+  // separate COVERAGE LOST return, so it can appear among the problems.
+  const DUTY_IS_FAILING = /its record IS reachable and (holds NO SUCCESSFUL RUN AT ALL|the newest SUCCESSFUL run)|the mechanism its `recordQuery` names DOES NOT EXIST|reader `[^`]+` .+ AND the register holds its last readable observation as FAILING \(|— RED SINCE \d{4}-\d{2}-\d{2}T|has FAILED runs \(newest is run \d+ at [^)]+\) and NO successful run at all/;
 
   // ── 🔴 THE FIFTH SHAPE, AND WHY IT IS DELIBERATELY NOT IN THE SET ABOVE ────
   // `classifyRunRecord` emits one more failing shape — HELD-BUT-HEALTHY — the
@@ -1895,6 +2006,14 @@ describe('assert-ops-register — end to end, against the real repository', () =
       .split('\n')
       .filter((l) => /^ {4}\S/.test(l))
       .map((l) => l.trim());
+    // ⏱ 2026-09-11 — exit 2 with no itemised problem is a MEASUREMENT state
+    // (INV6): this runner could not read enough of the world — no GLITCHTIP_TOKEN
+    // or no GITHUB_TOKEN on a laptop. That is neither a structural break nor a duty
+    // failing, and the guard must say which it is.
+    if (code === 2 && problems.length === 0) {
+      assert.match(out, /✗ COVERAGE LOST — \d+ measurement failure\(s\)/, `exit 2 with neither a problem nor a measurement failure:\n${out}`);
+      return;
+    }
     assert.ok(problems.length > 0, `exit ${code} with no itemised problems:\n${out}`);
     // The structural claim is checked over EVERY line FIRST.
     const stale = problems.filter((p) => HELD_BUT_HEALTHY.test(p));
@@ -2010,7 +2129,7 @@ describe('assert-ops-register — end to end, against the real repository', () =
     mkdirSync(join(root, '.github/workflows'), { recursive: true });
     writeFileSync(join(root, '.github/workflows/ci.yml'), 'name: CI\n');
     const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
-    assert.equal(r.status, 1);
+    assert.equal(r.status, 2, 'COVERAGE LOST is exit 2 — never 1, which is a finding (INV6)');
     assert.match(`${r.stdout}\n${r.stderr}`, /COVERAGE LOST/);
   });
 });
@@ -2156,7 +2275,7 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
         record: 'GitHub Actions run history, filtered to event = schedule',
         failingValue: 'conclusion = failure on event = schedule',
         readBy: 'this guard, by querying the run history',
-        recordQuery: { reader: 'github-run-history', workflow: 'ci.yml', event: 'schedule', headBranch: 'main' },
+        recordQuery: { reader: 'github-run-history', workflow: 'ci.yml', unit: 'run', event: 'schedule', headBranch: 'main' },
       },
       // [14]O-10 wants an IN-TREE freshness reader or a written gap. This
       // fixture root has no guards in it, so the gap is the honest answer — and
@@ -2214,10 +2333,20 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
   // fails in CI (or the reverse) is the test everybody learns to ignore. With
   // them absent the reader is deterministically `unreadable`, which is a print,
   // so these tests measure the delegation limb and nothing else.
+  // ⏱ 2026-09-11 — AND THEN REPLAYED, because INV6 made the scrubbed state RED:
+  // a runner that can read NONE of the GitHub reads is COVERAGE LOST, exit 2
+  // (REVIEW-guards-2026-09-10 #2). So the fixture root's one watched workflow is
+  // answered by `replayStub` with one green scheduled run an hour old, which is
+  // just as deterministic across machines and no longer a false green.
   const runRoot = (root) => {
-    const env = { ...process.env };
-    for (const k of ['GITHUB_TOKEN', 'GH_TOKEN', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) delete env[k];
-    const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8', env });
+    const state = join(TMP, `root-replay-${seq++}.json`);
+    const now = new Date().toISOString();
+    writeFileSync(
+      state,
+      JSON.stringify({ now, runs: { 'ci.yml': [[101, 'schedule', 'success', new Date(Date.parse(now) - 3_600_000).toISOString()]] }, jobs: {}, glitchtip: {}, d1: { jobs: {}, targets: {} }, issues: {} }),
+    );
+    const env = scrubbedEnv({ OPS_REPLAY_FILE: state, GITHUB_TOKEN: 'replay', GITHUB_REPOSITORY: 'o/r' });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD, root], { encoding: 'utf8', env });
     return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
   };
 
@@ -2239,7 +2368,8 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
     const r = runRoot(fixtureRoot());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /\[14\]O-3b — RED SINCE: 1 workflow duty\(ies\) graded \(1 on a clock · 0 `trigger` row\(s\)/);
-    assert.match(r.out, /ORDERED ZERO PAIRS ON THIS RUN/, 'with no token every read is unreadable, and that state must not read like a green branch');
+    assert.match(r.out, /· 1 whose newest run on their own branch is GREEN · 0 RED/, 'the replayed history is read and ordered, so the limb must say it ordered a pair');
+    assert.doesNotMatch(r.out, /ORDERED ZERO PAIRS ON THIS RUN/);
     // ⏱ 2026-09-09 — THE WIRING OF THE DERIVATION, not just of the verdict. The
     // fixture root's `duty.workflow.ci.yml` is a `trigger` row and its
     // `.github/workflows/ci.yml` declares no `workflow_dispatch`, so main() must
@@ -2267,19 +2397,19 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
 
   test('no `_delegated.hostnames` at all is COVERAGE LOST — the surfaces would be owned by nobody', () => {
     const r = runRoot(fixtureRoot((s) => { delete s.reg._delegated; }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2, 'COVERAGE LOST is exit 2 (INV6)');
     assert.match(r.out, /`_delegated.hostnames` is missing/);
   });
 
   test('a delegate that does not exist is COVERAGE LOST, not a silent pass-through', () => {
     const r = runRoot(fixtureRoot((s) => { s.monitor = null; }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2, 'COVERAGE LOST is exit 2 (INV6)');
     assert.match(r.out, /which does not exist/);
   });
 
   test('a delegate with an EMPTY host set is COVERAGE LOST — an empty delegate is worse than none', () => {
     const r = runRoot(fixtureRoot((s) => { s.monitor = { hosts: [] }; }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2, 'COVERAGE LOST is exit 2 (INV6)');
     assert.match(r.out, /could not be read as a host register/);
   });
 
@@ -3064,15 +3194,16 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
       // API version would widen this guard with nothing to notice it. Checking
       // what came BACK is the difference between asking and knowing.
       const r = classifyRunHistoryAnswer(Q, run({ head_branch: 'feat/something' }), 'owner/repo');
-      assert.ok(Number.isNaN(r.lastSuccessMs), 'a run from another branch must not satisfy a claim about main');
-      assert.match(r.detail, /branch filter did not hold/);
-      assert.match(r.detail, /feat.something/, 'the branch that came back must be named, or nobody can debug it');
+      assert.equal(r.unreadable, true, 'a run from another branch must not satisfy a claim about main — and it is UNREADABLE (INV6, REVIEW-guards-2026-09-10 #8)');
+      assert.equal(r.lastSuccessMs, undefined, 'a NaN here is what graded an unheld filter as "no successful run at all", exit 1');
+      assert.match(r.why, /branch filter did not hold/);
+      assert.match(r.why, /feat.something/, 'the branch that came back must be named, or nobody can debug it');
     });
 
     test('a missing head_branch is refused too — absent is not "probably main"', () => {
       const r = classifyRunHistoryAnswer(Q, run({ head_branch: undefined }), 'owner/repo');
-      assert.ok(Number.isNaN(r.lastSuccessMs));
-      assert.match(r.detail, /branch filter did not hold/);
+      assert.equal(r.unreadable, true);
+      assert.match(r.why, /branch filter did not hold/);
     });
 
     test('with NO headBranch declared the answer is unchanged — the field is opt-in at this layer', () => {
@@ -3616,12 +3747,18 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
 
   // ── COVERAGE LOST, twice, for two different reasons ───────────────────────
   test('🔴 COVERAGE LOST — failures and NO success ever: the comparison has one term, and that is not a pass', () => {
+    // ⏱ 2026-09-11 — a LIVE verdict at exit 2, routed like every other live
+    // verdict, rather than a separate return that stopped the guard in every host:
+    // a first-ever failed run on a self-gated lane was a freeze of its own.
     const r = evaluateRedSince(regOf(wfDuty(ID)), probesOf({ [ID]: { success: null, failure: BAD } }));
-    assert.ok(r.coverageLost, 'a limb that could not order its two terms must not return a verdict');
-    assert.match(r.coverageLost.join(' '), /HAS NO SECOND TERM/);
-    assert.match(r.coverageLost.join(' '), /nightly\.yml on main/);
-    assert.match(r.coverageLost.join(' '), /the sibling \[14\]O-3 limb still grades/, 'and it must say the duty is still watched, or the next reader deletes the wrong thing');
-    assert.equal(r.stats, undefined);
+    assert.equal(r.coverageLost, undefined, 'the empty-domain refusal is the only structural return left in this limb');
+    assert.equal(r.stats.blind, 1);
+    assert.equal(r.live.length, 1, 'a limb that could not order its two terms must not return a pass');
+    assert.equal(r.live[0].code, 2, 'and where it blocks it is COVERAGE LOST, exit 2 — not a RED');
+    assert.match(r.live[0].line, /HAS NO SECOND TERM/);
+    assert.match(r.live[0].line, /nightly\.yml on main/);
+    assert.match(r.live[0].line, /the sibling \[14\]O-3 limb still grades/, 'and it must say the duty is still watched, or the next reader deletes the wrong thing');
+    assert.ok(r.errors.includes(r.live[0].line));
   });
 
   test('🔴 COVERAGE LOST — an EMPTY domain, which is the one way this limb could be disabled without deleting it', () => {
@@ -3711,96 +3848,103 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
 
   // -- THE SECOND SELF-REFERENCE: ops-watch.yml GRADING ITS OWN HOST RUN ------
   //
-  // Added 2026-09-08. `.github/workflows/ops-watch.yml` runs this guard, and
-  // `duty.workflow.ops-watch.yml` is a `1d` row in the domain above -- so on an
-  // ops-watch run the limb was grading the run history of the run it was
-  // executing inside. The probe filters on CONCLUSIONS and an in-flight run has
-  // none, so that run could never supply its own success: one red ops-watch run
-  // became the newest failure, the next run read it and failed too, and the row
-  // was red forever, with `ci-gate` red on every pull request behind it. Four
-  // consecutive failures on `main`, measured 2026-09-08. TRAPS `ci-42`/`ci-43`:
-  // A RUN'S OWN CONCLUSION MAY NOT BE AN INPUT TO THE GRADE THAT PRODUCES IT.
+  // Added 2026-09-08 as a `SELF` skip inside evaluateRedSince: ops-watch.yml runs
+  // this guard, so its own row read the conclusion of the run it executed inside,
+  // and one red run re-failed every run after it. TRAPS `ci-42`/`ci-43`: A RUN'S
+  // OWN CONCLUSION MAY NOT BE AN INPUT TO THE GRADE THAT PRODUCES IT.
   //
-  // THE PAIR BELOW IS THE WHOLE PROOF THAT NOTHING WAS WEAKENED: (a) is the
-  // deferral, (b) is the SAME RED ROW still blocking off its own host. If (b)
-  // ever passes, the alarm has been narrowed rather than de-self-referenced --
-  // it is the mutation control for the exclusion, and it is asserted here
-  // rather than described.
+  // ⏱ 2026-09-11 — THE SKIP COVERED ONE LIMB, AND THE OTHER ONE FROZE `main`. The
+  // freshness limb still read the same whole-run conclusion, and run 34546423386
+  // listed `duty.workflow.ops-watch.yml` as STALE inside ops-watch itself. The
+  // rule is now INV4, in two halves: the register may not give a row a unit that
+  // contains the guard (`checkRunUnits`), and if one ever slips past, the router
+  // prints that verdict in its own host with an OWN HOST path (`routeLiveVerdicts`).
+  // The pair (a)/(b) is still the proof that nothing was weakened.
   const OPS = 'duty.workflow.ops-watch.yml';
-  const opsRow = () => {
+  const OWN_TOPO = () => ({
+    selfGated: new Set(['build-platforms.yml']),
+    guardHosts: new Set(['ci.yml', 'ops-watch.yml']),
+    gateName: 'ci-gate',
+    gateWorkflow: 'ci.yml',
+    why: [],
+  });
+  const parsedRepo = () => {
+    const all = parseAllWorkflows(resolve(CI_DIR, '..', '..'));
+    return { all, byFile: new Map(all.map((wf) => [String(wf.rel).split('/').pop(), wf])) };
+  };
+  const opsRowWith = (unit) => {
     const r = wfDuty(OPS);
     r.mechanism.recordQuery.workflow = 'ops-watch.yml';
+    r.mechanism.recordQuery.unit = unit;
     return r;
   };
-  const RED = () => probesOf({ [OPS]: { success: OK_OLD, failure: BAD } });
+  const envOf = (file, event, ref = 'refs/heads/main') => ({
+    GITHUB_ACTIONS: 'true',
+    GITHUB_RUN_ID: '34546423386',
+    GITHUB_EVENT_NAME: event,
+    GITHUB_WORKFLOW: file,
+    GITHUB_REF: ref,
+    GITHUB_WORKFLOW_REF: `o/r/.github/workflows/${file}@${ref}`,
+  });
+  const policyIn = (file, event, ref) => hostPolicy(envOf(file, event, ref), OWN_TOPO(), workflowEventsByFile(parsedRepo().all));
+  const RED_OPS = () => [{ id: OPS, line: `${OPS} — RED SINCE 2026-09-06T06:00:00Z: ops-watch.yml on main run 333 FAILED`, code: 1 }];
 
-  test('(a) SELF - on its OWN host run a RED ops-watch row does NOT block, and it is PRINTED by name', () => {
-    const r = evaluateRedSince(regOf(opsRow()), RED(), hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml', GITHUB_RUN_ID: '34192865256' }));
-    assert.deepEqual(r.errors, [], 'the row that grades its own host run must not be able to fail that run');
-    assert.equal(r.coverageLost, undefined, 'and it is not coverage lost either - another host still grades it');
-    assert.equal(r.stats.self, 1);
-    assert.equal(r.stats.red, 0, 'a deferred row must not be counted as a failure');
-    assert.equal(r.stats.green, 0, 'and it must NOT be counted as a pass either - that would be the weakening');
-    assert.equal(r.stats.domain, 1, 'the deferred row stays IN the domain, so the empty-domain refusal still sees it');
-    const self = r.prints.filter((l) => /SELF duty\.workflow\.ops-watch\.yml/.test(l));
-    assert.equal(self.length, 1, `the deferral must be a NAMED print, not a silence:\n${JSON.stringify(r.prints, null, 1)}`);
-    assert.match(self[0], /NOT GRADED by its own host run/);
-    assert.match(self[0], /ops-watch\.yml on main/, 'it must name the workflow and branch it deferred');
-    assert.match(self[0], /guards-platform/, 'and the reader that DOES grade it, or the next reader thinks nobody does');
-    assert.match(self[0], /ci-42\/ci-43/);
-    assert.ok(r.prints.some((l) => /HOST WORKFLOW of this run: ops-watch\.yml/.test(l)), 'the host itself is named on every run');
+  test('(a) OWN HOST - a red row whose unit CONTAINS the guard never blocks its own host, and PRINTS the path by name', () => {
+    const r = routeLiveVerdicts(RED_OPS(), policyIn('ops-watch.yml', 'schedule'), OWN_TOPO(), regOf(opsRowWith('run')), parsedRepo().byFile);
+    assert.deepEqual(r.blocking, [], 'a verdict whose recovery needs its own host green must not be able to fail that host');
+    assert.equal(r.printed.length, 1, 'and it must be PRINTED, never dropped — a deferral that is silent is a shrink');
+    assert.match(r.printed[0].line, /ops-watch\.yml on main run 333 FAILED/, 'the verdict itself is unchanged');
+    assert.match(r.printed[0].why, /OWN HOST/);
+    assert.match(r.printed[0].why, /the whole run includes job heartbeats, which runs tooling\/ci\/assert-ops-register\.mjs/);
+    assert.match(r.printed[0].why, /INV4/);
   });
 
-  test('(b) MUTATION CONTROL - the SAME red row, graded from any OTHER host, still BLOCKS', () => {
-    // No GITHUB_WORKFLOW at all: the local and pre-commit path.
-    const off = evaluateRedSince(regOf(opsRow()), RED(), hostWorkflowFile({}));
-    assert.equal(off.errors.length, 1, 'a red ops-watch must still block when this guard is not running inside it');
-    assert.match(off.errors[0], /RED SINCE 2026-09-06T06:00:00Z/);
-    assert.equal(off.stats.red, 1);
-    assert.equal(off.stats.self, 0);
-    assert.ok(
-      off.prints.some((l) => /HOST WORKFLOW of this run: none resolved/.test(l)),
-      'and it must SAY it graded everything, rather than leaving that inferred',
-    );
-
-    // And the real one: ci.yml's `guards-platform` job, which is the reader the
-    // SELF line names. `duty.workflow.ci.yml` is `cadence: trigger` and outside
-    // this domain, so ci.yml defers nothing and grades ops-watch hard.
-    const fromCi = evaluateRedSince(
-      regOf(opsRow()),
-      RED(),
-      hostWorkflowFile({ GITHUB_WORKFLOW: 'CI', GITHUB_RUN_ID: '1', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/heads/main' }),
-    );
-    assert.equal(fromCi.errors.length, 1, 'ci.yml MUST still grade ops-watch hard - this is the whole reason the deferral is safe');
-    assert.equal(fromCi.stats.self, 0);
-    assert.ok(fromCi.prints.some((l) => /HOST WORKFLOW of this run: ci\.yml — no row in this domain watches it/.test(l)));
+  test('(b) MUTATION CONTROL - the SAME red row still BLOCKS from ci.yml on push, and off Actions', () => {
+    const reg = regOf(opsRowWith('run'));
+    const push = routeLiveVerdicts(RED_OPS(), policyIn('ci.yml', 'push'), OWN_TOPO(), reg, parsedRepo().byFile);
+    assert.equal(push.blocking.length, 1, 'ci.yml on push MUST still block on a red ops-watch - that is the whole reason the deferral is safe');
+    assert.equal(push.printed.length, 0);
+    const off = routeLiveVerdicts(RED_OPS(), hostPolicy({}, OWN_TOPO(), new Map()), OWN_TOPO(), reg, parsedRepo().byFile);
+    assert.equal(off.blocking.length, 1, 'off Actions no host resolves, so nothing is exempt');
   });
 
-  test('the deferral is ONE row, never the domain - a red SIBLING still blocks on the host run', () => {
+  test('the OWN HOST edge is ONE row, never the domain - a red SIBLING still blocks on the host run', () => {
     const sibling = wfDuty('duty.workflow.extensions.yml');
     sibling.mechanism.recordQuery.workflow = 'extensions.yml';
-    const r = evaluateRedSince(
-      regOf(opsRow(), sibling),
-      probesOf({ [OPS]: { success: OK_OLD, failure: BAD }, 'duty.workflow.extensions.yml': { success: OK_OLD, failure: BAD } }),
-      hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml' }),
-    );
-    assert.equal(r.errors.length, 1, 'the host run still grades every workflow that is not itself');
-    assert.match(r.errors[0], /extensions\.yml on main/);
-    assert.equal(r.stats.domain, 2);
-    assert.equal(r.stats.self, 1);
+    sibling.mechanism.recordQuery.unit = 'run';
+    const live = [...RED_OPS(), { id: sibling.id, line: `${sibling.id} — RED SINCE 2026-09-06T06:00:00Z: extensions.yml on main`, code: 1 }];
+    const r = routeLiveVerdicts(live, policyIn('ops-watch.yml', 'schedule'), OWN_TOPO(), regOf(opsRowWith('run'), sibling), parsedRepo().byFile);
+    assert.equal(r.blocking.length, 1, 'the host run still blocks on every workflow whose recovery does not need it');
+    assert.match(r.blocking[0].line, /extensions\.yml on main/);
+    assert.equal(r.printed.length, 1);
   });
 
-  test('the EMPTY-DOMAIN refusal is untouched by the deferral - a domain of one SELF row is still a domain', () => {
-    // The deferred row is skipped by the GRADER, never removed from the DOMAIN,
-    // so `redSinceDomain` - which is what the empty-set refusal measures - is
-    // unchanged. Moving every workflow duty off the reader is still COVERAGE
-    // LOST, and that is asserted here beside the deferral so the two cannot
-    // drift apart.
-    assert.deepEqual(redSinceDomain(regOf(opsRow())).map((r) => r.id), [OPS]);
+  test('INV4 in the register - `checkRunUnits` REFUSES every unit that contains the guard, and the committed ops-watch rows hold', () => {
+    const { byFile } = parsedRepo();
+    const topo = gateTopology(resolve(CI_DIR, '..', '..'));
+    const errsOf = (unit) => checkRunUnits(regOf(opsRowWith(unit)), byFile, topo).errors;
+    assert.ok(errsOf('run').some((e) => /the whole run contains this guard's own verdict/.test(e)), errsOf('run').join('\n'));
+    assert.ok(errsOf({ jobs: ['heartbeats'] }).some((e) => /job heartbeats runs tooling\/ci\/assert-ops-register\.mjs/.test(e)));
+    const guardStep = errsOf({ job: 'heartbeats', step: 'The whole ops register — every duty, not just the heartbeat-backed ones' });
+    assert.ok(guardStep.some((e) => /IS the step in job heartbeats that runs/.test(e)), guardStep.join('\n'));
+    const skipped = errsOf({ job: 'heartbeats', step: 'Read the heartbeat table from OUTSIDE Cloudflare' });
+    assert.ok(skipped.some((e) => /SKIPPED whenever this guard fails/.test(e)), 'a step with no !cancelled() after the guard is skipped by its failure: ' + skipped.join('\n'));
+    const alert = errsOf({ jobs: ['alert'] });
+    assert.deepEqual(alert, [], 'the alert job needs heartbeats but runs on failure(), so its conclusion does not contain the guard');
+    // GREEN CONTROL, the shape the committed register uses.
+    assert.deepEqual(errsOf({ job: 'heartbeats', step: "Judge whether the analytics rail's silence is a FAULT" }), []);
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    assert.deepEqual(checkRunUnits(real, byFile, topo).errors, [], 'the committed register must hold every unit rule');
+    for (const row of real.rows.filter((x) => x?.mechanism?.recordQuery?.workflow === 'ops-watch.yml')) {
+      assert.equal(unitNeedsGuard(byFile.get('ops-watch.yml'), unitOf(row.mechanism.recordQuery)), null, `${row.id}: its unit contains the guard`);
+    }
+  });
+
+  test('the EMPTY-DOMAIN refusal is untouched - moving every workflow duty off the reader is still COVERAGE LOST', () => {
     const trig = wfDuty(OPS, { cadence: 'trigger', trigger: 'every push' });
     delete trig.mechanism.recordQuery;
-    const gone = evaluateRedSince(regOf(trig), new Map(), hostWorkflowFile({ GITHUB_WORKFLOW: 'ops-watch.yml' }));
-    assert.ok(gone.coverageLost, 'an empty domain must still refuse, host or no host');
+    const gone = evaluateRedSince(regOf(trig), new Map());
+    assert.ok(gone.coverageLost, 'an empty domain must still refuse');
     assert.match(gone.coverageLost.join(' '), /ranges over the EMPTY SET/);
   });
 
@@ -3819,15 +3963,15 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     assert.equal(hostWorkflowFile({ GITHUB_WORKFLOW: '' }), null);
   });
 
-  test('the committed ops-watch workflow really does run this guard - the reason this deferral exists at all', () => {
+  test('the committed ops-watch workflow really does run this guard - the reason the OWN HOST rule exists at all', () => {
     // A prose rule that no guard reads is a rule that rots (TRAPS ci-43). If
-    // ops-watch.yml ever stops running this file, the deferral is dead code and
-    // this is what says so; if it keeps running it, the deferral is load-bearing.
+    // ops-watch.yml ever stops running this file, the rule is dead code and this
+    // is what says so; if it keeps running it, the rule is load-bearing.
     const wf = readFileSync(resolve(CI_DIR, '..', '..', '.github', 'workflows', 'ops-watch.yml'), 'utf8');
-    assert.match(wf, /assert-ops-register\.mjs/, 'ops-watch.yml no longer runs this guard - re-read the SELF limb before trusting it');
+    assert.match(wf, /assert-ops-register\.mjs/, 'ops-watch.yml no longer runs this guard - re-read INV4 before trusting it');
     const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
     const selfRows = redSinceDomain(real).filter((r) => r.mechanism.recordQuery.workflow === 'ops-watch.yml');
-    assert.equal(selfRows.length, 1, 'the committed register must still put ops-watch.yml in this domain, or the deferral guards nothing');
+    assert.equal(selfRows.length, 1, 'the committed register must still put ops-watch.yml in this domain, or the rule guards nothing');
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -3871,7 +4015,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     const dispatchable = new Set(['deploy-web.yml']);
     const reg = regOf(trigDuty(WEB, 'deploy-web.yml'));
     assert.deepEqual(redSinceDomain(reg, dispatchable).map((r) => r.id), [WEB]);
-    const r = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_NEW, failure: BAD } }), null, dispatchable);
+    const r = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_NEW, failure: BAD } }), dispatchable);
     assert.deepEqual(r.errors, []);
     assert.equal(r.stats.green, 1);
     assert.equal(r.stats.trigger, 1, 'the trigger half of the domain is counted SEPARATELY, or a lost deploy row hides inside the total');
@@ -3884,7 +4028,6 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     const r = evaluateRedSince(
       regOf(trigDuty(WEB, 'deploy-web.yml')),
       probesOf({ [WEB]: { success: OK_OLD, failure: { id: 34315492291, at: '2026-09-09T05:35:00Z' } } }),
-      null,
       dispatchable,
     );
     assert.equal(r.errors.length, 1, `a red deploy lane did not block:\n${JSON.stringify(r, null, 1)}`);
@@ -3909,7 +4052,6 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
         [WEB]: { success: OK_NEW, failure: BAD },
         'duty.workflow.ci.yml': { success: OK_OLD, failure: BAD },
       }),
-      null,
       dispatchable,
     );
     assert.deepEqual(r.errors, [], 'a red `ci.yml` must NOT block: the only way to make it green is the merge this would be blocking');
@@ -3928,7 +4070,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     // when the file stops carrying it the row leaves the domain WITH A PRINTED
     // SENTENCE rather than as a number that got smaller.
     const reg = regOf(trigDuty(WEB, 'deploy-web.yml'));
-    const gone = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_OLD, failure: BAD } }), null, new Set(['other.yml']));
+    const gone = evaluateRedSince(reg, probesOf({ [WEB]: { success: OK_OLD, failure: BAD } }), new Set(['other.yml']));
     assert.equal(gone.stats, undefined, 'with the only row gone the domain is EMPTY and that is coverage lost, not a pass');
     assert.ok(gone.coverageLost, 'an empty domain must still refuse');
     assert.match(gone.coverageLost.join(' '), /ranges over the EMPTY SET/);
@@ -3938,7 +4080,6 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     const shrunk = evaluateRedSince(
       regOf(trigDuty(WEB, 'deploy-web.yml'), sib),
       probesOf({ 'duty.workflow.deploy-workers.yml': { success: OK_NEW, failure: BAD } }),
-      null,
       new Set(['deploy-workers.yml']),
     );
     assert.equal(shrunk.stats.domain, 1);
@@ -3950,7 +4091,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
   test('NO derivation supplied FAILS CLOSED — no trigger row is admitted, and the run SAYS it was not', () => {
     const reg = regOf(trigDuty(WEB, 'deploy-web.yml'), wfDuty(ID));
     assert.deepEqual(redSinceDomain(reg).map((r) => r.id), [ID], 'admission to a blocking alarm may never default to yes');
-    const r = evaluateRedSince(reg, probesOf({ [ID]: { success: OK_NEW, failure: BAD } }), null);
+    const r = evaluateRedSince(reg, probesOf({ [ID]: { success: OK_NEW, failure: BAD } }));
     assert.equal(r.stats.trigger, 0);
     assert.ok(
       r.prints.some((p) => /NOT GRADED · duty\.workflow\.deploy-web\.yml — no workflow-dispatch derivation was supplied/.test(p)),
@@ -4002,7 +4143,7 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
   test('the shape errors REACH `errors`, so a malformed trigger row fails the build rather than printing', () => {
     const row = trigDuty(WEB, 'deploy-web.yml');
     row.mechanism.recordQuery.firstDue = '2026-12-01T00:00:00Z';
-    const r = evaluateRedSince(regOf(row, wfDuty(ID)), probesOf({ [ID]: { success: OK_NEW, failure: BAD } }), null, new Set(['deploy-web.yml']));
+    const r = evaluateRedSince(regOf(row, wfDuty(ID)), probesOf({ [ID]: { success: OK_NEW, failure: BAD } }), new Set(['deploy-web.yml']));
     assert.equal(r.errors.length, 1);
     assert.match(r.errors[0], /recordQuery\.firstDue/);
   });
@@ -4050,23 +4191,21 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
   // 34355401877) → `build-platforms.yml`'s FIRST step is
   // `node tooling/ci/assert-gate-passed.mjs`, which refused ("✗ ci-gate concluded
   // \"failure\" for ddfc63d4 — refusing to deploy", run 34355529015) → no green
-  // run is possible → RED SINCE never clears. The verdict's own remedy line,
-  // "dispatch the workflow once the cause is fixed", was unreachable.
+  // run is possible → RED SINCE never clears. And a SECOND LAP through
+  // `ops-watch.yml`, which runs this same guard (run 34354893475).
   //
-  // And a SECOND LAP: `ops-watch.yml` runs this same guard, so the same red
-  // failed it too (run 34354893475), which made `duty.workflow.ops-watch.yml`
-  // RED SINCE in turn — and ops-watch is not self-gated, so exempting only the
-  // self-gated row leaves `ci-gate` red through the ops-watch row instead.
-  //
-  // GREEN CONTROLS FIRST throughout, and every case runs through the PURE
-  // functions with the host taken from a fabricated ENVIRONMENT — because the
-  // context that decides print-vs-block must come from the environment and never
-  // from an argument a caller may choose. A flag is a waiver.
+  // ⏱ 2026-09-11 — THE RULE LEFT evaluateRedSince FOR `routeLiveVerdicts`, which
+  // routes the live verdicts of BOTH limbs through one needs-graph; the host
+  // context is `hostPolicy` over a fabricated ENVIRONMENT — never an argument a
+  // caller may choose, because a flag is a waiver. Every property this block
+  // proved is still proved below; the second lap is now a PATH.
+  // GREEN CONTROLS FIRST throughout.
   // ───────────────────────────────────────────────────────────────────────────
   describe('a RED verdict may not be routed into `errors` by the very gate the graded workflow needs to recover', () => {
     const BP = 'duty.workflow.build-platforms.yml';
     const OPS = 'duty.workflow.ops-watch.yml';
-    const wfRow = (id, workflow, cadence) => ({
+    const OPS_JOBS = { jobs: ['status', 'supabase-drift', 'prod-provenance', 'runner-budget', 'glitchtip', 'alert', 'digest'] };
+    const wfRow = (id, workflow, cadence, unit = 'run') => ({
       id,
       kind: 'duty',
       what: 'a scheduled proof',
@@ -4079,14 +4218,12 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
         record: 'GitHub Actions run history',
         failingValue: 'conclusion = failure',
         readBy: 'this guard',
-        recordQuery: { reader: 'github-run-history', workflow, event: 'schedule', headBranch: 'main' },
+        recordQuery: { reader: 'github-run-history', workflow, unit, event: 'schedule', headBranch: 'main' },
       },
     });
     // The measured runs, so the fixture is the incident rather than a sketch.
     const BP_FAIL = { id: 34351523027, at: '2026-09-09T12:45:45Z' };
-    const BP_OK = { id: 34192868585, at: '2026-09-08T06:16:33Z' };
     const OPS_FAIL = { id: 34354893475, at: '2026-09-09T13:06:44Z' };
-    const OPS_OK = { id: 34332836726, at: '2026-09-09T09:08:21Z' };
 
     const TOPO = () => ({
       selfGated: new Set(['build-platforms.yml']),
@@ -4095,13 +4232,31 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
       gateWorkflow: 'ci.yml',
       why: [],
     });
+    const parsed = () => {
+      const all = parseAllWorkflows(REPO_ROOT);
+      return { all, byFile: new Map(all.map((wf) => [String(wf.rel).split('/').pop(), wf])) };
+    };
     // The environment of a `ci.yml` run and of an `ops-watch.yml` run. Nothing
     // below passes a host directly: it is derived from these, exactly as the
     // guard derives it from `process.env`.
-    const IN_CI = () => hostWorkflowFile({ GITHUB_WORKFLOW: 'CI', GITHUB_RUN_ID: '1', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ci.yml@refs/heads/main' });
-    const IN_OPS = () => hostWorkflowFile({ GITHUB_WORKFLOW: 'Ops watch', GITHUB_RUN_ID: '2', GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/ops-watch.yml@refs/heads/main' });
-    const bothRed = () => probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL }, [OPS]: { success: OPS_OK, failure: OPS_FAIL } });
-    const reg2 = () => regOf(wfRow(BP, 'build-platforms.yml', '7d'), wfRow(OPS, 'ops-watch.yml', '1d'));
+    const envFor = (file, event, ref = 'refs/heads/main') => ({
+      GITHUB_ACTIONS: 'true',
+      GITHUB_RUN_ID: '1',
+      GITHUB_EVENT_NAME: event,
+      GITHUB_WORKFLOW: file === 'ci.yml' ? 'CI' : 'Ops watch',
+      GITHUB_REF: ref,
+      GITHUB_WORKFLOW_REF: `o/r/.github/workflows/${file}@${ref}`,
+    });
+    const policyFor = (file, event, topo = TOPO(), ref) => hostPolicy(envFor(file, event, ref), topo, workflowEventsByFile(parsed().all));
+    const CI_HOST = () => hostWorkflowFile(envFor('ci.yml', 'push'));
+    const OPS_HOST = () => hostWorkflowFile(envFor('ops-watch.yml', 'schedule'));
+    const IN_CI = () => policyFor('ci.yml', 'push');
+    const IN_OPS = () => policyFor('ops-watch.yml', 'schedule');
+    const redOf = (id, file, run) => ({ id, line: `${id} — RED SINCE ${run.at}: ${file} on main run ${run.id} FAILED`, code: 1 });
+    const BP_RED = () => redOf(BP, 'build-platforms.yml', BP_FAIL);
+    const OPS_RED = () => redOf(OPS, 'ops-watch.yml', OPS_FAIL);
+    const reg2 = (opsUnit = OPS_JOBS) => regOf(wfRow(BP, 'build-platforms.yml', '7d'), wfRow(OPS, 'ops-watch.yml', '1d', opsUnit));
+    const route = (live, policy, topo = TOPO(), reg = reg2()) => routeLiveVerdicts(live, policy, topo, reg, parsed().byFile);
 
     // ── the derivation, over the real tree ──────────────────────────────────
     test('GREEN CONTROL — the COMMITTED tree derives the gate, the self-gated lanes and the guard hosts', () => {
@@ -4124,9 +4279,6 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
     });
 
     test('🔴 "MENTIONS" IS NOT "RUNS" — a `paths:` filter naming the gate script does not make a workflow self-gated', () => {
-      // `deploy-web.yml` really does name the script in its `on.push.paths:`.
-      // Harmless there, because it also runs it — but a substring search would
-      // admit a workflow to a deadlock exemption on the strength of a filter line.
       const filterOnly = { lines: [{ n: 1, text: "      - 'tooling/ci/assert-gate-passed.mjs'" }] };
       assert.equal(workflowRunsScript(filterOnly, GATE_SCRIPT_REL), false, 'a paths: entry is not an invocation');
       const invoked = { lines: [{ n: 1, text: '        run: node tooling/ci/assert-gate-passed.mjs ${{ github.sha }}' }] };
@@ -4139,152 +4291,424 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
 
     test('the CONTEXT comes from the environment — `feedsTheGate` needs the gate producer AND a guard host', () => {
       const t = TOPO();
-      assert.equal(feedsTheGate(IN_CI(), t), true, 'a ci.yml run is the run whose exit code decides ci-gate');
-      assert.equal(feedsTheGate(IN_OPS(), t), false, 'ops-watch decides nothing that gates anything');
-      assert.equal(feedsTheGate(hostWorkflowFile({}), t), false, 'off Actions there is no host, so nothing is exempt');
-      assert.equal(feedsTheGate(IN_CI(), null), false, 'no derivation, no exemption');
-      assert.equal(feedsTheGate(IN_CI(), { ...t, guardHosts: new Set(['ops-watch.yml']) }), false, 'a host that does not run this guard cannot be the reason the gate is red');
-      assert.equal(feedsTheGate(IN_CI(), { ...t, gateWorkflow: null }), false);
+      assert.equal(feedsTheGate(CI_HOST(), t), true, 'a ci.yml run is the run whose exit code decides ci-gate');
+      assert.equal(feedsTheGate(OPS_HOST(), t), false, 'ops-watch decides nothing that gates anything');
+      assert.equal(feedsTheGate(hostWorkflowFile({}), t), false, 'off Actions there is no host');
+      assert.equal(feedsTheGate(CI_HOST(), null), false, 'no derivation, no gate');
+      assert.equal(feedsTheGate(CI_HOST(), { ...t, guardHosts: new Set(['ops-watch.yml']) }), false, 'a host that does not run this guard cannot be the reason the gate is red');
+      assert.equal(feedsTheGate(CI_HOST(), { ...t, gateWorkflow: null }), false);
     });
 
     // ── the green control that proves the exemption does not leak ───────────
-    test('GREEN CONTROL — with NO self-gated lane red, a red ops-watch STILL BLOCKS inside ci.yml', () => {
-      // This is the case the exemption must not swallow: ops-watch red for its
-      // own reasons is exactly the alarm this limb exists to raise, and it keeps
-      // turning ci-gate red on every branch.
-      const r = evaluateRedSince(
-        reg2(),
-        probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK }, [OPS]: { success: OPS_OK, failure: OPS_FAIL } }),
-        IN_CI(),
-        null,
-        TOPO(),
-      );
-      assert.equal(r.errors.length, 1, `a genuinely red ops-watch must block:\n${JSON.stringify(r, null, 1)}`);
-      assert.match(r.errors[0], /duty\.workflow\.ops-watch\.yml — RED SINCE/);
-      assert.equal(r.stats.deadlockExempt, 0, 'nothing was deadlocked, so nothing may be exempt');
+    test('GREEN CONTROL — with NO self-gated lane red, a red ops-watch STILL BLOCKS inside ci.yml on push', () => {
+      const r = route([OPS_RED()], IN_CI());
+      assert.equal(r.blocking.length, 1, `a genuinely red ops-watch must block:\n${JSON.stringify(r, null, 1)}`);
+      assert.equal(r.printed.length, 0, 'nothing was deadlocked, so nothing may be exempt');
     });
 
     // ── the defect itself ──────────────────────────────────────────────────
-    test('🔴 THE LIVELOCK — a RED on a SELF-GATED workflow is NOT routed into `errors` by the run that decides the gate', () => {
-      const r = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL } }), IN_CI(), null, TOPO());
-      assert.equal(
-        r.errors.length,
-        0,
-        `build-platforms.yml is self-gated on ci-gate; blocking ci-gate on its redness is the livelock:\n${JSON.stringify(r, null, 1)}`,
-      );
-      assert.equal(r.stats.red, 1, 'it is still RED — the verdict is unchanged, only where it is routed');
-      assert.equal(r.stats.deadlockExempt, 1);
+    test('🔴 THE LIVELOCK — a RED on a SELF-GATED workflow does not block the run that decides the gate', () => {
+      const r = route([BP_RED()], IN_CI());
+      assert.equal(r.blocking.length, 0, `build-platforms.yml is self-gated on ci-gate; blocking ci-gate on its redness is the livelock:\n${JSON.stringify(r, null, 1)}`);
+      assert.equal(r.printed.length, 1, 'it is still RED — the verdict is unchanged, only where it is routed');
     });
 
-    test('🔴 LOUDNESS — the exempt RED prints in full: the workflow, the run id, the timestamps and the deadlock reason', () => {
-      // A red that stops blocking and stops speaking is the thing this repository
-      // calls a silent shrink. It must be a SENTENCE, not a smaller number.
-      const r = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_OK, failure: BP_FAIL } }), IN_CI(), null, TOPO());
-      const loud = r.prints.filter((p) => /RED, AND NOT BLOCKING IN THIS HOST BECAUSE BLOCKING HERE WOULD DEADLOCK IT/.test(p));
-      assert.equal(loud.length, 1, `the exempt RED must print by name:\n${JSON.stringify(r.prints, null, 1)}`);
-      assert.match(loud[0], /build-platforms\.yml on main/, 'the workflow must be named');
-      assert.match(loud[0], /run 34351523027 FAILED/, 'the failing run id must be named');
-      assert.match(loud[0], /RED SINCE 2026-09-09T12:45:45Z/, 'the timestamp must be named');
-      assert.match(loud[0], /run 34192868585 at 2026-09-08T06:16:33Z/, 'and the success it was compared against');
-
-      const why = r.prints.filter((p) => /WHY THIS RED IS A PRINT HERE/.test(p));
-      assert.equal(why.length, 1, 'the reason must be printed beside the verdict, not inferred');
-      assert.match(why[0], /SELF-GATED/);
-      assert.match(why[0], new RegExp(reEscape(GATE_SCRIPT_REL)), 'the reason must name the step that makes the remedy unreachable');
-      assert.match(why[0], /UNREACHABLE from this host/);
-      assert.match(why[0], /BLOCKING in every other host/, 'or a reader cannot tell this from a waiver');
-
-      // …and the tally line carries the count, so "0 RED" and "1 RED, printed"
-      // are two different sentences.
-      assert.ok(r.prints.some((p) => /1 RED \(1 of them printed rather than blocked HERE/.test(p)), JSON.stringify(r.prints, null, 1));
+    test('🔴 LOUDNESS — the exempt RED keeps its whole line and carries the reason beside it', () => {
+      const [p] = route([BP_RED()], IN_CI()).printed;
+      assert.match(p.line, /build-platforms\.yml on main run 34351523027 FAILED/, 'the failing run id must be named');
+      assert.match(p.line, /RED SINCE 2026-09-09T12:45:45Z/, 'the timestamp must be named');
+      assert.match(p.why, /SELF-GATED/);
+      assert.match(p.why, new RegExp(reEscape(GATE_SCRIPT_REL)), 'the reason must name the step that makes the remedy unreachable');
+      assert.match(p.why, /UNREACHABLE from that host/);
     });
 
-    test('🔴 THE SECOND LAP — a RED on a workflow that RUNS THIS GUARD is exempt too, but ONLY while a self-gated lane is red', () => {
-      // ops-watch.yml is not self-gated, so the first rule does not reach it —
-      // yet its redness IS this guard's own output, and routing it into `errors`
-      // in ci.yml keeps ci-gate red through the other row. Same loop, one hop out.
-      const both = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, TOPO());
-      assert.equal(both.errors.length, 0, `the loop survives through the ops-watch row:\n${JSON.stringify(both, null, 1)}`);
-      assert.equal(both.stats.red, 2);
-      assert.equal(both.stats.deadlockExempt, 2);
-      const why = both.prints.filter((p) => /WHY THIS RED IS A PRINT HERE: SECOND LAP/.test(p));
-      assert.equal(why.length, 1);
-      assert.match(why[0], new RegExp(reEscape(GUARD_SCRIPT_REL)), 'the reason must name the guard whose output the conclusion is');
-      assert.match(why[0], /build-platforms\.yml is RED and self-gated/);
-      assert.match(why[0], /blocking here the moment build-platforms\.yml is green again/, 'the exemption must state its own expiry');
+    test('🔴 THE SECOND LAP IS A PATH — a red row whose unit contains the ops-watch guard is exempt in ci.yml ONLY while a self-gated lane is red', () => {
+      const lap = route([BP_RED(), OPS_RED()], IN_CI(), TOPO(), reg2('run'));
+      assert.equal(lap.blocking.length, 0, `the loop survives through the ops-watch row:\n${JSON.stringify(lap, null, 1)}`);
+      const why = lap.printed.find((p) => p.id === OPS).why;
+      assert.match(why, /CYCLE of 3 edges back to ci\.yml/);
+      assert.match(why, /OWN HOST/);
+      assert.match(why, /ops-watch\.yml blocks on duty\.workflow\.build-platforms\.yml, which is red/);
+      assert.match(why, /SELF-GATED/);
+      const alone = route([OPS_RED()], IN_CI(), TOPO(), reg2('run'));
+      assert.equal(alone.blocking.length, 1, 'with no self-gated lane red there is no cycle, so the same row blocks — the exemption states its own expiry by construction');
+    });
+
+    test('🔴 AND A UNIT THAT DOES NOT CONTAIN THE GUARD HAS NO SECOND LAP AT ALL — its red is its own', () => {
+      const r = route([BP_RED(), OPS_RED()], IN_CI());
+      assert.deepEqual(r.blocking.map((v) => v.id), [OPS], 'judged by jobs that do not run this guard, a red ops-watch is a real red and blocks');
+      assert.deepEqual(r.printed.map((v) => v.id), [BP]);
     });
 
     // ── and the half that must not move ────────────────────────────────────
-    test('🔴 STILL BLOCKING IN OPS-WATCH — the same two REDs fail the host that is gated on nothing', () => {
-      // The alarm keeps its bite. ops-watch is gated on no check, so blocking
-      // there cannot deadlock, and its `if: failure()` alert job is the page.
-      const r = evaluateRedSince(reg2(), bothRed(), IN_OPS(), null, TOPO());
-      assert.equal(r.stats.deadlockExempt, 0, 'no exemption may exist outside the host that feeds the gate');
-      assert.equal(r.errors.length, 1, `the self-gated RED must fail ops-watch:\n${JSON.stringify(r, null, 1)}`);
-      assert.match(r.errors[0], /duty\.workflow\.build-platforms\.yml — RED SINCE/);
-      assert.equal(r.stats.self, 1, 'and the ops-watch row is still deferred by the 2026-09-08 self rule, not by this one');
+    test('🔴 STILL BLOCKING IN OPS-WATCH — the self-gated RED fails the host that is gated on nothing', () => {
+      const r = route([BP_RED(), OPS_RED()], IN_OPS());
+      assert.equal(r.printed.length, 0, 'no exemption may exist in a host that feeds no gate and needs no self');
+      assert.equal(r.blocking.length, 2);
     });
 
     test('🔴 STILL BLOCKING OFF ACTIONS — no host resolves, so every RED blocks exactly as before', () => {
-      const r = evaluateRedSince(reg2(), bothRed(), hostWorkflowFile({}), null, TOPO());
-      assert.equal(r.stats.deadlockExempt, 0);
-      assert.equal(r.errors.length, 2, 'a local run of this guard grades both rows hard');
+      const r = route([BP_RED(), OPS_RED()], hostPolicy({}, TOPO(), new Map()));
+      assert.equal(r.blocking.length, 2, 'a local run of this guard grades both rows hard');
     });
 
     // ── fail-closed, in every direction ────────────────────────────────────
     test('🔴 FAIL-CLOSED — a COLLAPSED derivation exempts nothing and SAYS the freeze may return', () => {
-      // The mutation this file must catch: an empty self-gated set. Nothing is
-      // exempt, the deadlock comes back — and it comes back as a printed sentence
-      // rather than as a guard that quietly went back to freezing the queue.
       const empty = { selfGated: new Set(), guardHosts: new Set(['ci.yml']), gateName: 'ci-gate', gateWorkflow: 'ci.yml', why: ['no workflow under .github/workflows runs tooling/ci/assert-gate-passed.mjs, so no lane is self-gated'] };
-      const r = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, empty);
-      assert.equal(r.stats.deadlockExempt, 0);
-      assert.equal(r.errors.length, 2, 'an unproven exemption is no exemption');
-      assert.ok(r.prints.some((p) => /GATE TOPOLOGY INCOMPLETE/.test(p) && /Fail-closed is deliberate/.test(p)), JSON.stringify(r.prints, null, 1));
-
-      // …and with no topology supplied at all, the pre-2026-09-09 behaviour exactly.
-      const none = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, null);
-      assert.equal(none.errors.length, 2);
-      assert.equal(none.stats.deadlockExempt, 0);
+      const r = route([BP_RED(), OPS_RED()], IN_CI(), empty);
+      assert.equal(r.blocking.length, 2, 'an unproven exemption is no exemption');
+      assert.ok(r.notes.some((n) => /NO LIVE VERDICT WAS EXEMPTED/.test(n) && /never on a missing answer/.test(n)), JSON.stringify(r.notes, null, 1));
+      const none = routeLiveVerdicts([BP_RED()], IN_CI(), null, reg2(), parsed().byFile);
+      assert.equal(none.blocking.length, 1, 'with no topology supplied at all, nothing is exempt');
     });
 
     test('🔴 TWO workflows answering to the gate name is a GUESS, and a guess exempts nothing', () => {
-      // The derivation must be unambiguous or absent. A widened exemption is the
-      // failure mode that costs coverage, so ambiguity resolves to blocking.
-      const t = gateTopology(REPO_ROOT);
-      assert.equal(t.gateWorkflow, 'ci.yml');
       const ambiguous = { ...TOPO(), gateWorkflow: null, why: ['2 workflows declare a job named `ci-gate`'] };
-      const r = evaluateRedSince(reg2(), bothRed(), IN_CI(), null, ambiguous);
-      assert.equal(r.errors.length, 2);
-      assert.equal(r.stats.deadlockExempt, 0);
+      const r = route([BP_RED()], IN_CI(), ambiguous);
+      assert.equal(r.blocking.length, 1);
+      assert.equal(r.printed.length, 0);
     });
 
-    test('the exemption is a DERIVATION, never a caller flag — `deadlockExemption` refuses when the host does not feed the gate', () => {
+    test('the exemption is a DERIVATION, never a caller flag — the environment and the tree are the only inputs', () => {
       // There is no `--allow-deadlock`, no register field and no boolean a caller
-      // may set. The only inputs are the derived topology and the environment.
-      const t = TOPO();
-      assert.equal(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), t, false), null, 'gateFeeding false must exempt nothing');
-      assert.equal(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), null, true), null, 'no topology must exempt nothing');
-      assert.equal(deadlockExemption('', new Set(), t, true), null, 'a row naming no workflow file is never exempt');
-      assert.equal(deadlockExemption('ops-watch.yml', new Set(['ops-watch.yml']), t, true), null, 'a guard host alone is not enough — a self-gated lane must actually be red');
-      assert.match(deadlockExemption('build-platforms.yml', new Set(['build-platforms.yml']), t, true), /SELF-GATED/);
-      assert.match(deadlockExemption('ops-watch.yml', new Set(['ops-watch.yml', 'build-platforms.yml']), t, true), /SECOND LAP/);
+      // may set. The arities are asserted so a flag cannot be added quietly.
+      assert.equal(routeLiveVerdicts.length, 5);
+      assert.equal(hostPolicy.length, 3);
+      const events = workflowEventsByFile(parsed().all);
+      const spoofed = hostPolicy(envFor('ops-watch.yml', 'pull_request'), TOPO(), events);
+      assert.equal(spoofed.mode, 'enforcing', 'ops-watch.yml declares no pull_request, so the event in the environment is not believed');
+      assert.match(spoofed.why, /declares no `pull_request`/);
+      const notAHost = hostPolicy({ ...envFor('e2e.yml', 'pull_request'), GITHUB_WORKFLOW: 'E2E' }, TOPO(), events);
+      assert.equal(notAHost.mode, 'enforcing', 'a workflow that does not run this guard is not its proposal gate');
+      assert.deepEqual(unitNeedsHosts(wfRow(BP, 'build-platforms.yml', '7d'), TOPO(), parsed().byFile).map((n) => n.host), ['ci.yml']);
+      assert.deepEqual(unitNeedsHosts(wfRow('duty.workflow.e2e.yml', 'e2e.yml', '1d'), TOPO(), parsed().byFile), [], 'a lane neither self-gated nor hosting the guard needs no host');
     });
 
-    test('the GATE TOPOLOGY is printed on EVERY run, red or green — the anti-shrink half', () => {
-      // Same rule the trigger census follows: the self-gated set comes from a
-      // step anybody may delete, so what was derived and what it did is a
-      // sentence in the log rather than a behaviour nobody can see.
-      const green = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK }, [OPS]: { success: OPS_FAIL, failure: OPS_OK } }), IN_CI(), null, TOPO());
-      assert.deepEqual(green.errors, []);
-      const line = green.prints.filter((p) => /GATE TOPOLOGY: gate check `ci-gate` is produced by `ci\.yml`/.test(p));
-      assert.equal(line.length, 1, `the derivation must print even when nothing is red:\n${JSON.stringify(green.prints, null, 1)}`);
-      assert.match(line[0], /SELF-GATED[^:]*: build-platforms\.yml/);
-      assert.match(line[0], /GUARD HOSTS[^:]*: ci\.yml · ops-watch\.yml/);
-      assert.match(line[0], /THIS RUN'S HOST: ci\.yml, which FEEDS that gate/);
-
-      const inOps = evaluateRedSince(reg2(), probesOf({ [BP]: { success: BP_FAIL, failure: BP_OK } }), IN_OPS(), null, TOPO());
-      assert.ok(inOps.prints.some((p) => /THIS RUN'S HOST: ops-watch\.yml, which does NOT feed that gate — so EVERY RED here is BLOCKING/.test(p)));
+    test('INV1 — the HOST POLICY is ADVISORY only on a proposal event, in a host that runs this guard and declares that event', () => {
+      const events = workflowEventsByFile(parsed().all);
+      const pr = hostPolicy(envFor('ci.yml', 'pull_request', 'refs/pull/620/merge'), TOPO(), events);
+      assert.equal(pr.mode, 'advisory');
+      assert.match(pr.why, /INV1/);
+      assert.match(pr.why, /BLOCKS on push to the default branch/);
+      const adv = route([BP_RED(), OPS_RED()], pr);
+      assert.equal(adv.blocking.length, 0);
+      assert.equal(adv.printed.length, 2, 'advisory PRINTS every verdict; it never drops one');
+      for (const ev of ['push', 'schedule', 'workflow_dispatch']) {
+        assert.equal(hostPolicy(envFor('ci.yml', ev), TOPO(), events).mode, 'enforcing', `${ev} is not a proposal`);
+      }
+      assert.match(IN_CI().why, /INV2/);
+      assert.equal(IN_OPS().mode, 'enforcing');
+      assert.match(IN_OPS().why, /page/);
+      assert.equal(hostPolicy({}, TOPO(), events).mode, 'enforcing');
+      assert.equal(hostPolicy({ ...envFor('ci.yml', 'pull_request'), GITHUB_EVENT_NAME: '' }, TOPO(), events).mode, 'enforcing', 'an unnamed event is not a proposal');
+      assert.deepEqual([...PROPOSAL_EVENTS].sort(), ['merge_group', 'pull_request', 'pull_request_target']);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⛔ THE 2026-09-11 FREEZE, REPLAYED — every invariant proved against the exact
+// answers the grading run received, through the REAL guard on the REAL tree.
+//
+// Run 34546423386 (ops-watch.yml, schedule, main 543b3220) listed EIGHT problems
+// at 2026-09-11T00:26:07Z, and ci.yml ran the same guard on every pull request,
+// so the PRs fixing the two real bugs could not merge (FINDING-permanent-freeze-
+// 2026-09-11). tooling/ci/test/fixtures/ops-freeze-2026-09-11.json holds that
+// run's world: every run history cut at that instant, the job and step
+// conclusions of the 31 newest ops-watch runs, and the GlitchTip, D1 and issue
+// values the run printed. `replayStub` serves it over `fetch`.
+//
+// ⚠️ THE HARNESS WAS PROVED BEFORE THE FIX, NOT AFTER: the same fixture served to
+// the unmodified guard at origin/main 543b3220 reproduced all eight problems in
+// the ops-watch host (exit 1) and seven in a pull_request host (exit 1). A replay
+// that only ever ran against the fixed guard would prove nothing about the freeze.
+//
+// The four TRUE verdicts that survive INV3 are real and must keep their bite:
+// e2e.yml's outcome limb is stale and e2e.yml is RED SINCE (the nightly is broken),
+// build-platforms.yml is RED SINCE (the Android release build is broken), and the
+// laptop pipeline-driver has not beaten since 2026-09-09T04:21Z.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the 2026-09-11 freeze, replayed — INV1..INV6 against the exact answers run 34546423386 received', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  const FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
+  const R = 'globalonlinedeveloper/Nikatru_Platform_Public/.github/workflows';
+  const HOST = {
+    PR: { GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '1', GITHUB_EVENT_NAME: 'pull_request', GITHUB_WORKFLOW: 'CI', GITHUB_REF: 'refs/pull/620/merge', GITHUB_WORKFLOW_REF: `${R}/ci.yml@refs/pull/620/merge` },
+    PUSH: { GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '2', GITHUB_EVENT_NAME: 'push', GITHUB_WORKFLOW: 'CI', GITHUB_REF: 'refs/heads/main', GITHUB_WORKFLOW_REF: `${R}/ci.yml@refs/heads/main` },
+    OPS: { GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '34546423386', GITHUB_EVENT_NAME: 'schedule', GITHUB_WORKFLOW: 'Ops watch', GITHUB_REF: 'refs/heads/main', GITHUB_WORKFLOW_REF: `${R}/ops-watch.yml@refs/heads/main` },
+    OFF: {},
+  };
+  const LIVE_PRINT = '⬜  [LIVE] 🔴 FAILING, NOT BLOCKING IN THIS HOST — ';
+  const replay = (host, extra = {}) => {
+    const env = scrubbedEnv({
+      OPS_REPLAY_FILE: FIXTURE,
+      GITHUB_TOKEN: 'replay',
+      GLITCHTIP_TOKEN: 'replay',
+      CLOUDFLARE_API_TOKEN: 'replay',
+      CLOUDFLARE_ACCOUNT_ID: 'replay',
+      GITHUB_REPOSITORY: 'globalonlinedeveloper/Nikatru_Platform_Public',
+      ...host,
+      ...extra,
+    });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD], { cwd: REPO, encoding: 'utf8', env });
+    const out = `${r.stdout}\n${r.stderr}`;
+    const lines = out.split('\n');
+    const at = lines.findIndex((l) => /^✗ tooling\/ops\/register\.json — \d+ problem\(s\):$/.test(l));
+    const problems = at === -1 ? [] : lines.slice(at + 1).filter((l) => /^ {4}\S/.test(l)).map((l) => l.trim());
+    const printedAt = lines.map((l, i) => (l.startsWith(LIVE_PRINT) ? i : -1)).filter((i) => i !== -1);
+    const printed = printedAt.map((i) => ({ line: lines[i].slice(LIVE_PRINT.length), why: String(lines[i + 1] ?? '') }));
+    return { code: r.status, out, problems, printed };
+  };
+  const E2E_STALE = /^duty\.workflow\.e2e\.yml — its record IS reachable and the newest SUCCESSFUL run is 40\.1h old/;
+  const PIPELINE = /^duty\.laptop\.nikatru-pipeline-driver — its record IS reachable and the newest SUCCESSFUL run is 44\.1h old/;
+  const BP_RED = /^duty\.workflow\.build-platforms\.yml — RED SINCE 2026-09-10T11:10:59Z: build-platforms\.yml on main run 34468887825 FAILED/;
+  const E2E_RED = /^duty\.workflow\.e2e\.yml — RED SINCE 2026-09-10T08:16:33Z: e2e\.yml on main run 34453685391 FAILED/;
+  const TRUE_FOUR = [E2E_STALE, PIPELINE, BP_RED, E2E_RED];
+  const WAS_STALE = ['duty.analytics-silence-judgment', 'duty.d1-statement-acceptance', 'duty.pages-deployment-landed', 'duty.workflow.ops-watch.yml'];
+  const has = (lines, re) => lines.some((l) => re.test(l));
+  const printedLines = (r) => r.printed.map((p) => p.line);
+
+  test('the fixture IS the grading run\'s world — its run ids, events and timestamps are the ones the finding names', () => {
+    const f = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+    assert.equal(f.now, '2026-09-11T00:26:07Z');
+    assert.equal(f.hostRun.id, 34546423386);
+    const ops = f.runs['ops-watch.yml'];
+    assert.equal(ops.some(([id]) => id === 34546423386), false, 'the grading run was in flight, so it must not be in its own history');
+    const lastGreen = ops.find(([, , c]) => c === 'success');
+    assert.deepEqual(lastGreen.slice(0, 3), [34443764295, 'workflow_dispatch', 'success'], 'the last ops-watch success before the freeze');
+    assert.ok(ops.filter(([, , , at]) => at > lastGreen[3]).every(([, , c]) => c === 'failure'), 'every ops-watch run after it failed');
+    assert.deepEqual(ops.find(([, e, c]) => e === 'schedule' && c === 'success').slice(0, 4), [34332836726, 'schedule', 'success', '2026-09-09T09:08:21Z'], 'the run the whole-run reader aged four duties from');
+    assert.deepEqual(f.runs['e2e.yml'].find(([, , c]) => c === 'failure').slice(0, 1), [34453685391]);
+    assert.deepEqual(f.runs['e2e.yml'].find(([, , c]) => c === 'success').slice(0, 1), [34327705272]);
+    assert.deepEqual(f.runs['build-platforms.yml'].find(([, , c]) => c === 'failure').slice(0, 1), [34468887825]);
+    assert.deepEqual(f.runs['build-platforms.yml'].find(([, , c]) => c === 'success').slice(0, 1), [34367696898]);
+    assert.equal(f.glitchtip['33'][0], '2026-09-09T04:21:13.968Z');
+    // …and the fact INV3 turns on, read out of the real job lists: in the newest
+    // SCHEDULED run before the grading run, the register step failed and the steps
+    // and job that perform the other duties succeeded.
+    const [heartbeats] = f.jobs['34533663312'].filter(([n]) => n.startsWith('Every declared duty is fresh'));
+    assert.equal(heartbeats[1], 'failure');
+    const step = (name) => heartbeats[2].find(([n]) => n === name)?.[1];
+    assert.equal(step('The whole ops register — every duty, not just the heartbeat-backed ones'), 'failure');
+    assert.equal(step("Judge whether the analytics rail's silence is a FAULT"), 'success');
+    assert.equal(step('Live D1 still runs every statement the Workers send it'), 'success');
+    assert.equal(f.jobs['34533663312'].find(([n]) => n.startsWith('The Cloudflare Pages builds'))[1], 'success');
+  });
+
+  test('INV1 · GREEN CONTROL — ci.yml on pull_request exits 0 on today\'s state, and all four TRUE verdicts still PRINT with their remedy', () => {
+    const r = replay(HOST.PR);
+    assert.equal(r.code, 0, `a proposal must not be blocked by main's history:\n${r.problems.join('\n')}\n${r.out.slice(-3000)}`);
+    assert.deepEqual(r.problems, []);
+    for (const re of TRUE_FOUR) assert.ok(has(printedLines(r), re), `${re} must still PRINT in the proposal host:\n${printedLines(r).join('\n')}`);
+    assert.ok(printedLines(r).filter((l) => /RED SINCE/.test(l)).every((l) => /dispatch the workflow once the cause is fixed/.test(l)), 'every RED carries its remedy');
+    assert.match(r.out, /HOST POLICY — ADVISORY: ci\.yml on `pull_request` judges a PROPOSED CHANGE/);
+    assert.match(r.out, /\[LIVE\] 4 live verdict\(s\) about the state of the world on this run: 0 BLOCKING in this host · 4 FAILING and PRINTED/);
+  });
+
+  test('INV2 · the SAME state on push to main — the ci-gate every deploy lane polls — still REFUSES, and says why', () => {
+    const r = replay(HOST.PUSH);
+    assert.equal(r.code, 1, r.out.slice(-3000));
+    for (const re of [E2E_STALE, PIPELINE, E2E_RED]) assert.ok(has(r.problems, re), `${re} must BLOCK the commit deploys poll:\n${r.problems.join('\n')}`);
+    assert.equal(has(r.problems, BP_RED), false, 'build-platforms.yml is self-gated on this very check: blocking here is the 2026-09-09 livelock');
+    const bp = r.printed.find((p) => BP_RED.test(p.line));
+    assert.ok(bp, 'and it must PRINT, not vanish');
+    assert.match(bp.why, /SELF-GATED/);
+    assert.match(r.out, /HOST POLICY — ENFORCING: ci\.yml on `push` — this run's exit code decides `ci-gate`[\s\S]*refuses to ship that commit unless the check passed[\s\S]*\(INV2\)/);
+  });
+
+  test('INV2 · ops-watch — the page — fails on the same state, the self-gated lane included; and off Actions everything blocks', () => {
+    const ops = replay(HOST.OPS);
+    assert.equal(ops.code, 1, ops.out.slice(-3000));
+    for (const re of TRUE_FOUR) assert.ok(has(ops.problems, re), `${re} must fail ops-watch:\n${ops.problems.join('\n')}`);
+    assert.deepEqual(ops.printed, [], 'ops-watch feeds no gate, so nothing is exempt there');
+    const off = replay(HOST.OFF);
+    assert.equal(off.code, 1);
+    assert.equal(off.problems.length, 4, off.problems.join('\n'));
+  });
+
+  test('INV3 · the four duties aged only by a sibling limb are FRESH in every host, each judged by its OWN unit', () => {
+    for (const [name, host] of Object.entries({ PR: HOST.PR, PUSH: HOST.PUSH, OPS: HOST.OPS })) {
+      const r = replay(host);
+      for (const id of WAS_STALE) {
+        assert.equal(r.problems.some((l) => l.startsWith(`${id} —`)), false, `${name}: ${id} is blocking, but the unit that performs it succeeded in the newest scheduled run`);
+        assert.equal(r.printed.some((p) => p.line.startsWith(`${id} —`)), false, `${name}: ${id} is still printed as failing`);
+        assert.match(r.out, new RegExp(`\\[14\\]O-3 — ${reEscape(id)} — queried: newest success 2\\.7h ago, inside \\[1d x 1\\.5 = 36\\.0h\\]\\. run 34533663312 \\(schedule on main\\)`), `${name}: ${id} must be judged by run 34533663312's unit`);
+      }
+      assert.match(r.out, /\[INV3\] ops-watch\.yml — 4 duty rows, each judged by its OWN unit/);
+    }
+  });
+
+  test('INV4 · ops-watch.yml\'s own row needs no green ops-watch — it is fresh INSIDE a red ops-watch run', () => {
+    const r = replay(HOST.OPS);
+    assert.equal(r.code, 1, 'ops-watch is red for the four true verdicts');
+    assert.match(r.out, /\[14\]O-3 — duty\.workflow\.ops-watch\.yml — queried: newest success 2\.7h ago/);
+    assert.match(r.out, /\[14\]O-3b — duty\.workflow\.ops-watch\.yml — ops-watch\.yml on main \(job\(s\) status \+ supabase-drift \+ prod-provenance \+ runner-budget \+ glitchtip \+ alert \+ digest of ops-watch\.yml\): the newest run in which that unit reached a verdict is run 34544690996/);
+    assert.equal(r.problems.some((l) => l.startsWith('duty.workflow.ops-watch.yml —')), false);
+  });
+
+  test('INV5 · a proposal is believed only from a host that declares it — pull_request claimed inside ops-watch.yml still refuses', () => {
+    const r = replay({ ...HOST.OPS, GITHUB_EVENT_NAME: 'pull_request' });
+    assert.equal(r.code, 1, r.out.slice(-2000));
+    assert.match(r.out, /HOST POLICY — ENFORCING: ops-watch\.yml on `pull_request` — but \.github\/workflows\/ops-watch\.yml declares no `pull_request`/);
+  });
+
+  test('INV6 · a GitHub API that refuses every read is COVERAGE LOST — exit 2 in the proposal host AND on push, never 0 and never 1', () => {
+    for (const host of [HOST.PR, HOST.PUSH]) {
+      const r = replay(host, { OPS_REPLAY_GITHUB_STATUS: '403' });
+      assert.equal(r.code, 2, r.out.slice(-3000));
+      assert.match(r.out, /✗ COVERAGE LOST — \d+ measurement failure\(s\)/);
+      assert.match(r.out, /every one of the 9 RED-SINCE read\(s\) against the GitHub API was unreadable on this run \(first reason: the query threw: GitHub API returned 403/);
+    }
+  });
+
+  test('a TRUE failure still fails — e2e.yml genuinely red on main, no repair in flight, blocks the push gate and the page and names its exit', () => {
+    for (const host of [HOST.PUSH, HOST.OPS]) {
+      const r = replay(host);
+      const red = r.problems.find((l) => E2E_RED.test(l));
+      assert.ok(red, r.problems.join('\n'));
+      assert.match(red, /24\.0h EARLIER/);
+      assert.match(red, /dispatch the workflow once the cause is fixed/);
+    }
+  });
+});
+
+describe('INV3 · a duty is judged by the unit that performs it — the pure half', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  const byFile = () => new Map(parseAllWorkflows(REPO).map((wf) => [String(wf.rel).split('/').pop(), wf]));
+  const OPS_WF = () => byFile().get('ops-watch.yml');
+  const q = (unit, over = {}) => ({ reader: 'github-run-history', workflow: 'ops-watch.yml', event: 'schedule', headBranch: 'main', unit, ...over });
+  const RUN = { id: 34533663312, conclusion: 'failure', updated_at: '2026-09-10T21:44:41Z', head_branch: 'main' };
+  const job = (name, conclusion, steps) => ({ name, status: 'completed', conclusion, steps });
+  const HB = 'Every declared duty is fresh — the heartbeat rail AND the register';
+  const JOBS = (over = {}) => [
+    job(HB, 'failure', [
+      { name: 'The whole ops register — every duty, not just the heartbeat-backed ones', conclusion: 'failure' },
+      { name: 'Read the heartbeat table from OUTSIDE Cloudflare', conclusion: 'skipped' },
+      { name: 'Live D1 still runs every statement the Workers send it', conclusion: 'success' },
+      { name: "Judge whether the analytics rail's silence is a FAULT", conclusion: 'success' },
+    ]),
+    job('The Cloudflare Pages builds nobody else can see actually landed', over.pages ?? 'success'),
+    job('Every enumerated surface produced its expected output', over.status ?? 'success'),
+    job('The live auth config still matches what the repo recorded', over.drift ?? 'success'),
+    job('Every row in production traces to a released build', 'success'),
+    job('Actions quota cannot silently stop the scheduled proofs', 'success'),
+    job('The live ops half — monitors, alarm chains, provider parity, GCP scope', 'success'),
+    job('Weekly digest', over.digest ?? 'skipped'),
+    job('Open or refresh the ops-watch issue', 'success'),
+  ];
+  const OPS_UNIT = { jobs: ['status', 'supabase-drift', 'prod-provenance', 'runner-budget', 'glitchtip', 'alert', 'digest'] };
+
+  test('GREEN CONTROL — a step that succeeded inside a job that FAILED is a success of THAT step', () => {
+    const c = unitConclusion(q({ job: 'heartbeats', step: "Judge whether the analytics rail's silence is a FAULT" }), RUN, JOBS(), OPS_WF());
+    assert.equal(c.verdict, 'success', c.detail);
+  });
+
+  test('🔴 the WHOLE RUN of the same answer is a FAILURE — the reading that aged four duties at once', () => {
+    assert.equal(unitConclusion(q('run'), RUN, JOBS(), OPS_WF()).verdict, 'failure');
+  });
+
+  test('a jobs unit: all green is success (a job skipped by its OWN `if:` is neutral), one failure fails it, a job skipped with no `if:` says nothing', () => {
+    assert.equal(unitConclusion(q(OPS_UNIT), RUN, JOBS(), OPS_WF()).verdict, 'success', 'digest is skipped by its own if: and must not sink the unit');
+    const red = unitConclusion(q(OPS_UNIT), RUN, JOBS({ drift: 'failure' }), OPS_WF());
+    assert.equal(red.verdict, 'failure');
+    assert.match(red.detail, /job supabase-drift concluded failure/);
+    assert.equal(unitConclusion(q(OPS_UNIT), RUN, JOBS({ status: 'skipped' }), OPS_WF()).verdict, 'neutral', 'status has no if:, so a skip means something ahead of it failed or was cancelled — no verdict');
+    assert.equal(unitConclusion(q(OPS_UNIT), RUN, JOBS({ status: 'cancelled' }), OPS_WF()).verdict, 'neutral', 'a cancelled job renders no verdict');
+    assert.equal(unitConclusion(q({ jobs: ['pages-deployments'] }), RUN, JOBS({ pages: 'timed_out' }), OPS_WF()).verdict, 'failure');
+  });
+
+  test('a step or job the run never reported renders no verdict — absent is never success', () => {
+    assert.equal(unitConclusion(q({ job: 'heartbeats', step: 'Read the heartbeat table from OUTSIDE Cloudflare' }), RUN, JOBS(), OPS_WF()).verdict, 'neutral', 'a skipped step did not perform its duty');
+    assert.equal(unitConclusion(q({ job: 'heartbeats', step: 'No such step' }), RUN, JOBS(), OPS_WF()).verdict, 'neutral');
+    assert.equal(unitConclusion(q({ jobs: ['pages-deployments'] }), RUN, [], OPS_WF()).verdict, 'neutral');
+    assert.equal(unitConclusion(q({ jobs: ['pages-deployments'] }), RUN, undefined, OPS_WF()).verdict, 'neutral');
+    assert.equal(unitConclusion(q({ jobs: ['pages-deployments'] }), RUN, JOBS(), null).verdict, 'neutral', 'an unparsed workflow matches nothing');
+  });
+
+  test('apiJobMatcher reads a display name, a matrix leg and an expression the way the API reports them', () => {
+    assert.equal(apiJobMatcher('build', { displayName: 'Build' })('Build'), true);
+    assert.equal(apiJobMatcher('build', { displayName: 'Build' })('Build (android)'), true, 'a matrix leg carries its values in parentheses');
+    assert.equal(apiJobMatcher('build', { displayName: 'Build' })('Builder'), false);
+    assert.equal(apiJobMatcher('pkg', { displayName: 'package · ${{ matrix.tool }} · ${{ matrix.os }}' })('package · cli · ubuntu'), true);
+    assert.equal(apiJobMatcher('pkg', { displayName: 'package · ${{ matrix.tool }}' })('packages · cli'), false);
+    assert.equal(apiJobMatcher('gate', { displayName: null })('gate'), true, 'a job with no name: is reported by its id');
+  });
+
+  test('decideUnitFreshness / decideUnitRedSince — the newest DECISIVE run decides, and a full page is measured, not assumed', () => {
+    const e = (id, at, verdict) => ({ run: { id, updated_at: at }, c: { verdict, detail: `run ${id}` } });
+    const fresh = decideUnitFreshness(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'neutral'), e(2, '2026-09-10T19:00:00Z', 'success')], false, 'o/r');
+    assert.equal(fresh.lastSuccessMs, Date.parse('2026-09-10T19:00:00Z'));
+    const full = decideUnitFreshness(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'failure'), e(2, '2026-09-08T19:00:00Z', 'failure')], true, 'o/r');
+    assert.ok(Number.isNaN(full.lastSuccessMs));
+    assert.equal(full.noSuccessSinceMs, Date.parse('2026-09-08T19:00:00Z'));
+    assert.match(full.detail, /NO success of job\(s\) status/);
+    assert.equal(decideUnitFreshness(q(OPS_UNIT), [], false, 'o/r').noSuccessSinceMs, undefined, 'an empty history is "never", and says so');
+
+    const green = decideUnitRedSince(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'neutral'), e(2, '2026-09-10T19:00:00Z', 'success'), e(1, '2026-09-10T17:00:00Z', 'failure')], false);
+    assert.equal(green.failure, null);
+    assert.equal(green.newestDecisive, true);
+    assert.equal(classifyRedSince({ id: 'x', mechanism: { recordQuery: q(OPS_UNIT) } }, green).verdict, 'green');
+    const red = decideUnitRedSince(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'failure'), e(2, '2026-09-10T19:00:00Z', 'success')], false);
+    assert.deepEqual([red.failure.id, red.success.id], [3, 2]);
+    assert.equal(classifyRedSince({ id: 'x', mechanism: { recordQuery: q(OPS_UNIT) } }, red).verdict, 'red');
+    const beyond = decideUnitRedSince(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'failure'), e(2, '2026-09-08T19:00:00Z', 'failure')], true);
+    const c = classifyRedSince({ id: 'x', mechanism: { recordQuery: q(OPS_UNIT) } }, beyond);
+    assert.equal(c.verdict, 'red', 'a full page of failures is RED, never blind');
+    assert.match(c.line, /RED SINCE 2026-09-10T21:00:00Z AT THE LATEST/);
+    const blind = decideUnitRedSince(q(OPS_UNIT), [e(3, '2026-09-10T21:00:00Z', 'failure')], false);
+    assert.equal(classifyRedSince({ id: 'x', mechanism: { recordQuery: q(OPS_UNIT) } }, blind).verdict, 'blind');
+  });
+
+  test('classifyRunRecord — a full page with no success of its unit measures the silence back to its oldest run', () => {
+    const NOWU = Date.parse('2026-09-11T00:26:07Z');
+    const row = { id: 'duty.unit', cadence: '1d', mechanism: { recordQuery: { reader: 'github-run-history' } } };
+    const stale = classifyRunRecord(row, { lastSuccessMs: NaN, noSuccessSinceMs: NOWU - 40 * 3_600_000, detail: 'd' }, NOWU, 1.5);
+    assert.equal(stale.verdict, 'fail');
+    assert.match(stale.line, /the newest SUCCESSFUL run is older than every run it read, which reach back 40\.0h — outside its own window/);
+  });
+
+  test('checkRunUnits REFUSES every shape that would let one duty age another — and the committed register holds', () => {
+    const files = byFile();
+    const topo = gateTopology(REPO);
+    const row = (id, unit, workflow = 'ops-watch.yml') => ({ id, kind: 'duty', cadence: '1d', mechanism: { recordQuery: q(unit, { workflow }) } });
+    const errs = (...rows) => checkRunUnits({ rows }, files, topo).errors.join('\n');
+    assert.match(errs(row('a', undefined, 'e2e.yml')), /names no `unit`/);
+    assert.match(errs(row('a', 'run', 'e2e.yml'), row('b', 'run', 'e2e.yml')), /A run that performs several duties is the unit of none of them/);
+    assert.match(errs(row('a', { jobs: ['nope'] })), /names job\(s\) `nope`, which \.github\/workflows\/ops-watch\.yml does not declare/);
+    assert.match(errs(row('a', { job: 'heartbeats', step: 'Judge whether the analytics rail is a fault' })), /is not the name of a step in job heartbeats/);
+    assert.match(errs(row('a', { jobs: [] })), /`unit\.jobs` is EMPTY/);
+    assert.match(errs(row('a', { jobs: 'status' })), /is not "run", \{ "jobs"/);
+    assert.match(errs(row('a', { jobs: ['status'] }), row('b', { jobs: ['status'] })), /job status of ops-watch\.yml is already the unit of a/);
+    assert.match(errs(row('a', { jobs: ['heartbeats'] }), row('b', { job: 'heartbeats', step: "Judge whether the analytics rail's silence is a FAULT" })), /the units overlap/);
+    assert.match(errs(row('a', { jobs: ['status'] }), row('b', { jobs: ['pages-deployments'] })), /job\(s\) supabase-drift · prod-provenance · runner-budget · glitchtip · alert · digest are the unit of none/);
+    const real = JSON.parse(readFileSync(resolve(CI_DIR, '..', 'ops', 'register.json'), 'utf8'));
+    const out = checkRunUnits(real, files, topo);
+    assert.deepEqual(out.errors, []);
+    const runRows = real.rows.filter((r) => r?.mechanism?.recordQuery?.reader === 'github-run-history');
+    assert.ok(runRows.length >= 12, `expected every workflow row and the three ops-watch duties; found ${runRows.length}`);
+    for (const r of runRows) assert.ok(unitOf(r.mechanism.recordQuery).declared, `${r.id} names no unit`);
+    assert.ok(out.prints.some((p) => /\[INV3\] ops-watch\.yml — 4 duty rows/.test(p)), 'the shared workflow and its units must print on every run');
+  });
+
+  test('jobSteps reads the committed heartbeats job the way the API names its steps', () => {
+    const steps = jobSteps(OPS_WF().jobs.get('heartbeats'));
+    const named = steps.filter((s) => s.name);
+    assert.deepEqual(named.map((s) => s.name), [
+      'The whole ops register — every duty, not just the heartbeat-backed ones',
+      'Read the heartbeat table from OUTSIDE Cloudflare',
+      'Live D1 still runs every statement the Workers send it',
+      "Judge whether the analytics rail's silence is a FAULT",
+    ]);
+    assert.deepEqual(named.map((s) => s.runsGuard), [true, false, false, false]);
+    assert.equal(named[1].cond, null, 'the heartbeat reader carries no !cancelled() — which is why it is no duty\'s unit');
+    assert.match(named[2].cond, /!cancelled\(\)/);
+    assert.equal(describeUnit({ workflow: 'w.yml', unit: RUN_UNIT }), 'the whole w.yml run');
+  });
+
+  test('INV6 · githubDarkness — every RED-SINCE read unreadable is COVERAGE LOST; one readable read is not', () => {
+    const dark = new Map([['a', { unreadable: true, why: 'GitHub API returned 401' }], ['b', { unreadable: true, why: 'x' }]]);
+    assert.match(githubDarkness(dark), /every one of the 2 RED-SINCE read\(s\)/);
+    assert.equal(githubDarkness(new Map([['a', { unreadable: true, why: 'x' }], ['b', { success: null, failure: null }]])), null);
+    assert.equal(githubDarkness(new Map()), null, 'an empty domain is refused by its own limb, not by this one');
   });
 });
