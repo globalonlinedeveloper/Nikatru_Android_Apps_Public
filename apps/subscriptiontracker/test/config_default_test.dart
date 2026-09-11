@@ -28,7 +28,7 @@ void main() {
       // test cannot fail. The catalogue is the app id's DECLARATION and is not
       // this file, so a half-done rename now shows up as a real mismatch.
       expect(d.appId, _catalogueSlug());
-      expect(d.apiBaseUrl, 'https://subscriptiontracker.api.nikatru.com/v1');
+      expect(d.apiBaseUrl, 'https://subscriptiontracker-api.nikatru.com/v1');
       expect(d.features, <String, bool>{
         'renewals': true,
         'budgets': true,
@@ -61,7 +61,7 @@ void main() {
       expect(resolved, isNotNull, reason: 'offline launch would throw');
       expect(
         resolved!.apiBaseUrl,
-        'https://subscriptiontracker.api.nikatru.com/v1',
+        'https://subscriptiontracker-api.nikatru.com/v1',
       );
     });
 

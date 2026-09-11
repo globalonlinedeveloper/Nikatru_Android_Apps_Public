@@ -355,7 +355,7 @@
             "the PUT. Merging the first without the second is the state this red is warning about, not a",
             "false alarm to be waited out.",
             "",
-            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. subscriptiontracker.api.nikatru.com's `🔴 openBodyGap` block below",
+            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. subscriptiontracker-api.nikatru.com's `🔴 openBodyGap` block below",
             "shows the other move: WITHDRAW the assertion into a gap block so the declared-body limb has",
             "nothing to compare and the scheduled job stays green. That is right when the register would",
             "otherwise claim MORE coverage than exists. Here it would claim LESS than the truth in the",
@@ -432,10 +432,10 @@
       }
     },
     {
-      "hostname": "subscriptiontracker.api.nikatru.com",
+      "hostname": "subscriptiontracker-api.nikatru.com",
       "what": "the subscriptiontracker-api Worker",
       "derivedFrom": "appCatalogue",
-      "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" },
+      "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-09-11" },
       "🔴 openBodyGap": {
         "why": "MONITOR 2 STAYS GREEN THROUGH EVERY FAULT PR #384 MADE DETECTABLE — it asserts `expectedStatus` 200 and NO body, while `/v1/health` deliberately answers 200 even when `ok` is false — so the matcher this row will carry, \"ok\":true, is knowingly NOT declared in `monitor` above until the live GlitchTip PUT lands, because tooling/ops/verify-monitors.mjs compares DECLARED bodies only and a register-only assertion makes it exit 1 inside the SCHEDULED `glitchtip` job at .github/workflows/ops-watch.yml:235, which opens the portfolio's never-auto-closed durable alert issue.",
         "openedOn": "2026-08-26",
@@ -637,7 +637,7 @@
         "⚠️ SO NOTHING WAS DECLARED IN ITS PLACE, and that is the point of writing this down instead. No",
         "row above carries an `sslMonitor` field, because a row claiming a check nobody is running is the",
         "same defect as a check that cannot see a fault, pointed the other way — the rule the",
-        "`🔴 openBodyGap` block on subscriptiontracker.api.nikatru.com already applies to a body matcher."
+        "`🔴 openBodyGap` block on subscriptiontracker-api.nikatru.com already applies to a body matcher."
       ],
       "ownerChecklist": {
         "whyOwner": "NOT capability — creating monitors through the API is proven agent work (2026-08-05, and again for monitor 17 on 2026-09-03), and this file's own `🔴 whyItStayedOpen` warns that 'owner action' is a claim needing evidence rather than a category. What is owner work is the step that has to come FIRST: finding out why the SSL check path returns down in 0 ms with a null reason. That is a container log on a host this repository cannot reach.",

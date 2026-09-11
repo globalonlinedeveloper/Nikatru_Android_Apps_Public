@@ -392,10 +392,7 @@ for (const n of st.notes) say(`             ${n}`);
 
 // ── the anchor / reachability limb. Absence rule (a) is decided HERE. ───────
 let PROJECTS = null;
-let reach = 'workspace';
-if (!anchor) {
-  reach = 'single-checkout';
-} else {
+if (anchor) {
   PROJECTS = join(anchor, 'Projects');
 }
 

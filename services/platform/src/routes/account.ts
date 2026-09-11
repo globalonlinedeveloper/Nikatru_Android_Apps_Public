@@ -275,7 +275,7 @@ async function userReferencingColumns(
 }
 
 /**
- * `"subscriptiontracker=https://subscriptiontracker.api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
+ * `"subscriptiontracker=https://subscriptiontracker-api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
  *
  * REFUSES anything that is not an `https://` origin, rather than skipping it.
  * The relay forwards a live bearer token, so a plaintext or malformed entry is a

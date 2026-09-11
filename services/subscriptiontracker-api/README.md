@@ -6,7 +6,7 @@ all six Flutter targets. Auth is **Supabase** — the Worker verifies Supabase J
 (it never issues them).
 
 > 🔴 **THIS IS A LIVE PRODUCTION WORKER.** It answers real traffic on
-> **`subscriptiontracker.api.nikatru.com`** (a custom domain declared in `wrangler.jsonc` `routes` and
+> **`subscriptiontracker-api.nikatru.com`** (a custom domain declared in `wrangler.jsonc` `routes` and
 > read back from the live Cloudflare account on 2026-08-03) and it holds the
 > flagship app's **real user rows** in `subscriptiontracker_db`. Every push to `main` under
 > `services/subscriptiontracker-api/**` runs `.github/workflows/deploy-workers.yml`, which —
@@ -69,7 +69,7 @@ HAS NO CALLER.** The live path is `entitlementsProvider`
 `GET {PLATFORM_BASE_URL}/v1/entitlements?app_id=<id>`. `kPlatformBaseUrl` defaults
 to `https://platform.nikatru.com` (`apps/subscriptiontracker/lib/state/providers/analytics_envelope.dart:64`), so
 that read lands on **`services/platform`** — `platform/src/index.ts:105-106` — and
-never on `subscriptiontracker.api.nikatru.com`. `PaywallGate`, `manage_plan_screen.dart:90` and
+never on `subscriptiontracker-api.nikatru.com`. `PaywallGate`, `manage_plan_screen.dart:90` and
 `refreshEntitlements()` all watch THAT provider. The two Workers expose the same
 path and answer the same question; only the platform one is wired, because
 `platform_db.entitlements` is shared portfolio-wide and lives behind that Worker.

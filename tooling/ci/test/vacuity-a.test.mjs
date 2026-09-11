@@ -63,7 +63,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync, readdirSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, cpSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -71,7 +71,6 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..', '..');
 const CONTENT_LICENCES = join(ROOT, 'tooling', 'ci', 'assert-content-licences.mjs');
-const LOCKFILE = join(ROOT, 'tooling', 'ci', 'assert-lockfile-discipline.mjs');
 
 /** The real files both guards read. Copied from the working tree, never invented. */
 const PATHSPECS = [
