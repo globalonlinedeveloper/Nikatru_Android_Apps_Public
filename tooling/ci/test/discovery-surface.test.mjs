@@ -482,7 +482,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spiedRun, racyOn } from './fixtures/fs-spy-run.mjs';
+import { spiedRun } from './fixtures/fs-spy-run.mjs';
 import {
   planDiscovery,
   renderSitemap,

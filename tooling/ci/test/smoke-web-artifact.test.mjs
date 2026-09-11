@@ -33,7 +33,7 @@ import { syncBuiltinESMExports } from 'node:module';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SMOKE = join(ROOT, 'tooling', 'smoke', 'smoke-web-artifact.mjs');
-const { READY_SIGNAL, mimeFor, serveBundle, basePrefix, stripBasePrefix } = await import(`file://${SMOKE.replaceAll('\\', '/')}`);
+const { READY_SIGNAL, mimeFor, serveBundle, basePrefix, stripBasePrefix, oneLine } = await import(`file://${SMOKE.replaceAll('\\', '/')}`);
 
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-smokeharness-')); });
@@ -64,6 +64,17 @@ describe('smoke-web-artifact.mjs — it refuses before it ever opens a browser',
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /no headless Chrome could be started/);
     assert.doesNotMatch(r.out, /^::/m, r.out);
+  });
+
+  test('oneLine folds a CR, an LF, a CRLF and a run of them into ONE mark (CodeQL #326)', () => {
+    // Each terminator is replaced on its own, so a lone CR cannot survive; a character class read
+    // as no sanitizer at all to CodeQL, which is what raised #326 on the detail loop.
+    assert.equal(oneLine('a\nb'), 'a ⏎ b');
+    assert.equal(oneLine('a\rb'), 'a ⏎ b');
+    assert.equal(oneLine('a\r\nb'), 'a ⏎ b');
+    assert.equal(oneLine('a\n\n\r\nb'), 'a ⏎ b');
+    assert.equal(oneLine('plain'), 'plain');
+    assert.doesNotMatch(oneLine('::error title=x\n::warning y'), /\r|\n/);
   });
 
   test('no bundle directory at all', () => {
