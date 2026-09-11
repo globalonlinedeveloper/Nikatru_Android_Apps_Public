@@ -223,6 +223,23 @@ abstract class AuthRepository {
   /// [currentAccessToken] for plain request authorization.
   Future<AuthSession?> currentSession();
 
+  /// Whether the session is GONE — the one condition under which a 401 may
+  /// sign the user out.
+  ///
+  /// 🔴 "NO USABLE TOKEN RIGHT NOW" IS NOT "NO SESSION". An access token that
+  /// expired while the device was offline cannot be refreshed until the
+  /// network returns, so [currentAccessToken] answers null — and a 401 handler
+  /// that read that null as "the session is gone" signed a paying user out for
+  /// riding a train through a tunnel. Gone means the identity provider no
+  /// longer holds a session for this device: signed out, or a refresh the
+  /// provider REFUSED (revoked or invalid refresh token). A refresh that could
+  /// not REACH the provider leaves the session exactly where it was.
+  ///
+  /// The default is the pre-existing rule, so every fake that extends this
+  /// class keeps its meaning; an adapter that can tell the two failures apart
+  /// overrides it.
+  Future<bool> sessionIsGone() async => await currentAccessToken() == null;
+
   /// Change the signed-in user's display name.
   ///
   /// [pipeline C-13] This lives on the SEAM rather than in a screen because the

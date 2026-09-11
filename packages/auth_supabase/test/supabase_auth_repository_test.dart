@@ -19,6 +19,70 @@ import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 /// API) while making the two things that matter observable — how many refreshes
 /// actually left the process, and what the clock said when we decided.
 void main() {
+  // ── OFFLINE IS NOT REVOKED ───────────────────────────────────────────────
+  // Review item 6: a token that expired while the device was offline made
+  // `currentAccessToken()` answer null, and the 401 handler read that null as
+  // "the session is gone" — a forced sign-out for being offline. The two
+  // failures are told apart by what gotrue does to its own session.
+  //
+  // MUTATION PROOF (run and recorded in the PR): make
+  // `SupabaseAuthRepository.sessionIsGone` return
+  // `await currentAccessToken() == null` and the UNREACHABLE case goes red.
+  group('SupabaseAuthRepository.sessionIsGone — unreachable vs revoked', () {
+    final DateTime now = DateTime.utc(2026, 8, 1, 12);
+    sb.Session stale() =>
+        _session('stale', expiry: now.subtract(const Duration(minutes: 5)));
+
+    test('🔴 UNREACHABLE: the token is null but the session is NOT gone',
+        () async {
+      final _FakeGoTrue g = _FakeGoTrue(
+        session: stale(),
+        refreshFailure: sb.AuthRetryableFetchException(
+          message: 'Failed host lookup',
+        ),
+      );
+      final SupabaseAuthRepository auth =
+          SupabaseAuthRepository(client: g, clock: () => now);
+
+      expect(await auth.currentAccessToken(), isNull);
+      expect(await auth.sessionIsGone(), isFalse);
+      expect(g.currentSession, isNotNull, reason: 'gotrue kept it');
+    });
+
+    test('REVOKED: gotrue drops the session, so it IS gone', () async {
+      final _FakeGoTrue g = _FakeGoTrue(
+        session: stale(),
+        refreshFailure: const sb.AuthApiException(
+          'Invalid Refresh Token: Refresh Token Not Found',
+          statusCode: '400',
+          code: 'refresh_token_not_found',
+        ),
+      );
+      final SupabaseAuthRepository auth =
+          SupabaseAuthRepository(client: g, clock: () => now);
+
+      expect(await auth.sessionIsGone(), isTrue);
+    });
+
+    test('no session at all is gone, with no refresh attempted', () async {
+      final _FakeGoTrue g = _FakeGoTrue(session: null);
+      final SupabaseAuthRepository auth =
+          SupabaseAuthRepository(client: g, clock: () => now);
+      expect(await auth.sessionIsGone(), isTrue);
+      expect(g.refreshCalls, 0);
+    });
+
+    test('a live token is not gone, with no refresh attempted', () async {
+      final _FakeGoTrue g = _FakeGoTrue(
+        session: _session('live', expiry: now.add(const Duration(hours: 1))),
+      );
+      final SupabaseAuthRepository auth =
+          SupabaseAuthRepository(client: g, clock: () => now);
+      expect(await auth.sessionIsGone(), isFalse);
+      expect(g.refreshCalls, 0);
+    });
+  });
+
   group('SupabaseAuthRepository.currentAccessToken — expiry and refresh', () {
     // A fake clock, so expiry is a decision this test makes rather than
     // something it waits for. `Session.isExpired` reads the wall clock
@@ -792,8 +856,7 @@ void main() {
 
     test('resendVerificationEmail forwards the token verbatim', () async {
       final _FakeGoTrue g = _FakeGoTrue(session: _session('live'));
-      final SupabaseAuthRepository auth =
-          SupabaseAuthRepository(client: g);
+      final SupabaseAuthRepository auth = SupabaseAuthRepository(client: g);
 
       await auth.resendVerificationEmail(captchaToken: 'tok-resend-9');
 
@@ -807,8 +870,7 @@ void main() {
     test('resendVerificationEmail sends null when the caller has no token',
         () async {
       final _FakeGoTrue g = _FakeGoTrue(session: _session('live'));
-      final SupabaseAuthRepository auth =
-          SupabaseAuthRepository(client: g);
+      final SupabaseAuthRepository auth = SupabaseAuthRepository(client: g);
 
       await auth.resendVerificationEmail();
 
@@ -828,12 +890,18 @@ class _FakeGoTrue extends sb.GoTrueClient {
   _FakeGoTrue({
     required this.session,
     this.failRefresh = false,
+    this.refreshFailure,
     this.hold,
     this.updateUserError,
   }) : super(autoRefreshToken: false);
 
   sb.Session? session;
   final bool failRefresh;
+
+  /// A refresh failure shaped the way gotrue 2.27.2 really behaves
+  /// (`gotrue_client.dart:1624-1633`): a NON-retryable error removes the
+  /// session before it is rethrown; an `AuthRetryableFetchException` keeps it.
+  final sb.AuthException? refreshFailure;
 
   /// Parks the refresh so several callers are in flight at once.
   final Future<void>? hold;
@@ -953,6 +1021,11 @@ class _FakeGoTrue extends sb.GoTrueClient {
   Future<sb.AuthResponse> refreshSession([String? refreshToken]) async {
     refreshCalls++;
     if (hold != null) await hold;
+    final sb.AuthException? failure = refreshFailure;
+    if (failure != null) {
+      if (failure is! sb.AuthRetryableFetchException) session = null;
+      throw failure;
+    }
     if (failRefresh) throw sb.AuthException('refresh_token_not_found');
     // Deliberately issued ALREADY STALE, so "did the flight end?" is
     // observable: a cached future would replay refreshed-1 forever.
