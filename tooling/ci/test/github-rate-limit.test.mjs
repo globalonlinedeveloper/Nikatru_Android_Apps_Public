@@ -27,13 +27,14 @@
 //
 // Run:  node --test tooling/ci/test/github-rate-limit.test.mjs
 // ─────────────────────────────────────────────────────────────────────────────
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   classifyRefusal,
   planRateLimitWait,
@@ -69,9 +70,9 @@ const cleanEnv = (env) => {
  *  that retries a permission answer would otherwise sleep for minutes. */
 const KILL_AFTER_MS = 30_000;
 
-function runAsync(script, args, env) {
+function runAsync(script, args, env, nodeArgs = []) {
   return new Promise((res) => {
-    const p = spawn(process.execPath, [script, ...args], { env: cleanEnv(env) });
+    const p = spawn(process.execPath, [...nodeArgs, script, ...args], { env: cleanEnv(env) });
     let out = '';
     const timer = setTimeout(() => {
       out += `\n[test harness] killed after ${KILL_AFTER_MS} ms — the script was still waiting`;
@@ -278,6 +279,116 @@ describe('assert-gate-passed — FAIL-CLOSED, and "could not read" is not "faile
     noCrash(r.out);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /ci-gate concluded "failure"/, r.out);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⏱ 2026-09-11 · THE REQUESTS SPENT BEFORE ci-gate CAN EXIST.
+//
+// 🔴 A deploy lane starts at push time, beside CI, and ci-gate's check run is not
+// created until every job it needs has finished. deploy-web's gate step polled
+// every 15 s from the first second, and 19 of its 20 polls on 2026-09-11 answered
+// "no ci-gate check on this commit yet" — 20-24 requests per lane, per push, on
+// the one installation quota every CI run also spends.
+//
+// These cases run the REAL gate under a VIRTUAL CLOCK. A preload replaces `fetch`
+// with a check-run list scripted on elapsed seconds, and makes `setTimeout`
+// advance the clock instead of waiting, so a twenty-minute watch finishes in
+// milliseconds and every request is recorded with the second it was made. The
+// gate has no test mode of its own; what runs here is the script CI runs.
+// ─────────────────────────────────────────────────────────────────────────────
+function clockStub(writeFileSync) {
+  const S = JSON.parse(process.env.GATE_CLOCK_SCRIPT);
+  const T0 = Date.parse('2026-09-11T08:00:00Z');
+  let now = T0;
+  Date.now = () => now;
+  const immediate = setImmediate;
+  globalThis.setTimeout = (fn, ms = 0, ...args) => {
+    now += Math.max(0, Number(ms) || 0);
+    immediate(() => fn(...args));
+    return 0;
+  };
+  const at = [];
+  process.on('exit', () => writeFileSync(process.env.GATE_CLOCK_OUT, JSON.stringify({ at, end: (now - T0) / 1000 })));
+  globalThis.fetch = async () => {
+    const t = (now - T0) / 1000;
+    at.push(t);
+    const exists = S.appearsAt !== null && t >= S.appearsAt;
+    const done = exists && S.completesAt !== null && t >= S.completesAt;
+    const runs = exists ? [{ name: 'ci-gate', status: done ? 'completed' : 'in_progress', conclusion: done ? S.conclusion : null }] : [];
+    return new Response(JSON.stringify({ total_count: runs.length, check_runs: runs }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+}
+
+describe('assert-gate-passed — no request is spent faster than ci-gate can appear', () => {
+  let dir;
+  let stubHref;
+  let n = 0;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), 'nikatru-gate-clock-'));
+    const p = join(dir, 'clock-stub.mjs');
+    writeFileSync(p, `import { writeFileSync } from 'node:fs';\n(${clockStub.toString()})(writeFileSync);\n`);
+    stubHref = pathToFileURL(p).href;
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** `appearsAt` / `completesAt` are seconds after the gate starts; null = never. */
+  const onClock = async ({ appearsAt, completesAt, conclusion = 'success' }, extraArgs = []) => {
+    const out = join(dir, `clock-${n++}.json`);
+    const r = await runAsync(
+      GATE,
+      [SHA, ...extraArgs],
+      { GITHUB_REPOSITORY: REPO, GITHUB_TOKEN: 'ghs-test', GATE_CLOCK_SCRIPT: JSON.stringify({ appearsAt, completesAt, conclusion }), GATE_CLOCK_OUT: out },
+      ['--import', stubHref],
+    );
+    const clock = JSON.parse(readFileSync(out, 'utf8'));
+    return { ...r, ...clock, trace: `requests at t=${clock.at.join(', ')} s; ended at ${clock.end} s\n${r.out}` };
+  };
+
+  test('a push-time deploy — ci-gate appears at 290 s and passes at 320 s — proceeds on at most 9 requests (15-second polling made 23)', async () => {
+    const r = await onClock({ appearsAt: 290, completesAt: 320 });
+    noCrash(r.out);
+    assert.equal(r.code, 0, r.trace);
+    assert.match(r.out, /ok {2}ci-gate passed for abc12345/, r.trace);
+    assert.ok(r.at.length <= 9, `${r.at.length} requests — the absent-check back-off is not in effect\n${r.trace}`);
+    // The back-off may slow the watch, never blind it: no gap is longer than a minute.
+    const gaps = r.at.slice(1).map((t, i) => t - r.at[i]);
+    assert.ok(Math.max(...gaps) <= 60, `a ${Math.max(...gaps)} s gap between polls\n${r.trace}`);
+  });
+
+  test('the redeploy button — ci-gate already green — is answered by the FIRST request, with no wait before it', async () => {
+    const r = await onClock({ appearsAt: 0, completesAt: 0 });
+    noCrash(r.out);
+    assert.equal(r.code, 0, r.trace);
+    assert.deepEqual(r.at, [0], r.trace);
+  });
+
+  test('once ci-gate exists it is polled every 15 s again — the back-off applies only while there is nothing to see', async () => {
+    const r = await onClock({ appearsAt: 40, completesAt: 100 });
+    noCrash(r.out);
+    assert.equal(r.code, 0, r.trace);
+    const seen = r.at.findIndex((t) => t >= 40);
+    assert.ok(seen > 0, r.trace);
+    const after = r.at.slice(seen);
+    assert.ok(after.slice(1).every((t, i) => t - after[i] === 15), `polls after ci-gate appeared are not 15 s apart\n${r.trace}`);
+  });
+
+  test('ci-gate never appears — exit 1 "timed out" AT the timeout, never after it, still looking in its last minute', async () => {
+    const r = await onClock({ appearsAt: null, completesAt: null });
+    noCrash(r.out);
+    assert.equal(r.code, 1, r.trace);
+    assert.match(r.out, /timed out after 1200s waiting for "ci-gate" on abc12345 \(last seen: not started\)/, r.trace);
+    assert.ok(r.end <= 1200, `the watch ran ${r.end} s against a 1200 s timeout\n${r.trace}`);
+    assert.ok(r.at[r.at.length - 1] >= 1185, `the last look was at ${r.at[r.at.length - 1]} s — the back-off shortened the watch\n${r.trace}`);
+    assert.ok(r.at.length <= 25, `${r.at.length} requests for a ci-gate that never came (15-second polling made 80)\n${r.trace}`);
+  });
+
+  test('a short --timeout-seconds is honoured to the second — the clamp, not the back-off step, ends the watch', async () => {
+    const r = await onClock({ appearsAt: null, completesAt: null }, ['--timeout-seconds', '100']);
+    noCrash(r.out);
+    assert.equal(r.code, 1, r.trace);
+    assert.ok(r.end <= 100, r.trace);
+    assert.equal(r.at[r.at.length - 1], 100, `the final look must land on the deadline\n${r.trace}`);
   });
 });
 

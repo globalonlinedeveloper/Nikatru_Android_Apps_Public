@@ -10,6 +10,7 @@
 //   M3 an icon truncated to 10 bytes                    -> caught, not a valid PNG
 //   M4 asserted against the wrong seed                  -> caught on all 5 assets
 //   M5 the Flutter SDK hidden from PATH + FLUTTER_ROOT  -> COVERAGE LOST, exit 1
+//      (exit 2 since 2026-09-11: coverage loss is never the finding exit code)
 //   M6 the platform claim emptied in apps.json          -> COVERAGE LOST
 //
 // 🔬 M5 IS THE ONE THAT MATTERED AND IT FAILED ITS FIRST ATTEMPT — stripping
@@ -45,6 +46,8 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+// The one bounded directory listing — used to prove where the reader's cache lands.
+import { listDir } from '../tree-walk.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-stamp-brand-assets.mjs');
@@ -52,6 +55,16 @@ const GUARD = join(CI_DIR, 'assert-stamp-brand-assets.mjs');
 let TMP;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-brand-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
+
+// 🔴 THE READER'S CACHE GOES INTO THIS FILE'S OWN TEMP ROOT. flutter-stock-assets
+// caches one `flutter create` per SDK under os.tmpdir(), keyed by the SDK's path,
+// and every fixture below is a NEW SDK path — so each run used to leave a
+// `nikatru-flutter-stock-*` folder in the shared temp directory for ever: 10
+// after one run of this file, measured 2026-09-11 in a private TMPDIR. Pointing
+// the guard's temp directory at TMP (removed in `after`) leaves the guard's real
+// caching untouched. All three names: os.tmpdir() reads TMPDIR on POSIX and
+// TEMP, then TMP, on Windows.
+const fixtureTemp = () => ({ TMPDIR: TMP, TEMP: TMP, TMP });
 
 let seq = 0;
 
@@ -163,12 +176,26 @@ function world({
   return { root, appDir, sdkRoot: join(root, 'sdk') };
 }
 
+// BOUNDED, so a guard that hangs at exit (nodejs/node#54918, reproduced on this
+// guard 2026-09-11) fails its case BY NAME instead of holding the job open until CI
+// cancels it with no name at all. `status null` beside the complete output means
+// the guard was still alive when the bound fired: an exit hang, not a slow scan.
+// The guard's own `flutter create` is bounded and group-killed inside
+// flutter-stock-assets.mjs; this is the backstop for the guard process itself.
+const RUN_TIMEOUT_MS = 120_000;
 const run = ({ appDir, sdkRoot }, seed = '6459F5', env = {}) => {
   const r = spawnSync(process.execPath, [GUARD, appDir, '--seed', seed], {
     encoding: 'utf8',
-    env: { ...process.env, FLUTTER_ROOT: sdkRoot, ...env },
+    env: { ...process.env, ...fixtureTemp(), FLUTTER_ROOT: sdkRoot, ...env },
+    timeout: RUN_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
   });
-  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  const died =
+    r.error || r.signal
+      ? `\n[stamp-brand-assets.test] guard did not finish — ${r.error ? r.error.message : 'no spawn error'} · ` +
+        `status ${r.status} · signal ${r.signal} · bound ${RUN_TIMEOUT_MS} ms`
+      : '';
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}${died}` };
 };
 
 describe('assert-stamp-brand-assets', () => {
@@ -177,6 +204,29 @@ describe('assert-stamp-brand-assets', () => {
     assert.equal(code, 0, out);
     assert.match(out, /5\/5 asset\(s\) present/);
     assert.match(out, /5 carry seed #6459f5/);
+  });
+
+  // 🔴 THE TEMP-CACHE LEAK, PINNED. Remove `fixtureTemp()` from `run` and the
+  // cache lands in the shared temp directory instead: this count stays put, and
+  // the case is RED.
+  test("the reader's `flutter create` cache lands in this file's temp root, which is removed afterwards", () => {
+    const stockCaches = () => listDir(TMP).filter((n) => n.startsWith('nikatru-flutter-stock-')).length;
+    const before = stockCaches();
+    const { code, out } = run(world());
+    assert.equal(code, 0, out);
+    assert.equal(stockCaches(), before + 1, 'a fresh SDK path must be cached under TMP, not in the shared temp dir');
+  });
+
+  // 🔴 THE EXIT HANG, PINNED. Spawned exactly as CI runs it — plain `node <guard>`,
+  // no flags — the process that does the work must have started with
+  // --single-threaded, so no V8 worker thread runs a background compile or GC
+  // that Node's shutdown can deadlock on (nodejs/node#54918). Measured
+  // 2026-09-11 on real-size brick icons: worker threads burned CPU in 7 of 8 runs
+  // by default, 0 of 8 with the flag. Delete the relaunch and this line says ON.
+  test('the working guard runs with V8 background tasks OFF, so its exit cannot deadlock', () => {
+    const { code, out } = run(world());
+    assert.equal(code, 0, out);
+    assert.match(out, /V8 background tasks: OFF \(--single-threaded\)/);
   });
 
   // 🔴 M1 — the defect S-14 exists for.
@@ -203,7 +253,7 @@ describe('assert-stamp-brand-assets', () => {
   // It must be COVERAGE LOST, never a quiet pass over a smaller set.
   test('COVERAGE LOST when the stock assets are zero bytes', () => {
     const { code, out } = run(world({ emptyStock: true }));
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /ZERO BYTES/);
   });
 
@@ -234,7 +284,7 @@ describe('assert-stamp-brand-assets', () => {
   test('COVERAGE LOST when the Flutter SDK cannot be found', () => {
     const w = world();
     const { code, out } = run(w, '6459F5', { FLUTTER_ROOT: join(w.root, 'no-such-sdk'), PATH: '' });
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST — could not establish the Flutter SDK's stock web assets/);
   });
 
@@ -244,7 +294,7 @@ describe('assert-stamp-brand-assets', () => {
   test('COVERAGE LOST when a created app has web/ but no PNGs in it', () => {
     const w = world({ noStockIcons: true });
     const { code, out } = run(w);
-    assert.equal(code, 1, out);
+    assert.equal(code, 2, out);
     assert.match(out, /holding NO PNGs/);
   });
 
@@ -252,7 +302,7 @@ describe('assert-stamp-brand-assets', () => {
   // would require nothing. [3]S-3 owns the claim; this refuses to ride an empty one.
   test('COVERAGE LOST when the app claims no platform', () => {
     const { code, out } = run(world({ platforms: [] }));
-    assert.equal(code, 1);
+    assert.equal(code, 2);
     assert.match(out, /COVERAGE LOST — no platform claim/);
   });
 

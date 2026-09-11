@@ -83,15 +83,20 @@ after(() => {
  *  moves, both sides of every comparison in this file move with it. */
 const APEX = new URL(APEX_ORIGIN).origin;
 
+/** The RETIRED pre-rename Pages origin. It left both configs and EXTRAS on
+ *  2026-09-11 (the narrow step), so it is no longer in the baseline; it is kept
+ *  only as the input for the case that must still red when it is put back. A
+ *  *.pages.dev name is claimable by anyone once its project is deleted, which is
+ *  why a Worker must stop trusting it BEFORE the project goes. */
 const PAGES = 'https://subly-9cp.pages.dev';
-/** The Pages project the app deploys to AFTER the slug rename, and both are in
- *  the baseline because both are in the live configs. deploy-web.yml deploys with
+/** The Pages project the app deploys to AFTER the slug rename — the only preview
+ *  origin in the baseline. deploy-web.yml deploys with
  *  `--project-name=<workspace directory>`, so renaming `apps/subly` moved the
  *  Direct Upload project; Cloudflare minted this subdomain at creation and it was
  *  READ BACK from the API rather than derived, because `<id>.pages.dev` is a
- *  third party's live host here, not a free one. The retired origin leaves in a
- *  separate later change -- an exact allowlist fails CLOSED and silently, so the
- *  order is widen, cut over, then narrow. */
+ *  third party's live host here, not a free one. The retired origin left in its
+ *  own later change -- an exact allowlist fails CLOSED and silently, so the
+ *  order was widen, cut over, then narrow. */
 const PAGES_NEW = 'https://subscriptiontracker-7qg.pages.dev';
 const LOCAL = 'http://localhost:3000';
 /** The RETIRED app subdomain. It is no longer in either config and no longer in
@@ -114,17 +119,18 @@ const SUBLY = {
   slug: 'subscriptiontracker',
   name: 'Nikatru Subscription Tracker',
   url: `${APEX}/subscriptiontracker`,
-  origin: PAGES,
+  origin: PAGES_NEW,
   status: 'live',
 };
 
 /** The allowlists the real repo carries today (services/platform/wrangler.jsonc
- *  and services/subscriptiontracker-api/wrangler.jsonc, read 2026-09-09), so the baseline
+ *  and services/subscriptiontracker-api/wrangler.jsonc, read 2026-09-11), so the baseline
  *  fixture is the live config rather than a convenient invention. The subdomain
- *  left both on 2026-09-09 with the 301. */
+ *  left both on 2026-09-09 with the 301; the pre-rename Pages origin (`PAGES`)
+ *  left both on 2026-09-11, the narrow step. */
 const REAL = {
-  platform: `${APEX},${PAGES},${PAGES_NEW},${LOCAL}`,
-  'subscriptiontracker-api': `${APEX},${PAGES},${PAGES_NEW}`,
+  platform: `${APEX},${PAGES_NEW},${LOCAL}`,
+  'subscriptiontracker-api': `${APEX},${PAGES_NEW}`,
 };
 
 /**
@@ -186,7 +192,7 @@ describe('assert-cors-allowlist', () => {
     // blended tally is how a hand-maintained list creeps back unnoticed. The
     // EXTRAS count is FIVE, not three, and the two it grew by are the retiring
     // subdomain in each config — the number rising is the cutover being visible.
-    assert.match(out, /2 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
+    assert.match(out, /2 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -219,11 +225,11 @@ describe('assert-cors-allowlist', () => {
     );
     // The shared Worker still carries one derived requirement PER APP — they
     // just happen to be the same string now, which is exactly the point.
-    assert.match(ok.out, /3 derived requirement\(s\) \+ 5 declared EXTRAS all present/);
+    assert.match(ok.out, /3 derived requirement\(s\) \+ 3 declared EXTRAS all present/);
 
     // (b) the floor that survived: drop the apex from the shared Worker and
     //     every app in the catalogue is named, not just the newest one.
-    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES_NEW},${LOCAL}` };
     const { code, out } = run(tree({ apps: [SUBLY, drift], workers }));
     assert.equal(code, 1);
     assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);
@@ -319,7 +325,7 @@ describe('assert-cors-allowlist', () => {
   // "FAILS when a required PLATFORM origin is dropped"). Removing an origin has
   // to be a reviewable diff, not a quiet edit to a comma-separated string.
   test('FAILS when a declared EXTRA is dropped from the config', () => {
-    const workers = { ...REAL, platform: `${APEX},${SUBDOMAIN},${PAGES}` }; // localhost gone
+    const workers = { ...REAL, platform: `${APEX},${SUBDOMAIN},${PAGES_NEW}` }; // localhost gone
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, /missing "http:\/\/localhost:3000" — EXTRAS:/);
@@ -333,8 +339,26 @@ describe('assert-cors-allowlist', () => {
   // written -- and the assertion is now the one that keeps the retirement PERMANENT:
   // putting the subdomain back into a config, with nothing in EXTRAS justifying it,
   // is an unreviewed standing CORS grant for a host that serves only a 301.
+  // ⏱ 2026-09-11 · THE NARROW STEP IS PERMANENT TOO. The pre-rename Pages origin
+  // left both configs and EXTRAS in one change. Putting it back into EITHER
+  // Worker, with nothing in EXTRAS justifying it, must red — a *.pages.dev name
+  // is claimable once its project is deleted, so a stale grant there is a CORS
+  // grant for a stranger. Mutation-proven before this case was written: the
+  // origin re-added to each real wrangler.jsonc exits 1 naming it.
+  test('FAILS when the retired pre-rename Pages origin is put back into EITHER config', () => {
+    for (const service of ['platform', 'subscriptiontracker-api']) {
+      const workers = { ...REAL, [service]: `${REAL[service]},${PAGES}` };
+      const { code, out } = run(tree({ workers }));
+      assert.equal(code, 1, `${service}: ${out}`);
+      assert.match(
+        out,
+        new RegExp(`${rx(`services/${service}/wrangler.jsonc`)} — "${rx(PAGES)}" is listed but NOTHING justifies it`),
+      );
+    }
+  });
+
   test('FAILS when the retired subdomain is put back into a config', () => {
-    const workers = { ...REAL, 'subscriptiontracker-api': `${APEX},${PAGES},${SUBDOMAIN}` };
+    const workers = { ...REAL, 'subscriptiontracker-api': `${APEX},${PAGES_NEW},${SUBDOMAIN}` };
     const { code, out } = run(tree({ workers }));
     assert.equal(code, 1);
     assert.match(out, new RegExp(`"${rx(SUBDOMAIN)}" is listed but NOTHING justifies it`));
@@ -373,7 +397,7 @@ describe('assert-cors-allowlist', () => {
     // rejects before this limb is ever reached. The required origin it ghosts
     // is therefore the apex itself, which is the only derived origin left.
     const extraComment = `  // "${APEX}" used to be listed here\n`;
-    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES},${LOCAL}` };
+    const workers = { ...REAL, platform: `${SUBDOMAIN},${PAGES_NEW},${LOCAL}` };
     const { code, out } = run(tree({ workers, extraComment }));
     assert.equal(code, 1);
     assert.match(out, /services\/platform\/wrangler\.jsonc — missing "https:\/\/nikatru\.com"/);

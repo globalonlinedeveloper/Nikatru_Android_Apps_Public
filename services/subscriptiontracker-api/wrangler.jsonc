@@ -60,7 +60,12 @@
     // exact allowlist fails CLOSED and silently, so the old one is dropped in a
     // SEPARATE, LATER change -- widen, cut over, then narrow, the same order the
     // subdomain removal used. See services/platform/wrangler.jsonc.
-    "ALLOWED_ORIGINS": "https://nikatru.com,https://subly-9cp.pages.dev,https://subscriptiontracker-7qg.pages.dev",
+    // NARROWED 2026-09-11: `subly-9cp.pages.dev` (the old project's origin) left
+    // this list, services/platform's, and the guard's EXTRAS together. It still
+    // served only the RETIRED Subly build, and a *.pages.dev name is claimable by
+    // anyone once its project is deleted -- so the grant leaves first, the Workers
+    // deploy, and only then may the project be deleted.
+    "ALLOWED_ORIGINS": "https://nikatru.com,https://subscriptiontracker-7qg.pages.dev",
     // [5]M-12 — this deploy's money world. The RevenueCat webhook ignores
     // events from the other world and /v1/entitlements grants nothing from it.
     // Absent/unrecognised ⇒ 503 on both (fail closed, src/lib/money.ts).
