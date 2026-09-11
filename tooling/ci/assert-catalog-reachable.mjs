@@ -66,21 +66,22 @@
 // advertised app answers). The two below assert the SHARED INFRASTRUCTURE those
 // per-app URLs stand on, which nothing in this repository measured until now.
 //
-// ── LIMB 2 · THE WILDCARD IS ASSERTED, NOT ASSUMED ───────────────────────────
-// Every sentence this repo has written about `*.nikatru.com` since [ADR 006] —
-// including the header above — is an assumption about ONE Cloudflare DNS record
-// that no check has ever looked at. A random name nobody has registered
-// (`wc-<hex>.<apex>`, fresh every run) can only answer AT ALL because that
-// record exists, so ANY HTTP status back is proof the wildcard is live. 522 is
-// the expected answer and it is a PASS here — the same 522 that is a FAILURE in
-// limb 1, because there it is a promise the catalogue made about a named app and
-// here it is the wildcard doing exactly its job.
+// ── LIMB 2 · THE WILDCARD STAYS DELETED ([ADR 080] §4) ──────────────────────
+// Until 2026-09-11 this limb asserted that the proxied wildcard `*.nikatru.com`
+// ([ADR 006]) EXISTED. The owner then ruled that every NIKATRU hostname is
+// explicit and exactly one label deep, and the record was deleted by id so that
+// retired and mistyped names stop resolving ([ADR 080] §4). The limb now asserts
+// the inverse: a random name nobody registered (`wc-<hex>.<apex>`, fresh every
+// run) must NOT resolve — ENOTFOUND — while other probes in the same run get HTTP
+// answers. ANY HTTP status back from that name means a wildcard is in DNS again,
+// and that is RED. A transport failure that is not ENOTFOUND (a timeout, a
+// temporary resolver failure) says nothing about the record: COVERAGE LOST.
 //
 // 🔴 SECRET-FREE BY DESIGN. The obvious implementation asks the Cloudflare API
-// "is the record still there", which needs a token in CI, and a guard that needs
+// "is there a wildcard record", which needs a token in CI, and a guard that needs
 // a credential is a guard that gets switched off the first time the credential
-// expires. An HTTP request to a name that cannot resolve without the record
-// proves the same fact from outside, with nothing to leak and nothing to rotate.
+// expires. A request to a name that can only resolve through a wildcard proves
+// the same fact from outside, with nothing to leak and nothing to rotate.
 //
 // ── LIMB 3 · THE CANONICAL HUB ANSWERS ───────────────────────────────────────
 // `CANONICAL_HUB_URL` is IMPORTED from tooling/sites/generate-discovery.mjs —
@@ -93,9 +94,10 @@
 // FILES, and a file being right says nothing about the host serving it.
 //
 // ── THE FAILING CASES, RECORDED (F-10) ───────────────────────────────────────
-//   · delete the wildcard record `c22c5ffc…` (`*.nikatru.com`, proxied CNAME) →
-//     the nonce host NXDOMAINs while subly.nikatru.com still answers → RED, and
-//     the message names the record class rather than blaming the network.
+//   · re-create a wildcard record (`*.nikatru.com`, proxied CNAME) → the nonce
+//     host answers (522) → RED, naming the record class and [ADR 080] §4.
+//     (Before 2026-09-11 the failing case was the record's DELETION; that deletion
+//     is now the owner's decision and the passing state.)
 //   · the hub stops serving /apps/ (deploy root moved, Pages project deleted,
 //     the directory renamed) → limb 3 sees a non-200 → RED.
 //   · every probe in the run fails at the transport layer → COVERAGE LOST on
@@ -116,8 +118,8 @@
 // Usage:  node tooling/ci/assert-catalog-reachable.mjs [repoRoot]
 //         node tooling/ci/assert-catalog-reachable.mjs --emit-url <slug> [repoRoot]
 //         node tooling/ci/assert-catalog-reachable.mjs --emit-base-href <slug> [repoRoot]
-// Exit 0 = every advertised app answered, the wildcard answered and the hub
-// returned 200. 1 = one of those did not (or the scan broke).
+// Exit 0 = every advertised app answered, a name nobody registered did NOT resolve,
+// and the hub returned 200. 1 = one of those did not (or the scan broke).
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname, sep } from 'node:path';
@@ -165,17 +167,16 @@ export const WILDCARD_APEX = new URL(HUB_URL).hostname;
 
 /** A name nobody has ever registered, fresh every run. FRESH IS LOAD-BEARING: a
  *  fixed nonce could be created as a real record (or cached anywhere along the
- *  path) and would then answer for a reason that has nothing to do with the
- *  wildcard, which is a probe that has quietly stopped testing its subject. */
+ *  path) and would then answer for a reason that has nothing to do with a
+ *  wildcard, turning limb 2 red — or, cached as NXDOMAIN, green — for the wrong reason. */
 export function nonceUrl() {
   const u = new URL(HUB_URL);
   return `${u.protocol}//wc-${randomBytes(4).toString('hex')}.${u.hostname}${u.port ? `:${u.port}` : ''}/`;
 }
 
 /** LIMB 2's decision, as a pure function of one probe result plus whether
- *  anything ELSE in the same run got an HTTP answer. Pure so that the two
- *  failing paths — which cannot be produced against the live host — have real
- *  tests instead of a comment claiming they work.
+ *  anything ELSE in the same run got an HTTP answer. Pure so that the failing
+ *  paths — which cannot be produced against the live zone — have real tests.
  *
  *  @param {{url: string, verdict: object, othersAnswered: boolean}} arg
  *  @returns {{ok: true, line: string} | {ok: false, coverageLost: boolean, lines: string[]}}
@@ -183,27 +184,33 @@ export function nonceUrl() {
 export function wildcardVerdict({ url, verdict, othersAnswered }) {
   if (verdict && verdict.status !== undefined) {
     return {
-      ok: true,
-      line:
-        `ok  wildcard DNS answers — ${url} returned HTTP ${verdict.status}. Nobody registered that name, so it ` +
-        `can only resolve because the proxied wildcard CNAME \`*.${WILDCARD_APEX}\` is still in DNS. Every app ` +
-        'subdomain this catalogue publishes rests on that one record, and this run just proved it is there.',
-    };
-  }
-  const how = verdict?.transport ?? 'no answer';
-  if (othersAnswered) {
-    return {
       ok: false,
       coverageLost: false,
       lines: [
-        `✗ THE WILDCARD DNS RECORD IS GONE — ${url} could not be reached at all (${how}), while other probes in`,
-        '  this same run DID get HTTP answers. So this is DNS, not the runner.',
-        '',
-        `  THE RECORD CLASS: a PROXIED WILDCARD CNAME — \`*.${WILDCARD_APEX}\` → \`${WILDCARD_APEX}\` — in Cloudflare`,
-        '  DNS ([ADR 006]). It is the ONLY thing that makes `<slug>` names resolve for an app nobody created a',
-        '  record for, which is every app this factory ships. Without it the catalogue goes on publishing',
-        '  hostnames that NXDOMAIN, and limb 1 above degrades into transport errors that read as "the runner is',
-        '  offline" — a dead studio reported as a flaky CI job. Restore the record before touching anything else.',
+        `✗ THE WILDCARD DNS RECORD IS BACK — ${url} returned HTTP ${verdict.status}, and nobody registered that name.`,
+        `  A name answers like that only through a PROXIED WILDCARD CNAME — \`*.${WILDCARD_APEX}\` — in Cloudflare DNS.`,
+        '  [ADR 080] §4 deleted it on 2026-09-11 (owner decision: every hostname is explicit and exactly one label',
+        '  deep, and retired names must not resolve). With a wildcard back, every retired and every mistyped name',
+        '  answers again. Delete the record, or amend ADR 080 deliberately and say why.',
+      ],
+    };
+  }
+  const how = verdict?.transport ?? 'no answer';
+  if (othersAnswered && /ENOTFOUND/.test(String(how))) {
+    return {
+      ok: true,
+      line:
+        `ok  no wildcard DNS — ${url} does not resolve (${how}) while other probes in this run answered. ` +
+        `Names nobody registered do not exist under \`${WILDCARD_APEX}\`, as [ADR 080] §4 requires.`,
+    };
+  }
+  if (othersAnswered) {
+    return {
+      ok: false,
+      coverageLost: true,
+      lines: [
+        `✗ COVERAGE LOST — ${url} got no answer (${how}), and that is not a "name does not exist" answer.`,
+        '  A timeout or a temporary resolver failure says nothing about a wildcard record, so no verdict is claimed.',
       ],
     };
   }
@@ -212,9 +219,9 @@ export function wildcardVerdict({ url, verdict, othersAnswered }) {
     coverageLost: true,
     lines: [
       `✗ COVERAGE LOST — ${url} got no answer (${how}), and NOTHING ELSE in this run answered either.`,
-      '  An offline runner and a deleted wildcard record are the same observation from here. This exits 1',
-      '  because the check did not get to run, and naming a cause it cannot observe would be the more',
-      '  expensive mistake — the same reading limb 1 takes on the all-transport-failure case.',
+      '  An offline runner and a zone with no wildcard look the same from here. This exits 1 because the',
+      '  check did not get to run, and naming a cause it cannot observe would be the more expensive mistake —',
+      '  the same reading limb 1 takes on the all-transport-failure case.',
     ],
   };
 }
@@ -471,9 +478,9 @@ if (isMain) {
   const surface = [];
   if (surfaceIsOurs(ROOT)) {
     const nonce = nonceUrl();
-    // ANY status settles limb 2, so retry only the no-answer case — a 522 is the
-    // expected reply here and re-requesting it would burn a round trip proving
-    // something already proven.
+    // An HTTP answer settles limb 2 at once (a wildcard is back). No answer is the
+    // expected result, so it is retried before it is believed: one lost packet
+    // must not be read as "the name does not exist".
     let wildcard;
     for (let i = 0; i < ATTEMPTS; i++) {
       wildcard = await probe(nonce);

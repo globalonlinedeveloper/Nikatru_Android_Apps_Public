@@ -43,6 +43,8 @@
 //   ok  wildcard DNS answers — https://wc-3cc38997.nikatru.com/ returned HTTP 522
 //   ok  canonical hub answers — https://nikatru.com/apps/ returned 200
 // Both limb lines present, exit 0.
+// REAL-TREE RUN (2026-09-11, after [ADR 080] §4 deleted the wildcard): `ok  no wildcard DNS —
+//   https://wc-<hex>.nikatru.com/ does not resolve (…ENOTFOUND…)` and the hub 200, exit 0.
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,62 +234,59 @@ describe('assert-catalog-reachable', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [pipeline 10]D-11 LIMB 2 — the wildcard is asserted, not assumed.
+// [pipeline 10]D-11 LIMB 2 — the wildcard stays deleted ([ADR 080] §4).
 // ─────────────────────────────────────────────────────────────────────────────
-describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard)', () => {
-  // The production case, and the one that reads backwards until you hold it
-  // next to limb 1: a 522 is a FAILURE for a named app and a PASS here. The name
-  // is random, so answering AT ALL is the proof.
-  test('ANY HTTP status from a name nobody registered proves the wildcard answers', () => {
+describe('assert-catalog-reachable — [10]D-11 limb 2 (wildcard stays deleted)', () => {
+  const nonce = `https://wc-deadbeef.${WILDCARD_APEX}/`;
+  const wildcardName = new RegExp(`\\*\\.${WILDCARD_APEX.replace(/\./g, '\\.')}`);
+
+  // The production case since 2026-09-11: the record was deleted by owner decision.
+  test('PASSES when a name nobody registered does not resolve (ENOTFOUND) while others answered', () => {
+    const v = wildcardVerdict({ url: nonce, verdict: { transport: 'ENOTFOUND' }, othersAnswered: true });
+    assert.equal(v.ok, true);
+    assert.match(v.line, /^ok {2}no wildcard DNS/);
+    assert.match(v.line, /ADR 080/);
+  });
+
+  // 🔴 THE REGRESSION THIS LIMB NOW EXISTS FOR: a wildcard re-created makes every
+  // retired and mistyped name answer again.
+  test('FAILS — naming the record class and ADR 080 — when a name nobody registered answers ANY HTTP status', () => {
     for (const status of [522, 404, 200]) {
-      const v = wildcardVerdict({
-        url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-        verdict: { status },
-        othersAnswered: true,
-      });
-      assert.equal(v.ok, true, `HTTP ${status} should settle limb 2`);
-      assert.match(v.line, new RegExp(`^ok {2}wildcard DNS answers`));
-      assert.match(v.line, new RegExp(`returned HTTP ${status}`));
+      const v = wildcardVerdict({ url: nonce, verdict: { status }, othersAnswered: true });
+      assert.equal(v.ok, false, `HTTP ${status} must fail limb 2`);
+      assert.equal(v.coverageLost, false);
+      const text = v.lines.join('\n');
+      assert.match(text, /THE WILDCARD DNS RECORD IS BACK/);
+      assert.match(text, new RegExp(`returned HTTP ${status}`));
+      assert.match(text, /PROXIED WILDCARD CNAME/);
+      assert.match(text, wildcardName);
+      assert.match(text, /ADR 080/);
     }
   });
 
-  // 🔴 THE DEFECT D-11 EXISTS FOR. Deleting the wildcard record leaves every
-  // catalogue hostname NXDOMAIN, and limb 1 alone reads that as "the runner is
-  // offline". This limb must name the RECORD, not the network.
-  test('FAILS — naming the DNS record class — when the nonce is unreachable while others answered', () => {
-    const v = wildcardVerdict({
-      url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-      verdict: { transport: 'ENOTFOUND' },
-      othersAnswered: true,
-    });
-    assert.equal(v.ok, false);
-    assert.equal(v.coverageLost, false);
-    const text = v.lines.join('\n');
-    assert.match(text, /THE WILDCARD DNS RECORD IS GONE/);
-    assert.match(text, /ENOTFOUND/);
-    assert.match(text, /PROXIED WILDCARD CNAME/);
-    assert.match(text, new RegExp(`\\*\\.${WILDCARD_APEX.replace(/\./g, '\\.')}`));
+  // A timeout is not an answer about DNS: no verdict either way.
+  test('COVERAGE LOST — not a pass — when the failure is not ENOTFOUND, even if others answered', () => {
+    for (const transport of ['ETIMEDOUT', 'EAI_AGAIN', 'ECONNRESET']) {
+      const v = wildcardVerdict({ url: nonce, verdict: { transport }, othersAnswered: true });
+      assert.equal(v.ok, false, transport);
+      assert.equal(v.coverageLost, true, transport);
+      assert.ok(!/IS BACK/.test(v.lines.join('\n')), 'must not claim a record it did not see');
+    }
   });
 
-  // The honesty case, matching limb 1's existing convention exactly: with
-  // nothing answering anywhere, "the record is gone" and "this runner has no
-  // network" are the same observation, so neither is claimed.
+  // The honesty case, matching limb 1's convention: with nothing answering
+  // anywhere, "no wildcard" and "no network" are the same observation.
   test('COVERAGE LOST — and no DNS claim — when nothing in the run answered', () => {
-    const v = wildcardVerdict({
-      url: `https://wc-deadbeef.${WILDCARD_APEX}/`,
-      verdict: { transport: 'EAI_AGAIN' },
-      othersAnswered: false,
-    });
+    const v = wildcardVerdict({ url: nonce, verdict: { transport: 'ENOTFOUND' }, othersAnswered: false });
     assert.equal(v.ok, false);
     assert.equal(v.coverageLost, true);
     const text = v.lines.join('\n');
     assert.match(text, /COVERAGE LOST/);
-    assert.ok(!/RECORD IS GONE/.test(text), 'must not name a cause it cannot observe');
+    assert.ok(!/IS BACK/.test(text), 'must not name a cause it cannot observe');
   });
 
-  // FRESH is load-bearing: a fixed nonce could be created as a real record (or
-  // cached) and would then answer for a reason unrelated to the wildcard — a
-  // probe that has quietly stopped testing its subject.
+  // FRESH is load-bearing: a fixed nonce could be created as a real record or
+  // cached, and limb 2 would then report on something other than a wildcard.
   test('the nonce is fresh every call and sits under the apex derived from the hub URL', () => {
     const a = nonceUrl();
     const b = nonceUrl();
