@@ -77,7 +77,9 @@ function statusCell(t) {
 
 function escapeCell(s) {
   /* A pipe inside a cell silently ends the column. */
-  return String(s || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+  /* The backslash FIRST (CodeQL #15): escaping only the pipe turned a summary's own \|
+     into \\| — an escaped backslash, then a bare pipe that ends the column. */
+  return String(s || '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
 }
 
 function buildTable(list) {

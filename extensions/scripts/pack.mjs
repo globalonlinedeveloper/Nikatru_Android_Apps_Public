@@ -506,7 +506,8 @@ if (target === 'chromium') {
          warning and writing anyway — an artifact that exists is an artifact
          somebody uploads at 11pm. It is ALSO recorded as an owner action,
          because choosing the domain is not work anyone else can do. */
-      if (!gecko || /REPLACE|\.example$/i.test(gecko)) {
+      /* The slot token anywhere, or the reserved TLD at the end — two tests (CodeQL #47). */
+      if (!gecko || /REPLACE/i.test(gecko) || /\.example$/i.test(gecko)) {
         r.fail('the Firefox add-on id is real',
           'the merged manifest carries browser_specific_settings.gecko.id = ' + JSON.stringify(gecko) + '.\n' +
           'AMO fixes the add-on identity at first signing and it cannot be walked back: ship this once and\n' +
