@@ -2523,10 +2523,143 @@ export function reconcileRunReads(narrow, wide, what, nowMs = Date.now()) {
   );
 }
 
-/** The impure shell for one run-history question: two reads, two widths,
- *  reconciled. Holds no verdict logic and applies no filter checks — the
- *  callers below own those, and they still see exactly the run they used to. */
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-12 · ONE PAGE PER WORKFLOW, PLUS ONE CROSS-CHECK — 56 REQUESTS -> 20.
+//
+// 🔴 THE COST, MEASURED RATHER THAN ESTIMATED. Under a counting `fetch` preload
+// on origin/main db68b1f4, one enforcing run of this guard made 56 GitHub
+// requests: 46 distinct paths and 10 exact duplicates. 44 of them were run-list
+// reads — 22 questions, each asked TWICE (per_page=1 and per_page=30) — about
+// exactly NINE workflows on ONE branch. GITHUB_TOKEN is allowed 1,000 requests
+// an hour per repository, and on 2026-09-11 this guard spent about 1,600 of a
+// morning's 2,225 before every lane died on `API rate limit exceeded for
+// installation`.
+//
+// ── WHAT CHANGED, AND WHAT DID NOT ──────────────────────────────────────────
+// The two-width cross-check above is NOT weakened: it still happens, still at
+// two different `per_page` values (so still two different cache keys), still
+// refusing when the two histories disagree outside the race window. What changed
+// is its GRAIN. It used to be per QUESTION — `event=schedule&status=success`,
+// `status=failure`, `status=completed` and the rest each bought their own pair
+// of reads of the same nine histories. It is now per (workflow, branch): ONE
+// wide page and ONE narrow cross-check, and every question about that workflow
+// is answered by SELECTING from the page that was already fetched.
+//
+// 9 workflows x 2 reads = 18, plus the job list of one run and one search =
+// 20 requests where there were 56. Re-measured the same way, same preload.
+//
+// ── WHY THE PAGE IS WIDER THAN THE ONE IT REPLACES ──────────────────────────
+// `RUN_PAGE_WIDE` is 100, not 30. The old wide read was already FILTERED, so 30
+// entries meant 30 SCHEDULED COMPLETED runs; an unfiltered page of 30 on a busy
+// branch could hold three. Asking for the API's maximum costs the same one
+// request and leaves the unit scan below strictly MORE history than it had, not
+// less — which matters, because `pageFull` is how that scan says "my answer may
+// be truncated" and a narrower page would have made it say so more often.
+//
+// ── THE FILTER CHECKS MOVED WITH THE FILTERS ────────────────────────────────
+// `branch=` is still a SERVER-side filter, so it is still checked against the
+// answer, once per page rather than once per question — a `branch=` a future API
+// version ignored would still be caught here. `event` and `status` are now
+// selected in this process, so a check that they "held" would be a check on this
+// file's own `filter` call: an assertion that cannot fail, which this repository
+// deletes rather than keeps. What replaced it is a check that CAN fail and
+// matters more — a run whose `conclusion` is null (still running, or cancelled
+// into nothing) is never selected as the newest success or the newest failure.
+//
+// ── WHEN THE PAGE CANNOT ANSWER ─────────────────────────────────────────────
+// A page of 100 that holds no matching run may be truncated rather than empty.
+// So "no match and the page was FULL" falls back to the targeted two-width read
+// for that one question, exactly as before. "No match and the page was not full"
+// is the complete history of that branch, so "there is no such run" is a fact,
+// not a guess.
+// ─────────────────────────────────────────────────────────────────────────────
+const RUN_PAGE_WIDE = 100;
+
+/** PURE. Splits the `filters` array the callers build into the parts that are
+ *  asked of GitHub (`branch`) and the parts selected here (`event`, `status`). */
+export function splitRunFilters(filters) {
+  const out = { branch: null, event: null, status: null, unknown: [] };
+  for (const f of (filters ?? []).filter(Boolean)) {
+    const [k, v] = String(f).split('=');
+    const value = decodeURIComponent(v ?? '');
+    if (k === 'branch') out.branch = value;
+    else if (k === 'event') out.event = value;
+    else if (k === 'status') out.status = value;
+    else out.unknown.push(f);
+  }
+  return out;
+}
+
+/** PURE. The runs on a page that answer one question. `status` follows the API's
+ *  own vocabulary: `completed` is a run STATE, anything else is a CONCLUSION.
+ *  A run with no `conclusion` has not concluded and answers neither. */
+export function selectRuns(runs, { event = null, status = null } = {}) {
+  return (runs ?? []).filter((r) => {
+    if (!r?.updated_at) return false;
+    if (event && r.event !== event) return false;
+    if (!status) return true;
+    if (status === 'completed') return r.status === 'completed' && r.conclusion !== null && r.conclusion !== undefined;
+    return r.conclusion === status;
+  });
+}
+
+/** IMPURE. ONE cross-checked page of a workflow's runs on a branch, memoised for
+ *  the whole guard run. Two reads at two widths, reconciled by the block above;
+ *  the narrow read's answer is merged in, so a run that finished between the two
+ *  requests is still visible to every question. */
+function branchPage(repo, workflow, branch, cache) {
+  const key = `${repo}|${workflow}|${branch ?? ''}`;
+  if (!cache.has(key)) {
+    cache.set(
+      key,
+      (async () => {
+        const br = branch ? `branch=${encodeURIComponent(branch)}&` : '';
+        const path = (n) => `/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/runs?${br}per_page=${n}`;
+        const what = `the run history of ${workflow}${branch ? ` on ${branch}` : ''}`;
+        const [narrow, wide] = await Promise.all([ghJson(path(1)), ghJson(path(RUN_PAGE_WIDE))]);
+        if (!Array.isArray(narrow?.workflow_runs) || !Array.isArray(wide?.workflow_runs)) {
+          throw new Error(`the run list for ${what} came back without a workflow_runs array`);
+        }
+        const newest = reconcileRunReads(newestOnPage(narrow.workflow_runs), newestOnPage(wide.workflow_runs), what);
+        const byId = new Map();
+        for (const r of [...wide.workflow_runs, ...(newest ? [newest] : [])]) {
+          if (r?.updated_at && !byId.has(r.id)) byId.set(r.id, r);
+        }
+        const runs = [...byId.values()].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+        // The one filter that is still GitHub's, checked against GitHub's answer.
+        if (branch) {
+          for (const r of runs) {
+            if (r.head_branch !== branch) {
+              throw new Error(
+                `the branch filter did not hold for ${workflow}: asked for ${JSON.stringify(branch)} and run ${r.id} ` +
+                  `came back on ${JSON.stringify(r.head_branch ?? null)}`,
+              );
+            }
+          }
+        }
+        return { runs, pageFull: wide.workflow_runs.length >= RUN_PAGE_WIDE };
+      })(),
+    );
+  }
+  return cache.get(key);
+}
+
+/** Per-process page cache. One map for the whole run: every question about a
+ *  workflow on a branch reads the page the first question fetched. */
+const RUN_PAGES = new Map();
+
+/** The impure shell for one run-history question: SELECTED from the shared
+ *  cross-checked page, with a targeted two-width read only when the page was
+ *  full and held no match. Holds no verdict logic. */
 async function ghNewestRun(repo, workflow, filters, what) {
+  const { branch, event, status, unknown } = splitRunFilters(filters);
+  if (unknown.length === 0) {
+    const { runs, pageFull } = await branchPage(repo, workflow, branch, RUN_PAGES);
+    const hit = selectRuns(runs, { event, status })[0] ?? null;
+    if (hit || !pageFull) return hit;
+  }
+  // FALLBACK — the page was full and held no match, so the answer may be older
+  // than the page. Ask the question directly, at both widths, exactly as before.
   const qs = filters.filter(Boolean).join('&');
   const path = (n) => `/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/runs?${qs}&per_page=${n}`;
   const [narrow, wide] = await Promise.all([ghJson(path(1)), ghJson(path(RUN_READ_WIDE))]);
@@ -2925,6 +3058,16 @@ export function checkRunUnits(reg, parsedByFile, topology) {
  *  not hold THROWS, and a throw is `unreadable` at both call sites. */
 async function unitRunsPage(q, repo, filters, what) {
   if (!nonEmpty(q?.headBranch)) throw new Error(`${q?.workflow} names no headBranch, so a unit read cannot be scoped to a branch`);
+  const { branch, event, status, unknown } = splitRunFilters(filters);
+  if (unknown.length === 0 && branch === q.headBranch) {
+    // ⏱ 2026-09-12 — the SAME shared page every other read of this workflow uses
+    // (see "ONE PAGE PER WORKFLOW" above). It is fetched once and cross-checked
+    // once; the four ops-watch duty rows that each bought their own pair of reads
+    // of this identical history now buy none. The branch check moved into the
+    // page, where the branch filter still is.
+    const { runs, pageFull } = await branchPage(repo, q.workflow, branch, RUN_PAGES);
+    return { runs: selectRuns(runs, { event, status }), pageFull };
+  }
   const qs = filters.filter(Boolean).join('&');
   const path = (n) => `/repos/${repo}/actions/workflows/${encodeURIComponent(q.workflow)}/runs?${qs}&per_page=${n}`;
   const [narrow, wide] = await Promise.all([ghJson(path(1)), ghJson(path(UNIT_PAGE))]);
