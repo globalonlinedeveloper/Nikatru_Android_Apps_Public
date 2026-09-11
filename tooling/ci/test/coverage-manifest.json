@@ -84,7 +84,7 @@
   "input-contract.test.mjs": 29,
   "launch-smoke.test.mjs": 16,
   "launcher-icons.test.mjs": 49,
-  "legal-text-parity.test.mjs": 19,
+  "legal-text-parity.test.mjs": 25,
   "legal-tripwires.test.mjs": 26,
   "licence-register.test.mjs": 57,
   "lint-inheritance.test.mjs": 12,
