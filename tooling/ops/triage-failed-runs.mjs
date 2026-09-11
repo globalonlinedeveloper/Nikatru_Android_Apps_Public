@@ -98,7 +98,7 @@
 //   Credential: GH_TOKEN / GITHUB_TOKEN, else the local vault key
 //   `Project_Cross_Platform_Apps_GITHUB_PAT` via safe-rerun.mjs's `token()`.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -573,7 +573,101 @@ export class CoverageLost extends Error {
   }
 }
 
+// ── WHAT MAY REACH THE NETWORK, AND HOW THE CACHE IS TOUCHED ────────────────
+// ⏱ 2026-09-11 · Three CodeQL alerts on this file, answered in code rather than
+// dismissed:
+//   · js/file-access-to-http — the flow CodeQL traced runs from the local vault
+//     FILE (safe-rerun.mjs `fromVault`) into the `authorization` header. The
+//     credential and the repository slug are now held to the shapes GitHub
+//     issues before either is placed in a request, and every request path is
+//     held to the six shapes this reader builds, numeric ids only — so nothing
+//     read from a file (the vault, a git remote, a cached run) reaches `fetch`
+//     unless it has one of those shapes.
+//   · js/file-system-race — the cache was `existsSync(p)` then `readFileSync(p)`;
+//     a file removed between the two crashed the run. It is now read ONCE, with
+//     ENOENT as the only "not cached" answer, and written to a unique temporary
+//     name and RENAMED into place, so no reader ever sees a half-written file.
+
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The shapes of a GitHub credential: `ghp_` `gho_` `ghu_` `ghs_` `ghr_` tokens,
+ *  a fine-grained `github_pat_`, and a legacy 40-hex token. Anything else — a
+ *  pasted `Bearer …`, a trailing newline, a second header after CR/LF — is
+ *  refused before it can be sent. */
+const GITHUB_TOKEN_SHAPE = /^(?:gh[pousr]_[A-Za-z0-9]{36,251}|github_pat_[A-Za-z0-9_]{22,251}|[0-9a-f]{40})$/;
+export const isValidGithubToken = (tok) => typeof tok === 'string' && GITHUB_TOKEN_SHAPE.test(tok);
+
+/** `owner/name` by GitHub's character rules; a name may not start with `.`, so
+ *  `..` can never climb out of `/repos/`. */
+const REPO_SHAPE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/;
+export const isValidRepoSlug = (repo) => typeof repo === 'string' && REPO_SHAPE.test(repo);
+
+/** A query string exactly as this reader builds one: `encodeURIComponent` output
+ *  joined by `=` and `&`. No `/`, no `#`, no `..` segment can appear in it. */
+const QUERY = String.raw`\?[A-Za-z0-9_.!~*'()%&=-]*`;
+const NUMERIC_ID = '[0-9]{1,20}';
+
+/** The six request paths this reader issues, and nothing else. */
+export function isAllowedApiPath(repo, path) {
+  if (!isValidRepoSlug(repo) || typeof path !== 'string') return false;
+  const R = `/repos/${reEscape(repo)}`;
+  return [
+    `${R}/actions/runs${QUERY}`,
+    `${R}/actions/runs/${NUMERIC_ID}/jobs${QUERY}`,
+    `${R}/actions/jobs/${NUMERIC_ID}/logs`,
+    `${R}/actions/workflows/${NUMERIC_ID}/runs${QUERY}`,
+    `${R}/branches${QUERY}`,
+    `${R}/pulls${QUERY}`,
+  ].some((shape) => new RegExp(`^${shape}$`).test(path));
+}
+
+/** A cache entry is one flat file name inside the cache directory — never a path. */
+const CACHE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,200}$/;
+
+const REAL_FS = { readFileSync, writeFileSync, mkdirSync, renameSync, rmSync };
+
+/** Read `name` from `cacheDir`, or fetch it and cache it. No check precedes the
+ *  read (ENOENT is the only miss), and the write lands by rename. `fs` is a seam
+ *  for the test that removes the file between a would-be check and the read. */
+export async function readThroughCache(cacheDir, name, fetcher, { text = false, fs = REAL_FS } = {}) {
+  if (!cacheDir) return fetcher();
+  if (!CACHE_NAME.test(name) || name.includes('..')) {
+    throw new CoverageLost(`refusing cache entry ${JSON.stringify(String(name)).slice(0, 120)} — not a flat file name`);
+  }
+  const p = join(cacheDir, name);
+  let raw = null;
+  try {
+    raw = fs.readFileSync(p, 'utf8');
+  } catch (e) {
+    if (e?.code !== 'ENOENT') throw e;
+  }
+  if (raw !== null) return text ? raw : JSON.parse(raw);
+  const v = await fetcher();
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const tmp = `${p}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text ? v : JSON.stringify(v), { flag: 'wx' });
+    fs.renameSync(tmp, p);
+  } catch (e) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      /* the original error is the one worth reporting */
+    }
+    throw e;
+  }
+  return v;
+}
+
 function liveApi(repo, tok, cacheDir) {
+  // Held HERE, where the header is built, as well as in main(): a caller that
+  // skips main() must not be able to send an unshaped credential either.
+  if (!isValidGithubToken(tok)) {
+    throw new CoverageLost('the GitHub credential does not have the shape of a GitHub token, so it was not sent');
+  }
+  if (!isValidRepoSlug(repo)) {
+    throw new CoverageLost(`${JSON.stringify(String(repo)).slice(0, 120)} is not an owner/name repository slug`);
+  }
   const headers = {
     authorization: `Bearer ${tok}`,
     accept: 'application/vnd.github+json',
@@ -581,7 +675,14 @@ function liveApi(repo, tok, cacheDir) {
     'user-agent': 'nikatru-triage-failed-runs',
   };
   const get = async (path, { text = false } = {}) => {
-    const res = await fetch(`${API}${path}`, { headers, redirect: 'follow' });
+    if (!isAllowedApiPath(repo, path)) {
+      throw new CoverageLost(
+        `refusing to request ${JSON.stringify(String(path)).slice(0, 160)} — not one of the six GitHub API paths this reader builds (numeric ids only)`,
+      );
+    }
+    const url = new URL(`${API}${path}`);
+    if (url.origin !== API) throw new CoverageLost(`refusing a request that resolved off ${API} (${url.origin})`);
+    const res = await fetch(url, { headers, redirect: 'follow' });
     if (res.status === 403 || res.status === 429) {
       throw new CoverageLost(`GET ${path} → HTTP ${res.status} — the quota or the credential refused; nothing after this point was read`);
     }
@@ -592,17 +693,7 @@ function liveApi(repo, tok, cacheDir) {
     }
     return text ? res.text() : res.json();
   };
-  const cached = async (name, fetcher, { text = false } = {}) => {
-    if (cacheDir) {
-      const p = join(cacheDir, name);
-      if (existsSync(p)) return text ? readFileSync(p, 'utf8') : JSON.parse(readFileSync(p, 'utf8'));
-      const v = await fetcher();
-      mkdirSync(cacheDir, { recursive: true });
-      writeFileSync(p, text ? v : JSON.stringify(v));
-      return v;
-    }
-    return fetcher();
-  };
+  const cached = (name, fetcher, { text = false } = {}) => readThroughCache(cacheDir, name, fetcher, { text });
   return {
     live: true,
     /** Every run with one of the non-green conclusions. Never cached: the
@@ -821,6 +912,17 @@ async function main(argv) {
     const tok = token();
     if (!tok) {
       console.error('✗ COVERAGE LOST — no GitHub credential. Set GH_TOKEN/GITHUB_TOKEN, or make the vault key Project_Cross_Platform_Apps_GITHUB_PAT readable.');
+      return 2;
+    }
+    if (!isValidGithubToken(tok)) {
+      // The value is never printed: a mis-pasted vault line is still a secret.
+      console.error(
+        '✗ COVERAGE LOST — the GitHub credential does not have the shape of a GitHub token (ghp_/gho_/ghu_/ghs_/ghr_/github_pat_/40-hex), so it was not sent. Its value is not printed.',
+      );
+      return 2;
+    }
+    if (!isValidRepoSlug(repo)) {
+      console.error(`✗ COVERAGE LOST — ${JSON.stringify(String(repo)).slice(0, 120)} is not an owner/name repository slug, so no request path can be built from it.`);
       return 2;
     }
     api = liveApi(repo, tok, args.cacheDir ? resolve(args.cacheDir) : null);

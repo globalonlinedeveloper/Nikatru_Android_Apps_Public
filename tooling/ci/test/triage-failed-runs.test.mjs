@@ -22,7 +22,7 @@
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -48,6 +48,11 @@ import {
   parseArgs,
   ledger,
   fixtureApi,
+  CoverageLost,
+  readThroughCache,
+  isValidGithubToken,
+  isValidRepoSlug,
+  isAllowedApiPath,
 } from '../../ops/triage-failed-runs.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -560,5 +565,166 @@ describe('CLI contract', () => {
       if (!/\.ya?ml$/.test(f)) continue;
       assert.doesNotMatch(readFileSync(join(wf, f), 'utf8'), /triage-failed-runs/, `${f} must not invoke the triage reader`);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// groupRows — the grouping arithmetic, directly
+// ═══════════════════════════════════════════════════════════════════════════
+describe('groupRows', () => {
+  test('groups by signature, counts each group, and names every unexplained row with its reason', () => {
+    const causes = [{ signature: 'known:sig', rootCause: 'r', fix: 'f' }];
+    const row = (id, signature) => ({
+      id, signature, branch: 'feat-a', workflow: 'ci.yml', workflowPath: CI,
+      job: 'j', step: 's', error: 'e', sha: 'abc', conclusion: 'failure', createdAt: T('10:00:00'),
+    });
+    const ctx = {
+      newest: new Map([[`${CI}|feat-a`, { id: 9, conclusion: 'success', created_at: T('11:00:00') }]]),
+      branches: new Set(['feat-a']),
+      prs: new Map(),
+    };
+    const { groups, unexplained } = groupRows([row(1, 'known:sig'), row(2, 'known:sig'), row(3, 'unknown:sig')], causes, ctx);
+    assert.deepEqual(groups.map((g) => [g.signature, g.count, g.unexplained]), [['known:sig', 2, 0], ['unknown:sig', 1, 1]]);
+    assert.deepEqual(unexplained.map((u) => [u.id, u.why]), [[3, 'no cause in register']]);
+    assert.match(groups[0].rows[0].proof, /later green: run 9/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSPORT HARDENING — CodeQL js/file-system-race (#300) and
+// js/file-access-to-http (#301), answered in code. No case here touches the
+// network: the cache cases use a filesystem seam or a temp dir, and the
+// credential/slug cases are refused before liveApi is ever built.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('transport hardening', () => {
+  const enoent = (p) => Object.assign(new Error(`ENOENT: no such file or directory, open '${p}'`), { code: 'ENOENT' });
+
+  /** The race, made deterministic: the cache file EXISTS when checked and is
+   *  GONE when read. Every operation is logged. */
+  function vanishingFs(log) {
+    return {
+      existsSync: (p) => { log.push(['existsSync', p]); return true; },
+      readFileSync: (p) => { log.push(['readFileSync', p]); throw enoent(p); },
+      writeFileSync: (p, _data, opts) => { log.push(['writeFileSync', p, opts?.flag]); },
+      mkdirSync: (p) => { log.push(['mkdirSync', p]); },
+      renameSync: (a, b) => { log.push(['renameSync', a, b]); },
+      rmSync: (p) => { log.push(['rmSync', p]); },
+    };
+  }
+
+  test('a cache file removed between a check and the read is a MISS, not a crash — and no check is made', async () => {
+    const log = [];
+    let fetched = 0;
+    const v = await readThroughCache('/cache', '1001.jobs.json', async () => { fetched++; return { total_count: 0, jobs: [] }; }, { fs: vanishingFs(log) });
+    assert.deepEqual(v, { total_count: 0, jobs: [] });
+    assert.equal(fetched, 1);
+    assert.equal(log.filter(([op]) => op === 'existsSync').length, 0, 'the read must not be preceded by a check');
+  });
+
+  test('MUTATION: the check-then-read cache restored in a COPY of the script fails that same scenario', async () => {
+    const original = readFileSync(SCRIPT, 'utf8');
+    const block = "  let raw = null;\n  try {\n    raw = fs.readFileSync(p, 'utf8');\n  } catch (e) {\n    if (e?.code !== 'ENOENT') throw e;\n  }\n";
+    assert.ok(original.replaceAll('\r\n', '\n').includes(block), 'the read block this mutation replaces is not in the script');
+    const mutated = original
+      .replaceAll('\r\n', '\n')
+      .replace(block, "  let raw = null;\n  if (fs.existsSync(p)) raw = fs.readFileSync(p, 'utf8');\n")
+      .replace("from './safe-rerun.mjs'", `from ${JSON.stringify(pathToFileURL(SAFE_RERUN).href)}`);
+    const copy = join(temp(), 'triage-failed-runs.race-mutated.mjs');
+    writeFileSync(copy, mutated);
+    const m = await import(pathToFileURL(copy).href);
+    await assert.rejects(
+      m.readThroughCache('/cache', '1001.jobs.json', async () => ({}), { fs: vanishingFs([]) }),
+      (e) => e.code === 'ENOENT',
+    );
+    assert.equal(readFileSync(SCRIPT, 'utf8'), original, 'the real script must not have been touched');
+  });
+
+  test('a cache write lands by RENAME from an exclusively created temporary — the final name is never opened for writing', async () => {
+    const log = [];
+    await readThroughCache('/cache', 'newest-x.json', async () => ({ id: 7 }), { fs: vanishingFs(log) });
+    const writes = log.filter(([op]) => op === 'writeFileSync');
+    const renames = log.filter(([op]) => op === 'renameSync');
+    const target = join('/cache', 'newest-x.json');
+    assert.equal(writes.length, 1);
+    assert.equal(renames.length, 1);
+    assert.notEqual(writes[0][1], target);
+    assert.equal(writes[0][2], 'wx');
+    assert.deepEqual(renames[0].slice(1), [writes[0][1], target]);
+  });
+
+  test('a failed rename removes the temporary file and reports the original error', async () => {
+    const log = [];
+    const fs = { ...vanishingFs(log), renameSync: () => { throw Object.assign(new Error('EPERM: rename refused'), { code: 'EPERM' }); } };
+    await assert.rejects(readThroughCache('/cache', 'a.json', async () => ({}), { fs }), /EPERM/);
+    const tmp = log.find(([op]) => op === 'writeFileSync')[1];
+    assert.ok(log.some(([op, p]) => op === 'rmSync' && p === tmp), 'the temporary must be removed');
+  });
+
+  test('on the real filesystem: one fetch, one file, no temporary left, and the second read is served from the cache', async () => {
+    const dir = temp();
+    let fetched = 0;
+    const fetcher = async () => { fetched++; return 'log line\n'; };
+    assert.equal(await readThroughCache(dir, '1001.job-5.log', fetcher, { text: true }), 'log line\n');
+    assert.equal(await readThroughCache(dir, '1001.job-5.log', fetcher, { text: true }), 'log line\n');
+    assert.equal(fetched, 1);
+    assert.deepEqual(readdirSync(dir), ['1001.job-5.log']);
+  });
+
+  test('a cache name that is a PATH is refused before anything is read or fetched', async () => {
+    for (const name of ['../escape.json', 'a/b.json', 'a\\b.json', '.hidden', '']) {
+      let fetched = 0;
+      await assert.rejects(readThroughCache(temp(), name, async () => { fetched++; return {}; }), (e) => e instanceof CoverageLost, name);
+      assert.equal(fetched, 0, name);
+    }
+  });
+
+  test('only GitHub token SHAPES are accepted as a credential', () => {
+    const accepted = ['ghp_' + 'a'.repeat(36), 'ghs_' + 'A1'.repeat(20), 'github_pat_' + 'x_'.repeat(20), 'f'.repeat(40)];
+    const refused = ['', 'Bearer ghp_' + 'a'.repeat(36), 'ghp_' + 'a'.repeat(36) + '\n', 'ghp_' + 'a'.repeat(36) + '\r\nx-evil: 1', 'ghp_short', 'not a token', null, undefined, 42];
+    for (const t of accepted) assert.equal(isValidGithubToken(t), true, String(t).slice(0, 12));
+    for (const t of refused) assert.equal(isValidGithubToken(t), false, String(t).slice(0, 12));
+  });
+
+  test('an UNSHAPED credential is COVERAGE LOST (exit 2), its value is not printed, and no transport is built', () => {
+    const r = run(SCRIPT, ['--repo', 'fixture/fixture'], { GH_TOKEN: 'pasted-by-mistake SECRETVALUE', GITHUB_TOKEN: '' });
+    assert.equal(r.code, 2, r.out + r.err);
+    assert.match(r.err, /COVERAGE LOST — the GitHub credential does not have the shape of a GitHub token/);
+    assert.doesNotMatch(r.out + r.err, /SECRETVALUE/);
+    assert.doesNotMatch(r.out, /triage-failed-runs — /, 'the live transport must not have been constructed');
+  });
+
+  test('a repository that is not an owner/name slug is COVERAGE LOST (exit 2) before any transport is built', () => {
+    assert.equal(isValidRepoSlug('globalonlinedeveloper/Nikatru_Platform_Public'), true);
+    for (const bad of ['../../user', 'owner/..', 'owner/.x', 'a/b/c', 'owner', '', 'own er/x']) assert.equal(isValidRepoSlug(bad), false, bad);
+    const r = run(SCRIPT, ['--repo', '../../user'], { GH_TOKEN: 'ghp_' + 'a'.repeat(36), GITHUB_TOKEN: '' });
+    assert.equal(r.code, 2, r.out + r.err);
+    assert.match(r.err, /is not an owner\/name repository slug/);
+    assert.doesNotMatch(r.out, /triage-failed-runs — /);
+  });
+
+  test('only the six request paths this reader builds may reach fetch — numeric ids only', () => {
+    const R = 'globalonlinedeveloper/Nikatru_Platform_Public';
+    const allowed = [
+      `/repos/${R}/actions/runs?status=failure&per_page=100&created=${encodeURIComponent('2026-09-05..2026-09-10')}&page=1`,
+      `/repos/${R}/actions/runs/34546423386/jobs?per_page=100&filter=all`,
+      `/repos/${R}/actions/jobs/98765/logs`,
+      `/repos/${R}/actions/workflows/123/runs?branch=${encodeURIComponent('feat/x')}&per_page=1`,
+      `/repos/${R}/branches?per_page=100&page=2`,
+      `/repos/${R}/pulls?head=${encodeURIComponent('globalonlinedeveloper:feat/x')}&state=all&per_page=5`,
+    ];
+    const refused = [
+      `/repos/${R}/actions/jobs/12a/logs`,
+      `/repos/${R}/actions/jobs/1/../../../../user`,
+      `/repos/${R}/actions/runs/1/jobs/../../secrets`,
+      `/repos/other/repo/actions/runs?page=1`,
+      `/repos/${R}/actions/runs?page=1#frag`,
+      `/repos/${R}/actions/runs?x=/etc/passwd`,
+      `//evil.example/repos/${R}/actions/runs?page=1`,
+      `/repos/${R}/actions/workflows/ci.yml/runs?per_page=1`,
+      '/user',
+    ];
+    for (const p of allowed) assert.equal(isAllowedApiPath(R, p), true, p);
+    for (const p of refused) assert.equal(isAllowedApiPath(R, p), false, p);
+    assert.equal(isAllowedApiPath('../x', '/repos/../x/branches?page=1'), false);
   });
 });
