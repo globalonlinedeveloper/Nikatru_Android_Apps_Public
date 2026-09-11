@@ -387,6 +387,22 @@ is rewriting, including this workflow. Landing them now would collide in files
 that PR is already rebasing. They are written up here rather than attempted, and
 the measurement above is what makes them a one-sitting change afterwards.
 
+⏱ **2026-09-12 — CANVASKIT AND THE FONT FALLBACK ARE CLOSED (W5); SENTRY IS NOT YET.**
+The build line now carries `--no-web-resources-cdn`. `apps/<id>/web/flutter_bootstrap.js`
+(Flutter's documented bootstrap template) passes `fontFallbackBaseUrl: "fallback-fonts/"`,
+relative so it resolves under `<base href>`. The step after `setup-node`,
+`tooling/web/self-host-fallback-fonts.mjs`, reads the engine's fallback list OUT OF THE
+BUILT `main.dart.js` (725 files, 21,803,256 B on Flutter 3.47.2), copies each file into
+`build/web/fallback-fonts/` pinned by `tooling/web/fallback-fonts.lock.json`, and refuses the
+bundle if either setting is missing. It runs BEFORE the launch smoke on purpose: the engine
+fetches Roboto from that base on every boot, so a missing copy is a 404 the smoke already
+fails on. A missing copy must never reach production, because the apex router answers an
+unknown app path with the SPA shell (200, `text/html`), and the engine would silently draw
+empty boxes. `www.gstatic.com` and `fonts.gstatic.com` are out of the app CSP. The fonts are
+fetched from Google by the RUNNER at build time, and no visitor request goes there. A Flutter
+upgrade that rolls the list fails that step by name, and the fix is `--write-lock` plus a
+reviewed diff. `browser.sentry-cdn.com` is the remaining boot-path third party.
+
 ### in step **Build web (release, no service worker)**, above `- uses: ./.github/actions/setup-node`
 
 ── [pipeline 9]R-13 · THE ARTIFACT IS STARTED ONCE, BEFORE PUBLICATION ──
