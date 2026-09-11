@@ -314,6 +314,10 @@ jobs:
           }
           Write-Host "msstore-cli pin $ver (tooling/versions.json)"
           winget install --exact --id Microsoft.MSStoreCLI --version $ver --accept-source-agreements --accept-package-agreements --disable-interactivity
+      # why: CONFIRM is the TYPED word, passed through -- a literal `--confirm` here made the
+      # script's own confirm check a tautology. Same shape as submit-play.yml; pwsh reads $env:.
+      # why: the first block is the lane gate Play and Snap carry in their scripts (GITHUB_ACTIONS
+      # =true and GITHUB_REPOSITORY set), run in the submission's own step; this script has none.
       - name: Submit to the Microsoft Store
         id: submit
         env:
@@ -324,9 +328,14 @@ jobs:
           MS_STORE_SELLER_ID: ${{ secrets.MS_STORE_SELLER_ID }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: >
-          node tooling/release/submit-windows-store.mjs --submit --app subscriptiontracker
-          --confirm SUBMIT-TO-MICROSOFT-STORE
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or [string]::IsNullOrWhiteSpace($env:GITHUB_REPOSITORY)) {
+            Write-Error 'FAIL a Microsoft Store submission runs only inside GitHub Actions (GITHUB_ACTIONS=true and GITHUB_REPOSITORY set). The publish gate is the store-publish environment, whose approval exists nowhere else.'
+            exit 1
+          }
+          node tooling/release/submit-windows-store.mjs --submit --app subscriptiontracker --confirm "$env:CONFIRM"
+          exit $LASTEXITCODE
       - name: Record the submission in the [10]D-9 ledger
         if: always() && steps.submit.outcome == 'success'
         env:

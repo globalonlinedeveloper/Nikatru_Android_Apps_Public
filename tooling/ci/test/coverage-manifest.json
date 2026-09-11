@@ -69,7 +69,7 @@
   "enforcement-index.test.mjs": 26,
   "entitlement-contract.test.mjs": 86,
   "erasure-reach.test.mjs": 35,
-  "extension-submission.test.mjs": 30,
+  "extension-submission.test.mjs": 46,
   "extensions-build-free.test.mjs": 14,
   "flag-exposure.test.mjs": 23,
   "generate-apps-data.test.mjs": 7,
