@@ -191,6 +191,32 @@ describe('the default stamp is CLIENT-ONLY [ADR 020]', () => {
     assert.match(r.stderr, /not the shared platform Worker/);
   });
 
+  test('the shared host in a trailing COMMENT does not satisfy _phApiBase (CodeQL #11)', () => {
+    const root = tree('demo', {
+      mutate: (t) => t.setConfig("const String _phApiBase = 'https://evil.test'; // was platform.nikatru.com\n"),
+    });
+    const r = run(root, '--client', 'demo');
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /not the shared platform Worker/);
+  });
+
+  test('a lookalike host that STARTS with the shared host does not satisfy _phApiBase (CodeQL #11)', () => {
+    const root = tree('demo', {
+      mutate: (t) => t.setConfig("const String _phApiBase = 'https://platform.nikatru.com.evil.test/v1';\n"),
+    });
+    const r = run(root, '--client', 'demo');
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /not the shared platform Worker/);
+  });
+
+  test('the shared host with a path still passes — the brick renders https://platform.nikatru.com/v1', () => {
+    const root = tree('demo', {
+      mutate: (t) => t.setConfig("  static const String _phApiBase = 'https://platform.nikatru.com/v1';\n"),
+    });
+    const r = run(root, '--client', 'demo');
+    assert.equal(r.status, 0, r.stderr);
+  });
+
   test('a missing _phApiBase FAILS rather than being treated as fine', () => {
     const root = tree('demo', { mutate: (t) => t.setConfig('// nothing here\n') });
     const r = run(root, '--client', 'demo');

@@ -743,7 +743,7 @@ if (sitesDirExists) {
         );
         continue;
       }
-      const missing = FUNCTION_SECURITY_HEADERS.filter((h) => !new RegExp(`["']${h}["']\s*:`, 'i').test(code));
+      const missing = FUNCTION_SECURITY_HEADERS.filter((h) => !new RegExp(`["']${h}["']\\s*:`, 'i').test(code));
       if (missing.length) {
         problems.push(
           `${rel} builds a Response without ${missing.join(', ')}. _headers does not apply to Pages ` +

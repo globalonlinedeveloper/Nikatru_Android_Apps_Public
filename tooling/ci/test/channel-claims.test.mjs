@@ -376,6 +376,16 @@ describe('assert-channel-claims — the Apple domain fronts TWO stores (all-of)'
     assert.equal(code, 0, out);
   });
 
+  test('FAILS an apps.apple.com link that only MENTIONS itunes.apple.com in its query, with only ios claimed (CodeQL #54)', () => {
+    // The narrowing to the iOS store is earned by the destination's HOST. This link
+    // is apps.apple.com, which fronts both stores, and no app claims macos.
+    const { code, out } = run(
+      tree({ nikatruBody: '<a href="https://apps.apple.com/app/id6503219871?ct=itunes.apple.com">Get it</a>', platforms: ['web', 'ios'] }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /macos/);
+  });
+
   test('PASSES an mt=12 destination with only macos claimed — the Mac store', () => {
     const { code, out } = run(
       tree({ nikatruBody: '<a href="https://apps.apple.com/app/id6503219871?mt=12">Get it</a>', platforms: ['web', 'macos'] }),
@@ -426,6 +436,20 @@ describe('assert-channel-claims — every exemption is printed, every cue anchor
     const { code, out } = run(tree({ nikatruBody: '<a href="https://apps.apple.com/app/YOUR_APP_ID">iOS</a>' }));
     assert.equal(code, 0, out);
     assert.match(out, /\(cue: YOUR- slot\)/);
+  });
+
+  test('FAILS a Play package id that merely CONTAINS example.com — io.myexample.compass is not a placeholder (CodeQL #53)', () => {
+    const { code, out } = run(
+      tree({ nikatruBody: '<a href="https://play.google.com/store/apps/details?id=io.myexample.compass">Get</a>' }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /REAL, not a placeholder/);
+  });
+
+  test('PASSES an example.com host at a boundary — still scaffolding, still printed', () => {
+    const { code, out } = run(tree({ nikatruBody: '<a href="https://apps.apple.com/app/id6503219871?u=https://example.com/">iOS</a>' }));
+    assert.equal(code, 0, out);
+    assert.match(out, /\(cue: example\.com\)/);
   });
 });
 
