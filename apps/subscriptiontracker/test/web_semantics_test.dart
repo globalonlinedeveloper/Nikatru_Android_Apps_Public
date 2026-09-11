@@ -27,13 +27,10 @@ void main() {
     // the non-web arm would take a handle and the count would move.
     test('does nothing off web', () {
       final int before = binding.debugOutstandingSemanticsHandles;
-      final SemanticsHandle? handle = enableWebSemantics(
-        isWeb: false,
-        binding: binding,
-      );
+      final bool held = enableWebSemantics(isWeb: false, binding: binding);
       expect(
-        handle,
-        isNull,
+        held,
+        isFalse,
         reason:
             'the five desktop/mobile targets get their semantics tree when the '
             'platform asks for it; taking a permanent handle there would keep '
@@ -49,11 +46,7 @@ void main() {
     // `ensureSemantics()` outside a test harness.
     test('takes a semantics handle on web, and semantics become enabled', () {
       final int before = binding.debugOutstandingSemanticsHandles;
-      final SemanticsHandle? handle = enableWebSemantics(
-        isWeb: true,
-        binding: binding,
-      );
-      expect(handle, isNotNull);
+      expect(enableWebSemantics(isWeb: true, binding: binding), isTrue);
       expect(
         binding.debugOutstandingSemanticsHandles,
         before + 1,
@@ -70,11 +63,69 @@ void main() {
             'framework compiles the semantics tree, which on web is what emits '
             'the aria nodes a screen reader reads',
       );
-      // Released so the two limbs do not depend on execution order and the
+      // Released so the limbs do not depend on execution order and the
       // binding is handed back to the rest of the suite as it was found.
-      handle!.dispose();
+      releaseWebSemantics();
       expect(binding.debugOutstandingSemanticsHandles, before);
     });
+
+    // MUTATION: replace `_heldHandle ??=` with `_heldHandle =` and this goes
+    // red at `before + 1` — every boot stacks a handle and the release hands
+    // back only the last. MUTATION: drop `_heldHandle = null;` from the release
+    // and it goes red at the re-acquire — the next boot is handed the disposed
+    // handle and semantics stay off. Run on 2026-09-11, both red.
+    test('ONE handle however often main() boots, and a fresh one after a '
+        'release', () {
+      final int before = binding.debugOutstandingSemanticsHandles;
+      // app_test.dart boots `app.main()` three times in one process.
+      for (int boot = 0; boot < 3; boot++) {
+        expect(enableWebSemantics(isWeb: true, binding: binding), isTrue);
+      }
+      expect(
+        binding.debugOutstandingSemanticsHandles,
+        before + 1,
+        reason: 'three boots hold one handle, not three',
+      );
+      releaseWebSemantics();
+      expect(binding.debugOutstandingSemanticsHandles, before);
+
+      expect(enableWebSemantics(isWeb: true, binding: binding), isTrue);
+      expect(
+        binding.debugOutstandingSemanticsHandles,
+        before + 1,
+        reason:
+            'a boot after a release must hold a live handle again — the next '
+            'test in a harness boots main() again and needs a real tree',
+      );
+      releaseWebSemantics();
+      expect(binding.debugOutstandingSemanticsHandles, before);
+    });
+  });
+
+  // 🔴 THE NIGHTLY FAILURE, ON THE FRAMEWORK'S OWN CHECK, IN THE VM.
+  //
+  // e2e run 34453685391 failed `login rejects empty + invalid credentials` in
+  // flutter_test's `_verifySemanticsHandlesWereDisposed`, which runs after a
+  // `testWidgets` body returns. This body is `main()`'s semantics step booted
+  // the way app_test.dart boots it (three times, web arm forced, because
+  // `kIsWeb` is a compile-time false here), then the harness release. There is
+  // deliberately NO expectation after the release: the assertion is the
+  // framework's, and suppressing it would hide exactly the leak it caught.
+  //
+  // REPRODUCED 2026-09-11 before the fix: the same boot with the handle
+  // discarded, as lib/main.dart did, went red in this runner with
+  // "A SemanticsHandle was active at the end of the test." at
+  // widget_tester.dart:1074:7 — the frame the nightly reported.
+  // MUTATION: make `enableWebSemantics` discard the handle again
+  // (`(binding ?? SemanticsBinding.instance).ensureSemantics(); return true;`)
+  // and this test goes red with that same message.
+  testWidgets('booting main() thrice then releasing leaves no handle active', (
+    WidgetTester tester,
+  ) async {
+    for (int boot = 0; boot < 3; boot++) {
+      expect(enableWebSemantics(isWeb: true, binding: tester.binding), isTrue);
+    }
+    releaseWebSemantics();
   });
 
   // The half a unit test cannot reach. `kIsWeb` is a compile-time `false` under
@@ -129,6 +180,51 @@ void main() {
             'frame built without a handle outstanding carries no tree, and on '
             'web that is what a screen reader arriving at the page reads',
       );
+    });
+
+    // 🔴 THE CLASS, NOT THE INSTANCE. The nightly failure was app_test.dart;
+    // store_screenshots_test.dart boots the same `main()` and would have failed
+    // the same way on its next capture. Every integration harness that imports
+    // the entry point must hand the handle back, and a new one that forgets is
+    // red here in `flutter test` rather than red in a live lane nobody watches.
+    // MUTATION: delete `releaseWebSemantics();` from either harness and this
+    // goes red naming that file. Run on 2026-09-11.
+    test('every integration harness that boots main() releases the handle', () {
+      final Directory dir = Directory('integration_test');
+      expect(
+        dir.existsSync(),
+        isTrue,
+        reason: 'the harness directory moved; this would pass over nothing',
+      );
+      final RegExp importsMain = RegExp(
+        r'''import\s+['"]package:subscriptiontracker/main\.dart['"]''',
+      );
+      final RegExp releases = RegExp(r'\breleaseWebSemantics\s*\(');
+      final List<File> booting = <File>[
+        for (final FileSystemEntity e in dir.listSync(recursive: true))
+          if (e is File &&
+              e.path.endsWith('.dart') &&
+              importsMain.hasMatch(_stripDartComments(e.readAsStringSync())))
+            e,
+      ];
+      expect(
+        booting,
+        isNotEmpty,
+        reason:
+            'no integration harness imports lib/main.dart — the release check '
+            'below would range over nothing and pass',
+      );
+      for (final File f in booting) {
+        expect(
+          releases.hasMatch(_stripDartComments(f.readAsStringSync())),
+          isTrue,
+          reason:
+              '${f.path} boots the app through lib/main.dart, which holds a '
+              'SemanticsHandle on web, and never calls releaseWebSemantics(). '
+              "flutter_test's _verifySemanticsHandlesWereDisposed fails that "
+              'test after its body passes — nightly e2e run 34453685391.',
+        );
+      }
     });
   });
 }
