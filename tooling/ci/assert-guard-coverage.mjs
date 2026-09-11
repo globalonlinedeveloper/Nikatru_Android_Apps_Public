@@ -1008,8 +1008,18 @@ if (hollow.length) {
 // could not do, and what cost three merges in one day.
 // ─────────────────────────────────────────────────────────────────────────────
 let recorded = {};
-if (existsSync(MANIFEST)) {
-  const text = readFileSync(MANIFEST, 'utf8');
+// READ ONCE (CodeQL #78). The manifest's bytes are taken here and the rewrite
+// below compares against them, instead of asking the filesystem again whether the
+// file exists and what it holds. ENOENT/ENOTDIR are the only "absent"; any other
+// failure to read is thrown, exactly as the read inside the old existsSync was.
+let manifestText = null;
+try {
+  manifestText = readFileSync(MANIFEST, 'utf8');
+} catch (e) {
+  if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+}
+if (manifestText !== null) {
+  const text = manifestText;
   try {
     recorded = JSON.parse(text);
   } catch (e) {
@@ -1030,7 +1040,7 @@ if (existsSync(MANIFEST)) {
     'its absence is the floor being removed, which is precisely what must not pass quietly.',
   ]);
 }
-if (scanningRealRepo && Object.keys(recorded).length === 0 && existsSync(MANIFEST)) {
+if (scanningRealRepo && Object.keys(recorded).length === 0 && manifestText !== null) {
   coverageLost([
     `${MANIFEST_REL} is empty.`,
     'An empty ratchet accepts any suite at all, including none — every file below would read as new and',
@@ -1071,7 +1081,7 @@ for (const f of testFiles) {
   next[f] = now;
 }
 const serialised = `${JSON.stringify(Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]])), null, 2)}\n`;
-if (!existsSync(MANIFEST) || readFileSync(MANIFEST, 'utf8') !== serialised) {
+if (manifestText !== serialised) {
   try {
     writeFileSync(MANIFEST, serialised);
     if (ratcheted.length) {
