@@ -105,6 +105,30 @@ if (typeof DECLARED !== 'string' || !DECLARED || typeof DECLARED_ORG !== 'string
   fail([`${DECL_REL} must carry non-empty string \`org\` and \`project\`.`]);
 }
 
+// 🔴 THE TOKEN GOES TO ONE HOST, PINNED HERE — CodeQL #293. `instance` is data in a
+// register any PR can edit, and --live attaches GLITCHTIP_TOKEN to whatever base it
+// resolves; reading the base from the register let an edit to that file decide where
+// the next operator's token was sent. The register may still RECORD the instance, and
+// this checks the record names the pinned host, offline too, so a PR that changes it
+// is red in CI rather than live on someone's laptop. A different instance for one run
+// is an operator's choice made in the environment (GLITCHTIP_URL), never a file edit.
+const GLITCHTIP_HOST = 'glitchtip.nikatru.com';
+if (decl.instance !== undefined) {
+  let host = null;
+  try {
+    const u = new URL(String(decl.instance));
+    host = u.protocol === 'https:' && u.username === '' && u.password === '' ? u.hostname : null;
+  } catch {
+    host = null;
+  }
+  if (host !== GLITCHTIP_HOST) {
+    fail([
+      `${DECL_REL} names instance ${JSON.stringify(decl.instance)}; the GlitchTip token is only ever sent to https://${GLITCHTIP_HOST}.`,
+      'A different instance is an operator choice for one run: set GLITCHTIP_URL. It is not a register edit.',
+    ]);
+  }
+}
+
 if (!existsSync(WORKFLOWS)) {
   console.error(`${NAME}: no workflow directory at ${WORKFLOWS}`);
   process.exit(1);
@@ -208,7 +232,7 @@ if (LIVE) {
     console.error(`${NAME}: --live needs GLITCHTIP_TOKEN in the environment. Refusing to report a pass it did not make.`);
     process.exit(1);
   }
-  const base = (process.env.GLITCHTIP_URL ?? decl.instance ?? 'https://glitchtip.nikatru.com').replace(/\/+$/, '');
+  const base = (process.env.GLITCHTIP_URL ?? `https://${GLITCHTIP_HOST}`).replace(/\/+$/, '');
   const url = `${base}/api/0/projects/${DECLARED_ORG}/${DECLARED}/`;
   let res;
   try {
