@@ -22,6 +22,13 @@ dependencies:
   # pack could ever load. A seam kept clean by having no implementation is not
   # portability, it is a dead capability.
   cryptography: ^2.9.0
+  # MoneyFormatter (src/money/money_format.dart) renders Money through
+  # `NumberFormat`, so core declares `intl` (2026-09-11). Pure Dart: rule A of
+  # assert-package-boundaries holds, and limb C skips core for intl by name.
+  # The constraint is the one packages/design_system and apps/subscriptiontracker
+  # already carry, COPIED: flutter_localizations hard-pins intl, so a tighter
+  # range would fail workspace resolution and a looser one would let them drift.
+  intl: ">=0.19.0 <0.21.0"
 
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.
