@@ -8,6 +8,7 @@ import 'package:nikatru_notifications/nikatru_notifications.dart';
 import 'package:nikatru_purchases/nikatru_purchases.dart';
 
 import '../../core/app_config.dart';
+import '../../core/format/money_format.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/money_providers.dart';
 import '../../state/providers.dart';
@@ -236,23 +237,31 @@ class WelcomePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppThemeX tokens = Theme.of(context).extension<AppThemeX>()!;
     final ChassisLocalizations l10n = context.chassisL10n;
+    // 🔴 SCROLLS ONLY WHEN SQUEEZED. This body sits in `Expanded` under the
+    // catch-up banner and the promo card; on a build that can sell, the card
+    // carries its buy button, and on a short window the fixed Column below
+    // overflowed (measured: 46 px on the default test surface). Centred when
+    // there is room, scrollable when there is not.
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              gradient: tokens.brandGradient,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: tokens.brandGradient,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(l10n.welcomeTo(AppConfig.appName), style: AppText.title),
-          const SizedBox(height: AppSpacing.xs),
-          Text(l10n.homeTagline, style: AppText.muted),
-        ],
+            const SizedBox(height: AppSpacing.lg),
+            Text(l10n.welcomeTo(AppConfig.appName), style: AppText.title),
+            const SizedBox(height: AppSpacing.xs),
+            Text(l10n.homeTagline, style: AppText.muted),
+          ],
+        ),
       ),
     );
   }
@@ -499,7 +508,15 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
             // DO-NOT-BUILD list opens with the empty portfolio directory:
             // "wired, guarded, green and useless". A card with no price to
             // quote is that shape one size down.
-            hasContent: offerings.isNotEmpty,
+            //
+            // 🔴 NOTHING TO PROMOTE WHERE THIS BUILD CANNOT SELL.
+            // A price for digital content the build cannot sell
+            // in-app is steering (App Store 3.1.1/3.1.3(b),
+            // Google Play payments policy): where the rail
+            // refuses, the card shows nothing, not a price with
+            // its button removed. Cancelling stays reachable
+            // from Settings.
+            hasContent: offerings.isNotEmpty && rail.canStartCheckout,
           );
       if (!decision.show) return const SizedBox.shrink();
       _showing = true;
@@ -515,7 +532,9 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
     // Belt and braces after the latch: a config that loses its offerings mid
     // session leaves nothing to quote, and `offerings.first` on an empty list
     // is a crash on the home screen.
-    if (offerings.isEmpty) return const SizedBox.shrink();
+    if (offerings.isEmpty || !rail.canStartCheckout) {
+      return const SizedBox.shrink();
+    }
     // The rail's OWN order, the same order the paywall lists them in. Picking
     // "the cheapest" would need a currency comparison this repo cannot make —
     // amounts are minor units of whatever currency the rail sent.
@@ -570,8 +589,10 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
         // DERIVED from the rail's own amount and currency. Absolute, always: no
         // percentage, no "was", no countdown — see the class doc and
         // research/44 V6.
+        // 🔴 THROUGH `MoneyFormatter` UNDER THE READER'S LOCALE —
+        // `offering.formattedPrice` has no grouping at all.
         priceLabel: l10n.promoCardPrice(
-          offering.formattedPrice,
+          MoneyFormatter(l10n.localeName).format(offering.price),
           offering.term.wire,
         ),
         primaryActionLabel: canSell ? l10n.paywallUpgrade : null,
