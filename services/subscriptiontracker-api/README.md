@@ -36,7 +36,7 @@ all six Flutter targets. Auth is **Supabase** — the Worker verifies Supabase J
 | GET | `/v1/renewals?withinDays=7` | Supabase JWT | Upcoming renewals + `days_left` |
 | GET | `/v1/budget` | Supabase JWT | Monthly budget + category caps |
 | PUT | `/v1/budget` | Supabase JWT | Upsert budget + caps |
-| GET | `/v1/entitlements` | Supabase JWT | `is_pro` + entitlements for this app |
+| GET | `/v1/entitlements` | Supabase JWT | `is_pro` + `granted_via` + entitlements (+ `bundle` when a live grant exists) for this app — THE ONE reader, `services/_shared/src/entitlement-read.ts`, byte-identical to the shared host's answer |
 | DELETE | `/v1/account` | **ES256/JWKS only** | Erase this user from every user-owned table in `subly_db` |
 
 ### ⚠️ `GET /v1/renewals` and `GET /v1/entitlements` are SERVED AND UNCONSUMED
@@ -73,6 +73,20 @@ never on `api.nikatru.com`. `PaywallGate`, `manage_plan_screen.dart:90` and
 `refreshEntitlements()` all watch THAT provider. The two Workers expose the same
 path and answer the same question; only the platform one is wired, because
 `platform_db.entitlements` is shared portfolio-wide and lives behind that Worker.
+
+⏱ **2026-09-10 — "answer the same question" was not "give the same answer", and now it is.**
+Until today this Worker's route carried its OWN `SELECT … FROM entitlements` with no
+bundle branch, so a customer holding a live bundle grant and no per-app row was
+`is_pro: false` here and `is_pro: true, granted_via: 'bundle'` on the shared host — an
+unconsumed route, but one wiring change (`SubscriptionRepository.entitlements()`) from a
+consumed one. Both Workers now mount THE ONE reader, `services/_shared/src/entitlement-read.ts`
+([ADR 057] §5); `test/one-entitlement-reader.test.ts` here and its twin in `services/platform`
+seed the same rows and assert the same expected bytes (`services/_shared/test/entitlement-parity.ts`),
+each against its own route, and `tooling/ci/assert-one-entitlement-reader.mjs`
+refuses a second reader. The envelope here gained `granted_via` and (only with a live grant)
+`bundle`, each row gained `provider`, `provider_status`, `current_period_end`, `trial_end`
+and `revocation_reason`, and `provider_environment` left the wire (the deny reason is logged
+against the request id instead — the shared host never sent it).
 
 *(⚠️ CORRECTED 2026-08-17, same day it was written. This section first covered
 `/v1/renewals` alone and claimed every other row in the table "either has a named
