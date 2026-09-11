@@ -111,6 +111,12 @@ class _MemStore implements core.KeyValueStore {
 class _FakeNotifications implements core.NotificationService {
   int initCalls = 0;
   int cancelAllCalls = 0;
+
+  /// Every id passed to [cancel], in order. The chassis controller now cancels
+  /// ONLY the id it owns (`kDailyReminderId`) — the app's renewal reminders
+  /// share the plugin singleton, and `cancelAll()` on "reminders off" wiped
+  /// them (see reminder_ownership_test.dart).
+  final List<int> cancelledIds = <int>[];
   bool permission = true;
   final List<core.DailyReminder> scheduled = <core.DailyReminder>[];
 
@@ -148,8 +154,10 @@ class _FakeNotifications implements core.NotificationService {
   }
 
   @override
-  Future<void> cancel(int id) async =>
-      scheduled.removeWhere((core.DailyReminder r) => r.id == id);
+  Future<void> cancel(int id) async {
+    cancelledIds.add(id);
+    scheduled.removeWhere((core.DailyReminder r) => r.id == id);
+  }
 
   @override
   // 🔴 IT REALLY DROPS THEM. Counting the call and leaving the list populated is
@@ -2654,7 +2662,12 @@ void main() {
       await controller.applyReminderChoice(on: true, title: 'T', body: 'B');
       await controller.applyReminderChoice(on: false, title: 'T', body: 'B');
 
-      expect(notes.cancelAllCalls, 1);
+      // 🔴 THE ONE ID THIS CONTROLLER OWNS, NEVER `cancelAll()`: the app's
+      // renewal reminders live on the same plugin singleton, and a wipe here
+      // took every one of them with the daily reminder.
+      expect(notes.cancelledIds, contains(kDailyReminderId));
+      expect(notes.cancelAllCalls, 0);
+      expect(notes.scheduled, isEmpty);
       expect(c.read(remindersEnabledProvider), isFalse);
     });
 
@@ -2709,11 +2722,16 @@ void main() {
       await controller.set(false);
 
       expect(
-        notes.cancelAllCalls,
-        greaterThan(0),
+        notes.cancelledIds,
+        contains(kDailyReminderId),
         reason:
             'a second writer of the intent must reach the OS; before this it '
             'did not, and the schedule outlived the switch',
+      );
+      expect(
+        notes.cancelAllCalls,
+        0,
+        reason: 'OFF cancels what this controller owns, not the renewal set',
       );
       expect(
         notes.scheduled,
@@ -2769,7 +2787,8 @@ void main() {
           .read(remindersEnabledProvider.notifier)
           .resyncOnStart(title: 'T', body: 'B');
 
-      expect(notes.cancelAllCalls, greaterThan(0));
+      expect(notes.cancelledIds, contains(kDailyReminderId));
+      expect(notes.cancelAllCalls, 0);
       expect(notes.scheduled, isEmpty);
     });
 
@@ -2795,6 +2814,13 @@ void main() {
         reason:
             'a transient disk error is not an instruction to disable the '
             'feature; cancelling here would silently turn reminders off',
+      );
+      // The controller no longer reaches `cancelAll` at all, so the line above
+      // alone could not fail. This one can.
+      expect(
+        notes.cancelledIds,
+        isEmpty,
+        reason: 'an unreadable store must cancel NOTHING, not even its own id',
       );
       expect(notes.scheduled, isEmpty);
     });

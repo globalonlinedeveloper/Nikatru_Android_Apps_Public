@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show PlatformDispatcher;
+import 'package:flutter/foundation.dart'
+    show PlatformDispatcher, visibleForTesting;
 import 'package:flutter/widgets.dart' show Locale, basicLocaleListResolution;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' show DateFormat;
@@ -144,8 +145,17 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     // — until the list next happened to change. This is the trigger edge of
     // the "which toggle causes which action" wiring: registered BEFORE the
     // first await, so a settings hydration landing mid-load is never missed.
+    //
+    // 🔴 AND ONLY WHEN A LIST HAS BEEN OBSERVED. This was
+    // `state.valueOrNull ?? const []`: a settings change while the first
+    // fetch was still loading, or after it had failed, called
+    // `syncAll(const [])` — which cancelled every renewal reminder and
+    // scheduled none, on a device that still had every subscription. "Not
+    // loaded" is not "no subscriptions"; the resync waits for the list, and
+    // `build()` runs it the moment the list arrives anyway.
     ref.listen<SettingsState>(settingsControllerProvider, (_, __) {
-      _syncReminders(state.valueOrNull ?? const <Subscription>[]);
+      final List<Subscription>? observed = observedList;
+      if (observed != null) _syncReminders(observed);
     });
 
     // The same trigger edge for the LANGUAGE. Since P4 the reminder text is
@@ -157,14 +167,28 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     // is untouched — this changes only WHEN a re-sync runs, never what
     // [ReminderPlan] decides.
     ref.listen<Locale?>(localeProvider, (_, _) {
-      _syncReminders(state.valueOrNull ?? const <Subscription>[]);
+      final List<Subscription>? observed = observedList;
+      if (observed != null) _syncReminders(observed);
     });
 
     final List<Subscription> subs = await ref
         .watch(subscriptionRepositoryProvider)
         .fetchAll();
-    _syncReminders(subs);
+    await _syncReminders(subs);
     return subs;
+  }
+
+  /// The list this controller has actually SEEN — or null while it is still
+  /// loading or after a load failed.
+  ///
+  /// `hasValue && !hasError`: Riverpod keeps the previous data on an
+  /// AsyncError, so `valueOrNull` alone would treat a stale list behind a
+  /// failed refresh as a current observation. Every reminder sync and every
+  /// list-derived write keys off this, never off `valueOrNull ?? const []`.
+  @visibleForTesting
+  List<Subscription>? get observedList {
+    final AsyncValue<List<Subscription>> s = state;
+    return s.hasValue && !s.hasError ? s.requireValue : null;
   }
 
   Future<void> addSubscription(Subscription draft) async {
@@ -181,17 +205,14 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     // `hasValue && !hasError`: Riverpod keeps the previous data on an AsyncError,
     // so `valueOrNull` alone would treat a stale list behind a failed refresh as
     // a current observation.
-    final AsyncValue<List<Subscription>> prior = state;
-    final List<Subscription>? before = prior.hasValue && !prior.hasError
-        ? prior.requireValue
-        : null;
+    final List<Subscription>? before = observedList;
 
     final Subscription created = await ref
         .read(subscriptionRepositoryProvider)
         .add(draft);
     final List<Subscription> list = <Subscription>[...?before, created];
     state = AsyncData<List<Subscription>>(list);
-    _syncReminders(list);
+    await _syncReminders(list);
 
     // G-12 ACTIVATION. Subly's "aha" is the FIRST subscription added — the
     // single strongest predictor of retention and of paying. Fired only on a
@@ -231,15 +252,42 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
 
   Future<void> cancelSubscription(String id) async {
     await ref.read(subscriptionRepositoryProvider).cancel(id);
-    final List<Subscription> list =
-        (state.valueOrNull ?? const <Subscription>[])
-            .where((Subscription s) => s.id != id)
-            .toList();
+    // 🔴 SAME RULE AS THE LISTENERS: a cancel with no observed list is not
+    // "the list is now empty". The server has the cancel; the list is
+    // re-fetched rather than invented, and the resync runs from `build()`.
+    final List<Subscription>? before = observedList;
+    if (before == null) {
+      ref.invalidateSelf();
+      return;
+    }
+    final List<Subscription> list = before
+        .where((Subscription s) => s.id != id)
+        .toList();
     state = AsyncData<List<Subscription>>(list);
-    _syncReminders(list);
+    await _syncReminders(list);
   }
 
-  void _syncReminders(List<Subscription> subs) {
+  /// Keep the OS reminder set in step with [subs] — AWAITED, and never a
+  /// throw.
+  ///
+  /// 🔴 THIS WAS FIRE-AND-FORGET, and on Windows and Linux the plugin threw
+  /// `UnimplementedError` out of `zonedSchedule` on every list load — an
+  /// uncaught async error nothing rendered. The service is now gated on the
+  /// capability matrix so that throw cannot happen, and this method is
+  /// awaited and guarded regardless: a platform channel failing must cost
+  /// the reminder sync, never the list, and it must be VISIBLE —
+  /// [reminderSyncFailureProvider] carries the last failure for the settings
+  /// screen and for tests.
+  Future<void> _syncReminders(List<Subscription> subs) async {
+    try {
+      await _syncRemindersOrThrow(subs);
+      ref.read(reminderSyncFailureProvider.notifier).state = null;
+    } on Object catch (e) {
+      ref.read(reminderSyncFailureProvider.notifier).state = e;
+    }
+  }
+
+  Future<void> _syncRemindersOrThrow(List<Subscription> subs) async {
     final SettingsState settings = ref.read(settingsControllerProvider);
     final NotificationService notifier = ref.read(
       subscriptiontrackerNotificationServiceProvider,
@@ -250,17 +298,21 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
     final Locale? chosenLocale = ref.read(localeProvider);
     final ReminderCopy copy = reminderCopyFor(chosenLocale);
 
-    // Fire-and-forget; NotificationService is a no-op on web.
+    // AWAITED (see [_syncReminders]); NotificationService is a no-op wherever
+    // the capability matrix says it cannot schedule (web, Windows, Linux).
     //
-    // ORDER MATTERS: syncAll() begins with cancelAll(), which would take the
-    // weekly digest with it. The digest is therefore (re)scheduled AFTER, never
-    // before. Getting this backwards would leave the toggle on while the
-    // notification silently never fired -- the exact shape of bug this wiring
-    // exists to remove.
+    // ORDER: renewals first, digest second. This ordering USED to be
+    // load-bearing — syncAll() began with cancelAll(), which took the weekly
+    // digest with it — and it is kept although syncAll() now cancels only
+    // the renewal namespace, so a future widening of that namespace cannot
+    // silently swallow the digest again.
     if (plan.syncRenewals) {
-      notifier.syncAll(subs, copy: copy);
+      await notifier.syncAll(subs, copy: copy);
     } else {
-      notifier.cancelAll();
+      // 🔴 OWNED IDS ONLY. `cancelAll()` here wiped the chassis daily
+      // reminder (id 1) every time "Renewal alerts" went off — the two
+      // services share one plugin singleton. Each cancels what it owns.
+      await notifier.cancelOwnedRenewals();
     }
 
     if (plan.weeklyDigest) {
@@ -272,16 +324,24 @@ class SubscriptionsController extends AsyncNotifier<List<Subscription>> {
         resolvedLocaleName(chosenLocale),
         emptyCurrencyCode: newRowCurrencyCode,
       );
-      notifier.scheduleWeeklyDigest(
+      await notifier.scheduleWeeklyDigest(
         copy: copy,
         count: subs.length,
         formattedTotal: money.formatBag(SubMath.totalMonthly(subs)),
       );
     } else {
-      notifier.cancelWeeklyDigest();
+      await notifier.cancelWeeklyDigest();
     }
   }
 }
+
+/// The most recent failure of a reminder sync, or null after a clean one.
+///
+/// Exists so a failed sync is a STATE the UI can show rather than an
+/// uncaught async error on the console. Written only by
+/// [SubscriptionsController].
+final StateProvider<Object?> reminderSyncFailureProvider =
+    StateProvider<Object?>((_) => null);
 
 final AsyncNotifierProvider<SubscriptionsController, List<Subscription>>
 subscriptionsControllerProvider =

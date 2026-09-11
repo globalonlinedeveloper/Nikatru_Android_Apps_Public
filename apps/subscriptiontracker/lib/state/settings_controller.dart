@@ -14,7 +14,7 @@ const String kSettingsKey = 'nikatru.settings';
 
 class SettingsState {
   const SettingsState({
-    this.currencySymbol = r'$',
+    this.currencyCode = core.Money.fallbackCurrencyCode,
     this.prefs = const <String, bool>{
       'alerts': true,
       'priceHike': true,
@@ -23,46 +23,60 @@ class SettingsState {
     },
   });
 
-  /// What the picker in Settings writes: one of four glyphs.
-  final String currencySymbol;
+  /// The user's currency as an ISO 4217 code — the unit a NEW subscription is
+  /// entered in, and the unit a stored figure that never carried a currency
+  /// (a pre-migration row, a bare budget) is read under.
+  ///
+  /// 🔴 A CODE, NOT A GLYPH, AND ANY CODE IN THE MONEY TABLE. This was
+  /// `currencySymbol`: one of four literal glyphs (`$ € £ ₹`) mapped back by a
+  /// four-entry map, so a user in yen, Australian or Canadian dollars could not
+  /// choose their currency at all — and `$` itself is written by three of them.
+  /// The chooser now lists `core.Money.symbols`, the ONE table every formatter
+  /// reads, and what is stored is the code the user picked.
+  final String currencyCode;
 
   final Map<String, bool> prefs;
 
-  /// The chosen currency as an ISO 4217 code — the unit a NEW subscription is
-  /// entered in, and the unit a stored figure that never carried a currency
-  /// (the budget, a pre-migration row) is read under.
-  ///
-  /// 🔴 THE PICKER STORES A GLYPH, AND THIS IS THE BOUNDED MAP BACK. A symbol
-  /// is not a currency in general — a bare dollar sign is written by the US,
-  /// Australia and Canada among others — so a reverse lookup would be a guess
-  /// on an open set. It is not an open set here: `settings_screen.dart` offers
-  /// EXACTLY these four chips, so the mapping is a statement of what this app's
-  /// dollar chip MEANS, not an inference from the glyph. A symbol that is not
-  /// one of the four (an older or corrupted store) falls back rather than
-  /// picking a currency nobody chose.
-  ///
-  /// ⚠️ Adding a fifth chip means adding a row here. Anything else silently
-  /// spends the new chip's money in dollars.
-  String get currencyCode => codeForSymbol(currencySymbol);
+  /// Whether [code] is a currency the chooser offers — a row of the money
+  /// table, and nothing else.
+  static bool isChoosable(String code) => core.Money.symbols.containsKey(code);
 
-  static const Map<String, String> _codeBySymbol = <String, String>{
+  /// 🪦 THE OLD STORE SHAPE, READ ONCE AND NEVER WRITTEN. Installs that saved
+  /// settings before the chooser stored a code hold `currencySymbol` with one
+  /// of these four glyphs, and each meant exactly this code — it was a
+  /// statement of what those four chips meant, not an inference from a glyph.
+  /// Anything else in that key falls back rather than guessing.
+  static const Map<String, String> _legacyCodeBySymbol = <String, String>{
     r'$': 'USD',
     '€': 'EUR',
     '£': 'GBP',
     '₹': 'INR',
   };
 
-  static String codeForSymbol(String symbol) =>
-      _codeBySymbol[symbol] ?? core.Money.fallbackCurrencyCode;
+  /// The stored currency: the code when it is a table row, else the legacy
+  /// glyph mapped once, else [fallback].
+  static String _currencyFrom(
+    Map<String, Object?> json, {
+    required String fallback,
+  }) {
+    final Object? code = json['currencyCode'];
+    if (code is String && isChoosable(code)) return code;
+    final Object? legacy = json['currencySymbol'];
+    if (legacy is String) {
+      final String? mapped = _legacyCodeBySymbol[legacy];
+      if (mapped != null) return mapped;
+    }
+    return fallback;
+  }
 
-  SettingsState copyWith({String? currencySymbol, Map<String, bool>? prefs}) =>
+  SettingsState copyWith({String? currencyCode, Map<String, bool>? prefs}) =>
       SettingsState(
-        currencySymbol: currencySymbol ?? this.currencySymbol,
+        currencyCode: currencyCode ?? this.currencyCode,
         prefs: prefs ?? this.prefs,
       );
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'currencySymbol': currencySymbol,
+    'currencyCode': currencyCode,
     'prefs': prefs,
   };
 
@@ -72,12 +86,9 @@ class SettingsState {
   /// rule ReminderPlan.from enforces. Non-bool junk is dropped, not trusted.
   factory SettingsState.fromJson(Map<String, Object?> json) {
     const SettingsState defaults = SettingsState();
-    final Object? symbol = json['currencySymbol'];
     final Object? prefs = json['prefs'];
     return SettingsState(
-      currencySymbol: symbol is String && symbol.isNotEmpty
-          ? symbol
-          : defaults.currencySymbol,
+      currencyCode: _currencyFrom(json, fallback: defaults.currencyCode),
       prefs: <String, bool>{
         ...defaults.prefs,
         if (prefs is Map<String, Object?>)
@@ -136,9 +147,18 @@ class SettingsController extends Notifier<SettingsState> {
     }
   }
 
-  Future<void> setCurrency(String symbol) {
+  /// Choose the user's currency by ISO 4217 [code].
+  ///
+  /// A code that is not a row of the money table is REFUSED with an
+  /// [ArgumentError], never stored: the chooser cannot offer one, so reaching
+  /// here with one is a bug in a caller, and storing it would label every new
+  /// subscription in a currency no formatter knows.
+  Future<void> setCurrency(String code) {
+    if (!SettingsState.isChoosable(code)) {
+      throw ArgumentError.value(code, 'code', 'not a currency the app offers');
+    }
     _touched = true;
-    state = state.copyWith(currencySymbol: symbol);
+    state = state.copyWith(currencyCode: code);
     return _persist();
   }
 

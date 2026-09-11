@@ -94,6 +94,9 @@ void main() {
             throw PlatformException(code: 'some_other_failure');
           }
           switch (call.method) {
+            case 'pendingNotificationRequests':
+              // `syncAll` reads the pending list to cancel only its own ids.
+              return <Map<String, Object?>>[];
             case 'canScheduleExactNotifications':
               return exactPermitted;
             case 'requestExactAlarmsPermission':
