@@ -37,10 +37,10 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-stamp-text-fidelity.mjs');
@@ -197,6 +197,28 @@ describe('assert-stamp-text-fidelity', () => {
     const r = run(tree());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /ships the spec's text/);
+  });
+
+  test('every scanned file is opened ONCE — the size cap and the bytes come from one descriptor (CodeQL #83)', () => {
+    // The pre-fix shape: statSync(p) for the 512 KB cap, then readFileSync(p) — two
+    // looks at one path. The spy records checks and uses of every path under the stamp.
+    const t = tree();
+    const out = join(TMP, `fs-spy-stf-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    const spy = pathToFileURL(join(CI_DIR, 'test', 'fixtures', 'fs-spy-preload.mjs')).href;
+    const r = spawnSync(process.execPath, ['--import', spy, GUARD, '--vars', t.varsFile], {
+      cwd: t.root,
+      encoding: 'utf8',
+      env: { ...process.env, FS_SPY_OUT: out, FS_SPY_UNDER: t.root },
+    });
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    const verdict = JSON.parse(readFileSync(out, 'utf8'));
+    const scanned = verdict.uses.filter((p) => p.includes('/apps/'));
+    assert.ok(scanned.length >= 20, `COVERAGE LOST — the spy saw ${scanned.length} scanned file(s) under apps/`);
+    // sameFunction: the #83 shape is the scan's OWN look then read. Other limbs of this guard
+    // read some of the same files by path after the scan has opened them; those pairs are
+    // not one decision acted on twice, so they are excluded here.
+    const racy = verdict.flagged.filter((x) => x.path.includes('/apps/') && x.sameFunction);
+    assert.deepEqual(racy.slice(0, 5), [], `${racy.length} scanned file(s) were looked at, then read by path`);
   });
 
   test('a faithful backend stamp passes, including its derived ALLOWED_ORIGINS', () => {
