@@ -35,7 +35,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 
 import { DECLARED_GATES, publishPreconditionProblems } from '../content_pipeline/src/gates.mjs';

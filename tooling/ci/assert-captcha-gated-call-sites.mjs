@@ -100,7 +100,7 @@
 // that do not exist, which is why the reduction is mandatory and not tidy.
 // ─────────────────────────────────────────────────────────────────────────────
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

@@ -508,7 +508,6 @@ if (mechanical === 0) {
 }
 
 // ═════ 2 · THE PER-APP RECORD (N-2) ══════════════════════════════════════════
-const today = new Date().toISOString().slice(0, 10);
 /**
  * 🔴 A BARE CALENDAR DATE CARRIES NO TIMEZONE, AND THIS GUARD COMPARES THREE OF
  * THEM ON DIFFERENT CLOCKS.
