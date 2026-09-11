@@ -2354,7 +2354,16 @@ export function readScheduledTaskProbe(names, spawned = {}) {
  *  ═══════════════════════════════════════════════════════════════════════════ */
 function probeWindowsTasks(names) {
   if (process.platform !== 'win32') return readScheduledTaskProbe(names, { platform: process.platform });
-  const list = names.map((n) => `'${String(n).replace(/'/g, "''")}'`).join(',');
+  // ⚠️ NO REGEX INSIDE A TEMPLATE SUBSTITUTION HERE, and the reason is another
+  // guard's reading of this file. text-reductions.mjs walks a `${…}` as code but
+  // does not recognise a regex literal inside one, so the `'` in a quote-matching
+  // regex opened a phantom string there, and ~80 comment lines below this function
+  // survived comment-stripping as "code". On 2026-09-11 that window came to
+  // cover a comment naming ONE workflow file, and assert-release-lane-generic.mjs
+  // reported this guard as bound to that lane. Doubling quotes by split/join is
+  // the same PowerShell escaping with no regex for a tokenizer to misread.
+  const psQuote = (n) => "'" + String(n).split("'").join("''") + "'";
+  const list = names.map(psQuote).join(',');
   const ps = [
     "$ErrorActionPreference='Stop'",
     `$names = @(${list})`,
