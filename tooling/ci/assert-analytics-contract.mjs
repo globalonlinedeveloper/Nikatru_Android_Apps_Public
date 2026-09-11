@@ -983,7 +983,9 @@ function expressionAt(src, from) {
   return src.slice(from);
 }
 
-const reName = (name) => name.replace(/\$/g, '\\$');
+/** A name, escaped for use inside a RegExp — every metacharacter, backslash
+ *  included (CodeQL js/incomplete-sanitization #304 on the `$`-only first version). */
+const reName = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** The initializer of the LAST `const|let|var <name> =` that begins before `pos`. */
 function bindingBefore(src, name, pos) {

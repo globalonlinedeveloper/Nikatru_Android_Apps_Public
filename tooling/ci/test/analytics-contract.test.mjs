@@ -670,6 +670,28 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     assert.match(r.out, /item 10 sent \/ 5 read \(item literal in services\/_shared\/src\/money\/reader\.ts\)/);
   });
 
+  // ⏱ 2026-09-11 · CodeQL js/incomplete-sanitization #304. The name the guard
+  // follows through an import is the text before `as`, spliced into a RegExp.
+  // `readProduct` BACKSLASH `u0045ntitlement$` is a LEGAL identifier (a unicode
+  // escape for E) carrying a backslash and the metacharacter `$`. The first
+  // escape handled `$` only, so the backslash stayed live and the sequence
+  // matched the letter E instead of its own six characters: the declaration was
+  // never found and a correct tree went exit 2. The backslash is built with
+  // String.fromCharCode(92) so no editor or shell can quietly decode it. Mutation-proven:
+  // restoring `name.replace(/\$/g, '\\$')` turns this case red. (The `\u{…}`
+  // spelling is not used: the import-list parse reads `{…}` up to the first `}`.)
+  test('a followed name carrying a backslash and metacharacters is matched LITERALLY — the escape covers `\\` too', () => {
+    const escaped = `readProduct${String.fromCharCode(92)}u0045ntitlement$`;
+    const r = run(makeRepo((f) => {
+      const renamed = mutate(f, 'services/_shared/src/entitlement-read.ts',
+        'export async function readProductEntitlement(', `export async function ${escaped}(`);
+      return mutate(renamed, 'services/platform/src/routes/entitlements.ts',
+        '  readProductEntitlement,\n', `  ${escaped} as readProductEntitlement,\n`);
+    }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /item 10 sent \/ 5 read \(item literal in services\/_shared\/src\/entitlement-read\.ts\)/);
+  });
+
   test('a renamed item key is still caught THROUGH the chain — the derivation compares, it does not just find', () => {
     const r = run(makeRepo((f) => mutate(f, 'services/_shared/src/entitlement-read.ts',
       'product_id: r.product_id,', 'productId: r.product_id,')));
