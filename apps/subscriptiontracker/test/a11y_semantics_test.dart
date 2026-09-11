@@ -1182,8 +1182,9 @@ String expectedRingLabel(ProviderContainer c, AppLocalizations l10n) {
   // Mirrors the screen exactly: the PRINTED figure is every subtotal, the
   // MEASURED one is only the part in the budget's own currency.
   final MoneyBag spent = SubMath.totalMonthly(subs);
-  final Money spentHere = spent.inCurrency(currencyCode);
-  final Money budgetVal = budget!.inCurrency(currencyCode).monthlyBudget;
+  final BudgetInfo shown = budget!.inCurrency(currencyCode);
+  final Money spentHere = shown.usageOf(spent).spentHere;
+  final Money budgetVal = shown.monthlyBudget;
   final bool over = spentHere > budgetVal;
   final String percent = NumberFormat.percentPattern(l10n.localeName).format(
     budgetVal.minorUnits <= 0
@@ -2242,9 +2243,15 @@ void main() {
       '[en] the DPDP withdrawal row announces its STATE, not just its name',
       (WidgetTester tester) async {
         await semantically(tester, () async {
+          // TALL, because Settings is a lazy `ListView`: when the currency
+          // chooser grew from four glyphs to one chip per money-table row
+          // (wrapping to a second line), the Privacy section fell below a
+          // phone's fold and was never BUILT — "not found" would then say
+          // nothing about the row. The width is still a phone's.
           final ProviderContainer c = await pumpScreen(
             tester,
             const SettingsScreen(),
+            size: const Size(375, 2400),
           );
           final AppLocalizations l10n = await _load('en');
           final Iterable<SemanticsData> row = _nodes(tester)
@@ -2311,13 +2318,13 @@ void main() {
             .map((SemanticsNode n) => n.getSemanticsData())
             .where(
               (SemanticsData d) =>
-                  const <String>[r'$', '€', '£', '₹'].contains(d.label) &&
+                  core.Money.symbols.containsKey(d.label) &&
                   d.announcesSelectedState,
             )
             .toList();
         expect(
           chips,
-          hasLength(4),
+          hasLength(core.Money.symbols.length),
           reason:
               'the four currency chips are hand-rolled GestureDetectors and '
               'the ONLY thing that said which one is on was the gradient. '

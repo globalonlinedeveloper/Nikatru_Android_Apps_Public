@@ -57,6 +57,12 @@
 //   node tooling/ci/record-deployment.mjs <environment> [url] \
 //        --state pending_manual_publish            # submittable:false store rows
 //   env:  GH_TOKEN (or GITHUB_TOKEN), GITHUB_REPOSITORY, GITHUB_SHA
+//         GITHUB_API_URL — the real origin or loopback only (a test seam; see githubApiBase)
+// Exit 0 = recorded.
+//      1 = refused or failed: a bad record shape, a missing precondition, or a REAL
+//          answer from GitHub (401, a 403 with no rate-limit signal, a 422 …).
+//      2 = the DEPLOY SUCCEEDED and the record was NOT written, because GitHub's
+//          rate limit outlasted the bound (THE BOUND, below). Red on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 import { appendFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -127,15 +133,214 @@ export function isRetryable({ status = null, networkError = false }) {
  *  already been answered twice. */
 export const retryDelayMs = (attempt) => 500 * 2 ** (attempt - 1);
 
+// ── ⏱ APPENDED 2026-09-11 — A RATE LIMIT IS "COULD NOT ASK", NOT "REFUSED" ──
+// The ⚠️ paragraph above is left exactly as written: it named the change it was
+// waiting for — honour the wait GitHub states, with a source — and this is it.
+//
+// 🔴 RUN 34570837376 (deploy-web on main, 68589a95). The gate passed, `wrangler
+// pages deploy` succeeded (Cloudflare holds a production deployment at that
+// SHA), the post-deploy smoke passed, and then this script printed
+//   ✗ could not record the deployment: POST deployments → 403 {
+//     "message": "API rate limit exceeded for installation. …"
+// Several agents' concurrent CI had drained the shared GitHub App installation
+// quota. The 403 went down the "a 4xx is a REAL ANSWER" branch, so a SUCCESSFUL
+// deploy read as a failed one, and the record for that SHA is missing — which
+// the provenance and freshness readers depend on. A rate-limit refusal says
+// nothing about the request; it says the question could not be asked yet.
+// Filing it as "refused" is the mirror image of filing "I could not look" as
+// "I looked and it was fine".
+//
+// THE SOURCE — GitHub REST docs, "Rate limits for the REST API", read 2026-09-11:
+//   https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+//   · a PRIMARY limit answers 403 or 429 with `x-ratelimit-remaining: 0`
+//     (headers: x-ratelimit-limit, -remaining, -used, -reset, -resource);
+//   · a SECONDARY limit answers 403 or 429 with an error message saying a
+//     secondary rate limit was exceeded;
+//   · the wait, in the docs' own order: when `retry-after` is present, not
+//     before that many seconds; else when `x-ratelimit-remaining` is 0, not
+//     before `x-ratelimit-reset` (UTC epoch seconds); otherwise at least one
+//     minute, growing exponentially while a secondary limit keeps refusing.
+// Nothing below invents a wait. The one number chosen here is the BOUND.
+//
+// WHAT COUNTS AS A RATE LIMIT — a signal, never a bare 403:
+//   · 403/429 carrying `retry-after`                        → wait that long
+//   · 403/429 carrying `x-ratelimit-remaining: 0`           → wait for the reset
+//   · 403/429 whose message says "secondary rate limit"     → 1 min, doubling
+//   · 403/429 whose message says "API rate limit exceeded"  → 1 min (the primary
+//     refusal's own words, for a response that lost its headers)
+//   · a bare 429 — RFC 6585 §4 defines the status itself as too many requests,
+//     so it is a rate limit that names no wait               → 1 min
+// A 401, and a 403 with none of those ("Resource not accessible by
+// integration"), is still a REAL ANSWER and fails on the first response.
+//
+// THE BOUND — RATE_LIMIT_BUDGET_MS, 10 minutes, measured against the jobs that
+// run this script (`timeout-minutes`, and job durations read from the Actions
+// API on 2026-09-11):
+//   · TIGHTEST: deploy-workers.yml `platform` / `subscriptiontracker-api`,
+//     timeout-minutes: 15. "Deploy platform" took 1m19s, 1m22s, 1m29s and 2m02s
+//     over its last four green runs, so ~2m + 10m leaves ~3m of headroom.
+//   · deploy-web.yml, timeout-minutes: 35. Run 34570837376 spent 5m12s in the
+//     gate and 2m24s from setup-flutter to this step. Worst case is the gate's
+//     full 20-minute poll + ~2.5m + 10m = ~32.5m, still inside 35.
+//   · build-platforms.yml `release` (20; ~1m measured), submit-* (30),
+//     extensions.yml `release` (45).
+// test/github-rate-limit.test.mjs re-derives that list from the workflows and
+// fails if any recording job leaves under 3 minutes beside the bound.
+// An installation window resets HOURLY, so ten minutes cannot outwait every
+// refusal, and is not meant to. When the next PERMITTED retry is already beyond
+// the bound, this gives up AT ONCE rather than holding a runner open for a wait
+// it knows cannot end in time — and says the deploy succeeded, because it did.
+
+/** The real API origin — the one non-loopback value GITHUB_API_URL may hold. */
+export const GITHUB_API_ORIGIN = 'https://api.github.com';
+
+/** The bound on rate-limit waiting, counted from the first rate-limit refusal. */
+export const RATE_LIMIT_BUDGET_MS = 10 * 60 * 1000;
+
+/** A cap on REQUESTS as well as time: a server naming a one-second wait over and
+ *  over would otherwise be asked ~600 times inside the bound, against a quota
+ *  that is by definition already spent. */
+export const RATE_LIMIT_MAX_RETRIES = 10;
+
+/** GitHub's "otherwise, wait for at least one minute". */
+export const SECONDARY_MIN_WAIT_MS = 60 * 1000;
+
+/** `x-ratelimit-reset` is whole epoch seconds and the runner's clock is not
+ *  GitHub's; one second past the reset is the earliest honest retry. */
+export const RESET_SKEW_MS = 1000;
+
+/** A header from a fetch `Headers` or a plain object, case-insensitively. */
+function headerOf(headers, name) {
+  if (!headers) return null;
+  if (typeof headers.get === 'function') return headers.get(name);
+  const key = Object.keys(headers).find((h) => h.toLowerCase() === name);
+  return key === undefined ? null : String(headers[key]);
+}
+
+/** Pure. What a non-2xx GitHub response MEANS. One of:
+ *    { kind: 'rate-limit', limit: 'primary'|'secondary'|'unspecified', waitMs, signal }
+ *    { kind: 'transient' } — a 5xx: ask again on the short backoff
+ *    { kind: 'answer' }    — a real answer about the request: do not re-ask
+ *  `secondaryStrikes` is how many secondary refusals came before this one. It
+ *  is shared with assert-gate-passed.mjs so the two scripts that spend one
+ *  installation quota cannot disagree about what a rate limit is. */
+export function classifyRefusal({ status, headers = null, bodyText = '', now = Date.now(), secondaryStrikes = 0 }) {
+  if (typeof status !== 'number') return { kind: 'answer' };
+  if (isRetryable({ status })) return { kind: 'transient' };
+  if (status !== 403 && status !== 429) return { kind: 'answer' };
+
+  const text = String(bodyText ?? '');
+  const secondaryWords = /secondary rate limit/i.test(text);
+  const primaryWords = /API rate limit exceeded/i.test(text);
+  const remaining = (headerOf(headers, 'x-ratelimit-remaining') ?? '').trim();
+  const exhausted = remaining === '0';
+  const limit = secondaryWords ? 'secondary' : exhausted || primaryWords ? 'primary' : 'unspecified';
+
+  const retryAfter = (headerOf(headers, 'retry-after') ?? '').trim();
+  if (retryAfter !== '') {
+    let waitMs = null;
+    if (/^\d+$/.test(retryAfter)) waitMs = Number(retryAfter) * 1000;
+    else if (Number.isFinite(Date.parse(retryAfter))) waitMs = Math.max(0, Date.parse(retryAfter) - now);
+    if (waitMs !== null) return { kind: 'rate-limit', limit, waitMs, signal: `retry-after: ${retryAfter}` };
+  }
+  if (exhausted) {
+    const reset = (headerOf(headers, 'x-ratelimit-reset') ?? '').trim();
+    if (/^\d+$/.test(reset)) {
+      return {
+        kind: 'rate-limit',
+        limit,
+        waitMs: Math.max(0, Number(reset) * 1000 - now) + RESET_SKEW_MS,
+        signal: `x-ratelimit-remaining: 0, x-ratelimit-reset: ${reset}`,
+      };
+    }
+    return { kind: 'rate-limit', limit, waitMs: SECONDARY_MIN_WAIT_MS, signal: 'x-ratelimit-remaining: 0 and no readable x-ratelimit-reset' };
+  }
+  if (secondaryWords) {
+    return {
+      kind: 'rate-limit',
+      limit,
+      waitMs: SECONDARY_MIN_WAIT_MS * 2 ** Math.max(0, secondaryStrikes),
+      signal: 'a "secondary rate limit" message',
+    };
+  }
+  if (primaryWords) return { kind: 'rate-limit', limit, waitMs: SECONDARY_MIN_WAIT_MS, signal: 'an "API rate limit exceeded" message' };
+  if (status === 429) return { kind: 'rate-limit', limit, waitMs: SECONDARY_MIN_WAIT_MS, signal: '429 with no wait named' };
+  return { kind: 'answer' };
+}
+
+/** Pure. Take the wait a rate-limit refusal names, or give up now. `deadline` is
+ *  absolute (ms); a caller with its own earlier deadline passes the minimum. */
+export function planRateLimitWait({ refusal, now, deadline, retriesSoFar, maxRetries = RATE_LIMIT_MAX_RETRIES }) {
+  if (retriesSoFar >= maxRetries) {
+    return { giveUp: true, why: `still rate-limited after ${maxRetries} rate-limit retries` };
+  }
+  if (now + refusal.waitMs > deadline) {
+    return {
+      giveUp: true,
+      why:
+        `the next permitted retry is ${formatWait(refusal.waitMs)} away (${refusal.signal}) and only ` +
+        `${formatWait(Math.max(0, deadline - now))} of the bound remain`,
+    };
+  }
+  return { giveUp: false, waitMs: refusal.waitMs };
+}
+
+export const formatWait = (ms) => (ms >= 60_000 ? `${Math.round(ms / 6_000) / 10} min` : `${Math.ceil(ms / 1000)}s`);
+
+/** The name a person reads. The tokens these lanes use are the job's own
+ *  `github.token`, an App installation token, so a primary limit is the
+ *  installation's quota. */
+export const limitName = (refusal) =>
+  refusal.limit === 'secondary' ? 'secondary rate limit' : refusal.limit === 'primary' ? 'installation rate limit' : 'rate limit';
+
+/** A test seam that can only ever point at this machine.
+ *  🔴 LOOPBACK OR THE REAL ORIGIN, NOTHING ELSE. This process holds a token with
+ *  `deployments: write` (the gate, `checks: read`); an unconstrained base URL is
+ *  a one-environment-variable path for sending it to any host. Same rule, same
+ *  reason as `loopbackOr` in tooling/release/submit-play.mjs, which is file-local
+ *  there. GitHub Actions sets GITHUB_API_URL to the real origin on every runner,
+ *  and that value is accepted unchanged. */
+export function githubApiBase(env = process.env) {
+  const raw = String(env.GITHUB_API_URL ?? '').trim().replace(/\/+$/, '');
+  if (raw === '' || raw === GITHUB_API_ORIGIN) return { base: GITHUB_API_ORIGIN, override: false };
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return { error: `GITHUB_API_URL is set and is not a URL: ${JSON.stringify(raw)}.` };
+  }
+  const loopback = u.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
+  if (!loopback) {
+    return {
+      error:
+        `GITHUB_API_URL points at ${u.origin}, which is neither ${GITHUB_API_ORIGIN} nor loopback. It exists so ` +
+        "the tests can drive the real transport against a local server; any other value would send this job's " +
+        'GitHub token to that host.',
+    };
+  }
+  return { base: raw, override: true };
+}
+
+/** Thrown when a rate limit outlasts the bound. It is NOT a refusal of the
+ *  request, and main() says so in words a person cannot misread. */
+export class RateLimitExhausted extends Error {
+  constructor(message, { refusal, why }) {
+    super(message);
+    this.name = 'RateLimitExhausted';
+    this.refusal = refusal;
+    this.why = why;
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function api(path, token, repo, body) {
+async function api(path, token, repo, body, ctx) {
   let last = null;
-  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+  let transientAttempts = 0;
+  for (;;) {
     let res = null;
-    let networkError = false;
     try {
-      res = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+      res = await fetch(`${ctx.base}/repos/${repo}/${path}`, {
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
@@ -147,7 +352,7 @@ async function api(path, token, repo, body) {
         body: JSON.stringify(body),
       });
     } catch (e) {
-      networkError = true;
+      // A network error never reached GitHub at all → the short backoff below.
       last = new Error(`POST ${path} → ${e && e.message ? e.message : e}`);
     }
 
@@ -158,17 +363,45 @@ async function api(path, token, repo, body) {
         // succeeds silently is a transient fault nobody ever learns about, and
         // the 2026-08-17 outage was invisible until somebody went looking for a
         // record that was not there.
-        if (attempt > 1) console.log(`   ⬜ POST ${path} succeeded on attempt ${attempt} of ${RETRY_ATTEMPTS}.`);
+        if (transientAttempts > 0 || ctx.rl.retries > 0) {
+          console.log(
+            `   ⬜ POST ${path} succeeded after ${transientAttempts} transient and ${ctx.rl.retries} rate-limit ` +
+              `retr${transientAttempts + ctx.rl.retries === 1 ? 'y' : 'ies'} in this run.`,
+          );
+        }
         return JSON.parse(text);
       }
       last = new Error(`POST ${path} → ${res.status} ${text.slice(0, 300)}`);
-      if (!isRetryable({ status: res.status })) throw last;
-      console.error(`   ⬜ POST ${path} → ${res.status} on attempt ${attempt} of ${RETRY_ATTEMPTS} — retrying.`);
-    } else if (isRetryable({ networkError })) {
-      console.error(`   ⬜ POST ${path} could not reach GitHub on attempt ${attempt} of ${RETRY_ATTEMPTS} — retrying (${last.message}).`);
+      const refusal = classifyRefusal({ status: res.status, headers: res.headers, bodyText: text, secondaryStrikes: ctx.rl.secondaryStrikes });
+      if (refusal.kind === 'rate-limit') {
+        // "Could not ask", not "refused": wait what GitHub says, inside ONE bound
+        // shared by every write this run makes — or give up now, and let main()
+        // say that the deploy succeeded and only the record is missing.
+        const now = Date.now();
+        ctx.rl.deadline ??= now + RATE_LIMIT_BUDGET_MS;
+        const plan = planRateLimitWait({ refusal, now, deadline: ctx.rl.deadline, retriesSoFar: ctx.rl.retries });
+        if (plan.giveUp) throw new RateLimitExhausted(last.message, { refusal, why: plan.why });
+        ctx.rl.retries++;
+        if (refusal.limit === 'secondary') ctx.rl.secondaryStrikes++;
+        console.error(
+          `   ⬜ POST ${path} → ${res.status}: ${limitName(refusal)} (${refusal.signal}) — GitHub could not be asked yet, ` +
+            `which is not a refusal; waiting ${formatWait(plan.waitMs)} (rate-limit retry ${ctx.rl.retries} of at most ` +
+            `${RATE_LIMIT_MAX_RETRIES}, bound ${RATE_LIMIT_BUDGET_MS / 60_000} min).`,
+        );
+        await sleep(plan.waitMs);
+        continue;
+      }
+      if (refusal.kind !== 'transient') throw last;
     }
 
-    if (attempt < RETRY_ATTEMPTS) await sleep(retryDelayMs(attempt));
+    transientAttempts++;
+    if (transientAttempts >= RETRY_ATTEMPTS) break;
+    console.error(
+      res !== null
+        ? `   ⬜ POST ${path} → ${res.status} on attempt ${transientAttempts} of ${RETRY_ATTEMPTS} — retrying.`
+        : `   ⬜ POST ${path} could not reach GitHub on attempt ${transientAttempts} of ${RETRY_ATTEMPTS} — retrying (${last.message}).`,
+    );
+    await sleep(retryDelayMs(transientAttempts));
   }
   // The attempts are exhausted, not the reasons. This still fails the job — an
   // unrecorded deploy is the state this script exists to abolish, and a retry
@@ -291,6 +524,14 @@ async function main() {
     return fail(`could not build the deployment record: ${err.message}`);
   }
 
+  // ── the transport: the real API, or a loopback test seam ─────────────────
+  const transport = githubApiBase();
+  if (transport.error) return fail(transport.error);
+  if (transport.override) console.log(`⬜ GITHUB_API_URL override in effect: ${transport.base} — a LOOPBACK TEST SEAM, not GitHub.`);
+  // ONE rate-limit budget for the whole run — the deployment AND its status —
+  // so two writes cannot each spend the full bound.
+  const ctx = { base: transport.base, rl: { deadline: null, retries: 0, secondaryStrikes: 0 }, deploymentId: null };
+
   try {
     // required_contexts: [] — the gate was already enforced by
     // assert-gate-passed.mjs before anything deployed. Leaving this unset makes
@@ -318,7 +559,8 @@ async function main() {
       required_contexts: [],
       transient_environment: false,
       production_environment: true,
-    });
+    }, ctx);
+    ctx.deploymentId = deployment.id;
 
     await api(`deployments/${deployment.id}/statuses`, token, repo, {
       // The GitHub Deployment Status `state` and [10]D-9's REVIEW state are two
@@ -328,7 +570,7 @@ async function main() {
       state: 'success',
       ...(environmentUrl ? { environment_url: environmentUrl } : {}),
       description,
-    });
+    }, ctx);
 
     console.log(
       `ok  recorded ${environment} ${state} at ${sha.slice(0, 8)}` +
@@ -343,6 +585,30 @@ async function main() {
       );
     }
   } catch (err) {
+    if (err instanceof RateLimitExhausted) {
+      // 🔴 THE ONE SENTENCE THIS BRANCH EXISTS TO PRINT. The step before this
+      // one deployed; nobody reading a red job should have to infer that, and
+      // run 34570837376 is what it looks like when they must.
+      console.error(
+        `✗ the DEPLOY SUCCEEDED; the GitHub Deployment record for ${sha} could not be written because the ` +
+          `${limitName(err.refusal)} did not reset within ${RATE_LIMIT_BUDGET_MS / 60_000} minutes.`,
+      );
+      console.error(`  ${err.why}.`);
+      console.error(`  Last response: ${err.message}`);
+      if (ctx.deploymentId !== null) {
+        console.error(`  Deployment ${ctx.deploymentId} WAS created for ${environment}; its success status is what could not be written.`);
+      }
+      console.error(
+        '  This is NOT a failed deploy, and NOT a refused record — GitHub could not be asked. The record for this SHA ' +
+          'is MISSING, and this step stays red (exit 2) so that stays visible.',
+      );
+      console.error(
+        `  Write it once the limit resets by running ONLY this script again, same arguments, with GITHUB_SHA=${sha}. ` +
+          'A whole-job re-run re-deploys to get a second chance at a write.',
+      );
+      process.exitCode = 2;
+      return;
+    }
     return fail(`could not record the deployment: ${err.message}`);
   }
 }
