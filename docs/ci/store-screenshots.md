@@ -288,7 +288,7 @@ to propose, and that is reported rather than skipped.
 live D1, and a throwaway user that outlives its run is exactly the kind of
 residue the nightly was built to avoid.
 
-### in step **Purge the throwaway user**, above `SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112`
+### in step **Purge the throwaway user**, above `SUBSCRIPTIONTRACKER_D1_DATABASE_ID: 0a36d6a0-c909-40aa-853e-970de3482321`
 
 The same literal e2e.yml passes. It is a database ID, not a
 credential — the CLOUDFLARE_API_TOKEN above is what authorises

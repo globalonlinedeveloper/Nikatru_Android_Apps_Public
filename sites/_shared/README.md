@@ -53,7 +53,7 @@ the directory being dead — `_data/apps.json` and `assets/tokens.css` are not.
   "name": "Nikatru Subscription Tracker",
   "tagline": "Track every subscription in one place",
   "url": "https://subly.nikatru.com",
-  "api": "https://api.nikatru.com",
+  "api": "https://subscriptiontracker.api.nikatru.com",
   "platforms": ["web"],
   "status": "live"
 }

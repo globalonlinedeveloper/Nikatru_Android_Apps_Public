@@ -154,7 +154,7 @@
         "ceiling": "d1.rowsWrittenPerDay",
         "where": "Cloudflare dashboard → Storage & Databases → D1 → each database → Metrics. 🔴 SUM IT ACROSS EVERY DATABASE: the ceiling is per-ACCOUNT-per-day and the dashboard reports per-database, so reading one database's figure understates the number that actually binds.",
         "url": "https://developers.cloudflare.com/d1/observability/metrics-analytics/",
-        "reads": "rows written today, summed across platform_db, subly_db and every stamped app database"
+        "reads": "rows written today, summed across platform_db, subscriptiontracker_db and every stamped app database"
       },
       {
         "ceiling": "d1.storagePerAccount",
@@ -203,7 +203,7 @@
       "scope": "per-invocation",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/limits/",
@@ -220,7 +220,7 @@
       "scope": "per-account",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/limits/",
@@ -237,7 +237,7 @@
       "scope": "per-database",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/limits/",
@@ -254,7 +254,7 @@
       "scope": "per-account",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/limits/",
@@ -271,7 +271,7 @@
       "scope": "per-account-per-day",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/pricing/",
@@ -288,7 +288,7 @@
       "scope": "per-query",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB"
       ],
       "source": "https://developers.cloudflare.com/d1/platform/limits/",
@@ -444,7 +444,7 @@
       "scope": "per-invocation",
       "surfaces": [
         "PLATFORM_DB",
-        "SUBLY_DB",
+        "SUBSCRIPTIONTRACKER_DB",
         "APP_DB",
         "CONFIG_KV",
         "JWKS_CACHE"

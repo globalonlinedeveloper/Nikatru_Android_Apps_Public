@@ -85,14 +85,14 @@ import { allRows } from '../lib/d1';
 // ── LIMB 3, AND WHY IT IS A RELAY RATHER THAN MORE SQL HERE ──────────────────
 // 🔴 THE DEFECT IT CLOSES: A ROUTE READS THE DATABASES IT READS, NOT THE ONES ITS
 // WORKER BINDS. Everything above operates on PLATFORM_DB. This Worker also binds
-// `SUBLY_DB` (for the nightly renewals fan-out) — and bound is not swept. So the
+// `SUBSCRIPTIONTRACKER_DB` (for the nightly renewals fan-out) — and bound is not swept. So the
 // ONLY app in the field was the one app account deletion did not reach: a Subly
 // user could press Delete account, watch it succeed, lose their login, and leave
 // every subscription, budget, budget category and payment they had ever entered
 // in a database no login could ever reach again. tooling/legal/data-inventory.json
 // carried four `erasure: no-route` rows saying exactly that.
 //
-// Sweeping SUBLY_DB from here was the smaller diff and was rejected. It would put
+// Sweeping SUBSCRIPTIONTRACKER_DB from here was the smaller diff and was rejected. It would put
 // one app's schema inside the shared Worker, and — the hazard the register names —
 // an irreversible route that erases every database its Worker binds makes any
 // FUTURE binding an erasure target the day somebody adds it, silently. So each app
@@ -275,7 +275,7 @@ async function userReferencingColumns(
 }
 
 /**
- * `"subscriptiontracker=https://api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
+ * `"subscriptiontracker=https://subscriptiontracker.api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.
  *
  * REFUSES anything that is not an `https://` origin, rather than skipping it.
  * The relay forwards a live bearer token, so a plaintext or malformed entry is a

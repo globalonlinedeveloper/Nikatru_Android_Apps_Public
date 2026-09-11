@@ -53,8 +53,9 @@
 //
 // Exit 0 = the account authenticates AND is denied every project-level read.
 // Exit 1 = a project-level read SUCCEEDED (the fail-closed property is gone), or
-//          an unexpected status made the answer unreadable.
-// Exit 2 = could not look at all — key missing, or the token would not mint.
+//          an unexpected non-transient status made the answer unreadable.
+// Exit 2 = could not look — key missing, the token would not mint, or a read stayed
+//          unreachable (thrown request, 5xx or 429) after its retries.
 //          A DIFFERENT code on purpose: "I could not look" must never read as
 //          "I looked and it was fine".
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,6 +85,31 @@ const KEY_ENV = 'PLAY_SERVICE_ACCOUNT_JSON';
 /// it and refuse to proceed on the wrong one.
 const EXPECT_CLIENT_EMAIL =
   'nikatru-free-api@nikatru-platform.iam.gserviceaccount.com';
+
+/// 🔴 A NETWORK BLIP IS NOT A VERDICT. ops-watch run 34602047972 (2026-09-11T13:02Z) went
+/// red on `iam — list service accounts — could not be reached (fetch failed)` while the
+/// token minted and the other three reads answered 403 in the same second; the re-run of
+/// that job passed. So a request that throws, or answers 5xx or 429, is retried, and one
+/// that stays unreachable is "could not look" (exit 2), never a finding (exit 1).
+/// A 403, a success and any other 4xx are answers and are never retried.
+const ATTEMPTS = 3;
+const RETRY_DELAY_MS = Number(process.env.VERIFY_FREE_API_SCOPE_RETRY_MS ?? 2000);
+const transientStatus = (status) => status === 429 || status >= 500;
+async function fetchWithRetry(url, init) {
+  let err = null;
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (!transientStatus(res.status) || attempt === ATTEMPTS) return { res, err: null, attempts: attempt };
+      err = null;
+    } catch (e) {
+      err = e;
+      if (attempt === ATTEMPTS) return { res: null, err, attempts: attempt };
+    }
+    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+  }
+  return { res: null, err, attempts: ATTEMPTS };
+}
 
 // 🔴 NO `process.exit()` ANYWHERE BELOW, AND THAT IS A BUG FIX, NOT A STYLE
 // CHOICE. Calling process.exit() while an undici (fetch) keep-alive handle is
@@ -155,7 +181,7 @@ const sig = createSign('RSA-SHA256').update(unsigned).sign(KEY.private_key, 'bas
 
 let token;
 try {
-  const r = await fetch(AUD, {
+  const { res: r, err: mintErr } = await fetchWithRetry(AUD, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -163,6 +189,7 @@ try {
       assertion: `${unsigned}.${sig}`,
     }),
   });
+  if (mintErr) throw mintErr;
   token = (await r.json()).access_token;
 } catch (err) {
   console.error(`⬜ could not reach Google to mint a token — ${err.message}. Exit 2: I could not look.`);
@@ -186,12 +213,14 @@ const PROBES = [
 ];
 
 const problems = [];
+const unreachable = [];
 for (const [label, url] of PROBES) {
-  let res;
-  try {
-    res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  } catch (err) {
-    problems.push(`${label} — could not be reached (${err.message}); this check cannot conclude.`);
+  const { res, err, attempts } = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (err || transientStatus(res.status)) {
+    unreachable.push(
+      `${label} — could not be reached after ${attempts} attempt(s) (${err ? err.message : `HTTP ${res.status}`}); ` +
+        'this check cannot conclude.',
+    );
     continue;
   }
   if (res.ok) {
@@ -211,10 +240,13 @@ for (const [label, url] of PROBES) {
   }
 }
 
-if (problems.length) {
+if (problems.length || unreachable.length) {
   console.error('');
   for (const p of problems) console.error(`✗ ${p}`);
-  return 1;
+  for (const u of unreachable) console.error(`⬜ ${u}`);
+  if (problems.length) return 1;
+  console.error('   Exit 2 — at least one read could not be made, so nothing is claimed about it.');
+  return 2;
 }
 console.log(
   `\nverify-free-api-scope — the key is live and every one of ${PROBES.length} project-level reads is ` +

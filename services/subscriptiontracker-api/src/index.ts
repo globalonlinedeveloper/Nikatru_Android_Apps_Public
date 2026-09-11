@@ -77,7 +77,7 @@ app.use('*', corsMiddleware);
 //
 // 🔴 A FINDING THIS CHANGE CANNOT FIX FROM HERE. GlitchTip monitor 11 asserts
 // platform's body (`expectedBody: "\"ok\":true\"`), so platform's honest `ok`
-// reaches a monitor. THIS Worker's monitor — id 2, `Subly API health` in
+// reaches a monitor. THIS Worker's monitor — id 2, `Subscription Tracker API health` in
 // tooling/monitor-register.json — asserts `expectedStatus: 200` and NO body. So
 // an `ok:false` here still leaves that monitor green. The deploy smoke catches
 // it; the 60-second monitor does not. Closing that needs an `expectedBody` on

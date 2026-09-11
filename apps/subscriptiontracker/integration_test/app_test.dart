@@ -1788,7 +1788,7 @@ void main() {
 
     // ⬜ WHAT THIS TEST CANNOT SEE, STATED. Everything above is the app's own
     // account of what happened, and a client can only report what it was told.
-    // Whether subly_db and the identity record are ACTUALLY empty is asserted by
+    // Whether subscriptiontracker_db and the identity record are ACTUALLY empty is asserted by
     // `tooling/e2e/verify_purged.mjs` in the step after this one — server-side,
     // through the D1 HTTP API and the GoTrue admin API, with no app in the loop.
     restoreGlobals();

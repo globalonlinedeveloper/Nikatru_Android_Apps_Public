@@ -79,15 +79,9 @@ const cfg = parseJsonc(raw) as {
 describe('the parse itself reached the config', () => {
   it('self-check — every assertion below would pass vacuously over an empty parse', () => {
     expect(raw).toContain('ALLOWED_ORIGINS');
-    // ⚠️ DELIBERATELY THE RETIRED SPELLING, and so is `database_name` below.
-    // The DIRECTORY is services/subscriptiontracker-api and every repo-side
-    // derivation moved with it, but the DEPLOYED Worker name did not: `wrangler
-    // deploy` addresses a Worker BY NAME, so a new name is a NEW WORKER, and
-    // `api.nikatru.com` is a CUSTOM DOMAIN bound to one Worker at a time. The
-    // reasoning, and the 2026-08-03 account read-back behind it, are at `name` in
-    // ../wrangler.jsonc. Deriving `${slug}-api` here would assert a Worker that
-    // does not exist in the account.
-    expect(cfg.name).toBe('subly-api');
+    // The DEPLOYED name moved with the slug on 2026-09-11 ([ADR 079]); until then
+    // it was the retired `subly-api`, recorded at `name` in ../wrangler.jsonc.
+    expect(cfg.name).toBe('subscriptiontracker-api');
     expect(Object.keys(cfg.vars ?? {}).length).toBeGreaterThanOrEqual(4);
     expect((cfg.d1_databases ?? []).length).toBe(2);
   });
@@ -175,7 +169,7 @@ describe('the clone contract this Worker is the template for', () => {
   it('binds the PER-APP database with its own migrations dir', () => {
     const app = byBinding.get('APP_DB');
     expect(app).toBeDefined();
-    expect(app!.database_name).toBe('subly_db');
+    expect(app!.database_name).toBe('subscriptiontracker_db');
     expect(app!.migrations_dir).toBe('migrations');
   });
 

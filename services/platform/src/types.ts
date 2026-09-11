@@ -12,7 +12,7 @@ export interface Env {
   // SHARED entitlements DB (platform is the sole migrations applier).
   PLATFORM_DB: D1Database;
   // Per-app DBs bound for the nightly renewals fan-out. Add one per app.
-  SUBLY_DB: D1Database;
+  SUBSCRIPTIONTRACKER_DB: D1Database;
 
   // Edge-cached per-app config overrides (key: `config:<app>`).
   CONFIG_KV: KVNamespace;
@@ -242,7 +242,7 @@ export interface Env {
 
   /**
    * WHERE EACH APP'S OWN ERASURE ROUTE LIVES — `"<appId>=<https origin>"`,
-   * comma-separated. Today: `"subscriptiontracker=https://api.nikatru.com"`.
+   * comma-separated. Today: `"subscriptiontracker=https://subscriptiontracker.api.nikatru.com"`.
    *
    * 🔴 A COMMITTED VAR, NOT A SECRET, AND NOT OPTIONAL IN PRACTICE. DELETE
    * /v1/account is the portfolio's erasure entry point, and this Worker can only

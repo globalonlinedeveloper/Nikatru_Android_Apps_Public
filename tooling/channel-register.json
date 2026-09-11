@@ -1108,9 +1108,11 @@
       "token CASE- AND SEPARATOR-INSENSITIVELY against every resolved store identity and every snap name, so",
       "`Subly`, `sub-ly`, `nikatru_subly` and `com.nikatru.subly` are all the same refusal.",
       "",
-      "⚠️ SCOPE: store IDENTIFIERS only. Live resources that still carry the old name on purpose (`subly_db`,",
-      "the `subly.nikatru.com` 301 source, historical GlitchTip release stamps) are not identifiers a store",
-      "binds, and this list does not reach them."
+      "⚠️ SCOPE: store IDENTIFIERS. The sentence that stood here said live resources kept the old name ON PURPOSE",
+      "(`subly_db`, the `subly.nikatru.com` 301 source). [ADR 079] superseded it on 2026-09-11 on the owner's word,",
+      "\"Rename all, remove redirects too\": the D1 database and the Worker are renamed, the subdomain and its 301",
+      "are removed, and live resource names are held to this same list. Historical GlitchTip release stamps",
+      "and issue ids are records, not names, and this list does not reach them."
     ],
     "tokens": [
       "subly"
@@ -2951,7 +2953,7 @@
       "deploymentEnvironment": "subscriptiontracker-api",
       "kind": "service",
       "name": "Subly backend Worker",
-      "url": "https://api.nikatru.com",
+      "url": "https://subscriptiontracker.api.nikatru.com",
       "source": "services/subscriptiontracker-api",
       "notes": "App-scoped Worker. Deployed by .github/workflows/deploy-workers.yml."
     },

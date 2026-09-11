@@ -76,7 +76,7 @@ export const MAX_R2_DELETES_PER_RUN = 200;
 /** The bindings this export needs. A subset of `Env`, named so it can be faked. */
 export interface BackupEnv {
   PLATFORM_DB: D1Database;
-  SUBLY_DB: D1Database;
+  SUBSCRIPTIONTRACKER_DB: D1Database;
   CONFIG_KV: KVNamespace;
   JWKS_CACHE?: KVNamespace;
   SIGNUPS?: KVNamespace;
@@ -151,7 +151,7 @@ export async function runBackup(env: BackupEnv, nowMs: number = Date.now()): Pro
   // ── D1 ────────────────────────────────────────────────────────────────────
   const databases: { name: string; db: D1Database }[] = [
     { name: 'platform_db', db: env.PLATFORM_DB },
-    { name: 'subly_db', db: env.SUBLY_DB },
+    { name: 'subscriptiontracker_db', db: env.SUBSCRIPTIONTRACKER_DB },
   ];
   for (const { name, db } of databases) {
     const key = `d1/${name}/${date}.jsonl.gz`;

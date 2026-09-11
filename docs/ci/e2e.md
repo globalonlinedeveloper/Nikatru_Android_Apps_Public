@@ -426,11 +426,11 @@ green run and cannot itself turn one red (`|| true` on the extraction).
 
 ### before step **Verify the row landed in live D1**
 
-⬜ `SUBLY_D1_DATABASE_ID` IS STILL APP-SPECIFIC, AND IS LEFT THAT WAY ON
+⬜ `SUBSCRIPTIONTRACKER_D1_DATABASE_ID` IS STILL APP-SPECIFIC, AND IS LEFT THAT WAY ON
 PURPOSE. [9]R-1's acceptance is about hard-coded app PATHS, and every one
 of those is now a matrix value — but this is a different animal: the app
 id is in the VARIABLE NAME, because `tooling/e2e/verify_row.mjs` and
-`purge.mjs` read `SUBLY_D1_DATABASE_ID` by that literal name, and the
+`purge.mjs` read `SUBSCRIPTIONTRACKER_D1_DATABASE_ID` by that literal name, and the
 value is a real per-app D1 database that only exists once an app has a
 backend. Making it generic means changing those two scripts to take the
 database id as an argument (and a per-app place to hold the id — the

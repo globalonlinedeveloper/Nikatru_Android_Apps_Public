@@ -59,7 +59,7 @@ function envWith(bucket: FakeBucket | undefined, db = realPlatformDb()) {
   return {
     env: {
       PLATFORM_DB: db as unknown as D1Database,
-      SUBLY_DB: db as unknown as D1Database,
+      SUBSCRIPTIONTRACKER_DB: db as unknown as D1Database,
       CONFIG_KV: new FakeKv({ 'config:subscriptiontracker': '{"flags":{}}' }) as unknown as KVNamespace,
       JWKS_CACHE: new FakeKv({ jwks: '{"keys":[]}' }) as unknown as KVNamespace,
       SIGNUPS: new FakeKv({}) as unknown as KVNamespace,
@@ -141,7 +141,7 @@ describe('the nightly export writes something a restore can actually use', () =>
     // that backed up nothing. Six objects: two D1, three KV, and no more.
     expect(manifest.objects.map((o) => o.key).sort()).toEqual([
       `d1/platform_db/${backupDate(NOW)}.jsonl.gz`,
-      `d1/subly_db/${backupDate(NOW)}.jsonl.gz`,
+      `d1/subscriptiontracker_db/${backupDate(NOW)}.jsonl.gz`,
       `kv/nikatru-signups/${backupDate(NOW)}.json.gz`,
       `kv/platform-config/${backupDate(NOW)}.json.gz`,
       `kv/platform-jwks/${backupDate(NOW)}.json.gz`,

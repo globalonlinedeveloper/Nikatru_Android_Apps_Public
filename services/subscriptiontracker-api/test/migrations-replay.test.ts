@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { SUBLY_MIGRATIONS, SqliteD1, realAppDb } from './harness';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [pipeline B-8] "a migration set is safe to re-apply" — subly_db's half.
+// [pipeline B-8] "a migration set is safe to re-apply" — subscriptiontracker_db's half.
 //
 // Ported from services/platform/test/migrations-replay.test.ts, whose ⚠️ SCOPE
 // note names THIS set as the gap it deliberately left open. It became writable
@@ -151,7 +151,7 @@ const REPLAY_SAFE_STATEMENTS = ALL_STATEMENTS.filter(({ code }) =>
   REPLAY_SAFE_FORMS.some((f) => f.re.test(code)),
 ).map(({ raw }) => raw);
 
-/** Tables subly_db owns, from services/subscriptiontracker-api/migrations/ — the applier's own
+/** Tables subscriptiontracker_db owns, from services/subscriptiontracker-api/migrations/ — the applier's own
  *  input. Used for the shape/row snapshots and as a coverage assertion. */
 const TABLES = ['budget_categories', 'budgets', 'payment_history', 'subscriptions'];
 
@@ -183,7 +183,7 @@ function seededDb(): SqliteD1 {
   return db;
 }
 
-describe('subly_db migrations re-apply cleanly', () => {
+describe('subscriptiontracker_db migrations re-apply cleanly', () => {
   it('every statement in the whole set is replay-safe, or is a ledger-protected ADD COLUMN', () => {
     const unclassified: string[] = [];
     let replaySafe = 0;
@@ -261,7 +261,7 @@ describe('subly_db migrations re-apply cleanly', () => {
       expect(sql.length, `migration #${i} is empty — the ?raw import resolved to nothing`).toBeGreaterThan(100);
     }
     expect(REPLAY_SAFE_STATEMENTS.length, 'the splitter returned nothing to replay').toBeGreaterThan(8);
-    // …and the set really does build subly_db, so a migration silently dropped
+    // …and the set really does build subscriptiontracker_db, so a migration silently dropped
     // from the list is visible here and not only in a count.
     const db = realAppDb();
     expect(

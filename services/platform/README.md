@@ -95,7 +95,7 @@ because a caller can get them wrong in ways the others do not offer.)
   slug move: a WHERE-scoped backfill of every `app_id` column EXCEPT
   `consent_artifacts`, which is append-only and keeps the identifier it was
   granted against). Additive-only, enforced by `tooling/ci/check-migrations.mjs`.
-- **`subly_db`** (binding `SUBLY_DB`) — bound read/write for the renewals fan-out
+- **`subscriptiontracker_db`** (binding `SUBSCRIPTIONTRACKER_DB`) — bound read/write for the renewals fan-out
   only; subscriptiontracker-api owns its own migrations.
 
 ```bash

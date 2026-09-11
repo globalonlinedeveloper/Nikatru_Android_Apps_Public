@@ -297,7 +297,7 @@ jobs:
           #
           # `flutter drive -d web-server` otherwise serves the app on
           # http://localhost:<RANDOM port>, and every Worker call the suite makes
-          # is therefore cross-origin. api.nikatru.com tolerates that: its CORS
+          # is therefore cross-origin. subscriptiontracker.api.nikatru.com tolerates that: its CORS
           # middleware carries an explicit localhost-any-port exception
           # (services/subscriptiontracker-api/src/middleware/cors.ts:38) added as the INC13 fix,
           # which is why legs 1-2 have always passed.
@@ -386,7 +386,7 @@ jobs:
           E2E_USER_ID: ${{ steps.user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
+          SUBSCRIPTIONTRACKER_D1_DATABASE_ID: 0a36d6a0-c909-40aa-853e-970de3482321
         run: node tooling/e2e/verify_row.mjs
 
       # why: THE ONE-ISSUER FACT, ASSERTED IN BOTH DIRECTIONS RATHER THAN SKIPPED.
@@ -412,7 +412,7 @@ jobs:
           E2E_DELETE_USER_ID: ${{ steps.delete_user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
+          SUBSCRIPTIONTRACKER_D1_DATABASE_ID: 0a36d6a0-c909-40aa-853e-970de3482321
         run: node tooling/e2e/verify_purged.mjs
 
       - name: Verify the consent artifact landed in platform_db
@@ -446,7 +446,7 @@ jobs:
           E2E_DRIVE_LOG: ${{ runner.temp }}/drive.log
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
+          SUBSCRIPTIONTRACKER_D1_DATABASE_ID: 0a36d6a0-c909-40aa-853e-970de3482321
           PLATFORM_D1_DATABASE_ID: 9d1c5c63-97fe-4f82-bc7d-f3fd22e9b351
         run: node tooling/e2e/purge.mjs
 
@@ -458,7 +458,7 @@ jobs:
           E2E_USER_ID: ${{ steps.delete_user.outputs.user_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SUBLY_D1_DATABASE_ID: 88da9026-f72a-4cda-823d-431148fa8112
+          SUBSCRIPTIONTRACKER_D1_DATABASE_ID: 0a36d6a0-c909-40aa-853e-970de3482321
         run: node tooling/e2e/purge.mjs
 
   alert:
