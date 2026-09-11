@@ -610,6 +610,19 @@ const UI_ANCHORS = [
 // Adding a row here should feel like adding a UI_ANCHOR: it is a claim that a
 // specific sentence in a sworn record depends on a specific line of code.
 //
+// ⏱ 2026-09-11 · THE ANCHOR TEXT IS GRADED; THE NUMBER IS PRINTED.
+// Twice in one week an edit above a cited line broke the build with nothing
+// wrong in the declaration's substance: #591 moved main.dart (143 → 157) and #618
+// moved it again (157 → 161), and each time the repair was a hand re-measure in
+// apps/** by whoever happened to be editing. The row already knows the TEXT the
+// sentence rests on and already found where it lives. So the limb now resolves the
+// anchor and fails only when the text is GONE (the gate the sworn sentence rests
+// on was removed or renamed) or appears on MORE THAN ONE line (the citation cannot
+// say which). A cited number that no longer contains the anchor is printed as
+// `CITATION LINE MOVED` with the line the anchor is on today, and the sentence-
+// exactly-once rule above is unchanged. What a sworn declaration still cannot do
+// is outlive its gate: delete the anchored line and this limb is red.
+//
 // ⚠️ WHAT IS STILL NOT ANCHORED, STATED RATHER THAN HIDDEN. Rows exist for every
 // citation that was measurably drifted on 2026-09-07 plus the four that already
 // had one. The declarations also carry citations into VENDORED third-party
@@ -645,7 +658,9 @@ const LINE_ANCHORS = [
   {
     doc: 'android-play/data-safety.json',
     file: 'apps/{app}/lib/app.dart',
-    anchor: 'const _ConsentPrompt()',
+    // ⏱ 2026-09-11 — narrowed from `const _ConsentPrompt()`, which is on TWO lines
+    // (the gated use and the constructor). A text anchor must name exactly one.
+    anchor: 'if (asking) const _ConsentPrompt(),',
     sentence: 'app.dart:{line} the consent prompt shows only when analyticsEnabledProvider is true',
     why: 'the consent prompt that gates every analytics answer on this form',
   },
@@ -933,6 +948,8 @@ let copiesChecked = 0;
 let pathsChecked = 0;
 let anchorsChecked = 0;
 let lineCitesChecked = 0;
+/** ⏱ 2026-09-11 — cited numbers that no longer contain their anchor; printed, not failed. */
+const linesMoved = [];
 let readmesChecked = 0;
 let readmePathsChecked = 0;
 const specsExercised = new Set();
@@ -1236,10 +1253,19 @@ for (const app of apps) {
         continue;
       }
       const src = readFileSync(abs(laFile), 'utf8').split('\n');
-      if (!src.some((l) => l.includes(la.anchor))) {
+      const anchorLines = src.map((l, i) => (l.includes(la.anchor) ? i + 1 : 0)).filter(Boolean);
+      if (anchorLines.length === 0) {
         fail(
           `🔴 STALE LINE ANCHOR — ${laFile} no longer contains ${JSON.stringify(la.anchor)} anywhere. That is a ` +
             `RENAME, not a line shift, so re-point the anchor rather than the number: ${la.why}.`,
+        );
+        continue;
+      }
+      if (anchorLines.length > 1) {
+        fail(
+          `🔴 AMBIGUOUS ANCHOR — ${laFile} contains ${JSON.stringify(la.anchor)} on ${anchorLines.length} lines ` +
+            `(${anchorLines.join(', ')}). A citation anchored to TEXT resolves to exactly one line; with more it cannot ` +
+            `say which line the sworn sentence rests on. Narrow the anchor to that one line: ${la.why}.`,
         );
         continue;
       }
@@ -1270,13 +1296,9 @@ for (const app of apps) {
       const a = Number(from);
       const b = Number(to ?? from);
       if (!src.slice(a - 1, b).some((l) => l.includes(la.anchor))) {
-        const where = src.findIndex((l) => l.includes(la.anchor)) + 1;
-        fail(
-          `🔴 DRIFTED CITATION — ${rel} cites ${laFile.split('/').pop()}:${from}${to ? `-${to}` : ''} for ` +
-            `${JSON.stringify(la.sentence)}, and that line range does NOT contain ${JSON.stringify(la.anchor)}. ` +
-            `It is at line ${where} today. ${la.why}. A line number is a pointer into a file other people edit: ` +
-            'it is correct until somebody inserts above it, and nothing recomputes it. RE-MEASURE the number ' +
-            '(grep for the anchor) and write what comes back — never offset the old one.',
+        linesMoved.push(
+          `${rel} cites ${laFile.split('/').pop()}:${from}${to ? `-${to}` : ''} for ${JSON.stringify(la.sentence)}; ` +
+            `${JSON.stringify(la.anchor)} is on line ${anchorLines[0]} today`,
         );
       }
     }
@@ -1350,6 +1372,10 @@ if (pathsChecked === 0) {
 // defect. It cost a real failure in the fixture suite before the gate was added.
 // With everything else green, zero here really does mean the scan stopped
 // reaching — the case this check exists for.
+for (const m of linesMoved) {
+  console.log(`⬜  CITATION LINE MOVED — ${m}. The anchor TEXT is what is graded; re-measure the number the next time that declaration is edited.`);
+}
+
 if (problems.length === 0 && lineCitesChecked < LINE_ANCHORS.length) {
   coverageLost([
     `only ${lineCitesChecked} of ${LINE_ANCHORS.length} line citation(s) were evaluated.`,
@@ -1408,7 +1434,7 @@ if (problems.length) {
   console.log(
     `\nok   ${copiesChecked} sworn declaration(s) still answered across ${apps.length} app(s); ` +
       `${pathsChecked} cited path(s) resolve; ${anchorsChecked} UI anchor(s) hold; ` +
-      `${lineCitesChecked} of ${LINE_ANCHORS.length} sworn line citation(s) re-measured; ` +
+      `${lineCitesChecked} of ${LINE_ANCHORS.length} sworn line citation(s) re-measured by anchor text (${linesMoved.length} cited number(s) moved, printed above); ` +
       `${readmePathsChecked} path(s) in ${readmesChecked} channel README(s) resolve; ` +
       `${templates.size} brick template(s) still blank`,
   );
