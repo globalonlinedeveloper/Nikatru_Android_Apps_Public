@@ -15,6 +15,9 @@
 //   P5 downloaded bytes whose sha256 is wrong are never handed back
 //   P6 the retry is BOUNDED — attempts stop at the configured number
 //   P7 no workflow step downloads one of these four tools any other way
+//   P8 a version reaching a URL is rebuilt out of integers; anything else refuses
+//   P9 a digest is 64 lowercase hex characters or nothing is verified against it
+//   P10 the REAL tooling/versions.json satisfies both
 //
 // Mutations run against install-pinned-tool.mjs (predictions written first):
 //   · `attempts = 1` forced (the retry loop runs once)              → P1, P6 RED
@@ -22,6 +25,9 @@
 //   · the post-download digest comparison deleted                   → P5 RED
 //   · `throw new PinnedToolUnavailable` after the loop → `return`   → P2 RED
 //   · ci.yml's gitleaks step restored to `wget -q -O`               → P7 RED
+//   · safeVersion's body replaced by `return String(raw)`           → P8 RED
+//     (widening only its regex does NOT: Number() is the barrier, and a
+//      version carrying a path segment is NaN either way. Measured, not assumed.)
 //
 // Run:  node --test tooling/ci/test/install-pinned-tool.test.mjs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,7 +39,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { acquire, PinnedToolUnavailable, TOOLS, DEFAULT_ATTEMPTS } from '../install-pinned-tool.mjs';
+import {
+  acquire,
+  PinnedToolUnavailable,
+  TOOLS,
+  DEFAULT_ATTEMPTS,
+  safeVersion,
+  safeDigest,
+  readVersions,
+} from '../install-pinned-tool.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(CI_DIR, '..', '..');
@@ -227,11 +241,55 @@ describe('install-pinned-tool — no workflow may fetch these four any other way
     const ci = bodies.get('ci.yml');
     assert.ok(ci, 'ci.yml must exist');
     for (const name of TOOLS.keys()) {
-      assert.match(
-        ci,
-        new RegExp(`install-pinned-tool\\.mjs ${name.replace(/[-]/g, '\\-')}\\b`),
+      // A plain substring, not a built regex: the tool names are data, and a
+      // regex assembled from data is a sanitiser question nobody should have to
+      // answer to check that a step exists.
+      assert.ok(
+        ci.includes(`install-pinned-tool.mjs ${name} --out`),
         `ci.yml must install ${name} through the installer`,
       );
+    }
+  });
+});
+
+describe('install-pinned-tool — the pin is read strictly, because it reaches a URL', () => {
+  test('P8 a version is rebuilt out of integers, and anything else refuses', () => {
+    assert.equal(safeVersion('8.30.1', 'gitleaks'), '8.30.1');
+    assert.equal(safeVersion('0.74.0', 'trivy'), '0.74.0');
+    for (const bad of [
+      '8.30.1/../../evil',
+      '8.30.1?x=1',
+      'v8.30.1',
+      '8',
+      '8.30.1.2.3',
+      '8.30.x',
+      '',
+      null,
+      undefined,
+      '../../etc',
+      '8.30.1 8.30.1',
+    ]) {
+      assert.throws(
+        () => safeVersion(bad, 'gitleaks'),
+        (e) => e instanceof PinnedToolUnavailable,
+        `${JSON.stringify(bad)} must never reach a download URL`,
+      );
+    }
+  });
+
+  test('P9 a digest is 64 lowercase hex characters or nothing is verified against it', () => {
+    const good = 'a'.repeat(64);
+    assert.equal(safeDigest(good, 'gitleaks_sha256'), good);
+    for (const bad of ['A'.repeat(64), 'a'.repeat(63), 'a'.repeat(65), '', null, `${'a'.repeat(64)} `]) {
+      assert.throws(() => safeDigest(bad, 'gitleaks_sha256'), (e) => e instanceof PinnedToolUnavailable, JSON.stringify(bad));
+    }
+  });
+
+  test('P10 the real tooling/versions.json satisfies both — this is not a check about fixtures', () => {
+    const versions = readVersions();
+    for (const [name, spec] of TOOLS) {
+      assert.equal(safeVersion(versions[spec.versionKey], spec.versionKey), versions[spec.versionKey], name);
+      assert.equal(safeDigest(versions[spec.digestKey], spec.digestKey), versions[spec.digestKey], name);
     }
   });
 });

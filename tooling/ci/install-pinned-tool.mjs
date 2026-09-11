@@ -141,6 +141,40 @@ export function readVersions(path = VERSIONS_PATH) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
+/**
+ * A version from tooling/versions.json, REBUILT out of integers.
+ *
+ * 🔴 IT IS NOT A FORMAT CHECK, IT IS THE BOUNDARY. Everything this module
+ * downloads is addressed by a URL assembled around this value, so a version is
+ * the one piece of FILE CONTENT that reaches a network call. Parsing each
+ * segment as an integer and joining the integers back means the string that ends
+ * up in the URL is built here, out of numbers, and cannot carry a path segment,
+ * a query, a second host or anything else a JSON edit could smuggle in. CodeQL
+ * reads it the same way (js/file-access-to-http).
+ */
+export function safeVersion(raw, key) {
+  const segments = String(raw ?? '').split('.');
+  const numbers = segments.map((s) => (/^[0-9]{1,6}$/.test(s) ? Number(s) : NaN));
+  if (segments.length < 2 || segments.length > 4 || numbers.some((n) => !Number.isInteger(n))) {
+    throw new PinnedToolUnavailable([
+      `tooling/versions.json's \`${key}\` is ${JSON.stringify(raw)}, which is not a dotted numeric version.`,
+      'That value is interpolated into a download URL, so it is read strictly or not at all.',
+    ]);
+  }
+  return numbers.join('.');
+}
+
+/** A sha256 from tooling/versions.json: 64 lowercase hex characters, rebuilt. */
+export function safeDigest(raw, key) {
+  const m = /^([0-9a-f]{64})$/.exec(String(raw ?? ''));
+  if (!m) {
+    throw new PinnedToolUnavailable([
+      `tooling/versions.json's \`${key}\` is not 64 lowercase hex characters, so nothing could be verified against it.`,
+    ]);
+  }
+  return m[1];
+}
+
 /** sha256 of a file, lowercase hex. */
 export function sha256File(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -302,13 +336,8 @@ export function installPinnedTool({
       'Add it to TOOLS here, with its version and digest keys in tooling/versions.json — never as shell in a workflow.',
     ]);
   }
-  const version = versions[spec.versionKey];
-  const digest = versions[spec.digestKey];
-  if (!version || !digest) {
-    throw new PinnedToolUnavailable([
-      `tooling/versions.json declares no ${!version ? spec.versionKey : spec.digestKey} — the pin has no home.`,
-    ]);
-  }
+  const version = safeVersion(versions[spec.versionKey], spec.versionKey);
+  const digest = safeDigest(versions[spec.digestKey], spec.digestKey);
   const url = spec.url(version);
   const fileName = `${name}-${version}-${digest.slice(0, 12)}${spec.archive === 'none' ? '' : '.tar.gz'}`;
   const { path, attempts: used, fromCache, log } = acquire({
