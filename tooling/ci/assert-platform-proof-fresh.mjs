@@ -283,6 +283,20 @@ function fail(msg) {
   process.exitCode = 1;
 }
 
+// ⏱ 2026-09-11 · "I COULD NOT LOOK" IS EXIT 2, NEVER 1.
+// A run history that could not be read — no token, a refused request (the
+// `API rate limit exceeded for installation` 403 of 2026-09-11), a body that is
+// not JSON, a list that is not a list, runs that carry no commit — used to go
+// through `fail`, exit 1, the code this guard gives "the proof is STALE" and
+// "the proof was built on FOREIGN history". Nothing was judged in any of
+// them. A finding in the same run outranks this: `fail` always writes 1, and
+// `lost` never lowers it.
+function lost(msg) {
+  console.error(`COULD NOT LOOK  ${msg}`);
+  console.error('      Exit 2, not 1: nothing about the proof was judged from this answer. [pipeline F-4]');
+  if (process.exitCode !== 1) process.exitCode = 2;
+}
+
 // `indexOf` returns -1 when absent, and -1 + 1 === 0 silently selects argv[0].
 // That exact off-by-one shipped in assert-gate-passed.mjs and blocked both
 // production deploys with the SHA plainly in the command line. Never repeat it.
@@ -650,7 +664,7 @@ export function assertWatchedWorkflowIntact(root = ROOT) {
 // real defects live — the API call is the boring half.
 export function evaluateFreshness(runs, nowMs, maxAgeDays = MAX_AGE_DAYS) {
   if (!Array.isArray(runs)) {
-    return { ok: false, reason: 'run list was not an array — treating an unreadable answer as a failure' };
+    return { ok: false, unreadable: true, reason: 'run list was not an array — an unreadable answer, which is never a pass' };
   }
   const successes = runs.filter((r) => r && r.conclusion === 'success' && r.updated_at);
   if (successes.length === 0) {
@@ -753,7 +767,7 @@ export function gitAncestry(proofSha, gradedSha, root = ROOT) {
  */
 export function evaluateProvenance(runs, gradedSha, ancestryOf) {
   if (!Array.isArray(runs)) {
-    return { kind: 'unreadable', reason: 'run list was not an array — treating an unreadable answer as a failure' };
+    return { kind: 'unreadable', reason: 'run list was not an array — an unreadable answer, which is never a pass' };
   }
   const successes = runs.filter((r) => r && r.conclusion === 'success');
   if (successes.length === 0) {
@@ -864,7 +878,7 @@ async function main() {
     try {
       runs = await fetchRuns();
     } catch (e) {
-      fail(`${e.message}`);
+      lost(`the ${WORKFLOW} run history could not be read — ${e.message}`);
       return;
     }
   }
@@ -888,6 +902,11 @@ function reportFreshness(verdict, nowMs) {
             '      This becomes a hard failure on 2026-08-10 if no scheduled run has landed by then.\n' +
             '      Do NOT satisfy it with `gh workflow run` — a manual press is what hid this. [pipeline F-4]',
     );
+    return;
+  }
+
+  if (verdict.unreadable) {
+    lost(`platform proof freshness unreadable — ${verdict.reason}`);
     return;
   }
 
@@ -940,7 +959,7 @@ export function reportProvenance(runs, nowMs, offline) {
   const verdict = evaluateProvenance(runs, graded, (sha) => gitAncestry(sha, graded, ROOT));
 
   if (verdict.kind === 'unreadable') {
-    fail(`platform proof provenance unreadable — ${verdict.reason} [pipeline F-4]`);
+    lost(`platform proof provenance unreadable — ${verdict.reason}`);
     return;
   }
 

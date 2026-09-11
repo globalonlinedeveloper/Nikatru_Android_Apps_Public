@@ -269,6 +269,71 @@ function ledgerEnvironments() {
   return [...envs];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 · A REFUSED READ IS NOT A BAD ATTESTATION.
+//
+// Each entry of tooling/ops/manual-deploys.json is accepted only on two GitHub
+// witnesses: the sha is a commit on this repository, and record-deployment.mjs
+// wrote a Deployment for it. This loop used to live inline in `main()`, and it
+// read ANY non-200 on the commit as "not a commit" and ANY non-200 on the
+// deployment list as "no Deployment exists" — both pushed into `violations`,
+// which is exit 1: "production carries rows that trace to no released build".
+// So an expired token, a 5xx, or `API rate limit exceeded for installation`
+// (the refusal that froze CI on 2026-09-11) paged as a bad attestation. It is
+// exported now so every branch is reachable without a network: a 404/422 on the
+// commit and an EMPTY deployment list stay violations; every other status, a body
+// that is not JSON and a body that is not a list are CouldNotLook, exit 2.
+// ─────────────────────────────────────────────────────────────────────────────
+/** `deploys` is manual-deploys.json's `deploys`; `gh(path)` answers like fetch
+ *  (`status`, `json()`) for a repository path. Returns
+ *  `{ attested, violations, accepted }`; throws CouldNotLook on a read it could
+ *  not make. */
+export async function attestManualDeploys(deploys, gh, { repo, hasToken }) {
+  const attested = [];
+  const violations = [];
+  const accepted = [];
+  for (const d of deploys ?? []) {
+    const m = String(d.version ?? '').match(/^(\d+)\.(\d+)\.(\d+)\+([0-9a-fA-F]{7,40})$/);
+    if (!m) { violations.push(`manual-deploys.json: \`${d.version}\` is not a shipped-build shape`); continue; }
+    if (!String(d.sha ?? '').toLowerCase().startsWith(m[4].toLowerCase())) {
+      violations.push(`manual-deploys.json: \`${d.version}\` build metadata does not match its own sha field`); continue;
+    }
+    const sha7 = String(d.sha).slice(0, 7);
+    if (!hasToken) {
+      throw new CouldNotLook(`manual-deploys.json attests ${d.version}, and neither GITHUB_TOKEN nor GH_TOKEN is set, so neither witness can be read`);
+    }
+    const commit = await gh(`/commits/${d.sha}`);
+    if (commit.status === 404 || commit.status === 422) {
+      violations.push(`manual-deploys.json: sha ${sha7} is not a commit on ${repo} (HTTP ${commit.status})`); continue;
+    }
+    if (commit.status !== 200) {
+      throw new CouldNotLook(`the GitHub API returned ${commit.status} reading commit ${sha7} for manual-deploys.json — a refused read is not a missing commit, so that attestation was not checked`);
+    }
+    const depRes = await gh(`/deployments?environment=${encodeURIComponent(d.environment)}&sha=${d.sha}`);
+    if (depRes.status !== 200) {
+      throw new CouldNotLook(`the GitHub API returned ${depRes.status} listing the Deployments of ${d.environment} @ ${sha7} for manual-deploys.json — a refused read is not an empty ledger`);
+    }
+    let deps;
+    try {
+      deps = await depRes.json();
+    } catch (e) {
+      throw new CouldNotLook(`the Deployments of ${d.environment} @ ${sha7} came back as something other than JSON (${e.message})`);
+    }
+    if (!Array.isArray(deps)) {
+      throw new CouldNotLook(`the Deployments of ${d.environment} @ ${sha7} came back without a list, so "none exists" cannot be concluded from them`);
+    }
+    if (deps.length === 0) {
+      violations.push(`manual-deploys.json: no GitHub Deployment exists for ${d.environment} @ ${sha7} — record-deployment.mjs never ran, so this attestation has no second witness`); continue;
+    }
+    // `conclusion: 'success'` is explicit rather than defaulted: the two
+    // witnesses above ARE this entry's validation, so it must not be sent
+    // back through the deployment-ledger check a second time.
+    attested.push({ run_number: Number(m[3]), head_sha: String(d.sha).toLowerCase(), conclusion: 'success' });
+    accepted.push(`⬜  attested manual deploy accepted: ${d.version} (${d.environment}, ${d.deployedAt}) — commit and GitHub Deployment both verified`);
+  }
+  return { attested, violations, accepted };
+}
+
 // Named `ghJson` rather than `gh` because the manual-deploys block below
 // declares its own local `gh`; two helpers with one name in one file is how a
 // later edit ends up calling the wrong one.
@@ -629,28 +694,13 @@ async function main() {
       const reg = JSON.parse(readFileSync(regPath, 'utf8'));
       const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
       const ghRepo = process.env.GITHUB_REPOSITORY || gitRemoteRepo();
-      for (const d of reg.deploys ?? []) {
-        const m = String(d.version ?? '').match(/^(\d+)\.(\d+)\.(\d+)\+([0-9a-fA-F]{7,40})$/);
-        if (!m) { attViolations.push(`manual-deploys.json: \`${d.version}\` is not a shipped-build shape`); continue; }
-        if (!String(d.sha ?? '').toLowerCase().startsWith(m[4].toLowerCase())) {
-          attViolations.push(`manual-deploys.json: \`${d.version}\` build metadata does not match its own sha field`); continue;
-        }
-        const gh = (path) => fetch(`https://api.github.com/repos/${ghRepo}${path}`, {
-          headers: { Authorization: `Bearer ${ghToken}`, 'User-Agent': 'check-prod-provenance' },
-        });
-        const commit = await gh(`/commits/${d.sha}`);
-        if (commit.status !== 200) { attViolations.push(`manual-deploys.json: sha ${String(d.sha).slice(0, 7)} is not a commit on ${ghRepo} (HTTP ${commit.status})`); continue; }
-        const depRes = await gh(`/deployments?environment=${encodeURIComponent(d.environment)}&sha=${d.sha}`);
-        const deps = depRes.status === 200 ? await depRes.json() : [];
-        if (!Array.isArray(deps) || deps.length === 0) {
-          attViolations.push(`manual-deploys.json: no GitHub Deployment exists for ${d.environment} @ ${String(d.sha).slice(0, 7)} — record-deployment.mjs never ran, so this attestation has no second witness`); continue;
-        }
-        // `conclusion: 'success'` is explicit rather than defaulted: the two
-        // witnesses above ARE this entry's validation, so it must not be sent
-        // back through the deployment-ledger check a second time.
-        attested.push({ run_number: Number(m[3]), head_sha: String(d.sha).toLowerCase(), conclusion: 'success' });
-        console.log(`⬜  attested manual deploy accepted: ${d.version} (${d.environment}, ${d.deployedAt}) — commit and GitHub Deployment both verified`);
-      }
+      const gh = (path) => fetch(`https://api.github.com/repos/${ghRepo}${path}`, {
+        headers: { Authorization: `Bearer ${ghToken}`, 'User-Agent': 'check-prod-provenance' },
+      });
+      const checked = await attestManualDeploys(reg.deploys ?? [], gh, { repo: ghRepo, hasToken: Boolean(ghToken) });
+      attested.push(...checked.attested);
+      attViolations.push(...checked.violations);
+      for (const line of checked.accepted) console.log(line);
     }
   }
 
