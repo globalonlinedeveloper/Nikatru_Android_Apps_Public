@@ -31,7 +31,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, cpSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +44,7 @@ import {
 } from '../read-identity.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = resolve(CI_DIR, '..', '..');
 const GUARD = join(CI_DIR, 'assert-store-identity.mjs');
 
 let TMP;
@@ -261,5 +262,157 @@ describe('assert-store-identity', () => {
     const { code, out } = run(root);
     assert.equal(code, 1);
     assert.match(out, /COVERAGE LOST/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — WINDOWS. REVIEW-stores-2026-09-10 #3: the windows-store row had no
+// `identity` block, so this guard never saw it, and the submitter treated an all-
+// placeholder identity as a print. The expected value is the REGISTER's
+// packageIdentity.identityName (Partner Center assigns it; it is not the slug), and a
+// placeholder is graded by RUNNING the channel's submitter with no credentials.
+//
+// The fixture carries a COPY of the real submitter and the tooling/ci modules it spawns,
+// because the guard runs the script the register names inside the tree it grades.
+const WIN_SENTINEL = 'PARTNER-CENTER-PENDING';
+const WIN_REAL = { identityName: 'NikatruFixture.SubscriptionTracker', publisherDisplayName: 'Nikatru Fixture', publisher: 'CN=00000000-0000-0000-0000-000000000000' };
+
+function windowsFixture({ identity = WIN_SENTINEL, packaged = identity, served = false, placeholderValue = WIN_SENTINEL, submitter = null, dropRefusal = false } = {}) {
+  const real = identity !== WIN_SENTINEL;
+  const register = REGISTER();
+  register.storeMetadataContract = {
+    requiredFiles: ['README.md', 'title.txt', 'short-description.txt', 'long-description.txt', 'category.txt', 'privacy-policy-url.txt', 'support-url.txt', 'screenshots/README.md'],
+    urlFiles: ['privacy-policy-url.txt', 'support-url.txt'],
+    perChannel: { 'windows-store': { additionalFiles: ['search-terms.txt'], maxLines: { 'search-terms.txt': { max: 7, source: 'MS Store Policies v7.19 §10.1.3' } } } },
+  };
+  register.channels.push({
+    id: 'windows-store',
+    kind: 'store',
+    served,
+    submittable: true,
+    platforms: ['windows'],
+    artifactFormats: ['.msix'],
+    storeMetadataDir: 'apps/{app}/store/windows-store',
+    ownerQueue: 'A-2',
+    identity: { kind: 'msix-identity-name', declaredIn: 'apps/{app}/pubspec.yaml', expectedFrom: 'packageIdentity.identityName', placeholderValue },
+    packageIdentity: {
+      notYetConfiguredSentinel: WIN_SENTINEL,
+      identityName: identity,
+      publisherDisplayName: real ? WIN_REAL.publisherDisplayName : WIN_SENTINEL,
+      publisher: real ? WIN_REAL.publisher : `CN=${WIN_SENTINEL}`,
+    },
+    submission: { script: 'tooling/release/submit-windows-store.mjs', runbook: 'Private/runbooks/store-submission-windows.md' },
+  });
+  const msix = [
+    'msix_config:',
+    '  display_name: Subscriptions',
+    `  publisher_display_name: ${real ? WIN_REAL.publisherDisplayName : WIN_SENTINEL}`,
+    `  identity_name: ${packaged}`,
+    `  publisher: ${real ? WIN_REAL.publisher : `CN=${WIN_SENTINEL}`}`,
+    '  store: true',
+    '  output_path: build/windows/msix',
+    '  output_name: subscriptiontracker',
+  ].join('\n');
+  const listing = {
+    'README.md': 'derivation map\n',
+    'title.txt': 'Subscriptions\n',
+    'short-description.txt': 'Track every subscription in one place\n',
+    'long-description.txt': 'A longer description.\n',
+    'category.txt': 'Productivity\n',
+    'privacy-policy-url.txt': 'https://nikatru.com/privacy\n',
+    'support-url.txt': 'https://nikatru.com/contact\n',
+    'screenshots/README.md': 'slot\n',
+    'search-terms.txt': 'a\nb\n',
+  };
+  const files = {
+    'apps/subscriptiontracker/pubspec.yaml': `name: subscriptiontracker\n\n${msix}\n`,
+    'apps/subscriptiontracker/windows/runner/main.cpp': 'int main(){}\n',
+  };
+  for (const [k, v] of Object.entries(listing)) files[`apps/subscriptiontracker/store/windows-store/${k}`] = v;
+  const root = fixture({
+    register,
+    apps: [{ slug: 'subscriptiontracker', name: 'Subscriptions', tagline: 'Track every subscription in one place', platforms: ['web'], status: 'live' }],
+    files,
+  });
+  cpSync(join(REPO, 'tooling', 'ci'), join(root, 'tooling', 'ci'), { recursive: true, filter: (src) => !src.split(/[\\/]/).includes('test') });
+  const script = join(root, 'tooling', 'release', 'submit-windows-store.mjs');
+  mkdirSync(dirname(script), { recursive: true });
+  let source = submitter ?? readFileSync(join(REPO, 'tooling', 'release', 'submit-windows-store.mjs'), 'utf8');
+  if (dropRefusal) {
+    const cut = source.indexOf('  if (SUBMIT) {\n    problems.push(\n      `PLACEHOLDER PACKAGE IDENTITY');
+    assert.ok(cut !== -1, 'the placeholder refusal is not where this mutation expects it');
+    source = source.slice(0, cut) + '  if (false) {\n    problems.push(\n      `PLACEHOLDER PACKAGE IDENTITY' + source.slice(cut + '  if (SUBMIT) {\n    problems.push(\n      `PLACEHOLDER PACKAGE IDENTITY'.length);
+  }
+  writeFileSync(script, source);
+  // The guard's own copy must be the one under test, not the fixture's snapshot of it.
+  writeFileSync(join(root, 'tooling', 'ci', 'assert-store-identity.mjs'), readFileSync(GUARD, 'utf8'));
+  return root;
+}
+
+describe('assert-store-identity — Windows: a store-assigned identity, and a placeholder that must be refused', () => {
+  test('PRINTS the owner-gated placeholder and exits 0 — because the submitter was run and REFUSED it', () => {
+    const { code, out } = run(windowsFixture());
+    assert.equal(code, 0, out);
+    assert.match(out, /OWNER-GATED \(A-2\) · app "subscriptiontracker" × channel "windows-store" \(windows\): the package identity is the placeholder "PARTNER-CENTER-PENDING"/);
+    assert.match(out, /--submit REFUSES it \(run here with no credentials, exit non-zero, refusal named\)/);
+    assert.match(out, /3 \(app × platform\) identity\(ies\) compared/);
+  });
+
+  test('🔴 MUTATION: FAILS when the submitter no longer refuses the placeholder', () => {
+    const { code, out } = run(windowsFixture({ dropRefusal: true }));
+    assert.equal(code, 1, out);
+    assert.match(out, /still packages the placeholder identity and tooling\/release\/submit-windows-store\.mjs --submit did NOT refuse it by name/);
+  });
+
+  test('FAILS when the pubspec packages a different identity from the register', () => {
+    const { code, out } = run(windowsFixture({ identity: WIN_REAL.identityName, packaged: 'NikatruFixture.SomethingElse' }));
+    assert.equal(code, 1, out);
+    assert.match(out, /declares "NikatruFixture\.SomethingElse" and tooling\/channel-register\.json channel "windows-store" packageIdentity\.identityName is "NikatruFixture\.SubscriptionTracker"/);
+  });
+
+  test('a CONFIGURED identity that agrees passes without printing the gap, and is not held to com.nikatru.<slug>', () => {
+    const { code, out } = run(windowsFixture({ identity: WIN_REAL.identityName }));
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /OWNER-GATED/);
+    assert.doesNotMatch(out, /canonical form is "com\.nikatru\.subscriptiontracker"/);
+  });
+
+  test('FAILS a served row that still packages the placeholder', () => {
+    const { code, out } = run(windowsFixture({ served: true }));
+    assert.equal(code, 1, out);
+    assert.match(out, /the row says served: true and apps\/subscriptiontracker\/pubspec\.yaml still packages the placeholder/);
+  });
+
+  test('FAILS when the marked placeholder and the sentinel are two different strings', () => {
+    const { code, out } = run(windowsFixture({ placeholderValue: 'PENDING' }));
+    assert.equal(code, 1, out);
+    assert.match(out, /identity\.placeholderValue is "PENDING" and packageIdentity\.notYetConfiguredSentinel is "PARTNER-CENTER-PENDING"/);
+  });
+
+  test('COVERAGE LOST when expectedFrom names a field the guard cannot read', () => {
+    const root = windowsFixture();
+    const regPath = join(root, 'tooling', 'channel-register.json');
+    const reg = JSON.parse(readFileSync(regPath, 'utf8'));
+    reg.channels.find((c) => c.id === 'windows-store').identity.expectedFrom = 'packageIdentity.somethingElse';
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    const { code, out } = run(root);
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /the only field this guard knows how to read is "packageIdentity\.identityName"/);
+  });
+
+  test('FAILS a native store channel that declares no identity block — the shape windows-store sat in', () => {
+    const register = REGISTER();
+    register.channels.push({ id: 'windows-store', kind: 'store', platforms: ['windows'] });
+    const { code, out } = run(fixture({ register }));
+    assert.equal(code, 1, out);
+    assert.match(out, /channel "windows-store" is a store for windows and declares no `identity` block/);
+  });
+
+  test('a browser-extension store and a direct channel are not native identity channels', () => {
+    const register = REGISTER();
+    register.channels.push({ id: 'amo', kind: 'store', platforms: ['firefox'] }, { id: 'windows-direct', kind: 'direct', platforms: ['windows'] });
+    const { code, out } = run(fixture({ register }));
+    assert.equal(code, 0, out);
   });
 });

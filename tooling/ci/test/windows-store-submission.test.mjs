@@ -50,6 +50,25 @@ after(() => {
 let seq = 0;
 const SENTINEL = 'PARTNER-CENTER-PENDING';
 
+// ⏱ 2026-09-11 — A PLACEHOLDER IDENTITY IS NOW A --submit REFUSAL (REVIEW-stores-2026-09-10 #3).
+// Every case below that is ABOUT a later preflight (the confirm phrase, PG-6, the citation
+// tally, the citation mutation) therefore builds a tree whose identity is CONFIGURED: with the
+// placeholder those cases would stop at the identity refusal and assert nothing about their
+// own gate. The refusal itself has its own case, and the dry run still only prints.
+const CONFIGURED_IDENTITY = {
+  identityName: 'NikatruFixture.SubscriptionTracker',
+  publisherDisplayName: 'Nikatru Fixture',
+  publisher: 'CN=00000000-0000-0000-0000-000000000000',
+};
+const CONFIGURED = {
+  mutateRegister: (reg) => Object.assign(reg.channels[0].packageIdentity, CONFIGURED_IDENTITY),
+  pubspecOver: {
+    identity_name: CONFIGURED_IDENTITY.identityName,
+    publisher_display_name: CONFIGURED_IDENTITY.publisherDisplayName,
+    publisher: CONFIGURED_IDENTITY.publisher,
+  },
+};
+
 const FILES = {
   'README.md': 'derivation map\n',
   'title.txt': 'Subly\n',
@@ -176,21 +195,36 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     assert.match(out, /green tick over a store that received nothing/);
   });
 
+  test('--submit REFUSES a package identity that is still the Partner Center placeholder, naming it', () => {
+    // Credentials present and the confirm phrase typed: the ONLY thing wrong is the identity.
+    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], CREDS);
+    assert.equal(code, 1, out);
+    assert.match(out, /PLACEHOLDER PACKAGE IDENTITY — --submit REFUSED: all 3 identity field\(s\) are still PARTNER-CENTER-PENDING/);
+    assert.doesNotMatch(out, /primary sources — \d+ citation\(s\) present/, 'the placeholder walked past the problems block toward the upload');
+  });
+
+  test('--dry-run only PRINTS the placeholder — the account step is owner work, not a defect', () => {
+    const { code, out } = run(tree({ withArtifact: true }), ['--dry-run', '--app', 'subscriptiontracker']);
+    assert.equal(code, 0, out);
+    assert.match(out, /PACKAGE IDENTITY NOT YET CONFIGURED — all 3 field\(s\) are PARTNER-CENTER-PENDING/);
+    assert.doesNotMatch(out, /--submit REFUSED/);
+  });
+
   test('--submit REFUSES without the typed confirm phrase', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker'], CREDS);
+    const { code, out } = run(tree({ withArtifact: true, ...CONFIGURED }), ['--submit', '--app', 'subscriptiontracker'], CREDS);
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
     assert.doesNotMatch(out, /the-actual-secret/);
   });
 
   test('--submit REFUSES on a WRONG confirm phrase — a near miss is not a confirmation', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STOR'], CREDS);
+    const { code, out } = run(tree({ withArtifact: true, ...CONFIGURED }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STOR'], CREDS);
     assert.equal(code, 1, out);
     assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
   });
 
   test('--submit FAILS CLOSED with no GITHUB_TOKEN — PG-6 cannot read the approval gate', () => {
-    const { code, out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+    const { code, out } = run(tree({ withArtifact: true, ...CONFIGURED }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
@@ -202,7 +236,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   });
 
   test('--submit prints the sourced-citation tally before it touches anything remote', () => {
-    const { out } = run(tree({ withArtifact: true }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
+    const { out } = run(tree({ withArtifact: true, ...CONFIGURED }), ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'], {
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
@@ -222,7 +256,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
   // out of tooling/ci dies on LOAD with exit 1, which reads exactly like the
   // mutation being caught. Copying its siblings is what keeps the red honest.
   test('MUTATION: a blanked primary source makes --submit refuse, naming the key', () => {
-    const root = tree({ withArtifact: true });
+    const root = tree({ withArtifact: true, ...CONFIGURED });
     cpSync(join(REPO, 'tooling', 'ci'), join(root, 'tooling', 'ci'), {
       recursive: true,
       filter: (src) => !src.split(/[\\/]/).includes('test'),

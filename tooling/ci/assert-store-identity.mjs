@@ -45,10 +45,27 @@
 // their tests, and a duplicated identity reader fails by reporting agreement
 // between two things it read wrongly.
 //
+// ── ⏱ 2026-09-11 — WINDOWS JOINS, AND ITS EXPECTED VALUE IS NOT THE SLUG ─────
+// REVIEW-stores-2026-09-10 #3: the windows-store row had no `identity` block, so
+// this guard never saw Windows, and submit-windows-store.mjs treated an identity
+// that was ENTIRELY `PARTNER-CENTER-PENDING` as a print — `--submit` would have
+// uploaded under the placeholder. An MSIX Package/Identity/Name is ASSIGNED by
+// Partner Center, so a row may now say `expectedFrom: "packageIdentity.identityName"`
+// and the expected value is read from that register field instead of derived.
+// While that value is the row's declared placeholder, this guard:
+//   · PRINTS the owner-gated gap (the account step is owner work, not a defect);
+//   · FAILS if the row says `served: true` — a served channel under a placeholder;
+//   · RUNS the row's `submission.script --submit` with no credentials in its
+//     environment and FAILS unless it exits non-zero naming the placeholder refusal.
+//     No credentials means it cannot authenticate even if the refusal were gone, and
+//     every check that talks to GitHub or Microsoft sits after the problems block
+//     that exits — so this proves the refusal without being able to submit anything.
+//
 // Usage:  node tooling/ci/assert-store-identity.mjs [repoRoot]
 // Exit 0 = every app × declared platform resolves to the one canonical id.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveIdentity } from './read-identity.mjs';
@@ -74,6 +91,65 @@ const PLATFORM_DIR = new Map([
 
 const problems = [];
 const prints = [];
+
+/** What a row's identity must equal. The default is the canonical form; a row
+ *  whose identity is ASSIGNED by the store (MSIX) names the register field that
+ *  holds it instead. An `expectedFrom` this guard cannot read is COVERAGE LOST,
+ *  never a silent fall-back to the canonical form. */
+function expectationFor(row, slug) {
+  const from = row.identity.expectedFrom;
+  if (from === undefined) return { want: canonical(slug), label: "architecture §24's canonical form" };
+  if (from !== 'packageIdentity.identityName') {
+    return { lost: `channel "${row.id}" identity.expectedFrom is ${JSON.stringify(from)}; the only field this guard knows how to read is "packageIdentity.identityName".` };
+  }
+  const pi = row.packageIdentity;
+  if (!pi || typeof pi.identityName !== 'string' || pi.identityName.trim() === '') {
+    return { lost: `channel "${row.id}" says its identity is expected from packageIdentity.identityName and declares none.` };
+  }
+  if (typeof pi.notYetConfiguredSentinel !== 'string' || pi.notYetConfiguredSentinel === '') {
+    return { lost: `channel "${row.id}" declares no packageIdentity.notYetConfiguredSentinel, so a placeholder cannot be told from a real Partner Center value.` };
+  }
+  if (row.identity.placeholderValue !== pi.notYetConfiguredSentinel) {
+    return {
+      problem:
+        `channel "${row.id}" identity.placeholderValue is ${JSON.stringify(row.identity.placeholderValue ?? null)} and ` +
+        `packageIdentity.notYetConfiguredSentinel is ${JSON.stringify(pi.notYetConfiguredSentinel)}. The marked placeholder and the ` +
+        'sentinel the submitter refuses must be ONE string, or a value can be "not the placeholder" to one reader and "the placeholder" to the other.',
+    };
+  }
+  return { want: pi.identityName, label: `${REGISTER_REL} channel "${row.id}" packageIdentity.identityName`, sentinel: pi.notYetConfiguredSentinel };
+}
+
+/** Run the channel's own submitter with `--submit` and NO credentials, and
+ *  require it to refuse the placeholder by name. Returns a problem string or null. */
+function submitRefusesPlaceholder(row, slug) {
+  const script = row.submission?.script;
+  if (typeof script !== 'string' || script === '') {
+    return `channel "${row.id}" packages the placeholder identity and declares no submission.script, so nothing proves a submit refuses it.`;
+  }
+  const abs = join(ROOT, script);
+  if (!existsSync(abs)) {
+    return `channel "${row.id}" names submission.script ${script}, which does not exist, so nothing proves a submit refuses the placeholder.`;
+  }
+  // The environment is BUILT, not inherited minus a list: a credential this guard
+  // did not think to blank would otherwise travel into a `--submit` run.
+  const env = {};
+  for (const k of ['PATH', 'Path', 'SystemRoot', 'TEMP', 'TMP', 'HOME', 'USERPROFILE']) {
+    if (process.env[k] !== undefined) env[k] = process.env[k];
+  }
+  const r = spawnSync(process.execPath, [abs, '--submit', '--app', slug, '--allow-missing-artifact', '--repo-root', ROOT], {
+    encoding: 'utf8',
+    env,
+    timeout: 120_000,
+  });
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  if (r.status !== 0 && out.includes('PLACEHOLDER PACKAGE IDENTITY — --submit REFUSED')) return null;
+  const tail = out.trim().split(/\r?\n/).slice(-12).join(' ⏎ ');
+  return (
+    `channel "${row.id}": app "${slug}" still packages the placeholder identity and ${script} --submit did NOT refuse it by name ` +
+    `(exit ${r.status ?? r.error?.code ?? 'none'}). A placeholder identity must be a refusal before anything is uploaded. Output tail: ${tail}`
+  );
+}
 
 function coverageLost(lines) {
   console.error('');
@@ -111,6 +187,24 @@ if (withIdentity.length === 0) {
     'The platform side of the relationship is empty, so every app trivially satisfies it. This is the',
     'shape Windows was green on for weeks: having no identity read exactly like having the right one.',
   ]);
+}
+
+// ⏱ 2026-09-11 — THE CLASS, NOT THE INSTANCE. The subject set above is "rows that
+// declare an `identity` block", so a store row that declares none is not compared
+// AND not reported — which is exactly how windows-store sat outside [10]D-3 until
+// today (REVIEW-stores-2026-09-10 #3). A `kind: "store"` row for a native platform
+// with no block is therefore a FAILURE by name. Browser-extension stores are not
+// native platforms here (their ids live in tool.json), and `direct` channels bind
+// no store record.
+for (const r of rows) {
+  if (r?.kind !== 'store' || (r.identity && typeof r.identity === 'object')) continue;
+  const native = (r.platforms ?? []).filter((p) => PLATFORM_DIR.has(p));
+  if (native.length === 0) continue;
+  problems.push(
+    `channel "${r.id}" is a store for ${native.join(', ')} and declares no \`identity\` block in ${REGISTER_REL}, so this guard ` +
+      'never compares the identity it would submit under — and says nothing about not comparing it. That is the exact shape ' +
+      'windows-store was in until 2026-09-11. Declare the block (kind + declaredIn, and expectedFrom when the store assigns the value).',
+  );
 }
 
 let checked = 0;
@@ -165,7 +259,42 @@ for (const app of apps) {
       }
 
       checked++;
-      const want = canonical(slug);
+      const exp = expectationFor(row, slug);
+      if (exp.lost) coverageLost([`${at}: ${exp.lost}`]);
+      if (exp.problem) {
+        problems.push(`${at}: ${exp.problem}`);
+        continue;
+      }
+      const want = exp.want;
+      if (exp.sentinel !== undefined) {
+        if (r.value !== want) {
+          problems.push(
+            `${at}: ${r.rel} declares "${r.value}" and ${exp.label} is "${want}". The register is the one declaration of an ` +
+              'identity the store assigns; the pubspec is what gets packaged. Two answers means the wrong one ships.',
+          );
+          continue;
+        }
+        if (String(r.value).includes(exp.sentinel)) {
+          if (row.served === true) {
+            problems.push(
+              `${at}: the row says served: true and ${r.rel} still packages the placeholder "${r.value}". A served channel ` +
+                'under a placeholder identity is a store listing no product owns.',
+            );
+            continue;
+          }
+          const refusal = submitRefusesPlaceholder(row, slug);
+          if (refusal) {
+            problems.push(`${at}: ${refusal}`);
+            continue;
+          }
+          prints.push(
+            `OWNER-GATED (${row.ownerQueue ?? 'owner'}) · ${at}: the package identity is the placeholder "${r.value}" in both the register ` +
+              `and ${r.rel}. ${row.submission.script} --submit REFUSES it (run here with no credentials, exit non-zero, refusal named), ` +
+              'so it cannot reach a store upload. It stops printing when Partner Center\'s real values land in both files.',
+          );
+        }
+        continue;
+      }
       if (r.value !== want) {
         problems.push(
           `${at}: ${r.rel} declares "${r.value}" and architecture §24's canonical form is "${want}". ` +
@@ -203,7 +332,7 @@ if (prints.length) {
 }
 
 console.log(
-  `ok  store identity — ${checked} (app × platform) identity(ies) compared to com.nikatru.<slug> across ` +
+  `ok  store identity — ${checked} (app × platform) identity(ies) compared to com.nikatru.<slug> (or the register's store-assigned value) across ` +
     `${apps.length} app(s) and ${withIdentity.length} identity-declaring channel(s); ${skippedNoFolder} pair(s) ` +
     'skipped for having no platform folder (a web-only app is not missing an Android package name)',
 );
