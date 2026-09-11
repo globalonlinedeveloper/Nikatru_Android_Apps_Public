@@ -16,7 +16,7 @@
 //      must be unresolvable (404). A 200 means the login still works, which is
 //      the 502 case the platform route is written to report and the one thing a
 //      user is told is impossible.
-//   B. THE APP'S ROWS — live D1 (subly_db), through the same Cloudflare HTTP API
+//   B. THE APP'S ROWS — live D1 (subscriptiontracker_db), through the same Cloudflare HTTP API
 //      `verify_row.mjs` uses. Every user-owned table must hold ZERO rows for the
 //      deleted id.
 //
@@ -56,13 +56,13 @@
 // there — exactly the shape `verify_row.mjs` terminates with.
 //
 // Env: E2E_DELETE_USER_ID, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-//      CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, SUBLY_D1_DATABASE_ID
+//      CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, SUBSCRIPTIONTRACKER_D1_DATABASE_ID
 // NOTE: CLOUDFLARE_API_TOKEN needs D1 READ access for this account.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** The route whose EFFECT this file audits — the in-app "Delete account" tap
  *  reaches the shared platform Worker's `DELETE /v1/account`, which sweeps
- *  platform_db, relays to subscriptiontracker-api's own `/v1/account` for subly_db, and
+ *  platform_db, relays to subscriptiontracker-api's own `/v1/account` for subscriptiontracker_db, and
  *  deletes the identity last. Named as a value rather than in prose because
  *  tooling/ci/assert-e2e-legs.mjs reads this harness COMMENT-STRIPPED: a
  *  sentence describing the step is exactly what a nightly that does not run it
@@ -76,12 +76,12 @@ const userId = need('E2E_DELETE_USER_ID');
 const supaUrl = need('SUPABASE_URL').replace(/\/+$/, '');
 const serviceKey = need('SUPABASE_SERVICE_ROLE_KEY');
 const acct = need('CLOUDFLARE_ACCOUNT_ID');
-const dbId = need('SUBLY_D1_DATABASE_ID');
+const dbId = need('SUBSCRIPTIONTRACKER_D1_DATABASE_ID');
 const token = need('CLOUDFLARE_API_TOKEN');
 
 console.log(
   `Auditing the effect of DELETE ${ERASURE_ROUTE} for user ${userId} — ` +
-    'the identity record and every user-owned row in subly_db.',
+    'the identity record and every user-owned row in subscriptiontracker_db.',
 );
 
 // TWO INDEPENDENT FINDINGS, RESOLVED AT THE END — not one number raised as it
@@ -145,14 +145,14 @@ if (tables === null) {
   // "0 rows, all clear". The erasure route itself refuses (503) on exactly this
   // condition for the mirror-image reason.
   console.error(
-    'COULD NOT LOOK: no user-owned table was found in subly_db, so this audit would report ' +
+    'COULD NOT LOOK: no user-owned table was found in subscriptiontracker_db, so this audit would report ' +
       '"nothing survived" without reading a single row. The route derives its DELETE targets from ' +
       'the same query, so an empty set here means the derivation is broken, not that the database ' +
       'is clean.',
   );
   worse(2);
 } else {
-  console.log(`Schema-derived user-owned tables in subly_db: ${tables.join(', ')}`);
+  console.log(`Schema-derived user-owned tables in subscriptiontracker_db: ${tables.join(', ')}`);
   for (const table of tables) {
     // eslint-disable-next-line no-await-in-loop
     const rows = await countFor(table);
@@ -191,7 +191,7 @@ if (survived) {
 } else {
   console.log(
     'PASS: the in-app account deletion really erased this user — the identity is unresolvable and ' +
-      'every user-owned table in subly_db is empty for it. [pipeline N-6 leg 6]',
+      'every user-owned table in subscriptiontracker_db is empty for it. [pipeline N-6 leg 6]',
   );
 }
 
@@ -200,7 +200,7 @@ process.exitCode = survived ? 1 : blind ? 2 : 0;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-/** Every table in subly_db carrying a `user_id` column, straight from the
+/** Every table in subscriptiontracker_db carrying a `user_id` column, straight from the
  *  schema. `null` = the read failed.
  *
  * 🔴 IT IS TWO STEPS BECAUSE D1 REFUSES THE ONE-STEP FORM. This used to be the

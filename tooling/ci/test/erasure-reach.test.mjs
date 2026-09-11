@@ -381,15 +381,15 @@ describe('LIMB 2 — a route file that nothing mounts is a dead seam', () => {
 });
 
 describe('LIMB 1 — a table with a user_id may not declare itself unreachable', () => {
-  test('FAILS when a subly_db row goes back to `no-route`', () => {
+  test('FAILS when a subscriptiontracker_db row goes back to `no-route`', () => {
     // The exact state the register carried until this change: four honest rows
     // saying nothing reaches these tables, and every guard green.
     withTree(
       (root) =>
         edit(root, REGISTER, (s) => {
           const j = JSON.parse(s);
-          const row = j.stores.find((x) => x.id === 'table:subly_db.subscriptions');
-          row.erasure = { kind: 'no-route', blockedBy: 'nothing reaches subly_db' };
+          const row = j.stores.find((x) => x.id === 'table:subscriptiontracker_db.subscriptions');
+          row.erasure = { kind: 'no-route', blockedBy: 'nothing reaches subscriptiontracker_db' };
           return JSON.stringify(j, null, 2);
         }),
       (r) => {
@@ -404,7 +404,7 @@ describe('LIMB 1 — a table with a user_id may not declare itself unreachable',
       (root) =>
         edit(root, REGISTER, (s) => {
           const j = JSON.parse(s);
-          j.stores = j.stores.filter((x) => x.id !== 'table:subly_db.budgets');
+          j.stores = j.stores.filter((x) => x.id !== 'table:subscriptiontracker_db.budgets');
           return JSON.stringify(j, null, 2);
         }),
       (r) => {

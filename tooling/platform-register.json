@@ -107,11 +107,12 @@
         "because \"a declaration counted as a call\" is this repo’s most repeated defect and a register that",
         "hid it would be the seventh place it happened."
       ],
-      "name": "subly-api",
-      "_nameWhy": "THE DEPLOYED WORKER NAME, WHICH IS NOT THE DIRECTORY NAME AND IS NOT THE SLUG. assert-platform-register.mjs compares this field against `name` in the config below, and it caught the split the moment they diverged — which is what this field is for. The slug moved to `subscriptiontracker` on 2026-09-09 and the directory moved with it; the DEPLOYED name did not, because `wrangler deploy` addresses a Worker BY NAME, so a new name is a NEW WORKER rather than a rename — and `api.nikatru.com` is a CUSTOM DOMAIN, bound to exactly one Worker at a time. Moving it is a live-resource migration owed as its own sequenced change, the same class as the `subly_db` rename and the Cloudflare Pages project. The full reasoning is at `name` in services/subscriptiontracker-api/wrangler.jsonc.",
+      "name": "subscriptiontracker-api",
+      "_nameWhy": "THE DEPLOYED WORKER NAME. assert-platform-register.mjs compares this field against `name` in the config below. Until 2026-09-11 the deployed name was the retired `subly-api` while the directory and slug were already `subscriptiontracker`; [ADR 079] moved the deployed name to match, as a new Worker that claimed both custom domains on its first deploy.",
       "entrypoint": "services/subscriptiontracker-api/src/index.ts",
       "config": "services/subscriptiontracker-api/wrangler.jsonc",
       "hosts": [
+        "subscriptiontracker.api.nikatru.com",
         "api.nikatru.com"
       ],
       "clientBasePath": "/v1",
@@ -134,7 +135,7 @@
           "purpose": "Deploy verification AND dependency health for the per-app Worker. Answers `{ ok, status, app, version, build, time, checks }` after probing APP_DB (`SELECT 1 FROM subscriptions LIMIT 1`), PLATFORM_DB (`SELECT 1 FROM entitlements LIMIT 1`) and the Supabase JWKS, each through a per-isolate memoised reading (services/_shared/src/health.ts); JWKS_CACHE is deliberately NOT probed (services/subscriptiontracker-api/src/index.ts says why). ⚠️ CORRECTED 2026-09-10 — this field described a vars-only answer that touched no dependency while the handler probed three. `build` is the commit this Worker was deployed from and is what joins a deploy to a running binary; `version` is the literal API-contract version. [pipeline 14]O-7.",
           "client": {
             "file": ".github/workflows/deploy-workers.yml",
-            "expression": "https://api.nikatru.com/v1/health",
+            "expression": "https://subscriptiontracker.api.nikatru.com/v1/health",
             "note": "The `--url` argument of the post-deploy smoke step, which fails the deploy job unless this route answers `ok:true` at the deployed sha. It is a MACHINE consumer, not a human one — the same script smokes services/platform's health route from the step below it."
           },
           "noLimiterReason": "It DOES I/O — two D1 reads (APP_DB, PLATFORM_DB) and one JWKS subrequest — and what bounds it is the per-isolate MEMO, not a limiter: each probe is a reading with a TTL (services/_shared/src/health.ts, READING_TTL_MS = 5 s for D1, JWKS_READING_TTL_MS for the JWKS fetch), so a flood buys at most one fan-out per TTL per isolate, (isolates × 1 per TTL) in total, and every other request costs the Worker invocation itself, which the account-wide request ceiling already bounds. Identical reasoning to the shared host’s health route, and corrected on the same day (2026-09-10) for the same reason: the field claimed the handler touched no dependency at all while it probed three, and limb 4b of assert-platform-register.mjs now refuses that claim. [4]B-13"
@@ -155,7 +156,7 @@
           "path": "/v1/account",
           "auth": "required",
           "owningFile": "services/subscriptiontracker-api/src/routes/account.ts",
-          "purpose": "G2 erasure for subly_db. THE ONE ROUTE ON THIS WORKER BEHIND THE STRICT BOUNDARY: mounted under `erasureAuth` (ES256/JWKS only, no HS256 fallback) and it re-checks `tokenAssurance` itself, so moving the mount produces a logged 403 rather than a silent downgrade. The table set is DERIVED from the schema (a `user_id` column is the selector), never a literal list.",
+          "purpose": "G2 erasure for subscriptiontracker_db. THE ONE ROUTE ON THIS WORKER BEHIND THE STRICT BOUNDARY: mounted under `erasureAuth` (ES256/JWKS only, no HS256 fallback) and it re-checks `tokenAssurance` itself, so moving the mount produces a logged 403 rather than a silent downgrade. The table set is DERIVED from the schema (a `user_id` column is the selector), never a literal list.",
           "client": {
             "file": "services/platform/src/routes/account.ts",
             "expression": "`${origin}/v1/account`",
@@ -234,7 +235,7 @@
           "auth": "required",
           "owningFile": "services/subscriptiontracker-api/src/routes/renewals.ts",
           "purpose": "The upcoming-renewals list for the verified user, computed server-side over a window. Mounted at index.ts:87 behind `supabaseAuth`, 108 lines, with its own test file.",
-          "unconsumedReason": "🔴 NOTHING IN THIS REPO CALLS IT, AND THAT IS THE FINDING THIS ENTRY EXISTS TO STOP BEING INVISIBLE. Measured 2026-08-25 across every language and every root in the repo, with the /v1 prefix removed after that exact mistake once produced a false negative: apps/subscriptiontracker/lib/data/api/api_client.dart declares NINE methods and none is renewals; dio_api_client.dart issues NINE requests and none is to /renewals; packages/api_client has no renewals transport; and every bare-word `renewals` hit outside services/ is a UI string, a feature flag, the platform cron fan-out (services/platform/src/scheduled.ts, which writes subly_db DIRECTLY through the SUBLY_DB binding and never over HTTP), or a test. The app computes its upcoming-renewal list locally from the subscriptions it already holds. ⚠️ IT IS NOT DELETED, AND DELETION IS NOT THIS ITEM’S CALL: it is a plausible sync-era surface, deletion is the irreversible half, and the register’s whole purpose is that an unconsumed capability is a PRINTED fact rather than a silence. Give it a client or remove it deliberately — but from now on the choice is on the screen every CI run."
+          "unconsumedReason": "🔴 NOTHING IN THIS REPO CALLS IT, AND THAT IS THE FINDING THIS ENTRY EXISTS TO STOP BEING INVISIBLE. Measured 2026-08-25 across every language and every root in the repo, with the /v1 prefix removed after that exact mistake once produced a false negative: apps/subscriptiontracker/lib/data/api/api_client.dart declares NINE methods and none is renewals; dio_api_client.dart issues NINE requests and none is to /renewals; packages/api_client has no renewals transport; and every bare-word `renewals` hit outside services/ is a UI string, a feature flag, the platform cron fan-out (services/platform/src/scheduled.ts, which writes subscriptiontracker_db DIRECTLY through the SUBSCRIPTIONTRACKER_DB binding and never over HTTP), or a test. The app computes its upcoming-renewal list locally from the subscriptions it already holds. ⚠️ IT IS NOT DELETED, AND DELETION IS NOT THIS ITEM’S CALL: it is a plausible sync-era surface, deletion is the irreversible half, and the register’s whole purpose is that an unconsumed capability is a PRINTED fact rather than a silence. Give it a client or remove it deliberately — but from now on the choice is on the screen every CI run."
         },
         {
           "id": "subscriptiontracker-budget-get",
@@ -524,7 +525,7 @@
       ]
     },
     {
-      "binding": "SUBLY_DB",
+      "binding": "SUBSCRIPTIONTRACKER_DB",
       "kind": "d1_databases",
       "scope": "per-app",
       "purpose": "Subly's own database, bound into `platform` READ/WRITE for the nightly renewals fan-out only. ⚠️ This binding is the thing that does NOT scale: a 50-app portfolio cannot carry 50 hand-added D1 bindings on one Worker. Recorded here so the next app's stamp meets the ceiling as a known cost rather than as a surprise ([4]B-11 derives the job set; the fan-out target list is still `appTargets()`'s hardcoded array).",

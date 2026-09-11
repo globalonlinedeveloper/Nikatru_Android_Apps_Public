@@ -16,7 +16,7 @@
 ///
 ///   flutter run --dart-define=SUPABASE_URL=https://xxx.supabase.co \
 ///               --dart-define=SUPABASE_ANON_KEY=sb_publishable_... \
-///               --dart-define=API_BASE_URL=https://api.nikatru.com
+///               --dart-define=API_BASE_URL=https://subscriptiontracker.api.nikatru.com
 ///
 /// or, for a local live-mode run, the whole set at once:
 ///
@@ -119,7 +119,7 @@ class AppConfig {
   //
   // 🔴 [_phApiBase] IS A SENTINEL, NOT THE HOST. Read this before changing it.
   //
-  // The real host is `https://api.nikatru.com` and it arrives as
+  // The real host is `https://subscriptiontracker.api.nikatru.com` and it arrives as
   // `--dart-define=API_BASE_URL` — every one of the eight shipping lanes passes
   // it (deploy-web.yml, build-platforms.yml ×3, submit-play, submit-appstore ×2,
   // submit-windows-store), and a local live run gets it from

@@ -321,7 +321,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
   it('writes a row for the app it fanned out to — the claim that was false before', async () => {
     const platform = realPlatformDb();
     const app = appDb();
-    await renewalsFanOut({ PLATFORM_DB: platform, SUBLY_DB: app } as unknown as Env);
+    await renewalsFanOut({ PLATFORM_DB: platform, SUBSCRIPTIONTRACKER_DB: app } as unknown as Env);
 
     expect(platform.count('cron_heartbeat', 'job = ?', RENEWALS_JOB)).toBe(1);
     const [row] = platform.rows('SELECT target, ok, detail FROM cron_heartbeat WHERE job = ?', RENEWALS_JOB);
@@ -337,7 +337,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
     // No `subscriptions` table at all — the SELECT throws, exactly as a schema
     // drift or a D1 outage would.
     const broken = realPlatformDb();
-    await renewalsFanOut({ PLATFORM_DB: platform, SUBLY_DB: broken } as unknown as Env);
+    await renewalsFanOut({ PLATFORM_DB: platform, SUBSCRIPTIONTRACKER_DB: broken } as unknown as Env);
 
     const [row] = platform.rows('SELECT ok, detail FROM cron_heartbeat WHERE job = ?', RENEWALS_JOB);
     expect(row.ok).toBe(0);
@@ -346,7 +346,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
 
   it('an UNBOUND app database is a failure row, never "ran fine, nothing due"', async () => {
     const platform = realPlatformDb();
-    await renewalsFanOut({ PLATFORM_DB: platform, SUBLY_DB: undefined } as unknown as Env);
+    await renewalsFanOut({ PLATFORM_DB: platform, SUBSCRIPTIONTRACKER_DB: undefined } as unknown as Env);
     const [row] = platform.rows('SELECT ok, detail FROM cron_heartbeat WHERE job = ?', RENEWALS_JOB);
     expect(row.ok).toBe(0);
     expect(String(row.detail)).toContain('no database binding');
@@ -356,7 +356,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
     // If both jobs wrote under one name, "is the keep-alive healthy" and "are
     // renewals healthy" would be the same query and neither could be answered.
     const platform = realPlatformDb();
-    await renewalsFanOut({ PLATFORM_DB: platform, SUBLY_DB: appDb() } as unknown as Env);
+    await renewalsFanOut({ PLATFORM_DB: platform, SUBSCRIPTIONTRACKER_DB: appDb() } as unknown as Env);
     expect(platform.count('cron_heartbeat', 'job = ?', KEEPALIVE_JOB)).toBe(0);
     expect(new Set([KEEPALIVE_JOB, ANALYTICS_LIVENESS_JOB, RENEWALS_JOB]).size).toBe(3);
   });
@@ -370,7 +370,7 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
       `INSERT INTO subscriptions (id, user_id, price, cycle, next_renewal)
        VALUES ('s1', 'u1', 9.99, 'monthly', '2020-01-15')`,
     );
-    await renewalsFanOut({ PLATFORM_DB: platform, SUBLY_DB: app } as unknown as Env);
+    await renewalsFanOut({ PLATFORM_DB: platform, SUBSCRIPTIONTRACKER_DB: app } as unknown as Env);
 
     const [row] = platform.rows('SELECT ok, detail FROM cron_heartbeat WHERE job = ?', RENEWALS_JOB);
     expect(row.ok).toBe(1);

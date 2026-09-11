@@ -121,7 +121,7 @@
     // WORKER CAN ONLY EMPTY platform_db. A route reads the databases it reads,
     // not the ones its Worker happens to bind — so before this list existed, a
     // Subly user could delete their account and leave every subscription, budget
-    // and payment they had entered in subly_db, behind a login that no longer
+    // and payment they had entered in the app database, behind a login that no longer
     // existed. The shared route now relays the caller's own bearer token to each
     // app's own DELETE /v1/account (services/subscriptiontracker-api/src/routes/account.ts),
     // AFTER the service-role precondition and BEFORE the identity is deleted.
@@ -131,7 +131,7 @@
     // (tooling/ci/assert-erasure-reach.mjs) rather than silently orphaning that
     // app's rows on every deletion. `https://` is required: the relay forwards a
     // live session token.
-    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://api.nikatru.com"
+    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://subscriptiontracker.api.nikatru.com"
   },
   "d1_databases": [
     {
@@ -142,11 +142,11 @@
       "migrations_dir": "migrations"
     },
     {
-      // Subly's per-app DB — bound for the nightly renewals fan-out only.
-      // (subscriptiontracker-api owns subly_db's own migrations; NO migrations_dir here.)
-      "binding": "SUBLY_DB",
-      "database_name": "subly_db",
-      "database_id": "88da9026-f72a-4cda-823d-431148fa8112"
+      // The app's per-app DB — bound for the nightly renewals fan-out only.
+      // (subscriptiontracker-api owns subscriptiontracker_db's migrations; NO migrations_dir here.)
+      "binding": "SUBSCRIPTIONTRACKER_DB",
+      "database_name": "subscriptiontracker_db",
+      "database_id": "0a36d6a0-c909-40aa-853e-970de3482321"
     }
   ],
   "kv_namespaces": [

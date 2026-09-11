@@ -34,7 +34,7 @@ import '../../core/app_config.dart';
 /// pins these values so drift fails CI.
 const core.AppConfig kAppDefaultConfig = core.AppConfig(
   appId: AppConfig.appId,
-  apiBaseUrl: 'https://api.nikatru.com/v1',
+  apiBaseUrl: 'https://subscriptiontracker.api.nikatru.com/v1',
   features: <String, bool>{'renewals': true, 'budgets': true, 'exports': true},
   paywall: core.PaywallConfig(enabled: false),
   contentPack: null,

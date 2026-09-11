@@ -1028,7 +1028,7 @@
       "detector": "tooling/ops/check-d1-accepts-live-sql.mjs, run daily by .github/workflows/ops-watch.yml (in the heartbeats job, behind `if: !cancelled()` so a failing heartbeat read cannot skip it) and again by .github/workflows/deploy-workers.yml in BOTH deploy jobs, after `d1 migrations apply --remote` and before `wrangler deploy`. Three-valued: 0 every statement executed and accepted · 1 D1 REFUSES a statement the Workers deploy, or a write bound to an unmatched key changed a row · 2 COULD NOT LOOK (no credential, an unreadable schema, or — the one that matters — a database that did NOT refuse the known-bad control statement, which means the harness is not talking to a real authorizer).",
       "response": "Exit 1 fails the ops-watch heartbeats job and blocks the deploy that raised it; the failing statement, its file and its line are in the step log, and the repair is always the same shape — ask the schema in two steps rather than one. Exit 2 is the separate \"nothing was judged\" state and fails too, because an unexecuted sweep prints the same ok as a complete one.",
       "cadence": "1d",
-      "databases": "Derived, never listed: services/*/wrangler.jsonc → every `d1_databases` binding (ALL of them, not only the migrated one — the shared Worker binds subly_db as well as platform_db, and \"a route reads the databases it reads, not the ones its Worker binds\" is the defect this family exists for). services/platform/wrangler.jsonc and services/subscriptiontracker-api/wrangler.jsonc are the two configs that resolve today; a third app adds itself by existing.",
+      "databases": "Derived, never listed: services/*/wrangler.jsonc → every `d1_databases` binding (ALL of them, not only the migrated one — the shared Worker binds subscriptiontracker_db as well as platform_db, and \"a route reads the databases it reads, not the ones its Worker binds\" is the defect this family exists for). services/platform/wrangler.jsonc and services/subscriptiontracker-api/wrangler.jsonc are the two configs that resolve today; a third app adds itself by existing.",
       "mechanism": {
         "substrate": "github-actions",
         "anchor": "tooling/ops/check-d1-accepts-live-sql.mjs",
@@ -1382,9 +1382,9 @@
     {
       "id": "duty.workflow.deploy-workers.yml",
       "kind": "duty",
-      "what": "Ships the platform and subly-api Workers, applies D1 migrations, records a GitHub Deployment.",
+      "what": "Ships the platform and subscriptiontracker-api Workers, applies D1 migrations, records a GitHub Deployment.",
       "detector": "A red deploy job on the push that triggered it.",
-      "response": "Re-deploy the previous green SHA (see revert.worker.platform / revert.worker.subly-api).",
+      "response": "Re-deploy the previous green SHA (see revert.worker.platform / revert.worker.subscriptiontracker-api).",
       "cadence": "trigger",
       "trigger": "push touching services/** or the shared migrations, or a manual dispatch",
       "mechanism": {
@@ -2398,9 +2398,9 @@
       "source": "verified"
     },
     {
-      "id": "revert.worker.subly-api",
+      "id": "revert.worker.subscriptiontracker-api",
       "kind": "revert",
-      "what": "Re-deploy the previous green SHA of the subly-api Worker (the DEPLOYED name; the directory is services/subscriptiontracker-api).",
+      "what": "Re-deploy the previous green SHA of the subscriptiontracker-api Worker (the DEPLOYED name; the directory is services/subscriptiontracker-api).",
       "path": "workflow_dispatch on deploy-workers.yml against the last green SHA 📌 CORRECTED 2026-08-25 — APPENDED, NOTHING ABOVE REWRITTEN. AS WRITTEN, THE DISPATCH-AGAINST-A-SHA HALF OF THIS PATH IS NOT EXECUTABLE. Measured this run: `grep -n \"inputs:\" .github/workflows/deploy-web.yml .github/workflows/deploy-workers.yml` returns NOTHING — neither workflow declares a single workflow_dispatch input (deploy-workers.yml:26 and deploy-web.yml:29 are bare `workflow_dispatch:` keys — deploy-workers re-measured 2026-09-06 after its prose moved to docs/ci/deploy-workers.md; the :21 it said before landed on a comment line), and GitHub's 'Run workflow' ref picker offers BRANCHES AND TAGS ONLY, never a bare commit SHA. So there has never been a control anywhere that accepts the SHA this sentence tells the operator to type. WHAT IS ACTUALLY EXECUTABLE: cut a branch at the target SHA and dispatch against THAT BRANCH — `git branch revert/<worker>-<sha> <sha>` then `git push origin revert/<worker>-<sha>`, then Actions ▸ Deploy Workers ▸ Run workflow, ref = that branch. deploy-workers.yml:61 runs `node tooling/ci/assert-gate-passed.mjs ${{ github.sha }}`, and on a branch cut at the target SHA `github.sha` IS the target SHA — so the gate stays pointed at the same commit the run deploys, which is the property that makes this route safe and that a `ref`/`sha` input would have had to preserve by hand. ⚠️ ADDING A ref/sha DISPATCH INPUT WAS CONSIDERED AND DELIBERATELY NOT DONE ON 2026-08-25: it changes the checkout on a lane that ships to LIVE PRODUCTION and would decouple assert-gate-passed.mjs's argument from the bytes being deployed. That is an owner decision, not an increment's, and this row stays ownerGated either way. Identical to revert.worker.platform in every respect but the worker name; both ride the same dispatch of the same workflow, so one branch cut serves either.",
       "detector": "Same as revert.worker.platform.",
       "response": "Dispatch the workflow at the previous SHA.",
@@ -3698,9 +3698,9 @@
       }
     },
     {
-      "id": "retention.d1.subly_db.subscriptions",
+      "id": "retention.d1.subscriptiontracker_db.subscriptions",
       "kind": "retention",
-      "store": "d1:subly_db:subscriptions",
+      "store": "d1:subscriptiontracker_db:subscriptions",
       "what": "The user's own subscription records — the app's primary content.",
       "rule": "keep",
       "keepWhy": "This is the user's data, not telemetry: deleting it on a timer would delete the product. It leaves when the account does, via account deletion, which is stage 8's mechanism and not a retention sweep.",
@@ -3720,12 +3720,12 @@
       "source": "verified"
     },
     {
-      "id": "retention.d1.subly_db.budgets",
+      "id": "retention.d1.subscriptiontracker_db.budgets",
       "kind": "retention",
-      "store": "d1:subly_db:budgets",
+      "store": "d1:subscriptiontracker_db:budgets",
       "what": "The user's own budgets.",
       "rule": "keep",
-      "keepWhy": "User content. Same reasoning as retention.d1.subly_db.subscriptions.",
+      "keepWhy": "User content. Same reasoning as retention.d1.subscriptiontracker_db.subscriptions.",
       "detector": "tooling/ci/assert-retention-coverage.mjs.",
       "response": "n/a",
       "cadence": "365d",
@@ -3742,12 +3742,12 @@
       "source": "verified"
     },
     {
-      "id": "retention.d1.subly_db.budget_categories",
+      "id": "retention.d1.subscriptiontracker_db.budget_categories",
       "kind": "retention",
-      "store": "d1:subly_db:budget_categories",
+      "store": "d1:subscriptiontracker_db:budget_categories",
       "what": "The user's own budget categories.",
       "rule": "keep",
-      "keepWhy": "User content. Same reasoning as retention.d1.subly_db.subscriptions.",
+      "keepWhy": "User content. Same reasoning as retention.d1.subscriptiontracker_db.subscriptions.",
       "detector": "tooling/ci/assert-retention-coverage.mjs.",
       "response": "n/a",
       "cadence": "365d",
@@ -3764,12 +3764,12 @@
       "source": "verified"
     },
     {
-      "id": "retention.d1.subly_db.payment_history",
+      "id": "retention.d1.subscriptiontracker_db.payment_history",
       "kind": "retention",
-      "store": "d1:subly_db:payment_history",
+      "store": "d1:subscriptiontracker_db:payment_history",
       "what": "The user's own payment history for their tracked subscriptions.",
       "rule": "keep",
-      "keepWhy": "User content, and the app's whole point is the history. Same reasoning as retention.d1.subly_db.subscriptions.",
+      "keepWhy": "User content, and the app's whole point is the history. Same reasoning as retention.d1.subscriptiontracker_db.subscriptions.",
       "detector": "tooling/ci/assert-retention-coverage.mjs.",
       "response": "n/a",
       "cadence": "365d",
@@ -3875,9 +3875,9 @@
       "source": "verified"
     },
     {
-      "id": "retention.kv.subly-api.JWKS_CACHE",
+      "id": "retention.kv.subscriptiontracker-api.JWKS_CACHE",
       "kind": "retention",
-      "store": "kv:subly-api:JWKS_CACHE",
+      "store": "kv:subscriptiontracker-api:JWKS_CACHE",
       "what": "The SAME namespace the platform Worker binds — one identity project, one copy of one public document.",
       "rule": "cache",
       "detector": "tooling/ci/assert-retention-coverage.mjs.",

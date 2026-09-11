@@ -226,7 +226,7 @@ describe('renewals date math (pure core)', () => {
   // the clamped 2026-02-28 and the next pass reads a 28th anchor. That costs at
   // most three days once a year and skips no cycle — unlike the overflow, which
   // dropped a charge every single month. Recovering it needs an additive
-  // `renewal_anchor_day` column in subly_db, which this Worker does not own.
+  // `renewal_anchor_day` column in subscriptiontracker_db, which this Worker does not own.
   it('rollForward: documents the cross-run anchor limit (no schema for it yet)', () => {
     const r = rollForward('2026-02-28', 'monthly', '2026-03-01');
     expect(r.next).toBe('2026-03-28'); // not 2026-03-31 — see the note above

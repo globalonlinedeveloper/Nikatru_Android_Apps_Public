@@ -30,7 +30,7 @@ function appWith(allowedOrigins: string) {
  *
  *  The old note argued that reading wrangler.jsonc "needs node APIs this
  *  Worker's tsconfig deliberately does not expose". That was wrong on the facts:
- *  `services/subly-api/test/wrangler-config.test.ts` has read its own config
+ *  `services/subscriptiontracker-api/test/wrangler-config.test.ts` has read its own config
  *  since it was written, with `?raw` and a local JSONC parser — no node API at
  *  all. The reason a hand-copy survived here was that nobody had needed it to be
  *  right yet.
@@ -44,7 +44,7 @@ const SHIPPED = String(
 
 /** JSONC → JSON. Comments stripped (string literals respected, so a `//` inside
  *  a URL survives) and trailing commas removed. Same shape as the parser in
- *  services/subly-api/test/wrangler-config.test.ts, and same reason: a
+ *  services/subscriptiontracker-api/test/wrangler-config.test.ts, and same reason: a
  *  wrangler.jsonc is mostly prose, and a grep over it matches the comment that
  *  EXPLAINS a setting as readily as the setting. */
 function parseJsonc(text: string): unknown {

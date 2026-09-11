@@ -124,9 +124,9 @@
       "note": "🔴 ONE DATABASE FOR THE WHOLE PORTFOLIO. services/platform is its sole migrations applier, which is why check-migrations.mjs treats a destructive statement here as a portfolio-wide outage rather than one app's problem."
     },
     {
-      "id": "d1:subly_db",
+      "id": "d1:subscriptiontracker_db",
       "kind": "d1-database",
-      "name": "subly_db",
+      "name": "subscriptiontracker_db",
       "personalData": false,
       "holds": "Subly's own database. Holds no rows of its own; its tables do.",
       "retention": {
@@ -494,7 +494,7 @@
       ]
     },
     {
-      "id": "table:subly_db.subscriptions",
+      "id": "table:subscriptiontracker_db.subscriptions",
       "kind": "d1-table",
       "name": "subscriptions",
       "personalData": true,
@@ -506,7 +506,7 @@
       "erasure": {
         "kind": "purge",
         "route": "services/subscriptiontracker-api/src/routes/account.ts",
-        "reason": "🔴 THE GAP THIS ROW USED TO DECLARE, CLOSED 2026-08-04. Until then these four rows read `no-route`: DELETE /v1/account lived only on the shared platform Worker, which sweeps PLATFORM_DB, so a Subly user could delete their account, lose their login, and leave every subscription, budget and payment they had ever entered in a database no login could ever reach again.\n\nTHE OBJECTION THAT HELD IT UP WAS REAL AND IS ANSWERED RATHER THAN WAIVED. services/subscriptiontracker-api/src/middleware/auth.ts accepts a token signed with the shared HS256 secret when the asymmetric path fails, and an irreversible route must not sit behind a symmetric secret — one leaked environment variable would mint a token for any user of any app. So the route was NOT put behind that middleware. `erasureAuth` (same file) verifies ES256 against the PUBLIC JWKS and is not even given the environment, so the secret is out of scope by the shape of the function signature; src/index.ts mounts DELETE /v1/account behind it; and the route ADDITIONALLY refuses any request whose `tokenAssurance` is not 'asymmetric'. Two independent limbs, because a mounting is one line somebody can move in a tidy-up and a refusal inside the handler is not. Both are recorded failing inputs in services/subscriptiontracker-api/test/erasure.test.ts, which drives the REAL Worker and proves the SAME HS256 token is ACCEPTED by GET /v1/subscriptions and REFUSED here — so the refusal is about the boundary, not about an invalid token.\n\nThe table set is DERIVED from the schema (every table carrying a `user_id`), so a fifth user-owned table is covered by its own migration with no edit to the route, and an EMPTY derivation is a 503 refusal rather than a fast path.\n\n⚠️ THIS ROUTE ERASES NOTHING BUT subly_db. The identity record and platform_db stay the shared Worker’s: services/platform/src/routes/account.ts relays the caller’s own bearer token to this route AFTER its service-role precondition and BEFORE it deletes the identity, so a failure here stops the erasure while the user still has a login to retry with. Ordering, not duplication — exactly one piece of code destroys the identity."
+        "reason": "🔴 THE GAP THIS ROW USED TO DECLARE, CLOSED 2026-08-04. Until then these four rows read `no-route`: DELETE /v1/account lived only on the shared platform Worker, which sweeps PLATFORM_DB, so a Subly user could delete their account, lose their login, and leave every subscription, budget and payment they had ever entered in a database no login could ever reach again.\n\nTHE OBJECTION THAT HELD IT UP WAS REAL AND IS ANSWERED RATHER THAN WAIVED. services/subscriptiontracker-api/src/middleware/auth.ts accepts a token signed with the shared HS256 secret when the asymmetric path fails, and an irreversible route must not sit behind a symmetric secret — one leaked environment variable would mint a token for any user of any app. So the route was NOT put behind that middleware. `erasureAuth` (same file) verifies ES256 against the PUBLIC JWKS and is not even given the environment, so the secret is out of scope by the shape of the function signature; src/index.ts mounts DELETE /v1/account behind it; and the route ADDITIONALLY refuses any request whose `tokenAssurance` is not 'asymmetric'. Two independent limbs, because a mounting is one line somebody can move in a tidy-up and a refusal inside the handler is not. Both are recorded failing inputs in services/subscriptiontracker-api/test/erasure.test.ts, which drives the REAL Worker and proves the SAME HS256 token is ACCEPTED by GET /v1/subscriptions and REFUSED here — so the refusal is about the boundary, not about an invalid token.\n\nThe table set is DERIVED from the schema (every table carrying a `user_id`), so a fifth user-owned table is covered by its own migration with no edit to the route, and an EMPTY derivation is a 503 refusal rather than a fast path.\n\n⚠️ THIS ROUTE ERASES NOTHING BUT subscriptiontracker_db. The identity record and platform_db stay the shared Worker’s: services/platform/src/routes/account.ts relays the caller’s own bearer token to this route AFTER its service-role precondition and BEFORE it deletes the identity, so a failure here stops the erasure while the user still has a login to retry with. Ordering, not duplication — exactly one piece of code destroys the identity."
       },
       "writtenBy": [
         "services/subscriptiontracker-api/migrations/0001_init.sql",
@@ -518,7 +518,7 @@
       }
     },
     {
-      "id": "table:subly_db.budgets",
+      "id": "table:subscriptiontracker_db.budgets",
       "kind": "d1-table",
       "name": "budgets",
       "personalData": true,
@@ -530,7 +530,7 @@
       "erasure": {
         "kind": "purge",
         "route": "services/subscriptiontracker-api/src/routes/account.ts",
-        "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budgets` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
+        "reason": "Same as table:subscriptiontracker_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budgets` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
         "services/subscriptiontracker-api/migrations/0001_init.sql",
@@ -542,7 +542,7 @@
       }
     },
     {
-      "id": "table:subly_db.budget_categories",
+      "id": "table:subscriptiontracker_db.budget_categories",
       "kind": "d1-table",
       "name": "budget_categories",
       "personalData": true,
@@ -554,7 +554,7 @@
       "erasure": {
         "kind": "purge",
         "route": "services/subscriptiontracker-api/src/routes/account.ts",
-        "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budget_categories` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
+        "reason": "Same as table:subscriptiontracker_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `budget_categories` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
         "services/subscriptiontracker-api/migrations/0001_init.sql",
@@ -566,7 +566,7 @@
       }
     },
     {
-      "id": "table:subly_db.payment_history",
+      "id": "table:subscriptiontracker_db.payment_history",
       "kind": "d1-table",
       "name": "payment_history",
       "personalData": true,
@@ -578,7 +578,7 @@
       "erasure": {
         "kind": "purge",
         "route": "services/subscriptiontracker-api/src/routes/account.ts",
-        "reason": "Same as table:subly_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `payment_history` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
+        "reason": "Same as table:subscriptiontracker_db.subscriptions, and by the same mechanism rather than by a second decision: the column is spelled `user_id`, and the erasure route derives its table set from the schema, so `payment_history` is in the sweep without being named anywhere in the code. tooling/ci/assert-erasure-reach.mjs is what refuses to let it drop back out."
       },
       "writtenBy": [
         "services/subscriptiontracker-api/migrations/0001_init.sql",
@@ -646,7 +646,7 @@
       "kind": "r2-bucket",
       "name": "nikatru-backups",
       "personalData": true,
-      "holds": "🔴 A NIGHTLY COPY OF OTHER STORES IN THIS FILE, so it holds whatever they hold. `d1/platform_db/<date>.jsonl.gz` carries every table of platform_db — including `provider_notifications`, which is verbatim merchant-of-record payloads containing a buyer's name, email and billing country — and `kv/nikatru-signups/<date>.json.gz` carries the plain-text signup addresses. Also `d1/subly_db/`, `kv/platform-config/`, `kv/platform-jwks/`, and a manifest per night carrying sizes and SHA-256 digests, no content. Created 2026-09-05 to close `research/revamp-2026-09-05/06 §4.2`: D1, KV and R2 were in NO backup, and the entitlements database — the busiest datastore in the estate — had no export, no snapshot and a recovery path recorded as NEVER drilled.",
+      "holds": "🔴 A NIGHTLY COPY OF OTHER STORES IN THIS FILE, so it holds whatever they hold. `d1/platform_db/<date>.jsonl.gz` carries every table of platform_db — including `provider_notifications`, which is verbatim merchant-of-record payloads containing a buyer's name, email and billing country — and `kv/nikatru-signups/<date>.json.gz` carries the plain-text signup addresses. Also `d1/subscriptiontracker_db/`, `kv/platform-config/`, `kv/platform-jwks/`, and a manifest per night carrying sizes and SHA-256 digests, no content. Created 2026-09-05 to close `research/revamp-2026-09-05/06 §4.2`: D1, KV and R2 were in NO backup, and the entitlements database — the busiest datastore in the estate — had no export, no snapshot and a recovery path recorded as NEVER drilled.",
       "retention": {
         "kind": "swept",
         "periodDays": 30,
