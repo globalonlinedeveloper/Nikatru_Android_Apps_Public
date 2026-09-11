@@ -84,7 +84,7 @@
 // Env out (via $GITHUB_ENV): the four Gradle variables + ANDROID_SIGNING_POSTURE
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -123,7 +123,13 @@ const envOr = (name, fallback) => {
 };
 
 const ROOT = resolve(opt('repo-root') ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
-const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', tmpdir()));
+// Chosen by the caller (--out) or by the runner ($RUNNER_TEMP, private to the job),
+// or null. When null, the keystore goes into a FRESH private directory created at
+// write time (mkdtempSync: random suffix, owner-only), never a predictable name in
+// the shared temp dir that anyone can pre-create as a symlink (the CodeQL #93 class; the same
+// remedy apple-signing.mjs already carries). Decided lazily, so importing this
+// module or a run that refuses early creates nothing.
+const OUT_DIR_CHOSEN = opt('out') ?? envOr('RUNNER_TEMP', null);
 const GITHUB_ENV = opt('github-env') ?? envOr('GITHUB_ENV', null);
 
 const read = (rel) => (existsSync(join(ROOT, rel)) ? readFileSync(join(ROOT, rel), 'utf8') : null);
@@ -371,6 +377,7 @@ if (!looksLikeKeystore) {
   ]);
 }
 
+const OUT_DIR = OUT_DIR_CHOSEN !== null ? resolve(OUT_DIR_CHOSEN) : mkdtempSync(join(tmpdir(), 'android-signing-'));
 mkdirSync(OUT_DIR, { recursive: true });
 const keystorePath = join(OUT_DIR, `${app.slug}-upload.keystore`);
 if (!isAbsolute(keystorePath)) {

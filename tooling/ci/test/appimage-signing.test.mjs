@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { generateKeyPairSync, createPrivateKey, createPublicKey } from 'node:crypto';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -611,6 +611,24 @@ describe('appimage-signing · the secret is never printed and never half-written
     assert.equal(r.status, 0, out(r));
     const written = readFileSync(ghEnv, 'utf8').match(new RegExp(`^${KEY_PATH_ENV}=(.+)$`, 'm'))[1];
     assert.notEqual(resolve(dirname(written)), resolve(TMP), 'the private key landed in the working directory');
+  });
+
+  test('with neither --out nor $RUNNER_TEMP the private key goes into a FRESH private directory, not a name anyone could plant (CodeQL #93)', () => {
+    const shared = mkdtempSync(join(TMP, 'shared-tmp-'));
+    const decoy = join(shared, 'subscriptiontracker-appimage-signing.pem');
+    writeFileSync(decoy, 'planted by someone else');
+    const ghEnv = join(TMP, `ghenv-shared${seq++}.txt`);
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({ pin: KEY.publicB64 }), '--github-env', ghEnv], {
+      encoding: 'utf8',
+      cwd: TMP,
+      env: { ...process.env, RUNNER_TEMP: '', TMPDIR: shared, TEMP: shared, TMP: shared, GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', [B64_ENV]: KEY.seedB64 },
+    });
+    assert.equal(r.status, 0, out(r));
+    const written = readFileSync(ghEnv, 'utf8').match(new RegExp(`^${KEY_PATH_ENV}=(.+)$`, 'm'))[1];
+    assert.notEqual(resolve(written), resolve(decoy), 'the private key was written over a predictable name in the shared temp dir');
+    assert.match(basename(dirname(written)), /^appimage-signing-[A-Za-z0-9]{6}$/, `not a fresh private directory: ${written}`);
+    assert.equal(resolve(dirname(dirname(written))), resolve(shared));
+    assert.equal(readFileSync(decoy, 'utf8'), 'planted by someone else');
   });
 
   test('an EMPTY $GITHUB_ENV is treated as unset, not as a file named ""', () => {

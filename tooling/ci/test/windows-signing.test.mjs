@@ -31,7 +31,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -318,6 +318,15 @@ describe('windows-signing · the constructed commands', () => {
     assert.ok(c.args.includes(PW), 'the real argv must carry the password or signtool cannot open the .pfx');
     assert.ok(!c.redacted.includes(PW), 'the printable argv leaked the password');
     assert.ok(c.redacted.includes('***'));
+  });
+
+  test('🔴 the REDACTED form hides the password even when the .pfx path is itself "/p" (CodeQL #6)', () => {
+    // The slot used to be FOUND by searching the argv for '/p', and a path equal to
+    // the flag moved the search one slot early: the path was starred, the password printed.
+    const c = buildSignCommand({ pfxPath: '/p', password: PW, artifact: 'subscriptiontracker.exe' });
+    assert.ok(!c.redacted.includes(PW), `the printable argv leaked the password: ${JSON.stringify(c.redacted)}`);
+    assert.equal(c.redacted.filter((a) => a === '***').length, 1);
+    assert.deepEqual(c.redacted.map((a, i) => (a === '***' ? c.args[i] : a)), c.args);
   });
 
   test('the verify command uses /pa — the Authenticode policy, not the driver policy', () => {
@@ -661,6 +670,24 @@ describe('windows-signing · the secret is never printed and never half-written'
     assert.equal(r.status, 0, out(r));
     const written = readFileSync(ghEnv, 'utf8').match(new RegExp(`^${PATH_ENV}=(.+)$`, 'm'))[1];
     assert.notEqual(resolve(dirname(written)), resolve(TMP), 'the certificate landed in the working directory');
+  });
+
+  test('with neither --out nor $RUNNER_TEMP the certificate goes into a FRESH private directory, not a name anyone could plant (the CodeQL #93 class)', () => {
+    const shared = mkdtempSync(join(TMP, 'shared-tmp-'));
+    const decoy = join(shared, 'subscriptiontracker-codesign.pfx');
+    writeFileSync(decoy, 'planted by someone else');
+    const ghEnv = join(TMP, `ghenv-shared${seq++}.txt`);
+    const r = spawnSync(process.execPath, [PREPARE, '--app', 'subscriptiontracker', '--repo-root', makeRoot({ pin: PIN }), '--github-env', ghEnv], {
+      encoding: 'utf8',
+      cwd: TMP,
+      env: { ...process.env, RUNNER_TEMP: '', TMPDIR: shared, TEMP: shared, TMP: shared, GITHUB_REF: '', GITHUB_WORKFLOW_REF: '', ...FULL() },
+    });
+    assert.equal(r.status, 0, out(r));
+    const written = readFileSync(ghEnv, 'utf8').match(new RegExp(`^${PATH_ENV}=(.+)$`, 'm'))[1];
+    assert.notEqual(resolve(written), resolve(decoy), 'the certificate was written over a predictable name in the shared temp dir');
+    assert.match(basename(dirname(written)), /^windows-signing-[A-Za-z0-9]{6}$/, `not a fresh private directory: ${written}`);
+    assert.equal(resolve(dirname(dirname(written))), resolve(shared));
+    assert.equal(readFileSync(decoy, 'utf8'), 'planted by someone else');
   });
 
   test('an EMPTY $GITHUB_ENV is treated as unset, not as a file named ""', () => {
