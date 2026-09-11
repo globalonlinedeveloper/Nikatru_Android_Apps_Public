@@ -36,7 +36,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = process.env.SK_ROOT ? path.resolve(process.env.SK_ROOT) : path.join(HERE, '..');
-const PUBLISH = path.join(ROOT, 'publish');
 
 const readJson = rel => JSON.parse(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
 const readText = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -112,6 +111,14 @@ export function versionProblems() {
   return out;
 }
 
+/* The needle for a version literal. EVERY regex metacharacter in the version is
+   escaped, not only the dot (CodeQL #17): manifest.json's version is not validated
+   here, and 1.0.0+1 escaped dot-only reads as "1.0.0 repeated, then 1" — it missed its
+   own literal and matched 1.0.00001. */
+export function versionNeedle(ver) {
+  return new RegExp('(^|[^\\d.])' + String(ver).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^\\d.]|$)');
+}
+
 /* Every remaining literal of the OLD version, after a bump. A version left
    behind in a comment, a docstring or a store listing is exactly the defect
    the reference shipped twice. */
@@ -119,17 +126,28 @@ export function strayOldVersion(oldVer) {
   const hits = [];
   const skipDirs = new Set(['node_modules', '.git', 'test', 'icons', '_locales']);
   const wanted = /\.(js|mjs|html|css|json|md)$/i;
-  const needle = new RegExp('(^|[^\\d.])' + oldVer.replace(/\./g, '\\.') + '([^\\d.]|$)');
+  const needle = versionNeedle(oldVer);
   (function walk(dir, rel) {
     for (const name of fs.readdirSync(dir)) {
       if (name.charAt(0) === '.') continue;
       const abs = path.join(dir, name), r = rel ? rel + '/' + name : name;
+      /* READ FIRST (CodeQL #77). A wanted file is read with no stat of its path beforehand,
+         because a stat and a later read of the same path can see two different files. The
+         stat below only classifies what was not read as a file: a directory (EISDIR) or a
+         name the walk does not want. A vanished or dangling entry is skipped, as before. */
+      if (wanted.test(name) && NOT_A_PRODUCT_VERSION.indexOf(r) < 0) {
+        let text = null;
+        try { text = fs.readFileSync(abs, 'utf8'); } catch (e) {
+          if (e.code === 'ENOENT' || e.code === 'ELOOP') continue;
+          if (e.code !== 'EISDIR') throw e;
+        }
+        if (text !== null) {
+          text.split('\n').forEach((line, i) => { if (needle.test(line)) hits.push(r + ':' + (i + 1) + '  ' + line.trim().slice(0, 90)); });
+          continue;
+        }
+      }
       let st; try { st = fs.statSync(abs); } catch (_) { continue; }
-      if (st.isDirectory()) { if (!skipDirs.has(name)) walk(abs, r); continue; }
-      if (!wanted.test(name)) continue;
-      if (NOT_A_PRODUCT_VERSION.indexOf(r) >= 0) continue;
-      const text = fs.readFileSync(abs, 'utf8');
-      text.split('\n').forEach((line, i) => { if (needle.test(line)) hits.push(r + ':' + (i + 1) + '  ' + line.trim().slice(0, 90)); });
+      if (st.isDirectory() && !skipDirs.has(name)) walk(abs, r);
     }
   })(ROOT, '');
   return hits;
