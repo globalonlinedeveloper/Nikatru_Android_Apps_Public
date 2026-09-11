@@ -298,6 +298,45 @@ describe('assert-mutation-proofs', () => {
     assert.match(out, /1 UNPROVEN/);
   });
 
+  // ── ⏱ 2026-09-11 · LIMB 5's SUBPROCESS, BOUNDED — with a fake `flutter` on PATH ──
+  // POSIX only: a process group is the mechanism under test and Windows has none.
+  // The fake stands in for the two ways `flutter test` stalled a pipe-reading spawn:
+  // exiting while a child it started still holds the output, and never finishing.
+  // Each case bounds its own wall clock well below what the old spawn would take.
+  const POSIX_ONLY = process.platform === 'win32' ? 'a process group is the mechanism under test, and Windows has none' : false;
+  const withFakeFlutter = (script, extraEnv = {}) => {
+    const bin = join(TMP, `bin${seq++}`);
+    mkdirSync(bin, { recursive: true });
+    const exe = join(bin, 'flutter');
+    writeFileSync(exe, script, { mode: 0o755 });
+    const cwd = build();
+    const started = Date.now();
+    const r = spawnSync(process.execPath, [GUARD, cwd, '--execute'], {
+      encoding: 'utf8',
+      cwd,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...extraEnv },
+      timeout: 120_000,
+    });
+    return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, secs: (Date.now() - started) / 1000 };
+  };
+
+  test('--execute: a `flutter test` that exits leaving a child behind neither stalls the limb nor outlives it', { skip: POSIX_ONLY }, () => {
+    // The child holds stdout for 40 s. A pipe-reading spawn waits for it — twice,
+    // once for the green control and once for the mutant.
+    const r = withFakeFlutter('#!/bin/sh\nsleep 40 &\necho "00:01 +1: All tests passed!"\nexit 0\n');
+    assert.ok(r.secs < 30, `the limb waited ${r.secs.toFixed(1)}s for a process \`flutter test\` left behind:\n${r.out}`);
+    assert.match(r.out, /still running in its process group, killed: .*sleep/);
+    // Both runs exit 0, so the mutant did not redden: the verdict is the guard's own.
+    assert.match(r.out, /THE MUTANT DID NOT REDDEN THE TEST/);
+  });
+
+  test('--execute: a `flutter test` that never finishes is COVERAGE LOST within MUTATION_TEST_TIMEOUT_MS', { skip: POSIX_ONLY }, () => {
+    const r = withFakeFlutter('#!/bin/sh\nsleep 60\n', { MUTATION_TEST_TIMEOUT_MS: '2000' });
+    assert.ok(r.secs < 30, `the limb ran ${r.secs.toFixed(1)}s past a 2s bound:\n${r.out}`);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST: THE GREEN CONTROL did not finish within 2s/);
+  });
+
   // ── LIMB 5 · --execute's decisions, short of the subprocess ───────────────
   test('--only without --execute is refused rather than silently ignored', () => {
     const { code, out } = run(build(), ['--only', 'add subscription']);
