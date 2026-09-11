@@ -459,6 +459,18 @@
     },
     "github-run-history": {
       "queries": "TWO DIFFERENT QUESTIONS, DELIBERATELY ASKED SEPARATELY. (1) FRESHNESS — GET /repos/{repo}/actions/workflows/{workflow}/runs?event=schedule&status=success&per_page=1, the newest SUCCESSFUL run for the declared event; this is what the cadence window is measured against. (2) REDNESS, added 2026-09-07 by coverage unit `alarm-on-red` — the newest `status=success` AND the newest `status=failure` run on `headBranch`, EVENT FILTER DROPPED on both, ordered against each other; a failure newer than the success is `RED SINCE <date>` and the duty is FAILING. Until that limb existed a failed run did not merely get ignored, IT NEVER ARRIVED (`status=success` is the request), so the only thing that could notice a red branch was the staleness window expiring — up to 252h for a 7d duty. TRAPS ci-38. The event filter has to be dropped for (2) and kept for (1): a `push`-on-main failure compared against the newest SCHEDULED success would report RED over a branch a later push had already made green, and a false alarm on the merge queue is how a guard gets switched off. Both halves of (2) are read at the same width so the answer means exactly what it says. The DOMAIN of (2) is the `duty.workflow.*` rows on a clock and NOT the `trigger` ones: `ci.yml`'s newest run on main can be made green only by MERGING, so blocking merges on it would be a deadlock with no exit, while every workflow in the domain accepts `workflow_dispatch` and one dispatched green run clears the red. ⏱ WIDENED 2026-09-09, AND THE SENTENCE ABOVE IS KEPT BECAUSE ITS ARGUMENT IS STILL THE ARGUMENT — it is a DEADLOCK test, not a cadence test, and it was being applied to three rows it was only ever argued for on one. The domain of (2) is now: every `duty.workflow.*` row on a clock, PLUS every `duty.workflow.*` row on `cadence: trigger` whose workflow file DECLARES `workflow_dispatch`. `deploy-web.yml` and `deploy-workers.yml` both do, so a red deploy lane costs one button press and no merge; `ci.yml` (push + pull_request) and `site-drift-repair.yml` (push only) do not, so both stay out for exactly the reason above. THE ADMISSION IS DERIVED BY THE GUARD FROM THE WORKFLOW FILES (`dispatchableWorkflows` reading `workflowEvents`), never listed here — a list is what gets shortened to close an alarm — and every trigger row NOT admitted is printed with its reason on every run, so the domain cannot shrink in silence. MEASURED: run 34315492291, deploy-web.yml on main, FAILURE at 2026-09-09T05:35Z, alarmed nothing. Note that (1) FRESHNESS is untouched and still ranges over clocked rows alone: a trigger row has no window, and this reader makes no staleness claim about one. 🔴 BOTH QUERIES ARE NOW ASKED TWICE, ADDED 2026-09-09 by coverage unit `stale-run-page`. Each question is issued concurrently at `per_page=1` AND `per_page=30` and the two answers are reconciled by `reconcileRunReads`, because the filter checks either query already carried validate WHAT came back and never WHEN — so a read replica serving an old page satisfies every one of them and is believed. MEASURED inside run 34351841295: the freshness read answered run 32560795997, a scheduled ops-watch success from 2026-08-22 and 436.7h stale, while the SAME query issued again returned run 34332836726 from that morning. It cuts both ways, which is why it is not merely noise: a stale success INVENTS a red on (1), and a stale failure HIDES one on (2). Two widths rather than the same URL twice is deliberate — a different `per_page` is a different cache key, so the second read cannot be served the first one's cached page. A stale replica can only OMIT recent runs and can never invent one that has not happened, so a disagreement proves one read is behind; the reader REFUSES (which is `unreadable` — it prints, never passes and never reds) unless the newer run completed within `RUN_READ_RACE_MS` of now, the bounded window in which a run genuinely finishing between two concurrent requests explains the gap.",
+      "unit": [
+        "⏱ 2026-09-11 — EVERY ROW NAMES THE UNIT THAT PERFORMS ITS DUTY (INV3), and both questions above are asked OF THAT UNIT.",
+        "\"run\" keeps the two reads exactly as written above; it is legal only for a workflow no other row reads and that does",
+        "not run tooling/ci/assert-ops-register.mjs. { \"jobs\": [...] } and { \"job\", \"step\" } are read from",
+        "GET /repos/{repo}/actions/runs/{id}/jobs, newest completed run first: a job or step concluding `success` is a success,",
+        "`failure`/`timed_out`/`startup_failure` a failure, and anything else says nothing about the duty. WHY: from",
+        "2026-09-10T06:13Z every ops-watch run failed in ONE step (this guard, in job `heartbeats`) while the analytics step, the",
+        "D1 step and job `pages-deployments` succeeded in every one of them; the whole-run read aged all four ops-watch rows past",
+        "36h together, and run 34546423386 listed them as four of its eight problems. tooling/ci/assert-ops-register.mjs",
+        "(`checkRunUnits`) refuses a missing unit, a unit naming a job or step the workflow file does not declare, a unit that",
+        "contains the guard's own verdict (INV4), overlapping units, and any job of a shared workflow that is no row's unit."
+      ],
       "needs": "GITHUB_TOKEN or GH_TOKEN in the environment",
       "unreadableOn": "any run with no token — the reason prints and names the missing variable"
     },
@@ -918,6 +930,26 @@
           "0 18 * * *"
         ]
       },
+      "watchedJobsDeclaredAt": {
+        "supabase_keepalive": "2026-08-02T10:04:21Z",
+        "backup_export": "2026-09-05T11:11:05Z",
+        "analytics_liveness": "2026-08-02T19:53:38Z",
+        "renewals": "2026-08-02T19:53:38Z",
+        "events_rollup": "2026-08-12T09:08:06Z",
+        "retention_sweep": "2026-08-12T07:43:30Z",
+        "cancellation_drain": "2026-08-25T04:18:24Z",
+        "money_rederive": "2026-09-10T02:54:53Z",
+        "github_dispatch": "2026-09-03T06:50:37Z"
+      },
+      "_watchedJobsDeclaredAtWhy": [
+        "⏱ 2026-09-11 — WHEN THE REGISTER BEGAN WATCHING EACH JOB, so a job with NO heartbeat row at all is NOT YET DUE until the",
+        "first slot after that instant has passed its 2h grace, and ABSENT from then on (tooling/ops/check-heartbeats.mjs). Without",
+        "it \"not yet due\" and \"never ran\" were the same zero rows and the reader had to call the first the second.",
+        "MEASURED, not chosen: each instant is the committer date of the first commit whose tooling/ops/register.json contains",
+        "that job name — `git log --format=\"%h %cd\" -S\"\\\"<job>\\\"\" -- tooling/ops/register.json | tail -1`, run 2026-09-11 —",
+        "which is no later than the job joining watchedJobs, so it can only shorten a wait, never lengthen one. The reader",
+        "refuses an instant in the FUTURE (a date kept ahead would be a waiver) and a job missing from this map."
+      ],
       "mechanism": {
         "substrate": "cloudflare-cron",
         "anchor": "services/platform/wrangler.jsonc",
@@ -966,6 +998,10 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "ops-watch.yml",
+          "unit": {
+            "job": "heartbeats",
+            "step": "Judge whether the analytics rail's silence is a FAULT"
+          },
           "event": "schedule",
           "headBranch": "main"
         }
@@ -1002,6 +1038,10 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "ops-watch.yml",
+          "unit": {
+            "job": "heartbeats",
+            "step": "Live D1 still runs every statement the Workers send it"
+          },
           "event": "schedule",
           "headBranch": "main"
         }
@@ -1037,6 +1077,11 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "ops-watch.yml",
+          "unit": {
+            "jobs": [
+              "pages-deployments"
+            ]
+          },
           "event": "schedule",
           "headBranch": "main"
         }
@@ -1093,6 +1138,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "build-platforms.yml",
+          "unit": "run",
           "headBranch": "main",
           "timer": {
             "reader": "cloudflare-d1-heartbeat",
@@ -1161,6 +1207,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "e2e.yml",
+          "unit": "run",
           "headBranch": "main",
           "timer": {
             "reader": "cloudflare-d1-heartbeat",
@@ -1258,6 +1305,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "extensions.yml",
+          "unit": "run",
           "event": "schedule",
           "headBranch": "main",
           "firstDue": "2026-09-12T00:00:00Z",
@@ -1319,6 +1367,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "deploy-web.yml",
+          "unit": "run",
           "headBranch": "main",
           "event": "push",
           "why": "⏱ 2026-09-09 — REDNESS ONLY. This row has NO CLOCK (`cadence: trigger`), so nothing here is a staleness claim: the [14]O-3 freshness limb ranges over TIME_CADENCE rows and does not see this one, and `cadenceDays(\"trigger\")` is null, so the window arithmetic could not run even if it did. What IS read is the single ordering question — is the newest FAILED run on `main` newer than the newest SUCCESSFUL one — which needs no clock at all. 🔴 THE MEASUREMENT THAT PUT THIS FIELD HERE: run 34315492291, deploy-web.yml on main, sha 43ab0224, conclusion FAILURE at 2026-09-09T05:35Z. The web deploy lane was red on the default branch and NOTHING alarmed — this row was `trigger`, so the one limb that grades a failed run did not range over it, and the only reader was the checks on the push that produced it. TRAPS ci-38, on the row type the first fix stepped around. ⬜ WHY THIS ROW MAY BE BLOCKED ON AND `duty.workflow.ci.yml` MAY NOT: `.github/workflows/deploy-web.yml` declares `workflow_dispatch:`, so one dispatched green run clears the red with no merge. `ci.yml` and `site-drift-repair.yml` declare none, so their newest run on main can be made green only BY MERGING and grading them would be a deadlock. That distinction is DERIVED by the guard from the workflow files themselves (`dispatchableWorkflows` + `workflowEvents`), never from a list here — a list is the thing somebody shortens to close an alarm. ⚠️ `event: push` NAMES THE RECORD AND IS NOT THE FILTER. The redness probe reads both halves of the comparison at the SAME width — branch only, event dropped — because a push failure compared against a scheduled-only success would report RED over a branch a later push had already made green. The field is carried because it is TRUE (this lane's failing record is a push-triggered run on main) and because the guard REFUSES `workflow_dispatch` here at both ends: a hand-press may never be named as this duty's evidence."
@@ -1347,6 +1396,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "deploy-workers.yml",
+          "unit": "run",
           "headBranch": "main",
           "event": "push",
           "why": "⏱ 2026-09-09 — REDNESS ONLY, and the reasoning is duty.workflow.deploy-web.yml's, taken for this lane rather than cross-referenced (a shared note is one that gets edited for one row and read for two). This row has NO CLOCK, so nothing here is a staleness claim: [14]O-3's freshness limb ranges over TIME_CADENCE rows and `cadenceDays(\"trigger\")` is null. What is read is the ordering — is the newest FAILED run on `main` newer than the newest SUCCESSFUL one. THE MEASUREMENT that motivated the change was on the sibling lane (run 34315492291, deploy-web.yml, FAILURE on main 2026-09-09T05:35Z, alarmed nothing); this lane had the identical gap and was fixed in the same change rather than left to be found by its own outage. ⬜ IT MAY BE BLOCKED ON because `.github/workflows/deploy-workers.yml` declares `workflow_dispatch:` — a red lane here is cleared by one dispatched green run and no merge — which the guard DERIVES from the workflow file rather than reading off a list. ⚠️ `event: push` names the record; the redness probe drops the event filter on both halves so the comparison means exactly what it says, and the guard refuses `workflow_dispatch` in this field so a hand-press can never become this duty's evidence."
@@ -1374,6 +1424,17 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "ops-watch.yml",
+          "unit": {
+            "jobs": [
+              "status",
+              "supabase-drift",
+              "prod-provenance",
+              "runner-budget",
+              "glitchtip",
+              "alert",
+              "digest"
+            ]
+          },
           "event": "schedule",
           "headBranch": "main"
         }
@@ -1533,6 +1594,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "renovate.yml",
+          "unit": "run",
           "event": "schedule",
           "headBranch": "main",
           "why": "🔴 `event: schedule` DELIBERATELY, EVEN THOUGH THE PRIMARY TRIGGER IS A DISPATCH. The Cloudflare Worker cron fires this workflow through `workflow_dispatch`, because GitHub delivers only ~10.1% of scheduled runs on time and that unreliability froze this repository's merge queue twice. But a reader CANNOT DISTINGUISH a Worker's dispatch from a human pressing the button, and 'somebody pressed a button' is the opposite of a cadence claim — the rule every other workflow row here obeys. So the weekly `schedule:` backstop is what EVIDENCES the cadence, and the Worker is what makes the updates timely. The two triggers do different jobs and only one of them is proof. ✅ AND THE BOOTSTRAP IS SPENT, 2026-09-05. This recordQuery carried a `firstDue` of 2026-09-05T12:00:00Z with a `firstDueWhy` that named its own exit condition — DELETE IT once the first scheduled run has landed. It has landed: run 33952024441, `event: schedule` on `main`, succeeded 2026-09-05T07:15:46Z, and 2026-09-04T07:34:14Z was a scheduled success too — two inside a [7d x 1.5 = 252h] window. So the `no successful run at all` branch that field gated is unreachable for this row, and both fields are DELETED here rather than left to age into a waiver. The removal is recorded and not silent, because a bootstrap that vanishes without a trace is one the next editor re-derives from scratch."
@@ -1567,6 +1629,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "codeql.yml",
+          "unit": "run",
           "event": "schedule",
           "headBranch": "main",
           "why": "🔴 `event: schedule` STAYS, EVEN THOUGH THIS WORKFLOW ALSO RUNS ON EVERY PULL REQUEST, and the two claims must not be confused. A PR run proves somebody opened a pull request; it is not a cadence claim, and accepting it here would make freshness green on the repository being busy. It would also be the widest possible filter, because a pull_request run can come from ANY branch — which is what `headBranch: main` is stated against. Nothing dispatches this workflow from the Cloudflare cron (services/platform/src/scheduled.ts names e2e.yml and ops-watch.yml, not this one), so there is no `timer` limb to split the claim onto and the schedule filter carries the whole of it. ⬜ WHAT WOULD IMPROVE IT: add codeql.yml to GITHUB_DISPATCH_TARGETS and split this row the way e2e.yml's is split. GitHub delivers this repository's crons 10.1% on time, which is why the cron fires DAILY against a weekly window rather than weekly against a weekly one (TRAPS ci-19) — the margin is given to the EVIDENCE, not to the duty. AND THE BOOTSTRAP PROSE IS RETIRED, 2026-09-07. `firstDue` and this row's `firstDueWhy` were a matched pair: the date was deleted on 2026-09-06 (PR #516) on the evidence of run 34024923914, `event: schedule` on `main`, success 2026-09-06T09:32:06Z, and the prose block stayed behind still reading as live instruction -- its own words were DELETE BOTH THIS FIELD AND `firstDue` once one scheduled run has succeeded on main. Nothing read it: `grep -rn firstDueWhy tooling/ci` returns nothing. It is deleted here and the deletion is written down, because a bootstrap that vanishes without a trace is one the next editor re-derives from scratch -- duty.workflow.renovate.yml's precedent, 2026-09-05."
@@ -1601,6 +1664,7 @@
         "recordQuery": {
           "reader": "github-run-history",
           "workflow": "trufflehog.yml",
+          "unit": "run",
           "event": "schedule",
           "headBranch": "main",
           "why": "🔴 `event: schedule` — this workflow has no pull_request trigger at all, so the filter is not narrowing a busy history; it is refusing `workflow_dispatch`, which is indistinguishable from a person pressing the button and is therefore the opposite of a cadence claim. `headBranch: main` is stated anyway rather than left implied by GitHub firing schedules only on the default branch: that guarantee belongs to GitHub's behaviour, not to this register, and it must not vanish silently if the event filter is ever widened. AND THE BOOTSTRAP PROSE IS RETIRED, 2026-09-07, on the same terms as duty.workflow.codeql.yml's. `firstDue` was deleted on 2026-09-06 (PR #516) on the evidence of run 34045365669, `event: schedule` on `main`, success 2026-09-06T16:25:01Z; the `firstDueWhy` block beside it stayed behind still instructing a reader to delete a field that was already gone. No guard reads it -- `grep -rn firstDueWhy tooling/ci` returns nothing -- so it is deleted here with the deletion recorded rather than silent."

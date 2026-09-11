@@ -1,0 +1,3899 @@
+{
+ "_why": [
+  "TODAY'S EXACT STATE, REPLAYED: every answer the ops register guard received inside ops-watch run 34546423386",
+  "(schedule, main, 543b3220) at 2026-09-11T00:26:07Z, the run that listed EIGHT problems. Run histories and",
+  "job/step conclusions were fetched from the GitHub API on 2026-09-11T01:39Z and cut at that instant, so a run",
+  "still in flight then (34546423386 itself) is absent, exactly as it was to the grading run. GlitchTip, D1 and",
+  "the Renovate issue carry the values that run PRINTED. Read by the replay describe in ops-register.test.mjs.",
+  "runs[wf] rows are [id, event, conclusion, updated_at] on main; jobs[runId] rows are [name, conclusion,",
+  "steps?]; glitchtip[monitor] is [newestUp, interval, checks, misses]; d1.jobs / d1.targets are MAX(ran_at)."
+ ],
+ "now": "2026-09-11T00:26:07Z",
+ "repo": "globalonlinedeveloper/Nikatru_Platform_Public",
+ "hostRun": {
+  "id": 34546423386,
+  "event": "schedule",
+  "sha": "543b3220a0a732960ec32e0d72e10b6c47662833"
+ },
+ "runs": {
+  "ops-watch.yml": [
+   [
+    34544690996,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-11T00:03:06Z"
+   ],
+   [
+    34533663312,
+    "schedule",
+    "failure",
+    "2026-09-10T21:44:41Z"
+   ],
+   [
+    34523064954,
+    "schedule",
+    "failure",
+    "2026-09-10T19:55:10Z"
+   ],
+   [
+    34515396929,
+    "schedule",
+    "failure",
+    "2026-09-10T18:38:32Z"
+   ],
+   [
+    34511747076,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-10T18:03:26Z"
+   ],
+   [
+    34503082393,
+    "schedule",
+    "failure",
+    "2026-09-10T16:38:34Z"
+   ],
+   [
+    34490889997,
+    "schedule",
+    "failure",
+    "2026-09-10T14:44:55Z"
+   ],
+   [
+    34480773924,
+    "schedule",
+    "failure",
+    "2026-09-10T13:10:05Z"
+   ],
+   [
+    34475977339,
+    "schedule",
+    "failure",
+    "2026-09-10T12:20:17Z"
+   ],
+   [
+    34474430198,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-10T12:03:28Z"
+   ],
+   [
+    34458697374,
+    "schedule",
+    "failure",
+    "2026-09-10T09:07:28Z"
+   ],
+   [
+    34449861315,
+    "schedule",
+    "failure",
+    "2026-09-10T07:27:13Z"
+   ],
+   [
+    34444234613,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-10T06:14:33Z"
+   ],
+   [
+    34443764295,
+    "workflow_dispatch",
+    "success",
+    "2026-09-10T06:07:52Z"
+   ],
+   [
+    34443545094,
+    "workflow_dispatch",
+    "success",
+    "2026-09-10T06:05:02Z"
+   ],
+   [
+    34443433063,
+    "workflow_dispatch",
+    "success",
+    "2026-09-10T06:03:34Z"
+   ],
+   [
+    34439377857,
+    "schedule",
+    "failure",
+    "2026-09-10T05:02:25Z"
+   ],
+   [
+    34422226780,
+    "workflow_dispatch",
+    "success",
+    "2026-09-10T00:41:09Z"
+   ],
+   [
+    34421410542,
+    "schedule",
+    "failure",
+    "2026-09-10T00:29:44Z"
+   ],
+   [
+    34419363331,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-10T00:01:56Z"
+   ],
+   [
+    34408793034,
+    "schedule",
+    "failure",
+    "2026-09-09T21:48:41Z"
+   ],
+   [
+    34399827624,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T20:16:44Z"
+   ],
+   [
+    34397769158,
+    "schedule",
+    "failure",
+    "2026-09-09T19:55:28Z"
+   ],
+   [
+    34391007805,
+    "schedule",
+    "failure",
+    "2026-09-09T18:47:50Z"
+   ],
+   [
+    34386337544,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-09T18:01:34Z"
+   ],
+   [
+    34384815466,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T17:48:11Z"
+   ],
+   [
+    34384541458,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-09T17:45:07Z"
+   ],
+   [
+    34383668292,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-09T17:35:34Z"
+   ],
+   [
+    34379156976,
+    "schedule",
+    "failure",
+    "2026-09-09T16:51:04Z"
+   ],
+   [
+    34370004794,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T15:27:38Z"
+   ],
+   [
+    34332836726,
+    "schedule",
+    "success",
+    "2026-09-09T09:08:21Z"
+   ]
+  ],
+  "e2e.yml": [
+   [
+    34453685391,
+    "schedule",
+    "failure",
+    "2026-09-10T08:16:33Z"
+   ],
+   [
+    34443434773,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-10T06:08:31Z"
+   ],
+   [
+    34327705272,
+    "schedule",
+    "success",
+    "2026-09-09T08:17:20Z"
+   ],
+   [
+    34317221402,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T06:26:36Z"
+   ],
+   [
+    34202759006,
+    "schedule",
+    "success",
+    "2026-09-08T08:13:14Z"
+   ],
+   [
+    34192866942,
+    "workflow_dispatch",
+    "success",
+    "2026-09-08T06:07:24Z"
+   ],
+   [
+    34100097594,
+    "schedule",
+    "success",
+    "2026-09-07T08:26:56Z"
+   ],
+   [
+    34089582805,
+    "workflow_dispatch",
+    "success",
+    "2026-09-07T06:15:36Z"
+   ],
+   [
+    34089004358,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-07T06:01:29Z"
+   ],
+   [
+    34020445220,
+    "schedule",
+    "success",
+    "2026-09-06T08:02:11Z"
+   ],
+   [
+    34015368325,
+    "workflow_dispatch",
+    "success",
+    "2026-09-06T06:06:36Z"
+   ],
+   [
+    33953246945,
+    "schedule",
+    "success",
+    "2026-09-05T07:48:36Z"
+   ],
+   [
+    33951397400,
+    "workflow_dispatch",
+    "success",
+    "2026-09-05T07:08:40Z"
+   ],
+   [
+    33948692436,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-05T06:07:39Z"
+   ],
+   [
+    33851291595,
+    "schedule",
+    "success",
+    "2026-09-04T08:07:07Z"
+   ],
+   [
+    33842627730,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-04T06:07:18Z"
+   ],
+   [
+    33735386757,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T08:55:53Z"
+   ],
+   [
+    33731428770,
+    "schedule",
+    "failure",
+    "2026-09-03T08:12:09Z"
+   ],
+   [
+    33707277323,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T02:27:39Z"
+   ],
+   [
+    33705815378,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-03T02:04:57Z"
+   ],
+   [
+    33606070292,
+    "schedule",
+    "success",
+    "2026-09-02T08:03:24Z"
+   ],
+   [
+    33488289507,
+    "schedule",
+    "failure",
+    "2026-09-01T08:45:58Z"
+   ],
+   [
+    33379415684,
+    "schedule",
+    "failure",
+    "2026-08-31T09:54:26Z"
+   ],
+   [
+    33303615755,
+    "schedule",
+    "success",
+    "2026-08-30T09:22:37Z"
+   ],
+   [
+    33247077733,
+    "schedule",
+    "failure",
+    "2026-08-29T10:12:37Z"
+   ],
+   [
+    33185002610,
+    "schedule",
+    "failure",
+    "2026-08-28T15:29:49Z"
+   ],
+   [
+    32807451942,
+    "schedule",
+    "success",
+    "2026-08-28T13:54:34Z"
+   ],
+   [
+    32928885582,
+    "schedule",
+    "success",
+    "2026-08-27T16:35:31Z"
+   ],
+   [
+    32739012824,
+    "workflow_dispatch",
+    "success",
+    "2026-08-24T14:36:45Z"
+   ],
+   [
+    32688913917,
+    "schedule",
+    "failure",
+    "2026-08-24T04:14:01Z"
+   ]
+  ],
+  "build-platforms.yml": [
+   [
+    34468887825,
+    "schedule",
+    "failure",
+    "2026-09-10T11:10:59Z"
+   ],
+   [
+    34367696898,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T15:20:59Z"
+   ],
+   [
+    34355529015,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-09T13:16:33Z"
+   ],
+   [
+    34351523027,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-09T12:45:45Z"
+   ],
+   [
+    34192868585,
+    "workflow_dispatch",
+    "success",
+    "2026-09-08T06:16:33Z"
+   ],
+   [
+    34118284100,
+    "schedule",
+    "success",
+    "2026-09-07T11:59:59Z"
+   ],
+   [
+    34106979630,
+    "workflow_dispatch",
+    "success",
+    "2026-09-07T09:51:19Z"
+   ],
+   [
+    34094776599,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-07T07:32:21Z"
+   ],
+   [
+    33870692144,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-04T12:14:12Z"
+   ],
+   [
+    33747093539,
+    "schedule",
+    "success",
+    "2026-09-03T11:10:05Z"
+   ],
+   [
+    33394143983,
+    "schedule",
+    "success",
+    "2026-08-31T13:09:51Z"
+   ],
+   [
+    33098732148,
+    "schedule",
+    "success",
+    "2026-08-27T17:45:45Z"
+   ],
+   [
+    31366937403,
+    "schedule",
+    "success",
+    "2026-08-27T10:15:33Z"
+   ],
+   [
+    32869814582,
+    "workflow_dispatch",
+    "success",
+    "2026-08-25T16:19:31Z"
+   ],
+   [
+    32827619652,
+    "workflow_dispatch",
+    "success",
+    "2026-08-25T08:52:23Z"
+   ],
+   [
+    32823633046,
+    "workflow_dispatch",
+    "failure",
+    "2026-08-25T08:04:31Z"
+   ],
+   [
+    32819809680,
+    "workflow_dispatch",
+    "failure",
+    "2026-08-25T07:17:23Z"
+   ],
+   [
+    32814517717,
+    "workflow_dispatch",
+    "failure",
+    "2026-08-25T06:04:20Z"
+   ],
+   [
+    32699518559,
+    "schedule",
+    "failure",
+    "2026-08-24T07:11:24Z"
+   ],
+   [
+    32003607931,
+    "schedule",
+    "success",
+    "2026-08-17T07:07:59Z"
+   ],
+   [
+    31420283991,
+    "workflow_dispatch",
+    "success",
+    "2026-08-10T18:55:27Z"
+   ],
+   [
+    31290390825,
+    "workflow_dispatch",
+    "success",
+    "2026-08-09T02:42:06Z"
+   ],
+   [
+    31096200926,
+    "workflow_dispatch",
+    "success",
+    "2026-08-06T11:27:10Z"
+   ],
+   [
+    30802822347,
+    "schedule",
+    "success",
+    "2026-08-03T09:58:45Z"
+   ],
+   [
+    30756393327,
+    "workflow_dispatch",
+    "success",
+    "2026-08-02T16:32:31Z"
+   ],
+   [
+    30696623117,
+    "workflow_dispatch",
+    "success",
+    "2026-08-01T11:10:54Z"
+   ],
+   [
+    30689040787,
+    "workflow_dispatch",
+    "success",
+    "2026-08-01T07:20:55Z"
+   ],
+   [
+    30648461071,
+    "workflow_dispatch",
+    "success",
+    "2026-07-31T16:58:16Z"
+   ],
+   [
+    30648477744,
+    "workflow_dispatch",
+    "success",
+    "2026-07-31T16:57:45Z"
+   ],
+   [
+    30624797673,
+    "workflow_dispatch",
+    "failure",
+    "2026-07-31T10:59:27Z"
+   ]
+  ],
+  "extensions.yml": [
+   [
+    34539193606,
+    "schedule",
+    "success",
+    "2026-09-10T23:06:37Z"
+   ],
+   [
+    34413883504,
+    "schedule",
+    "success",
+    "2026-09-09T23:05:41Z"
+   ],
+   [
+    34288616149,
+    "schedule",
+    "success",
+    "2026-09-08T23:18:49Z"
+   ],
+   [
+    34282601502,
+    "workflow_dispatch",
+    "success",
+    "2026-09-08T22:07:18Z"
+   ],
+   [
+    34199809685,
+    "workflow_dispatch",
+    "success",
+    "2026-09-08T07:50:50Z"
+   ],
+   [
+    34168610730,
+    "schedule",
+    "failure",
+    "2026-09-07T23:40:16Z"
+   ],
+   [
+    34077811795,
+    "workflow_dispatch",
+    "success",
+    "2026-09-07T03:12:54Z"
+   ]
+  ],
+  "deploy-web.yml": [
+   [
+    34422473874,
+    "push",
+    "success",
+    "2026-09-10T00:52:58Z"
+   ],
+   [
+    34402483023,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T20:43:32Z"
+   ],
+   [
+    34397681965,
+    "push",
+    "success",
+    "2026-09-09T20:00:52Z"
+   ],
+   [
+    34395906628,
+    "push",
+    "success",
+    "2026-09-09T19:52:55Z"
+   ],
+   [
+    34394280303,
+    "push",
+    "cancelled",
+    "2026-09-09T19:36:03Z"
+   ],
+   [
+    34393518961,
+    "push",
+    "cancelled",
+    "2026-09-09T19:18:53Z"
+   ],
+   [
+    34384459623,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T17:44:24Z"
+   ],
+   [
+    34384187227,
+    "workflow_dispatch",
+    "cancelled",
+    "2026-09-09T17:41:59Z"
+   ],
+   [
+    34379490224,
+    "push",
+    "failure",
+    "2026-09-09T16:58:47Z"
+   ],
+   [
+    34378699974,
+    "push",
+    "cancelled",
+    "2026-09-09T16:54:22Z"
+   ],
+   [
+    34377749483,
+    "push",
+    "cancelled",
+    "2026-09-09T16:46:35Z"
+   ],
+   [
+    34376648296,
+    "push",
+    "success",
+    "2026-09-09T16:33:49Z"
+   ],
+   [
+    34375474160,
+    "push",
+    "success",
+    "2026-09-09T16:23:49Z"
+   ],
+   [
+    34374399368,
+    "push",
+    "success",
+    "2026-09-09T16:14:19Z"
+   ],
+   [
+    34371593675,
+    "push",
+    "success",
+    "2026-09-09T15:50:40Z"
+   ],
+   [
+    34368821428,
+    "push",
+    "success",
+    "2026-09-09T15:22:28Z"
+   ],
+   [
+    34348014281,
+    "push",
+    "success",
+    "2026-09-09T12:03:04Z"
+   ],
+   [
+    34345311965,
+    "push",
+    "success",
+    "2026-09-09T11:31:44Z"
+   ],
+   [
+    34333110226,
+    "push",
+    "success",
+    "2026-09-09T09:17:59Z"
+   ],
+   [
+    34332184436,
+    "push",
+    "success",
+    "2026-09-09T09:08:17Z"
+   ],
+   [
+    34331138827,
+    "push",
+    "success",
+    "2026-09-09T08:58:31Z"
+   ],
+   [
+    34325302245,
+    "push",
+    "success",
+    "2026-09-09T07:52:04Z"
+   ],
+   [
+    34319355651,
+    "push",
+    "success",
+    "2026-09-09T06:39:17Z"
+   ],
+   [
+    34315492291,
+    "push",
+    "failure",
+    "2026-09-09T05:45:30Z"
+   ],
+   [
+    34299058954,
+    "push",
+    "success",
+    "2026-09-09T01:31:50Z"
+   ],
+   [
+    34297936055,
+    "push",
+    "success",
+    "2026-09-09T01:16:45Z"
+   ],
+   [
+    34293985839,
+    "push",
+    "success",
+    "2026-09-09T00:20:27Z"
+   ],
+   [
+    34257133555,
+    "push",
+    "success",
+    "2026-09-08T17:34:42Z"
+   ],
+   [
+    34224374977,
+    "push",
+    "success",
+    "2026-09-08T12:15:15Z"
+   ],
+   [
+    34144992804,
+    "push",
+    "success",
+    "2026-09-07T16:56:52Z"
+   ]
+  ],
+  "deploy-workers.yml": [
+   [
+    34431929932,
+    "push",
+    "success",
+    "2026-09-10T03:11:26Z"
+   ],
+   [
+    34431294732,
+    "push",
+    "success",
+    "2026-09-10T03:02:34Z"
+   ],
+   [
+    34429924903,
+    "push",
+    "success",
+    "2026-09-10T02:41:45Z"
+   ],
+   [
+    34401576788,
+    "push",
+    "success",
+    "2026-09-09T20:39:02Z"
+   ],
+   [
+    34400290954,
+    "push",
+    "success",
+    "2026-09-09T20:26:20Z"
+   ],
+   [
+    34397682143,
+    "push",
+    "success",
+    "2026-09-09T19:59:54Z"
+   ],
+   [
+    34391233196,
+    "push",
+    "failure",
+    "2026-09-09T18:53:34Z"
+   ],
+   [
+    34384757100,
+    "push",
+    "failure",
+    "2026-09-09T17:54:04Z"
+   ],
+   [
+    34348014178,
+    "push",
+    "success",
+    "2026-09-09T12:02:08Z"
+   ],
+   [
+    34329178350,
+    "push",
+    "success",
+    "2026-09-09T08:35:23Z"
+   ],
+   [
+    34326143481,
+    "push",
+    "success",
+    "2026-09-09T07:59:21Z"
+   ],
+   [
+    34315492314,
+    "push",
+    "success",
+    "2026-09-09T05:43:51Z"
+   ],
+   [
+    34297936152,
+    "push",
+    "success",
+    "2026-09-09T01:15:19Z"
+   ],
+   [
+    34292648067,
+    "push",
+    "success",
+    "2026-09-09T00:00:46Z"
+   ],
+   [
+    34265472415,
+    "push",
+    "success",
+    "2026-09-08T18:57:55Z"
+   ],
+   [
+    34221451715,
+    "push",
+    "success",
+    "2026-09-08T11:42:48Z"
+   ],
+   [
+    34116832884,
+    "push",
+    "success",
+    "2026-09-07T11:36:57Z"
+   ],
+   [
+    34093270506,
+    "push",
+    "success",
+    "2026-09-07T07:06:20Z"
+   ],
+   [
+    34089488808,
+    "push",
+    "success",
+    "2026-09-07T06:14:24Z"
+   ],
+   [
+    34058842010,
+    "push",
+    "success",
+    "2026-09-06T20:50:10Z"
+   ],
+   [
+    34022796516,
+    "push",
+    "success",
+    "2026-09-06T08:53:39Z"
+   ],
+   [
+    33962643166,
+    "push",
+    "success",
+    "2026-09-05T11:19:49Z"
+   ],
+   [
+    33961320009,
+    "push",
+    "success",
+    "2026-09-05T10:47:18Z"
+   ],
+   [
+    33942939051,
+    "push",
+    "success",
+    "2026-09-05T03:56:34Z"
+   ],
+   [
+    33872146617,
+    "push",
+    "success",
+    "2026-09-04T12:26:31Z"
+   ],
+   [
+    33854874208,
+    "push",
+    "success",
+    "2026-09-04T08:57:48Z"
+   ],
+   [
+    33849950669,
+    "push",
+    "success",
+    "2026-09-04T07:56:55Z"
+   ],
+   [
+    33842153108,
+    "push",
+    "failure",
+    "2026-09-04T06:06:09Z"
+   ],
+   [
+    33840332198,
+    "push",
+    "success",
+    "2026-09-04T05:32:08Z"
+   ],
+   [
+    33833810878,
+    "push",
+    "success",
+    "2026-09-04T03:47:06Z"
+   ],
+   [
+    33688576232,
+    "workflow_dispatch",
+    "success",
+    "2026-09-02T22:06:41Z"
+   ],
+   [
+    30934945633,
+    "workflow_dispatch",
+    "failure",
+    "2026-08-04T17:41:17Z"
+   ]
+  ],
+  "renovate.yml": [
+   [
+    34451228665,
+    "schedule",
+    "success",
+    "2026-09-10T07:42:48Z"
+   ],
+   [
+    34443431499,
+    "workflow_dispatch",
+    "success",
+    "2026-09-10T06:02:43Z"
+   ],
+   [
+    34325250415,
+    "schedule",
+    "success",
+    "2026-09-09T07:44:01Z"
+   ],
+   [
+    34317217112,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T06:02:03Z"
+   ],
+   [
+    34200239196,
+    "schedule",
+    "success",
+    "2026-09-08T07:38:14Z"
+   ],
+   [
+    34192863460,
+    "workflow_dispatch",
+    "success",
+    "2026-09-08T06:01:57Z"
+   ],
+   [
+    34096890512,
+    "schedule",
+    "success",
+    "2026-09-07T07:45:13Z"
+   ],
+   [
+    34089001732,
+    "workflow_dispatch",
+    "success",
+    "2026-09-07T06:02:22Z"
+   ],
+   [
+    34019196726,
+    "schedule",
+    "success",
+    "2026-09-06T07:28:36Z"
+   ],
+   [
+    34018236370,
+    "workflow_dispatch",
+    "success",
+    "2026-09-06T07:07:11Z"
+   ],
+   [
+    34015366376,
+    "workflow_dispatch",
+    "failure",
+    "2026-09-06T06:01:24Z"
+   ],
+   [
+    33961326690,
+    "workflow_dispatch",
+    "success",
+    "2026-09-05T10:42:21Z"
+   ],
+   [
+    33952024441,
+    "schedule",
+    "success",
+    "2026-09-05T07:15:46Z"
+   ],
+   [
+    33948690168,
+    "workflow_dispatch",
+    "success",
+    "2026-09-05T06:02:14Z"
+   ],
+   [
+    33849335469,
+    "schedule",
+    "success",
+    "2026-09-04T07:35:00Z"
+   ],
+   [
+    33842623965,
+    "workflow_dispatch",
+    "success",
+    "2026-09-04T06:01:23Z"
+   ],
+   [
+    33732573344,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T08:18:24Z"
+   ],
+   [
+    33724916074,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T06:48:38Z"
+   ],
+   [
+    33724624024,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T06:45:13Z"
+   ],
+   [
+    33722101289,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T06:12:19Z"
+   ],
+   [
+    33719940766,
+    "workflow_dispatch",
+    "success",
+    "2026-09-03T05:42:51Z"
+   ]
+  ],
+  "codeql.yml": [
+   [
+    34463061575,
+    "schedule",
+    "success",
+    "2026-09-10T09:56:58Z"
+   ],
+   [
+    34431929974,
+    "push",
+    "success",
+    "2026-09-10T03:08:45Z"
+   ],
+   [
+    34431294720,
+    "push",
+    "success",
+    "2026-09-10T02:58:12Z"
+   ],
+   [
+    34430779014,
+    "push",
+    "success",
+    "2026-09-10T02:49:59Z"
+   ],
+   [
+    34429924887,
+    "push",
+    "success",
+    "2026-09-10T02:37:20Z"
+   ],
+   [
+    34422473833,
+    "push",
+    "success",
+    "2026-09-10T00:46:27Z"
+   ],
+   [
+    34401576720,
+    "push",
+    "success",
+    "2026-09-09T20:35:37Z"
+   ],
+   [
+    34400290814,
+    "push",
+    "success",
+    "2026-09-09T20:22:55Z"
+   ],
+   [
+    34398628129,
+    "push",
+    "success",
+    "2026-09-09T20:06:19Z"
+   ],
+   [
+    34397682047,
+    "push",
+    "success",
+    "2026-09-09T19:56:41Z"
+   ],
+   [
+    34395906659,
+    "push",
+    "success",
+    "2026-09-09T19:38:49Z"
+   ],
+   [
+    34394280351,
+    "push",
+    "success",
+    "2026-09-09T19:22:31Z"
+   ],
+   [
+    34393518934,
+    "push",
+    "success",
+    "2026-09-09T19:14:55Z"
+   ],
+   [
+    34392723921,
+    "push",
+    "success",
+    "2026-09-09T19:06:19Z"
+   ],
+   [
+    34391910970,
+    "push",
+    "success",
+    "2026-09-09T18:58:12Z"
+   ],
+   [
+    34391233248,
+    "push",
+    "success",
+    "2026-09-09T18:51:16Z"
+   ],
+   [
+    34390520516,
+    "push",
+    "success",
+    "2026-09-09T18:45:09Z"
+   ],
+   [
+    34389815595,
+    "workflow_dispatch",
+    "success",
+    "2026-09-09T18:38:07Z"
+   ],
+   [
+    34385722122,
+    "push",
+    "failure",
+    "2026-09-09T17:59:25Z"
+   ],
+   [
+    34384757250,
+    "push",
+    "success",
+    "2026-09-09T17:48:27Z"
+   ],
+   [
+    34383551058,
+    "push",
+    "success",
+    "2026-09-09T17:35:57Z"
+   ],
+   [
+    34382362660,
+    "push",
+    "success",
+    "2026-09-09T17:24:03Z"
+   ],
+   [
+    34381678981,
+    "push",
+    "success",
+    "2026-09-09T17:18:20Z"
+   ],
+   [
+    34379490232,
+    "push",
+    "success",
+    "2026-09-09T16:57:03Z"
+   ],
+   [
+    34378699932,
+    "push",
+    "success",
+    "2026-09-09T16:49:10Z"
+   ],
+   [
+    34377749502,
+    "push",
+    "success",
+    "2026-09-09T16:40:29Z"
+   ],
+   [
+    34376648292,
+    "push",
+    "success",
+    "2026-09-09T16:29:48Z"
+   ],
+   [
+    34375474191,
+    "push",
+    "success",
+    "2026-09-09T16:18:41Z"
+   ],
+   [
+    34374399449,
+    "push",
+    "success",
+    "2026-09-09T16:07:50Z"
+   ],
+   [
+    34373303803,
+    "push",
+    "success",
+    "2026-09-09T15:59:08Z"
+   ]
+  ],
+  "trufflehog.yml": [
+   [
+    34506486466,
+    "schedule",
+    "success",
+    "2026-09-10T17:09:57Z"
+   ],
+   [
+    34381783011,
+    "schedule",
+    "success",
+    "2026-09-09T17:15:49Z"
+   ],
+   [
+    34257255801,
+    "schedule",
+    "success",
+    "2026-09-08T17:28:26Z"
+   ],
+   [
+    34151369436,
+    "schedule",
+    "success",
+    "2026-09-07T18:22:58Z"
+   ],
+   [
+    34045365669,
+    "schedule",
+    "success",
+    "2026-09-06T16:25:23Z"
+   ]
+  ]
+ },
+ "jobs": {
+  "34544690996": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34533663312": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34523064954": [
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34515396929": [
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34511747076": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "failure"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34503082393": [
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34490889997": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34480773924": [
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34475977339": [
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34474430198": [
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34458697374": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34449861315": [
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34444234613": [
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34443764295": [
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34443545094": [
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34443433063": [
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34439377857": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "failure"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34422226780": [
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34421410542": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34419363331": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34408793034": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34399827624": [
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34397769158": [
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "failure"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34391007805": [
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34386337544": [
+   [
+    "Every row in production traces to a released build",
+    "failure"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34384815466": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34384541458": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34383668292": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "failure",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "failure"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "skipped"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34379156976": [
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The Cloudflare Pages builds nobody else can see actually landed",
+    "failure"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "success"
+   ]
+  ],
+  "34370004794": [
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ],
+  "34332836726": [
+   [
+    "Every declared duty is fresh — the heartbeat rail AND the register",
+    "success",
+    [
+     [
+      "Set up job",
+      "success"
+     ],
+     [
+      "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "The whole ops register — every duty, not just the heartbeat-backed ones",
+      "success"
+     ],
+     [
+      "Read the heartbeat table from OUTSIDE Cloudflare",
+      "success"
+     ],
+     [
+      "Live D1 still runs every statement the Workers send it",
+      "success"
+     ],
+     [
+      "Judge whether the analytics rail's silence is a FAULT",
+      "success"
+     ],
+     [
+      "Post Run ./.github/actions/setup-node",
+      "success"
+     ],
+     [
+      "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "success"
+     ],
+     [
+      "Complete job",
+      "success"
+     ]
+    ]
+   ],
+   [
+    "The live auth config still matches what the repo recorded",
+    "success"
+   ],
+   [
+    "Actions quota cannot silently stop the scheduled proofs",
+    "success"
+   ],
+   [
+    "The live ops half — monitors, alarm chains, provider parity, GCP scope",
+    "success"
+   ],
+   [
+    "Every enumerated surface produced its expected output",
+    "success"
+   ],
+   [
+    "Every row in production traces to a released build",
+    "success"
+   ],
+   [
+    "Weekly digest",
+    "skipped"
+   ],
+   [
+    "Open or refresh the ops-watch issue",
+    "skipped"
+   ]
+  ]
+ },
+ "glitchtip": {
+  "6": [
+   "2026-09-10T20:35:06.335Z",
+   43200,
+   42,
+   0
+  ],
+  "19": [
+   "2026-09-11T00:17:03.642Z",
+   7200,
+   50,
+   0
+  ],
+  "22": [
+   "2026-09-10T02:45:18.497Z",
+   86400,
+   7,
+   1
+  ],
+  "23": [
+   "2026-09-11T00:07:03.258Z",
+   10800,
+   50,
+   0
+  ],
+  "24": [
+   "2026-09-10T18:45:02.540Z",
+   32400,
+   21,
+   0
+  ],
+  "25": [
+   "2026-09-10T19:05:15.204Z",
+   32400,
+   21,
+   0
+  ],
+  "26": [
+   "2026-09-10T19:20:05.777Z",
+   32400,
+   21,
+   0
+  ],
+  "27": [
+   "2026-09-10T23:47:02.102Z",
+   5400,
+   50,
+   0
+  ],
+  "29": [
+   "2026-09-10T03:04:32.016Z",
+   50400,
+   10,
+   1
+  ],
+  "30": [
+   "2026-09-10T23:36:40.893Z",
+   7200,
+   50,
+   14
+  ],
+  "33": [
+   "2026-09-09T04:21:13.968Z",
+   86400,
+   3,
+   1
+  ]
+ },
+ "d1": {
+  "jobs": {
+   "supabase_keepalive": "2026-09-10T06:00:31.402Z",
+   "backup_export": "2026-09-10T02:30:22.129Z",
+   "analytics_liveness": "2026-09-10T06:00:33.118Z",
+   "renewals": "2026-09-10T06:00:32.560Z",
+   "events_rollup": "2026-09-10T06:00:34.007Z",
+   "retention_sweep": "2026-09-10T06:00:34.912Z",
+   "cancellation_drain": "2026-09-10T06:00:35.300Z",
+   "money_rederive": "2026-09-10T06:00:36.001Z",
+   "github_dispatch": "2026-09-11T00:00:40.117Z"
+  },
+  "targets": {
+   "Nikatru_Platform_Public/e2e.yml": "2026-09-10T06:01:40.235Z",
+   "Nikatru_Platform_Public/build-platforms.yml": "2026-09-08T06:00:56.854Z"
+  }
+ },
+ "issues": {
+  "Dependency Dashboard": [
+   417,
+   "2026-09-10T06:02:40Z"
+  ]
+ }
+}
