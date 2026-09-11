@@ -248,9 +248,26 @@ function write(root, rel, buf) {
   writeFileSync(p, buf);
 }
 
+// BOUNDED, so a spawned script that hangs at exit (nodejs/node#54918 — the class
+// swept 2026-09-11) fails its case BY NAME instead of holding the job open until
+// CI cancels it with no name at all. `status null` beside the complete output
+// means the process was still alive when the bound fired: an exit hang.
+// Each spawn stays written out as `spawnSync(process.execPath, [SCRIPT, …])`:
+// assert-guard-coverage.mjs credits a test with EXERCISING a script by reading
+// that shape, and a wrapper taking the argument list hides the script from it.
+const RUN_TIMEOUT_MS = 120_000;
+const BOUND = { timeout: RUN_TIMEOUT_MS, killSignal: 'SIGKILL' };
+function result(label, r) {
+  const died =
+    r.error || r.signal
+      ? `\n[listing-assets.test] ${label} did not finish — ${r.error ? r.error.message : 'no spawn error'} · ` +
+        `status ${r.status} · signal ${r.signal} · bound ${RUN_TIMEOUT_MS} ms`
+      : '';
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}${died}` };
+}
+
 function run(root) {
-  const r = spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8' });
-  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  return result('guard', spawnSync(process.execPath, [GUARD, root], { encoding: 'utf8', ...BOUND }));
 }
 
 const roots = [];
@@ -274,6 +291,19 @@ describe('assert-listing-assets.mjs — the passing path', () => {
   test('it says out loud what it cannot see', () => {
     const r = run(build());
     assert.match(r.out, /CANNOT SEE: whether a screenshot is REPRESENTATIVE/);
+  });
+
+  // 🔴 THE EXIT HANG, PINNED. Spawned exactly as CI runs it — plain `node <guard>`,
+  // no flags — the process that does the work must have started with
+  // --single-threaded, so no V8 worker thread runs a background compile or GC
+  // that Node's shutdown can deadlock on (nodejs/node#54918). Measured
+  // 2026-09-11 on this file's fixtures: worker threads burned CPU in 39 of 55
+  // runs by default and in 0 of 55 with the flag. Deterministic, unlike the hang:
+  // delete the relaunch and this line says ON.
+  test('the working guard runs with V8 background tasks OFF, so its exit cannot deadlock', () => {
+    const r = run(build());
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /V8 background tasks: OFF \(--single-threaded\)/);
   });
 });
 
@@ -540,7 +570,7 @@ describe('assert-listing-assets.mjs — the banner detector cannot go dark', () 
       s.files['packages/design_system/lib/src/tokens/app_colors.dart'] =
         Buffer.from('class AppColors {\n  static const Color warning = Color(0xFFF59E0B);\n}\n');
     }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST/);
     assert.match(r.out, /declares no `static const Color warn = Color\(0x…\)`/);
   });
@@ -630,7 +660,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
           'Widget build() => const NikatruApp();\n',
       );
     }));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — apps\/subscriptiontracker\/lib\/app\.dart/);
   });
 
@@ -638,7 +668,7 @@ describe('assert-listing-assets.mjs — the DEBUG ribbon', () => {
     const r = run(build((s) => {
       delete s.files['apps/subscriptiontracker/lib/app.dart'];
     }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /not one app under apps\/ was found building a MaterialApp/);
   });
 });
@@ -670,10 +700,8 @@ describe('capture-play-screenshots.mjs — the posture gate', () => {
     return env;
   };
 
-  const capture = (args, env = scrubbed()) => {
-    const r = spawnSync(process.execPath, [CAPTURE, ...args], { encoding: 'utf8', env });
-    return { code: r.status, out: `${r.stdout}${r.stderr}` };
-  };
+  const capture = (args, env = scrubbed()) =>
+    result('capture runner', spawnSync(process.execPath, [CAPTURE, ...args], { encoding: 'utf8', env, ...BOUND }));
 
   test('--proof REFUSES to write into the live listing directory', () => {
     const r = capture(['--proof', '--out', LISTING]);
@@ -1005,7 +1033,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const r = run(build((s) => {
       s.register.storeMetadataContract.perChannel['android-play'].graphicAssets.assets = {};
     }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST.*EMPTY `assets` map/s);
   });
 
@@ -1013,7 +1041,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const r = run(build((s) => {
       delete s.register.storeMetadataContract.perChannel['android-play'].graphicAssets;
     }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST.*declares a `graphicAssets` block/s);
   });
 
@@ -1021,7 +1049,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const r = run(build((s) => {
       s.register.channels = [];
     }));
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST.*ZERO `kind: "store"` channels/s);
   });
 
@@ -1029,7 +1057,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const root = build();
     rmSync(join(root, 'tooling', 'channel-register.json'));
     const r = run(root);
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST/);
   });
 
@@ -1037,7 +1065,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const root = build();
     writeFileSync(join(root, 'tooling', 'channel-register.json'), '{ not json');
     const r = run(root);
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST.*not valid JSON/s);
   });
 
@@ -1045,7 +1073,7 @@ describe('assert-listing-assets.mjs — COVERAGE LOST, not a pass', () => {
     const root = build();
     writeFileSync(join(root, 'catalog', 'apps.json'), '[]');
     const r = run(root);
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     assert.match(r.out, /COVERAGE LOST.*carries no app entries/s);
   });
 });

@@ -144,6 +144,19 @@ import { decodeRgba, encodeRgba, PngUnreadable } from '../store/png-codec.mjs';
 // two readings of "does this capture leak the account" would eventually differ,
 // and the disagreement would be silent.
 import { scanCaptureSuite, selfTestAccountAddressDetector, SUITE_FILE } from '../store/capture-suite-scan.mjs';
+// The ONE relaunch with V8 background tasks off — see that module's header.
+import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-relaunch.mjs';
+
+// ── the process that does the work runs with V8 background tasks OFF ────────
+// 🔴 THE SAME EXPOSURE THAT HUNG assert-launcher-icons.mjs IN CI, measured here
+// on 2026-09-11 before this guard ever hung: its banner detector DECODES every
+// screenshot and walks the pixels, and on this file's own fixtures V8's worker
+// threads burned CPU in 39 of 55 runs (up to 16 ticks) by default and in 0 of 55
+// with --single-threaded. Work on a worker thread is what Node's shutdown can
+// deadlock on after the verdict is printed (nodejs/node#54918). `coverageLost`
+// is a hoisted function declaration, so handing it over before its text is safe.
+const relaunched = relaunchSingleThreaded(import.meta.url, process.argv.slice(2), coverageLost);
+if (relaunched !== null) process.exit(relaunched);
 
 const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
 /** No argument means CI's own invocation against the real repository, where a
@@ -172,7 +185,9 @@ function coverageLost(lines) {
   console.error(`FAIL COVERAGE LOST — ${lines[0]}`);
   for (const l of lines.slice(1)) console.error(`     ${l}`);
   console.error('\nassert-listing-assets: FAILED');
-  process.exit(1);
+  // 2, never 1: "I could not look" must never read as "I looked and found a
+  // problem", any more than as "I looked and it was fine".
+  process.exit(2);
 }
 
 // ── the register: the only declaration of what a listing needs ──────────────
@@ -897,5 +912,8 @@ if (problems.length) {
   console.log('      which is why the capture workflow opens a pull request rather than committing directly.');
   console.log('   ⚠️ CANNOT SEE: whether a committed graphic is still what its generator renders. That needs');
   console.log('      a browser: `node tooling/store/render-play-graphics.mjs --check`, in the lane that has one.');
+  // Read from this process's own start-up flags: remove the relaunch above and
+  // this says ON, and listing-assets.test.mjs fails.
+  console.log(`   ${backgroundTasksNote()}`);
   console.log('\nassert-listing-assets: ok');
 }

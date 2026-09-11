@@ -46,7 +46,8 @@
 // coverage.
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve, relative, sep } from 'node:path';
+import { dirname, join, resolve, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
 import {
   emphasisedSpans,
@@ -494,6 +495,98 @@ for (const p of providers) {
   }
 }
 
+// (e) 🔴 THE EGRESS LIMB — ⏱ 2026-09-11, REVIEW-stores-2026-09-10 #11. The route limb
+//     above catches a provider arriving in a WORKER. It could not see one arriving in
+//     a BROWSER: the web build loads the Sentry SDK from browser.sentry-cdn.com and
+//     CanvasKit + fonts from gstatic.com, and neither company had a row. So every host
+//     a shipped Content-Security-Policy lets a browser reach is now either ours
+//     (`firstPartyDomains`) or carries a provider row's tell — and a host whose only
+//     matching rows say the integration is not happening is a contradiction, not a match.
+const SCANNING_OWN_REPO = resolve(repoRoot) === resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const headerFiles = [];
+for (const [base, sub] of [
+  ['apps', ['web', '_headers']],
+  ['sites', ['_headers']],
+]) {
+  const baseAbs = join(repoRoot, base);
+  if (!existsSync(baseAbs)) continue;
+  for (const e of listDir(baseAbs, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const abs = join(baseAbs, e.name, ...sub);
+    if (existsSync(abs)) headerFiles.push(abs);
+  }
+}
+if (SCANNING_OWN_REPO && headerFiles.length === 0) {
+  coverageLost(
+    'found no apps/*/web/_headers and no sites/*/_headers in this repository.',
+    'The egress limb reads the Content-Security-Policy each one ships; with none found, "every third party a browser reaches is',
+    'registered" would hold over nothing — including the day a header file moves.',
+  );
+}
+const firstParty = Array.isArray(providerReg.firstPartyDomains?.domains)
+  ? providerReg.firstPartyDomains.domains.map((d) => String(d).toLowerCase().trim()).filter(Boolean)
+  : [];
+if (headerFiles.length > 0 && firstParty.length === 0) {
+  coverageLost(
+    'provider-register.json declares no `firstPartyDomains.domains`.',
+    'Without it every host of ours (api.nikatru.com, glitchtip.nikatru.com) reads as an unregistered third party, and the only way',
+    'to make the egress limb pass would be to register a hostname as a company. Neither is a pass.',
+  );
+}
+const NOT_HAPPENING = new Set(['deferred', 'not-named-not-wired']);
+const squashTell = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, '');
+let cspSources = 0;
+let egressHosts = 0;
+const egressSeen = new Set();
+for (const file of headerFiles) {
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    if (/^\s*#/.test(line)) continue;
+    const m = line.match(/^\s*Content-Security-Policy(?:-Report-Only)?\s*:\s*(.+)$/i);
+    if (!m) continue;
+    for (const directive of m[1].split(';')) {
+      const [name, ...sources] = directive.trim().split(/\s+/);
+      if (!name) continue;
+      for (const source of sources) {
+        cspSources++;
+        if (source.startsWith("'") || source === '*' || /^[a-z][a-z0-9+.-]*:$/i.test(source)) continue;
+        const host = source
+          .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+          .split('/')[0]
+          .split(':')[0]
+          .replace(/^\*\./, '')
+          .toLowerCase();
+        if (!host) continue;
+        if (firstParty.some((d) => host === d || host.endsWith(`.${d}`))) continue;
+        const key = `${rel(file)}|${host}`;
+        if (egressSeen.has(key)) continue;
+        egressSeen.add(key);
+        egressHosts++;
+        const matched = providers.filter((p) => (p.tells ?? []).some((t) => squashTell(t) !== '' && squashTell(host).includes(squashTell(t))));
+        if (matched.length === 0) {
+          problems.push(
+            `${rel(file)} lets a browser reach ${host} (${name}) and no row in tooling/legal/provider-register.json has a tell in that hostname. ` +
+              "A company the visitor's browser contacts is a third party whether or not a Worker calls it: add its row (role, tells, status), " +
+              'or remove the host from the policy. If the host is ours, add its domain to `firstPartyDomains`.',
+          );
+          continue;
+        }
+        if (matched.every((p) => NOT_HAPPENING.has(p.status))) {
+          problems.push(
+            `${rel(file)} lets a browser reach ${host} (${name}), and every matching row says that integration is not happening: ` +
+              `${matched.map((p) => `${p.id} (status ${p.status})`).join(', ')}. A shipped policy allowing the traffic and a register denying it cannot both be right.`,
+          );
+        }
+      }
+    }
+  }
+}
+if (headerFiles.length > 0 && cspSources === 0) {
+  coverageLost(
+    `${headerFiles.length} header file(s) were read and ZERO Content-Security-Policy sources were extracted.`,
+    'The header format or the matcher changed, so the egress limb ran over nothing while printing ok.',
+  );
+}
+
 // ── §4 · THE OWNER-GATED GAPS, PRINTED AND SELF-RETIRING ────────────────────
 // Every gap declares `stillTrue`: a fragment that must still be present in the
 // page it complains about. When the owner publishes the correction the fragment
@@ -537,6 +630,31 @@ for (const g of gaps) {
     );
     continue;
   }
+  // ⏱ 2026-09-11 — A SECOND WAY A GAP CLOSES. `stillTrue` retires a gap when the
+  // sentence it complains about changes; a gap about an OMISSION can be fixed by
+  // adding a sentence while the old one stays. `closedWhenNamed` lists provider rows
+  // whose tell appearing in the page means the omission is over — and then the gap
+  // FAILS, demanding retirement, exactly as a false `stillTrue` does.
+  const closers = Array.isArray(g.closedWhenNamed) ? g.closedWhenNamed : [];
+  const unknownClosers = closers.filter((cid) => !byId.has(cid));
+  if (unknownClosers.length) {
+    problems.push(
+      `gap ${id} closedWhenNamed names ${unknownClosers.map((c) => JSON.stringify(c)).join(', ')}, which has no provider row — so the gap could never ` +
+        'see itself closed.',
+    );
+    continue;
+  }
+  const lowerText = text.toLowerCase();
+  const nowNamed = closers
+    .map((cid) => byId.get(cid))
+    .filter((p) => (p.tells ?? []).some((t) => lowerText.includes(String(t).toLowerCase())));
+  if (nowNamed.length) {
+    problems.push(
+      `gap ${id} is CLOSED: ${page} now names ${nowNamed.map((p) => p.name).join(' and ')}. Retire the gap (move it to retiredDisclosureGaps with ` +
+        "`closedBy`) and add the page to each provider's `namedIn` — an exemption must not outlive the fix.",
+    );
+    continue;
+  }
   prints.push(
     `OWNER-GATED (${g.ownerItem}) · ${id}${page ? ` [${page}]` : ''} — ${g.what ?? g.why}` +
       (g.resolution ? ` RESOLUTION: ${g.resolution}` : ''),
@@ -573,7 +691,7 @@ console.log(
 );
 console.log(
   `    providers — ${providers.length} row(s), ${providerLinks} claim link(s), ${namedInChecks} disclosure(s) ` +
-    `verified against page text, ${seenSegments.size} route segment(s) accounted for`,
+    `verified against page text, ${seenSegments.size} route segment(s) accounted for, ${egressHosts} third-party browser egress host(s) matched to a row`,
 );
 console.log(
   '    ⚠️ only `code` rows carry a mechanical assertion. A `descriptive` row proves the sentence was read, not',
