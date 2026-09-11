@@ -117,7 +117,16 @@ const svcDir = join(ROOT, 'services', `${appId}-api`);
 const cfgPath = join(svcDir, 'wrangler.jsonc');
 const dbName = `${appId}_db`;
 
-if (!existsSync(cfgPath)) {
+// READ ONCE (CodeQL #86): the config's bytes are taken here, instead of an existence check that
+// the rewrite at the end of this script acted on. ENOENT/ENOTDIR are "no stamped backend";
+// any other failure to read throws, as the later read did.
+let cfgInitial = null;
+try {
+  cfgInitial = readFileSync(cfgPath, 'utf8');
+} catch (e) {
+  if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+}
+if (cfgInitial === null) {
   die([
     `✗ no stamped backend at ${cfgPath}.`,
     '  This provisions an app the brick already stamped with needs_backend=true; it does not stamp one.',
@@ -149,7 +158,7 @@ if (!existsSync(cfgPath)) {
 // asserting structurally that APP_DB moved and PLATFORM_DB did not.
 if (selfCheck) {
   const problems = [];
-  const raw = readFileSync(cfgPath, 'utf8');
+  const raw = cfgInitial;
 
   /** Strip JSONC comments and trailing commas, then parse. A local copy on
    *  purpose: every guard in tooling/ci that reads wrangler.jsonc carries its

@@ -312,7 +312,14 @@ if (isMain) {
   for (const n of notes) console.log(`    note ${n}`);
 
   const target = join(root, ...PAYLOAD.split('/'));
-  const currentRaw = existsSync(target) ? readFileSync(target, 'utf8') : null;
+  // READ ONCE (CodeQL #88): the rewrite below is decided on these bytes, not on a separate
+  // existence check of the path. ENOENT/ENOTDIR are the only "absent"; any other failure throws.
+  let currentRaw = null;
+  try {
+    currentRaw = readFileSync(target, 'utf8');
+  } catch (e) {
+    if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+  }
   const currentHasBom = currentRaw !== null && currentRaw.startsWith(BOM);
   const current = currentHasBom ? currentRaw.slice(BOM.length) : currentRaw;
 

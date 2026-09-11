@@ -70,6 +70,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn, pathKey } from './fixtures/fs-spy-run.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -574,6 +575,19 @@ describe('assert-render-payload — the published projection', () => {
 /* ════════════════════════════════════════════════════════════════════════════ */
 
 describe('generate-landing-payload — the publisher', () => {
+  test('writes the payload without a separate look at its path first (CodeQL #88)', () => {
+    const root = tree({ payload: null });
+    try {
+      const { code, text, verdict } = spiedRun([PUBLISHER, root], { under: root });
+      assert.equal(code, 0, text);
+      const payload = '/' + REL.payload;
+      assert.ok(verdict.uses.some((u) => u.endsWith(pathKey(payload))), 'the payload was never written');
+      assert.deepEqual(racyOn(verdict, payload), []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('POSITIVE CONTROL: the real sources reproduce the committed payload byte for byte', () => {
     const root = tree({ payload: null });
     try {

@@ -31,6 +31,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn } from './fixtures/fs-spy-run.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -58,6 +59,18 @@ const run = (root, ...args) => {
 const realCatalogue = () => readFileSync(join(REPO, CATALOGUE_REL), 'utf8');
 
 describe('generate-apps-data — the site feed', () => {
+  test('writes the feed without a separate look at its path first (CodeQL #87)', () => {
+    const root = tree(realCatalogue());
+    try {
+      const { code, text, verdict } = spiedRun([SCRIPT, root], { under: root });
+      assert.equal(code, 0, text);
+      assert.ok(verdict.uses.some((u) => u.endsWith('/sites/_shared/_data/apps.json')), `the feed was never written: ${JSON.stringify(verdict.uses)}`);
+      assert.deepEqual(racyOn(verdict, '/sites/_shared/_data/apps.json'), []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('POSITIVE CONTROL: the real catalogue reproduces the committed feed byte for byte', () => {
     const root = tree(realCatalogue());
     try {

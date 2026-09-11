@@ -47,6 +47,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync, ex
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn } from './fixtures/fs-spy-run.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -307,6 +308,23 @@ test('limb A-BOM bites: a UTF-8 BOM on a tracked text blob is reported', () => {
     assert.match(r.out, /WARN A-BOM filler\/bommed\.md/, `the BOM'd file must be named: ${r.out}`);
   });
   assert.equal(run().code, 0, 'the fixture must be green again after the case');
+});
+
+test('--write-baseline writes the baseline without a separate look at its path first (CodeQL #271)', () => {
+  const bp = join(ROOT, '.agentdocs.baseline.json');
+  let had = null;
+  try { had = readFileSync(bp); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const env = { ...process.env };
+  for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) delete env[k];
+  try {
+    const { code, text, verdict } = spiedRun([join(ROOT, 'tooling', 'scripts', 'check-agent-docs.mjs'), '--write-baseline'], { cwd: ROOT, under: ROOT, env });
+    assert.equal(code, 0, text);
+    assert.ok(verdict.uses.some((u) => u.endsWith('/.agentdocs.baseline.json')), 'the baseline was never written');
+    assert.deepEqual(racyOn(verdict, '/.agentdocs.baseline.json'), []);
+  } finally {
+    if (had === null) rmSync(bp, { force: true });
+    else writeFileSync(bp, had);
+  }
 });
 
 test('a tree under the floors is COVERAGE LOST — exit 2, never a pass', () => {
