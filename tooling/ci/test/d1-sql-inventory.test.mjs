@@ -31,9 +31,11 @@ import { fileURLToPath } from 'node:url';
 import {
   MEASURED_CAUSE,
   REJECTED_FIXTURE,
+  SHARED_SRC,
   classify,
   identifierRole,
   inventoryFile,
+  inventoryServices,
   isBareIdentifierExpression,
   isIntrospective,
   normaliseProse,
@@ -70,6 +72,9 @@ function realTree() {
     cpSync(join(REPO, svc, 'src'), join(root, svc, 'src'), { recursive: true });
     copyFileSync(join(REPO, svc, 'wrangler.jsonc'), join(root, svc, 'wrangler.jsonc'));
   }
+  // The ONE HOME both Workers inline ([ADR 067] decision 2); its statements are
+  // every Worker's statements, so the trimmed copy carries it too.
+  cpSync(join(REPO, SHARED_SRC), join(root, SHARED_SRC), { recursive: true });
   for (const d of ['tooling/e2e', 'tooling/ops', 'tooling/scripts']) {
     // SOURCE ONLY. The guard reads .ts/.js/.mjs; copying tooling/ops wholesale
     // dragged register.json (200 kB) into every one of the ~25 tree copies below
@@ -547,6 +552,55 @@ describe('the detector\'s own controls', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('the shared home is every Worker\'s src/ — 2026-09-10, the ONE entitlement reader', () => {
+  /** A synthetic domain: one Worker with a binding and one statement, and a
+   *  shared home with one statement that no wrangler.jsonc owns. */
+  function domain({ shared = true } = {}) {
+    const root = mkdtempSync(join(tmpdir(), 'nikatru-d1-shared-'));
+    mkdirSync(join(root, 'services', 'w', 'src'), { recursive: true });
+    writeFileSync(
+      join(root, 'services', 'w', 'wrangler.jsonc'),
+      '{ "d1_databases": [{ "binding": "DB", "database_name": "w_db", "database_id": "0000", "migrations_dir": "migrations" }] }',
+    );
+    writeFileSync(join(root, 'services', 'w', 'src', 'a.ts'), "export const a = db.prepare('SELECT 1 FROM own_table LIMIT 1');\n");
+    if (shared) {
+      mkdirSync(join(root, ...SHARED_SRC.split('/')), { recursive: true });
+      writeFileSync(
+        join(root, ...SHARED_SRC.split('/'), 'reader.ts'),
+        "export const r = db.prepare('SELECT entitlement FROM entitlements WHERE user_id = ?');\n",
+      );
+    }
+    return root;
+  }
+
+  test('a statement in services/_shared/src is inventoried under EVERY Worker', () => {
+    const root = domain();
+    try {
+      const services = inventoryServices(root);
+      assert.deepEqual(services.map((s) => s.id), ['w'], 'the shared home is not itself a service — it has no wrangler.jsonc');
+      const [w] = services;
+      assert.ok(w.files.includes(`${SHARED_SRC}/reader.ts`), `files: ${w.files.join(', ')}`);
+      assert.equal(w.statements.length, 2, 'the Worker\'s own statement AND the shared one');
+      assert.ok(w.statements.some((s) => /FROM entitlements/.test(s.sql)), 'the shared statement is attributed to the Worker');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('🔴 without the attribution the shared statement is inventoried by NOBODY — the silent loss this exists for', () => {
+    // The control for the case above: the same domain with no shared home
+    // yields exactly one statement, so the count of two above is the shared
+    // file being read and not the Worker's file being counted twice.
+    const root = domain({ shared: false });
+    try {
+      const [w] = inventoryServices(root);
+      assert.equal(w.statements.length, 1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('the extraction', () => {
   test('comments come off first, so prose cannot be mistaken for a statement', () => {
     const src = `// FROM sqlite_master m JOIN pragma_table_info(m.name) p\nconst x = 1;\n`;
