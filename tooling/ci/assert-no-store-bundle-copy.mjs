@@ -147,10 +147,10 @@ if (trees.length === 0) {
 
 let filesRead = 0;
 function scan(dir, label) {
-  for (const entry of listDir(dir)) {
-    const p = join(dir, entry);
-    const st = statSync(p);
-    if (st.isDirectory()) {
+  for (const de of listDir(dir, { withFileTypes: true })) {
+    const p = join(dir, de.name);
+    // The listing's own dirent, not a second look at the path (CodeQL #299).
+    if (de.isDirectory()) {
       scan(p, label);
       continue;
     }
