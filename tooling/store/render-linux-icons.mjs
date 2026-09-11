@@ -363,11 +363,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let drift = 0;
   for (const [rel, bytes] of derived) {
     const path = join(appDir, rel);
-    const same = existsSync(path) && readFileSync(path).equals(bytes);
+    // READ ONCE (CodeQL #92): compared, reported and rewritten on these bytes, not on separate
+    // existence checks. ENOENT/ENOTDIR are "missing"; any other failure throws.
+    let have = null;
+    try {
+      have = readFileSync(path);
+    } catch (e) {
+      if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+    }
+    const same = have !== null && have.equals(bytes);
     if (check) {
       if (!same) {
         drift++;
-        console.error(`FAIL apps/${app}/${rel} — ${existsSync(path) ? 'differs from' : 'is missing and would be'} the derivation`);
+        console.error(`FAIL apps/${app}/${rel} — ${have !== null ? 'differs from' : 'is missing and would be'} the derivation`);
       }
       continue;
     }

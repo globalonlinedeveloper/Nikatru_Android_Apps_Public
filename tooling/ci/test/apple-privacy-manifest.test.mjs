@@ -31,6 +31,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync, ex
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn, pathKey } from './fixtures/fs-spy-run.mjs';
 import {
   AUDIT_REL,
   MANIFEST_REL,
@@ -163,6 +164,19 @@ describe('render-apple-privacy-manifest.mjs — the generator round-trips', () =
       cwd: REPO,
     });
     assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+  });
+
+  test('each manifest is read ONCE, with no existence check of its path first (CodeQL #91)', () => {
+    // The write mode decides on the same bytes --check reads. The renderer derives its root from
+    // its own location, so the shared read is pinned here on the real tree, strictly: not even
+    // the existsSync-then-read CodeQL tolerates.
+    const { code, text, verdict } = spiedRun([RENDERER, '--app', APP, '--check'], { cwd: REPO, under: REPO });
+    assert.equal(code, 0, text);
+    for (const rel of ['ios/Runner/PrivacyInfo.xcprivacy', 'macos/Runner/PrivacyInfo.xcprivacy']) {
+      const suffix = `/apps/${APP}/${rel}`;
+      assert.ok(verdict.uses.some((u) => u.endsWith(pathKey(suffix))), `${rel} was never read`);
+      assert.deepEqual(racyOn(verdict, suffix, { key: 'pairs' }), []);
+    }
   });
 
   test('the two platforms differ in EXACTLY two lines — the platform id and the source list', () => {

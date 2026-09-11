@@ -28,6 +28,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import fsMod from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SMOKE = join(ROOT, 'tooling', 'smoke', 'smoke-web-artifact.mjs');
@@ -54,6 +56,16 @@ const run = (args) => {
 };
 
 describe('smoke-web-artifact.mjs — it refuses before it ever opens a browser', () => {
+  test('a newline inside a value cannot start a log line of its own — no forged workflow command (CodeQL #40)', () => {
+    // --chrome REPLACES the candidate list, so this never launches a real browser: the spawn
+    // fails, and both detail lines ("tried:" and "last error:") carry the value.
+    const dir = bundle({ 'index.html': '<html></html>', 'flutter_bootstrap.js': '// x' });
+    const r = run([dir, '--chrome', join(TMP, 'no-such-chrome') + '\n::error title=forged::x']);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no headless Chrome could be started/);
+    assert.doesNotMatch(r.out, /^::/m, r.out);
+  });
+
   test('no bundle directory at all', () => {
     const r = run([]);
     assert.equal(r.code, 1, r.out);
@@ -108,6 +120,32 @@ describe('smoke-web-artifact.mjs — the static server it serves the artifact fr
     assert.equal(mimeFor('index.html'), 'text/html; charset=utf-8');
     assert.equal(mimeFor('main.dart.js'), 'text/javascript; charset=utf-8');
     assert.equal(mimeFor('something.unknown'), 'application/octet-stream');
+  });
+
+  test('a request is answered from ONE read of the file — no existence or stat look first (CodeQL #89)', async () => {
+    const dir = bundle({ 'index.html': '<html>hi</html>', 'assets/a.bin': 'x' });
+    const target = resolve(join(dir, 'assets', 'a.bin'));
+    const seen = [];
+    const real = { existsSync: fsMod.existsSync, statSync: fsMod.statSync, readFileSync: fsMod.readFileSync };
+    const onTarget = (p) => typeof p === 'string' && resolve(p) === target;
+    // Patched on the fs module and synced into the ESM bindings serveBundle imported, then
+    // restored in finally, so no other case in this file sees the recording wrappers.
+    fsMod.existsSync = function (p, ...a) { if (onTarget(p)) seen.push('exists'); return real.existsSync.call(this, p, ...a); };
+    fsMod.statSync = function (p, ...a) { if (onTarget(p)) seen.push('stat'); return real.statSync.call(this, p, ...a); };
+    fsMod.readFileSync = function (p, ...a) { if (onTarget(p)) seen.push('read'); return real.readFileSync.call(this, p, ...a); };
+    syncBuiltinESMExports();
+    const server = serveBundle(dir);
+    try {
+      await new Promise((r) => server.listen(0, '127.0.0.1', r));
+      const res = await fetch(`http://127.0.0.1:${server.address().port}/assets/a.bin`);
+      assert.equal(res.status, 200);
+      assert.equal(await res.text(), 'x');
+      assert.deepEqual(seen, ['read'], `the file was looked at before it was read: ${seen.join(' -> ')}`);
+    } finally {
+      server.close();
+      Object.assign(fsMod, real);
+      syncBuiltinESMExports();
+    }
   });
 
   test('it serves index.html for the root, 404s what is absent, and refuses to escape the bundle', async () => {

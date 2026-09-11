@@ -58,6 +58,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync 
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun } from './fixtures/fs-spy-run.mjs';
 import { deflateSync } from 'node:zlib';
 // The one bounded directory listing — used to prove where the reader's cache lands.
 import { listDir } from '../tree-walk.mjs';
@@ -1319,5 +1320,21 @@ describe('backgroundDrawsSplash', () => {
   test('@mipmap is accepted as well as @drawable', () => {
     const mip = `<item><bitmap android:src="@mipmap/${ANDROID_DRAWABLE_NAME}" /></item>`;
     assert.equal(backgroundDrawsSplash(mip), true);
+  });
+});
+
+describe('render-linux-icons — each derived file is read once (CodeQL #92)', () => {
+  test('--check reads every derived icon with no existence check of its path first', () => {
+    // The write mode compares, reports and rewrites on the same bytes --check reads. The script
+    // derives its root from its own location, so the shared read is pinned on the real tree.
+    const repo = resolve(CI_DIR, '..', '..');
+    const script = join(repo, 'tooling', 'store', 'render-linux-icons.mjs');
+    const appDir = join(repo, 'apps', 'subscriptiontracker');
+    const { code, text, verdict } = spiedRun([script, '--app', 'subscriptiontracker', '--check'], { cwd: repo, under: appDir });
+    assert.equal(code, 0, text);
+    const icons = verdict.uses.filter((u) => /\/icons\/hicolor\/\d+x\d+\/apps\//.test(u));
+    assert.ok(icons.length > 0, `no derived icon was read: ${JSON.stringify(verdict.uses.slice(0, 10))}`);
+    const racy = verdict.pairs.filter((x) => x.sameFunction && /\/icons\/hicolor\//.test(x.path));
+    assert.deepEqual(racy.slice(0, 5), [], `${racy.length} icon(s) were checked for existence, then read`);
   });
 });
