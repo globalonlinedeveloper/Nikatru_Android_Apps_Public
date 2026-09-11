@@ -26,7 +26,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -966,5 +966,64 @@ describe('the icon label reaches the five OS-level name fields this renderer own
       assert.equal(code, 0, out);
       LABEL_TARGETS.forEach(([rel], i) => assert.equal(get(root, rel), before[i], `${rel} must be untouched`));
     } finally { kill(root); }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — ONE RULE FOR EVERY MACHINE THE DATA SITS ON.
+// apps/subscriptiontracker/privacy.yaml listed `oracle-cloud` (the vendor of the
+// identity machine) and omitted `hostinger` (the vendor of the LIVE crash sink)
+// under a self-hosted rule applied to one vendor only (HANDOFF-stores REVIEW #12;
+// owner decision "Name Hostinger"). These cases read the REAL tree, so the old
+// declaration is RED here: a live register row that receives personal data and
+// is missing from an app's processors fails, and so does a processor whose
+// register row does not record the rendered notice in `namedIn` — the record
+// that makes assert-policy-claims limb (b) re-read the page on every run.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('every live vendor that receives personal data is named in each app notice', () => {
+  const register = JSON.parse(readFileSync(join(REPO, 'tooling/legal/provider-register.json'), 'utf8'));
+  const providers = Array.isArray(register.providers) ? register.providers : [];
+  const byId = new Map(providers.map((p) => [p.id, p]));
+  const appDeclarations = readdirSync(join(REPO, 'apps'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(REPO, 'apps', d.name, 'privacy.yaml')))
+    .map((d) => ({ app: d.name, doc: parseYaml(readFileSync(join(REPO, 'apps', d.name, 'privacy.yaml'), 'utf8')) }))
+    .filter(({ doc }) => doc.surface === 'app');
+  const liveSinks = providers.filter((p) => p.status === 'live' && Array.isArray(p.receives) && p.receives.length > 0);
+
+  test('the domain is not empty — an empty quantifier would pass over nothing', () => {
+    assert.ok(appDeclarations.length >= 1, 'no app-surface apps/*/privacy.yaml was read');
+    assert.ok(liveSinks.length >= 2, `expected at least two live sinks, read ${liveSinks.map((p) => p.id).join(', ')}`);
+    assert.ok(liveSinks.some((p) => p.id === 'hostinger'), 'hostinger is the live crash sink and must be read as one');
+  });
+
+  test('each app declaration lists every live sink as a processor', () => {
+    for (const { app, doc } of appDeclarations) {
+      const ids = new Set((doc.processors ?? []).map((p) => p.id));
+      const missing = liveSinks.filter((p) => !ids.has(p.id)).map((p) => p.id);
+      assert.deepEqual(missing, [], `apps/${app}/privacy.yaml omits live sink(s): ${missing.join(', ')}`);
+    }
+  });
+
+  test('each processor records the rendered notice in its register row `namedIn`', () => {
+    for (const { app, doc } of appDeclarations) {
+      const page = `${app}/privacy.html`;
+      for (const pr of doc.processors ?? []) {
+        const row = byId.get(pr.id);
+        assert.ok(row, `processor ${pr.id} has no row in tooling/legal/provider-register.json`);
+        assert.ok(
+          (row.namedIn ?? []).includes(page),
+          `provider ${pr.id} does not record ${page} in namedIn, so assert-policy-claims never re-reads that page for it`,
+        );
+      }
+    }
+  });
+
+  test('the rendered notice itself carries a table row for every processor', () => {
+    for (const { app, doc } of appDeclarations) {
+      const html = readFileSync(join(REPO, 'sites', 'nikatru', app, 'privacy.html'), 'utf8');
+      for (const pr of doc.processors ?? []) {
+        assert.ok(html.includes(`<tr><td>${pr.id}</td>`), `sites/nikatru/${app}/privacy.html has no row for ${pr.id}`);
+      }
+    }
   });
 });

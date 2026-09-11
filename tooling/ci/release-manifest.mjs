@@ -897,7 +897,10 @@ const has = (name) => argv.includes(`--${name}`);
 function die(msg, ...more) {
   console.error(`✗ ${msg}`);
   for (const m of more) console.error(`  ${m}`);
-  process.exit(1);
+  // RETURNED, not just called: callers write `flag('x') ?? die('...')`, so the
+  // call is used as a value. process.exit never returns; saying so here keeps
+  // that expression honest rather than reading as `?? undefined`.
+  return process.exit(1);
 }
 
 /** Where each surface keeps its products. `apps/<id>/` is a Flutter app;

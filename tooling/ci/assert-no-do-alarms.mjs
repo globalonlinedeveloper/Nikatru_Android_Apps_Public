@@ -123,7 +123,7 @@
 // Exit 0 = no Durable Object alarm surface anywhere; 1 = one exists, or the
 // scan could not prove it looked at this tree.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -199,7 +199,6 @@ for (const r of ROOTS) {
   }
   trackedByRoot.set(r.path, files);
 }
-const tracked = ROOTS.flatMap((r) => trackedByRoot.get(r.path));
 
 // ── the ledger ──────────────────────────────────────────────────────────────
 const ledgerPath = join(ROOT, LEDGER_REL);

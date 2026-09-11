@@ -370,7 +370,13 @@ for (const doc of DOCUMENTS) {
         fail(`COVERAGE LOST — ${doc.renderer} ran and wrote no ${copy.file}. The copy this guard grades is not one the renderer produces.`);
         continue;
       }
-      const rendered = readFileSync(renderedAbs, 'utf8').replace(/\r\n/g, '\n');
+      // ⏱ 2026-09-11 — THE MARKERS ARE SET ASIDE ON BOTH SIDES. The renderer now
+      // emits <!--email_off--> around the served copy's mailto anchors, so
+      // stripping them from the served page alone would call the correct page
+      // drift. Stripped from both, the comparison is the words-and-markup one; the
+      // raw comparison below is what still notices markers placed differently.
+      const renderedRaw = readFileSync(renderedAbs, 'utf8').replace(/\r\n/g, '\n');
+      const rendered = renderedRaw.replace(EMAIL_OFF_MARKER, '');
       const servedRaw = readFileSync(servedAbs, 'utf8').replace(/\r\n/g, '\n');
       const served = servedRaw.replace(EMAIL_OFF_MARKER, '');
       byteComparisons++;
@@ -383,7 +389,7 @@ for (const doc of DOCUMENTS) {
             `      ${copy.file}: ${d.b}\n` +
             `      A hand edit to a generated legal page is the drift \`--check\` exists to catch: edit ${doc.source} and run ${doc.renderedBy}.`,
         );
-      } else if (servedRaw !== rendered) {
+      } else if (servedRaw !== renderedRaw) {
         prints.push(
           `${copy.file} differs from ${doc.renderer}'s output ONLY by <!--email_off--> markers, so \`${doc.renderedBy} --check\` exits 1 on a correct page. ` +
             'check-site-integrity.mjs REQUIRES the markers (#575: Cloudflare obfuscation put "[email protected]" in the served bytes) and the renderer does not emit ' +

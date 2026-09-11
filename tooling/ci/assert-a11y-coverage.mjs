@@ -1778,7 +1778,7 @@ for (const a of analyses) {
   }
 
   // ── THE EXCLUSION SELF-CHECKS ────────────────────────────────────────────
-  for (const [symbol, why] of NOT_A_PANE) {
+  for (const [symbol] of NOT_A_PANE) {
     if (!a.routerTargets.has(symbol)) {
       a.problems.push(
         `\`${symbol}\` is excluded in NOT_A_PANE for \`${label}\` but no route in ${a.routerRel} builds ` +

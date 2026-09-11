@@ -118,7 +118,6 @@ import {
   DESKTOP_PLUGS,
   GRADE,
   GUI_DIR,
-  NON_SPDX_LICENCES,
   RECIPE_PATH,
   REGISTER,
   SnapcraftUngenerable,
