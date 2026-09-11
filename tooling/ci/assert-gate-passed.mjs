@@ -63,6 +63,29 @@
 // ⚠️ FAIL-CLOSED IS UNCHANGED, AND THIS IS NOT A WAIVER. There is still exactly
 // one `return` without a non-zero exitCode: a ci-gate check run that was read
 // and concluded `success`.
+//
+// ── ⏱ APPENDED 2026-09-11 (second) — NO REQUEST FASTER THAN ci-gate CAN EXIST ──
+// A deploy lane starts at push time beside CI, and ci-gate's check run is only
+// created once every job it needs has finished, about five minutes in. Polling
+// every 15 s from the first second, deploy-web's gate step answered "no ci-gate
+// check on this commit yet" on 19 of its 20 polls on 2026-09-11: 20-24 requests
+// per lane per push, out of the installation quota whose exhaustion failed every
+// CI run started at 06:42Z and from 08:09Z to 08:15Z.
+// Now a poll that finds NO check run waits 15 s, then 30 s, then 60 s for every
+// one after (`absentWaitSeconds`). The first poll is still made at once, because
+// the redeploy button's ci-gate usually exists already. Once the check run exists,
+// and after a transient error, the wait is 15 s again. Every wait is clamped to
+// the deadline and the poll it ends on is still made, so the watch covers the
+// whole timeout and never overruns it. MEASURED under a virtual clock, the real
+// script before and after (test/github-rate-limit.test.mjs holds the same cases):
+//   ci-gate appears at 290 s, passes at 320 s  → 23 requests before, 8 after
+//   ci-gate appears at 285 s, passes at 300 s  → 21 before, 8 after
+//   ci-gate already green (the redeploy button) → 1 before, 1 after
+//   ci-gate never appears, 1200 s default       → 80 before, 23 after
+// The worst added latency is one back-off step, 60 s, and only before the check
+// run exists. The rate-limit and permission contract above is untouched: a rate
+// limit still waits as GitHub asks and exits 2 past its bound, and a 401 or a
+// 403 without a rate-limit signal still exits 1 on the first response.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   classifyRefusal,
@@ -80,6 +103,14 @@ import {
 const GATE = 'ci-gate';
 
 const POLL_SECONDS = 15;
+
+/** ⏱ 2026-09-11 — the wait after a poll that found NO ci-gate check run yet, by
+ *  how many such polls in a row there have been: 15 s, then 30 s, then 60 s for
+ *  every one after. See the header block of the same date. Once the check run
+ *  exists, and after any transient error, the wait is `POLL_SECONDS` again. */
+const ABSENT_BACKOFF_SECONDS = [15, 30, 60];
+const absentWaitSeconds = (absentPolls) =>
+  ABSENT_BACKOFF_SECONDS[Math.min(Math.max(absentPolls, 1), ABSENT_BACKOFF_SECONDS.length) - 1];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -161,8 +192,16 @@ async function main() {
   // The CURRENT run of consecutive rate-limit refusals. Any response that is
   // read (or is anything other than a rate limit) ends the run and resets it.
   let rl = null;
+  // ⏱ 2026-09-11 — consecutive polls that found no ci-gate check run at all.
+  // Any poll that shows the check run resets it; see `absentWaitSeconds`.
+  let absentPolls = 0;
 
-  while (Date.now() < deadline) {
+  // `for (;;)` and not `while (Date.now() < deadline)`: the wait at the bottom is
+  // clamped to the deadline and the poll it ends on is the last one made, so a
+  // 60-second back-off cannot end the watch up to a minute before the timeout.
+  // The first poll is still made at once — the redeploy button's ci-gate
+  // usually exists already, and waiting before asking would only delay it.
+  for (;;) {
     const { transient, status, run, refusal, text } = await fetchGate(api.base, repo, sha, token, rl?.secondaryStrikes ?? 0);
 
     if (refusal?.kind === 'rate-limit') {
@@ -184,9 +223,11 @@ async function main() {
           `as GitHub asks (rate-limit retry ${rl.retries} of at most ${RATE_LIMIT_MAX_RETRIES})`,
       );
       await sleep(plan.waitMs);
+      if (Date.now() >= deadline) break;
       continue;
     }
     rl = null;
+    let nextPollSeconds = POLL_SECONDS;
 
     if (refusal?.kind === 'answer' && (status === 401 || status === 403)) {
       // A permission ANSWER. Polling cannot change it, so do not spend the
@@ -201,9 +242,12 @@ async function main() {
       console.log(`  … github api returned ${status}, retrying`);
     } else if (!run) {
       lastSeen = 'not started';
-      console.log('  … no ci-gate check on this commit yet');
+      absentPolls++;
+      nextPollSeconds = absentWaitSeconds(absentPolls);
+      console.log(`  … no ci-gate check on this commit yet (next look in ${nextPollSeconds}s)`);
     } else if (run.status !== 'completed') {
       lastSeen = run.status;
+      absentPolls = 0;
       console.log(`  … ci-gate is ${run.status}`);
     } else if (run.conclusion === 'success') {
       console.log(`ok  ci-gate passed for ${sha.slice(0, 8)} — deploy may proceed`);
@@ -216,8 +260,9 @@ async function main() {
       );
     }
 
-    if (Date.now() + POLL_SECONDS * 1000 >= deadline) break;
-    await sleep(POLL_SECONDS * 1000);
+    const left = deadline - Date.now();
+    if (left <= 0) break;
+    await sleep(Math.min(nextPollSeconds * 1000, left));
   }
 
   if (rl !== null) {
