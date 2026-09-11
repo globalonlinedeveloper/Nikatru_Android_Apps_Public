@@ -67,7 +67,7 @@ void main() {
             'cap moved. The 18px gutters are the ListView OWN padding, inside '
             'the pane, so they do not come off this number',
       );
-      // The currency strip is a `Row` of four `Expanded` chips and every
+      // The currency strip is a `Wrap` of fixed-width chips and every
       // `_LinkRow` puts a glyph, a label and a chevron on one line. 375 is
       // where any of them would first complain.
       expect(

@@ -68,6 +68,10 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (MethodCall call) async {
           outgoing.add(call);
+          // `syncAll` reads the pending list to cancel only its own ids.
+          if (call.method == 'pendingNotificationRequests') {
+            return <Map<String, Object?>>[];
+          }
           return true;
         });
   });
