@@ -67,11 +67,9 @@
 #                            to `subscriptiontracker_db` (verified identical) and
 #                            every binding moved. The old database is kept,
 #                            unbound, until the owner deletes it.
-#   subly.nikatru.com        the retired subdomain, now an internal origin only
-#                            ([ADR 075] / #562). It is a DNS label with a zone
-#                            Redirect Rule 301ing it to the path form; both are
-#                            account-side. It is a legacy 301 source, not an
-#                            address anything new resolves.
+#   subly.nikatru.com        REMOVED 2026-09-11 ([ADR 079]): its DNS records, its
+#                            zone 301 and the /subly path redirects were deleted
+#                            on the owner's word; old links no longer resolve.
 #   api-subly.nikatru.com    same, for the API host.
 #   subly@<version>          historical GlitchTip release stamps, and SUBLY-8/9/A
 #                            are GlitchTip ISSUE ids. Records of what happened.
@@ -102,7 +100,11 @@ status: live
 # No DNS record is needed for either host: [ADR 006] locked a proxied wildcard
 # *.nikatru.com. What a new host needs is ATTACHMENT, not a record.
 hosts:
-  web: subly.nikatru.com
+  # [ADR 079] `subly.nikatru.com` was DELETED on 2026-09-11 (owner: "Rename all,
+  # remove redirects too"), so it is no longer this app's origin host. The app's
+  # own origin IS its Pages project, declared twice on purpose: `web` is the
+  # schema's required origin field and `pagesOrigin` the field the router reads.
+  web: subscriptiontracker-7qg.pages.dev
   # WHERE THE APEX ROUTER FETCHES THE BYTES. Not derivable and deliberately
   # declared: Cloudflare assigns the *.pages.dev subdomain AT PROJECT CREATION
   # and appends a suffix when the bare name is taken -- the retired project was
