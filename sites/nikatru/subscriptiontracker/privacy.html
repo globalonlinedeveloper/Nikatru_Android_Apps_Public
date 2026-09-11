@@ -123,7 +123,7 @@
 <main id="main">
 
 <h1>Nikatru Subscription Tracker — what this app collects</h1>
-<p class="meta">Declaration last re-read against the code: 2026-09-05 &nbsp;·&nbsp; Itemised from <code>apps/subscriptiontracker/privacy.yaml</code> &nbsp;·&nbsp; The policy you agree to is the <a href="/privacy">Nikatru Privacy Policy</a>.</p>
+<p class="meta">Declaration last re-read against the code: 2026-09-11 &nbsp;·&nbsp; Itemised from <code>apps/subscriptiontracker/privacy.yaml</code> &nbsp;·&nbsp; The policy you agree to is the <a href="/privacy">Nikatru Privacy Policy</a>.</p>
 
 <p class="lead">This page lists, item by item, every category of personal data Nikatru Subscription Tracker collects, why it is collected, how long it is kept and who outside Nikatru touches it. It is generated from the declaration the app itself is built and audited against, so it cannot drift from what the code does without a build failing.</p>
 
@@ -173,8 +173,8 @@
 <p>The names, amounts and renewal dates a person enters. This is the content the app exists to hold, so it lives as long as the account does and goes with it.</p>
 <p class="meta">Read from <code>apps/subscriptiontracker/store/android-play/data-safety.json</code> on 2026-09-05.</p>
 <h3>App info and performance — Crash logs</h3>
-<p>Crash reports reach the self-hosted GlitchTip in Mumbai, whose event retention is bounded rather than indefinite. Self-hosted, so no third party receives them and no processor row is owed for it.</p>
-<p class="meta">Read from <code>tooling/legal/data-inventory.json</code> on 2026-09-05.</p>
+<p>Crash reports reach the self-hosted GlitchTip in Mumbai, whose event retention is bounded rather than indefinite. The software is ours and no analytics company receives them; the machine it runs on is rented from Hostinger, which is listed below as infrastructure under the same rule that lists the vendor of the identity machine.</p>
+<p class="meta">Read from <code>tooling/legal/provider-register.json</code> on 2026-09-11.</p>
 <h3>App info and performance — Diagnostics</h3>
 <p>Performance and error diagnostics on the same rail as the crash reports, bounded by the same retention and carrying nothing that identifies a connection.</p>
 <p class="meta">Read from <code>apps/subscriptiontracker/store/android-play/data-safety.json</code> on 2026-09-05.</p>
@@ -193,11 +193,12 @@
 </ul>
 
 <h2>4. Who else touches it</h2>
-<p>4 service providers. Services Nikatru runs on its own machines are deliberately not listed: they are infrastructure this company operates, not a party the data is disclosed to.</p>
+<p>5 service providers. Services Nikatru runs on its own machines are deliberately not listed: they are infrastructure this company operates, not a party the data is disclosed to.</p>
 <table>
 <tr><th>Who</th><th>Role</th><th>What they do with it</th></tr>
 <tr><td>cloudflare</td><td>infrastructure</td><td>Serves the web app, runs the Workers and holds the D1 rows.</td></tr>
 <tr><td>oracle-cloud</td><td>infrastructure</td><td>Hosts the identity stack that issues and verifies the session.</td></tr>
+<tr><td>hostinger</td><td>infrastructure</td><td>Hosts the machine the self-hosted crash-report service runs on.</td></tr>
 <tr><td>paddle</td><td>merchant of record</td><td>Takes the payment and is the seller of record for the web channel.</td></tr>
 <tr><td>resend</td><td>email delivery</td><td>Delivers the transactional email an account needs to exist.</td></tr>
 </table>
@@ -218,7 +219,7 @@
 <p>The grievance contact is on <a href="/contact">nikatru.com/contact</a>. A complaint that we do not resolve can be taken to the data-protection authority for your jurisdiction; for India that is the Data Protection Board established under the Digital Personal Data Protection Act, 2023.</p>
 <p class="meta">This section states what this app actually does, itemised from its declaration. It is written to be plain and complete rather than to a statutory checklist: the applicable notice-content provisions have not been read line by line against it, and that gap is tracked as an open item rather than papered over with a claim of compliance.</p>
 
-<p class="meta">Generated from <code>apps/subscriptiontracker/privacy.yaml</code>, declaration date 2026-09-05.</p>
+<p class="meta">Generated from <code>apps/subscriptiontracker/privacy.yaml</code>, declaration date 2026-09-11.</p>
 
 </main>
 

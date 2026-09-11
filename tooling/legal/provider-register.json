@@ -294,7 +294,7 @@
     "_why": [
       "Read by the EGRESS limb of tooling/ci/assert-policy-claims.mjs (2026-09-11), which takes every host a shipped Content-Security-Policy",
       "(apps/*/web/_headers, sites/*/_headers) lets a browser reach and requires it to be ours or to carry a provider row's tell.",
-      "A host on one of these domains, or any subdomain of one, is ours. The vendor BEHIND it — Cloudflare for subscriptiontracker.api.nikatru.com, Hostinger",
+      "A host on one of these domains, or any subdomain of one, is ours. The vendor BEHIND it — Cloudflare for subscriptiontracker-api.nikatru.com, Hostinger",
       "for glitchtip.nikatru.com — is already its own row and is disclosed as that vendor, not as a hostname.",
       "Declared here, not inside the guard, for the reason `roles` is: a list inside a guard is a list nobody reviews with the register."
     ],
@@ -380,7 +380,8 @@
         "cloudflare"
       ],
       "namedIn": [
-        "privacy.html"
+        "privacy.html",
+        "subscriptiontracker/privacy.html"
       ],
       "privateRecord": null,
       "receives": [
@@ -420,7 +421,8 @@
       "namedIn": [
         "terms.html",
         "refund.html",
-        "privacy.html"
+        "privacy.html",
+        "subscriptiontracker/privacy.html"
       ],
       "privateRecord": "OWNER_QUEUE A-1 — the Paddle seller application, KYC and payout account. [ADR 004] holds the decision itself; [ADR 039] holds which channels it is the rail for.",
       "notes": [
@@ -682,7 +684,8 @@
         "hostinger"
       ],
       "namedIn": [
-        "privacy.html"
+        "privacy.html",
+        "subscriptiontracker/privacy.html"
       ],
       "privateRecord": "Private/runbooks/glitchtip.md — the self-hosted GlitchTip instance and its operations.",
       "receives": [
@@ -715,7 +718,13 @@
         "",
         "The rest of the paragraph on privacy.html (that crash reports are NOT sent to a third-party",
         "analytics product, and are received by software we run ourselves) is true and stays true under",
-        "either host — which is exactly why the wrong host survived a version signature."
+        "either host — which is exactly why the wrong host survived a version signature.",
+        "",
+        "⏱ 2026-09-11 — NAMED IN THE PER-APP NOTICE TOO (owner decision \"Name Hostinger\"). apps/subscriptiontracker/privacy.yaml",
+        "listed `oracle-cloud` as the infrastructure vendor of the identity machine and omitted this row, the LIVE crash sink,",
+        "under a self-hosted rule applied to one vendor only (HANDOFF-stores REVIEW #12). The declaration now lists both, the",
+        "notice was re-rendered, and `namedIn` carries subscriptiontracker/privacy.html so assert-policy-claims limb (b) re-reads",
+        "that page for `hostinger` on every run."
       ]
     },
     {
@@ -727,7 +736,9 @@
       "tells": [
         "oracle"
       ],
-      "namedIn": [],
+      "namedIn": [
+        "subscriptiontracker/privacy.html"
+      ],
       "privateRecord": "Private/runbooks/boxes/oracle.md — Box A, the always-free VM and the self-hosted Supabase stack on it.",
       "notes": [
         "🔴 THIS ID EXISTED BEFORE 2026-09-05 AND MEANT SOMETHING ELSE. It carried the CRASH SINK — the",
@@ -756,7 +767,12 @@
         "NAMED IN NO PAGE. privacy.html named `Oracle Cloud` only as the crash-report host, and that",
         "sentence now names Hostinger; nothing published says where the identity stack runs. The identity",
         "PROVIDER is disclosed (the `supabase` row, §4), which is the duty; the machine it runs on is not",
-        "a separate disclosure and is not claimed to be one here."
+        "a separate disclosure and is not claimed to be one here.",
+        "",
+        "⏱ 2026-09-11 CORRECTION, appended rather than replacing ([ADR 053] rule 2): \"NAMED IN NO PAGE\" above was false for",
+        "the generated per-app notice. sites/nikatru/subscriptiontracker/privacy.html has listed `oracle-cloud` as a processor",
+        "since it was first rendered on 2026-09-06, and `namedIn` said nothing. It now records that page, so the naming is",
+        "checked against the page text like every other disclosure. The portfolio privacy.html still does not name Oracle."
       ]
     },
     {
@@ -769,7 +785,8 @@
         "resend"
       ],
       "namedIn": [
-        "privacy.html"
+        "privacy.html",
+        "subscriptiontracker/privacy.html"
       ],
       "privateRecord": "nikatru/vendors/resend.md — the account, the API key and the sending domain. The SMTP wiring itself is recorded in nikatru/vendors/supabase.md ([ADR 029]).",
       "notes": [
@@ -864,13 +881,13 @@
       "id": "web-boot-third-parties-unnamed-per-app-notice",
       "page": "subscriptiontracker/privacy.html",
       "ownerItem": "O-3",
-      "stillTrue": "4 service providers.",
+      "stillTrue": "5 service providers.",
       "closedWhenNamed": [
         "sentry-cdn",
         "google-gstatic"
       ],
-      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists four service providers and neither Sentry's CDN nor Google's gstatic CDN, which the same app's web build contacts on every visit.",
-      "resolution": "Owner decision on the declaration (apps/subscriptiontracker/privacy.yaml), re-rendered — or close the egress as above. Adding a processor changes the count in the sentence this gap probes, which retires it by itself."
+      "what": "The generated per-app notice (apps/subscriptiontracker/privacy.yaml `processors`, rendered by tooling/app-yaml/render-privacy.mjs) lists five service providers (four until hostinger was added on 2026-09-11) and neither Sentry's CDN nor Google's gstatic CDN, which the same app's web build contacts on every visit.",
+      "resolution": "Owner decision on the declaration (apps/subscriptiontracker/privacy.yaml), re-rendered — or close the egress as above. Adding a processor changes the count in the sentence this gap probes, and that FAILS the gap rather than retiring it: restate the count while Sentry and Google are still unnamed (done 2026-09-11 when hostinger was added, 4 -> 5), retire it once either is named."
     }
   ],
   "retiredDisclosureGaps": [
