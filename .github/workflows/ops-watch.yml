@@ -332,10 +332,56 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: node tooling/ops/verify-free-api-scope.mjs
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # ⏱ 2026-09-12 · THE WILDCARD IS ENFORCED HERE, FROM THE ZONE, AND NOWHERE ELSE.
+  #
+  # [ADR 080] §4 deleted the proxied wildcard `*.nikatru.com`. On 2026-09-11 the
+  # CI guard assert-catalog-reachable.mjs still REQUIRED it, so main went red the
+  # moment it was deleted and the record was put back to unblock deploys. The
+  # inverted limb was tried the same day and measured wrong the other way: a
+  # runner resolved a fresh `wc-….nikatru.com` at 17:42Z while 8.8.8.8 and
+  # 1.1.1.1 both said NXDOMAIN. A runner's resolver lags the zone, so #673 made
+  # that limb report-only, and the authoritative question moved here.
+  #
+  # 🔴 ITS OWN JOB, DELIBERATELY CLAIMED BY NO DUTY ROW. Every other job in this
+  # workflow is the unit of some duty in tooling/ops/register.json, and a red duty
+  # makes main's register step red, which refuses deploys. Putting a LIVE DNS
+  # verdict inside one of those jobs would recreate 2026-09-11 one layer down: a
+  # Cloudflare API outage would block shipping. This job fails loudly, the `alert`
+  # job (which lists it in `needs`) files it against the durable ops-watch issue,
+  # and nothing it says can stop a deploy. That is the whole point.
+  dns:
+    name: The zone holds no wildcard record
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Read the zone's own DNS record list and refuse a wildcard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set +e
+          node tooling/ops/check-wildcard-dns.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=The wildcard state is UNKNOWN — the Cloudflare zone was not read::No token, the API refused, the zone did not resolve to exactly one id, or the record list came back in a shape this script cannot read. NOTHING about the wildcard is known from this run, and that is never a pass."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=A wildcard DNS record exists, and ADR 080 §4 deleted it::Every retired hostname goes on resolving while it stands, so a name nobody serves answers instead of failing. The step log names the record and its id."
+          fi
+          exit "$code"
+
   alert:
     name: Open or refresh the ops-watch issue
     needs:
-      [heartbeats, status, supabase-drift, prod-provenance, pages-deployments, runner-budget, glitchtip]
+      [heartbeats, status, supabase-drift, prod-provenance, pages-deployments, runner-budget, glitchtip, dns]
     # why: schedule only, and the issue is REUSED rather than reopened -- later
     # failures arrive as comments and it is never closed automatically, so closing it
     # is the acknowledgement that a human looked.
