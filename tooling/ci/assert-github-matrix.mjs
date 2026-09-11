@@ -437,7 +437,7 @@ for (const [i, e] of pinsUnobservable.entries()) {
       // text-reductions.mjs also exports `stripStringLiterals`, the separate composable tool for
       // callers that need literals gone. This limb is not one of them, and composing it here would
       // DELETE THE LIMB SILENTLY: the only real querier matches on STRING LITERALS —
-      // assert-store-matrix.mjs:642 is a single execFileSync argv carrying both its GH_LIST match AND
+      // assert-store-matrix.mjs:646 is a single boundedSpawn argv carrying both its GH_LIST match AND
       // its sole copy of the org literal. Measured 2026-08-21, composing stripStringLiterals on top of
       // the comment strip takes the querier count 1 -> 0 and that file stops containing ORG, so the
       // limb would go blind while still printing a confident, green "0 of them query".
@@ -697,18 +697,30 @@ if (!OFFLINE) {
     if (!existsSync(GH_FIXTURE)) die(`--gh-fixture ${GH_FIXTURE} does not exist.`);
     raw = readFileSync(GH_FIXTURE, 'utf8');
   } else {
-    try {
-      raw = execFileSync('gh', ['repo', 'list', ORG, '--limit', String(LIMIT), '--json', 'name,visibility,isArchived'],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    } catch (e) {
-      const first = String(e.stderr || e.message || '').split('\n').filter(Boolean)[0] || String(e.message);
+    // 🔴 BOUNDED. `gh` reaches a network this runner does not control. An
+    // unbounded spawn waiting on it does not fail loudly — the JOB is cancelled
+    // at its own timeout-minutes, the log stops mid-guard, and nothing names the
+    // command; that is how the launcher-icons hang read for five runs before
+    // `flutter create` was bounded. GH_LIST_TIMEOUT_MS moves the bound and
+    // cannot remove it, and a time-out is COVERAGE LOST — the org was never
+    // looked at, which is a different message from "the register is stale" and
+    // deliberately the same colour.
+    const gh = boundedSpawn(
+      'gh',
+      ['repo', 'list', ORG, '--limit', String(LIMIT), '--json', 'name,visibility,isArchived'],
+      { timeoutMs: timeoutFromEnv('GH_LIST_TIMEOUT_MS', 60_000), label: 'gh repo list' },
+    );
+    if (!gh.ok) {
+      const first = String(gh.stderr || '').split('\n').filter(Boolean)[0] || '';
       die('COVERAGE LOST — `gh repo list` could not look at GitHub.', [
-        first,
+        gh.detail,
+        ...(first ? [first] : []),
         'Nothing about the org was verified on this run.',
         '"I could not look" is a DIFFERENT MESSAGE from "it is stale", and the SAME COLOUR.',
         'There is no exit-0 path through this guard that skipped the network.',
       ]);
     }
+    raw = gh.stdout;
   }
   let list;
   try {

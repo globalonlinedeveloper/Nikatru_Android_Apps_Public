@@ -97,7 +97,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { boundedSpawn, timeoutFromEnv } from './bounded-spawn.mjs';
 // 2026-08-18 · Both listings in this file come from tree-walk.mjs, and they
 // answer DIFFERENT questions on purpose:
 //   · `listDir`                        — "what is in this directory", bounded to
@@ -637,15 +637,28 @@ for (const [k, v] of Object.entries(actual)) {
 // ── the network limb: opt-in, and its absence is printed, never silent ────────
 if (WANT_GITHUB) {
   let list;
-  try {
-    list = JSON.parse(
-      execFileSync('gh', ['repo', 'list', 'globalonlinedeveloper', '--limit', '100', '--json', 'name,visibility'], {
-        encoding: 'utf8',
-      }),
-    );
-  } catch (e) {
+  // 🔴 BOUNDED. `gh` talks to a network the runner does not control, and an
+  // unbounded spawnSync waiting on it does not fail — the JOB is cancelled at
+  // its own timeout-minutes, with the log stopping mid-guard and nothing naming
+  // the command. GH_LIST_TIMEOUT_MS overrides the bound; it cannot remove it.
+  const gh = boundedSpawn(
+    'gh',
+    ['repo', 'list', 'globalonlinedeveloper', '--limit', '100', '--json', 'name,visibility'],
+    { timeoutMs: timeoutFromEnv('GH_LIST_TIMEOUT_MS', 60_000), label: 'gh repo list' },
+  );
+  if (!gh.ok) {
     coverageLost([
       '--github asked for the GitHub limb and it COULD NOT LOOK.',
+      gh.detail,
+      String(gh.stderr).split('\n').filter(Boolean)[0] ?? '',
+      'This is a different message from "it is stale", and deliberately the same colour.',
+    ]);
+  }
+  try {
+    list = JSON.parse(gh.stdout);
+  } catch (e) {
+    coverageLost([
+      '--github asked for the GitHub limb and `gh repo list` returned output this guard cannot parse.',
       String(e.message).split('\n')[0],
       'This is a different message from "it is stale", and deliberately the same colour.',
     ]);
