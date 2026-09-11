@@ -7,5 +7,6 @@
 /// and the app shows an in-app catch-up nudge instead.
 library;
 
+export 'src/device_timezone.dart';
 export 'src/local_notification_service.dart';
 export 'src/notification_capabilities.dart';
