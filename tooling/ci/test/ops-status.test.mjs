@@ -531,7 +531,7 @@ describe('status — end to end through the REAL delegate register', () => {
       rows[s.hostname] = { status: 599, body: '{"ok":true}' };
       const r = run(probes(rows));
       assert.equal(r.status, EXIT_UNHEALTHY, `a failing "${s.hostname}" was NOT caught`);
-      assert.match(r.stderr, new RegExp(s.hostname.replace(/\./g, '\\.')));
+      assert.match(r.stderr, new RegExp(s.hostname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) /* every metacharacter (CodeQL #25) */);
     }
   });
 

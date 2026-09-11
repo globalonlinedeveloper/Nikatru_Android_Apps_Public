@@ -385,7 +385,8 @@ describe('assert-cors-allowlist', () => {
     const ghost = '  // was once "ALLOWED_ORIGINS": "https://ghost.example.com" — removed\n';
     const { code, out } = run(tree({ extraComment: ghost }));
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /ghost\.example\.com/);
+    // Must-not-contain: the broader needle is the stricter check (CodeQL #61).
+    assert.ok(!out.includes('ghost.example'), `the guard echoed a comment-only origin:\n${out}`);
   });
 
   test('FAILS a comment-only origin that the config no longer really lists', () => {
