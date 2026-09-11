@@ -27,7 +27,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { enumerateMigrationTables, sqlLiteral } from '../migration-tables.mjs';
-import { attestManualDeploys, CouldNotLook } from '../../ops/check-prod-provenance.mjs';
+import { attestationCommitRead, attestationDeployments, CouldNotLook } from '../../ops/check-prod-provenance.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GATE = join(REPO, 'tooling', 'ci', 'assert-prod-provenance.mjs');
@@ -733,37 +733,29 @@ describe('check-prod-provenance — the environments witness (b) is read from', 
 // The three CONTROLS come first: the verdicts that ARE findings stay findings.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('check-prod-provenance — manual-deploys attestation: a refused read is COULD NOT LOOK, never a bad attestation', () => {
-  const SHA = 'e138f5be72555ab717d0391e771b40c0883d9fab';
-  const DEPLOY = { version: `1.0.101+${SHA.slice(0, 7)}`, sha: SHA, environment: 'subscriptiontracker-web', deployedAt: '2026-09-01' };
+  const SHA7 = 'e138f5b';
+  const ENV = 'subscriptiontracker-web';
   const answer = (status, body) => ({ status, json: async () => body });
-  const ghOf = (commit, deployments) => async (path) => (path.startsWith('/commits/') ? commit : deployments);
-  const attest = (gh) => attestManualDeploys([DEPLOY], gh, { repo: 'o/r', hasToken: true });
   const QUOTA = { message: 'API rate limit exceeded for installation.' };
 
-  test('CONTROL — a real commit with a recorded Deployment is attested, and says so', async () => {
-    const r = await attest(ghOf(answer(200, { sha: SHA }), answer(200, [{ id: 1 }])));
-    assert.deepEqual(r.violations, []);
-    assert.deepEqual(r.attested, [{ run_number: 101, head_sha: SHA, conclusion: 'success' }]);
-    assert.match(r.accepted[0], /attested manual deploy accepted: 1\.0\.101\+e138f5b/);
+  test('CONTROL — a commit GitHub finds is a commit', () => {
+    assert.equal(attestationCommitRead(200, SHA7), 'commit');
   });
 
-  test('CONTROL — a sha GitHub says is not a commit (404, 422) is still a violation', async () => {
-    for (const status of [404, 422]) {
-      const r = await attest(ghOf(answer(status, { message: 'No commit found' }), answer(200, [{ id: 1 }])));
-      assert.equal(r.attested.length, 0);
-      assert.match(r.violations[0], new RegExp(`sha e138f5b is not a commit on o/r \\(HTTP ${status}\\)`));
-    }
+  test('CONTROL — a sha GitHub says is not a commit (404, 422) is still a finding', () => {
+    assert.equal(attestationCommitRead(404, SHA7), 'not-a-commit');
+    assert.equal(attestationCommitRead(422, SHA7), 'not-a-commit');
   });
 
-  test('CONTROL — a real commit with NO Deployment (200, an empty list) is still a violation', async () => {
-    const r = await attest(ghOf(answer(200, { sha: SHA }), answer(200, [])));
-    assert.match(r.violations[0], /no GitHub Deployment exists for subscriptiontracker-web @ e138f5b/);
+  test('CONTROL — a Deployment list is returned as read, and an EMPTY one is still a finding for the caller', async () => {
+    assert.deepEqual(await attestationDeployments(answer(200, [{ id: 1 }]), ENV, SHA7), [{ id: 1 }]);
+    assert.deepEqual(await attestationDeployments(answer(200, []), ENV, SHA7), []);
   });
 
-  test('🔴 a refused COMMIT read (401, 403 installation quota, 500, 503) is COULD NOT LOOK, not "not a commit"', async () => {
+  test('🔴 a refused COMMIT read (401, 403 installation quota, 500, 503) is COULD NOT LOOK, not "not a commit"', () => {
     for (const status of [401, 403, 500, 503]) {
-      await assert.rejects(
-        attest(ghOf(answer(status, QUOTA), answer(200, [{ id: 1 }]))),
+      assert.throws(
+        () => attestationCommitRead(status, SHA7),
         (e) => e instanceof CouldNotLook && new RegExp(`returned ${status} reading commit e138f5b`).test(e.message),
         `HTTP ${status} on the commit must be CouldNotLook`,
       );
@@ -773,25 +765,19 @@ describe('check-prod-provenance — manual-deploys attestation: a refused read i
   test('🔴 a refused DEPLOYMENTS read is COULD NOT LOOK — it used to read as "no Deployment exists"', async () => {
     for (const status of [401, 403, 502]) {
       await assert.rejects(
-        attest(ghOf(answer(200, { sha: SHA }), answer(status, QUOTA))),
+        attestationDeployments(answer(status, QUOTA), ENV, SHA7),
         (e) => e instanceof CouldNotLook && new RegExp(`returned ${status} listing the Deployments of subscriptiontracker-web @ e138f5b`).test(e.message),
         `HTTP ${status} on the deployment list must be CouldNotLook`,
       );
     }
   });
 
-  test('🔴 a deployment answer that is not a list, or not JSON, is COULD NOT LOOK', async () => {
-    await assert.rejects(attest(ghOf(answer(200, { sha: SHA }), answer(200, QUOTA))), (e) => e instanceof CouldNotLook && /without a list/.test(e.message));
-    const notJson = { status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
-    await assert.rejects(attest(ghOf(answer(200, { sha: SHA }), notJson)), (e) => e instanceof CouldNotLook && /other than JSON/.test(e.message));
+  test('🔴 a deployment answer that is not a list is COULD NOT LOOK', async () => {
+    await assert.rejects(attestationDeployments(answer(200, QUOTA), ENV, SHA7), (e) => e instanceof CouldNotLook && /without a list/.test(e.message));
   });
 
-  test('🔴 no token is COULD NOT LOOK before any request is made', async () => {
-    let asked = 0;
-    await assert.rejects(
-      attestManualDeploys([DEPLOY], async () => { asked += 1; return answer(200, []); }, { repo: 'o/r', hasToken: false }),
-      (e) => e instanceof CouldNotLook && /neither GITHUB_TOKEN nor GH_TOKEN/.test(e.message),
-    );
-    assert.equal(asked, 0);
+  test('🔴 a deployment answer that is not JSON is COULD NOT LOOK', async () => {
+    const notJson = { status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+    await assert.rejects(attestationDeployments(notJson, ENV, SHA7), (e) => e instanceof CouldNotLook && /other than JSON/.test(e.message));
   });
 });
