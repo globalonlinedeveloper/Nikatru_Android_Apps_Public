@@ -116,7 +116,7 @@
 //          names, and WINDOWS_SIGNING_POSTURE.
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, statSync, mkdtempSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -315,10 +315,10 @@ export function buildSignCommand({
   exe = 'signtool',
 }) {
   if (!pfxPath || !artifact) throw new Error('buildSignCommand needs pfxPath and artifact');
-  const args = [
+  const argv = (pw) => [
     'sign',
     '/f', pfxPath,
-    '/p', String(password ?? ''),
+    '/p', pw,
     // SHA-256 file digest. SHA-1 authenticode is refused by current Windows.
     '/fd', 'SHA256',
     // RFC 3161 timestamp + its own SHA-256 digest. Without this the signature
@@ -329,9 +329,10 @@ export function buildSignCommand({
     '/v',
     artifact,
   ];
-  const pIdx = args.indexOf('/p') + 1;
-  const redacted = args.map((a, i) => (i === pIdx ? '***' : a));
-  return { exe, args, redacted };
+  // The printable form is BUILT with a placeholder in the password's slot, never
+  // derived from the real argv by searching it for '/p' (CodeQL #6): a pfxPath that
+  // was itself "/p" moved that search one slot early and printed the password.
+  return { exe, args: argv(String(password ?? '')), redacted: argv('***') };
 }
 
 /**
@@ -487,7 +488,13 @@ const envOr = (name, fallback) => {
 };
 
 const ROOT = resolve(opt('repo-root') ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..'));
-const OUT_DIR = resolve(opt('out') ?? envOr('RUNNER_TEMP', tmpdir()));
+// Chosen by the caller (--out) or by the runner ($RUNNER_TEMP, private to the job),
+// or null. When null, the .pfx goes into a FRESH private directory created at
+// write time (mkdtempSync: random suffix, owner-only), never a predictable name in
+// the shared temp dir that anyone can pre-create as a symlink (the CodeQL #93 class; the same
+// remedy apple-signing.mjs already carries). Decided lazily, so importing this
+// module or a run that refuses early creates nothing.
+const OUT_DIR_CHOSEN = opt('out') ?? envOr('RUNNER_TEMP', null);
 const GITHUB_ENV = opt('github-env') ?? envOr('GITHUB_ENV', null);
 const TIMESTAMP_URL = opt('timestamp-url') ?? DEFAULT_TIMESTAMP_URL;
 
@@ -772,6 +779,7 @@ function main() {
     ]);
   }
 
+  const OUT_DIR = OUT_DIR_CHOSEN !== null ? resolve(OUT_DIR_CHOSEN) : mkdtempSync(join(tmpdir(), 'windows-signing-'));
   mkdirSync(OUT_DIR, { recursive: true });
   const pfxPath = join(OUT_DIR, `${app.slug}-codesign.pfx`);
   if (!isAbsolute(pfxPath)) {
