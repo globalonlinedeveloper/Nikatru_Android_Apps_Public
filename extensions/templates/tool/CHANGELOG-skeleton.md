@@ -23,6 +23,13 @@ not your tool's.
 
 ---
 
+## [Unreleased] — CodeQL triage (2026-09-11)
+
+- `publish/bump-version.mjs` — `strayOldVersion` read each file after a `statSync` of its path, so the file measured need not be the file read (CodeQL #77): wanted files are now read first and only what was not read is stat-ed. The old-version needle escaped only the dot, so `1.0.0+1` missed itself and matched `1.0.00001` (CodeQL #17): exported `versionNeedle` escapes every metacharacter. The unused `PUBLISH` constant is gone.
+- `test/skeleton-sim.node.js` — the audit-fleet numeric-compare check passed any `sort()` that was not the last thing in the FILE, because `$` without the m flag is end of input (CodeQL #51); it now refuses `.sort()` anywhere. New checks pin `versionNeedle` and the read-first walk; four unused bindings and a comma-shaped `&&` are tidied.
+- `test/browser/smoke.mjs` — the report-leak check looked for `example.com/`, which the seeded origin never contains, so a leak passed (CodeQL #7); the delete-control label matched the host anywhere (CodeQL #50). Both now compare the seeded origin itself. Two conditionals on `extId` that could only ever go one way are removed.
+- `_locales/make-locales.mjs` — the unused `pluralCategoriesFor` is removed.
+
 ## [Unreleased] — mass-production readiness audit (verification pass)
 
 **Verdict: NOT yet safe to copy 67 tools from.** The machinery is proven; the

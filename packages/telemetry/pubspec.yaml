@@ -25,6 +25,8 @@ dependencies:
   # sentry_flutter 9.x requires Dart >=3.5.0 / Flutter >=3.24.0. Data classes are
   # mutable in 9.x (beforeSend mutates in place).
   sentry_flutter: ^9.26.0
+  # The web build posts envelopes itself (lib/src/web_envelope_transport.dart).
+  http: ^1.2.0
 
 dev_dependencies:
   # [pipeline C-12] resolves the shared ruleset in analysis_options.yaml.

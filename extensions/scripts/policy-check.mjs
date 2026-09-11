@@ -358,7 +358,11 @@ const htmlFiles = files.filter(f => isHtml(f) && source.has(f));
      demanded whether or not the target exists on disk. Every other tag is only
      demanded when the target IS on disk, because <img> and friends are
      legitimately filled in at runtime. */
-  const HTML_REF = /<\s*(script|link|img|iframe|source|video|audio|object|embed)\b((?:"[^"]*"|'[^']*'|[^>])*)>/gi;
+  /* ONE WAY TO READ EACH CHARACTER (CodeQL #1). A quote used to match both a quoted run
+     and [^>], so a tag body of many "" pairs with no closing > backtracked exponentially:
+     a few dozen characters of a PR's HTML hung this gate. A quote now opens a quoted run
+     when one closes, and is a plain character only when none does. */
+  const HTML_REF = /<\s*(script|link|img|iframe|source|video|audio|object|embed)\b((?:"[^"]*"|'[^']*'|[^>"']|"(?![^"]*")|'(?![^']*'))*)>/gi;
   const HTML_ATTR = /(?:^|[\s"'/])(src|href|srcset|poster|data)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
   for (const rel of htmlFiles) {
     for (const m of raw(rel).matchAll(HTML_REF)) {
@@ -1128,7 +1132,8 @@ const CLOSED_SOURCE = new Set(["'self'", 'data:', 'blob:', 'filesystem:']);
    attribute reorder is not an exotic input; it is what a formatter does. */
 {
   const bad = [], links = [], deferred = [];
-  const TAG = /<\s*(script|link|img|iframe|source|video|audio|object|embed|a)\b((?:"[^"]*"|'[^']*'|[^>])*)>/gi;
+  /* The same body as HTML_REF above, and the same exponential backtracking fixed the same way (CodeQL #2). */
+  const TAG = /<\s*(script|link|img|iframe|source|video|audio|object|embed|a)\b((?:"[^"]*"|'[^']*'|[^>"']|"(?![^"]*")|'(?![^']*'))*)>/gi;
   const ATTR = /(?:^|[\s"'/])(src|href|srcset|poster|data|formaction|xlink:href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
   const DATA_ATTR = /(?:^|[\s"'/])(data-[a-z0-9-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
   const value = a => (a[3] !== undefined ? a[3] : a[4] !== undefined ? a[4] : a[5] || '').trim();
@@ -1769,7 +1774,9 @@ const PLACEHOLDER = /^(?:|todo\b.*|tbd\b.*|fixme\b.*|\?+|xxx+|replace.*|why\b.*)
       } else r.pass('publish/identity.json slug agrees with the tool id');
 
       const od = typeof id.ownerDomain === 'string' ? id.ownerDomain.trim() : '';
-      if (!od || /REPLACE|\.example$/i.test(od)) {
+      /* Two refusals, not one alternation (CodeQL #48): the slot token ANYWHERE, or the
+         reserved .example TLD at the END. Grouping them under one $ would accept x@REPLACE-WITH-YOUR-DOMAIN.com. */
+      if (!od || /REPLACE/i.test(od) || /\.example$/i.test(od)) {
         r.owner('publish/identity.json ownerDomain is ' + (od ? 'still a placeholder ("' + od + '")' : 'missing or empty'),
           'The Firefox add-on id is derived as <slug>@<ownerDomain>, and AMO FIXES THE ADD-ON IDENTITY AT\n' +
           'FIRST SIGNING. A placeholder that ships once is not a typo you correct later — it is an add-on\n' +
@@ -1805,7 +1812,8 @@ const PLACEHOLDER = /^(?:|todo\b.*|tbd\b.*|fixme\b.*|\?+|xxx+|replace.*|why\b.*)
         ffRel + ' parsed as ' + (Array.isArray(p.value) ? 'an array' : p.value === null ? 'null' : typeof p.value) + '.');
     } else {
       const gid = (((p.value.browser_specific_settings || {}).gecko) || {}).id || '';
-      if (/REPLACE|\.example$/i.test(gid) || !gid || /@(?:undefined|null)$/i.test(gid)) {
+      /* The slot token anywhere, or the reserved TLD at the end — two tests (CodeQL #49). */
+      if (/REPLACE/i.test(gid) || /\.example$/i.test(gid) || !gid || /@(?:undefined|null)$/i.test(gid)) {
         r.owner('the Firefox add-on id is ' + (gid ? 'a placeholder ("' + gid + '")' : 'not set') + ' in ' + ffRel,
           'Permanent from the moment AMO signs it. Do not upload this package to AMO until it names a\n' +
           'domain you control.' + (ffZips.length ? '\n' + ffZips.length + ' -firefox.zip file(s) are already built in publish/ and carry it.' : ''));

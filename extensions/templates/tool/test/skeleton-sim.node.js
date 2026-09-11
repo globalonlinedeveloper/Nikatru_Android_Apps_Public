@@ -516,7 +516,7 @@ let PACK = null, BUMP = null;
     check('every declared wire string maps to its declared sentence', allRows, rowDetail || ROWS.length + '/' + ROWS.length);
 
     let idem = true;
-    for (const [wire, human] of ROWS) {
+    for (const [, human] of ROWS) {
       if (humanReason(human) !== human || wireReason(human) !== human) { idem = false; rowDetail = human; break; }
     }
     check('a sentence that has been through a gate survives a second pass', idem, rowDetail || 'idempotent');
@@ -1280,11 +1280,11 @@ let PACK = null, BUMP = null;
     check('so its scratch is still OWNED, and the wake sweep leaves it alone',
       scratchCount(sw2) === 1, 'scratch=' + scratchCount(sw2));
     check('and closing the tab AFTER the restart still cleans up — the old design could not',
-      (sw2.fire('tabs.onRemoved', 7), true) && (await tick(4), sw2.sandbox.SKJOBS.size() === 0 && scratchCount(sw2) === 0),
+      (sw2.fire('tabs.onRemoved', 7), await tick(4), sw2.sandbox.SKJOBS.size() === 0 && scratchCount(sw2) === 0),
       'jobs=' + sw2.sandbox.SKJOBS.size() + ' scratch=' + scratchCount(sw2));
 
     /* THE ORPHAN. Five suspend cycles used to leave five unreachable rows. */
-    const { chrome: c2, bg: b2 } = boot();
+    const { bg: b2 } = boot();
     await tick();
     const OLD = Date.now() - 60 * 60 * 1000;                 // an hour ago
     await b2.sandbox.SKDB.put('scratch', { k: 'ghost:00000', jobId: 'ghost', startedAt: OLD });
@@ -1344,7 +1344,7 @@ let PACK = null, BUMP = null;
     /* THE RACE. A message can be what STARTS the worker, so the router may run
        before the table has been read back. A case that peeked early would see
        an empty table and start a second job in a tab that already has one. */
-    const { chrome: c5, bg: b5 } = boot();
+    const { bg: b5 } = boot();
     await tick();
     await b5.sandbox.beginJob({ id: 1, windowId: 1 }, 'read-title');
     await tick(4);
@@ -1360,7 +1360,7 @@ let PACK = null, BUMP = null;
     /* The same race, on the CLEANUP path. Closing a tab can be the event that
        starts the worker, and a listener that ran before the table came back
        would abort nothing and orphan the very rows it exists to remove. */
-    const { chrome: c5b, bg: b5b } = boot();
+    const { bg: b5b } = boot();
     await tick();
     await b5b.sandbox.beginJob({ id: 1, windowId: 1 }, 'read-title');
     await tick(4);
@@ -4287,7 +4287,8 @@ let PACK = null, BUMP = null;
         : 'audit-fleet.mjs kept — preflight owns the deletion of the skeleton\'s own documents');
     check('it compares versions NUMERICALLY — "1.10.0" sorts before "1.9.0" as a string',
       /cmpVersion/.test(H.readRoot('tools/audit-fleet.mjs')) &&
-      !/localeCompare|sort\(\)\s*$/.test(stripJsComments(H.readRoot('tools/audit-fleet.mjs'))),
+      /* no m flag, so $ was the end of the FILE: a sort() anywhere else passed (CodeQL #51) */
+      !/localeCompare|\.sort\(\s*\)/.test(stripJsComments(H.readRoot('tools/audit-fleet.mjs'))),
       'the exact bug the reference packaging diff shipped with');
     check('a HANDOFF template exists — decisions are the part that does not retrofit at any price',
       H.existsRoot('HANDOFF.md') && /Teeth/.test(H.readRoot('HANDOFF.md')),
@@ -4503,6 +4504,30 @@ let PACK = null, BUMP = null;
     check('the Firefox add-on id is DERIVED from publish/identity.json, never typed twice',
       BUMP.geckoId() === ((JSON.parse(H.readRoot('publish/manifest.firefox.json')).browser_specific_settings || {}).gecko || {}).id,
       BUMP.geckoId());
+
+    /* CodeQL #17 — the stray-version needle escapes every metacharacter, not only the dot. */
+    check('the stray-version needle matches a +build version literally, and not its lookalike',
+      BUMP.versionNeedle('1.0.0+1').test('version 1.0.0+1') && !BUMP.versionNeedle('1.0.0+1').test('1.0.00001') &&
+        BUMP.versionNeedle('1.2.3').test('v1.2.3') && !BUMP.versionNeedle('1.2.3').test('11.2.3'),
+      'versionNeedle(1.0.0+1) / versionNeedle(1.2.3)');
+
+    /* CodeQL #77 — strayOldVersion reads each file it scans without a stat of that path first.
+       bump-version imports the default fs object, which is this require('fs'), so patching
+       its methods here is seen by the real function. */
+    {
+      const seen = [];
+      const realStat = fs.statSync, realRead = fs.readFileSync;
+      fs.statSync = function (p, ...a) { seen.push(['stat', String(p)]); return realStat.call(this, p, ...a); };
+      fs.readFileSync = function (p, ...a) { seen.push(['read', String(p)]); return realRead.call(this, p, ...a); };
+      let hits = null;
+      try { hits = BUMP.strayOldVersion('0.0.0-never-a-version'); } finally { fs.statSync = realStat; fs.readFileSync = realRead; }
+      const firstAt = (op, p) => seen.findIndex(e => e[0] === op && e[1] === p);
+      const reads = [...new Set(seen.filter(e => e[0] === 'read').map(e => e[1]))];
+      const statThenRead = reads.filter(p => { const s = firstAt('stat', p); return s >= 0 && s < firstAt('read', p); });
+      check('strayOldVersion reads every file it scans without a stat of the same path first',
+        Array.isArray(hits) && reads.length > 5 && statThenRead.length === 0,
+        reads.length + ' file(s) read, ' + statThenRead.length + ' stat-then-read' + (statThenRead[0] ? ': ' + statThenRead[0] : ''));
+    }
 
     /* ---- the placeholder gate: red here is the CORRECT state ---- */
     const identity = PACK.readIdentity();

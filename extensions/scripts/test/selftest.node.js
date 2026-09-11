@@ -58,7 +58,10 @@ function bad(label, why) { FAILURES.push({ label, why }); console.log('  FAIL  '
 function run(script, argv, root, env) {
   const extra = typeof env === 'function' ? env(root) : env;
   const res = spawnSync(process.execPath, [path.join(SCRIPTS, script), ...argv, '--repo-root', root], {
-    encoding: 'utf8', cwd: REPO, env: extra ? { ...process.env, ...extra } : process.env
+    encoding: 'utf8', cwd: REPO, env: extra ? { ...process.env, ...extra } : process.env,
+    /* A gate that hangs must FAIL here (exit null), not hang the self-test: the
+       bounded-time policy-check case below depends on it. */
+    timeout: 120000
   });
   return { code: res.status, out: (res.stdout || '') + (res.stderr || '') };
 }
@@ -304,6 +307,18 @@ expect('and policy-check grades it too', {
    policy-check
    ===================================================================== */
 console.log('\npolicy-check.mjs');
+{
+  /* 🔴 CodeQL #1 / #2. The tag-body regexes backtracked exponentially on a body of many
+     "" pairs with no closing >; 25 000 pairs never finished. The unmutated fixture's own
+     exit code is the expectation, so this case asserts ONLY that the read is bounded. */
+  const base = run('policy-check.mjs', ['goodtool'], fixture());
+  const t0 = Date.now();
+  const r = run('policy-check.mjs', ['goodtool'], fixture(root => { edit(root, TOOL + '/popup/popup.html', s => s + '<img ' + '""'.repeat(25000)); }));
+  const ms = Date.now() - t0;
+  if (r.code === base.code && ms < 20000) ok('a tag body of 25 000 empty quoted pairs is read in bounded time', ms + ' ms, exit ' + r.code);
+  else bad('a tag body of 25 000 empty quoted pairs is read in bounded time',
+    'exit ' + r.code + ' (the unmutated fixture exits ' + base.code + ') after ' + ms + ' ms\n' + r.out.slice(-1500));
+}
 expect('a clean tool passes every gate', {
   script: 'policy-check.mjs', argv: ['goodtool'], root: fixture(), code: 0
 });
@@ -914,6 +929,16 @@ console.log('\ngen-catalog.mjs');
     ok('the row is generated and the surrounding prose survives');
   else bad('the row is generated and the surrounding prose survives', md);
 }
+{
+  /* 🔴 CodeQL #15. A summary carrying its own backslash: the pipe alone used to be escaped,
+     leaving \\| in the cell (an escaped backslash, then a bare pipe that ends the column). */
+  const root = fixture(r => { edit(r, TOOL + '/tool.json', s => s.replace('A fixture extension used by the scripts self-test.', 'grep a\\\\|b under C:\\\\Users')); });
+  const res = run('gen-catalog.mjs', ['--print'], root);
+  const cell = res.out.split('\n').find(l => l.includes('grep a')) || '';
+  if (res.code === 0 && cell.includes('grep a\\\\\\|b') && cell.includes('C:\\\\Users'))
+    ok('a backslash in a catalog cell is escaped before the pipe', cell.trim());
+  else bad('a backslash in a catalog cell is escaped before the pipe', 'exit ' + res.code + '\n' + res.out);
+}
 expect('no markers means no write', {
   script: 'gen-catalog.mjs', argv: [], code: 2, contains: 'has no catalog markers',
   root: fixture(root => { edit(root, 'README.md', s => s.replace('<!-- CATALOG:START -->', '').replace('<!-- CATALOG:END -->', '')); })
@@ -1188,6 +1213,23 @@ expect('a BUILT package carrying the placeholder gecko.id is caught', {
   root: withPackage('goodtool-1.0.0-firefox.zip', {
     ...goodFfManifest,
     browser_specific_settings: { gecko: { id: 'goodtool@REPLACE-WITH-YOUR-DOMAIN.example' } }
+  })
+});
+
+/* The placeholder test is TWO tests (CodeQL #45): the slot token ANYWHERE, or the reserved
+   .example TLD at the END. Every fixture above matches both, so each branch is pinned alone. */
+expect('a BUILT package whose gecko.id keeps the slot token under a real TLD is caught', {
+  script: 'check-store-packages.mjs', argv: ['goodtool'], code: 1, contains: 'MUST NOT BE UPLOADED TO AMO',
+  root: withPackage('goodtool-1.0.0-firefox.zip', {
+    ...goodFfManifest,
+    browser_specific_settings: { gecko: { id: 'goodtool@REPLACE-WITH-YOUR-DOMAIN.com' } }
+  })
+});
+expect('a BUILT package whose gecko.id sits on the reserved .example TLD is caught', {
+  script: 'check-store-packages.mjs', argv: ['goodtool'], code: 1, contains: 'MUST NOT BE UPLOADED TO AMO',
+  root: withPackage('goodtool-1.0.0-firefox.zip', {
+    ...goodFfManifest,
+    browser_specific_settings: { gecko: { id: 'goodtool@acme.example' } }
   })
 });
 

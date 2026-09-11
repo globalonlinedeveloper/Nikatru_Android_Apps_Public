@@ -71,8 +71,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { LOCALES, BY_CODE, chain } from '../i18n/locales.mjs';
-import { PLURAL_BASES, SUFFIX, PLURAL_COUNT_TOKEN, categoriesFor, isEnglishPluralKey, splitPluralKey, sourceKeyFor } from '../i18n/plurals.mjs';
-import { CLAIMS, PRIVACY_KEYS, checkBackTranslation } from '../i18n/backtranslation.mjs';
+import { SUFFIX, PLURAL_COUNT_TOKEN, categoriesFor, isEnglishPluralKey, splitPluralKey, sourceKeyFor } from '../i18n/plurals.mjs';
+import { PRIVACY_KEYS, checkBackTranslation } from '../i18n/backtranslation.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');

@@ -95,7 +95,7 @@ function buildAppShell({ bannerH = 0, dpr = 1 } = {}) {
 
   let banner = null;
   if (bannerH > 0) { banner = body.appendChild(new El('div', doc, { clientH: bannerH, clientW: VP_W })); banner.id = 'banner'; }
-  const header = body.appendChild(new El('header', doc, { clientH: 64, clientW: VP_W }));
+  body.appendChild(new El('header', doc, { clientH: 64, clientW: VP_W }));
   const row = body.appendChild(new El('div', doc, { clientH: 632, contentH: 632, clientW: VP_W }));
 
   const sidebar = row.appendChild(new El('aside', doc, { clientH: 632, clientW: 220, contentH: 1400 }));
@@ -120,7 +120,7 @@ function buildAppShell({ bannerH = 0, dpr = 1 } = {}) {
   paneContent.appendChild(new El('div', doc, { clientH: 152, clientW: 1060 })); // bottom marker
   paneContent._base.contentH = () => 48 + 1200 + innerPanel.clientHeight + 2000 + 152;
 
-  const footer = body.appendChild(new El('footer', doc, { clientH: 24, clientW: VP_W }));
+  body.appendChild(new El('footer', doc, { clientH: 24, clientW: VP_W }));
   const fab = body.appendChild(new El('div', doc, { clientH: 64, clientW: 64 }));
   fab.id = 'fab';
   fab.setAttribute('style', 'position:fixed;right:26px;bottom:36px');
@@ -911,8 +911,8 @@ function buildVirtualList() {
     vrows.push(r);
   }
 
-  const article = body.appendChild(new El('div', doc, { clientH: VL_ARTICLE, clientW: VP_W }));
-  const bottom = body.appendChild(new El('div', doc, { clientH: VL_BOTTOM, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: VL_ARTICLE, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: VL_BOTTOM, clientW: VP_W }));
 
   body._base.contentH = () => VL_HEADER + vlist.clientHeight + VL_ARTICLE + VL_BOTTOM;
   html._base.contentH = () => body.clientHeight;
@@ -1018,8 +1018,8 @@ function buildVirtualUnroll() {
     r.setAttribute('style', 'position:absolute');
   }
 
-  const article = body.appendChild(new El('div', doc, { clientH: VU_ARTICLE, clientW: VP_W }));
-  const bottom = body.appendChild(new El('div', doc, { clientH: VU_BOTTOM, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: VU_ARTICLE, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: VU_BOTTOM, clientW: VP_W }));
 
   body._base.contentH = () => VU_HEADER + vlist.clientHeight + VU_ARTICLE + VU_BOTTOM;
   html._base.contentH = () => body.clientHeight;
@@ -1112,11 +1112,11 @@ function buildInteractive() {
   doc.documentElement = html; doc.body = body; html.appendChild(body);
   const win = makeWindow(doc, { w: VP_W, h: VP_H, dpr });
 
-  const header = body.appendChild(new El('div', doc, { clientH: 120, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: 120, clientW: VP_W }));
   const details = body.appendChild(new El('details', doc, { clientW: VP_W }));
   details.id = 'details';
   details._base.clientH = () => (details.getAttribute('open') != null ? 540 : 40);  // 40 summary + 500 body
-  const tabActive = body.appendChild(new El('div', doc, { clientH: 300, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: 300, clientW: VP_W }));
   const tabInactive = body.appendChild(new El('div', doc, { clientH: 400, clientW: VP_W }));
   tabInactive.id = 'tabInactive';
   tabInactive.setAttribute('role', 'tabpanel');
@@ -1666,7 +1666,7 @@ function buildPaneInfinite() {
   const TOTAL = 32, PAGE = 8, ITEM_H = 100, HEADER_H = 64, PANE_H = VP_H - HEADER_H, BOTTOM_H = 152, DEEP_IX = 28, SENTINEL = 200;
   let loaded = PAGE;   // first page already realized in the pane
 
-  const header = body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
+  body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
   const pane = body.appendChild(new El('main', doc, { clientH: PANE_H, clientW: VP_W }));
   pane.id = 'pane';
   pane.setAttribute('style', 'overflow-y:auto');
@@ -1753,7 +1753,7 @@ function buildPaneLoadMore() {
         BTN_H = 60, BOTTOM_H = 152, DEEP_IX = 28;
   let loaded = PAGE;   // first page already realized in the pane
 
-  const header = body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
+  body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
   const pane = body.appendChild(new El('main', doc, { clientH: PANE_H, clientW: VP_W }));
   pane.id = 'pane';
   pane.setAttribute('style', 'overflow-y:auto');
@@ -1768,7 +1768,7 @@ function buildPaneLoadMore() {
   button._base.clientW = () => (loaded < TOTAL ? 200 : 0);   // 0x0 == gone, with no style change
   button._base.clientH = () => (loaded < TOTAL ? BTN_H : 0);
   button._onClick = () => { if (loaded < TOTAL) loaded = Math.min(TOTAL, loaded + PAGE); };
-  const bottom = pane.appendChild(new El('div', doc, { clientH: BOTTOM_H, clientW: VP_W }));
+  pane.appendChild(new El('div', doc, { clientH: BOTTOM_H, clientW: VP_W }));
 
   body._base.contentH = () => HEADER_H + pane.clientHeight;   // the document itself does not scroll
   html._base.contentH = () => body.clientHeight;
@@ -1937,7 +1937,7 @@ function buildLoadMoreLabels() {
   let loaded = PAGE, stage = 0;
   const decoyClicks = {};
 
-  const header = body.appendChild(new El('div', doc, { clientH: HEADER_H, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: HEADER_H, clientW: VP_W }));
   // Decoy buttons FIRST (scanned before the real one) — must never be clicked.
   NEGATIVE.forEach(lbl => {
     const d = body.appendChild(new El('button', doc, { clientW: 120, clientH: DECOY_H }));
@@ -1970,7 +1970,7 @@ function buildLoadMoreLabels() {
       if (stage < POSITIVE.length) button.textContent = POSITIVE[stage];   // relabel to the next variant
     }
   };
-  const footer = body.appendChild(new El('div', doc, { clientH: FOOTER_H, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: FOOTER_H, clientW: VP_W }));
 
   body._base.contentH = () => HEADER_H + CTRL_H + feed.clientHeight + button.clientHeight + FOOTER_H;
   html._base.contentH = () => body.clientHeight;
@@ -2762,7 +2762,6 @@ function expectLateTextRedact(seg, state, segs, out) {
    The email is unplaceable the way `sr-only` text is: a sub-pixel rect. The
    detector finds it — `matched` counts it — and no rect survives the width test,
    so `matchedNoBox` is 1 and there is nothing over it in the picture. */
-const WC = { body: [214, 218, 226], block: [17, 17, 17] };
 function buildWrapCancel() {
   const s = ledgerBase(1400);
   ledgerLeaf(s.body, s.doc, s.win, 100, 'Quarterly summary for the north region');
@@ -2891,7 +2890,6 @@ function expectWrapUnread(seg, state, segs, out) {
    separators — laid out one character per line inside a very tall block, so
    `getClientRects` returns 2,200 rectangles for ONE match and the ceiling
    falls in the middle of them. */
-const CS = { body: [214, 218, 226], block: [17, 17, 17] };
 const CS_LINES = 2200;                        // client rects the long match produces
 const CS_EMITTED = 1999;                      // …of which the ceiling admits these
 const CS_LOST = CS_LINES - CS_EMITTED;        // 201 blocks produced and never emitted
@@ -3270,7 +3268,7 @@ function buildPaneRedact() {
   const win = makeWindow(doc, { w: VP_W, h: VP_H, dpr });
 
   const HEADER_H = 64, PANE_H = VP_H - HEADER_H, PANE_CONTENT_H = 1800;
-  const header = body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
+  body.appendChild(new El('header', doc, { clientH: HEADER_H, clientW: VP_W }));
   const pane = body.appendChild(new El('main', doc, { clientH: PANE_H, clientW: VP_W }));
   pane.id = 'pane';
   pane.setAttribute('style', 'overflow-y:auto');
@@ -3754,8 +3752,8 @@ function buildRailInline() {
     r.setAttribute('style', 'position:absolute');
   }
 
-  const article = body.appendChild(new El('div', doc, { clientH: RI_ARTICLE, clientW: VP_W }));
-  const bottom = body.appendChild(new El('div', doc, { clientH: RI_BOTTOM, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: RI_ARTICLE, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: RI_BOTTOM, clientW: VP_W }));
 
   // fixed left rail (Reddit left nav): fixed wrapper + inner scroller
   const railWrap = body.appendChild(new El('div', doc, { clientH: RAIL_H, clientW: RAIL_W }));
@@ -3879,8 +3877,8 @@ function buildTallUnroll() {
     r.setAttribute('style', 'position:absolute');
   }
 
-  const article = body.appendChild(new El('div', doc, { clientH: TU_ARTICLE, clientW: VP_W }));
-  const bottom = body.appendChild(new El('div', doc, { clientH: TU_BOTTOM, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: TU_ARTICLE, clientW: VP_W }));
+  body.appendChild(new El('div', doc, { clientH: TU_BOTTOM, clientW: VP_W }));
 
   body._base.contentH = () => TU_HEADER + vlist.clientHeight + TU_ARTICLE + TU_BOTTOM;
   html._base.contentH = () => body.clientHeight;
@@ -4939,7 +4937,6 @@ function expectMultiListPane(seg, state, segs) {
   const EXP_H = MLP_SHELL_H + MLP_PH + MLP_TOTAL_A + MLP_MID_H + MLP_TOTAL_B + MLP_ARTICLE + MLP_BOTTOM;  // 13716
   const x = 640;
   const growthA = MLP_TOTAL_A - MLP_VIEW;                 // 3500
-  const growthB = MLP_TOTAL_B - MLP_VIEW;                 // 2500
   const slotA = MLP_SHELL_H + MLP_A_TOP;                  // 264  (no growth above list A)
   const slotB = MLP_SHELL_H + MLP_B_TOP + growthA;        // 4564 (list B shifted by growth_A — the cumulative step)
 

@@ -97,7 +97,10 @@ import { readZipEntry, listZipEntries, ZipUnreadable } from './lib/zip.mjs';
 /* The placeholder the first Firefox manifest shipped with. Same test
    verify-firefox-package.node.js and pack.mjs apply, deliberately: an id this
    repository would refuse to BUILD must also be one it refuses to have BUILT. */
-const PLACEHOLDER_ID = /REPLACE-WITH-YOUR-DOMAIN|\.example$/i;
+/* TWO tests, written as two (CodeQL #45): the slot token ANYWHERE in the id, or the
+   reserved .example TLD at its END. One alternation read as if both were anchored, and
+   grouping them under the $ would accept goodtool@REPLACE-WITH-YOUR-DOMAIN.com. */
+const PLACEHOLDER_ID = { test: (s) => /REPLACE-WITH-YOUR-DOMAIN/i.test(s) || /\.example$/i.test(s) };
 /* MDN: email-style id, 80 characters or less. */
 const GECKO_ID_RE = /^[a-zA-Z0-9\-._]*@[a-zA-Z0-9\-._]+$/;
 
