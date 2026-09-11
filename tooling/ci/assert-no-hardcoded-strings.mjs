@@ -91,7 +91,7 @@
 // EXEMPTION rather than by a waiver — an exemption is falsifiable (add prose
 // beside the interpolation and it counts again), a waiver is not. Exactly one
 // literal needs a named allowlist entry, and it carries its reason.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 import { stripSourceComments } from './text-reductions.mjs';
@@ -538,9 +538,11 @@ function readDartTree(dir) {
   const out = [];
   const walk = (d) => {
     if (!existsSync(d)) return;
-    for (const entry of listDir(d)) {
+    for (const de of listDir(d, { withFileTypes: true })) {
+      const entry = de.name;
       const full = join(d, entry);
-      if (statSync(full).isDirectory()) { walk(full); continue; }
+      // The listing's own dirent, not a second look at the path (CodeQL #79).
+      if (de.isDirectory()) { walk(full); continue; }
       // 🔴 PINNED 2026-08-22, HAVING SHIPPED UNFALSIFIABLE. `if (false)` here
       // left `node --test tooling/ci/test/no-hardcoded-strings.test.mjs` at
       // EXIT 0, tests 80, pass 80, fail 0 — the 2026-08-21 sweep enumerated the

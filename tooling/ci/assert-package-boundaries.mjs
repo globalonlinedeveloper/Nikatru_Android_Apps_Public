@@ -33,7 +33,7 @@
 // non-fatal on purpose. So the gate is structurally blind here. A pubspec-only
 // guard would have caught NEITHER, which is the whole reason the criterion was
 // amended before a line of this file was written.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 
@@ -80,9 +80,11 @@ function packageImports(dir) {
   const found = new Map();
   const walk = (d) => {
     if (!existsSync(d)) return;
-    for (const entry of listDir(d)) {
+    for (const de of listDir(d, { withFileTypes: true })) {
+      const entry = de.name;
       const full = join(d, entry);
-      if (statSync(full).isDirectory()) walk(full);
+      // The listing's own dirent, not a second look at the path (CodeQL #80).
+      if (de.isDirectory()) walk(full);
       else if (entry.endsWith('.dart')) {
         const src = readFileSync(full, 'utf8');
         // Import/export directives only — a `package:` inside a doc comment or

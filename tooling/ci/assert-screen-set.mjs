@@ -78,7 +78,7 @@
 // named blocker has already shipped, the build fails. Otherwise "blocked by
 // stage 5" becomes a permanent excuse that outlives stage 5 — the same rot the
 // dated grandfather lists elsewhere exist to prevent.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 import { delegationOf as resolveChassisDelegation, dartCodeOnly } from './chassis-delegation.mjs';
@@ -149,9 +149,11 @@ const BLOCKERS_STILL_REAL = {
 function readAll(dir) {
   let out = '';
   const walk = (d) => {
-    for (const e of listDir(d)) {
+    for (const de of listDir(d, { withFileTypes: true })) {
+      const e = de.name;
       const f = join(d, e);
-      if (statSync(f).isDirectory()) walk(f);
+      // The listing's own dirent, not a second look at the path (CodeQL #82).
+      if (de.isDirectory()) walk(f);
       else if (e.endsWith('.dart')) out += readFileSync(f, 'utf8');
     }
   };
@@ -195,13 +197,15 @@ function dartFilesUnder(rel) {
   const walk = (d) => {
     let entries;
     try {
-      entries = listDir(join(ROOT, d));
+      entries = listDir(join(ROOT, d), { withFileTypes: true });
     } catch {
       return;
     }
-    for (const e of entries) {
+    for (const de of entries) {
+      const e = de.name;
       const child = `${d}/${e}`;
-      if (statSync(join(ROOT, child)).isDirectory()) walk(child);
+      // The listing's own dirent, not a second look at the path (the #82 class).
+      if (de.isDirectory()) walk(child);
       else if (e.endsWith('.dart')) out.push(child);
     }
   };
