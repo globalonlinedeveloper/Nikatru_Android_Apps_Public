@@ -73,7 +73,12 @@ jobs:
         app: ${{ fromJSON(needs.prepare.outputs.apps) }}
     concurrency:
       group: deploy-web-${{ matrix.app }}
-      cancel-in-progress: true
+      # why: FALSE ON MAIN ONLY (REVIEW-guards #5). On main a second push used to
+      # cancel an in-flight deploy, possibly mid `wrangler pages deploy`, and the
+      # record step does not run on a cancel — docs/ci/deploy-web.md: runs 145/146
+      # were concurrency-cancelled and that unrecorded build stayed live. Held by
+      # assert-workflow-hardening limb 7.
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}

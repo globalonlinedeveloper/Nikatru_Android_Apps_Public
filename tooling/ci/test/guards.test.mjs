@@ -1013,6 +1013,44 @@ describe('assert-workflow-hardening', () => {
     return fixture(name, files);
   };
 
+  // ── limb 7 · ⏱ 2026-09-11 · NOTHING THE DEFAULT BRANCH DEPENDS ON IS CANCELLED ──
+  // REVIEW-guards-2026-09-10 #5 (deploy-web.yml) and #12 (extensions.yml). One of
+  // the three fixture workflows carries a `concurrency:` block; the other limbs are
+  // held green, so each verdict below is limb 7's.
+  const withConcurrency = (text, value, on) =>
+    text.replace('on: push\n', `on: ${on}\n`).replace('jobs:\n', `concurrency:\n  group: g\n  cancel-in-progress: ${value}\njobs:\n`);
+  const buildCancel = (name, value, on = 'push') => {
+    const files = {};
+    for (const f of ['a', 'b', 'c']) {
+      const refs = Array.from({ length: 4 }, (_, i) => `actions/act${i}@${SHA}`);
+      files[`.github/workflows/${f}.yml`] = f === 'b' ? withConcurrency(wf(refs), value, on) : wf(refs);
+    }
+    return fixture(name, files);
+  };
+
+  test('limb 7 — PASSES on the expression that is false on main, and says what it judged', () => {
+    const { code, out } = run('assert-workflow-hardening.mjs', { args: [buildCancel('wh-cancel-mainfalse', "${{ github.ref != 'refs/heads/main' }}")] });
+    assert.equal(code, 0, out);
+    assert.match(out, /limb 7 — 1 `cancel-in-progress` declaration\(s\) judged/);
+  });
+
+  test('limb 7 — PASSES on `true` in a workflow only pull requests reach', () => {
+    const { code, out } = run('assert-workflow-hardening.mjs', { args: [buildCancel('wh-cancel-pronly', 'true', 'pull_request')] });
+    assert.equal(code, 0, out);
+  });
+
+  test('🔴 limb 7 — FAILS on `cancel-in-progress: true` in a workflow main can reach, naming file and line', () => {
+    const { code, out } = run('assert-workflow-hardening.mjs', { args: [buildCancel('wh-cancel-true', 'true')] });
+    assert.equal(code, 1, out);
+    assert.match(out, /b\.yml:\d+ `cancel-in-progress: true` can cancel an in-flight run on `main` \(`on:` push\)/);
+  });
+
+  test('🔴 limb 7 — FAILS on an expression that is still TRUE on main — the tags-only form extensions.yml carried', () => {
+    const { code, out } = run('assert-workflow-hardening.mjs', { args: [buildCancel('wh-cancel-tagsonly', "${{ !startsWith(github.ref, 'refs/tags/') }}")] });
+    assert.equal(code, 1, out);
+    assert.match(out, /b\.yml:\d+ `cancel-in-progress: \$\{\{ !startsWith\(github\.ref, 'refs\/tags\/'\) \}\}` can cancel an in-flight run on `main`/);
+  });
+
   test('PASSES when every action is SHA-pinned and every workflow declares permissions', () => {
     const { code, out } = run('assert-workflow-hardening.mjs', { args: [build('wh-ok')] });
     assert.equal(code, 0, out);
