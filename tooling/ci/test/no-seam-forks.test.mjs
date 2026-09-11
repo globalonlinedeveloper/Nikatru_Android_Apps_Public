@@ -76,7 +76,18 @@ const WATCHED = [
  *  (so the other is deliberately homeless), the parity pair at parity, plus
  *  whatever `extra` files a case needs. MIN_CONTRACTS is 5, so the register
  *  declares five. */
-function tree({ extra = {}, violations = null } = {}) {
+// The LANDED-behaviour limb's shapes, at parity on both sides. Real code
+// shapes, not prose: the guard blanks comments and strings first.
+const LANDED_HOME =
+  'class _PromoState {\n  Widget build() {\n' +
+  '    decide(hasContent: offerings.isNotEmpty && rail.canStartCheckout);\n' +
+  '    return PromoCard(priceLabel: l10n.promoCardPrice(MoneyFormatter(l10n.localeName).format(offering.price), term));\n' +
+  '  }\n}\n';
+const LANDED_CANCEL = 'Future<void> _cancelSchedules() async {\n  await svc.cancel(kDailyReminderId);\n}\n';
+const LANDED_PROVIDERS_CHASSIS = 'tooling/bricks/app/__brick__/apps/{{app_id}}/lib/state/providers.dart';
+const LANDED_PROVIDERS_FORK = 'apps/subscriptiontracker/lib/state/providers/notifications.dart';
+
+function tree({ extra = {}, violations = null, omit = [] } = {}) {
   const root = join(TMP, `r${seq++}`);
   const files = {};
 
@@ -99,8 +110,11 @@ function tree({ extra = {}, violations = null } = {}) {
     '    if (!caps.canSchedule) return const Unavailable();\n    return const Toggle();\n  }\n}\n';
   files[join(root, SETTINGS_CHASSIS)] = schedGate('SettingsScreen');
   files[join(root, SETTINGS_FORK)] = schedGate('SettingsScreen');
-  files[join(root, HOME_CHASSIS)] = schedGate('HomeScreen');
-  files[join(root, HOME_FORK)] = schedGate('HomeScreen');
+  files[join(root, HOME_CHASSIS)] = schedGate('HomeScreen') + LANDED_HOME;
+  files[join(root, HOME_FORK)] = schedGate('HomeScreen') + LANDED_HOME;
+  // The landed-behaviour limb's other pair: reminders-off cancels its own id.
+  files[join(root, LANDED_PROVIDERS_CHASSIS)] = LANDED_CANCEL;
+  files[join(root, LANDED_PROVIDERS_FORK)] = LANDED_CANCEL;
 
   // The watched pairs: present, and gating on NOTHING — which is exactly the
   // condition the watch limb asserts still holds.
@@ -144,6 +158,7 @@ function tree({ extra = {}, violations = null } = {}) {
 
   for (const [rel, body] of Object.entries(extra)) files[join(root, rel)] = body;
 
+  for (const rel of omit) delete files[join(root, rel)];
   for (const [p, body] of Object.entries(files)) {
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, body);
@@ -369,7 +384,9 @@ function classifiable(root, dir, suspect) {
  *  classifiable count. The sentinel the guard looks for is its own file, which
  *  sits outside all three subject roots — so it survives any mutation OF a
  *  subject, which is the whole reason it is not `apps/pubspec.yaml` or similar. */
-function checkout(root, { apps = 40, packages = 95, bricks = 14 } = {}) {
+// bricks default 15, not 14: the landed-behaviour rows add one brick file
+// (lib/state/providers.dart) to the base tree, and padding only ever adds.
+function checkout(root, { apps = 40, packages = 95, bricks = 15 } = {}) {
   const sentinel = join(root, 'tooling/ci/assert-no-seam-forks.mjs');
   mkdirSync(dirname(sentinel), { recursive: true });
   writeFileSync(sentinel, '// sentinel: this root is a checkout of the repository\n');
@@ -394,17 +411,18 @@ describe('coverage is per ROOT — a pooled floor is satisfied by one root alone
     assert.equal(code, 0, out);
     assert.match(out, /apps=40\/floor 37/);
     assert.match(out, /packages=95\/floor 90/);
-    assert.match(out, /tooling\/bricks=14\/floor 11/);
+    assert.match(out, /tooling\/bricks=15\/floor 11/);
   });
 
   test('🔴 apps/ alone below its floor fails, though the UNION is twenty times the old one', () => {
-    // apps = 12 (the chassis/fork pair files only), union = 12 + 300 + 14 = 326.
+    // apps = 13 (the chassis/fork pair files plus the landed-behaviour app
+    // file), union = 13 + 300 + 15 = 328.
     // The old `< 10` floor was satisfied three hundred times over. This is the
     // defect, and it is red only because the floor is now per root.
-    const { code, out } = run(checkout(tree(), { apps: 0, packages: 300, bricks: 14 }));
+    const { code, out } = run(checkout(tree(), { apps: 0, packages: 300, bricks: 15 }));
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST — 1 of the 3 declared root\(s\)/);
-    assert.match(out, /`apps` yielded only 12 file\(s\) to classify, below its floor of 37/);
+    assert.match(out, /`apps` yielded only 13 file\(s\) to classify, below its floor of 37/);
   });
 
   test('🔴 packages/ below its floor fails — with nothing homed, no fork can be a fork', () => {
@@ -446,7 +464,7 @@ describe('coverage is per ROOT — a pooled floor is satisfied by one root alone
     // and on the real tree the mirror of this is what keeps the floor off
     // honest work: Subly's 69 test files are 47% of apps/ and moving them
     // must not redden a guard that never classified them.
-    const root = checkout(tree(), { apps: 0, packages: 95, bricks: 14 });
+    const root = checkout(tree(), { apps: 0, packages: 95, bricks: 15 });
     for (let i = 0; i < 200; i++) {
       const p = join(root, `apps/padapp/test/t${i}.dart`);
       mkdirSync(dirname(p), { recursive: true });
@@ -454,7 +472,7 @@ describe('coverage is per ROOT — a pooled floor is satisfied by one root alone
     }
     const { code, out } = run(root);
     assert.equal(code, 1, out);
-    assert.match(out, /`apps` yielded only 12 file\(s\) to classify/);
+    assert.match(out, /`apps` yielded only 13 file\(s\) to classify/);
   });
 });
 
@@ -1027,3 +1045,54 @@ describe('a caps gate that moved into the chassis is still compared', () => {
     assert.match(out, /dead code wearing a delegation's costume/);
   });
 });
+
+// ── LANDED BEHAVIOUR PARITY (app-blockers wave, 2026-09-11) ─────────────────
+describe('the landed-behaviour limb', () => {
+  test('a clean tree reports every landed row at parity', () => {
+    const r = run(tree());
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /landed parity — reminders-off-cancels-only-its-own-id/);
+    assert.match(r.out, /3 landed behaviour\(s\) at parity/);
+  });
+
+  test('the STAMP reverted to cancelAll() fails, naming the row and the side', () => {
+    const r = run(tree({ extra: { [LANDED_PROVIDERS_CHASSIS]: 'Future<void> f() async {\n  await svc.cancelAll();\n}\n' } }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /reminders-off-cancels-only-its-own-id/);
+    assert.match(r.out, /the stamp .* does not have the landed shape/);
+  });
+
+  test('a HALF-port — the fix added beside the old call — still fails on the defect shape', () => {
+    const r = run(tree({ extra: { [LANDED_PROVIDERS_FORK]: 'Future<void> f() async {\n  await svc.cancel(kDailyReminderId);\n  await svc.cancelAll();\n}\n' } }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /the app .* still carries the defect shape/);
+  });
+
+  test('the APP without MoneyFormatter on the promo price fails', () => {
+    const r = run(tree({
+      extra: {
+        [HOME_FORK]:
+          'class HomeScreen {\n  Widget build(BuildContext context) {\n' +
+          '    final NotificationCapabilities caps = NotificationCapabilities.forPlatform(p);\n' +
+          '    if (!caps.canSchedule) return const Unavailable();\n' +
+          '    decide(hasContent: offerings.isNotEmpty && rail.canStartCheckout);\n' +
+          '    return PromoCard(priceLabel: l10n.promoCardPrice(offering.formattedPrice, term));\n  }\n}\n',
+      },
+    }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /promo-price-through-money-formatter/);
+  });
+
+  test('the landed shape inside a COMMENT does not satisfy the row', () => {
+    const r = run(tree({ extra: { [LANDED_PROVIDERS_FORK]: '// await svc.cancel(kDailyReminderId);\nFuture<void> f() async {}\n' } }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /reminders-off-cancels-only-its-own-id/);
+  });
+
+  test('a row whose file is missing is COVERAGE LOST, never a pass', () => {
+    const r = run(tree({ omit: [LANDED_PROVIDERS_FORK] }));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /COVERAGE LOST — the landed-behaviour limb/);
+  });
+});
+
