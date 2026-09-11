@@ -459,3 +459,100 @@ describe('coverage self-checks', () => {
     assert.match(out(r), /COVERAGE LOST/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — THE EGRESS LIMB (REVIEW-stores-2026-09-10 #11). The web build's CSP let the
+// browser reach browser.sentry-cdn.com and gstatic.com while neither company had a row, and
+// the route limb — the only half that caught a provider arriving in code — reads Workers.
+describe('the egress limb — every host a shipped CSP lets a browser reach is ours or a provider row', () => {
+  const csp = (sources) => `/*\n  Content-Security-Policy: default-src 'self'; script-src 'self' ${sources.join(' ')}; img-src 'self' data: blob:\n`;
+  const withHeaders = (sources, providers = {}) => {
+    const root = fixture({ providers: { firstPartyDomains: { domains: ['example.test'] }, ...providers } });
+    write(root, join('apps', 'demo', 'web', '_headers'), csp(sources));
+    return root;
+  };
+
+  test('PASSES when every third-party host carries a tell and the rest are ours, and COUNTS them', () => {
+    const r = run(withHeaders(['https://cdn.cloudmark.net', 'https://api.example.test', 'https://example.test']));
+    assert.equal(r.status, 0, out(r));
+    assert.match(out(r), /1 third-party browser egress host\(s\) matched to a row/);
+  });
+
+  test('🔴 FAILS a host no provider row has a tell for — the Sentry CDN before it was registered', () => {
+    const r = run(withHeaders(['https://browser.sentry-cdn.com']));
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /apps\/demo\/web\/_headers lets a browser reach browser\.sentry-cdn\.com \(script-src\) and no row/);
+  });
+
+  test('registering the provider with its tell makes the same policy pass', () => {
+    const r = run(
+      withHeaders(['https://browser.sentry-cdn.com'], {
+        roles: { ...DEFAULT_PROVIDERS.roles, content_delivery: 'serves a file the browser loads' },
+        providers: [
+          ...DEFAULT_PROVIDERS.providers,
+          { id: 'sentry-cdn', name: 'Sentry', role: 'content_delivery', status: 'live', reachableAt: null, tells: ['sentry'], namedIn: [] },
+        ],
+      }),
+    );
+    assert.equal(r.status, 0, out(r));
+  });
+
+  test('FAILS a host whose only matching row says the integration is not happening', () => {
+    const r = run(
+      withHeaders(['https://checkout.razorpay.test'], {
+        providers: [
+          ...DEFAULT_PROVIDERS.providers,
+          { id: 'razorpay', name: 'Razorpay', role: 'infrastructure', status: 'not-named-not-wired', reachableAt: null, tells: ['razorpay'], namedIn: [] },
+        ],
+      }),
+    );
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /every matching row says that integration is not happening: razorpay \(status not-named-not-wired\)/);
+  });
+
+  test('COVERAGE LOST when header files exist and no firstPartyDomains is declared', () => {
+    const root = fixture();
+    write(root, join('sites', 'nikatru', '_headers'), csp(['https://cdn.cloudmark.net']));
+    const r = run(root);
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /COVERAGE LOST — provider-register\.json declares no `firstPartyDomains\.domains`/);
+  });
+
+  test('COVERAGE LOST when a header file yields no CSP source at all', () => {
+    const root = fixture({ providers: { firstPartyDomains: { domains: ['example.test'] } } });
+    write(root, join('apps', 'demo', 'web', '_headers'), '/*\n  X-Frame-Options: DENY\n');
+    const r = run(root);
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /ZERO Content-Security-Policy sources were extracted/);
+  });
+});
+
+describe('an owner-gated gap about an OMISSION closes itself when the page names the provider', () => {
+  const GAP = {
+    id: 'cdn-unnamed',
+    page: 'privacy.html',
+    ownerItem: 'O-3',
+    stillTrue: 'we store only your email',
+    closedWhenNamed: ['cloudmark'],
+    what: 'the privacy page does not name Cloudmark',
+  };
+
+  test('PRINTS while the page is silent about the provider', () => {
+    const r = run(fixture({ providers: { disclosureGaps: [GAP] } }));
+    assert.equal(r.status, 0, out(r));
+    assert.match(out(r), /OWNER-GATED \(O-3\) · cdn-unnamed \[privacy\.html\]/);
+  });
+
+  test('FAILS, demanding retirement, once the page names it — even with the stillTrue sentence intact', () => {
+    const named = page('Privacy', ['NIKATRU', 'we store only your email', 'we never read your address']).replace('</main>', '<p>We use Cloudmark to host.</p></main>');
+    const r = run(fixture({ providers: { disclosureGaps: [GAP] }, pages: { 'privacy.html': named } }));
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /gap cdn-unnamed is CLOSED: privacy\.html now names Cloudmark/);
+  });
+
+  test('FAILS a closedWhenNamed entry with no provider row — the gap could never see itself closed', () => {
+    const r = run(fixture({ providers: { disclosureGaps: [{ ...GAP, closedWhenNamed: ['nobody'] }] } }));
+    assert.equal(r.status, 1, out(r));
+    assert.match(out(r), /closedWhenNamed names "nobody", which has no provider row/);
+  });
+});
