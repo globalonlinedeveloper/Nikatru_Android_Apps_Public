@@ -24,7 +24,12 @@ class BudgetCap {
     String currencyCode = Money.fallbackCurrencyCode,
   }) => BudgetCap(
     (j['name'] ?? '') as String,
-    Money.fromMajorUnits((j['cap'] as num?) ?? 0, currencyCode),
+    readMoney(
+      j,
+      minorKey: 'cap_minor',
+      majorKey: 'cap',
+      fallbackCurrencyCode: currencyCode,
+    ),
   );
 
   BudgetCap inCurrency(String currencyCode) =>
@@ -40,6 +45,35 @@ class BudgetCap {
   };
 }
 
+/// Reads a figure from a row, preferring the exact integer shape and the
+/// row's OWN currency, and falling back to the decimal shape and the
+/// caller's code only when the row carries neither.
+///
+/// 🔴 THE ROW'S CURRENCY WINS WHEN IT IS THERE. `toJson` writes `currency`
+/// and the `_minor` count beside the decimal, and until this helper existed
+/// `fromJson` read neither: a budget the user saved in INR came back from
+/// the device store as USD, with the digits intact and the meaning gone —
+/// the exact relabel the Money rail was introduced to remove. A row with no
+/// currency (an older server, an older store) still takes the caller's code,
+/// which is the migration and not a preference. Same rule, same shape, as
+/// `Subscription.readPrice`.
+Money readMoney(
+  Map<String, dynamic> j, {
+  required String minorKey,
+  required String majorKey,
+  required String fallbackCurrencyCode,
+}) {
+  final Object? rawCode = j['currency'];
+  final String code = rawCode is String && rawCode.length == 3
+      ? rawCode.toUpperCase()
+      : fallbackCurrencyCode;
+  final Object? minor = j[minorKey];
+  // `is int`, not `is num`: a decimal in the integer field is a confused
+  // writer, and reading 4.99 as 499 would misprice the figure by a hundred.
+  if (minor is int) return Money(minor, code);
+  return Money.fromMajorUnits((j[majorKey] as num?) ?? 0, code);
+}
+
 class BudgetInfo {
   const BudgetInfo({required this.monthlyBudget, required this.categories});
 
@@ -50,9 +84,11 @@ class BudgetInfo {
     Map<String, dynamic> j, {
     String currencyCode = Money.fallbackCurrencyCode,
   }) => BudgetInfo(
-    monthlyBudget: Money.fromMajorUnits(
-      (j['monthly_budget'] as num?) ?? 0,
-      currencyCode,
+    monthlyBudget: readMoney(
+      j,
+      minorKey: 'monthly_budget_minor',
+      majorKey: 'monthly_budget',
+      fallbackCurrencyCode: currencyCode,
     ),
     categories: ((j['categories'] as List<dynamic>?) ?? <dynamic>[])
         .map(
