@@ -37,7 +37,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, cpSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -212,6 +213,72 @@ describe('the declaration itself is graded', () => {
     );
     assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
     assert.match(`${r.stdout}${r.stderr}`, /non-empty string/);
+  });
+
+  /** A shadow repo holding a copy of the guard, every local module it imports
+   *  (transitively), and the given declaration, so the guard's REPO root is this tree. */
+  function shadowWith(name, declaration) {
+    const shadow = join(TMP, name);
+    const ci = join(shadow, 'tooling', 'ci');
+    mkdirSync(ci, { recursive: true });
+    mkdirSync(join(shadow, 'tooling', 'ops'), { recursive: true });
+    const pending = ['assert-glitchtip-project.mjs'];
+    const copied = new Set();
+    while (pending.length) {
+      const f = pending.pop();
+      if (copied.has(f)) continue;
+      copied.add(f);
+      const body = readFileSync(join(REPO, 'tooling', 'ci', f), 'utf8');
+      writeFileSync(join(ci, f), body);
+      for (const m of body.matchAll(/from '\.\/([\w.-]+\.mjs)'/g)) pending.push(m[1]);
+    }
+    writeFileSync(join(shadow, 'tooling', 'ops', 'glitchtip-project.json'), JSON.stringify(declaration, null, 2));
+    return join(ci, 'assert-glitchtip-project.mjs');
+  }
+
+  /** spawn, not spawnSync: the recording server below lives in THIS process and must
+   *  be able to answer while the guard runs. */
+  function runAsync(args, env) {
+    return new Promise((done) => {
+      const child = spawn(process.execPath, args, { env });
+      let out = '';
+      child.stdout.on('data', (d) => (out += d));
+      child.stderr.on('data', (d) => (out += d));
+      child.on('close', (code) => done({ code, out }));
+    });
+  }
+
+  test('an instance that is not the pinned host is refused OFFLINE — the PR that edits it is red in CI (CodeQL #293)', () => {
+    const guard = shadowWith('shadow-lookalike', { ...DECL, instance: 'https://glitchtip.nikatru.com.evil.test' });
+    const r = spawnSync(process.execPath, [guard, '--workflows', WORKFLOWS], { encoding: 'utf8' });
+    assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+    assert.match(`${r.stdout}${r.stderr}`, /only ever sent to https:\/\/glitchtip\.nikatru\.com\./);
+  });
+
+  test('🔴 --live never sends GLITCHTIP_TOKEN to a host the declaration names (CodeQL #293)', async () => {
+    const seen = [];
+    const server = createServer((req, res) => {
+      seen.push({ url: req.url, authorization: req.headers.authorization ?? null });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+    });
+    await new Promise((ready) => server.listen(0, '127.0.0.1', ready));
+    try {
+      const guard = shadowWith('shadow-foreign-host', { ...DECL, instance: `http://127.0.0.1:${server.address().port}` });
+      const env = { ...process.env, GLITCHTIP_TOKEN: 'a-token-that-must-not-leave' };
+      delete env.GLITCHTIP_URL;
+      const r = await runAsync([guard, '--workflows', WORKFLOWS, '--live'], env);
+      assert.deepEqual(seen, [], `the token was sent to the host the declaration named: ${JSON.stringify(seen)}`);
+      assert.equal(r.code, 1, r.out);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('the real declaration names the pinned host — the refusal above does not refuse the repository', () => {
+    assert.equal(new URL(DECL.instance).hostname, 'glitchtip.nikatru.com');
+    const r = run(WORKFLOWS);
+    assert.equal(r.code, 0, r.out);
   });
 });
 
