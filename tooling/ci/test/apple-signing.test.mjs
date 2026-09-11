@@ -65,8 +65,6 @@ import {
   newlineOffenders,
   unzip,
   profileMembers,
-  pickIdentities,
-  installerImportPlan,
 } from '../apple-signing.mjs';
 import { armingOf } from '../channel-arming.mjs';
 

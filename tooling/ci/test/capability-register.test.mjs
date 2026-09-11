@@ -134,7 +134,7 @@ describe('[C-1] register ↔ disk', () => {
       },
     });
     const { code, out } = run(root);
-    assert.equal(code, 1);
+    assert.equal(code, 1, out);
     // consumerRoots emptied above trips its own check first, so re-run the
     // narrower case: keep the root but drop the dep too.
     const root2 = tree({

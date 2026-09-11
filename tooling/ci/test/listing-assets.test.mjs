@@ -55,9 +55,9 @@
 //
 // Run:  node --test "tooling/ci/test/*.test.mjs"
 // ─────────────────────────────────────────────────────────────────────────────
-import { test, describe, before, after } from 'node:test';
+import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 // Real compressed pixels for the screenshot fixtures — the guard DECODES those now.
 // The same encoder the capture path and the Linux icons use, so a fixture cannot
 // disagree with production about what a PNG is.
