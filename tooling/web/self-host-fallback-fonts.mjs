@@ -33,7 +33,7 @@
 //
 // Usage:
 //   node tooling/web/self-host-fallback-fonts.mjs <build/web dir> [--lock <file>] [--source <dir>]
-//   node tooling/web/self-host-fallback-fonts.mjs --write-lock <build/web dir> [--lock <file>] [--source <dir>]
+//   node tooling/web/self-host-fallback-fonts.mjs --write-lock <build/web dir> [--source <dir>] > tooling/web/fallback-fonts.lock.json
 // `--source <dir>` reads the files from a local directory laid out like the
 // upstream `/s/` tree instead of fetching them (tests; an offline mirror).
 // Exit 0 = every fallback font is in the bundle and matches the lock.
@@ -41,6 +41,8 @@
 // the way this script expects, so it cannot say anything about it).
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
+// writeFileSync is used ONCE, for font bytes fetched from UPSTREAM — and only after their size and sha256
+// matched the committed lock. That write is this script's purpose (CodeQL js/http-to-file-access, by design).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +50,8 @@ import { fileURLToPath } from 'node:url';
 export const FALLBACK_DIR = 'fallback-fonts';
 export const FONT_FALLBACK_BASE_URL = `${FALLBACK_DIR}/`;
 export const UPSTREAM = 'https://fonts.gstatic.com/s/';
-export const CANVASKIT_CDN_DEFAULT = 'https://www.gstatic.com/flutter-canvaskit';
+/** The engine's CanvasKit CDN default, compared as a parsed URL (host + path prefix), never as a substring. */
+export const CANVASKIT_CDN = { hostname: 'www.gstatic.com', pathPrefix: '/flutter-canvaskit/' };
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_LOCK = join(HERE, 'fallback-fonts.lock.json');
 
@@ -74,6 +77,24 @@ export function inspectBootstrap(text) {
 }
 
 export const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+
+/** Every double- or single-quoted absolute https URL literal in `text`, parsed. Unparseable ones are skipped. */
+export function httpsLiterals(text) {
+  const out = [];
+  for (const m of text.matchAll(/["'](https:\/\/[^"'\s]+)["']/g)) {
+    try {
+      out.push(new URL(m[1]));
+    } catch {
+      /* not a URL after all */
+    }
+  }
+  return out;
+}
+
+/** True when the compiled bundle still carries the CanvasKit CDN default (the build flag was dropped). */
+export function carriesCanvasKitCdnDefault(mainJs) {
+  return httpsLiterals(mainJs).some((u) => u.hostname === CANVASKIT_CDN.hostname && u.pathname.startsWith(CANVASKIT_CDN.pathPrefix));
+}
 
 async function readUpstream(path, source) {
   if (source) {
@@ -133,8 +154,8 @@ export function gradeBuild(buildDir, lock) {
   if (!boot.useLocalCanvasKit) {
     problems.push('the build config in flutter_bootstrap.js does not set useLocalCanvasKit: true — the build was not given --no-web-resources-cdn, so CanvasKit loads from www.gstatic.com.');
   }
-  if (mainJs.includes(CANVASKIT_CDN_DEFAULT)) {
-    problems.push(`main.dart.js still carries the CanvasKit CDN default ${CANVASKIT_CDN_DEFAULT} — the build was not given --no-web-resources-cdn.`);
+  if (carriesCanvasKitCdnDefault(mainJs)) {
+    problems.push(`main.dart.js still carries the CanvasKit CDN default https://${CANVASKIT_CDN.hostname}${CANVASKIT_CDN.pathPrefix}… — the build was not given --no-web-resources-cdn.`);
   }
   if (!existsSync(join(buildDir, 'canvaskit', 'canvaskit.wasm'))) {
     problems.push('build/web/canvaskit/canvaskit.wasm is missing, so a local CanvasKit cannot load.');
@@ -217,8 +238,9 @@ async function main() {
       bytes,
       files: sorted,
     };
-    writeFileSync(args.lock, `${JSON.stringify(lock, null, 2)}\n`);
-    console.log(`ok  wrote ${args.lock}: ${lock.count} font(s), ${bytes} bytes`);
+    // Printed, not written: the maintainer redirects it into the lock and reviews the diff.
+    process.stdout.write(`${JSON.stringify(lock, null, 2)}\n`);
+    console.error(`ok  lock printed: ${lock.count} font(s), ${bytes} bytes`);
     return;
   }
 

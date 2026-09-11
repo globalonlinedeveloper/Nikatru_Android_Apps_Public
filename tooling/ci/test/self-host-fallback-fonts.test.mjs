@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SCRIPT = join(REPO, 'tooling', 'web', 'self-host-fallback-fonts.mjs');
-const { extractFallbackPaths, inspectBootstrap, FONT_PATH, FONT_FALLBACK_BASE_URL } = await import(
+const { extractFallbackPaths, inspectBootstrap, carriesCanvasKitCdnDefault, FONT_PATH, FONT_FALLBACK_BASE_URL } = await import(
   new URL(`file:///${SCRIPT.replace(/\\/g, '/')}`).href
 );
 
@@ -30,6 +30,23 @@ const GOOD_BOOT =
   '_flutter.loader.load({\n  config: {\n    fontFallbackBaseUrl: "fallback-fonts/",\n  },\n});\n';
 const GOOD_MAIN = `r($,"a","b",()=>A.ez().gabG()+"${ROBOTO}")\nB.x=s([A.N("Noto Sans Symbols 2","${SYMBOLS}")]);\nreturn(s==null?"canvaskit/":s)+a`;
 const sha = (b) => createHash('sha256').update(b).digest('hex');
+
+/** Third-party CDN hosts the web app must never let a browser reach. Compared as exact hostnames. */
+const FORBIDDEN_HOSTS = ['www.gstatic.com', 'fonts.gstatic.com'];
+/** The hostnames a CSP line allows, parsed from each source that carries a scheme. */
+function cspHosts(line) {
+  const value = line.slice(line.indexOf(':') + 1);
+  const hosts = [];
+  for (const token of value.split(/[\s;]+/)) {
+    if (!token.includes('://')) continue;
+    try {
+      hosts.push(new URL(token).hostname);
+    } catch {
+      /* a keyword, not a URL */
+    }
+  }
+  return hosts;
+}
 
 function fixture({ main = GOOD_MAIN, boot = GOOD_BOOT, canvaskit = true, lockFiles, sourceBytes } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'w5-fonts-'));
@@ -167,6 +184,13 @@ describe('self-host-fallback-fonts — the script', () => {
     }
   });
 
+  test('the CanvasKit CDN default is recognised as a parsed URL, not a substring', () => {
+    assert.equal(carriesCanvasKitCdnDefault('x="https://www.gstatic.com/flutter-canvaskit/a804b261/"'), true);
+    assert.equal(carriesCanvasKitCdnDefault('x="canvaskit/"'), false);
+    assert.equal(carriesCanvasKitCdnDefault('x="https://evil.example/www.gstatic.com/flutter-canvaskit/"'), false);
+    assert.equal(carriesCanvasKitCdnDefault('x="https://www.gstatic.com.evil.example/flutter-canvaskit/"'), false);
+  });
+
   test('path shape: a lock or bundle path can never climb out of fallback-fonts/', () => {
     assert.ok(FONT_PATH.test(ROBOTO));
     for (const bad of ['../x/v1/a.woff2', 'roboto/v32/../../etc.woff2', 'roboto/v32/.hidden.woff2', 'Roboto/v32/a.woff2', 'roboto/v32/a.js']) {
@@ -195,13 +219,15 @@ describe('the tree — the Google CDN is off the web app\'s runtime path', () =>
     }
   });
 
-  test('no shipped app Content-Security-Policy lets a browser reach gstatic.com', () => {
+  test('no shipped app Content-Security-Policy lets a browser reach a forbidden third-party CDN host', () => {
     for (const app of appsWithWeb) {
       const csp = readFileSync(join(REPO, 'apps', app, 'web', '_headers'), 'utf8')
         .split(/\r?\n/)
         .filter((l) => /^\s*Content-Security-Policy\s*:/i.test(l));
       assert.ok(csp.length >= 1, `apps/${app}/web/_headers declares no CSP`);
-      for (const line of csp) assert.doesNotMatch(line, /gstatic\.com/, `apps/${app}/web/_headers`);
+      const hosts = csp.flatMap(cspHosts);
+      assert.ok(hosts.length >= 1, `apps/${app}/web/_headers: no host parsed from the CSP — the parser is reading nothing`);
+      for (const h of FORBIDDEN_HOSTS) assert.equal(hosts.includes(h), false, `apps/${app}/web/_headers allows ${h}`);
     }
   });
 
