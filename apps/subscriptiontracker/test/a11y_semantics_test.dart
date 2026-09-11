@@ -1182,8 +1182,9 @@ String expectedRingLabel(ProviderContainer c, AppLocalizations l10n) {
   // Mirrors the screen exactly: the PRINTED figure is every subtotal, the
   // MEASURED one is only the part in the budget's own currency.
   final MoneyBag spent = SubMath.totalMonthly(subs);
-  final Money spentHere = spent.inCurrency(currencyCode);
-  final Money budgetVal = budget!.inCurrency(currencyCode).monthlyBudget;
+  final BudgetInfo shown = budget!.inCurrency(currencyCode);
+  final Money spentHere = shown.usageOf(spent).spentHere;
+  final Money budgetVal = shown.monthlyBudget;
   final bool over = spentHere > budgetVal;
   final String percent = NumberFormat.percentPattern(l10n.localeName).format(
     budgetVal.minorUnits <= 0

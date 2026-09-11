@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart'
         visibleForTesting;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:nikatru_notifications/nikatru_notifications.dart'
+    show LocalTimezoneResolution, LocalTimezoneResolver, resolveLocalTimezone;
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -85,12 +87,37 @@ class NotificationService {
 
   static const String _channelId = 'renewals';
 
-  Future<void> init() async {
+  /// Why `tz.local` is a fixed device offset rather than the device's IANA
+  /// zone — null when the real zone was resolved. See [init].
+  String? get timezoneFallbackReason => _timezoneFallbackReason;
+  String? _timezoneFallbackReason;
+
+  /// [localTimezone] is for tests ONLY; production takes the chassis default,
+  /// which reads the device's IANA zone through `flutter_timezone`.
+  Future<void> init({LocalTimezoneResolver? localTimezone}) async {
     if (kIsWeb) return; // plugin has no web implementation
     tzdata.initializeTimeZones();
-    // For exact local-time scheduling, add `flutter_timezone` and call
-    // tz.setLocalLocation(tz.getLocation(await FlutterTimezone.getLocalTimezone()));
-    // Defaults to UTC otherwise.
+    // 🔴 THIS LINE USED TO BE A COMMENT SAYING "add flutter_timezone", AND
+    // `tz.local` STAYED UTC. Every `tz.TZDateTime(tz.local, …, 9)` below was
+    // therefore 09:00 UTC — 14:30 in Chennai — and the suite was green because
+    // each app test pinned `tz.setLocalLocation(tz.UTC)`, the one zone where
+    // the bug and the fix agree. The resolution is the chassis's
+    // (`packages/notifications` device_timezone.dart) so this service and the
+    // shared adapter — which drive the SAME plugin singleton and the SAME
+    // process-global `tz.local` — can never disagree about the zone.
+    //
+    // Re-resolved on EVERY init(), which runs at every cold start: a device
+    // that changes zone mid-session keeps its already-scheduled reminders at
+    // the absolute instants they were computed at (the OS holds epoch
+    // instants, not wall clocks), and the next launch re-syncs the set in the
+    // new zone. DST needs no repair at all with an IANA location — the rules
+    // travel with the zone, which is what the fixed-offset fallback lacks and
+    // why that fallback announces itself.
+    final LocalTimezoneResolution zone = await resolveLocalTimezone(
+      resolver: localTimezone,
+    );
+    tz.setLocalLocation(zone.location);
+    _timezoneFallbackReason = zone.fallbackReason;
 
     const InitializationSettings settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -357,7 +384,8 @@ class NotificationService {
   /// spend a scarce slot (see [renewalReminderBudget]) on a reminder the
   /// scheduler then silently declines to post, so the user would lose a
   /// reminder they COULD have had to one they never could.
-  tz.TZDateTime? _whenFor(Subscription sub, int daysBefore) {
+  @visibleForTesting
+  tz.TZDateTime? whenFor(Subscription sub, int daysBefore) {
     final DateTime target = sub.nextRenewal.subtract(
       Duration(days: daysBefore),
     );
@@ -409,7 +437,7 @@ class NotificationService {
     AndroidScheduleMode? mode,
   }) async {
     if (!_ready) return;
-    final tz.TZDateTime? when = _whenFor(sub, daysBefore);
+    final tz.TZDateTime? when = whenFor(sub, daysBefore);
     if (when == null) return;
 
     await _schedule(
@@ -543,7 +571,7 @@ class NotificationService {
       return List<Subscription>.unmodifiable(subs);
     }
     final List<Subscription> schedulable =
-        subs.where((Subscription s) => _whenFor(s, daysBefore) != null).toList()
+        subs.where((Subscription s) => whenFor(s, daysBefore) != null).toList()
           ..sort(
             (Subscription a, Subscription b) =>
                 a.nextRenewal.compareTo(b.nextRenewal),

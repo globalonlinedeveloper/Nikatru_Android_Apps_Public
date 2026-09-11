@@ -74,6 +74,7 @@
   "flag-exposure.test.mjs": 30,
   "generate-apps-data.test.mjs": 7,
   "github-matrix.test.mjs": 34,
+  "github-rate-limit.test.mjs": 26,
   "glitchtip-project.test.mjs": 17,
   "green-means-ran.test.mjs": 25,
   "guard-coverage.test.mjs": 58,

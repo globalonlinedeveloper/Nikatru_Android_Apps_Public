@@ -238,6 +238,12 @@
         "basis": "Manifest read."
       },
       {
+        "binary": "flutter_timezone 5.1.0",
+        "manifest": "ships-own",
+        "accessedApis": [],
+        "basis": "Read from the plugin's OWN PrivacyInfo.xcprivacy in the pub cache (flutter_timezone-5.1.0/ios/flutter_timezone/Sources/flutter_timezone/PrivacyInfo.xcprivacy, bundled by the podspec's resource_bundles 'flutter_timezone_privacy' and by Package.swift's .process resource): all four keys present and EMPTY — NSPrivacyTracking false, NSPrivacyTrackingDomains [], NSPrivacyAccessedAPITypes [], NSPrivacyCollectedDataTypes []. Its whole native surface was read rather than assumed: FlutterTimezonePlugin.m:38-44 and :62-66 (NSTimeZone localTimeZone/name/knownTimeZoneNames/localizedName, NSLocale preferredLanguages/currentLocale). Not one is a Required Reason API. LINKED 2026-09-10 through nikatru_notifications (packages/notifications/lib/src/device_timezone.dart): it reads the device's IANA zone name so `tz.local` is the user's zone rather than UTC — the defect that fired every 09:00 renewal reminder at 14:30 IST. It transmits nothing and stores nothing."
+      },
+      {
         "binary": "flutter_secure_storage 9.2.4",
         "manifest": "ships-own",
         "accessedApis": [],
@@ -326,6 +332,12 @@
           "NSPrivacyAccessedAPICategoryUserDefaults: CA92.1"
         ],
         "basis": "Manifest read (macos/Resources copy)."
+      },
+      {
+        "binary": "flutter_timezone 5.1.0",
+        "manifest": "ships-own",
+        "accessedApis": [],
+        "basis": "Read from the plugin's OWN PrivacyInfo.xcprivacy in the pub cache (flutter_timezone-5.1.0/macos/flutter_timezone/Sources/flutter_timezone/PrivacyInfo.xcprivacy, bundled by the podspec's resource_bundles 'flutter_timezone_privacy' and by Package.swift's .process resource): all four keys present and EMPTY — NSPrivacyTracking false, NSPrivacyTrackingDomains [], NSPrivacyAccessedAPITypes [], NSPrivacyCollectedDataTypes []. Its whole native surface was read rather than assumed: FlutterTimezonePlugin.swift:52-57 and :75-77 (NSTimeZone.local.identifier/localizedName/knownTimeZoneNames, Locale.preferredLanguages/current). Not one is a Required Reason API. LINKED 2026-09-10 through nikatru_notifications (packages/notifications/lib/src/device_timezone.dart): it reads the device's IANA zone name so `tz.local` is the user's zone rather than UTC — the defect that fired every 09:00 renewal reminder at 14:30 IST. It transmits nothing and stores nothing."
       },
       {
         "binary": "flutter_secure_storage_macos 3.1.3",
