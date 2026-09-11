@@ -131,7 +131,7 @@
     // (tooling/ci/assert-erasure-reach.mjs) rather than silently orphaning that
     // app's rows on every deletion. `https://` is required: the relay forwards a
     // live session token.
-    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://subscriptiontracker.api.nikatru.com"
+    "APP_ERASURE_ENDPOINTS": "subscriptiontracker=https://subscriptiontracker-api.nikatru.com"
   },
   "d1_databases": [
     {

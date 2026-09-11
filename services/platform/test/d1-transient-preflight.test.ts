@@ -51,7 +51,7 @@ const ENV = {
   APP_ID: 'platform',
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-key',
-  APP_ERASURE_ENDPOINTS: 'subscriptiontracker=https://subscriptiontracker.api.nikatru.com',
+  APP_ERASURE_ENDPOINTS: 'subscriptiontracker=https://subscriptiontracker-api.nikatru.com',
 };
 
 /**

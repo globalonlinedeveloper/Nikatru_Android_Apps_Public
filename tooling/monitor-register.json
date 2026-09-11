@@ -432,9 +432,20 @@
       }
     },
     {
+      "hostname": "subscriptiontracker-api.nikatru.com",
+      "what": "the subscriptiontracker-api Worker — its [ADR 080] one-label host, and the catalogue `api` every client is built against",
+      "derivedFrom": "appCatalogue",
+      "monitor": null,
+      "gap": {
+        "why": "Attached 2026-09-11 beside the dotted [ADR 079] host, which GlitchTip monitor 2 still watches. verify-monitors.mjs fails when a row names one host and its live monitor watches another, so monitor 2 cannot move to this row until the live monitor is repointed in the same change.",
+        "action": "In the change that removes subscriptiontracker.api.nikatru.com from services/subscriptiontracker-api/wrangler.jsonc: PUT https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/2/ with url https://subscriptiontracker-api.nikatru.com/v1/health, move monitor 2 onto this row, delete the dotted row, and read the monitor back.",
+        "openedOn": "2026-09-11"
+      }
+    },
+    {
       "hostname": "subscriptiontracker.api.nikatru.com",
       "what": "the subscriptiontracker-api Worker",
-      "derivedFrom": "appCatalogue",
+      "derivedFrom": "workerCustomDomains",
       "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-08-02" },
       "🔴 openBodyGap": {
         "why": "MONITOR 2 STAYS GREEN THROUGH EVERY FAULT PR #384 MADE DETECTABLE — it asserts `expectedStatus` 200 and NO body, while `/v1/health` deliberately answers 200 even when `ok` is false — so the matcher this row will carry, \"ok\":true, is knowingly NOT declared in `monitor` above until the live GlitchTip PUT lands, because tooling/ops/verify-monitors.mjs compares DECLARED bodies only and a register-only assertion makes it exit 1 inside the SCHEDULED `glitchtip` job at .github/workflows/ops-watch.yml:235, which opens the portfolio's never-auto-closed durable alert issue.",

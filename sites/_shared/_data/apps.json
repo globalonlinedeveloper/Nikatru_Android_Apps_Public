@@ -5,7 +5,7 @@
     "tagline": "Track every subscription in one place",
     "url": "https://nikatru.com/subscriptiontracker",
     "origin": "https://subscriptiontracker-7qg.pages.dev",
-    "api": "https://subscriptiontracker.api.nikatru.com",
+    "api": "https://subscriptiontracker-api.nikatru.com",
     "platforms": ["web"],
     "status": "live",
     "listings": {

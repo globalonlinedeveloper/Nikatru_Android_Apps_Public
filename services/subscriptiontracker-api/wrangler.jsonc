@@ -112,6 +112,15 @@
     // free advanced pack a Worker custom domain creates, and the custom domain
     // writes its own DNS record: the `*.nikatru.com` wildcard does not resolve a
     // two-label name and does not need to.
+    // [ADR 080] every NIKATRU hostname is ONE label deep: an app's API is
+    // `<app>-api.nikatru.com`, covered by the zone's Universal certificate
+    // (`nikatru.com, *.nikatru.com`), so it needs no advanced pack and no paid add-on.
+    // Attached to the running Worker by API at 15:16Z 2026-09-11 and read back
+    // (custom domain c9f93bd1…, /v1/health 200, SAN `nikatru.com, *.nikatru.com`)
+    // BEFORE this line merged, so this deploy declares what is already there.
+    { "pattern": "subscriptiontracker-api.nikatru.com", "custom_domain": true },
+    // The dotted [ADR 079] host, held for the cutover only. It leaves in the
+    // follow-up change, after the web build and e2e are green on the host above.
     { "pattern": "subscriptiontracker.api.nikatru.com", "custom_domain": true }
     // `api.nikatru.com`, the pre-079 host, was held here for the cutover only and
     // removed after e2e run 34606369081 went green on the host above. wrangler publishes
