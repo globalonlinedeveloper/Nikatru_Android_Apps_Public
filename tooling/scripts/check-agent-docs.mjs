@@ -355,8 +355,19 @@ if (!INDEX_MODE) {
 const KEY_SEP = String.fromCharCode(0);
 const key = (f) => f.limb + KEY_SEP + f.path;
 let baseline = { entries: [] };
-if (existsSync(BASELINE_PATH)) {
-  try { baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')); }
+// READ ONCE (CodeQL #271): --write-baseline below rewrites this file, and whether to parse it is
+// no longer a separate existence check. ENOENT is the only "absent"; any other failure to read
+// is the COVERAGE LOST it already was inside the old try.
+let baselineRaw = null;
+try { baselineRaw = readFileSync(BASELINE_PATH, 'utf8'); }
+catch (err) {
+  if (err.code !== 'ENOENT') {
+    console.error('x COVERAGE LOST - .agentdocs.baseline.json does not parse: ' + err.message);
+    process.exit(2);
+  }
+}
+if (baselineRaw !== null) {
+  try { baseline = JSON.parse(baselineRaw); }
   catch (err) {
     console.error('x COVERAGE LOST - .agentdocs.baseline.json does not parse: ' + err.message);
     process.exit(2);

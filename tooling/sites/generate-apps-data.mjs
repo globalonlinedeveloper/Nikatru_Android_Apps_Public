@@ -238,7 +238,14 @@ if (isMain) {
   }
 
   const target = join(root, ...SITE_DATA.split('/'));
-  const current = existsSync(target) ? readFileSync(target, 'utf8') : null;
+  // READ ONCE (CodeQL #87): the rewrite below is decided on these bytes, not on a separate
+  // existence check of the path. ENOENT/ENOTDIR are the only "absent"; any other failure throws.
+  let current = null;
+  try {
+    current = readFileSync(target, 'utf8');
+  } catch (e) {
+    if (e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR') throw e;
+  }
 
   if (extraFields.length) {
     console.log(

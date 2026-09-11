@@ -40,6 +40,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spiedRun, racyOn } from './fixtures/fs-spy-run.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = resolve(CI_DIR, '..', 'scripts', 'provision-backend.mjs');
@@ -98,6 +99,21 @@ const run = (root, ...args) => {
 };
 
 describe('[S-12r] --self-check exercises the config surgery, offline', () => {
+  // CodeQL #86 paired the existence check at the top with the rewrite at the end, which only
+  // a live Cloudflare account reaches. The fixed shape — the config is READ, never checked for
+  // existence first — is shared by the offline path, so it is pinned there, strictly: not even
+  // the existsSync-then-read that CodeQL tolerates.
+  test('the stamped config is read with no existence check of its path first (CodeQL #86)', () => {
+    const root = tree('probeapi');
+    const env = { ...process.env };
+    delete env.CLOUDFLARE_API_TOKEN;
+    delete env.CLOUDFLARE_ACCOUNT_ID;
+    const { code, text, verdict } = spiedRun([SCRIPT, 'probeapi', '--self-check'], { cwd: root, under: root, env });
+    assert.equal(code, 0, text);
+    assert.ok(verdict.uses.some((u) => u.endsWith('/wrangler.jsonc')), 'the config was never read');
+    assert.deepEqual(racyOn(verdict, '/wrangler.jsonc', { key: 'pairs' }), []);
+  });
+
   test('the stamped shape passes, with no credentials in the environment', () => {
     const { code, out } = run(tree('probeapi'), 'probeapi', '--self-check');
     assert.equal(code, 0, out);

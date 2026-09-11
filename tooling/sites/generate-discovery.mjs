@@ -1866,7 +1866,15 @@ if (isMain) {
   for (const [rel, contents] of files) {
     const abs = join(root, ...rel.split('/'));
     mkdirSync(dirname(abs), { recursive: true });
-    if (!existsSync(abs) || readFileSync(abs, 'utf8') !== contents) {
+    // READ ONCE (CodeQL #90): the write is decided on the bytes read, not on a separate
+    // existence check. The directory was just created, so ENOENT is the only "absent".
+    let prior = null;
+    try {
+      prior = readFileSync(abs, 'utf8');
+    } catch (e) {
+      if (e?.code !== 'ENOENT') throw e;
+    }
+    if (prior !== contents) {
       writeFileSync(abs, contents);
       written++;
       console.log(`    wrote ${rel}`);
