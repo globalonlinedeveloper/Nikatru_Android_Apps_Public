@@ -450,16 +450,22 @@ jobs:
     name: Security — secret and workflow scanners
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      # Read by tooling/ci/install-pinned-tool.mjs. Unset means "no cache", which
-      # is what every local run of that module gets.
-      PINNED_TOOL_CACHE: ${{ runner.temp }}/pinned-tool-cache
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
       - uses: ./.github/actions/setup-node
+      # 🔴 SET HERE, NOT IN A JOB-LEVEL `env:`. The `runner` context does not
+      # exist while job-level `env:` is evaluated — only github, needs, strategy,
+      # matrix, vars, inputs and secrets do — so `PINNED_TOOL_CACHE: ${{
+      # runner.temp }}/…` made GitHub reject this whole file. An invalid workflow
+      # file does not fail a job: it produces a run with NO jobs at all, so
+      # `ci-gate` never reported and the PR sat BLOCKED with nothing to re-run.
+      # `RUNNER_TEMP` is a plain environment variable inside a step, which is
+      # why the same value is written to $GITHUB_ENV instead.
+      - name: Point the pinned-tool installer at the cache directory
+        run: echo "PINNED_TOOL_CACHE=${RUNNER_TEMP}/pinned-tool-cache" >> "$GITHUB_ENV"
       # 🔴 A CHECKSUM-VERIFIED CACHE, NOT A TRUSTED ONE. An Actions cache entry is
       # writable from any branch, so a restored entry is untrusted input:
       # install-pinned-tool.mjs compares its sha256 against the digest in
