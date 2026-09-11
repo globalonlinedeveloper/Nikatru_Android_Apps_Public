@@ -1617,7 +1617,19 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
             // DO-NOT-BUILD list opens with the empty portfolio directory:
             // "wired, guarded, green and useless". A card with no price to
             // quote is that shape one size down.
-            hasContent: offerings.isNotEmpty,
+            //
+            // 🔴 AND NOTHING TO PROMOTE WHERE THIS BUILD CANNOT SELL. This was
+            // `offerings.isNotEmpty` alone, so on Android, iOS, macOS and
+            // apps.gov.in — where the channel forbids this rail and the build
+            // ships no store billing — the card still rendered, PRICE AND ALL,
+            // with only its buy button removed. A price for digital content the
+            // build cannot sell in-app is the thing App Store 3.1.1/3.1.3(b)
+            // and Google's payments policy forbid: it can only be paid
+            // somewhere else. Parity is the capability on a target or an
+            // honest absence — never a price with the button taken off.
+            // Cancelling stays reachable: Settings' Manage-plan row is not
+            // gated on the rail (ROSCA).
+            hasContent: offerings.isNotEmpty && rail.canStartCheckout,
           );
       if (!decision.show) return const SizedBox.shrink();
       _showing = true;
@@ -1633,7 +1645,9 @@ class _UpgradePromoCardState extends ConsumerState<UpgradePromoCard> {
     // Belt and braces after the latch: a config that loses its offerings mid
     // session leaves nothing to quote, and `offerings.first` on an empty list
     // is a crash on the home screen.
-    if (offerings.isEmpty) return const SizedBox.shrink();
+    if (offerings.isEmpty || !rail.canStartCheckout) {
+      return const SizedBox.shrink();
+    }
     // The rail's OWN order, the same order the paywall lists them in. Picking
     // "the cheapest" would need a currency comparison this repo cannot make —
     // amounts are minor units of whatever currency the rail sent.
