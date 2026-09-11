@@ -477,7 +477,8 @@ describe('the proof COMMIT is graded, not only its age', () => {
       const env = { ...process.env, GITHUB_TOKEN: 'fixture-token', GITHUB_REPOSITORY: 'o/r' };
       delete env.GH_TOKEN;
       const r = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, GUARD], { cwd: REPO, encoding: 'utf8', env });
-      assert.match(readFileSync(seen, 'utf8'), /api\.github\.com\/repos\/o\/r\/actions\/workflows\/build-platforms\.yml\/runs/, 'the guard never asked the refused endpoint');
+      const asked = readFileSync(seen, 'utf8').split('\n');
+      assert.ok(asked.some((u) => u.startsWith('https://api.github.com/repos/o/r/actions/workflows/build-platforms.yml/runs?')), `the guard never asked the refused endpoint: ${asked.join(' | ')}`);
       assert.equal(r.status, 2, r.stdout + r.stderr);
       assert.match(r.stderr, /COULD NOT LOOK {2}the build-platforms\.yml run history could not be read — GitHub API returned 403/);
     });
