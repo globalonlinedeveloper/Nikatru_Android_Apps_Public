@@ -1691,6 +1691,19 @@
   },
   {
     "claims": [
+      "ADR 074",
+      "ADR 079"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-store"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-retired-names.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "P-4"
     ],
     "invokedBy": [

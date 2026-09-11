@@ -94,5 +94,8 @@
 # client -- and each hop is another chance for something in the chain not to
 # follow. Targeting the slashed form directly makes it one, measured: bare
 # `/subly` -> 308 -> `/subscriptiontracker/` -> 200.
-/subly     /subscriptiontracker/       308
-/subly/*   /subscriptiontracker/:splat 308
+# 🔴 REMOVED 2026-09-11 [ADR 079]. Owner, in chat: "Rename all, remove redirects
+# too". The two `/subly` rules that stood here are gone and nothing replaces
+# them: nikatru.com/subly no longer reaches the app, and the owner accepted that
+# old links and bookmarks break. tooling/ci/assert-retired-names.mjs refuses a
+# rule for a retired name coming back.

@@ -50,12 +50,12 @@
       "required": ["web"],
       "properties": {
         "web": {
-          "description": "The app's OWN ORIGIN host, e.g. subly.nikatru.com. This is NOT the address the app is published at. Since [ADR 075] the published address is a PATH on the apex (https://nikatru.com/<id>), because a subdomain costs a payment-provider submission per app and a path costs nothing on either provider; this host survives as the origin the apex router proxies to, and as the source of the permanent 301. It is still covered by [ADR 006]'s proxied wildcard, so it still needs no DNS record.",
+          "description": "The app's OWN ORIGIN host, e.g. subscriptiontracker-7qg.pages.dev. This is NOT the address the app is published at. Since [ADR 075] the published address is a PATH on the apex (https://nikatru.com/<id>), because a subdomain costs a payment-provider submission per app and a path costs nothing on either provider; this host survives as the origin the apex router proxies to, and as the source of the permanent 301. It is still covered by [ADR 006]'s proxied wildcard, so it still needs no DNS record.",
           "type": "string",
           "format": "hostname"
         },
         "pagesOrigin": {
-          "description": "The Cloudflare Pages PRODUCTION ALIAS of the app's own Direct Upload project, e.g. subly-9cp.pages.dev -- the host the apex router actually fetches. OPTIONAL; absent means `web`. It is declared rather than derived because it is NOT DERIVABLE: Cloudflare appended a suffix when the project name was taken, so guessing <id>.pages.dev is wrong for exactly the app this repository has. It is PREFERRED over `web` because *.pages.dev is OUTSIDE the nikatru.com zone, so the zone Redirect Rule that 301s the retired subdomain cannot match the router's own proxy subrequest -- a loop there takes the whole apex dark, marketing and the frozen legal archive with it. assert-app-address-shape.mjs checks the declaration against the deployed project.",
+          "description": "The Cloudflare Pages PRODUCTION ALIAS of the app's own Direct Upload project, e.g. subscriptiontracker-7qg.pages.dev -- the host the apex router actually fetches. OPTIONAL; absent means `web`. It is declared rather than derived because it is NOT DERIVABLE: Cloudflare appended a suffix when the project name was taken, so guessing <id>.pages.dev is wrong for exactly the app this repository has. It is PREFERRED over `web` because *.pages.dev is OUTSIDE the nikatru.com zone, so the zone Redirect Rule that 301s the retired subdomain cannot match the router's own proxy subrequest -- a loop there takes the whole apex dark, marketing and the frozen legal archive with it. assert-app-address-shape.mjs checks the declaration against the deployed project.",
           "type": ["string", "null"],
           "format": "hostname"
         },

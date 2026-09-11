@@ -112,11 +112,11 @@
     // free advanced pack a Worker custom domain creates, and the custom domain
     // writes its own DNS record: the `*.nikatru.com` wildcard does not resolve a
     // two-label name and does not need to.
-    { "pattern": "subscriptiontracker.api.nikatru.com", "custom_domain": true },
-    // ⏱ TRANSITION ONLY: the pre-079 host, held so no client loses its API while
-    // the web build, the catalogue and the e2e lane move to the host above. It
-    // leaves in the change that follows a green end-to-end run on that host.
-    { "pattern": "api.nikatru.com", "custom_domain": true }
+    { "pattern": "subscriptiontracker.api.nikatru.com", "custom_domain": true }
+    // `api.nikatru.com`, the pre-079 host, was held here for the cutover only and
+    // removed after e2e run 34606369081 went green on the host above. wrangler publishes
+    // custom domains with `override_scope: true`, so the deploy of this line detaches
+    // it from this Worker.
   ]
 
   // 🔴 NO "r2_buckets". The per-app `EXPORTS` → `subscriptiontracker-exports` binding was
