@@ -878,6 +878,13 @@ describe('assert-web-cache-policy · Pages Function security headers', () => {
     assert.match(out, /Pages Functions — 1 file\(s\) building a Response/);
   });
 
+  test('passes when a header name is followed by whitespace before its colon (CodeQL #13)', () => {
+    // The check was built from a template literal whose `\s` had become a plain
+    // `s`, so `"x-frame-options" : "DENY"` read as MISSING.
+    const { code, out } = run(withFn(fn(FN_HEADERS.replace(/": /g, '" : '))));
+    assert.equal(code, 0, out);
+  });
+
   test('FAILS when a header is missing, and NAMES the missing one', () => {
     const { code, out } = run(withFn(fn(FN_HEADERS.replace(/ *"x-content-type-options".*\n/, ''))));
     assert.equal(code, 1);
