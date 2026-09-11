@@ -4221,7 +4221,7 @@ final Provider<RestClient> restClientProvider = Provider<RestClient>(
 );
 
 Future<void> signOutOnlyIfSessionIsGone(core.AuthRepository auth) async {
-  if (await auth.currentAccessToken() == null) {
+  if (await auth.sessionIsGone()) {
     await auth.signOut();
   }
 }
@@ -6233,11 +6233,24 @@ onTap: () => _openUrl(AppConfig.refundUrl),
     test('FAILS when the named check stops consulting the seam', () => {
       const { code, out } = run('assert-stamp-properties.mjs', {
         cwd: build('sp-401nocheck', {
-          providers: goodProviders.replace('await auth.currentAccessToken() == null', 'true'),
+          providers: goodProviders.replace('await auth.sessionIsGone()', 'true'),
         }),
       });
       assert.equal(code, 1);
-      assert.match(out, /must ASK the seam for a token first/);
+      assert.match(out, /must ASK the seam whether the session is GONE/);
+    });
+
+    // ⏱ 2026-09-11 · THE OFFLINE SIGN-OUT, REPLAYED. `currentAccessToken() == null`
+    // is the check this anchor used to require, and it is the defect: a token that
+    // expired offline reads null too. A brick that goes back to it must be red.
+    test('FAILS when the named check goes back to a null token — the offline sign-out defect', () => {
+      const { code, out } = run('assert-stamp-properties.mjs', {
+        cwd: build('sp-401nulltoken', {
+          providers: goodProviders.replace('await auth.sessionIsGone()', 'await auth.currentAccessToken() == null'),
+        }),
+      });
+      assert.equal(code, 1);
+      assert.match(out, /must ASK the seam whether the session is GONE/);
     });
   });
 

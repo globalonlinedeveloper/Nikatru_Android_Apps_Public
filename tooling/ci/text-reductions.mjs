@@ -147,7 +147,6 @@ function scanQuoted(source, start, isSql) {
     const e = source.indexOf(q + q + q, start + 3);
     return e === -1 ? -1 : e + 3;
   }
-  if (q === '`') return scanTemplate(source, start);
   let i = start + 1;
   while (i < n) {
     const c = source[i];
@@ -165,51 +164,6 @@ function scanQuoted(source, start, isSql) {
     if (c === '\\') { i += 2; continue; }
     if (c === q) return i + 1;
     if (c === '\n') return -1;
-    i++;
-  }
-  return -1;
-}
-
-/** End of a template literal, `${…}` substitutions walked as code so a nested
- *  string or template inside one does not end the outer literal early. */
-function scanTemplate(source, start) {
-  const n = source.length;
-  let i = start + 1;
-  while (i < n) {
-    const c = source[i];
-    if (c === '\\') { i += 2; continue; }
-    if (c === '`') return i + 1;
-    if (c === '$' && source[i + 1] === '{') {
-      const e = scanBraced(source, i + 1);
-      if (e === -1) return -1;
-      i = e;
-      continue;
-    }
-    i++;
-  }
-  return -1;
-}
-
-/** End of a `{…}` run, counting depth and skipping quoted runs inside it. */
-function scanBraced(source, start) {
-  const n = source.length;
-  let depth = 0;
-  let i = start;
-  while (i < n) {
-    const c = source[i];
-    if (c === '"' || c === "'" || c === '`') {
-      const e = scanQuoted(source, i, false);
-      if (e === -1) return -1;
-      i = e;
-      continue;
-    }
-    if (c === '{') { depth++; i++; continue; }
-    if (c === '}') {
-      depth--;
-      i++;
-      if (depth === 0) return i;
-      continue;
-    }
     i++;
   }
   return -1;
@@ -239,67 +193,131 @@ function scanRegex(source, start) {
 }
 
 /** C-family and SQL: one left-to-right pass that knows the difference between a
- *  comment marker and the same two characters inside something else. */
+ *  comment marker and the same two characters inside something else.
+ *
+ *  ⏱ 2026-09-11 · A `${…}` SUBSTITUTION IS CODE, SO IT IS SCANNED AS CODE.
+ *  Until today a template literal was ONE opaque run, and its substitutions were
+ *  walked by a brace counter that knew strings and nothing else. Two consequences,
+ *  both measured over the tracked tooling sources with `codeMask` as the oracle
+ *  (24 comment starts survived, in two files):
+ *    · a regex literal holding a quote inside a substitution — `${s.match(/x='([^']+)'/)[1]}`
+ *      — opened a phantom string at its `'`; the template ran on to a LATER
+ *      backtick and every comment in between survived as "string"
+ *      (tooling/ci/test/consent-withdrawal-surface.test.mjs, 20 of them; the
+ *      freeze report measured 85 in an intermediate assert-ops-register.mjs);
+ *    · a comment INSIDE a substitution — `${JSON.stringify({ // why … })}` — was
+ *      part of the opaque run and was never blanked
+ *      (tooling/store/capture-play-screenshots.mjs, 4).
+ *  Every guard that reads a reduction can be fooled that way: a leaked comment is
+ *  prose satisfying a code check, the exact defect this module exists to end.
+ *
+ *  `code(i, inSub, blank)` is the scanner. At top level it runs to the end; inside
+ *  a substitution it returns the index of the `}` that closes it, or -1. A
+ *  substitution is scanned twice — a DRY RUN (`blank` false) that only finds its
+ *  end, then, once the whole template is known to close, the real pass — so an
+ *  unterminated template is still KEPT, the direction of error stated below. */
 function blankCFamily(source, isSql) {
   const n = source.length;
   const out = source.split('');
   const blankRange = (a, b) => {
     for (let k = a; k < b && k < n; k++) if (out[k] !== '\n') out[k] = ' ';
   };
-  let i = 0;
-  // The last significant token, only to the resolution the `/` question needs:
-  // 'value' (an identifier, literal, `)` or `]`) means division; anything else
-  // means a regex may open here.
-  let prev = 'operator';
 
-  while (i < n) {
-    const c = source[i];
-    const d = i + 1 < n ? source[i + 1] : '';
+  // End of the template literal opening at `start`, or -1 if it never closes.
+  const template = (start, blank) => {
+    let i = start + 1;
+    while (i < n) {
+      const c = source[i];
+      if (c === '\\') { i += 2; continue; }
+      if (c === '`') return i + 1;
+      if (c === '$' && source[i + 1] === '{') {
+        const close = code(i + 2, true, false);
+        if (close === -1) return -1;
+        if (blank) code(i + 2, true, true);
+        i = close + 1;
+        continue;
+      }
+      i++;
+    }
+    return -1;
+  };
 
-    if ((isSql && c === '-' && d === '-') || (!isSql && c === '/' && d === '/')) {
-      const e = source.indexOf('\n', i);
-      blankRange(i, e === -1 ? n : e);
-      i = e === -1 ? n : e;
-      continue;
-    }
+  const code = (start, inSub, blank) => {
+    let i = start;
+    let depth = 0;
+    // The last significant token, only to the resolution the `/` question needs:
+    // 'value' (an identifier, literal, `)` or `]`) means division; anything else
+    // means a regex may open here.
+    let prev = 'operator';
 
-    if (c === '/' && d === '*') {
-      const e = source.indexOf('*/', i + 2);
-      if (e === -1) { prev = 'operator'; i += 2; continue; } // never closes → KEEP
-      blankRange(i, e + 2);
-      i = e + 2;
-      continue;
-    }
+    while (i < n) {
+      const c = source[i];
+      const d = i + 1 < n ? source[i + 1] : '';
 
-    if (c === "'" || c === '"' || (!isSql && c === '`')) {
-      const e = scanQuoted(source, i, isSql);
-      prev = 'value';
-      i = e === -1 ? i + 1 : e; // unterminated → KEEP, and step one char
-      continue;
-    }
+      if ((isSql && c === '-' && d === '-') || (!isSql && c === '/' && d === '/')) {
+        const e = source.indexOf('\n', i);
+        const end = e === -1 ? n : e;
+        if (blank) blankRange(i, end);
+        i = end;
+        continue;
+      }
 
-    if (!isSql && c === '/' && prev !== 'value') {
-      const e = scanRegex(source, i);
-      if (e !== -1) { prev = 'value'; i = e; continue; }
-    }
+      if (c === '/' && d === '*') {
+        const e = source.indexOf('*/', i + 2);
+        if (e === -1) { prev = 'operator'; i += 2; continue; } // never closes → KEEP
+        if (blank) blankRange(i, e + 2);
+        i = e + 2;
+        continue;
+      }
 
-    if (/[A-Za-z_$]/.test(c)) {
-      let j = i + 1;
-      while (j < n && /[A-Za-z0-9_$]/.test(source[j])) j++;
-      prev = REGEX_MAY_FOLLOW.has(source.slice(i, j)) ? 'operator' : 'value';
-      i = j;
-      continue;
+      if (!isSql && c === '`') {
+        const e = template(i, blank);
+        prev = 'value';
+        i = e === -1 ? i + 1 : e; // unterminated → KEEP, and step one char
+        continue;
+      }
+
+      if (c === "'" || c === '"') {
+        const e = scanQuoted(source, i, isSql);
+        prev = 'value';
+        i = e === -1 ? i + 1 : e; // unterminated → KEEP, and step one char
+        continue;
+      }
+
+      if (inSub && (c === '{' || c === '}')) {
+        if (c === '}' && depth === 0) return i;
+        depth += c === '{' ? 1 : -1;
+        prev = 'operator';
+        i++;
+        continue;
+      }
+
+      if (!isSql && c === '/' && prev !== 'value') {
+        const e = scanRegex(source, i);
+        if (e !== -1) { prev = 'value'; i = e; continue; }
+      }
+
+      if (/[A-Za-z_$]/.test(c)) {
+        let j = i + 1;
+        while (j < n && /[A-Za-z0-9_$]/.test(source[j])) j++;
+        prev = REGEX_MAY_FOLLOW.has(source.slice(i, j)) ? 'operator' : 'value';
+        i = j;
+        continue;
+      }
+      if (c >= '0' && c <= '9') {
+        let j = i + 1;
+        while (j < n && /[0-9a-fA-FxXoO._]/.test(source[j])) j++;
+        prev = 'value';
+        i = j;
+        continue;
+      }
+      if (!/\s/.test(c)) prev = c === ')' || c === ']' ? 'value' : 'operator';
+      i++;
     }
-    if (c >= '0' && c <= '9') {
-      let j = i + 1;
-      while (j < n && /[0-9a-fA-FxXoO._]/.test(source[j])) j++;
-      prev = 'value';
-      i = j;
-      continue;
-    }
-    if (!/\s/.test(c)) prev = c === ')' || c === ']' ? 'value' : 'operator';
-    i++;
-  }
+    return inSub ? -1 : n;
+  };
+
+  code(0, false, true);
   return out.join('');
 }
 
@@ -373,7 +391,9 @@ function blankHash(source) {
 //
 // WHAT IT NOW KNOWS, because every one of these was a real mis-read: `//` and
 // `/*` inside a `//` line comment · `*/` and `//` inside a string, a template
-// literal (including `${…}` substitutions) or a Dart `'''` block · a regex
+// literal (including `${…}` substitutions, which are scanned as CODE — comments,
+// regex literals holding quotes and nested templates inside them included, since
+// 2026-09-11) or a Dart `'''` block · a regex
 // literal containing quotes or slashes, `/['"]/` · `return /x/.test(s)` as a
 // regex and not a division · `--` inside a SQL string · `#` inside a quoted
 // YAML scalar. It is still NOT a type-aware parser and it still does not strip
