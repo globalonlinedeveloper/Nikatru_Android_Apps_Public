@@ -44,11 +44,30 @@
 // cannot be added and silently ungraded. That is the same shape
 // `assert-entitlement-contract.mjs` uses for its migration set.
 //
+// ── ⏱ 2026-09-11 — A THIRD ASSERTION: THE BYTES, NOT ONLY THE WORDS ─────────
+// REVIEW-stores-2026-09-10 #5: `render-fullshot-privacy.mjs --check` exited 1 on
+// the served page and NOTHING in CI ran it, while assertions 1 and 2 above passed
+// — they compare VISIBLE TEXT, so a drift in markup, head or comments is invisible
+// to them by construction. Assertion 3 runs the renderer into a scratch tree and
+// requires every published copy to equal its output byte for byte.
+//
+// ⚠️ ONE TRANSFORM IS ALLOWED, AND IT IS NAMED: `<!--email_off-->` markers are
+// removed from the served copy before comparing. check-site-integrity.mjs FAILS
+// any mailto: outside them (#575 — Cloudflare Email Address Obfuscation replaced
+// the statutory contact address with "[email protected]" in the served bytes),
+// and the renderer does not emit them. So the drift `--check` reports today is
+// exactly those markers, and "regenerate the page" would turn a different guard
+// red and break the address on the live page. That residue PRINTS, naming the
+// source-side fix, and retires itself the day the two are identical. Every other
+// byte of drift FAILS.
+//
 // Usage:  node tooling/ci/assert-legal-text-parity.mjs [repoRoot]
 // Exit 0 = every published copy matches its source and its siblings.
 //      1 = a divergence, or the scan could not reach enough to be evidence.
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
@@ -71,6 +90,8 @@ const DOCUMENTS = [
   {
     source: 'contracts/legal/fullshot-privacy.md',
     renderedBy: 'node contracts/legal/render-fullshot-privacy.mjs',
+    /** Assertion 3 RUNS this, in a scratch tree, and compares bytes. */
+    renderer: 'contracts/legal/render-fullshot-privacy.mjs',
     copies: [
       {
         file: 'sites/nikatru/fullshot/privacy.html',
@@ -96,6 +117,15 @@ const SPAN = '\uE000';
 
 const problems = [];
 const fail = (m) => problems.push(m);
+const prints = [];
+
+/** Is this run grading the repository this guard lives in? A synthetic tree
+ *  (the test suite) legitimately carries no renderer; the real one must. */
+const SCANNING_OWN_REPO = resolve(ROOT) === resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/** The one transform assertion 3 allows — see the header. Both spellings
+ *  check-site-integrity.mjs accepts, open and close. */
+const EMAIL_OFF_MARKER = /<!--\s*\/?\s*email_off\s*-->/gi;
 
 /**
  * The text a reader of the MARKDOWN sees, reduced the same way `visibleText`
@@ -306,6 +336,70 @@ for (const doc of DOCUMENTS) {
   }
 }
 
+// 3 · no published copy has drifted from its RENDERER, byte for byte.
+let byteComparisons = 0;
+for (const doc of DOCUMENTS) {
+  if (typeof doc.renderer !== 'string' || doc.renderer === '') {
+    fail(`COVERAGE LOST — ${doc.source} names no \`renderer\`, so its published BYTES are compared to nothing.`);
+    continue;
+  }
+  if (!existsSync(join(ROOT, doc.renderer))) {
+    if (SCANNING_OWN_REPO) {
+      fail(`COVERAGE LOST — ${doc.renderer} does not exist, so no published copy of ${doc.source} is compared to what renders.`);
+    }
+    continue; // a synthetic tree without the renderer is exercising assertions 1 and 2
+  }
+  const scratch = mkdtempSync(join(tmpdir(), 'nikatru-ltp-render-'));
+  try {
+    for (const rel of [doc.renderer, doc.source]) {
+      mkdirSync(dirname(join(scratch, rel)), { recursive: true });
+      copyFileSync(join(ROOT, rel), join(scratch, rel));
+    }
+    for (const copy of doc.copies) mkdirSync(dirname(join(scratch, copy.file)), { recursive: true });
+    const r = spawnSync(process.execPath, [join(scratch, doc.renderer)], { cwd: scratch, encoding: 'utf8', timeout: 60_000 });
+    if (r.status !== 0) {
+      const tail = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split(/\r?\n/).slice(-6).join(' ⏎ ');
+      fail(`COVERAGE LOST — ${doc.renderer} exited ${r.status ?? r.error?.code} rendering ${doc.source} into a scratch tree, so no byte comparison ran: ${tail}`);
+      continue;
+    }
+    for (const copy of doc.copies) {
+      const servedAbs = join(ROOT, copy.file);
+      if (!existsSync(servedAbs)) continue; // already COVERAGE LOST in assertion 1
+      const renderedAbs = join(scratch, copy.file);
+      if (!existsSync(renderedAbs)) {
+        fail(`COVERAGE LOST — ${doc.renderer} ran and wrote no ${copy.file}. The copy this guard grades is not one the renderer produces.`);
+        continue;
+      }
+      const rendered = readFileSync(renderedAbs, 'utf8').replace(/\r\n/g, '\n');
+      const servedRaw = readFileSync(servedAbs, 'utf8').replace(/\r\n/g, '\n');
+      const served = servedRaw.replace(EMAIL_OFF_MARKER, '');
+      byteComparisons++;
+      if (served !== rendered) {
+        const d = firstDifference(rendered, served);
+        fail(
+          `${copy.file} is not what ${doc.renderer} renders from ${doc.source} — BYTES, not words (<!--email_off--> markers already set aside). It is ${copy.what}.\n` +
+            `      first difference at character ${d.at}\n` +
+            `      rendered: ${d.a}\n` +
+            `      ${copy.file}: ${d.b}\n` +
+            `      A hand edit to a generated legal page is the drift \`--check\` exists to catch: edit ${doc.source} and run ${doc.renderedBy}.`,
+        );
+      } else if (servedRaw !== rendered) {
+        prints.push(
+          `${copy.file} differs from ${doc.renderer}'s output ONLY by <!--email_off--> markers, so \`${doc.renderedBy} --check\` exits 1 on a correct page. ` +
+            'check-site-integrity.mjs REQUIRES the markers (#575: Cloudflare obfuscation put "[email protected]" in the served bytes) and the renderer does not emit ' +
+            'them — regenerating would strip them, turn that guard red and break the live contact address. The fix is at the source: the renderer emits ' +
+            'the markers (contracts/legal is outside the unit that added this limb — HANDOFF-stores.md). This print retires itself when the bytes are identical.',
+        );
+      }
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+if (SCANNING_OWN_REPO && byteComparisons === 0 && problems.length === 0) {
+  fail('COVERAGE LOST — assertion 3 compared ZERO published copies to their renderer on the repository itself.');
+}
+
 if (comparisons === 0) {
   fail('COVERAGE LOST — not one text comparison was performed, so every limb above is dark.');
 }
@@ -322,5 +416,10 @@ if (problems.length) {
 console.log(
   `ok  legal text parity — ${DOCUMENTS.length} shared legal document(s), ${copiesChecked} published copy/copies ` +
     `compared, ${comparisons} comparison(s): every copy agrees with its siblings AND with its Markdown source ` +
-    `(floor ${MIN_CHARACTERS} characters, ${MIN_COPIES_PER_DOCUMENT} copies per document)`,
+    `(floor ${MIN_CHARACTERS} characters, ${MIN_COPIES_PER_DOCUMENT} copies per document); ${byteComparisons} copy/copies equal their renderer's bytes`,
 );
+if (prints.length) {
+  console.log('');
+  console.log('   ── printed, not failed (the fix is at the renderer, outside this guard; a gap nobody sees becomes permanent) ──');
+  for (const p of prints) console.log(`   ⬜ ${p}`);
+}
