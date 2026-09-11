@@ -58,8 +58,9 @@
 // committed, echoed or printed. Nothing below ever prints its value.
 //
 // Exit 0 = every chain resolves to a recipient and has been watched delivering.
-// Exit 1 = a broken chain, or the API could not be reached / authorised.
-// Exit 2 = no token supplied — a DIFFERENT exit code from "broken" on purpose,
+// Exit 1 = a broken chain.
+// Exit 2 = no token supplied, or the API could not be reached, authorised or read
+//          (those were exit 1 until 2026-09-11) — a DIFFERENT exit code from "broken" on purpose,
 //          so "I could not look" can never be read as "I looked and it was fine".
 //          --self-test also exits 2 if it fails to RESTORE what it broke.
 //
@@ -127,22 +128,30 @@ async function api(path, init = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/** ⏱ 2026-09-11 — the exit code for "I could not read GlitchTip". It was 1 on
+ *  every read in `check()`, the same code as a broken chain, so an expired token
+ *  or a 5xx paged as an alarm chain that had stopped reaching a mailbox. */
+const UNREADABLE_CODE = 2;
+
 async function check() {
   const m = ledger();
   const problems = [];
+  const unreadable = [];
 
   let monitors;
   try {
     monitors = await api(`organizations/${ORG}/monitors/`);
   } catch (err) {
-    console.error(`✗ could not list monitors — ${err.message}`);
+    // ⏱ 2026-09-11 — "I could not look" is exit 2 on every read below, never 1,
+    // which is this file's code for "a chain is BROKEN". See UNREADABLE_CODE.
+    console.error(`✗ COULD NOT LOOK — could not list monitors — ${err.message}`);
     console.error('  A 401 means the token is wrong or expired; a 5xx means the Oracle box is unwell,');
     console.error('  which is itself the E-9b single point of failure showing its face.');
-    return 1;
+    return UNREADABLE_CODE;
   }
   if (!Array.isArray(monitors) || monitors.length === 0) {
-    console.error('✗ the monitor list is empty or not an array. Refusing to report clean on a set I could not read.');
-    return 1;
+    console.error('✗ COULD NOT LOOK — the monitor list is empty or not an array. Refusing to report clean on a set I could not read.');
+    return UNREADABLE_CODE;
   }
 
   // 🔴 KEY BY SLUG, NEVER BY NAME. The monitor payload carries projectName, not
@@ -157,13 +166,13 @@ async function check() {
   try {
     projectList = await api(`organizations/${ORG}/projects/`);
   } catch (err) {
-    console.error(`✗ could not list projects — ${err.message}`);
-    return 1;
+    console.error(`✗ COULD NOT LOOK — could not list projects — ${err.message}`);
+    return UNREADABLE_CODE;
   }
   const projects = Array.isArray(projectList) ? projectList : [projectList];
   if (projects.length === 0) {
-    console.error('✗ the project list is empty. Refusing to report clean on a set I could not read.');
-    return 1;
+    console.error('✗ COULD NOT LOOK — the project list is empty. Refusing to report clean on a set I could not read.');
+    return UNREADABLE_CODE;
   }
   const slugById = new Map(projects.map((p) => [String(p.id), p.slug]));
 
@@ -264,7 +273,7 @@ async function check() {
     try {
       alerts = await api(`projects/${ORG}/${slug}/alerts/`);
     } catch (err) {
-      problems.push(`ALERTS UNREADABLE: project ${slug} — ${err.message}`);
+      unreadable.push(`ALERTS UNREADABLE: project ${slug} — ${err.message}`);
       continue;
     }
     const list = Array.isArray(alerts) ? alerts : [alerts].filter(Boolean);
@@ -330,11 +339,20 @@ async function check() {
     console.log(`ok   project ${slug} — ${owned.length} monitor(s) [${owned.join(', ')}] — delivery observed ${obs?.date ?? 'NEVER'}`);
   }
 
+  // A broken chain that WAS read outranks one that could not be: exit 1 names a
+  // fix, and the unread projects print beside it rather than hiding it.
   if (problems.length) {
     console.error('');
     for (const p of problems) console.error(`✗ ${p}`);
-    console.error(`\nverify-alarm-chains — ${problems.length} broken chain(s).`);
+    for (const u of unreadable) console.error(`✗ ${u}`);
+    console.error(`\nverify-alarm-chains — ${problems.length} broken chain(s)${unreadable.length ? `, and ${unreadable.length} project(s) whose alerts could not be read` : ''}.`);
     return 1;
+  }
+  if (unreadable.length) {
+    console.error('');
+    for (const u of unreadable) console.error(`✗ COULD NOT LOOK — ${u}`);
+    console.error(`\nverify-alarm-chains — ${unreadable.length} project(s) whose alert chain could not be read. Exit 2, not 1: nothing about those chains was judged.`);
+    return UNREADABLE_CODE;
   }
   console.log(
     `\nverify-alarm-chains — ${monitors.length} monitor(s) across ${hosting.size} project(s); every one ` +

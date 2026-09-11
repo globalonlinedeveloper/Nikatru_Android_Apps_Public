@@ -77,8 +77,9 @@
 // committed, echoed or printed. Nothing below ever prints its value.
 //
 // Exit 0 = register and live instance agree (gaps are printed, not failed).
-// Exit 1 = drift, or the API could not be reached / authorised.
-// Exit 2 = no token supplied — a DIFFERENT exit code from "drift" on purpose,
+// Exit 1 = drift.
+// Exit 2 = no token supplied, or the API could not be reached, authorised or read
+//          (those three were exit 1 until 2026-09-11) — a DIFFERENT exit code from "drift" on purpose,
 //          so "I could not look" can never be read as "I looked and it was fine".
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs';
@@ -376,23 +377,31 @@ try {
   const res = await fetch(`${BASE}/api/0/organizations/${ORG}/monitors/`, {
     headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' },
   });
+  // ⏱ 2026-09-11 — EVERY BRANCH BELOW IS "I COULD NOT LOOK", SO EVERY ONE IS EXIT 2.
+  // All three used to set exit 1, the code this file gives "the register and the
+  // live monitors DISAGREE". An expired token, a 5xx from the Oracle box, a DNS
+  // failure and a changed API shape were therefore reported as monitor DRIFT —
+  // a finding about the register that nobody could fix in the register.
   if (!res.ok) {
-    console.error(`✗ GlitchTip returned ${res.status} ${res.statusText} for the monitor list.`);
+    console.error(`✗ COULD NOT LOOK — GlitchTip returned ${res.status} ${res.statusText} for the monitor list.`);
     console.error('  A 401 means the token is wrong or expired; a 5xx means the Oracle box is unwell —');
     console.error('  which is itself the E-9b single point of failure showing its face.');
-    process.exitCode = 1;
+    console.error('  Exit 2, not 1: nothing was reconciled, so nothing can have drifted.');
+    process.exitCode = 2;
     return;
   }
   live = await res.json();
 } catch (err) {
-  console.error(`✗ could not reach ${BASE}: ${err.message}`);
-  process.exitCode = 1;
+  console.error(`✗ COULD NOT LOOK — could not read the monitor list from ${BASE}: ${err.message}`);
+  console.error('  Exit 2, not 1: nothing was reconciled, so nothing can have drifted.');
+  process.exitCode = 2;
   return;
 }
 
 if (!Array.isArray(live)) {
-  console.error('✗ the monitor list was not an array; the API shape changed and this script cannot reconcile.');
-  process.exitCode = 1;
+  console.error('✗ COULD NOT LOOK — the monitor list was not an array; the API shape changed and this script cannot reconcile.');
+  console.error('  Exit 2, not 1: nothing was reconciled, so nothing can have drifted.');
+  process.exitCode = 2;
   return;
 }
 
