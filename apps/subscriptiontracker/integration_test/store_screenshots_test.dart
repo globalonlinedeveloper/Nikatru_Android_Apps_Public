@@ -60,6 +60,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'package:subscriptiontracker/core/a11y/web_semantics.dart'
+    show releaseWebSemantics;
 import 'package:subscriptiontracker/core/app_config.dart';
 import 'package:subscriptiontracker/core/e2e_keys.dart';
 import 'package:subscriptiontracker/data/auth/auth_models.dart';
@@ -764,5 +766,10 @@ void main() {
     // screen its `find.byType` names and fails if that source reads `.email`.
 
     ErrorWidget.builder = builderBeforeTest;
+    // And the SemanticsHandle `app.main()` holds on web: flutter_test verifies
+    // handles in the same post-body block, so a body that leaves it active fails
+    // after its last capture (lib/core/a11y/web_semantics.dart; app_test.dart's
+    // `launchApp` carries the nightly run that proved it).
+    releaseWebSemantics();
   });
 }
