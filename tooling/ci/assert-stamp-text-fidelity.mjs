@@ -77,7 +77,7 @@
 // truncated catalogue name, a missing derivation, or a probe that cannot detect
 // any of them.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, openSync, fstatSync, closeSync } from 'node:fs';
 import { join, resolve, relative, sep } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 
@@ -316,15 +316,24 @@ const walk = (dir) => {
     }
     if (!TEXTY.test(e.name) || HTML_OK.has(e.name)) continue;
     const p = join(dir, e.name);
-    let st;
+    // ONE OPEN (CodeQL #83): the size cap and the bytes both come from this
+    // descriptor, so the file measured is the file read. A path that vanished or
+    // dangles is skipped as before; an unreadable one throws, as its read did.
+    let fd;
     try {
-      st = statSync(p);
-    } catch {
-      continue;
+      fd = openSync(p, 'r');
+    } catch (err) {
+      if (err?.code === 'ENOENT' || err?.code === 'ENOTDIR' || err?.code === 'ELOOP') continue;
+      throw err;
     }
-    if (st.size > 512 * 1024) continue;
+    let text = null;
+    try {
+      if (fstatSync(fd).size <= 512 * 1024) text = readFileSync(fd, 'utf8');
+    } finally {
+      closeSync(fd);
+    }
+    if (text === null) continue;
     scanned++;
-    const text = readFileSync(p, 'utf8');
     for (const [i, line] of text.split('\n').entries()) {
       if (ENTITY.test(line)) escaped.push(`${relative(ROOT, p).split(sep).join('/')}:${i + 1}: ${line.trim()}`);
     }
