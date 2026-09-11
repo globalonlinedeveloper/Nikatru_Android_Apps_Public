@@ -186,10 +186,6 @@ function B(rec) { const l = L(rec); return l && l.bake; }
 function stateOf(rec) { const l = L(rec); return l && l.state; }
 function pixelsOf(rec) { const l = L(rec); return l && l.pixels; }
 
-function hosts(surfaces, re) {
-  return (surfaces.blocks || []).filter(b => re.test(b.text));
-}
-
 /* Every fixture gets these. They are the invariants that hold no matter what
    shape the page is, which is exactly the property the design claims to have. */
 function universals(rec, surfaces, opts = {}) {
