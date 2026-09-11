@@ -138,6 +138,8 @@ import {
   classifyRunHistoryAnswer,
   newestOnPage,
   reconcileRunReads,
+  splitRunFilters,
+  selectRuns,
   RUN_READ_RACE_MS,
   combineLimbProbes,
   describeNarrowing,
@@ -2000,6 +2002,9 @@ describe('assert-ops-register — end to end, against the real repository', () =
   // limb runs. The replay counts what the guard asked; the O-3 test requires
   // that count, so a guard that stopped querying and a spawn that went back to
   // the live API are both RED.
+  /** ⏱ 2026-09-12 — the ratchet on this guard's share of the hourly API quota.
+   *  Measured live: 56 before, 20 after. See the test at the foot of this block. */
+  const OPS_GITHUB_REQUEST_CEILING = 26;
   const REPLAY_FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
   let realRun = null;
   const realGuard = () => {
@@ -2181,6 +2186,34 @@ describe('assert-ops-register — end to end, against the real repository', () =
     // 0. A count whose label can be misattached is a false alarm waiting to be filed,
     // so every number here is bound to its own name.
     assert.match(out, /unreadable=\d+\/ceiling \d+ · unreachable=\d+\/ceiling \d+/);
+  });
+
+  // ── ⏱ 2026-09-12 · THE QUOTA THIS GUARD SPENDS IS A NUMBER, SO IT IS RATCHETED ──
+  //
+  // 🔴 MEASURED under a counting `fetch` preload against the LIVE API, on
+  // origin/main db68b1f4 and again on this branch: 56 GitHub requests became 20.
+  // 44 of the 56 were run-list reads — 22 questions, each asked at per_page=1 and
+  // per_page=30, about exactly NINE workflows on ONE branch. They are now ONE
+  // page per workflow (per_page=100) plus ONE cross-check (per_page=1): 18, plus
+  // one job list and one issue search. Every verdict was identical across the two
+  // runs, run id for run id; only the elapsed-hours drifted between them.
+  //
+  // The ceiling is what stops the next question from buying its own pair of reads
+  // again. It is above the replay's measured count on purpose — a register row
+  // added tomorrow may legitimately reach a TENTH workflow, which costs 2 — and
+  // far below the 56 it replaces, so the shape that caused 2026-09-11's
+  // `API rate limit exceeded for installation` cannot come back unnoticed.
+  test('[14]O-3 · the whole guard spends a BOUNDED number of GitHub requests', () => {
+    const { out, counts } = realGuard();
+    assert.ok(counts, `no replay count file, so nothing was measured:\n${out}`);
+    assert.ok(
+      counts.github <= OPS_GITHUB_REQUEST_CEILING,
+      `this run made ${counts.github} GitHub requests, over the ceiling of ${OPS_GITHUB_REQUEST_CEILING}. ` +
+        'Before 2026-09-12 every run-history QUESTION bought its own pair of reads and one run cost 56, ' +
+        'about 1,600 of a morning\'s 2,225 on a token allowed 1,000 an hour — which is how every lane died on ' +
+        '`API rate limit exceeded for installation` on 2026-09-11. If a new row genuinely needs a tenth ' +
+        'workflow, raise the ceiling by 2 and say so here; if a read went back to asking per question, do not.',
+    );
   });
 
   test('the [14]O-11 and [14]O-17 execution counts print on every run', () => {
@@ -3701,6 +3734,67 @@ describe('assert-ops-register — [14]O-3 · the GlitchTip heartbeat reader, and
       assert.equal(newestOnPage([]), null);
       assert.equal(newestOnPage(undefined), null);
       assert.equal(newestOnPage([{ id: 1 }]), null, 'a run with no updated_at cannot be newest');
+    });
+
+    // ── ⏱ 2026-09-12 · splitRunFilters / selectRuns — the two halves of "one
+    //    page per workflow". `branch` stays GitHub's question; `event` and
+    //    `status` are answered here, off the page that was already fetched.
+    //    Anything this split does not RECOGNISE must fall back to a targeted
+    //    read rather than be dropped, or a filter would silently stop applying.
+    test('splitRunFilters separates the server-side branch from the locally selected event and status', () => {
+      assert.deepEqual(splitRunFilters(['event=schedule', 'branch=main', 'status=success']), {
+        branch: 'main', event: 'schedule', status: 'success', unknown: [],
+      });
+      assert.deepEqual(splitRunFilters(['branch=main', 'status=completed']), {
+        branch: 'main', event: null, status: 'completed', unknown: [],
+      });
+      assert.deepEqual(splitRunFilters(['', null, undefined, 'branch=release%2Fv1']).branch, 'release/v1', 'the value is decoded, as it was encoded');
+    });
+
+    test('🔴 a filter splitRunFilters does not recognise is UNKNOWN, never dropped', () => {
+      // The caller falls back to the targeted two-width read when `unknown` is
+      // non-empty. Without this, adding `actor=` to a query would quietly widen
+      // the answer to every actor while the page read on regardless.
+      const s = splitRunFilters(['branch=main', 'actor=dependabot', 'status=failure']);
+      assert.deepEqual(s.unknown, ['actor=dependabot']);
+    });
+
+    test('selectRuns answers event and conclusion questions off one page', () => {
+      const page = [
+        { id: 1, event: 'push', status: 'completed', conclusion: 'failure', updated_at: '2026-09-11T10:00:00Z' },
+        { id: 2, event: 'schedule', status: 'completed', conclusion: 'success', updated_at: '2026-09-11T09:00:00Z' },
+        { id: 3, event: 'schedule', status: 'completed', conclusion: 'failure', updated_at: '2026-09-11T08:00:00Z' },
+      ];
+      assert.deepEqual(selectRuns(page, { status: 'success' }).map((r) => r.id), [2]);
+      assert.deepEqual(selectRuns(page, { status: 'failure' }).map((r) => r.id), [1, 3]);
+      assert.deepEqual(selectRuns(page, { event: 'schedule' }).map((r) => r.id), [2, 3]);
+      assert.deepEqual(selectRuns(page, { event: 'schedule', status: 'success' }).map((r) => r.id), [2]);
+      assert.deepEqual(selectRuns(page, {}).map((r) => r.id), [1, 2, 3], 'no filter selects the whole page');
+    });
+
+    test('🔴 a run that has not CONCLUDED answers no conclusion question, and is not "completed" either', () => {
+      // The old reads asked GitHub for `status=success` / `status=failure`, so a
+      // run still in flight could never come back. Selecting locally, it can —
+      // and a `conclusion: null` counted as either would let a run that has not
+      // finished clear a red or start one.
+      const page = [
+        { id: 9, event: 'schedule', status: 'in_progress', conclusion: null, updated_at: '2026-09-11T11:00:00Z' },
+        // ⚠️ `status: completed` WITH `conclusion: null` is a real shape, not an
+        // invented one: the API reports it in the window between a run finishing
+        // and its conclusion being written. The unit scan below takes the newest
+        // completed run and asks its jobs, so a run with no conclusion arriving
+        // first would be graded on a job list that is not final.
+        { id: 8, event: 'schedule', status: 'completed', conclusion: null, updated_at: '2026-09-11T10:30:00Z' },
+        { id: 2, event: 'schedule', status: 'completed', conclusion: 'success', updated_at: '2026-09-11T09:00:00Z' },
+      ];
+      assert.deepEqual(selectRuns(page, { status: 'success' }).map((r) => r.id), [2]);
+      assert.deepEqual(selectRuns(page, { status: 'failure' }).map((r) => r.id), []);
+      assert.deepEqual(selectRuns(page, { status: 'completed' }).map((r) => r.id), [2]);
+    });
+
+    test('selectRuns skips a run with no updated_at — the field every answer is ordered by', () => {
+      assert.deepEqual(selectRuns([{ id: 4, status: 'completed', conclusion: 'success' }], { status: 'success' }), []);
+      assert.deepEqual(selectRuns(undefined, { status: 'success' }), []);
     });
 
     // ── reconcileRunReads: agreement passes, staleness refuses ──────────────
