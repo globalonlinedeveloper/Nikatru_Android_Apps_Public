@@ -20,9 +20,13 @@
 // returns whatever the test hands it, which proves nothing about a corrupt or
 // legacy row.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Hono } from 'hono';
-import entitlements, { type EntitlementRow } from '../src/routes/entitlements';
+import entitlements from '../src/routes/entitlements';
+// The row type lives with the ONE statement that reads it — services/_shared,
+// since 2026-09-10. Test code reaches across the monorepo freely; the seam rule
+// is about DEPLOYABLE code (src/lib/money.ts's header).
+import type { EntitlementRow } from '../../_shared/src/entitlement-read';
 import { realPlatformDb, ENTITLEMENTS_SCHEMA, PLATFORM_MIGRATIONS, TEST_ENV } from './harness';
 import type { AppEnv } from '../src/types';
 
@@ -83,6 +87,8 @@ function harness(
           row.provider_environment === undefined ? 'live' : row.provider_environment,
         );
     },
+    /** The same request, raw — for a test that needs the bytes. */
+    raw: (user = USER) => app.request('/v1/entitlements', { headers: { 'X-Test-User': user } }, env),
     get: async (user = USER) => {
       const res = await app.request(
         '/v1/entitlements',
@@ -247,17 +253,44 @@ describe('GET /v1/entitlements — a row from the wrong money world grants nothi
     expect((await h.get()).body.is_pro).toBe(true);
   });
 
-  it('the denial reason is DIAGNOSABLE from the payload — the world rides along', async () => {
-    // Two denial reasons now exist (wrong world, unparseable expiry); support
-    // must be able to tell them apart without server logs.
+  it('the denial reason is DIAGNOSABLE — server-side, by request id, never on the wire', async () => {
+    // Two denial reasons exist (wrong world, unparseable expiry) and support
+    // must be able to tell them apart. Until 2026-09-10 this route echoed
+    // `provider_environment` in every row for that; the shared host never did
+    // (its suite asserts the key is ABSENT — the money world is a deploy fact),
+    // and ONE reader means ONE wire. So the diagnosis is the log line the one
+    // reader writes, correlated by the request id this harness stamps.
     const db = realPlatformDb();
     const h = harness(db);
     h.seed({ is_active: 1, expires_at: future, provider_environment: 'sandbox' });
-    const { body } = await h.get();
-    expect(body.is_pro).toBe(false);
-    expect(
-      (body.entitlements[0] as { provider_environment?: string }).provider_environment,
-    ).toBe('sandbox');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const text = await (await h.raw()).text();
+      expect((JSON.parse(text) as { is_pro: boolean }).is_pro).toBe(false);
+      expect(text, 'the money world never rides on the wire').not.toContain('provider_environment');
+      const line = warn.mock.calls.map((c) => String(c[0])).find((m) => m.includes('[5]M-12'));
+      expect(line, 'the deny reason is logged').toBeDefined();
+      expect(line).toContain('rid=test-rid');
+      expect(line).toContain('"sandbox"');
+      expect(line).toContain("this deploy is 'live'");
+      expect(line, 'never the user id').not.toContain(USER);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('a database error is a 500 with NO access decision — never `is_pro: true` on an exception', async () => {
+    // REVIEW-platform-2026-09-10 §3 listed this as untested on both Workers. The
+    // ONE reader catches nothing: a failed statement propagates to the carrier's
+    // `onError`, which is the same `{ error: 'internal_error' }` src/index.ts
+    // answers, and no code path can render an envelope from a half-finished read.
+    const db = realPlatformDb();
+    const h = harness(db);
+    h.seed({ is_active: 1, expires_at: future });
+    db.db.exec('DROP TABLE feature_set_members'); // the bundle half of the union
+    const res = await h.raw();
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe('{"error":"internal_error"}');
   });
 
   it('503s when MONEY_ENVIRONMENT is unset — no guess, no access decision', async () => {
@@ -322,7 +355,12 @@ describe('the SHIPPED platform_db schema carries every column the route reads', 
       store: true,
       is_active: true,
       expires_at: true,
+      provider: true,
       provider_environment: true,
+      provider_status: true,
+      current_period_end: true,
+      trial_end: true,
+      revocation_reason: true,
     };
     const shipped = new Set([
       ...columnsOf(ENTITLEMENTS_SCHEMA),
@@ -360,13 +398,20 @@ CREATE INDEX idx_x ON entitlements (user_id);`),
     const h = harness(db);
     h.seed({ entitlement: 'pro', product_id: 'p1', store: 'STRIPE', expires_at: future });
     const { body } = await h.get();
+    // The SHARED reader's row projection: the five support-visible columns ride
+    // along (null here — the seed writes none) and `provider_environment` does
+    // not, on either Worker.
     expect(body.entitlements[0]).toEqual({
       entitlement: 'pro',
       product_id: 'p1',
       store: 'STRIPE',
       is_active: true,
       expires_at: future,
-      provider_environment: 'live',
+      provider: null,
+      provider_status: null,
+      current_period_end: null,
+      trial_end: null,
+      revocation_reason: null,
     });
   });
 });

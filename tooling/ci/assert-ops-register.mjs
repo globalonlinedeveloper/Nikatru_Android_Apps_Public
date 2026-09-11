@@ -176,6 +176,54 @@
 // literal path `.claude/worktrees/` was rejected: it would leave submodules,
 // stray clones and `git worktree add` into the tree all still wrong.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// ⛔ THE SIX INVARIANTS OF A LIVE VERDICT — ADDED 2026-09-11. Each is PROVED by a
+// named case in tooling/ci/test/ops-register.test.mjs ("the 2026-09-11 freeze,
+// replayed"), which replays run 34546423386's exact answers from
+// tooling/ci/test/fixtures/ops-freeze-2026-09-11.json through this file.
+//
+// A LIVE verdict is read off the world rather than off this tree: a run history,
+// a job or step conclusion, a heartbeat, a monitor. On 2026-09-11 all six broke
+// at once: eight problems, every pull request blocked by main's history, and no
+// merge order that could break it (FINDING-permanent-freeze-2026-09-11).
+//
+//  INV1 — A VERDICT MAY STOP SHIPPING, NEVER STOP FIXING. On a proposal event
+//         (pull_request, pull_request_target, merge_group) in a guard host whose
+//         own `on:` declares it, every live verdict PRINTS in full with its remedy
+//         and does not block; no verdict about history can block the dispatch that
+//         clears it either (INV4). A structural finding about the register still
+//         blocks: it is a property of the proposal. `hostPolicy`.
+//  INV2 — SHIPPING STILL STOPS. Every deploy and submit lane runs
+//         tooling/ci/assert-gate-passed.mjs, which refuses unless `ci-gate` passed
+//         for its commit; `ci-gate` on a default-branch commit comes from ci.yml's
+//         PUSH run, an ENFORCING host in which every live verdict still blocks
+//         (bar a lane whose own recovery needs that gate). ops-watch is enforcing
+//         too, and is the page. The deploy-side check IS the push-host enforcement.
+//  INV3 — DUTIES ARE INDEPENDENT. A run-history row names the `unit` that performs
+//         its duty — "run", { jobs } or { job, step } — and is judged by that
+//         unit's own conclusion from /actions/runs/{id}/jobs. "run" is legal only
+//         for a workflow no other row reads and that does not run this guard.
+//         `checkRunUnits`, `unitConclusion`.
+//  INV4 — NO HOST REQUIRES ITSELF. No unit may contain this guard's own verdict,
+//         and in an enforcing host a live verdict whose recovery NEEDS that host
+//         to be green — its own run, a lane self-gated on the check that host
+//         produces, or a cycle through another host — prints with its path
+//         instead of blocking. SELF, SELF-GATED and SECOND LAP were three
+//         instances of this one rule. `unitNeedsHosts`, `routeLiveVerdicts`.
+//  INV5 — NO WAIVER. No flag, no environment variable of this guard's own, no
+//         register date and no caller-supplied argument turns a verdict off. The
+//         host is the workflow ref GitHub sets, the event is the event GitHub sets
+//         and is believed only when the workflow file declares it, and every
+//         exemption is derived from the workflow tree and printed with its reason.
+//         A flag a caller may pass is a waiver.
+//  INV6 — UNREADABLE IS EXIT 2. Could-not-look is COVERAGE LOST: never 0, never 1.
+//         Every structural refusal, a guard that throws, unreadable reads above
+//         their ceiling, a GitHub API that answered none of the RED-SINCE reads,
+//         and a branch filter that did not hold all land on exit 2.
+//
+// Exit codes: 0 every blocking verdict holds · 1 a finding (structural, or a live
+// verdict this host blocks on) · 2 COVERAGE LOST. 2 beats 1 beats 0.
+// ─────────────────────────────────────────────────────────────────────────────
 // Usage:  node tooling/ci/assert-ops-register.mjs [repoRoot]
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync } from 'node:fs';
@@ -283,12 +331,24 @@ const NO_WATCHER = '(none)';
 export const DURABLE_ID =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b\d{2}:\d{2}:\d{2}\b|\b[A-Z][A-Z0-9]+-\d+\b|#\d{2,}|\b\d{9,}\b/;
 
+/** Carries an exit code out of `main()` to the one place that sets it. Thrown,
+ *  never `process.exit()`: exiting while a fetch handle closes aborts Node on
+ *  Windows with 127 for every outcome, which in a fail-closed guard is a lie in
+ *  both directions. */
+class GuardExit extends Error {
+  constructor(code) {
+    super(`exit ${code}`);
+    this.code = code;
+  }
+}
+
 /** Structural failure — the scan itself is broken, so nothing below it means
- *  anything. Exits immediately rather than joining the problem list. */
+ *  anything. Stops immediately rather than joining the problem list, at exit **2**
+ *  (INV6): the guard did not check enough to be evidence of anything. */
 const coverageLost = (lines) => {
   console.error(`✗ COVERAGE LOST — ${lines[0]}`);
   for (const l of lines.slice(1)) console.error(`  ${l}`);
-  process.exit(1);
+  throw new GuardExit(2);
 };
 
 /** 🔴 THE SAME REFUSAL, AT EXIT **2** — and the difference from `coverageLost`
@@ -301,19 +361,11 @@ const coverageLost = (lines) => {
  *  cannot share an exit code with "every floor holds" — and, just as usefully,
  *  cannot share one with "a floor broke". Nine guards in `tooling/ci` already do.
  *
- *  This file's own `coverageLost` predates that convention and exits 1 at every
- *  one of its call sites. Re-pointing all of them is a change with a far wider
- *  blast radius than one new limb should carry — ops-watch.yml's digest reads
- *  this guard's code, and the suite asserts 1 on several of those paths — so it
- *  is RECORDED as a finding (Private/pre-prune-2026-09-08:research/revamp-2026-09-05/coverage-alarm-on-red.md)
- *  rather than smuggled in beside an unrelated change. NEW limbs use the
- *  convention; the old call sites move with the unit that owns that move. Both
- *  codes fail CI, so nothing is weakened while they disagree. */
-const coverageLostHard = (lines) => {
-  console.error(`✗ COVERAGE LOST — ${lines[0]}`);
-  for (const l of lines.slice(1)) console.error(`  ${l}`);
-  process.exit(2);
-};
+ *  ⏱ 2026-09-11 — THE TWO ARE NOW ONE. This file's `coverageLost` predated that
+ *  convention and exited 1 at every call site; the move was recorded as a finding
+ *  (REVIEW-guards-2026-09-10 #9) and is taken here, with INV6, by the unit that
+ *  owns this file. The name is kept because other files' prose cites it. */
+const coverageLostHard = coverageLost;
 
 // ── jsonc, because every wrangler config in this repo is heavily commented ────
 // Comments are stripped OUTSIDE string literals only. A naive `//` strip would
@@ -556,6 +608,17 @@ export function classifyRunRecord(row, probe, nowMs, multiplier) {
       line:
         `${id} — the mechanism its \`recordQuery\` names DOES NOT EXIST: ${probe.why}. ` +
         'The register would go on asserting a duty performed by something that is gone.',
+    };
+  }
+  // ⏱ 2026-09-11 (INV3). A unit read that scanned a FULL page and found no success
+  // of its unit is not "no success ever": it measured the silence back to the
+  // oldest run it read, and when that reaches past the window the duty is stale.
+  if (Number.isFinite(probe.noSuccessSinceMs) && nowMs - probe.noSuccessSinceMs > windowMs) {
+    return {
+      verdict: 'fail',
+      line:
+        `${id} — its record IS reachable and the newest SUCCESSFUL run is older than every run it read, which reach ` +
+        `back ${((nowMs - probe.noSuccessSinceMs) / 3_600_000).toFixed(1)}h — outside its own window [${windowLabel}]. ${probe.detail}`,
     };
   }
   if (typeof probe.lastSuccessMs !== 'number' || Number.isNaN(probe.lastSuccessMs)) {
@@ -930,6 +993,12 @@ export function evaluateRunRecords(reg, probes, nowMs) {
   }
 
   const tally = { pass: 0, fail: 0, unreadable: 0, unreachable: 0 };
+  // ⏱ 2026-09-11 — every blocking verdict read off a record is also handed back in
+  // `live`, so ONE router decides whether this host carries it (INV1/INV2/INV4),
+  // and the unreadable ceiling is handed back in `measurement`, because a runner
+  // that read too little is COVERAGE LOST, not a failing duty (INV6).
+  const live = [];
+  const measurement = [];
   const unreachableLines = [];
   const unreadableLines = [];
   // 🔴 THE GATED LINES ARE STILL IN `tally.fail`. A gate that moved them to their
@@ -940,18 +1009,22 @@ export function evaluateRunRecords(reg, probes, nowMs) {
     if (!r?.mechanism?.recordQuery?.reader || !readerNames.has(r.mechanism.recordQuery.reader)) continue;
     const c = classifyRunRecord(r, probes.get(r.id), nowMs, multiplier);
     tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
-    if (c.verdict === 'fail') (c.gated ? gatedFailLines : errors).push(c.line);
-    else if (c.verdict === 'unreachable') unreachableLines.push(c.line);
+    if (c.verdict === 'fail') {
+      (c.gated ? gatedFailLines : errors).push(c.line);
+      if (!c.gated) live.push({ id: r.id, line: c.line, code: 1, limb: '[14]O-3' });
+    } else if (c.verdict === 'unreachable') unreachableLines.push(c.line);
     else if (c.verdict === 'unreadable') unreadableLines.push(c.line);
     else if (c.verdict === 'pass') prints.push(`[14]O-3 — ${c.line}`);
   }
 
   if (tally.unreadable > readCap) {
-    errors.push(
+    const over =
       `${tally.unreadable} scheduled duty(ies) went UNREADABLE on this runner and the ceiling is ${readCap}. ` +
-        'Unreadable is "could not tell", never "it is fine" — above this line the limb has read too little of ' +
-        'its own domain to be believed about the rest. Ratchets DOWN as credentials and platforms arrive.',
-    );
+      'Unreadable is "could not tell", never "it is fine" — above this line the limb has read too little of ' +
+      'its own domain to be believed about the rest. Ratchets DOWN as credentials and platforms arrive. ' +
+      'That is COVERAGE LOST, exit 2 (INV6).';
+    errors.push(over);
+    measurement.push(over);
   }
 
   // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE. `0 queried` and `4 queried` read
@@ -983,7 +1056,7 @@ export function evaluateRunRecords(reg, probes, nowMs) {
   for (const l of unreadableLines) prints.push(`[14]O-3 — ${l}`);
   for (const l of unreachableLines) prints.push(`[14]O-3 — ${l}`);
 
-  return { errors, prints, stats: { scheduled: scheduled.length, ...tally, gatedFail: gatedFailLines.length } };
+  return { errors, prints, live, measurement, stats: { scheduled: scheduled.length, ...tally, gatedFail: gatedFailLines.length } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2281,7 +2354,16 @@ export function readScheduledTaskProbe(names, spawned = {}) {
  *  ═══════════════════════════════════════════════════════════════════════════ */
 function probeWindowsTasks(names) {
   if (process.platform !== 'win32') return readScheduledTaskProbe(names, { platform: process.platform });
-  const list = names.map((n) => `'${String(n).replace(/'/g, "''")}'`).join(',');
+  // ⚠️ NO REGEX INSIDE A TEMPLATE SUBSTITUTION HERE, and the reason is another
+  // guard's reading of this file. text-reductions.mjs walks a `${…}` as code but
+  // does not recognise a regex literal inside one, so the `'` in a quote-matching
+  // regex opened a phantom string there, and ~80 comment lines below this function
+  // survived comment-stripping as "code". On 2026-09-11 that window came to
+  // cover a comment naming ONE workflow file, and assert-release-lane-generic.mjs
+  // reported this guard as bound to that lane. Doubling quotes by split/join is
+  // the same PowerShell escaping with no regex for a tokenizer to misread.
+  const psQuote = (n) => "'" + String(n).split("'").join("''") + "'";
+  const list = names.map(psQuote).join(',');
   const ps = [
     "$ErrorActionPreference='Stop'",
     `$names = @(${list})`,
@@ -2335,13 +2417,17 @@ export function classifyRunHistoryAnswer(q, newest, repo) {
   // silently ignored by a future API version would widen this guard with nothing
   // to notice — the same reason the ceiling keys in this file are asserted rather
   // than trusted. `branch=` is a request; `head_branch` is what came back.
+  // ⏱ 2026-09-11 — this used to return `lastSuccessMs: NaN`, which
+  // `classifyRunRecord` grades as "holds NO SUCCESSFUL RUN AT ALL", exit 1: an API
+  // that stopped honouring `branch=` would report every duty as broken rather than
+  // unread (REVIEW-guards-2026-09-10 #8). An answer that does not hold is UNREADABLE (INV6).
   if (q.headBranch && newest.head_branch !== q.headBranch) {
     return {
-      lastSuccessMs: NaN,
-      detail:
+      unreadable: true,
+      why:
         `${repo} answered with run ${newest.id} on branch ${JSON.stringify(newest.head_branch ?? null)} for a query ` +
         `that asked for ${JSON.stringify(q.headBranch)}. The branch filter did not hold, so no verdict about ` +
-        `${q.headBranch} is available.`,
+        `${q.headBranch} is available — that is UNREADABLE, never "no successful run at all".`,
     };
   }
   return {
@@ -2453,6 +2539,363 @@ async function probeGithubRun(q, repo) {
     `the newest successful ${q.event ?? 'any'} run of ${q.workflow}${q.headBranch ? ` on ${q.headBranch}` : ''}`,
   );
   return classifyRunHistoryAnswer(q, newest, repo);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 INV3 · A DUTY IS JUDGED BY THE UNIT THAT PERFORMS IT, NEVER BY A RUN THAT
+// ALSO PERFORMS OTHERS. Added 2026-09-11.
+//
+// ── THE DEFECT, MEASURED ────────────────────────────────────────────────────
+// Four rows read `ops-watch.yml`'s history through `status=success`, which is a
+// WHOLE-RUN conclusion: duty.analytics-silence-judgment, duty.d1-statement-
+// acceptance, duty.pages-deployment-landed and duty.workflow.ops-watch.yml. From
+// 2026-09-10T06:13Z every ops-watch run failed in ONE place — the register step
+// of job `heartbeats`, which is this guard — while the analytics step, the D1
+// step and job `pages-deployments` concluded `success` in every one of those runs
+// (read from /actions/runs/{id}/jobs for runs 34444234613 … 34544690996). The
+// whole-run reader could not see that. All four aged past 36h together and sat
+// in the problem list of run 34546423386 at 2026-09-11T00:26Z; one red limb aged
+// four unrelated duties, and one of the four was the watcher's own row, so the
+// run that could have cleared them could not go green.
+//
+// ── THE UNIT, NAMED ON THE ROW AND HELD AGAINST THE WORKFLOW FILE ────────────
+// `recordQuery.unit` is REQUIRED on every run-history row (`checkRunUnits`):
+//   · "run"                   — the run IS the duty. Legal only when no other row
+//                               reads that workflow and it does not run this guard.
+//   · { "jobs": [id, …] }     — every named job concludes `success` (a job skipped
+//                               by its OWN `if:` is neutral), and at least one does.
+//   · { "job": id, "step": n } — that step concludes `success`.
+// A job or step unit is read from /actions/runs/{id}/jobs, newest completed run
+// first, over the same two-width cross-checked run page every other read uses,
+// and the job lists are cached per run for the whole guard run. A cancelled,
+// skipped or absent unit renders NO verdict and the scan moves to the next run.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const RUN_UNIT = 'run';
+export const UNIT_PAGE = RUN_READ_WIDE;
+const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
+
+/** PURE. The unit a run-history query names, normalised. An ABSENT unit reads as
+ *  the whole run, so a row is graded exactly as before until `checkRunUnits`
+ *  (which refuses the absence) is satisfied. */
+export function unitOf(q) {
+  const u = q?.unit;
+  if (u === undefined) return { kind: 'run', declared: false };
+  if (u === RUN_UNIT) return { kind: 'run', declared: true };
+  if (u && typeof u === 'object' && !Array.isArray(u)) {
+    if (Array.isArray(u.jobs) && u.job === undefined && u.step === undefined) return { kind: 'jobs', jobs: u.jobs.map(String), declared: true };
+    if (nonEmpty(u.job) && nonEmpty(u.step) && u.jobs === undefined) return { kind: 'step', job: String(u.job), step: String(u.step), declared: true };
+  }
+  return { kind: 'invalid', raw: u, declared: true };
+}
+
+/** PURE. The unit in words, for every line a unit row prints. */
+export function describeUnit(q) {
+  const u = unitOf(q);
+  if (u.kind === 'run') return `the whole ${q?.workflow} run`;
+  if (u.kind === 'jobs') return `job(s) ${u.jobs.join(' + ')} of ${q?.workflow}`;
+  if (u.kind === 'step') return `step "${u.step}" of job ${u.job} in ${q?.workflow}`;
+  return `an unreadable unit of ${q?.workflow}`;
+}
+
+/** PURE. Does an API job `name` belong to workflow job `jobId`? The API reports a
+ *  job by its `name:` with expressions substituted, and a matrix leg with its
+ *  values appended in parentheses; a job with no `name:` by its id. */
+export function apiJobMatcher(jobId, job) {
+  const display = nonEmpty(job?.displayName) ? job.displayName : String(jobId);
+  if (display.includes('${{')) {
+    const body = display
+      .split(/\$\{\{[^}]*\}\}/)
+      .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.+');
+    const re = new RegExp(`^${body}(?: \\(.+\\))?$`);
+    return (name) => re.test(String(name ?? ''));
+  }
+  return (name) => {
+    const n = String(name ?? '');
+    return n === display || n.startsWith(`${display} (`);
+  };
+}
+
+/** PURE. ONE run's verdict for ONE unit: `{ verdict: 'success' | 'failure' |
+ *  'neutral', detail }`. `apiJobs` is that run's /jobs answer; `wf` the parsed
+ *  workflow the unit's ids are declared in. Neutral is "this run says nothing
+ *  about the unit" — never a pass. */
+export function unitConclusion(q, run, apiJobs, wf) {
+  const u = unitOf(q);
+  if (u.kind === 'run') {
+    const c = run?.conclusion ?? null;
+    return {
+      verdict: c === 'success' ? 'success' : FAILED_CONCLUSIONS.has(c) ? 'failure' : 'neutral',
+      detail: `run ${run?.id} concluded ${JSON.stringify(c)}`,
+    };
+  }
+  if (u.kind === 'invalid') return { verdict: 'neutral', detail: 'the row names no readable unit' };
+  if (!wf) return { verdict: 'neutral', detail: `${q?.workflow} could not be parsed, so no job of run ${run?.id} can be matched to the unit` };
+  if (!Array.isArray(apiJobs)) return { verdict: 'neutral', detail: `run ${run?.id} came with no job list` };
+  const parts = [];
+  const eachApiJob = (id, visit) => {
+    const job = wf.jobs?.get?.(id);
+    if (!job) { parts.push({ what: `job ${id}`, c: 'neutral', why: 'is not declared in the workflow file' }); return; }
+    const match = apiJobMatcher(id, job);
+    const found = apiJobs.filter((j) => match(j?.name));
+    if (found.length === 0) { parts.push({ what: `job ${id}`, c: 'neutral', why: `is absent from run ${run?.id}` }); return; }
+    for (const j of found) visit(job, j);
+  };
+  if (u.kind === 'jobs') {
+    for (const id of u.jobs) {
+      eachApiJob(id, (job, j) => {
+        const c = j?.status && j.status !== 'completed' ? null : (j?.conclusion ?? null);
+        if (c === 'success') parts.push({ what: `job ${id}`, c: 'success' });
+        else if (FAILED_CONCLUSIONS.has(c)) parts.push({ what: `job ${id}`, c: 'failure', why: `concluded ${c}` });
+        else if (c === 'skipped' && nonEmpty(job.jobIf?.cond)) parts.push({ what: `job ${id}`, c: 'skipped-by-own-if', why: `was skipped by its own \`if: ${job.jobIf.cond}\`` });
+        else parts.push({ what: `job ${id}`, c: 'neutral', why: `concluded ${JSON.stringify(c)}` });
+      });
+    }
+  } else {
+    eachApiJob(u.job, (job, j) => {
+      const s = (j?.steps ?? []).find((x) => x?.name === u.step);
+      const c = s ? (s.conclusion ?? null) : undefined;
+      if (!s) parts.push({ what: `step "${u.step}"`, c: 'neutral', why: `is not among the steps job ${u.job} reported in run ${run?.id}` });
+      else if (c === 'success') parts.push({ what: `step "${u.step}"`, c: 'success' });
+      else if (FAILED_CONCLUSIONS.has(c)) parts.push({ what: `step "${u.step}"`, c: 'failure', why: `concluded ${c}` });
+      else parts.push({ what: `step "${u.step}"`, c: 'neutral', why: `concluded ${JSON.stringify(c)}` });
+    });
+  }
+  const failed = parts.filter((p) => p.c === 'failure');
+  if (failed.length) return { verdict: 'failure', detail: `run ${run?.id}: ${failed.map((p) => `${p.what} ${p.why}`).join(' · ')}` };
+  const silent = parts.filter((p) => p.c === 'neutral');
+  if (silent.length || !parts.some((p) => p.c === 'success')) {
+    return { verdict: 'neutral', detail: `run ${run?.id}: ${silent.map((p) => `${p.what} ${p.why}`).join(' · ') || 'nothing in the unit concluded success'}` };
+  }
+  return { verdict: 'success', detail: `run ${run?.id}: ${describeUnit(q)} succeeded` };
+}
+
+/** PURE. The freshness probe from a scanned, newest-first `[{ run, c }]`. A full
+ *  page with no success is not "never": it carries `noSuccessSinceMs`, the oldest
+ *  run read, so the verdict can say how far back the silence was measured. */
+export function decideUnitFreshness(q, entries, pageFull, repo) {
+  const on = ` on ${q?.headBranch}`;
+  const ev = q?.event ?? 'any';
+  const hit = (entries ?? []).find((e) => e.c?.verdict === 'success');
+  if (hit) {
+    return {
+      lastSuccessMs: Date.parse(hit.run.updated_at),
+      detail: `run ${hit.run.id} (${ev}${on}): ${describeUnit(q)} succeeded; the run completed at ${hit.run.updated_at}.`,
+    };
+  }
+  const oldest = entries?.length ? entries[entries.length - 1].run : null;
+  if (pageFull && oldest) {
+    return {
+      lastSuccessMs: NaN,
+      noSuccessSinceMs: Date.parse(oldest.updated_at),
+      detail: `${repo}: NO success of ${describeUnit(q)} in the newest ${entries.length} completed \`${ev}\` run(s)${on}, back to run ${oldest.id} at ${oldest.updated_at}.`,
+    };
+  }
+  return { lastSuccessMs: NaN, detail: `${repo} has NO successful ${describeUnit(q)} in any completed \`${ev}\` run${on} in its run history at all.` };
+}
+
+/** PURE. The redness probe from a scanned, newest-first `[{ run, c }]`, in the
+ *  shape `classifyRedSince` already reads. The newest DECISIVE run decides: a
+ *  success first is green; failures first are RED SINCE the newest of them. */
+export function decideUnitRedSince(q, entries, pageFull) {
+  let failure = null;
+  for (const e of entries ?? []) {
+    if (e.c?.verdict === 'success') {
+      return failure
+        ? { success: { id: e.run.id, at: e.run.updated_at }, failure }
+        : { success: { id: e.run.id, at: e.run.updated_at }, failure: null, newestDecisive: true };
+    }
+    if (e.c?.verdict === 'failure' && !failure) failure = { id: e.run.id, at: e.run.updated_at, detail: e.c.detail };
+  }
+  const oldest = entries?.length ? entries[entries.length - 1].run : null;
+  if (failure && pageFull && oldest) return { success: { id: null, at: oldest.updated_at, beyondPage: entries.length }, failure };
+  return { success: null, failure };
+}
+
+/** PURE. INV3 + INV4 in the register: every run-history row names a unit, the
+ *  unit exists in the workflow file, no unit contains this guard's own verdict,
+ *  units of rows sharing a workflow do not overlap, and every job of a shared
+ *  workflow is some row's unit. `parsedByFile` is `file -> parseWorkflow(...)`.
+ *  Returns `{ errors, prints }`; every error is STRUCTURAL and blocks in every host. */
+export function checkRunUnits(reg, parsedByFile, topology) {
+  const errors = [];
+  const prints = [];
+  const byFile = new Map();
+  for (const r of reg?.rows ?? []) {
+    const q = r?.mechanism?.recordQuery;
+    if (q?.reader !== 'github-run-history') continue;
+    const f = String(q.workflow ?? '');
+    if (!byFile.has(f)) byFile.set(f, []);
+    byFile.get(f).push(r);
+  }
+  for (const [file, group] of byFile) {
+    const wf = parsedByFile?.get?.(file) ?? null;
+    const shared = group.length > 1;
+    const jobOwner = new Map();
+    const stepOwner = new Map();
+    for (const r of group) {
+      const q = r.mechanism.recordQuery;
+      const u = unitOf(q);
+      if (!u.declared) {
+        errors.push(
+          `${r.id} — \`recordQuery\` reads the run history of ${file} and names no \`unit\`. [INV3] A duty is judged by ` +
+            'the job or step that PERFORMS it: "run" when the whole run is this one duty, { "jobs": [...] }, or ' +
+            '{ "job", "step" }. A whole-run read of a run that performs several duties is how one red limb aged four ' +
+            'unrelated duties on 2026-09-11 (run 34546423386).',
+        );
+        continue;
+      }
+      if (u.kind === 'invalid') {
+        errors.push(`${r.id} — \`recordQuery.unit: ${JSON.stringify(u.raw)}\` is not "run", { "jobs": [id, …] } or { "job": id, "step": name }, so nothing can be read for it.`);
+        continue;
+      }
+      if (u.kind === 'run') {
+        if (shared) {
+          errors.push(
+            `${r.id} — \`unit: "run"\` on ${file}, which ${group.length} rows read (${group.map((g) => g.id).join(' · ')}). ` +
+              '[INV3] A run that performs several duties is the unit of none of them: its conclusion goes red for any one ' +
+              'of them and ages all the others. Name the job or step that performs THIS duty.',
+          );
+        }
+        if (topology?.guardHosts?.has(file)) {
+          errors.push(
+            `${r.id} — \`unit: "run"\` on ${file}, which runs ${GUARD_SCRIPT_REL}: the whole run contains this guard's ` +
+              `own verdict, so this duty could not go green in ${file} until ${file} is green. [INV4] No host requires itself.`,
+          );
+        }
+        continue;
+      }
+      if (!wf) {
+        errors.push(`${r.id} — names ${u.kind === 'jobs' ? 'jobs' : 'a step'} of ${file}, and ${WORKFLOW_DIR_REL}/${file} could not be parsed, so the unit cannot be held against the file that declares it.`);
+        continue;
+      }
+      const ids = u.kind === 'jobs' ? u.jobs : [u.job];
+      if (ids.length === 0) {
+        errors.push(`${r.id} — \`unit.jobs\` is EMPTY. A unit of nothing concludes nothing, and a duty judged by it could never be seen to fail.`);
+        continue;
+      }
+      const unknown = ids.filter((id) => !wf.jobs.has(id));
+      if (unknown.length) {
+        errors.push(`${r.id} — \`unit\` names job(s) ${unknown.map((x) => `\`${x}\``).join(' · ')}, which ${WORKFLOW_DIR_REL}/${file} does not declare (it declares ${[...wf.jobs.keys()].join(' · ')}).`);
+        continue;
+      }
+      if (u.kind === 'step') {
+        const names = jobSteps(wf.jobs.get(u.job)).map((s) => s.name).filter(Boolean);
+        if (!names.includes(u.step)) {
+          errors.push(
+            `${r.id} — \`unit.step: ${JSON.stringify(u.step)}\` is not the name of a step in job ${u.job} of ${file} ` +
+              `(named steps: ${names.map((n) => JSON.stringify(n)).join(' · ') || 'none'}). The API reports a step by its ` +
+              'name, so a near-miss matches nothing and the duty would read as never performed.',
+          );
+          continue;
+        }
+      }
+      const why = unitNeedsGuard(wf, u);
+      if (why) {
+        errors.push(
+          `${r.id} — its unit contains this guard's own verdict: ${why}. [INV4] No host requires itself — judged by ` +
+            `that unit, this duty could not go green in ${file} while ${file} is red, and ${file} is red whenever this guard is.`,
+        );
+      }
+      if (u.kind === 'jobs') {
+        for (const id of ids) {
+          if (jobOwner.has(id)) errors.push(`${r.id} — job ${id} of ${file} is already the unit of ${jobOwner.get(id)}. [INV3] Two duties judged by one job are one duty's red ageing the other.`);
+          else jobOwner.set(id, r.id);
+        }
+      } else {
+        const key = `${u.job}::${u.step}`;
+        if (stepOwner.has(key)) errors.push(`${r.id} — step "${u.step}" of job ${u.job} in ${file} is already the unit of ${stepOwner.get(key)}. [INV3] One step is one duty.`);
+        else stepOwner.set(key, r.id);
+      }
+    }
+    for (const [key, owner] of stepOwner) {
+      const job = key.split('::')[0];
+      if (jobOwner.has(job)) errors.push(`${owner} — is judged by a step of job ${job} in ${file}, and ${jobOwner.get(job)} is judged by that whole job: the units overlap, so one of them ages the other. [INV3]`);
+    }
+    if (shared && wf) {
+      const stepJobs = new Set([...stepOwner.keys()].map((k) => k.split('::')[0]));
+      const unowned = [...wf.jobs.entries()]
+        .filter(([id, j]) => !jobOwner.has(id) && !stepJobs.has(id) && !workflowRunsScript({ lines: j.lines }, GUARD_SCRIPT_REL))
+        .map(([id]) => id);
+      if (unowned.length) {
+        errors.push(
+          `${WORKFLOW_DIR_REL}/${file} is read by ${group.length} duty rows and job(s) ${unowned.join(' · ')} are the unit of none ` +
+            'of them. A whole-run read covered them by accident; a unit read does not, so a failure there would be watched ' +
+            'by nobody in this register. Add each to the `unit.jobs` of the row whose duty it performs.',
+        );
+      }
+      prints.push(`[INV3] ${file} — ${group.length} duty rows, each judged by its OWN unit: ${group.map((g) => `${g.id} ← ${describeUnit(g.mechanism.recordQuery)}`).join(' · ')}`);
+    }
+  }
+  return { errors, prints };
+}
+
+/** IMPURE. One cross-checked page of COMPLETED runs for a unit read, newest first,
+ *  every run's branch checked against the question. A shape or branch that does
+ *  not hold THROWS, and a throw is `unreadable` at both call sites. */
+async function unitRunsPage(q, repo, filters, what) {
+  if (!nonEmpty(q?.headBranch)) throw new Error(`${q?.workflow} names no headBranch, so a unit read cannot be scoped to a branch`);
+  const qs = filters.filter(Boolean).join('&');
+  const path = (n) => `/repos/${repo}/actions/workflows/${encodeURIComponent(q.workflow)}/runs?${qs}&per_page=${n}`;
+  const [narrow, wide] = await Promise.all([ghJson(path(1)), ghJson(path(UNIT_PAGE))]);
+  if (!Array.isArray(narrow?.workflow_runs) || !Array.isArray(wide?.workflow_runs)) {
+    throw new Error(`the run list for ${what} came back without a workflow_runs array`);
+  }
+  reconcileRunReads(newestOnPage(narrow.workflow_runs), newestOnPage(wide.workflow_runs), what);
+  const runs = wide.workflow_runs.filter((r) => r?.updated_at).sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  for (const r of runs) {
+    if (r.head_branch !== q.headBranch) {
+      throw new Error(`the branch filter did not hold for ${q.workflow}: asked for ${JSON.stringify(q.headBranch)} and run ${r.id} came back on ${JSON.stringify(r.head_branch ?? null)}`);
+    }
+  }
+  return { runs, pageFull: wide.workflow_runs.length >= UNIT_PAGE };
+}
+
+/** IMPURE. One run's job list, cached for the whole guard run. */
+function jobsOfRun(repo, runId, cache) {
+  if (!cache.has(runId)) {
+    cache.set(
+      runId,
+      ghJson(`/repos/${repo}/actions/runs/${runId}/jobs?per_page=100&filter=latest`).then((body) => {
+        if (!Array.isArray(body?.jobs)) throw new Error(`the job list of run ${runId} came back without a jobs array`);
+        return body.jobs;
+      }),
+    );
+  }
+  return cache.get(runId);
+}
+
+async function scanUnit(q, repo, wf, cache, filters, what) {
+  const u = unitOf(q);
+  if (u.kind === 'invalid' || u.kind === 'run') throw new Error(`${q?.workflow}: a unit scan was asked for a ${u.kind} unit`);
+  const { runs, pageFull } = await unitRunsPage(q, repo, filters, what);
+  const entries = [];
+  for (const run of runs) {
+    const c = unitConclusion(q, run, await jobsOfRun(repo, run.id, cache), wf);
+    entries.push({ run, c });
+    if (c.verdict === 'success') break;
+  }
+  return { entries, pageFull };
+}
+
+async function probeUnitFreshness(q, repo, wf, cache) {
+  const ev = q.event ? `event=${encodeURIComponent(q.event)}` : '';
+  const { entries, pageFull } = await scanUnit(
+    q, repo, wf, cache,
+    [ev, `branch=${encodeURIComponent(q.headBranch)}`, 'status=completed'],
+    `the newest completed ${q.event ?? 'any'} runs of ${q.workflow} on ${q.headBranch}`,
+  );
+  return decideUnitFreshness(q, entries, pageFull, repo);
+}
+
+async function probeUnitRedSince(q, repo, wf, cache) {
+  const { entries, pageFull } = await scanUnit(
+    q, repo, wf, cache,
+    [`branch=${encodeURIComponent(q.headBranch)}`, 'status=completed'],
+    `the newest completed runs of ${q.workflow} on ${q.headBranch}`,
+  );
+  return decideUnitRedSince(q, entries, pageFull);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2681,62 +3124,60 @@ export function dispatchableWorkflows(root) {
 //    34355529015 on ddfc63d4: `✗ ci-gate concluded "failure" for ddfc63d4 —
 //    refusing to deploy`. The dispatched run aborts before it builds anything.
 // 5. So `build-platforms.yml` can never produce a green run on `main`, so RED
-//    SINCE never clears, so `ci-gate` never goes green. Every merge and every
-//    deploy on `main` is frozen, and the verdict's own remedy line — "A success
-//    of ANY event on that branch clears it — dispatch the workflow once the
-//    cause is fixed" — is UNREACHABLE for precisely the workflows it is aimed at.
+//    SINCE never clears, so `ci-gate` never goes green.
 //
-// ⚠️ AND THE LOOP HAS A SECOND LAP, WHICH IS WHY THE RULE IS NOT MERELY
-// "EXEMPT THE SELF-GATED ROW". `.github/workflows/ops-watch.yml` RUNS THIS
-// GUARD, so step 2 above also fails ops-watch: run 34354893475, job "Every
-// declared duty is fresh", FAILURE at 2026-09-09T13:06:44Z. That failure makes
-// `duty.workflow.ops-watch.yml` RED SINCE in turn, and ops-watch is NOT
-// self-gated — so exempting only the self-gated row leaves `ci-gate` red through
-// the ops-watch row instead, and nothing has moved. Both laps are closed here,
-// and the second one only while the first is actually live.
+// ⚠️ AND THE LOOP HAD A SECOND LAP. `.github/workflows/ops-watch.yml` RUNS THIS
+// GUARD, so step 2 also failed ops-watch (run 34354893475, 2026-09-09T13:06:44Z),
+// which made `duty.workflow.ops-watch.yml` RED SINCE in turn — and ops-watch is
+// not self-gated, so exempting only the self-gated row left `ci-gate` red through
+// the ops-watch row instead.
 //
-// ── THE PROPERTY, STATED ONCE ──────────────────────────────────────────────
-// The header above already names what makes a blocking alarm honest: "⚠️ THE
-// FREEZE IS BOUNDED AND ITS REMEDY IS REACHABLE". `dispatchableWorkflows` tests
-// that one way — has this lane a button. This tests the other, and it is the
-// half that was missing: IS THE BUTTON WIRED TO THE GATE THIS VERDICT CONTROLS.
-// A `workflow_dispatch:` line and an `assert-gate-passed.mjs` first step are the
-// same lane read from two ends, and only both together mean "reachable".
+// ⛔ 2026-09-11 — THOSE TWO RULES (AND THE 2026-09-08 `SELF` ROW) WERE THREE
+// INSTANCES OF ONE CLASS, AND THE REST OF THE CLASS FROZE `main` FOR GOOD.
+// Measured (FINDING-permanent-freeze-2026-09-11): ops-watch's last success was
+// run 34443764295 (dispatch, 2026-09-10T06:06Z) and every run after it failed.
+// Run 34546423386 (schedule, 00:25Z) listed EIGHT problems: four duties STALE
+// only because they were read off the WHOLE-RUN conclusion of the last
+// scheduled ops-watch success while the job or step performing each of them was
+// green in every one of those runs; `duty.workflow.ops-watch.yml` itself, which
+// needed a green ops-watch for ops-watch to go green; a laptop beat; and two
+// genuinely red lanes, one of them (e2e.yml) NOT self-gated and so outside the
+// exemption entirely. ci.yml runs this guard on every pull request, so the PRs
+// fixing the two real bugs were blocked by main's history. The three rules
+// below replace every special case, and the header at the top of this file
+// states the six invariants they establish.
+//
+// ── THE RULE: NO HOST REQUIRES ITSELF (INV4) ────────────────────────────────
+// A live verdict about a row may BLOCK in an enforcing host H only if that row's
+// recovery does not need H to be green. "Needs" has two DERIVED edges:
+//   · OWN HOST   — the row's unit contains this guard's own verdict inside H:
+//                  the whole run of a guard host, a job that runs this guard, or
+//                  a job or step that is SKIPPED when it fails. `checkRunUnits`
+//                  refuses such a unit in the register; the edge stays so a
+//                  register that slips past can still never freeze.
+//   · SELF-GATED — the row's workflow runs `assert-gate-passed.mjs`, and H
+//                  produces the check that script waits for.
+// and one composed edge: an enforcing host blocks on every other red verdict.
+// If H is reachable from the row, the verdict PRINTS in H, with the path, and
+// blocks everywhere else. `SELF` was an OWN HOST edge, SELF-GATED is itself, and
+// SECOND LAP was the path row → ops-watch.yml → a red self-gated lane → ci.yml.
 //
 // ── DERIVED, NEVER LISTED, AND NEVER FROM A CALLER'S FLAG ──────────────────
-//   · SELF-GATED   — every `.github/workflows/*.yml` that RUNS
-//                    `tooling/ci/assert-gate-passed.mjs`. Eight files today;
-//                    this code never says which, and the moment one drops the
-//                    step it leaves the set and is blocked again.
-//   · GUARD HOSTS  — every workflow that RUNS `tooling/ci/assert-ops-register.mjs`
-//                    (`ci.yml` and `ops-watch.yml`), i.e. every workflow whose
-//                    conclusion THIS FILE helps produce.
-//   · THE GATE     — the check-run name is read out of `assert-gate-passed.mjs`'s
-//                    own source (`const GATE = '…'`), and the GATE-PRODUCING
-//                    workflow is the one declaring a job by that name. Not a
-//                    string this file asserts: the two ends must agree on disk or
-//                    the derivation returns `null` and NOTHING is exempted.
-// 🔴 AND THE CONTEXT COMES FROM THE ENVIRONMENT, VIA `hostWorkflowFile()` —
-// `GITHUB_WORKFLOW_REF`/`GITHUB_WORKFLOW`. Never a `--allow-deadlock` argument
-// and never a register field: a flag a caller may pass is a waiver, and a waiver
-// is how this alarm gets switched off by the next person in a hurry. A run
-// cannot lie about which workflow file it is executing inside.
+//   · SELF-GATED  — every workflow that RUNS tooling/ci/assert-gate-passed.mjs.
+//   · GUARD HOSTS — every workflow that RUNS tooling/ci/assert-ops-register.mjs.
+//   · THE GATE    — `const GATE` read out of assert-gate-passed.mjs, and the ONE
+//                   workflow declaring a job by that name.
+//   · THE HOST    — GITHUB_WORKFLOW_REF / GITHUB_WORKFLOW (`hostWorkflowFile`).
+//   · THE EVENT   — GITHUB_EVENT_NAME, believed only when the host's own `on:`
+//                   block declares it (`hostPolicy`).
+// Never a `--allow-deadlock` argument and never a register field: a flag a
+// caller may pass is a waiver, and a waiver is how this alarm gets switched off
+// by the next person in a hurry.
 //
-// ── WHAT IS AND IS NOT GIVEN UP: NOTHING IS ───────────────────────────────
-// The exemption applies in ONE host — the workflow that produces the gate — and
-// there it converts `errors` into a LOUD, NAMED PRINT carrying the workflow, the
-// run id, the timestamps and the deadlock reason. In `ops-watch.yml` the same
-// RED still lands in `errors`, still fails the job, and still files against the
-// durable issue "Scheduled duty is not reporting healthy" — ops-watch is gated on
-// nothing, so blocking there cannot deadlock, and that is where the page lives.
-// The alarm keeps its whole bite; only the copy of it that would eat its own
-// remedy is downgraded, and it is downgraded to a sentence rather than to silence.
-//
-// 🔴 FAIL-CLOSED IN EVERY DIRECTION. No topology, no gate name, no gate-producing
-// workflow, an unresolvable host, a host that is not the gate producer, or a host
-// that does not run this guard — any one of them means NO exemption and the
-// pre-2026-09-09 blocking behaviour exactly. The direction that costs a freeze is
-// the direction this code takes when it cannot prove otherwise.
+// 🔴 FAIL-CLOSED IN EVERY DIRECTION. No topology, no gate name, no gate producer,
+// two producers, an unresolvable host or an unparsed workflow — any one means NO
+// exemption: every live verdict in an enforcing host BLOCKS, and the incomplete
+// derivation is printed as a sentence on every run.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** The gate the deploy lanes wait on, and the guard whose exit code decides it.
@@ -2839,34 +3280,258 @@ export function feedsTheGate(hostWorkflow, topology) {
   );
 }
 
-/** PURE. Why this RED may not be routed into `errors` HERE, or `null` if it may.
- *  `redFiles` is every workflow file graded `red` on THIS run, which is what makes
- *  the second lap conditional: a red guard host is exempt only while a self-gated
- *  lane is actually red, i.e. only while this guard is the thing failing it. */
-export function deadlockExemption(file, redFiles, topology, gateFeeding) {
-  if (!gateFeeding || !topology || !file) return null;
-  const gate = topology.gateName;
-  if (topology.selfGated.has(file)) {
-    return (
-      `SELF-GATED — \`${WORKFLOW_DIR_REL}/${file}\` runs \`${GATE_SCRIPT_REL}\`, which refuses to proceed while ` +
-      `\`${gate}\` is red. This run IS the run that decides \`${gate}\`, so routing this RED into \`errors\` here ` +
-      `keeps \`${gate}\` red, and a red \`${gate}\` is exactly what aborts the dispatched run that would clear the ` +
-      `RED. The verdict's own remedy — "dispatch the workflow once the cause is fixed" — is UNREACHABLE from this ` +
-      `host, so the verdict may not be the thing that blocks it. It is BLOCKING in every other host.`
+/** The events on which a guard host judges a PROPOSED change rather than the
+ *  default branch itself. INV1 is about exactly these: a verdict read off main's
+ *  history is not a property of the proposal, and the proposal is how it gets
+ *  fixed. GitHub's own vocabulary, not a list this file can grow to silence
+ *  something — and `hostPolicy` still refuses the event unless the host workflow
+ *  on disk declares it. */
+export const PROPOSAL_EVENTS = new Set(['pull_request', 'pull_request_target', 'merge_group']);
+
+/** `file -> Set<event>` for every workflow, through the one parser. */
+export function workflowEventsByFile(parsedWorkflows) {
+  const out = new Map();
+  for (const wf of parsedWorkflows ?? []) out.set(String(wf?.rel ?? '').split('/').pop(), workflowEvents(wf));
+  return out;
+}
+
+/** PURE. INV1 + INV2 + INV5: may a LIVE verdict block in THIS run? Returns
+ *  `{ host, event, mode: 'advisory' | 'enforcing', why }`.
+ *
+ *  ADVISORY only when all four hold, each derived rather than declared: the run
+ *  is inside a GitHub Actions job whose workflow FILE resolves; the event is a
+ *  proposal event; that workflow runs this guard; and its own `on:` block
+ *  declares that event. Anything else — off Actions, an unnamed event, a push, a
+ *  schedule, a dispatch, a host that does not run this guard, an event its file
+ *  does not declare — is ENFORCING, which is the pre-2026-09-11 behaviour. The
+ *  failure to prove "this is a proposal" never lifts a block. */
+export function hostPolicy(env, topology, eventsByFile) {
+  const host = hostWorkflowFile(env);
+  const event = nonEmpty(env?.GITHUB_EVENT_NAME) ? String(env.GITHUB_EVENT_NAME).trim() : null;
+  const enforcing = (why) => ({ host, event, mode: 'enforcing', why });
+  if (!host) {
+    return enforcing(
+      'no host workflow resolved (not inside a GitHub Actions job, or GITHUB_WORKFLOW_REF names no workflow file), ' +
+        'so every live verdict BLOCKS, exactly as a local run always has',
     );
   }
-  const selfGatedRed = [...(redFiles ?? [])].filter((f) => topology.selfGated.has(f)).sort();
-  if (selfGatedRed.length && topology.guardHosts.has(file)) {
-    return (
-      `SECOND LAP — \`${WORKFLOW_DIR_REL}/${file}\` runs \`${GUARD_SCRIPT_REL}\`, this guard, so its conclusion is ` +
-      `partly THIS FILE'S OUTPUT. ${selfGatedRed.join(' · ')} is RED and self-gated, which fails this guard inside ` +
-      `${file} too — so ${file} can have no green run until that clears. Routing this RED into \`errors\` here keeps ` +
-      `\`${gate}\` red, which aborts the dispatch that clears the self-gated RED, which is the only thing that would ` +
-      `let ${file} go green: the same loop, one hop out. Exempt HERE and ONLY while a self-gated lane is actually ` +
-      `red; blocking in every other host, and blocking here the moment ${selfGatedRed.join(' · ')} is green again.`
+  if (!event) return enforcing(`${host} with no GITHUB_EVENT_NAME — an event this guard cannot name is not a proposal it can believe, so every live verdict BLOCKS`);
+  if (!PROPOSAL_EVENTS.has(event)) {
+    if (feedsTheGate(host, topology)) {
+      return enforcing(
+        `${host} on \`${event}\` — this run's exit code decides \`${topology.gateName}\` for a commit on its own branch, ` +
+          `and every self-gated lane (${[...topology.selfGated].sort().join(' · ')}) runs ${GATE_SCRIPT_REL} and ` +
+          'refuses to ship that commit unless the check passed — so a live verdict BLOCKS here (INV2)',
+      );
+    }
+    return enforcing(
+      `${host} on \`${event}\` — this run judges the default branch itself` +
+        `${topology?.guardHosts?.has(host) ? ' and its red conclusion is the page' : ''}, so a live verdict BLOCKS here`,
     );
+  }
+  if (!topology?.guardHosts?.has(host)) {
+    return enforcing(`${host} on \`${event}\` — but by the workflow derivation ${host} does not run ${GUARD_SCRIPT_REL}, so this cannot be the proposal gate this guard feeds; fail-closed, every live verdict BLOCKS`);
+  }
+  if (!(eventsByFile?.get(host) instanceof Set) || !eventsByFile.get(host).has(event)) {
+    return enforcing(
+      `${host} on \`${event}\` — but ${WORKFLOW_DIR_REL}/${host} declares no \`${event}\` in its \`on:\` block, so the ` +
+        'environment contradicts the file on disk and is not believed; fail-closed, every live verdict BLOCKS',
+    );
+  }
+  return {
+    host,
+    event,
+    mode: 'advisory',
+    why:
+      `${host} on \`${event}\` judges a PROPOSED CHANGE. A verdict read off the default branch's run history, a job ` +
+      'conclusion, a heartbeat or a live monitor is not a property of that change, and a pull request is how such a ' +
+      'verdict gets FIXED — so here every live verdict PRINTS in full, with its remedy, and does not block (INV1). ' +
+      'The same verdict still BLOCKS on push to the default branch, whose `ci-gate` every deploy lane polls before ' +
+      'it ships (INV2), and still fails ops-watch, which is the page. A structural problem with the register itself ' +
+      'is a property of this change and still blocks here.',
+  };
+}
+
+/** A condition under which a job or step still RUNS after something it follows
+ *  failed. Without one, a failure ahead of it SKIPS it. */
+export const RUNS_AFTER_FAILURE = /\balways\(\s*\)|\bfailure\(\s*\)|!\s*cancelled\(\s*\)/;
+
+const unquote = (s) => String(s).replace(/^(['"])(.*)\1$/, '$2');
+
+/** PURE, over a job the one parser produced. `[{ name, cond, runsGuard, index }]`.
+ *  Step items sit at six spaces (`      - `) and their keys at eight;
+ *  `parseWorkflow` has already blanked comments. A step with no `name:` has no
+ *  name a unit can cite, and says so by being `null`. */
+export function jobSteps(job) {
+  const steps = [];
+  let cur = null;
+  for (const l of job?.lines ?? []) {
+    const text = String(l?.text ?? '');
+    const start = /^ {6}- (.*)$/.exec(text);
+    if (start) {
+      cur = { name: null, cond: null, lines: [], index: steps.length };
+      steps.push(cur);
+      const inline = /^(name|if):\s*(\S.*?)\s*$/.exec(start[1]);
+      if (inline) cur[inline[1] === 'name' ? 'name' : 'cond'] = unquote(inline[2]);
+      cur.lines.push({ n: l.n, text: `        ${start[1]}` });
+      continue;
+    }
+    if (!cur) continue;
+    if (text.trim() !== '' && /^ {0,5}\S/.test(text)) { cur = null; continue; }
+    const key = /^ {8}(name|if):\s*(\S.*?)\s*$/.exec(text);
+    if (key) cur[key[1] === 'name' ? 'name' : 'cond'] = unquote(key[2]);
+    cur.lines.push(l);
+  }
+  return steps.map(({ lines, ...s }) => ({ ...s, runsGuard: workflowRunsScript({ lines }, GUARD_SCRIPT_REL) }));
+}
+
+/** PURE. Why this unit's conclusion CONTAINS this guard's own verdict inside its
+ *  own workflow, or `null`. The whole run of a guard host does; so does the job
+ *  that runs this guard; so does any job that `needs:` it, and any later step in
+ *  its job, that carries no condition under which it still runs after a failure —
+ *  because a guard that fails SKIPS those, and a skipped duty is not a green one. */
+export function unitNeedsGuard(wf, unit) {
+  if (!wf || !unit) return null;
+  const guardJobs = [...(wf.jobs?.entries?.() ?? [])]
+    .filter(([, j]) => workflowRunsScript({ lines: j.lines }, GUARD_SCRIPT_REL))
+    .map(([id]) => id);
+  if (guardJobs.length === 0) return null;
+  if (unit.kind === 'run' || unit.kind === 'invalid') {
+    return `the whole run includes job ${guardJobs.join(' · ')}, which runs ${GUARD_SCRIPT_REL}`;
+  }
+  const jobNeeds = (id, seen = new Set()) => {
+    if (seen.has(id)) return null;
+    seen.add(id);
+    const j = wf.jobs.get(id);
+    if (!j) return null;
+    if (guardJobs.includes(id)) return `job ${id} runs ${GUARD_SCRIPT_REL}`;
+    if (RUNS_AFTER_FAILURE.test(String(j.jobIf?.cond ?? ''))) return null;
+    for (const dep of j.needs ?? []) {
+      const why = jobNeeds(dep, seen);
+      if (why) return `job ${id} needs ${dep} with no always()/failure()/!cancelled() condition, so it is SKIPPED when that fails — ${why}`;
+    }
+    return null;
+  };
+  if (unit.kind === 'jobs') {
+    for (const id of unit.jobs) {
+      const why = jobNeeds(id);
+      if (why) return why;
+    }
+    return null;
+  }
+  const job = wf.jobs.get(unit.job);
+  if (!job) return null;
+  const steps = jobSteps(job);
+  const at = steps.findIndex((s) => s.name === unit.step);
+  if (at === -1) return null;
+  if (steps[at].runsGuard) return `step "${unit.step}" IS the step in job ${unit.job} that runs ${GUARD_SCRIPT_REL}`;
+  const guardAt = steps.findIndex((s) => s.runsGuard);
+  if (guardAt !== -1 && guardAt < at && !RUNS_AFTER_FAILURE.test(String(steps[at].cond ?? ''))) {
+    return (
+      `step "${unit.step}" follows the step running ${GUARD_SCRIPT_REL} in job ${unit.job} and carries no ` +
+      'always()/failure()/!cancelled() condition, so it is SKIPPED whenever this guard fails'
+    );
+  }
+  if (!RUNS_AFTER_FAILURE.test(String(job.jobIf?.cond ?? ''))) {
+    for (const dep of job.needs ?? []) {
+      const why = jobNeeds(dep);
+      if (why) return `job ${unit.job} needs ${dep} with no always()/failure()/!cancelled() condition — ${why}`;
+    }
   }
   return null;
+}
+
+/** PURE. The hosts this row's RECOVERY needs to be green: `[{ host, why }]`.
+ *  Exactly the two derived edges in the header above — OWN HOST and SELF-GATED —
+ *  and nothing a caller or a register field can add. An unparsed workflow adds
+ *  no OWN HOST edge: fail-closed means blocking, never a guessed exemption. */
+export function unitNeedsHosts(row, topology, parsedByFile) {
+  const q = row?.mechanism?.recordQuery;
+  const file = nonEmpty(q?.workflow) ? String(q.workflow) : null;
+  const out = [];
+  if (!file || !topology) return out;
+  if (topology.guardHosts?.has(file)) {
+    const why = unitNeedsGuard(parsedByFile?.get(file) ?? null, unitOf(q));
+    if (why) {
+      out.push({
+        host: file,
+        why:
+          `OWN HOST — ${row.id} is judged by ${describeUnit(q)}, and ${why}; blocking this verdict inside ${file} ` +
+          `would make ${file} unable to go green until ${file} is green (INV4)`,
+      });
+    }
+  }
+  if (topology.selfGated?.has(file) && topology.gateWorkflow) {
+    out.push({
+      host: topology.gateWorkflow,
+      why:
+        `SELF-GATED — ${WORKFLOW_DIR_REL}/${file} runs ${GATE_SCRIPT_REL}, which refuses while \`${topology.gateName}\` ` +
+        `is red, and ${topology.gateWorkflow} produces \`${topology.gateName}\`; the dispatch that would clear this verdict ` +
+        'aborts on the red this verdict would produce. Its remedy is UNREACHABLE from that host',
+    });
+  }
+  return out;
+}
+
+/** PURE. The ONE router for every live verdict, from both limbs. `live` is
+ *  `[{ id, line, code: 1 | 2 }]`; returns `{ blocking, printed, notes }`, where a
+ *  printed entry carries `why`. Nothing here can turn a verdict into a pass: it
+ *  decides only whether THIS host's exit code carries it.
+ *
+ *  · ADVISORY host (INV1) — everything prints.
+ *  · ENFORCING host — a verdict blocks unless this host is REACHABLE from its row
+ *    over the needs-graph (INV4). The composed edge "an enforcing host blocks on
+ *    every other red verdict" is taken in full, which can only ever exempt MORE
+ *    than an exact fixed point would; the only edges that can start such a path
+ *    are OWN HOST (refused in the register by `checkRunUnits`, so it exists only
+ *    on a register that already fails structurally, in every host) and SELF-GATED.
+ *  · Incomplete topology or no host — nothing is exempt. */
+export function routeLiveVerdicts(live, policy, topology, reg, parsedByFile) {
+  const blocking = [];
+  const printed = [];
+  const notes = [];
+  const verdicts = live ?? [];
+  if (policy?.mode === 'advisory') {
+    for (const v of verdicts) printed.push({ ...v, why: 'ADVISORY on a proposal event (INV1) — see HOST POLICY above; it BLOCKS on push to the default branch and in ops-watch' });
+    return { blocking, printed, notes };
+  }
+  const incomplete = !topology || (topology.why ?? []).length > 0;
+  const host = policy?.host ?? null;
+  if (incomplete || !host) {
+    blocking.push(...verdicts);
+    if (incomplete && verdicts.length) {
+      notes.push('[INV4] 🔴 NO LIVE VERDICT WAS EXEMPTED: the gate topology is incomplete (printed above), and an exemption is granted only on proof, never on a missing answer.');
+    }
+    return { blocking, printed, notes };
+  }
+  const rows = new Map((reg?.rows ?? []).map((r) => [r.id, r]));
+  const redIds = [...new Set(verdicts.map((v) => v.id))];
+  const needs = new Map(redIds.map((id) => [id, unitNeedsHosts(rows.get(id), topology, parsedByFile)]));
+  const enforcingHosts = new Set(topology.guardHosts ?? []);
+  const pathTo = (start) => {
+    const seen = new Set([start]);
+    const queue = [[start, []]];
+    while (queue.length) {
+      const [id, trail] = queue.shift();
+      for (const n of needs.get(id) ?? []) {
+        const step = [...trail, `${id} needs ${n.host}: ${n.why}`];
+        if (n.host === host) return step;
+        if (!enforcingHosts.has(n.host)) continue;
+        for (const other of redIds) {
+          if (seen.has(other)) continue;
+          seen.add(other);
+          queue.push([other, [...step, `${n.host} blocks on ${other}, which is red`]]);
+        }
+      }
+    }
+    return null;
+  };
+  for (const v of verdicts) {
+    const path = pathTo(v.id);
+    if (!path) blocking.push(v);
+    else printed.push({ ...v, why: path.length === 1 ? path[0] : `CYCLE of ${path.length} edges back to ${host} — ${path.join(' ⇒ ')}` });
+  }
+  return { blocking, printed, notes };
 }
 
 /** The rows this limb grades. TWO admissions, and they are graded for the SAME
@@ -3049,22 +3714,22 @@ export function hostWorkflowFile(env = process.env) {
 
 /** PURE. Turns ONE redness answer into a verdict, so every branch is reachable
  *  from a test with no network — the same shell/pure split
- *  `classifyRunHistoryAnswer` and `classifyGlitchtipChecks` already use, and for
- *  the same reason: a limb whose only evidence is "it was green against
- *  production today" has no recorded failing case.
+ *  `classifyRunHistoryAnswer` and `classifyGlitchtipChecks` already use.
  *
  *  Four verdicts, and exactly one of them is "fine":
  *    · `green`      — the newest success is newer than the newest failure, or
  *                     there has never been a failure at all.
- *    · `red`        — RED SINCE. Routed to `errors`; the duty is FAILING.
+ *    · `red`        — RED SINCE. A LIVE verdict: `routeLiveVerdicts` decides, once
+ *                     for every limb, whether THIS host's exit code carries it.
  *    · `unreadable` — no token, a throw, or an unorderable answer. PRINTS.
  *                     "I could not tell" is never "it is fine".
  *    · `blind`      — failures exist and no success does, so the comparison has
- *                     one term. COVERAGE LOST; see `evaluateRedSince`. */
+ *                     one term. A LIVE verdict at exit 2 wherever it blocks. */
 export function classifyRedSince(row, probe) {
   const id = row.id;
   const q = row?.mechanism?.recordQuery ?? {};
-  const where = `${q.workflow} on ${q.headBranch}`;
+  const unit = unitOf(q);
+  const where = `${q.workflow} on ${q.headBranch}${unit.kind === 'run' ? '' : ` (${describeUnit(q)})`}`;
   if (!probe) return { verdict: 'unreadable', line: `${id} — the RED-SINCE read of ${where} produced no result at all on this run.` };
   if (probe.unreadable) return { verdict: 'unreadable', line: `${id} — the RED-SINCE read of ${where} could not run here: ${probe.why}` };
 
@@ -3072,6 +3737,12 @@ export function classifyRedSince(row, probe) {
   const ok = probe.success ?? null;
 
   if (!fail) {
+    if (ok && probe.newestDecisive) {
+      return {
+        verdict: 'green',
+        line: `${id} — ${where}: the newest run in which that unit reached a verdict is run ${ok.id} (${ok.at}), and it SUCCEEDED.`,
+      };
+    }
     return {
       verdict: 'green',
       line: `${id} — ${where}: no FAILED run in its history at all${ok ? `, and the newest success is run ${ok.id} at ${ok.at}` : ''}.`,
@@ -3096,6 +3767,16 @@ export function classifyRedSince(row, probe) {
     };
   }
   if (failMs > okMs) {
+    if (ok.beyondPage) {
+      return {
+        verdict: 'red',
+        line:
+          `${id} — RED SINCE ${fail.at} AT THE LATEST: ${where} run ${fail.id} FAILED, and NO success of that unit appears ` +
+          `in the newest ${ok.beyondPage} completed run(s) on that branch, back to ${ok.at}. This row's own ` +
+          '`failingValue` is a failing conclusion; this is that value, live, and the duty is FAILING. A success of ' +
+          'ANY event on that branch clears it — dispatch the workflow once the cause is fixed.',
+      };
+    }
     return {
       verdict: 'red',
       line:
@@ -3114,12 +3795,15 @@ export function classifyRedSince(row, probe) {
 }
 
 /** PURE. `probes` is `Map<rowId, redSinceProbe>`; every impure thing has already
- *  happened. `coverageLost` is returned SEPARATELY from `errors` because the two
- *  mean different things: an error is a branch that is red right now, coverage
- *  lost is this limb no longer being able to tell. */
-export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(), dispatchable = null, topology = null) {
+ *  happened. Returns `{ errors, prints, live, stats }` or `{ coverageLost }` for an
+ *  EMPTY domain. Every RED and BLIND line is in `errors` AND in `live`; this
+ *  function no longer decides where a verdict is routed — ⏱ 2026-09-11, that is
+ *  `routeLiveVerdicts`, once for both limbs, because a router per limb is how the
+ *  2026-09-09 exemption came to cover one limb and not the other. */
+export function evaluateRedSince(reg, probes, dispatchable = null) {
   const errors = [];
   const prints = [];
+  const live = [];
   const domain = redSinceDomain(reg, dispatchable);
   // ⏱ 2026-09-09. The shape rules for the `trigger` rows admitted above, which
   // `evaluateRunRecords` cannot state because its domain is the clocked rows.
@@ -3141,126 +3825,48 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
     };
   }
 
-  const tally = { green: 0, red: 0, unreadable: 0, blind: 0, self: 0, deadlockExempt: 0 };
-  const blindLines = [];
+  const tally = { green: 0, red: 0, unreadable: 0, blind: 0 };
   const darkLines = [];
-  const selfLines = [];
-  // ⏱ 2026-09-09 — the REDs are collected before any of them is routed. The
-  // second lap of the deadlock (see the header block above `GATE_SCRIPT_REL`)
-  // asks "is a SELF-GATED lane red on THIS run", and that question has no answer
-  // until every row has been classified. One pass to classify, one to route.
-  const redRows = [];
-  const gateFeeding = feedsTheGate(hostWorkflow, topology);
   for (const r of domain) {
-    // 🔴 THE ONE ROW A RUN MAY NOT GRADE: the workflow it is executing inside.
-    // Appended 2026-09-08, TRAPS `ci-42`/`ci-43`; the header states the incident.
-    // NOT a pass, NOT a `green` and NOT a verdict — a named print, still counted
-    // in `domain.length` and in `self`, and graded HARD by every other host.
-    // `hostWorkflow` is `null` off GitHub Actions and whenever the host file
-    // cannot be resolved, so the default is still to grade every row.
-    if (hostWorkflow && String(r?.mechanism?.recordQuery?.workflow ?? '') === hostWorkflow) {
-      const q = r?.mechanism?.recordQuery ?? {};
-      tally.self += 1;
-      selfLines.push(
-        `[14]O-3b — SELF ${r.id}: NOT GRADED by its own host run — ${q.workflow} on ${q.headBranch} is the workflow ` +
-          'executing this guard, and the redness probe filters on CONCLUSIONS, which an in-flight run does not have. ' +
-          "Graded here it could only ever read its own predecessor's failure and re-fail forever (TRAPS ci-42/ci-43). " +
-          "It is still graded HARD by ci.yml's `guards-platform` job, which runs this same guard on every push and " +
-          'every pull request and is outside this domain — so a genuinely red ' +
-          `${q.workflow} still turns ci-gate red on every branch. Counted in the domain size below; counted as ` +
-          'neither pass nor fail.',
-      );
-      continue;
-    }
-    const c = classifyRedSince(r, probes.get(r.id));
+    const c = classifyRedSince(r, probes?.get?.(r.id));
     tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
-    if (c.verdict === 'red') redRows.push({ row: r, line: c.line, file: String(r?.mechanism?.recordQuery?.workflow ?? '') });
-    else if (c.verdict === 'blind') blindLines.push(c.line);
-    else if (c.verdict === 'unreadable') darkLines.push(c.line);
-    else prints.push(`[14]O-3b — ${c.line}`);
-  }
-
-  // 🔴 SECOND PASS — WHERE A RED GOES, WHICH IS NOT WHETHER IT WAS SEEN. Every
-  // row above is already graded; nothing here can turn a `red` into anything
-  // else. The only question is whether THIS host is the one whose exit code the
-  // graded workflow's own recovery depends on — and in that one host a RED whose
-  // remedy this verdict would abort is printed instead of blocked. See the
-  // header block above `GATE_SCRIPT_REL` for the measured livelock and both laps.
-  const redFiles = new Set(redRows.map((e) => e.file).filter(Boolean));
-  for (const e of redRows) {
-    const why = deadlockExemption(e.file, redFiles, topology, gateFeeding);
-    if (!why) {
-      errors.push(e.line);
-      continue;
+    if (c.verdict === 'red') {
+      errors.push(c.line);
+      live.push({ id: r.id, line: c.line, code: 1, limb: '[14]O-3b' });
+    } else if (c.verdict === 'blind') {
+      const line =
+        `${c.line} COVERAGE LOST for this row, which is neither a pass nor a RED: "since when" needs two terms and has ` +
+        'one, and a first-ever run that failed is not distinguishable here from a history that does not reach back far ' +
+        'enough. The duty is NOT unwatched — the sibling [14]O-3 limb still grades "no successful run at all" as FAILING.';
+      errors.push(line);
+      live.push({ id: r.id, line, code: 2, limb: '[14]O-3b' });
+    } else if (c.verdict === 'unreadable') {
+      darkLines.push(c.line);
+    } else {
+      prints.push(`[14]O-3b — ${c.line}`);
     }
-    tally.deadlockExempt += 1;
-    prints.push(
-      `[14]O-3b — 🔴 RED, AND NOT BLOCKING IN THIS HOST BECAUSE BLOCKING HERE WOULD DEADLOCK IT — ${e.line}`,
-    );
-    prints.push(`[14]O-3b — 🔴 …WHY THIS RED IS A PRINT HERE: ${why}`);
   }
 
-  // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE, for the same reason [14]O-3's
-  // is: `0 RED over 7 workflows` and `0 RED over 0 workflows` read identically
-  // unless the domain size is stated beside the verdict.
-  // ⏱ 2026-09-09 — the domain is no longer "the scheduled proofs", so the line
-  // no longer says it is. The two admissions are counted SEPARATELY: a reader
-  // who sees only the total cannot tell a lost deploy row from a lost nightly
-  // one, and the deploy rows are the half that is derived from a file on disk.
+  // 🔴 THE NUMBER THAT MUST NEVER BE INVISIBLE: `0 RED over 7 workflows` and
+  // `0 RED over 0 workflows` read identically unless the domain size is stated
+  // beside the verdict, and the two admissions are counted SEPARATELY.
   const clocked = domain.filter((r) => TIME_CADENCE.test(String(r?.cadence ?? ''))).length;
   const census = redSinceTriggerCensus(reg, dispatchable);
   prints.push(
     `[14]O-3b — RED SINCE: ${domain.length} workflow duty(ies) graded (${clocked} on a clock · ` +
       `${domain.length - clocked} \`trigger\` row(s) whose workflow declares \`workflow_dispatch\`, so a red lane ` +
       `has an exit that is not a merge) · ${tally.green} whose newest run on their own ` +
-      `branch is GREEN · ${tally.red} RED (${tally.deadlockExempt} of them printed rather than blocked HERE because ` +
-      `blocking them in this host would deadlock their own recovery — see the lines above; they are BLOCKING in ` +
-      `every other host) · ${tally.unreadable} unreadable on this runner · ` +
-      `${tally.blind} with no success to compare against · ${tally.self} NOT GRADED HERE because this run is its host`,
+      `branch is GREEN · ${tally.red} RED · ${tally.unreadable} unreadable on this runner · ` +
+      `${tally.blind} with no success to compare against — whether each RED blocks THIS host is decided once, for ` +
+      'every live verdict, under HOST POLICY below',
   );
-  // 🔴 THE DEADLOCK DERIVATION, PRINTED ON EVERY RUN — the same anti-shrink rule
-  // the trigger census follows. The self-gated set comes from a step anybody may
-  // delete and the gate name from a constant anybody may rename, so what was
-  // derived and what it did is a sentence in the log rather than a behaviour
-  // nobody can see. ⏱ 2026-09-09.
-  prints.push(
-    `[14]O-3b — GATE TOPOLOGY: gate check \`${topology?.gateName ?? 'UNKNOWN'}\` is produced by ` +
-      `\`${topology?.gateWorkflow ?? 'UNKNOWN'}\` · SELF-GATED (they run \`${GATE_SCRIPT_REL}\`, so a dispatch of ` +
-      `theirs aborts while that check is red): ${[...(topology?.selfGated ?? [])].sort().join(' · ') || 'NONE DERIVED'} · ` +
-      `GUARD HOSTS (they run \`${GUARD_SCRIPT_REL}\`, so this guard helps produce their conclusion): ` +
-      `${[...(topology?.guardHosts ?? [])].sort().join(' · ') || 'NONE DERIVED'} · THIS RUN'S HOST: ` +
-      `${hostWorkflow ?? 'none resolved'}, which ${gateFeeding ? 'FEEDS that gate — so a RED whose own recovery needs the gate is printed here and blocked elsewhere' : 'does NOT feed that gate — so EVERY RED here is BLOCKING, exactly as before'}`,
-  );
-  for (const l of topology?.why ?? []) {
-    prints.push(
-      `[14]O-3b — 🔴 GATE TOPOLOGY INCOMPLETE · ${l}. Nothing is exempted on an incomplete derivation: every RED ` +
-        'routes into `errors` here, which is the pre-2026-09-09 behaviour and may re-freeze the queue. Fail-closed ' +
-        'is deliberate — an exemption is granted only on proof, never on a missing answer.',
-    );
-  }
-  // 🔴 THE SHRINK, PRINTED. The trigger half of the domain is derived from a
-  // `workflow_dispatch:` line in a file anybody may edit, so every trigger row
-  // this limb did NOT admit is named here with its reason on every run — see
-  // `redSinceTriggerCensus`. `ci.yml` and `site-drift-repair.yml` are the two
-  // that stand here permanently and legitimately, and the sentence beside them
-  // is the deadlock argument rather than an inference the next reader has to
-  // re-derive.
+  // 🔴 THE SHRINK, PRINTED — see `redSinceTriggerCensus`.
   prints.push(
     census.excluded.length
       ? `[14]O-3b — TRIGGER ROWS NOT GRADED FOR REDNESS: ${census.excluded.length} (admitted: ${census.admitted.join(' · ') || 'none'})`
       : `[14]O-3b — TRIGGER ROWS: every \`duty.workflow.*\` trigger row is graded for redness (${census.admitted.join(' · ') || 'there are none'}).`,
   );
   for (const l of census.excluded) prints.push(`[14]O-3b — NOT GRADED · ${l}`);
-  // The host is named on EVERY run, so "nothing was deferred" and "one row was
-  // deferred" are two different printed sentences rather than the same silence.
-  // A `null` host is the ordinary off-Actions case and is also the fail-closed
-  // case: everything was graded.
-  prints.push(
-    hostWorkflow
-      ? `[14]O-3b — HOST WORKFLOW of this run: ${hostWorkflow}${tally.self ? '' : ' — no row in this domain watches it, so nothing was deferred'}`
-      : '[14]O-3b — HOST WORKFLOW of this run: none resolved (not inside a GitHub Actions job, or no workflow file was named by GITHUB_WORKFLOW_REF/GITHUB_WORKFLOW), so EVERY row in this domain was graded here.',
-  );
-  for (const l of selfLines) prints.push(l);
   for (const l of darkLines) prints.push(`[14]O-3b — ${l}`);
   if (tally.green === 0 && tally.red === 0 && tally.blind === 0) {
     prints.push(
@@ -3269,23 +3875,24 @@ export function evaluateRedSince(reg, probes, hostWorkflow = hostWorkflowFile(),
         'state can never be mistaken for a green branch.',
     );
   }
+  return { errors, prints, live, stats: { domain: domain.length, clocked, trigger: domain.length - clocked, ...tally } };
+}
 
-  if (blindLines.length) {
-    return {
-      errors,
-      prints,
-      coverageLost: [
-        `${blindLines.length} watched workflow(s) have FAILED runs and NO successful run at all on their own branch.`,
-        ...blindLines,
-        ...errors,
-        'This is COVERAGE LOST rather than a pass AND rather than a RED: "since when" needs two terms and has one,',
-        'and a first-ever run that failed is not distinguishable here from a history that does not reach back far',
-        'enough. The duty is NOT unwatched — the sibling [14]O-3 limb still grades "no successful run at all" as',
-        'FAILING — so what is lost is precisely this limb\'s ability to say SINCE WHEN, and it says so.',
-      ],
-    };
-  }
-  return { errors, prints, stats: { domain: domain.length, clocked, trigger: domain.length - clocked, ...tally } };
+/** PURE. INV6 for the provider this guard's own host runs on. When EVERY
+ *  RED-SINCE read — each of them a GitHub API read — came back unreadable, the
+ *  runner has lost the GitHub API (a lost GITHUB_TOKEN, a revoked `actions: read`,
+ *  an outage), and that is COVERAGE LOST, not a quiet branch. The unreadable
+ *  ceiling was meant to be broken by exactly this, and never was: 11 GitHub-backed
+ *  rows under a ceiling of 12 (REVIEW-guards-2026-09-10 #2). Returns a line, or null. */
+export function githubDarkness(redProbes) {
+  const all = [...(redProbes?.values?.() ?? [])];
+  if (all.length === 0 || !all.every((p) => p?.unreadable)) return null;
+  return (
+    `every one of the ${all.length} RED-SINCE read(s) against the GitHub API was unreadable on this run (first reason: ` +
+    `${all[0].why}). GitHub is the provider this guard's own host runs on, so this is a lost token, a revoked ` +
+    '`actions: read` or an API outage — the state the unreadable ceiling was built to be broken by and, at 11 ' +
+    'GitHub-backed rows under a ceiling of 12, never was (REVIEW-guards-2026-09-10 #2).'
+  );
 }
 
 /** Both halves of the redness comparison, at the SAME width: branch only, event
@@ -3336,8 +3943,10 @@ async function probeGithubRedSince(q, repo) {
 
 /** The impure orchestrator. One row per workflow by construction (the register
  *  holds `watched workflows === .github/workflows/*.yml` in both directions), so
- *  there is nothing to de-duplicate. */
-async function probeRedSince(reg, dispatchable = null) {
+ *  there is nothing to de-duplicate. A "run" unit is read by the two-status read
+ *  above, unchanged; a job or step unit by `probeUnitRedSince` (INV3), sharing one
+ *  job-list cache with the freshness limb. */
+async function probeRedSince(reg, dispatchable = null, parsedByFile = new Map(), jobsCache = new Map()) {
   const probes = new Map();
   const repo = process.env.GITHUB_REPOSITORY || DEFAULT_REPO;
   for (const r of redSinceDomain(reg, dispatchable)) {
@@ -3348,13 +3957,22 @@ async function probeRedSince(reg, dispatchable = null) {
       });
       continue;
     }
+    const q = r.mechanism.recordQuery;
     try {
-      probes.set(r.id, await probeGithubRedSince(r.mechanism.recordQuery, repo));
+      const u = unitOf(q);
+      if (u.kind === 'invalid') throw new Error('the row names no readable unit');
+      probes.set(
+        r.id,
+        u.kind === 'run'
+          ? await probeGithubRedSince(q, repo)
+          : await probeUnitRedSince(q, repo, parsedByFile.get(String(q.workflow)) ?? null, jobsCache),
+      );
     } catch (e) {
       // 🔴 An error is UNREADABLE, never a pass and never a red. "I could not
       // tell" must not read as "the branch is green", and it must not redden CI
       // on a transient 502 either — the print carries the reason, so a
-      // persistent one is visible on every run.
+      // persistent one is visible on every run, and a GitHub API that answers
+      // none of these reads is COVERAGE LOST (`githubDarkness`).
       probes.set(r.id, { unreadable: true, why: `the query threw: ${e.message}` });
     }
   }
@@ -3740,7 +4358,7 @@ async function probeGlitchtipHeartbeat(q) {
   return classifyGlitchtipChecks(monitor, await checksRes.json(), q);
 }
 
-async function probeRunRecords(reg, root) {
+async function probeRunRecords(reg, root, parsedByFile = new Map(), jobsCache = new Map()) {
   const probes = new Map();
   const scheduled = (reg.rows ?? []).filter((r) => r.kind === 'duty' && TIME_CADENCE.test(String(r?.cadence ?? '')));
   const repo = process.env.GITHUB_REPOSITORY || DEFAULT_REPO;
@@ -3760,7 +4378,18 @@ async function probeRunRecords(reg, root) {
           probes.set(r.id, { unreadable: true, why: 'neither GITHUB_TOKEN nor GH_TOKEN is in the environment, so the run history cannot be read' });
           continue;
         }
-        const outcome = q.reader === 'github-run-history' ? await probeGithubRun(q, repo) : await probeGithubIssue(q, repo);
+        let outcome;
+        if (q.reader === 'github-issue-activity') {
+          outcome = await probeGithubIssue(q, repo);
+        } else {
+          // INV3 — a job or step unit is read from the jobs of each run; a "run"
+          // unit keeps the whole-run read, which is correct for a run that IS the duty.
+          const u = unitOf(q);
+          if (u.kind === 'invalid') throw new Error('the row names no readable unit');
+          outcome = u.kind === 'run'
+            ? await probeGithubRun(q, repo)
+            : await probeUnitFreshness(q, repo, parsedByFile.get(String(q.workflow)) ?? null, jobsCache);
+        }
         // A `timer` limb makes this a TWO-RECORD read: the run history above is
         // now the OUTCOME only, and the cadence claim comes from the heartbeat
         // row the dispatching Worker writes. See combineLimbProbes.
@@ -4137,39 +4766,55 @@ async function main() {
     ]);
   }
 
-  // Last, because it is the only limb that leaves this machine, and everything
-  // structural should already have decided by the time a socket is opened.
-  const recordProbes = await probeRunRecords(reg, ROOT);
-  const rec = evaluateRunRecords(reg, recordProbes, now);
-  if (rec.coverageLost) coverageLost(rec.coverageLost);
-  errors.push(...(rec.errors ?? []));
-  prints.push(...(rec.prints ?? []));
-
-  // [14]O-3b, after [14]O-3 and for the same reason it is last: it leaves this
-  // machine. It asks a DIFFERENT question of the same record — not "is the
-  // newest success recent" but "is the newest FAILURE newer than it" — and it
-  // is the only limb in this file that can notice a red branch before a
-  // staleness window expires. See its header block.
-  // ⏱ 2026-09-09 — the ONE impure input to the redness domain: which workflow
-  // files declare `workflow_dispatch`, i.e. which red lanes can be cleared
-  // without a merge. Read from the tree through the shared workflow parser, and
-  // a `trigger` row is admitted to this blocking alarm only on that evidence.
-  // ⏱ 2026-09-09 — the SECOND impure input: which lanes are self-gated on the
-  // check this guard's own exit code decides, and which workflows' conclusions
-  // this guard helps produce. Both read from `.github/workflows` and from
-  // `assert-gate-passed.mjs`'s own source; the CONTEXT that selects between
-  // "print" and "block" is `hostWorkflowFile()`, i.e. the environment, never an
-  // argument. See the header block above `GATE_SCRIPT_REL`.
+  // ── [INV3] [INV4] · the unit every run-history row is judged by, held against
+  //    the workflow file that declares it. STRUCTURAL, so it runs before a socket
+  //    opens, and a register that fails it fails in every host.
+  const allWorkflows = parseAllWorkflows(ROOT);
+  const parsedByFile = new Map(allWorkflows.map((wf) => [String(wf.rel ?? '').split('/').pop(), wf]));
+  // ⏱ 2026-09-09 — which workflow files declare `workflow_dispatch` (the trigger
+  // half of the redness domain) and which lanes are self-gated on the check this
+  // guard's own exit code decides. Both read from `.github/workflows`.
   const dispatchable = dispatchableWorkflows(ROOT);
   const topology = gateTopology(ROOT);
-  const redProbes = await probeRedSince(reg, dispatchable);
-  const red = evaluateRedSince(reg, redProbes, hostWorkflowFile(), dispatchable, topology);
+  const units = checkRunUnits(reg, parsedByFile, topology);
+  errors.push(...units.errors);
+  prints.push(...units.prints);
+  // [INV1] [INV2] [INV5] — the host and the event come from the environment
+  // GitHub sets, and the event is believed only from a host whose file declares it.
+  const policy = hostPolicy(process.env, topology, workflowEventsByFile(allWorkflows));
+
+  // Last, because these are the only limbs that leave this machine, and
+  // everything structural should already have decided by the time a socket opens.
+  const jobsCache = new Map();
+  const recordProbes = await probeRunRecords(reg, ROOT, parsedByFile, jobsCache);
+  const rec = evaluateRunRecords(reg, recordProbes, now);
+  if (rec.coverageLost) coverageLost(rec.coverageLost);
+  prints.push(...(rec.prints ?? []));
+
+  // [14]O-3b asks a DIFFERENT question of the same record — not "is the newest
+  // success recent" but "is the newest FAILURE newer than it". See its header.
+  const redProbes = await probeRedSince(reg, dispatchable, parsedByFile, jobsCache);
+  const red = evaluateRedSince(reg, redProbes, dispatchable);
   prints.push(...(red.prints ?? []));
   if (red.coverageLost) {
     for (const p of prints) console.log(`⬜  ${p}`);
-    coverageLostHard(red.coverageLost);
+    coverageLost(red.coverageLost);
   }
-  errors.push(...(red.errors ?? []));
+
+  // ── ONE ROUTER FOR EVERY LIVE VERDICT (INV1, INV2, INV4) ─────────────────
+  // Both limbs hand back their verdict lines in `errors` AND in `live`. What is
+  // live is routed by the host policy; what is not is structural and blocks in
+  // every host; what is a measurement failure is COVERAGE LOST (INV6).
+  const live = [...(rec.live ?? []), ...(red.live ?? [])];
+  const liveLines = new Set(live.map((v) => v.line));
+  const measurement = [...(rec.measurement ?? [])];
+  const measured = new Set(measurement);
+  for (const e of [...(rec.errors ?? []), ...(red.errors ?? [])]) {
+    if (!liveLines.has(e) && !measured.has(e)) errors.push(e);
+  }
+  const dark = githubDarkness(redProbes);
+  if (dark) measurement.push(dark);
+  const routed = routeLiveVerdicts(live, policy, topology, reg, parsedByFile);
 
   // ── report ────────────────────────────────────────────────────────────────
   for (const p of prints) console.log(`⬜  ${p}`);
@@ -4197,10 +4842,53 @@ async function main() {
     for (const g of stats.gaps) console.log(`      · ${g}`);
   }
 
-  if (errors.length) {
-    console.error(`✗ ${REGISTER_REL} — ${errors.length} problem(s):`);
-    for (const e of errors) console.error(`    ${e}`);
-    process.exit(1);
+  // The policy and the derivation it rests on are printed on EVERY run, red or
+  // green: an exemption nobody can see is a waiver, and a shrink nobody can see
+  // is the defect.
+  console.log(`⬜  [INV1/INV2] HOST POLICY — ${policy.mode.toUpperCase()}: ${policy.why}`);
+  console.log(
+    `⬜  [INV4] GATE TOPOLOGY: gate check \`${topology?.gateName ?? 'UNKNOWN'}\` is produced by ` +
+      `\`${topology?.gateWorkflow ?? 'UNKNOWN'}\` · SELF-GATED (they run \`${GATE_SCRIPT_REL}\`, so a dispatch of ` +
+      `theirs aborts while that check is red): ${[...(topology?.selfGated ?? [])].sort().join(' · ') || 'NONE DERIVED'} · ` +
+      `GUARD HOSTS (they run \`${GUARD_SCRIPT_REL}\`, so this guard helps produce their conclusion): ` +
+      `${[...(topology?.guardHosts ?? [])].sort().join(' · ') || 'NONE DERIVED'} · THIS RUN'S HOST: ${policy.host ?? 'none resolved'}`,
+  );
+  for (const l of topology?.why ?? []) {
+    console.log(
+      `⬜  [INV4] 🔴 GATE TOPOLOGY INCOMPLETE · ${l}. Nothing is exempted on an incomplete derivation: every live ` +
+        'verdict in an enforcing host BLOCKS. Fail-closed is deliberate — an exemption is granted only on proof, never on a missing answer.',
+    );
+  }
+  for (const n of routed.notes) console.log(`⬜  ${n}`);
+  console.log(
+    `⬜  [LIVE] ${live.length} live verdict(s) about the state of the world on this run: ${routed.blocking.length} ` +
+      `BLOCKING in this host · ${routed.printed.length} FAILING and PRINTED, not blocking — each is listed in full`,
+  );
+  for (const v of routed.printed) {
+    console.log(`⬜  [LIVE] 🔴 FAILING, NOT BLOCKING IN THIS HOST — ${v.line}`);
+    console.log(`⬜  [LIVE]    …WHY IT DOES NOT BLOCK HERE: ${v.why}`);
+  }
+
+  if (measurement.length) {
+    console.error(
+      `✗ COVERAGE LOST — ${measurement.length} measurement failure(s): this runner could not read enough of the world ` +
+        'to grade it, and "could not look" is never a pass and never a finding (INV6):',
+    );
+    for (const m of measurement) console.error(`      ${m}`);
+  }
+  const problems = [...errors, ...routed.blocking.map((v) => v.line)];
+  if (problems.length) {
+    console.error(`✗ ${REGISTER_REL} — ${problems.length} problem(s):`);
+    for (const e of problems) console.error(`    ${e}`);
+  }
+  // 2 beats 1 beats 0: an unread record outranks a bad one (INV6).
+  if (measurement.length || routed.blocking.some((v) => v.code === 2)) {
+    process.exitCode = 2;
+    return;
+  }
+  if (problems.length) {
+    process.exitCode = 1;
+    return;
   }
 
   console.log(
@@ -4211,10 +4899,16 @@ async function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   // 🔴 An unhandled rejection in a guard exits 0 on some Node versions and 1 on
-  // others. A guard whose exit code depends on the runtime is a guard that can
-  // report clean by accident, so the failure path is explicit here.
+  // others, so the failure path is explicit. `process.exitCode`, never
+  // `process.exit()`: exiting while a fetch handle is still closing aborts Node on
+  // Windows with 127 for EVERY outcome (tooling/ci/assert-gate-passed.mjs records
+  // it). A guard that throws rendered no verdict at all, which is COVERAGE LOST (INV6).
   main().catch((e) => {
-    console.error(`✗ ${REGISTER_REL} — the guard itself threw: ${e?.stack ?? e}`);
-    process.exit(1);
+    if (e instanceof GuardExit) {
+      process.exitCode = e.code;
+      return;
+    }
+    console.error(`✗ COVERAGE LOST — ${REGISTER_REL}: the guard itself threw, so nothing printed above is a verdict (INV6): ${e?.stack ?? e}`);
+    process.exitCode = 2;
   });
 }

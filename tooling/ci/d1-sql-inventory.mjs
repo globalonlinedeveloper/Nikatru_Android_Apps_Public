@@ -590,6 +590,13 @@ export function parseJsonc(text) {
 }
 
 /**
+ * THE ONE HOME every Worker builds from ([ADR 067] decision 2). It has no
+ * wrangler.jsonc of its own, so it is never a service in this inventory; its
+ * statements belong to EVERY Worker, because every Worker inlines it.
+ */
+export const SHARED_SRC = 'services/_shared/src';
+
+/**
  * THE DOMAIN, DERIVED FROM THE DEPLOYABLE CONFIGS.
  *
  * Every `services/*` directory with a wrangler.jsonc, its D1 bindings (ALL of
@@ -597,6 +604,16 @@ export function parseJsonc(text) {
  * to any database it binds, and the shared Worker binding subly_db is exactly
  * how a route reached a database its author was not thinking about), and the
  * SQL its `src/` sends. No database id, name or binding is written down twice.
+ *
+ * ⏱ 2026-09-10 — `services/_shared/src` IS PART OF EVERY WORKER'S `src/`. The
+ * entitlement read moved there (the ONE reader, [ADR 057] §5), taking four
+ * statements against platform_db with it. A walk of `services/<w>/src` alone
+ * would have inventoried NONE of them for EITHER Worker: R1 would have held
+ * over statements it no longer saw, and the live check would have executed
+ * fewer statements than the Workers send, printing the same "ok". Moved code
+ * silences guards — so the shared home's files are attributed to every Worker
+ * that exists, which over-approximates (a Worker that imports none of them is
+ * still graded on them) in the only safe direction.
  */
 export function inventoryServices(root) {
   const servicesDir = join(root, 'services');
@@ -621,7 +638,7 @@ export function inventoryServices(root) {
         id: d.database_id,
         owns: typeof d.migrations_dir === 'string',
       }));
-    const files = sourceFilesUnder(root, `services/${e.name}/src`);
+    const files = [...sourceFilesUnder(root, SHARED_SRC), ...sourceFilesUnder(root, `services/${e.name}/src`)];
     const statements = [];
     const unparsed = [];
     let compositions = 0;

@@ -230,6 +230,9 @@ const LIMB5_FILES = [
   'services/subscriptiontracker-api/src/routes/account.ts',
   'packages/core/lib/src/auth/account_deletion.dart',
   'services/platform/src/routes/entitlements.ts',
+  // ⏱ 2026-09-11 · the item literal the entitlements pin compares is written in
+  // the ONE reader (#617); the guard FOLLOWS the route's `read.entitlements` here.
+  'services/_shared/src/entitlement-read.ts',
   'packages/core/lib/src/models/entitlement.dart',
   'services/platform/src/routes/cancellation.ts',
   'packages/core/lib/src/cancellation_transport.dart',
@@ -475,7 +478,7 @@ describe('assert-analytics-contract — the client half', () => {
     })));
     // Still COVERAGE LOST — `params` is in REQUIRED_COVERAGE — but explicitly
     // NOT the "REQUIRES column(s) no client source supplies" failure.
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.doesNotMatch(r.out, /REQUIRES column\(s\) no client source supplies/);
   });
 
@@ -496,7 +499,7 @@ describe('assert-analytics-contract — coverage self-checks', () => {
         f['services/platform/migrations/0002_analytics.sql']
           .replace('CREATE TABLE IF NOT EXISTS events (', 'CREATE TABLE IF NOT EXISTS events_v2 ('),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — no columns were parsed for `events`/);
   });
 
@@ -507,7 +510,7 @@ describe('assert-analytics-contract — coverage self-checks', () => {
         f['apps/subscriptiontracker/lib/state/analytics_providers.dart']
           .replace('envelope: <String, Object?>', 'envelope: buildEnvelope'),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — .*no longer contains `envelope: <String, Object\?>`/s);
   });
 
@@ -518,13 +521,13 @@ describe('assert-analytics-contract — coverage self-checks', () => {
         f['packages/core/lib/src/analytics/analytics.dart']
           .replace("if (consentId != null) 'consent_id': consentId,\n", ''),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — the client parse yielded no key for: consent_id/);
   });
 
   test('COVERAGE LOST when the migrations directory holds no .sql at all', () => {
     const r = run(makeRepo((f) => ({ ...f, 'services/platform/migrations/0002_analytics.sql': null })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST/);
   });
 
@@ -534,7 +537,7 @@ describe('assert-analytics-contract — coverage self-checks', () => {
       'services/platform/src/routes/events.ts': f['services/platform/src/routes/events.ts']
         .replace('INSERT INTO consent_artifacts (', 'INSERT INTO consent_log ('),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — .*no parseable `INSERT INTO consent_artifacts/s);
   });
 });
@@ -612,7 +615,9 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
 
   test('FAILS when the server adds a response key nobody declared — MW1 replayed', () => {
     const r = run(makeRepo((f) =>
-      mutate(f, 'services/platform/src/routes/entitlements.ts',
+      // ⏱ 2026-09-11 · RE-POINTED: #617 moved the item literal into the ONE reader,
+      // and the guard follows the route's `read.entitlements` there.
+      mutate(f, 'services/_shared/src/entitlement-read.ts',
         'trial_end: r.trial_end,', 'trial_end_at: r.trial_end,')));
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /server SENDS key\(s\) no client reads and that are not declared server-only: trial_end_at/);
@@ -632,15 +637,103 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
   test('COVERAGE LOST when a declared floor key leaves the server response', () => {
     const r = run(makeRepo((f) =>
       mutate(f, 'services/platform/src/routes/entitlements.ts',
-        // ⏱ RE-POINTED 2026-09-09: the read became a UNION ([ADR 057] §5), so
-        // `is_pro` is now `appPro || bundlePro` rather than `rows.some(grants)`.
-        // The MUTATION is unchanged in substance — rename the declared floor key
-        // and the guard must report COVERAGE LOST — and `mutate` throws when its
-        // target text is absent, which is what caught the stale string here
-        // rather than the case quietly passing over a no-op replacement.
-        'is_pro: appPro || bundlePro,', 'pro: appPro || bundlePro,')));
-    assert.equal(r.code, 1, r.out);
+        // ⏱ RE-POINTED 2026-09-09, and again 2026-09-11. The read became a UNION
+        // ([ADR 057] §5), then moved into the ONE reader (#617), so `is_pro` is now
+        // computed in services/_shared and RENDERED here as `is_pro: read.is_pro`.
+        // The key on the wire is this literal's key, so this is where it leaves
+        // the response. `mutate` throws when its target text is absent, which is
+        // what caught both stale strings rather than the case passing on a no-op.
+        'is_pro: read.is_pro,', 'pro: read.is_pro,')));
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /COVERAGE LOST — entitlements: key\(s\) is_pro/);
+  });
+
+  // ⏱ 2026-09-11 · THE ITEM LITERAL IS FOLLOWED, NOT NAMED (#617). The guard used
+  // to name services/platform/src/routes/entitlements.ts as where the item literal
+  // is written; the reader moved to services/_shared and the guard printed
+  // COVERAGE LOST over an unchanged wire. These cases hold the derivation to both
+  // directions: a MOVE is followed, and a chain that ends nowhere is exit 2.
+  test('the item literal is DERIVED from the route — found in the one reader, and the place is printed', () => {
+    const r = run(makeRepo());
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /wire entitlements — body pinned: .*item 10 sent \/ 5 read \(item literal in services\/_shared\/src\/entitlement-read\.ts\)/);
+  });
+
+  test('MOVING the reader to another module is followed through the import — still pinned, not COVERAGE LOST', () => {
+    const r = run(makeRepo((f) => {
+      const moved = { ...f, 'services/_shared/src/money/reader.ts': f['services/_shared/src/entitlement-read.ts'] };
+      delete moved['services/_shared/src/entitlement-read.ts'];
+      return mutate(moved, 'services/platform/src/routes/entitlements.ts',
+        "} from '../../../_shared/src/entitlement-read';", "} from '../../../_shared/src/money/reader';");
+    }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /item 10 sent \/ 5 read \(item literal in services\/_shared\/src\/money\/reader\.ts\)/);
+  });
+
+  // ⏱ 2026-09-11 · CodeQL js/incomplete-sanitization #304. The name the guard
+  // follows through an import is the text before `as`, spliced into a RegExp.
+  // `readProduct` BACKSLASH `u0045ntitlement$` is a LEGAL identifier (a unicode
+  // escape for E) carrying a backslash and the metacharacter `$`. The first
+  // escape handled `$` only, so the backslash stayed live and the sequence
+  // matched the letter E instead of its own six characters: the declaration was
+  // never found and a correct tree went exit 2. The backslash is built with
+  // String.fromCharCode(92) so no editor or shell can quietly decode it. Mutation-proven:
+  // restoring `name.replace(/\$/g, '\\$')` turns this case red. (The `\u{…}`
+  // spelling is not used: the import-list parse reads `{…}` up to the first `}`.)
+  test('a followed name carrying a backslash and metacharacters is matched LITERALLY — the escape covers `\\` too', () => {
+    const escaped = `readProduct${String.fromCharCode(92)}u0045ntitlement$`;
+    const r = run(makeRepo((f) => {
+      const renamed = mutate(f, 'services/_shared/src/entitlement-read.ts',
+        'export async function readProductEntitlement(', `export async function ${escaped}(`);
+      return mutate(renamed, 'services/platform/src/routes/entitlements.ts',
+        '  readProductEntitlement,\n', `  ${escaped} as readProductEntitlement,\n`);
+    }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /item 10 sent \/ 5 read \(item literal in services\/_shared\/src\/entitlement-read\.ts\)/);
+  });
+
+  test('a renamed item key is still caught THROUGH the chain — the derivation compares, it does not just find', () => {
+    const r = run(makeRepo((f) => mutate(f, 'services/_shared/src/entitlement-read.ts',
+      'product_id: r.product_id,', 'productId: r.product_id,')));
+    assert.notEqual(r.code, 0, r.out);
+    assert.match(r.out, /product_id/);
+  });
+
+  test('COVERAGE LOST (exit 2, never 0) when the item literal is gone from where the chain leads', () => {
+    const r = run(makeRepo((f) => mutate(f, 'services/_shared/src/entitlement-read.ts',
+      'entitlements: rows.map((r) => ({', 'entitlements: rows.map(toWireRow),\n    gone: rows.map((r) => ({')));
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /COVERAGE LOST — entitlements: the item shape under `entitlements` could not be parsed out of services\/platform\/src\/routes\/entitlements\.ts or followed from it — `rows\.map\(toWireRow\)`/);
+    assert.match(r.out, /walked: .*readProductEntitlement\(\) → services\/_shared\/src\/entitlement-read\.ts/);
+  });
+
+  test('COVERAGE LOST (exit 2) when the module the route imports the reader from does not exist', () => {
+    const r = run(makeRepo((f) => {
+      const without = { ...f };
+      delete without['services/_shared/src/entitlement-read.ts'];
+      return without;
+    }));
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /is imported from `\.\.\/\.\.\/\.\.\/_shared\/src\/entitlement-read`, which resolves to no \.ts file/);
+  });
+
+  test('COVERAGE LOST (exit 2) when the binding the route renders cannot be resolved', () => {
+    const r = run(makeRepo((f) => mutate(f, 'services/platform/src/routes/entitlements.ts',
+      'entitlements: read.entitlements,', 'entitlements: readLater.entitlements,')));
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /no `const\|let\|var readLater =` precedes its use/);
+  });
+
+  test('COVERAGE LOST (exit 2) when the register names no owningFile for the route — the server half is derived too', () => {
+    const r = run(makeRepo((f) => {
+      const reg = JSON.parse(f['tooling/platform-register.json']);
+      const row = reg.routes.find((x) => x.id === 'entitlements');
+      assert.ok(row && row.owningFile, 'the real register must carry the row this case removes a field from');
+      delete row.owningFile;
+      return { ...f, 'tooling/platform-register.json': JSON.stringify(reg, null, 2) };
+    }));
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /COVERAGE LOST — entitlements: tooling\/platform-register\.json names no `owningFile` for this route/);
   });
 
   test('FAILS when a route answers a status the released client does not map — MW3 replayed', () => {
@@ -656,7 +749,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     const r = run(makeRepo((f) =>
       mutate(f, 'packages/core/lib/src/auth/account_deletion.dart',
         'case 502:', 'case 5020:')));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /no longer maps status\(es\) 502/);
   });
 
@@ -665,7 +758,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       mutate(f, 'services/platform/src/routes/account.ts',
         "return c.json({ error: 'identity_delete_failed' }, 502);",
         "return c.json({ error: 'identity_delete_failed' }, refusalStatus);")));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /answer a COMPUTED status/);
   });
 
@@ -691,7 +784,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       '.github/workflows/deploy-workers.yml':
         f['.github/workflows/deploy-workers.yml'].replaceAll('/v1/health', '/v1/ping'),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     // The guard now scans EVERY workflow rather than naming deploy-workers.yml
     // (it tripped assert-release-lane-generic's single-workflow rule, and a
     // hardcoded consumer would empty this limb the day the smoke moved). The
@@ -706,7 +799,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       '.github/workflows/deploy-workers.yml':
         f['.github/workflows/deploy-workers.yml'].replaceAll('--field build', '--field version'),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /deploy smoke no longer reads field\(s\) build/);
   });
 
@@ -716,13 +809,13 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       reg.routes.push({ id: 'exports', method: 'POST', path: '/v1/exports', auth: 'required' });
       return { ...f, 'tooling/platform-register.json': JSON.stringify(reg, null, 2) };
     }));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /Mounted with NO wire contract: exports/);
   });
 
   test('COVERAGE LOST when the register itself is gone', () => {
     const r = run(makeRepo((f) => ({ ...f, 'tooling/platform-register.json': null })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /platform-register\.json does not exist/);
   });
 
@@ -759,7 +852,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       'services/platform/test/config.test.ts':
         f['services/platform/test/config.test.ts'].replaceAll('REQUIRED_KEYS', 'EXPECTED_KEYS'),
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /no longer contains `REQUIRED_KEYS`/);
   });
 
@@ -794,7 +887,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
       ...f,
       'tooling/bricks/app/__brick__/apps/{{app_id}}/test/config_contract_test.dart': null,
     })));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /the inherited client half .*config_contract_test\.dart does not exist/);
   });
 
@@ -814,7 +907,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
         'expect(_serverBody().keys.toSet(), kConfigWireKeys.toSet());',
         'expect(_serverBody().keys.toSet(), _serverBody().keys.toSet());');
     }));
-    assert.equal(gone.code, 1, gone.out);
+    assert.equal(gone.code, 2, gone.out);
     assert.match(gone.out, /`kConfigWireKeys` is DECLARED in .* and used nowhere else in it/);
   });
 
@@ -842,7 +935,7 @@ describe('assert-analytics-contract — limb 5, every shared route has a wire pi
     const r = run(makeRepo((f) =>
       mutate(f, 'tooling/bricks/app/__brick__/apps/{{app_id}}/test/config_contract_test.dart',
         "  'max_promos_per_week',\n  'update_url',\n];", "  'max_promos_per_week',\n];")));
-    assert.equal(r.code, 1, r.out);
+    assert.equal(r.code, 2, r.out);
     assert.match(r.out, /key\(s\) update_url are the declared floor of the config contract/);
   });
 
