@@ -28,10 +28,10 @@ is the point: the console is a copy of this directory, never the other way round
 
 - `snap-name.txt` — **the field with real consequences.** This is the GLOBAL
   Snap Store namespace, claimed once with `snapcraft register <name>` and not
-  transferable casually. It is stamped as the app id in `param-case` (a snap
-  name may not contain an underscore) so the name we intend to claim is
-  reviewable and diffable BEFORE it is claimed, instead of being decided at a
-  terminal prompt.
+  transferable casually. It is stamped as the `param-case` of the store title
+  (`name` in `apps/<id>/app.yaml`), never the app id — the derivation
+  `tooling/ci/assert-store-identity.mjs` requires — so the name we intend to
+  claim is reviewable and diffable BEFORE it is claimed at a terminal prompt.
 - `license.txt` — the SPDX identifier the listing shows. `proprietary` is a
   valid SPDX-ish value the Snap Store accepts; change it only if this app really
   ships under an open licence.

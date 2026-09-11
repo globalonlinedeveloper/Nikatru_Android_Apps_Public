@@ -684,7 +684,6 @@ function appleTree({ mutateRegister = null, fields = {} } = {}) {
         platforms: ['ios'],
         kind: 'store',
         surface: 'app',
-  surface: 'app',
         served: false,
         submittable: true,
         artifactFormats: ['.ipa'],
