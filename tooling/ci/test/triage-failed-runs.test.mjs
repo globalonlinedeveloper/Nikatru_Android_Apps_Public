@@ -53,6 +53,7 @@ import {
   isValidGithubToken,
   isValidRepoSlug,
   isAllowedApiPath,
+  liveApi,
 } from '../../ops/triage-failed-runs.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -726,5 +727,105 @@ describe('transport hardening', () => {
     for (const p of allowed) assert.equal(isAllowedApiPath(R, p), true, p);
     for (const p of refused) assert.equal(isAllowedApiPath(R, p), false, p);
     assert.equal(isAllowedApiPath('../x', '/repos/../x/branches?page=1'), false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// A CACHE NEVER SERVES AN ANSWER THAT CHANGES. Measured 2026-09-11: a second
+// pass with --cache-dir printed 88 UNEXPLAINED, 72 of them citing "newest
+// ops-watch.yml on main is run 34443545094 (null) @ 2026-09-10T06:03:13Z" — the
+// newest run as it was the DAY BEFORE, served from disk. `fetch` is stubbed here;
+// nothing reaches the network.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('a cache never serves an answer that changes', () => {
+  const TOKEN = 'ghp_' + 'a'.repeat(36);
+  const SLUG = 'owner/name';
+  const KEY = '.github/workflows/ops-watch.yml|main';
+  const STALE_NAME = 'newest-.github_workflows_ops-watch.yml_main.json';
+
+  async function withFetch(routes, fn) {
+    const calls = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      for (const [needle, body] of routes) {
+        if (u.includes(needle)) return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response('{}', { status: 404 });
+    };
+    try {
+      return await fn(calls);
+    } finally {
+      globalThis.fetch = real;
+    }
+  }
+
+  const staleDir = () => {
+    const dir = temp();
+    writeFileSync(join(dir, STALE_NAME), JSON.stringify({ id: 1, conclusion: null, created_at: '2026-09-10T06:03:13Z' }));
+    return dir;
+  };
+  const today = { workflow_runs: [{ id: 2, conclusion: 'success', created_at: '2026-09-11T09:00:00Z' }] };
+
+  test("newestRun asks GitHub every time, even with yesterday's answer on disk", async () => {
+    const dir = staleDir();
+    await withFetch([['/actions/workflows/7/runs', today]], async (calls) => {
+      const api = liveApi(SLUG, TOKEN, dir);
+      assert.equal((await api.newestRun(7, 'main', KEY)).id, 2);
+      assert.equal((await api.newestRun(7, 'main', KEY)).id, 2);
+      assert.equal(calls.length, 2, 'each call must reach GitHub');
+    });
+  });
+
+  test("a re-run attempt is not served the jobs of the attempt before it; a completed attempt still is", async () => {
+    const dir = temp();
+    writeFileSync(join(dir, '1001.jobs.json'), JSON.stringify({ total_count: 1, jobs: [{ id: 5, conclusion: 'failure' }] }));
+    await withFetch([['/actions/runs/1001/jobs', { total_count: 1, jobs: [{ id: 6, conclusion: 'failure' }] }]], async (calls) => {
+      const api = liveApi(SLUG, TOKEN, dir);
+      assert.equal((await api.listJobs(1001, 1)).jobs[0].id, 5, 'attempt 1 is immutable and served from the cache');
+      assert.equal((await api.listJobs(1001, 2)).jobs[0].id, 6, 'attempt 2 must be fetched');
+      assert.equal((await api.listJobs(1001, 2)).jobs[0].id, 6, 'attempt 2 is then cached under its own name');
+      assert.equal(calls.length, 1);
+    });
+  });
+
+  test('MUTATION: newestRun re-wrapped in the cache, in a COPY of the script, serves the stale run', async () => {
+    const original = readFileSync(SCRIPT, 'utf8');
+    const line = '    newestRun: (workflowId, branch) => fetchNewest(workflowId, branch),\n';
+    const flat = original.replaceAll('\r\n', '\n');
+    assert.ok(flat.includes(line), 'the line this mutation replaces is not in the script');
+    const mutated = flat
+      .replace(line, "    newestRun: (workflowId, branch, key) => cached('newest-' + key.split('/').join('_').split('|').join('_') + '.json', () => fetchNewest(workflowId, branch)),\n")
+      .replace("from './safe-rerun.mjs'", `from ${JSON.stringify(pathToFileURL(SAFE_RERUN).href)}`);
+    const copy = join(temp(), 'triage-failed-runs.newest-cached.mjs');
+    writeFileSync(copy, mutated);
+    const m = await import(pathToFileURL(copy).href);
+    const dir = staleDir();
+    await withFetch([['/actions/workflows/7/runs', today]], async (calls) => {
+      const r = await m.liveApi(SLUG, TOKEN, dir).newestRun(7, 'main', KEY);
+      assert.equal(r.id, 1, 'the mutated copy must serve the stale run — the defect this suite exists to catch');
+      assert.equal(calls.length, 0);
+    });
+    assert.equal(readFileSync(SCRIPT, 'utf8'), original, 'the real script must not have been touched');
+  });
+
+  test('MUTATION: jobs keyed by run id alone, in a COPY of the script, serve attempt 1 for attempt 2', async () => {
+    const original = readFileSync(SCRIPT, 'utf8');
+    const flat = original.replaceAll('\r\n', '\n');
+    const keyed = 'Number(attempt) > 1 ? `${id}.attempt-${Number(attempt)}.jobs.json` : `${id}.jobs.json`';
+    assert.ok(flat.includes(keyed), 'the expression this mutation replaces is not in the script');
+    const mutated = flat
+      .replace(keyed, '`${id}.jobs.json`')
+      .replace("from './safe-rerun.mjs'", `from ${JSON.stringify(pathToFileURL(SAFE_RERUN).href)}`);
+    const copy = join(temp(), 'triage-failed-runs.jobs-unkeyed.mjs');
+    writeFileSync(copy, mutated);
+    const m = await import(pathToFileURL(copy).href);
+    const dir = temp();
+    writeFileSync(join(dir, '1001.jobs.json'), JSON.stringify({ total_count: 1, jobs: [{ id: 5, conclusion: 'failure' }] }));
+    await withFetch([['/actions/runs/1001/jobs', { total_count: 1, jobs: [{ id: 6, conclusion: 'failure' }] }]], async () => {
+      assert.equal((await m.liveApi(SLUG, TOKEN, dir).listJobs(1001, 2)).jobs[0].id, 5);
+    });
+    assert.equal(readFileSync(SCRIPT, 'utf8'), original, 'the real script must not have been touched');
   });
 });

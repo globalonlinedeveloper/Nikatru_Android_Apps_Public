@@ -82,9 +82,15 @@
 //   --until ISO      only runs created at/before this instant — a bounded
 //                    window is what makes a ledger reproducible tomorrow, when
 //                    today's in-flight PRs have added runs the report never saw.
-//   --cache-dir DIR  jobs, logs, newest-run and PR lookups are immutable once a
-//                    run has completed; cache them here so a second pass costs
-//                    no quota. Never caches the run LIST itself.
+//   --cache-dir DIR  cache the answers that can never change: a COMPLETED run
+//                    attempt's jobs (keyed by attempt, because a re-run keeps
+//                    the run id), a job's log, the successor window of a
+//                    cancelled run, and the PR of a DELETED branch. Never
+//                    caches the run LIST or a branch's NEWEST run: both move
+//                    with every push, and a cached newest run is yesterday's
+//                    proof read as today's. Measured 2026-09-11: 72 of 88
+//                    UNEXPLAINED rows cited a newest run cached the day before
+//                    (ops-watch on main 'in flight' at 2026-09-10T06:03Z).
 //   --fixture-dir DIR offline: `runs.json` (REST shape), `<id>.jobs.json`,
 //                    `<id>.job-<jobId>.log`, `newest.json` ({"<path>|<branch>":
 //                    run}), `between-<id>.json` (runs of the same workflow+ref
@@ -255,6 +261,10 @@ export const SIGNATURES = [
   { id: 'monitor-register:no-project', re: /NO PROJECT: monitor/ },
   { id: 'monitor-register:other', re: /^The register still matches the live GlitchTip monitors/ },
   { id: 'retention-coverage', re: /✗ (?:retention coverage|COVERAGE LOST — retention\.)/ },
+  // The verifier exits 1 on ANY non-OK API status, so ops-watch's "DRIFTED" error can
+  // stand FIRST, with no `✗ … DIFFERS` line before it: nothing was compared.
+  // Measured on run 34511747076 (Supabase answered 504).
+  { id: 'supabase-auth:unreadable-read-as-drift', re: /^Compare the live Supabase auth config[^\n]*\n##\[error\]The live project no longer matches what the repo recorded/ },
   { id: 'supabase-templates:drift', re: /DIFFERS from live `mailer_templates/ },
   { id: 'catalogue:reachability', re: /✗ catalogue reachability/ },
   { id: 'privacy-notice:drift', re: /notice surface\(s\) no longer match the privacy declaration/ },
@@ -275,6 +285,11 @@ export const SIGNATURES = [
   { id: 'dart:format', re: /dart format-clean[\s\S]*(?:Changed |Formatted \d+ files)/ },
   { id: 'dart:package-uri-unresolved', re: /Failed to resolve package URI/ },
   { id: 'dart:pub-resolve', re: /incompatible with dependency constraints|Failed to update packages/ },
+  { id: 'node:import-attribute-missing', re: /ERR_IMPORT_ATTRIBUTE_MISSING/ },
+  // money-dry-run.mjs crashed with an uncaught Node error: the dump ends in a lone
+  // `}`, which is the first line the error block sees, so the step name is the only
+  // stable key. Measured on run 34429437969 (ERR_IMPORT_ATTRIBUTE_MISSING above it).
+  { id: 'money-dry-run:uncaught-throw', re: /^A stored notification replayed in any order reaches the same entitlement\n\}\n/ },
   { id: 'osv:known-vulnerable', re: /^Known-vulnerable dependencies/ },
   { id: 'hang-guard:ceiling', re: /hang-guard: all \d+ attempt\(s\) exceeded/ },
   { id: 'tsc:error', re: /error TS\d+/ },
@@ -659,7 +674,7 @@ export async function readThroughCache(cacheDir, name, fetcher, { text = false, 
   return v;
 }
 
-function liveApi(repo, tok, cacheDir) {
+export function liveApi(repo, tok, cacheDir) {
   // Held HERE, where the header is built, as well as in main(): a caller that
   // skips main() must not be able to send an unshaped credential either.
   if (!isValidGithubToken(tok)) {
@@ -694,6 +709,11 @@ function liveApi(repo, tok, cacheDir) {
     return text ? res.text() : res.json();
   };
   const cached = (name, fetcher, { text = false } = {}) => readThroughCache(cacheDir, name, fetcher, { text });
+  /** A branch's newest run. NEVER cached — see --cache-dir in the header. */
+  const fetchNewest = async (workflowId, branch) => {
+    const body = await get(`/repos/${repo}/actions/workflows/${workflowId}/runs?branch=${encodeURIComponent(branch)}&per_page=1`);
+    return body.workflow_runs?.[0] ?? null;
+  };
   return {
     live: true,
     /** Every run with one of the non-green conclusions. Never cached: the
@@ -718,7 +738,12 @@ function liveApi(repo, tok, cacheDir) {
       }
       return { runs: out, capped };
     },
-    listJobs: (id) => cached(`${id}.jobs.json`, () => get(`/repos/${repo}/actions/runs/${id}/jobs?per_page=${PER_PAGE}&filter=all`)),
+    // Keyed by ATTEMPT: `gh run rerun` keeps the run id, so attempt 1's cached
+    // jobs would otherwise be served for attempt 2. Attempt 1 keeps the old name.
+    listJobs: (id, attempt = 1) =>
+      cached(Number(attempt) > 1 ? `${id}.attempt-${Number(attempt)}.jobs.json` : `${id}.jobs.json`, () =>
+        get(`/repos/${repo}/actions/runs/${id}/jobs?per_page=${PER_PAGE}&filter=all`),
+      ),
     // 404 is an ANSWER here — a job cancelled before its first step ran has no
     // log (measured 2026-08-04, run 30874929577: eight lanes cancelled at +6s,
     // every log 404). It is the ONLY status turned into an empty log; a 403
@@ -736,11 +761,7 @@ function liveApi(repo, tok, cacheDir) {
         },
         { text: true },
       ),
-    newestRun: (workflowId, branch, key) =>
-      cached(`newest-${key.replace(/[^\w.-]+/g, '_')}.json`, async () => {
-        const body = await get(`/repos/${repo}/actions/workflows/${workflowId}/runs?branch=${encodeURIComponent(branch)}&per_page=1`);
-        return body.workflow_runs?.[0] ?? null;
-      }),
+    newestRun: (workflowId, branch) => fetchNewest(workflowId, branch),
     /** Every run of one workflow on one ref created inside [from, to] — the
      *  window in which a `cancel-in-progress` successor must have started. */
     runsBetween: (workflowId, branch, id, from, to) =>
@@ -839,7 +860,7 @@ export async function ledger(api, { since = null, until = null, prs = true, caus
   let n = 0;
   for (const run of runs) {
     n++;
-    const jobsBody = await api.listJobs(run.id);
+    const jobsBody = await api.listJobs(run.id, run.run_attempt ?? 1);
     const jobs = jobsBody?.jobs ?? [];
     if (typeof jobsBody?.total_count === 'number' && jobsBody.total_count > jobs.length) {
       throw new CoverageLost(`run ${run.id} reports ${jobsBody.total_count} job(s) but one page carried ${jobs.length}`);

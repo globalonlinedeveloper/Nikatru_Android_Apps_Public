@@ -654,6 +654,23 @@
       "scope": "feature-branches",
       "rootCause": "flutter analyze reported lints on the stamped app on the branch (the log names them) — the branch's own CI caught it.",
       "fix": "superseded: fixed on the branch before merge"
+    },
+    {
+      "signature": "supabase-auth:unreadable-read-as-drift",
+      "rootCause": "The Supabase Management API answered HTTP 504 (a gateway time-out page, run 34511747076) and tooling/ops/verify-supabase-templates.mjs exits 1 on ANY non-OK status, so ops-watch reported 'Supabase auth config has DRIFTED' although nothing had been compared.",
+      "fix": "infrastructure, self-cleared: the next ops-watch on main read the live config and its comparison passed; the verifier's exit code for an unreadable API (2, not 1) is a separate PR"
+    },
+    {
+      "signature": "node:import-attribute-missing",
+      "rootCause": "A module on the branch imported catalog/apps.json without an import attribute; Node 24 refuses that (ERR_IMPORT_ATTRIBUTE_MISSING), so the replay guard's step exited 1 and the run was cancelled.",
+      "fix": "superseded: fixed on the branch before merge",
+      "scope": "feature-branches"
+    },
+    {
+      "signature": "money-dry-run:uncaught-throw",
+      "rootCause": "tooling/ops/money-dry-run.mjs on the branch imported catalog/apps.json without an import attribute; Node 24 threw ERR_IMPORT_ATTRIBUTE_MISSING, the step exited 1, and the run was cancelled (run 34429437969).",
+      "fix": "superseded: fixed on the branch before merge",
+      "scope": "feature-branches"
     }
   ]
 }
