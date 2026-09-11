@@ -115,7 +115,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -147,6 +147,7 @@ import {
   redSinceDomain,
   classifyRedSince,
   evaluateRedSince,
+  diedOnlyOnInstallationQuota,
   hostWorkflowFile,
   dispatchableWorkflows,
   gateTopology,
@@ -244,8 +245,16 @@ function replayStub(readFileSync, writeFileSync) {
         const list = F.jobs?.[parts[runAt + 1]] ?? [];
         return json({
           total_count: list.length,
-          jobs: list.map(([name, conclusion, steps]) => ({ name, status: 'completed', conclusion, steps: (steps ?? []).map(([n, c]) => ({ name: n, conclusion: c })) })),
+          jobs: list.map(([name, conclusion, steps, jobId]) => ({ id: jobId, name, status: 'completed', conclusion, steps: (steps ?? []).map(([n, c]) => ({ name: n, conclusion: c })) })),
         });
+      }
+      // ⏱ 2026-09-11 — a failed job's check-run annotations, `annotations[jobId]`
+      // rows `[level, message]`; a job with none recorded is a 404, as it is live.
+      const crAt = parts.indexOf('check-runs');
+      if (crAt !== -1 && parts[crAt + 2] === 'annotations') {
+        const rows = F.annotations?.[parts[crAt + 1]];
+        if (!rows) return json({ message: 'Not Found' }, 404);
+        return json(rows.map(([level, message]) => ({ annotation_level: level, message })));
       }
       if (url.pathname === '/search/issues') {
         const hit = Object.entries(F.issues ?? {}).find(([t]) => (url.searchParams.get('q') ?? '').includes(t));
@@ -1977,16 +1986,38 @@ describe('assert-ops-register — end to end, against the real repository', () =
   // file's: THE REGISTER IS STRUCTURALLY SOUND — every problem, if any, must be
   // a record-query verdict about a failing duty, never a schema, coverage or
   // delegation error. A structural break still reddens this test on every OS.
-  // ⏱ 2026-09-11 — GITHUB_BASE_REF is removed so this spawn cannot take the
-  // not-read path `liveReadPlan` gives a pull request that touches none of the
-  // live reads' inputs: the suite runs inside such a pull request in CI, and
-  // these tests assert that the record limb RAN. Without a base branch the
-  // changed-file set is unknown, and an unknown set makes the reads.
+  // ⏱ 2026-09-11 — THIS SPAWN SPENT THE CI QUOTA IT WAS NOT HERE TO MEASURE.
+  // It used to inherit the guard-meta job's environment, GITHUB_TOKEN included,
+  // and it ran once per test below: three live runs of the guard per CI run, 56
+  // GitHub requests each — 168, COUNTED under a pass-through fetch counter on
+  // origin/main 90414b02, against a token allowed 1,000 an hour for the whole
+  // repository. None of these tests is about the live world: they assert that
+  // the COMMITTED register is structurally sound and that each limb runs and
+  // prints its counts. So the guard now runs ONCE, against the committed tree,
+  // with every read answered by the replay stub from the 2026-09-11 freeze
+  // fixture (the same answers the INV1..INV6 suite below replays), from a
+  // scrubbed environment in the local host, where every read is made and every
+  // limb runs. The replay counts what the guard asked; the O-3 test requires
+  // that count, so a guard that stopped querying and a spawn that went back to
+  // the live API are both RED.
+  const REPLAY_FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
+  let realRun = null;
   const realGuard = () => {
-    const env = { ...process.env };
-    delete env.GITHUB_BASE_REF;
-    const r = spawnSync(process.execPath, [GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8', env });
-    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+    if (realRun) return realRun;
+    const countFile = join(TMP, `real-guard-count-${seq++}.json`);
+    const env = scrubbedEnv({
+      OPS_REPLAY_FILE: REPLAY_FIXTURE,
+      OPS_REPLAY_COUNT_FILE: countFile,
+      GITHUB_TOKEN: 'replay',
+      GLITCHTIP_TOKEN: 'replay',
+      CLOUDFLARE_API_TOKEN: 'replay',
+      CLOUDFLARE_ACCOUNT_ID: 'replay',
+      GITHUB_REPOSITORY: 'globalonlinedeveloper/Nikatru_Platform_Public',
+    });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD], { cwd: resolve(CI_DIR, '..', '..'), encoding: 'utf8', env });
+    const counts = existsSync(countFile) ? JSON.parse(readFileSync(countFile, 'utf8')) : null;
+    realRun = { code: r.status, out: `${r.stdout}\n${r.stderr}`, counts };
+    return realRun;
   };
 
   /** The record-query verdicts that ARE "a duty is failing": a reachable record
@@ -2042,6 +2073,9 @@ describe('assert-ops-register — end to end, against the real repository', () =
     const stale = problems.filter((p) => HELD_BUT_HEALTHY.test(p));
     for (const p of problems) {
       if (stale.includes(p)) continue;
+      // ⏱ 2026-09-11 — a newest failure that died ONLY on the installation quota is
+      // COVERAGE LOST about one row: a measurement, not a malformed register.
+      if (/failed ONLY on `API rate limit exceeded for installation`/.test(p)) continue;
       assert.match(
         p,
         DUTY_IS_FAILING,
@@ -2130,8 +2164,16 @@ describe('assert-ops-register — end to end, against the real repository', () =
   test('the [14]O-3 record limb actually ran, and says how many records it queried', () => {
     // Without this the previous test is satisfiable by a guard that stopped
     // querying entirely — the defect the whole limb replaces, one level up.
-    const { out } = realGuard();
+    const { out, counts } = realGuard();
     assert.match(out, /\[14\]O-3 — scheduled=\d+ · queried_ok=\d+ · failing=\d+/);
+    // ⏱ 2026-09-11 — AND IT QUERIED THROUGH THE REPLAY, NEVER THE LIVE API. The
+    // replay stub writes what the guard asked, by provider, when it exits; no
+    // count file means the stub was not loaded and every read went to the network
+    // on the guard-meta job's token (168 requests per CI run, counted). A count
+    // of zero GitHub reads means the record limb stopped asking.
+    assert.ok(counts, `the end-to-end run left no replay count, so its reads were not answered by the replay:\n${out}`);
+    assert.ok(counts.github > 0, `the end-to-end run made no GitHub read through the replay (${JSON.stringify(counts)}), so the record limb did not query:\n${out}`);
+    assert.equal(counts.other, 0, `the end-to-end run asked a host the replay does not serve (${JSON.stringify(counts)}):\n${out}`);
     // 🔴 THE LABELS ARE PART OF THE ASSERTION. The previous shape of this line put
     // `22 record(s) QUERIED` and `(ceiling 12)` in one sentence with the unreadable
     // count between them, and on 2026-09-09 two reading passes filed "22 unreadable
@@ -2550,6 +2592,50 @@ describe('assert-ops-register — HOSTNAMES ARE DELEGATED, and the delegation ca
     return { code: r.status, out, counts, problems };
   };
   const NONE = { github: 0, glitchtip: 0, cloudflare: 0, other: 0 };
+
+  // ⏱ 2026-09-11 · A NEWEST FAILURE THAT DIED ONLY ON THE INSTALLATION QUOTA.
+  // CodeQL runs 34570837477 and 34577720776 on main failed in one step whose
+  // only failure annotation was `API rate limit exceeded for installation`, and
+  // [14]O-3b called duty.workflow.codeql.yml RED SINCE. These drive the real
+  // guard, in the local (enforcing) host, over a history whose newest run on main
+  // FAILED an hour after a success, and differ ONLY in what the failed job's
+  // check run recorded — so the verdict can come from nowhere but that read.
+  const runRedPair = (root, annotations) => {
+    const state = join(TMP, `root-replay-${seq++}.json`);
+    const now = new Date().toISOString();
+    const ago = (h) => new Date(Date.parse(now) - h * 3_600_000).toISOString();
+    writeFileSync(
+      state,
+      JSON.stringify({
+        now,
+        runs: { 'ci.yml': [[101, 'schedule', 'success', ago(3)], [102, 'push', 'failure', ago(1)]] },
+        jobs: { 101: [['nightly', 'success', [], 9101], ['guards', 'success', [], 9102]], 102: [['nightly', 'failure', [], 9201], ['guards', 'success', [], 9202]] },
+        annotations,
+        glitchtip: {},
+        d1: { jobs: {}, targets: {} },
+        issues: {},
+      }),
+    );
+    const env = scrubbedEnv({ OPS_REPLAY_FILE: state, GITHUB_TOKEN: 'replay', GITHUB_REPOSITORY: 'o/r' });
+    const r = spawnSync(process.execPath, ['--import', replayStubUrl(), GUARD, root], { encoding: 'utf8', env });
+    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+  };
+  const QUOTA_REFUSAL = 'API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 2838:D9887:2019C45:67AA8DC:6AA3A2EE and timestamp 2026-09-11 06:42:54 UTC.';
+
+  test('CONTROL — a newest failure that failed on its own work is RED SINCE, exit 1, through the real guard', () => {
+    const r = runRedPair(hostRoot(), { 9201: [['failure', 'Process completed with exit code 1.']] });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /duty\.workflow\.nightly — RED SINCE /);
+    assert.doesNotMatch(r.out, /failed ONLY on `API rate limit exceeded for installation`/);
+  });
+
+  test('🔴 a newest failure that died ONLY on the installation quota is COVERAGE LOST, exit 2 — never RED SINCE', () => {
+    const r = runRedPair(hostRoot(), { 9201: [['warning', 'Node.js 20 is deprecated.'], ['failure', QUOTA_REFUSAL], ['warning', QUOTA_REFUSAL]] });
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, /duty\.workflow\.nightly — ci\.yml on main.* run 102 \([^)]+\) FAILED, and job "nightly" failed ONLY on `API rate limit exceeded for installation`/);
+    assert.match(r.out, /COVERAGE LOST for this row/);
+    assert.doesNotMatch(r.out, /duty\.workflow\.nightly — RED SINCE /);
+  });
 
   test('CONTROL — the fixture pull request is a real guard host: ADVISORY on pull_request, ENFORCING on push, green on both', () => {
     const root = hostRoot();
@@ -4793,6 +4879,97 @@ describe('assert-ops-register — [14]O-3b · RED SINCE: a failed run is graded,
 // build-platforms.yml is RED SINCE (the Android release build is broken), and the
 // laptop pipeline-driver has not beaten since 2026-09-09T04:21Z.
 // ─────────────────────────────────────────────────────────────────────────────
+describe('assert-ops-register — [14]O-3b · a run that died ONLY on the installation quota is COVERAGE LOST, not RED (2026-09-11)', () => {
+  // The annotation text and the job are the ones GitHub recorded on CodeQL run
+  // 34577720776 (job 103193893384), read from /check-runs/{id}/annotations.
+  const QUOTA = 'API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8038:1078A0:41122:D7FF2:6AA3B7DC and timestamp 2026-09-11 08:12:12 UTC.';
+  const JOB = { id: 103193893384, name: 'Analyze JavaScript and TypeScript', conclusion: 'failure' };
+  const annotationsOf = (m) => (id) => m[id] ?? null;
+  const row = {
+    id: 'duty.workflow.codeql.yml',
+    kind: 'duty',
+    what: 'the scheduled code scan',
+    detector: 'this guard',
+    response: 'read the failed run',
+    cadence: '1d',
+    mechanism: {
+      substrate: 'github-actions',
+      anchor: 'renovate.json',
+      record: 'GitHub Actions run history',
+      failingValue: 'conclusion = failure',
+      readBy: 'this guard',
+      recordQuery: { reader: 'github-run-history', workflow: 'codeql.yml', unit: 'run', event: 'schedule', headBranch: 'main' },
+    },
+  };
+  const OK = { id: 34540000001, at: '2026-09-10T20:53:00Z' };
+  const failOf = (over = {}) => ({ id: 34577720776, at: '2026-09-11T08:12:30Z', ...over });
+  const probesOf = (failure, success = OK) => new Map([[row.id, { success, failure }]]);
+  const quotaCause = () => diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'warning', message: 'Node.js 20 is deprecated.' }, { annotation_level: 'failure', message: QUOTA }] }));
+
+  test('GREEN CONTROL — a failed job whose failure annotation is its own error is NOT quota-only', () => {
+    const c = diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'failure', message: 'Process completed with exit code 1.' }] }));
+    assert.equal(c.quotaOnly, false);
+    assert.match(c.why, /failed on: Process completed with exit code 1\./);
+  });
+
+  test('🔴 every failure annotation of every failed job is the refusal: quota-only, and the job is named', () => {
+    const c = quotaCause();
+    assert.equal(c.quotaOnly, true);
+    assert.equal(c.why, 'job "Analyze JavaScript and TypeScript" failed ONLY on `API rate limit exceeded for installation`');
+  });
+
+  test('🔴 NOT PROVEN is never quota — mixed failures, an unread list, no failure annotation, no failed job, no job list', () => {
+    const second = { id: 2, name: 'second', conclusion: 'failure' };
+    const quotaList = [{ annotation_level: 'failure', message: QUOTA }];
+    assert.equal(diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [...quotaList, { annotation_level: 'failure', message: 'boom' }] })).quotaOnly, false, 'a real failure beside the refusal');
+    assert.equal(diedOnlyOnInstallationQuota([JOB, second], annotationsOf({ [JOB.id]: quotaList, 2: [{ annotation_level: 'failure', message: 'boom' }] })).quotaOnly, false, 'a second failed job that failed on its own work');
+    assert.equal(diedOnlyOnInstallationQuota([JOB, second], annotationsOf({ [JOB.id]: quotaList })).quotaOnly, false, 'a failed job whose annotations could not be read');
+    assert.equal(diedOnlyOnInstallationQuota([JOB], annotationsOf({ [JOB.id]: [{ annotation_level: 'warning', message: QUOTA }] })).quotaOnly, false, 'a refusal recorded only as a warning');
+    assert.equal(diedOnlyOnInstallationQuota([{ ...JOB, conclusion: 'success' }], annotationsOf({ [JOB.id]: quotaList })).quotaOnly, false, 'no failed job');
+    assert.equal(diedOnlyOnInstallationQuota(null, annotationsOf({})).quotaOnly, false, 'no job list');
+  });
+
+  test('CONTROL — a newest failure with no quota cause is still RED SINCE at exit 1', () => {
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: false, cause: 'job "Analyze" failed on: boom' })));
+    assert.equal(r.stats.red, 1);
+    assert.equal(r.stats.quota, 0);
+    assert.equal(r.live.length, 1);
+    assert.equal(r.live[0].code, 1);
+    assert.match(r.live[0].line, /RED SINCE 2026-09-11T08:12:30Z/);
+  });
+
+  test('🔴 a quota-only newest failure is COVERAGE LOST at exit 2, counted apart from RED', () => {
+    const c = quotaCause();
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: c.quotaOnly, cause: c.why })));
+    assert.equal(r.stats.red, 0);
+    assert.equal(r.stats.quota, 1);
+    assert.equal(r.live.length, 1);
+    assert.equal(r.live[0].code, 2, 'COVERAGE LOST is exit 2 — never 1, which is "the duty is failing" (INV6)');
+    assert.match(r.live[0].line, /run 34577720776 \(2026-09-11T08:12:30Z\) FAILED, and job "Analyze JavaScript and TypeScript" failed ONLY on `API rate limit exceeded for installation`/);
+    assert.match(r.live[0].line, /COVERAGE LOST for this row/);
+    assert.match(r.live[0].line, /the newest success is run 34540000001/);
+    assert.doesNotMatch(r.live[0].line, /RED SINCE/);
+    assert.ok(r.errors.includes(r.live[0].line));
+    assert.ok(r.prints.some((p) => /· 1 whose newest failure died ONLY on the installation rate limit \(COVERAGE LOST\)/.test(p)), r.prints.join('\n'));
+  });
+
+  test('🔴 with NO success at all, a quota-only failure is still the quota verdict, not the blind one', () => {
+    const c = quotaCause();
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ quotaOnly: true, cause: c.why }), null));
+    assert.equal(r.stats.blind, 0);
+    assert.equal(r.stats.quota, 1);
+    assert.equal(r.live[0].code, 2);
+    assert.match(r.live[0].line, /no success exists to compare against/);
+  });
+
+  test('a quota-only failure OLDER than the newest success changes nothing: the branch is green', () => {
+    const r = evaluateRedSince({ rows: [row] }, probesOf(failOf({ at: '2026-09-09T00:00:00Z', quotaOnly: true, cause: 'x' })));
+    assert.equal(r.stats.green, 1);
+    assert.equal(r.stats.quota, 0);
+    assert.deepEqual(r.live, []);
+  });
+});
+
 describe('the 2026-09-11 freeze, replayed — INV1..INV6 against the exact answers run 34546423386 received', () => {
   const REPO = resolve(CI_DIR, '..', '..');
   const FIXTURE = join(CI_DIR, 'test', 'fixtures', 'ops-freeze-2026-09-11.json');
