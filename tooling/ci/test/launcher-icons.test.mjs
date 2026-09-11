@@ -494,12 +494,29 @@ function world({
   return { root, sdkRoot };
 }
 
+// 🔴 BOUNDED — THIS FILE HUNG CI TWICE AND SAID NOTHING. "Guards — the guards can
+// still fail" hit its 25-minute timeout in runs 34442894882 (2026-09-10) and
+// 34553250403 (2026-09-11). Both logs stop at the same byte: the last suite
+// printed is assert-launch-smoke.mjs, and this file is the next one the spec
+// reporter was waiting on. Every case here spawns the guard, which spawns a
+// fake `flutter create`, and neither spawn had a timeout — so a single stuck
+// child took the whole job with it and left no name behind. A bounded spawn
+// turns that into ONE red case carrying its own output and the kill reason.
+// The bound is generous: a case takes well under a second, cold.
+const RUN_TIMEOUT_MS = 120_000;
 const run = ({ root, sdkRoot }, env = {}) => {
   const r = spawnSync(process.execPath, [GUARD, root], {
     encoding: 'utf8',
     env: { ...process.env, FLUTTER_ROOT: sdkRoot, ...env },
+    timeout: RUN_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
   });
-  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  const died = r.error
+    ? `\n[launcher-icons.test] guard spawn failed: ${r.error.message}`
+    : r.signal
+      ? `\n[launcher-icons.test] guard killed by ${r.signal} after ${RUN_TIMEOUT_MS} ms`
+      : '';
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}${died}` };
 };
 
 describe('assert-launcher-icons', () => {
@@ -973,7 +990,6 @@ describe('the desktop entry Name is the icon label', () => {
   });
 });
 
-// ── limb 8b's comment stripper, on its own ──────────────────────────────────
 // ── limb 9: every Android resource and manifest is well-formed XML ──────────
 // 🔬 REAL-TREE EVIDENCE FIRST, as this file's header asks. On 2026-09-11 the
 // limb was run against the tree as #597 left it: RED, naming BOTH
@@ -1114,6 +1130,7 @@ describe('limb 9 — Android resource XML must parse', () => {
   });
 });
 
+// ── limb 8b's comment stripper, on its own ──────────────────────────────────
 // 🔴 THE FIXTURE ABOVE CANNOT REACH THESE. It writes well-formed XML, because
 // that is what `flutter create` writes and what a person edits — but the
 // stripper's whole job is to be right about the malformed cases too, and CodeQL
