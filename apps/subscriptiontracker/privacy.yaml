@@ -41,7 +41,7 @@ app: subscriptiontracker
 # schema's arity rules are per surface — and the app floor (at least one
 # collected category, at least one processor) is exactly what it always was.
 surface: app
-asOf: "2026-09-05"
+asOf: "2026-09-11"
 
 # C-NO-NETWORK-ADDRESS-COLUMN, restated where a renderer would have to break it.
 # The schema admits only `false`. The one identifier that would turn every
@@ -162,10 +162,12 @@ collects:
     shared: false
     basis: >-
       Crash reports reach the self-hosted GlitchTip in Mumbai, whose event
-      retention is bounded rather than indefinite. Self-hosted, so no third
-      party receives them and no processor row is owed for it.
-    source: tooling/legal/data-inventory.json
-    asOf: "2026-09-05"
+      retention is bounded rather than indefinite. The software is ours and no
+      analytics company receives them; the machine it runs on is rented from
+      Hostinger, which is listed below as infrastructure under the same rule
+      that lists the vendor of the identity machine.
+    source: tooling/legal/provider-register.json
+    asOf: "2026-09-11"
 
   - category: App info and performance
     type: Diagnostics
@@ -213,9 +215,18 @@ collects:
 # Everyone outside this repository who touches any of the above. Each id is a
 # row in tooling/legal/provider-register.json — that register is the ONE
 # declaration of who they are, and a second spelling here would be the first to
-# drift. Self-hosted services are deliberately absent: GlitchTip and the auth
-# stack run on boxes this company operates, so they are infrastructure rather
-# than a party the data is disclosed to.
+# drift. Self-hosted SERVICES are deliberately absent: GlitchTip and the auth
+# stack are software this company operates, not a party the data is disclosed
+# to. The VENDOR of each machine they run on is present, as `infrastructure`,
+# and the rule is one rule for every such machine: `oracle-cloud` for the
+# identity stack (Box A), `hostinger` for the crash sink (Box B).
+#
+# ⏱ 2026-09-11 — owner decision "Name Hostinger". Until then this list named
+# oracle-cloud and omitted hostinger, the LIVE crash sink, while the portfolio
+# policy §4 already named Hostinger: the rule above was applied to one vendor
+# only (HANDOFF-stores REVIEW #12). Each processor here is also recorded in its
+# register row's `namedIn`, so assert-policy-claims re-reads the rendered page
+# for it on every run and a dropped row is a build failure, not a quiet edit.
 processors:
   - id: cloudflare
     role: infrastructure
@@ -228,6 +239,12 @@ processors:
     purpose: Hosts the identity stack that issues and verifies the session.
     source: tooling/legal/provider-register.json
     asOf: "2026-09-05"
+
+  - id: hostinger
+    role: infrastructure
+    purpose: Hosts the machine the self-hosted crash-report service runs on.
+    source: tooling/legal/provider-register.json
+    asOf: "2026-09-11"
 
   - id: paddle
     role: merchant_of_record

@@ -12,7 +12,7 @@
   "app-dod.test.mjs": 32,
   "app-naming.test.mjs": 30,
   "app-versioning.test.mjs": 51,
-  "app-yaml.test.mjs": 63,
+  "app-yaml.test.mjs": 67,
   "appimage-signing.test.mjs": 73,
   "apple-privacy-manifest.test.mjs": 42,
   "apple-signing-2026-09-09.test.mjs": 22,
