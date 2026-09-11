@@ -112,7 +112,7 @@
   "one-entitlement-reader.test.mjs": 13,
   "ops-register.test.mjs": 353,
   "ops-status.test.mjs": 46,
-  "ops-verifiers.test.mjs": 15,
+  "ops-verifiers.test.mjs": 18,
   "package-boundaries.test.mjs": 18,
   "package-earned.test.mjs": 25,
   "pages-deployments.test.mjs": 34,

@@ -34,7 +34,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -175,7 +177,7 @@ describe('verify-monitors / verify-alarm-chains — the GlitchTip pair', () => {
     assert.equal(code, 2, out);
   });
 
-  test('🔴 verify-monitors on an unreachable instance exits 1 or 2, NOT 127', () => {
+  test('🔴 verify-monitors on an unreachable instance exits 2, NOT 127 and NOT 1', () => {
     // THIS IS THE 127 CASE, AND IT IS THE REASON THIS FILE EXISTS. Asserting
     // merely "non-zero" would have passed against the libuv crash; the contract
     // is that the code is one this file can name.
@@ -185,17 +187,119 @@ describe('verify-monitors / verify-alarm-chains — the GlitchTip pair', () => {
       GLITCHTIP_ORG: 'nikatru',
     });
     assert.notEqual(code, 127, `crashed instead of exiting cleanly:\n${out}`);
-    assert.ok(code === 1 || code === 2, `expected 1 or 2, got ${code}:\n${out}`);
+    // ⏱ 2026-09-11 — exactly 2. "1 or 2" admitted the defect this file now
+    // refuses: an instance that could not be reached reported as monitor DRIFT.
+    assert.equal(code, 2, `an unreachable instance is COULD NOT LOOK (2), never drift (1):\n${out}`);
+    assert.match(out, /COULD NOT LOOK/);
   });
 
-  test('🔴 verify-alarm-chains on an unreachable instance exits 1 or 2, NOT 127', () => {
+  test('🔴 verify-alarm-chains on an unreachable instance exits 2, NOT 127 and NOT 1', () => {
     const { code, out } = run('verify-alarm-chains.mjs', {
       GLITCHTIP_TOKEN: 'fixture-token',
       GLITCHTIP_URL: CLOSED,
       GLITCHTIP_ORG: 'nikatru',
     });
     assert.notEqual(code, 127, `crashed instead of exiting cleanly:\n${out}`);
-    assert.ok(code === 1 || code === 2, `expected 1 or 2, got ${code}:\n${out}`);
+    assert.equal(code, 2, `an unreachable instance is COULD NOT LOOK (2), never a broken chain (1):\n${out}`);
+    assert.match(out, /COULD NOT LOOK/);
+  });
+
+  // ⏱ 2026-09-11 · A GLITCHTIP THAT ANSWERS, BADLY. The closed port above never
+  // produces an HTTP status, so a 401, a 5xx and a changed answer shape — the
+  // three ways an expired token or an unwell Oracle box actually shows up — were
+  // exit 1 in both files, the code each gives a real finding. These serve those
+  // answers from a local server. ASYNC SPAWN, NOT spawnSync: the server lives in
+  // this process, and a synchronous spawn would block the event loop it answers on.
+  const serve = async (answer) => {
+    const seen = [];
+    const server = createServer((req, res) => {
+      seen.push({ url: req.url, auth: req.headers.authorization ?? null });
+      const [status, body] = answer(req.url);
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body));
+    });
+    await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
+    return { url: 'http://127.0.0.1:' + server.address().port, seen, close: () => new Promise((ok) => server.close(ok)) };
+  };
+  const runServed = (script, env) =>
+    new Promise((ok) => {
+      const child = spawn(process.execPath, [join(OPS, script)], { cwd: REPO, env: { ...process.env, ...env } });
+      let out = '';
+      child.stdout.on('data', (d) => { out += d; });
+      child.stderr.on('data', (d) => { out += d; });
+      child.on('close', (code) => ok({ code, out }));
+    });
+  const glitchtipAt = (url) => ({ GLITCHTIP_TOKEN: 'fixture-token', GLITCHTIP_URL: url, GLITCHTIP_ORG: 'nikatru' });
+
+  for (const [what, answer] of [
+    ['a 401 (the token is refused)', () => [401, { detail: 'Invalid token.' }]],
+    ['a 503 (the Oracle box is unwell)', () => [503, { detail: 'unavailable' }]],
+    ['an answer that is not a list (the API shape changed)', () => [200, { detail: 'not a list' }]],
+  ]) {
+    test('🔴 verify-monitors on ' + what + ' is exit 2 — COULD NOT LOOK, not drift', async () => {
+      const g = await serve(answer);
+      try {
+        const { code, out } = await runServed('verify-monitors.mjs', glitchtipAt(g.url));
+        // CONTROL, in the same case: the served answer was really what the script
+        // read, with the token — so the exit below comes from that answer and not
+        // from a closed port or a skipped request.
+        assert.ok(g.seen.some((r) => r.url.startsWith('/api/0/organizations/nikatru/monitors/') && r.auth === 'Bearer fixture-token'), 'the script never asked the served instance:\n' + out);
+        assert.equal(code, 2, out);
+        assert.match(out, /COULD NOT LOOK/);
+      } finally {
+        await g.close();
+      }
+    });
+
+    test('🔴 verify-alarm-chains on ' + what + ' is exit 2 — COULD NOT LOOK, not a broken chain', async () => {
+      const g = await serve(answer);
+      try {
+        const { code, out } = await runServed('verify-alarm-chains.mjs', glitchtipAt(g.url));
+        assert.ok(g.seen.some((r) => r.url.startsWith('/api/0/organizations/') && r.auth === 'Bearer fixture-token'), 'the script never asked the served instance:\n' + out);
+        assert.equal(code, 2, out);
+        assert.match(out, /COULD NOT LOOK/);
+      } finally {
+        await g.close();
+      }
+    });
+  }
+
+  test('🔴 verify-alarm-chains: a project whose ALERTS cannot be read is exit 2, and a real broken chain still outranks it as 1', async () => {
+    // The fixture is built FROM THE REAL LEDGER so every other limb is silent: each
+    // expected monitor is live (limb D), attached to a project (limb A) whose chain
+    // the ledger records as observed (limb C). Only the alert reads differ.
+    const ledger = JSON.parse(readFileSync(join(OPS, 'alarm-chains.json'), 'utf8'));
+    const org = ledger.org;
+    const observed = Object.entries(ledger.chainsObserved ?? {}).filter(([, o]) => o?.date && o?.evidence).map(([slug]) => slug);
+    assert.ok(observed.length > 0, 'the ledger records no observed chain, so this fixture cannot be built');
+    const slug = observed[0];
+    const monitors = ledger.expectedMonitors.map((row) => ({ id: row.id, name: row.name, projectID: 1 }));
+    const answerWith = (extra) => (url) => {
+      if (url.startsWith('/api/0/organizations/' + org + '/monitors/')) return [200, [...monitors, ...extra.monitors]];
+      if (url.startsWith('/api/0/organizations/' + org + '/projects/')) return [200, [{ id: 1, slug, name: slug }, ...extra.projects]];
+      if (url.startsWith('/api/0/projects/' + org + '/' + slug + '/alerts/')) return [503, { detail: 'unavailable' }];
+      if (url.startsWith('/api/0/projects/' + org + '/zz-broken/alerts/')) return [200, []];
+      return [404, { detail: 'Not found.' }];
+    };
+    const onlyUnread = await serve(answerWith({ monitors: [], projects: [] }));
+    try {
+      const r = await runServed('verify-alarm-chains.mjs', glitchtipAt(onlyUnread.url));
+      assert.ok(onlyUnread.seen.some((x) => x.url.startsWith('/api/0/projects/' + org + '/' + slug + '/alerts/')), 'limb B never read an alert list:\n' + r.out);
+      assert.ok(r.out.includes('ALERTS UNREADABLE: project ' + slug), r.out);
+      assert.doesNotMatch(r.out, /COVERAGE LOST: expected monitor|NO PROJECT|DANGLING PROJECT|NEVER OBSERVED/, 'the fixture tripped another limb, so the exit below would not come from the alert read');
+      assert.equal(r.code, 2, r.out);
+    } finally {
+      await onlyUnread.close();
+    }
+    const withBroken = await serve(answerWith({ monitors: [{ id: 999999, name: 'fixture', projectID: 2 }], projects: [{ id: 2, slug: 'zz-broken', name: 'zz-broken' }] }));
+    try {
+      const r = await runServed('verify-alarm-chains.mjs', glitchtipAt(withBroken.url));
+      assert.ok(r.out.includes('ALERTS UNREADABLE: project ' + slug), r.out);
+      assert.match(r.out, /NO UPTIME RECIPIENT: project zz-broken/, r.out);
+      assert.equal(r.code, 1, 'a chain that WAS read and is broken must still be exit 1:\n' + r.out);
+    } finally {
+      await withBroken.close();
+    }
   });
 });
 
