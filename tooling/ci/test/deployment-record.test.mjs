@@ -637,11 +637,13 @@ describe('record-deployment — the write is retried, and only where retrying is
     }
   });
 
-  // ⚠️ The one 4xx that would justify a retry, and it is still excluded.
-  // Honouring a rate limit means reading `Retry-After`; retrying a 429 on a
-  // fixed backoff is how a client turns a throttle into a ban. Pinned so that
-  // adding 429 has to be a deliberate act with a source, not a widened range.
-  test('429 is DELIBERATELY not retried — that needs Retry-After, not a backoff', () => {
+  // ⚠️ The one 4xx that would justify a retry, and it still never takes THIS
+  // path. `isRetryable` is the FIXED short backoff, and retrying a 429 on a fixed
+  // backoff is how a client turns a throttle into a ban. Since 2026-09-11 a rate
+  // limit goes through `classifyRefusal` / `planRateLimitWait` instead, which
+  // wait what GitHub's `retry-after` / `x-ratelimit-reset` say, within a bound
+  // (cases in github-rate-limit.test.mjs). Pinned so the two paths cannot merge.
+  test('429 never takes the fixed backoff — a rate limit waits what GitHub says, not 500 ms', () => {
     assert.equal(isRetryable({ status: 429 }), false);
   });
 
