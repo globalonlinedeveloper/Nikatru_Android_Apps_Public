@@ -45,6 +45,17 @@
 // their tests, and a duplicated identity reader fails by reporting agreement
 // between two things it read wrongly.
 //
+// ── ⏱ 2026-09-11 — THE SNAP NAME, AND THE NAME THIS PORTFOLIO RETIRED ─────────
+// REVIEW-stores-2026-09-10 #7: snap-name.txt was shape-checked only, so any
+// lowercase-hyphen string passed — `subly` included — while the Snap Store binds
+// the name at `snapcraft register` and never lets it go. Two limbs, both data-led:
+//   · a register row with a `snapName` block has its file compared to the
+//     block's derivation (param-case of app.yaml `name`), exactly;
+//   · every `retiredIdentityTokens` token is refused, case- and separator-
+//     insensitively, in every snap name AND every store identity this guard
+//     resolves. An absent token list is COVERAGE LOST: an empty deny-list
+//     refuses nothing and reads exactly like a clean tree.
+//
 // ── ⏱ 2026-09-11 — WINDOWS JOINS, AND ITS EXPECTED VALUE IS NOT THE SLUG ─────
 // REVIEW-stores-2026-09-10 #3: the windows-store row had no `identity` block, so
 // this guard never saw Windows, and submit-windows-store.mjs treated an identity
@@ -207,6 +218,30 @@ for (const r of rows) {
   );
 }
 
+/** The token list is the register's; a guard-side copy would be a second list to forget. */
+const retiredTokens = Array.isArray(register.retiredIdentityTokens?.tokens)
+  ? register.retiredIdentityTokens.tokens.filter((t) => typeof t === 'string' && t.trim() !== '')
+  : [];
+if (retiredTokens.length === 0) {
+  coverageLost([
+    `${REGISTER_REL} declares no \`retiredIdentityTokens.tokens\`.`,
+    'The retired-name limb refuses a token in every store identity and snap name; with no tokens it refuses',
+    'nothing, and a retired name binding a store record forever would read exactly like a clean tree.',
+  ]);
+}
+const squash = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, '');
+/** The retired token a value carries in ANY case or separator form, or null. */
+const retiredIn = (value) => retiredTokens.find((t) => squash(value).includes(squash(t))) ?? null;
+
+/** param-case: diacritics folded, every run of non-alphanumerics one hyphen, none at the ends. */
+const paramCase = (v) =>
+  String(v)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 let checked = 0;
 let skippedNoFolder = 0;
 
@@ -317,6 +352,98 @@ if (checked === 0) {
   ]);
 }
 
+// ── the retired tokens, over every identity resolved above ──────────────────
+// A second pass rather than a line inside the comparison loop, so the refusal is
+// independent of which expected value a row compares against.
+let retiredChecked = 0;
+for (const app of apps) {
+  const slug = typeof app?.slug === 'string' ? app.slug : null;
+  if (!slug || !existsSync(join(ROOT, 'apps', slug))) continue;
+  for (const row of withIdentity) {
+    for (const platform of row.platforms ?? []) {
+      const dir = PLATFORM_DIR.get(platform);
+      if (!dir || !existsSync(join(ROOT, 'apps', slug, dir))) continue;
+      const r = resolveIdentity(ROOT, slug, row.identity);
+      if (typeof r.value !== 'string') continue; // absence and loss were reported by the loop above
+      retiredChecked++;
+      const hit = retiredIn(r.value);
+      if (hit) {
+        problems.push(
+          `app "${slug}" × channel "${row.id}" (${platform}): ${r.rel} declares "${r.value}", which carries the RETIRED token ` +
+            `"${hit}" (${REGISTER_REL} retiredIdentityTokens). A store binds this string at the first upload; a retired name there ` +
+            'is a second app forever, not a rename away from fixed.',
+        );
+      }
+    }
+  }
+}
+
+// ── the snap name: derived, exact, and never a retired token ────────────────
+const snapRows = rows.filter((r) => r?.snapName && typeof r.snapName === 'object');
+const SNAP_DERIVATION = 'param-case(apps/{app}/app.yaml name)';
+let snapChecked = 0;
+let snapEligible = 0;
+const problemsBeforeSnap = problems.length;
+for (const row of snapRows) {
+  const decl = row.snapName;
+  if (typeof decl.declaredIn !== 'string' || !decl.declaredIn.includes('{app}')) {
+    coverageLost([`channel "${row.id}" snapName.declaredIn ${JSON.stringify(decl.declaredIn ?? null)} is not an "{app}" template, so it resolves for no app.`]);
+  }
+  if (decl.derivation !== SNAP_DERIVATION) {
+    coverageLost([
+      `channel "${row.id}" snapName.derivation is ${JSON.stringify(decl.derivation ?? null)}; the only derivation this guard implements is "${SNAP_DERIVATION}".`,
+      'A derivation nobody implements is compared against nothing, which is the shape the snap name was unenforced in.',
+    ]);
+  }
+  for (const app of apps) {
+    const slug = typeof app?.slug === 'string' ? app.slug : null;
+    if (!slug) continue;
+    const built = (row.platforms ?? []).some((p) => PLATFORM_DIR.has(p) && existsSync(join(ROOT, 'apps', slug, PLATFORM_DIR.get(p))));
+    if (!built) continue;
+    snapEligible++;
+    const at = `app "${slug}" × channel "${row.id}" (snap name)`;
+    const fileRel = decl.declaredIn.replace('{app}', slug);
+    if (!existsSync(join(ROOT, fileRel))) {
+      problems.push(`${at}: the app is built for this channel's platform and ${fileRel} does not exist, so nothing states the GLOBAL name it would register.`);
+      continue;
+    }
+    const lines = readFileSync(join(ROOT, fileRel), 'utf8').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length !== 1) {
+      problems.push(`${at}: ${fileRel} holds ${lines.length} non-empty line(s). A snap has exactly one name; anything else means nobody decided.`);
+      continue;
+    }
+    const snap = lines[0];
+    const yamlRel = `apps/${slug}/app.yaml`;
+    const yamlAbs = join(ROOT, yamlRel);
+    const nameMatch = existsSync(yamlAbs) ? readFileSync(yamlAbs, 'utf8').match(/^name:[ \t]*(.+?)[ \t]*$/m) : null;
+    const appName = nameMatch ? nameMatch[1].replace(/[ \t]+#.*$/, '').replace(/^['"]|['"]$/g, '').trim() : '';
+    snapChecked++;
+    const hit = retiredIn(snap);
+    if (hit) {
+      problems.push(
+        `${at}: ${fileRel} is "${snap}", which carries the RETIRED token "${hit}". \`snapcraft register\` binds a snap name ` +
+          'permanently and globally; this one must never be claimed.',
+      );
+    }
+    if (appName === '') {
+      problems.push(`${at}: ${yamlRel} declares no top-level \`name\`, so the snap name cannot be derived and "${snap}" is compared to nothing.`);
+      continue;
+    }
+    const want = paramCase(appName);
+    if (snap !== want) {
+      problems.push(
+        `${at}: ${fileRel} is "${snap}" and the derived snap name is "${want}" (${SNAP_DERIVATION}, from ${yamlRel} name ` +
+          `${JSON.stringify(appName)}). A shape-valid name that is not the derived one registers a namespace nobody reviewed.`,
+      );
+    }
+  }
+}
+// Only when nothing more specific was said: a missing or two-line file is already a named problem,
+// and replacing it with "compared nothing" would send the fix to the wrong place.
+if (snapRows.length > 0 && snapEligible > 0 && snapChecked === 0 && problems.length === problemsBeforeSnap) {
+  coverageLost([`${snapEligible} app × snap-channel pair(s) were eligible and ZERO snap names were compared.`]);
+}
+
 if (problems.length) {
   console.error(`✗ store identity — ${problems.length} problem(s):`);
   for (const p of problems) console.error(`    ${p}`);
@@ -335,4 +462,8 @@ console.log(
   `ok  store identity — ${checked} (app × platform) identity(ies) compared to com.nikatru.<slug> (or the register's store-assigned value) across ` +
     `${apps.length} app(s) and ${withIdentity.length} identity-declaring channel(s); ${skippedNoFolder} pair(s) ` +
     'skipped for having no platform folder (a web-only app is not missing an Android package name)',
+);
+console.log(
+  `ok  snap name — ${snapChecked} snap name(s) equal ${SNAP_DERIVATION}; retired token(s) ${retiredTokens.map((t) => JSON.stringify(t)).join(', ')} ` +
+    `refused across ${retiredChecked} store identity(ies) and ${snapChecked} snap name(s)`,
 );

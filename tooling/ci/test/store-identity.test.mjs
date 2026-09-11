@@ -54,6 +54,7 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 let seq = 0;
 
 const REGISTER = () => ({
+  retiredIdentityTokens: { tokens: ['subly'] },
   channels: [
     { id: 'web', kind: 'web', platforms: ['web'], deploymentEnvironment: '{app}-web' },
     {
@@ -67,6 +68,7 @@ const REGISTER = () => ({
       kind: 'store',
       platforms: ['linux'],
       identity: { kind: 'cmake-application-id', declaredIn: 'apps/{app}/linux/CMakeLists.txt' },
+      snapName: { declaredIn: 'apps/{app}/store/linux-snap/snap-name.txt', derivation: 'param-case(apps/{app}/app.yaml name)' },
     },
   ],
 });
@@ -83,6 +85,8 @@ function fixture({ register = REGISTER(), apps = [{ slug: 'subscriptiontracker',
   const defaults = {
     'apps/subscriptiontracker/android/app/build.gradle.kts': 'android {\n    namespace = "com.nikatru.subscriptiontracker"\n    defaultConfig {\n        applicationId = "com.nikatru.subscriptiontracker"\n    }\n}\n',
     'apps/subscriptiontracker/linux/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.13)\nset(APPLICATION_ID "com.nikatru.subscriptiontracker")\n',
+    'apps/subscriptiontracker/app.yaml': 'id: subscriptiontracker\nname: Nikatru Subscription Tracker # the store title\n',
+    'apps/subscriptiontracker/store/linux-snap/snap-name.txt': 'nikatru-subscription-tracker\n',
   };
   for (const [rel, body] of Object.entries({ ...defaults, ...files })) {
     if (body === null) continue;
@@ -154,6 +158,76 @@ describe('read-identity — each reader answers found / missing / lost, never a 
   test('resolveIdentity: a declaredIn with no {app} is LOST', () => {
     const r = resolveIdentity(TMP, 'subscriptiontracker', { kind: 'gradle-application-id', declaredIn: 'apps/subscriptiontracker/x' });
     assert.match(r.lost, /is not an "\{app\}" template/);
+  });
+});
+
+describe('assert-store-identity — the snap name is DERIVED, and a retired token is refused in any form', () => {
+  // ⏱ 2026-09-11 — REVIEW-stores-2026-09-10 #7. Before this, snap-name.txt was shape-checked
+  // only: every name below except the first passed every guard in the repository.
+  test('PASSES when snap-name.txt is param-case of app.yaml name, and SAYS how many it compared', () => {
+    const { code, out } = run(fixture());
+    assert.equal(code, 0, out);
+    assert.match(out, /ok {2}snap name — 1 snap name\(s\) equal param-case\(apps\/\{app\}\/app\.yaml name\); retired token\(s\) "subly" refused across 2 store identity\(ies\) and 1 snap name\(s\)/);
+  });
+
+  test('FAILS a shape-valid name that is not the derived one — the slug alone', () => {
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/store/linux-snap/snap-name.txt': 'subscriptiontracker\n' } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /snap-name\.txt is "subscriptiontracker" and the derived snap name is "nikatru-subscription-tracker"/);
+  });
+
+  for (const retired of ['subly', 'nikatru-subly', 'sub-ly', 'SUBLY']) {
+    test(`FAILS the retired name in the form ${JSON.stringify(retired)}`, () => {
+      const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/store/linux-snap/snap-name.txt': `${retired}\n` } }));
+      assert.equal(code, 1, out);
+      assert.match(out, /carries the RETIRED token "subly"/);
+    });
+  }
+
+  test('a retired token is refused in a STORE IDENTITY too, not only in the snap name', () => {
+    const { code, out } = run(
+      fixture({
+        files: {
+          'apps/subscriptiontracker/linux/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.13)\nset(APPLICATION_ID "com.nikatru.Sub_ly")\n',
+        },
+      }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /declares "com\.nikatru\.Sub_ly", which carries the RETIRED token "subly"/);
+  });
+
+  test('FAILS when the app is built for Linux and snap-name.txt is missing', () => {
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/store/linux-snap/snap-name.txt': null } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /snap-name\.txt does not exist, so nothing states the GLOBAL name it would register/);
+  });
+
+  test('FAILS a snap-name.txt holding two candidates', () => {
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/store/linux-snap/snap-name.txt': 'nikatru-subscription-tracker\nnikatru-subscriptions\n' } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /holds 2 non-empty line\(s\)/);
+  });
+
+  test('FAILS when app.yaml declares no name — nothing to derive from', () => {
+    const { code, out } = run(fixture({ files: { 'apps/subscriptiontracker/app.yaml': 'id: subscriptiontracker\n' } }));
+    assert.equal(code, 1, out);
+    assert.match(out, /declares no top-level `name`, so the snap name cannot be derived/);
+  });
+
+  test('COVERAGE LOST when the register declares no retired tokens', () => {
+    const register = REGISTER();
+    delete register.retiredIdentityTokens;
+    const { code, out } = run(fixture({ register }));
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST — tooling\/channel-register\.json declares no `retiredIdentityTokens\.tokens`/);
+  });
+
+  test('COVERAGE LOST when the snap derivation is one the guard does not implement', () => {
+    const register = REGISTER();
+    register.channels.find((c) => c.id === 'linux-snap').snapName.derivation = 'whatever the author typed';
+    const { code, out } = run(fixture({ register }));
+    assert.equal(code, 1, out);
+    assert.match(out, /the only derivation this guard implements is "param-case\(apps\/\{app\}\/app\.yaml name\)"/);
   });
 });
 
