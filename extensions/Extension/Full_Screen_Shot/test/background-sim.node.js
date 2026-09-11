@@ -1523,7 +1523,7 @@ const quotaError = (message) => {
     // instead — the mode that actually hits the quota, because it is the one
     // that asks for a shot per screenful.
     const env = newEnv({ hooks: { capture: () => new Error('MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota exceeded') } });
-    const tab = env.addTab({ id: 86, active: true, script: { frames: 3 } });
+    env.addTab({ id: 86, active: true, script: { frames: 3 } });
     await startCapture(env, 86, 'full');
     const rec = env.session[ERR_KEY] || {};
     check('a full-page capture beaten by the rate limit is told to wait too',
@@ -1679,14 +1679,13 @@ const quotaError = (message) => {
   {
     const env = newEnv();
     env.addTab({ id: 212, active: false, windowId: 1, url: 'https://mail.example.com/inbox' });
-    const tab = env.addTab({
+    env.addTab({
       id: 211, active: true, windowId: 1, url: 'https://docs.example.com/spec',
       // Dragged out into a window of its own: same tab, same id, still "active" —
       // but no longer the tab the frozen windowId photographs.
       script: { frames: 3, beforeFrame: i => { if (i === 1) { env.moveToWindow(211, 2); env.activate(212); } } }
     });
     await startCapture(env, 211, 'full');
-    const frames = framesOf(env);
     check('a tab dragged into another window stops being the tab on screen',
       env.shots.length === 1, env.shots.length + ' shots');
     check('the id alone proves nothing — no frame of the tab left behind is stored',
@@ -2214,7 +2213,7 @@ const quotaError = (message) => {
   console.log('\n=== delay ===');
   {
     const env = newEnv();
-    const tab = env.addTab({ id: 61, script: { frames: 1 } });
+    env.addTab({ id: 61, script: { frames: 1 } });
     const m = env.mark();
     const p = env.send({ type: 'START_CAPTURE', tabId: 61, mode: 'full', startDelay: 3 }, env.fromPage());
     const res = await p;                                   // must answer before the countdown
@@ -3355,7 +3354,7 @@ const quotaError = (message) => {
        common case worse to improve the rare one. What must hold is that the
        failure still reaches a person. */
     const env = newEnv();
-    const tab = env.addTab({ id: 114, url: 'https://sandboxed.example/app', script: { onStart: 'silent' } });
+    env.addTab({ id: 114, url: 'https://sandboxed.example/app', script: { onStart: 'silent' } });
     env.hooks.sendMessage = (id, m) => (m.type === 'FS_START' ? { rejectAfter: 50, error: CONN_ERR } : null);
     const p = env.send({ type: 'START_CAPTURE', tabId: 114, mode: 'full', startDelay: 0 }, env.fromPage());
     await pump(env, { budget: 2000 });
@@ -3836,7 +3835,7 @@ const quotaError = (message) => {
        report. The worker also closes tabs itself, once per batch job, so a note
        here would be noise on every queue that ever runs. */
     const env = newEnv();
-    const tab = env.addTab({ id: 161, script: { onStart: 'silent' } });
+    env.addTab({ id: 161, script: { onStart: 'silent' } });
     await startCapture(env, 161, 'full');
     const m = env.mark();
     fire(env.onRemoved, 161, {});
@@ -4646,7 +4645,9 @@ const quotaError = (message) => {
     check('the popup shows the parked failure the moment it opens', pop.shown(), 'hidden=' + !pop.shown());
     check('...in the words the worker parked', /stopped handing over the screen/.test(pop.text()), pop.text());
     check('...saying which capture it was', /full[- ]page/i.test(pop.text()), pop.text());
-    check('...and which site it happened on', /news\.example\.com/.test(pop.text()), pop.text());
+    /* the origin in the parentheses the message prints it in (CodeQL #43) — the host
+       anywhere would also accept a lookalike, or a reason that merely mentioned it */
+    check('...and which site it happened on', pop.text().indexOf(' (https://news.example.com)') >= 0, pop.text());
     check('the popup shows no stack trace and no code',
       !/\bat \w+ \(|Error:|chrome-extension:/.test(pop.text()), pop.text());
     check('the popup never looks for the note in sync storage',
@@ -4717,7 +4718,7 @@ const quotaError = (message) => {
     check('...with no token, no path and no scheme in the sentence',
       !/SECRET7|o'brien|receipt|4111|:\/\//.test(sentence), sentence);
     check('...and it still tells the user which site and which capture it was',
-      /app\.example\.com/.test(pop.text()), pop.text());
+      pop.text().indexOf(' (https://app.example.com)') >= 0, pop.text()); /* as printed (CodeQL #44) */
   }
   {
     /* v1.9.12's other gate, on this surface: a sentence that reaches the page as
