@@ -50,7 +50,7 @@
 // three attempts, because the failure mode was identical each time.
 //
 // ⚠️ SO IT REFUSES TO RUN BLIND. No SDK, no overlay, or an empty stock asset →
-// COVERAGE LOST, exit 1. "I could not check" must never read as "nothing was
+// COVERAGE LOST, exit 2. "I could not check" must never read as "nothing was
 // wrong". That is why this runs in the `app_brick` lane (the one with Flutter on
 // PATH) and not beside the static guards in `platform`.
 //
@@ -137,10 +137,8 @@
 //
 // Usage:  node tooling/ci/assert-launcher-icons.mjs [repoRoot]
 // ─────────────────────────────────────────────────────────────────────────────
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 // NOT `readdirSync` — a raw listing descends into a nested checkout (a git
 // worktree, a submodule, a stray clone) and reads another repository's files as
 // this tree's. Green in CI, which creates no worktrees; red on the one machine
@@ -180,6 +178,9 @@ import {
   deriveSplash,
   readStoryboardImageSize,
 } from '../store/render-splash.mjs';
+// The ONE relaunch with V8 background tasks off — see the block below and that
+// module's header.
+import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-relaunch.mjs';
 
 // ── the process that does the work runs with V8 background tasks OFF ────────
 // 🔴 THIS GUARD HUNG CI THREE TIMES AFTER PRINTING ITS VERDICT: runs 34442894882
@@ -200,20 +201,16 @@ import {
 // it gives V8 nothing to compile in the background. It carries no timeout of
 // its own: the child's one unbounded wait (`flutter create`) is bounded in
 // flutter-stock-assets.mjs, and a second bound would have to be kept in step.
-const SINGLE_THREADED = '--single-threaded';
-if (!process.execArgv.includes(SINGLE_THREADED)) {
-  const child = spawnSync(
-    process.execPath,
-    [SINGLE_THREADED, ...process.execArgv, fileURLToPath(import.meta.url), ...process.argv.slice(2)],
-    { stdio: 'inherit' },
-  );
-  if (child.error) {
-    console.error(`assert-launcher-icons: FAIL — could not relaunch with ${SINGLE_THREADED}: ${child.error.message}`);
-    process.exit(1);
-  }
-  if (child.signal) console.error(`assert-launcher-icons: FAIL — the working process was killed by ${child.signal}`);
-  process.exit(child.status ?? 1);
-}
+//
+// ⏱ 2026-09-11 — the relaunch that was written inline here now lives in
+// single-threaded-relaunch.mjs, UNCHANGED IN BEHAVIOUR except for one exit code:
+// a relaunch that cannot start, or a working process killed before its verdict,
+// is COVERAGE LOST (exit 2) through this file's own reporter, where it was exit
+// 1. The class sweep found the same exposure in three more guards, and four
+// inline copies would drift in exactly what cannot be seen from a green run.
+// `coverageLost` is a hoisted function declaration, so passing it here, before
+// its text, is safe.
+relaunchSingleThreaded(import.meta.url, coverageLost);
 
 const repoRoot = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? process.cwd());
 const APPS = join(repoRoot, 'apps');
@@ -228,11 +225,13 @@ const problems = [];
 const prints = [];
 
 /** Structural failure — the scan itself is broken, so nothing below it means
- *  anything. Exits immediately rather than joining the problem list. */
+ *  anything. Exits immediately rather than joining the problem list, and with
+ *  2, never 1: "I could not look" must never read as "I looked and found a
+ *  problem", any more than as "I looked and it was fine". */
 function coverageLost(lines) {
   console.error(`COVERAGE LOST: ${lines[0]}`);
   for (const l of lines.slice(1)) console.error(`  ${l}`);
-  process.exit(1);
+  process.exit(2);
 }
 
 // ── limb 9's reader: XML 1.0 WELL-FORMEDNESS ────────────────────────────────
@@ -1557,10 +1556,7 @@ prints.push(
 for (const s of icoSizes) prints.push(`ico entries — ${s}`);
 // Read from this process's own start-up flags, not asserted: if the relaunch
 // above is ever removed, this line says ON and launcher-icons.test.mjs fails.
-prints.push(
-  `V8 background tasks: ${process.execArgv.includes(SINGLE_THREADED) ? 'OFF (--single-threaded)' : 'ON'} — ` +
-    'with them on, a background compile can deadlock this process at exit (nodejs/node#54918)',
-);
+prints.push(backgroundTasksNote());
 
 if (problems.length) {
   console.error('assert-launcher-icons: FAIL');

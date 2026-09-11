@@ -81,6 +81,22 @@ import { inflateSync } from 'node:zlib';
 // including the `flutter_template_images` overlay, without which the two
 // maskable comparisons below range over empty buffers. See its header.
 import { flutterSdkRoot, readStockAssets, StockAssetsUnavailable } from './flutter-stock-assets.mjs';
+// The ONE relaunch with V8 background tasks off — see that module's header.
+import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-relaunch.mjs';
+
+// ── the process that does the work runs with V8 background tasks OFF ────────
+// 🔴 THE SAME SHUTDOWN DEADLOCK THAT HUNG assert-launcher-icons.mjs IN CI
+// (nodejs/node#54918), reproduced here 2026-09-11 before this guard ever hung:
+// on brick-shaped assets at their real sizes (16, 192 and 512 px truecolour),
+// V8's worker threads burned CPU in 7 of 8 runs by default and in 0 of 8 with
+// --single-threaded, and amplified with --stress-concurrent-allocation a run
+// printed its verdict and did not exit. The dominant-colour loop walks every
+// pixel of every icon — exactly the hot code a background compile is for.
+// `coverageLost` is a hoisted function declaration, so handing it over here,
+// before its text, is safe.
+relaunchSingleThreaded(import.meta.url, (lines) =>
+  coverageLost([`✗ COVERAGE LOST — ${lines[0]}`, ...lines.slice(1).map((l) => `  ${l}`)]),
+);
 
 const args = process.argv.slice(2);
 const appDir = resolve(args.find((a) => !a.startsWith('--')) ?? '.');
@@ -104,6 +120,15 @@ function fail(lines) {
   process.exit(1);
 }
 
+/** The scan itself could not see its subject. Exit 2, never 1: "I could not
+ *  look" must never read as "I looked and found a problem", any more than as
+ *  "I looked and it was fine". A function declaration, so it is hoisted and the
+ *  relaunch above may hand it on before this text. */
+function coverageLost(lines) {
+  for (const l of lines) console.error(l);
+  process.exit(2);
+}
+
 // ── the SDK's stock bytes, overlay included ─────────────────────────────────
 // Through the shared reader: it applies `flutter_template_images` over the SDK
 // templates and THROWS rather than handing back a zero-byte placeholder. The
@@ -120,7 +145,7 @@ try {
   stock = new Map([...stock].map(([k, v]) => [`web/${k}`, v]));
 } catch (e) {
   if (!(e instanceof StockAssetsUnavailable)) throw e;
-  fail([
+  coverageLost([
     '✗ COVERAGE LOST — could not establish the Flutter SDK\'s stock web assets.',
     ...e.lines.map((l) => `  ${l}`),
     '  This guard compares the stamp against the SDK that builds it. Without those bytes it can only',
@@ -130,7 +155,7 @@ try {
   ]);
 }
 if (stock.size === 0) {
-  fail([
+  coverageLost([
     "✗ COVERAGE LOST — a freshly created app has a web/ directory holding NO PNGs.",
     '  Every identity comparison below would range over nothing and pass, which is indistinguishable',
     '  from every asset being correct.',
@@ -152,7 +177,7 @@ if (existsSync(catalogue)) {
   }
 }
 if (!claimed || claimed.length === 0) {
-  fail([
+  coverageLost([
     `✗ COVERAGE LOST — no platform claim found for "${appId}" in ${catalogue}.`,
     '  The asset set is derived from the claim; with no claim there is nothing to require, and an',
     '  empty requirement passes. [pipeline S-3] owns the claim itself.',
@@ -274,7 +299,7 @@ for (const rel of WEB_ASSETS) {
 }
 
 if (checked === 0) {
-  fail([
+  coverageLost([
     `✗ COVERAGE LOST — none of the ${WEB_ASSETS.length} expected web assets was readable under ${appDir}.`,
     '  Every check below ranged over nothing.',
   ]);
@@ -294,3 +319,6 @@ console.log(
     `identical to the SDK's stock (${stock.size} stock asset(s) compared)` +
     (seedArg ? `; ${colourChecked} carry seed #${seedArg}` : '; colour limb not requested'),
 );
+// Read from this process's own start-up flags: remove the relaunch above and this
+// says ON, and stamp-brand-assets.test.mjs fails.
+console.log(`    ${backgroundTasksNote()}`);

@@ -67,12 +67,29 @@
 //
 // Usage:  node tooling/ci/assert-elf-page-alignment.mjs <artifact.aab|.apk> [...] [--repo-root <dir>]
 // Exit 0 = every 64-bit LOAD segment in every artifact clears the floor.
-// Exit 1 = a segment is under-aligned, or the scan reached nothing (COVERAGE LOST).
+// Exit 1 = a segment is under-aligned.
+// Exit 2 = the scan reached nothing, or could not read what it reached (COVERAGE LOST).
+//          "I could not look" must never read as "I looked and it was fine" — nor
+//          as "I looked and found a defect".
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
+// The ONE relaunch with V8 background tasks off — see that module's header.
+import { backgroundTasksNote, relaunchSingleThreaded } from './single-threaded-relaunch.mjs';
+
+// ── the process that does the work runs with V8 background tasks OFF ────────
+// 🔴 THIS GUARD HUNG AFTER PRINTING ITS VERDICT, reproduced 2026-09-11 before it
+// had ever hung in CI. On a CI-sized AAB (3 ABIs, 6 deflated libraries, 600
+// entries) amplified with --stress-concurrent-allocation, 2 of 12 runs printed
+// `assert-elf-page-alignment: OK` in full and were still alive at a 90 s bound —
+// the same shutdown deadlock that cancelled launcher-icons CI runs
+// (nodejs/node#54918). Unamplified, V8's worker threads burned CPU in 7 of 8
+// runs; with --single-threaded, in 0 of 8. The zip walk and inflate loop are
+// exactly the hot code a background compile is for. `coverageLost` is a hoisted
+// function declaration, so handing it over before its text is safe.
+relaunchSingleThreaded(import.meta.url, coverageLost);
 
 const DUTY_REL = 'tooling/legal/duty-matrix.json';
 const DUTY_ID = 'play-16kb-page-size';
@@ -94,7 +111,7 @@ function coverageLost(lines) {
   console.error(`FAIL COVERAGE LOST — ${lines[0]}`);
   for (const l of lines.slice(1)) console.error(`     ${l}`);
   console.error('\nassert-elf-page-alignment: FAILED');
-  process.exit(1);
+  process.exit(2);
 }
 
 // ── the floor, read from the duty row ────────────────────────────────────────
@@ -336,7 +353,9 @@ for (const rel of artifacts) {
 }
 
 // 🔴 A FINDING OUTRANKS COVERAGE LOSS, AND THAT ORDERING IS LOAD-BEARING.
-// Both are exit 1, so it would be tempting to check reach first and be done. The
+// (They were both exit 1 until 2026-09-11; a finding is 1 and coverage loss is 2
+// now, which makes the ordering decide the EXIT CODE as well as the sentence.)
+// It would be tempting to check reach first and be done. The
 // guard's own test caught why not: a library with no PT_LOAD segment raises a
 // precise, actionable problem AND leaves `segmentsChecked` at 0, and the reach
 // check — running first — replaced that sentence with "every library was 32-bit",
@@ -386,3 +405,6 @@ console.log(
   `assert-elf-page-alignment: OK — ${segmentsChecked} 64-bit LOAD segment(s) across ${librariesRead} library(ies) in ` +
     `${artifacts.length} artifact(s), every one aligned to at least ${FLOOR} (${pow2(FLOOR)}); abi(s) seen: ${[...abisSeen].sort().join(', ')}`,
 );
+// Read from this process's own start-up flags: remove the relaunch above and this
+// says ON, and elf-page-alignment.test.mjs fails.
+console.log(`   ${backgroundTasksNote()}`);
