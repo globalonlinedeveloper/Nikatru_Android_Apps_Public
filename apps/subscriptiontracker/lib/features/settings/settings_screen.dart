@@ -93,6 +93,11 @@ class SettingsScreen extends ConsumerWidget {
     'weekly',
   ];
 
+  /// The preference keys that schedule an OS notification — the rows that
+  /// become a sentence rather than a switch where the platform cannot
+  /// schedule. `unused` is an in-app flag and stays a switch everywhere.
+  static bool _isReminderPref(String key) => key == 'alerts' || key == 'weekly';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -123,6 +128,13 @@ class SettingsScreen extends ConsumerWidget {
     final bool isLight = theme.brightness == Brightness.light;
     final ColorScheme scheme = theme.colorScheme;
 
+    // Whether this platform can deliver a SCHEDULED reminder at all — the
+    // app service's own reading of the chassis matrix, so the two reminder
+    // preference rows below and the chassis tile further down agree.
+    final bool remindersDeliverable = ref
+        .watch(subscriptiontrackerNotificationServiceProvider)
+        .capabilities
+        .canSchedule;
     final List<List<String>> toggles = <List<String>>[
       <String>['alerts', l10n.prefRenewalAlerts, l10n.prefRenewalAlertsDesc],
       <String>['unused', l10n.prefUnusedPlans, l10n.prefUnusedPlansDesc],
@@ -365,13 +377,26 @@ class SettingsScreen extends ConsumerWidget {
 
             // ── CURRENCY (live-only) ─────────────────────────────────────────
             _sectionLabel(context, l10n.currency),
-            Row(
-              children: <String>['\$', '€', '£', '₹'].map((String sym) {
-                final bool sel = settings.currencySymbol == sym;
-                return Expanded(
+            // 🔴 ONE CHIP PER ROW OF THE MONEY TABLE (`core.Money.symbols`), and
+            // the stored value is the CODE. This was a literal list of four
+            // glyphs stored as a glyph: nobody in yen, Australian or Canadian
+            // dollars could choose their currency, and `$` names three of them.
+            // A `Wrap` of fixed-width chips rather than a `Row` of `Expanded`
+            // ones, because the table's length is data — a row of N expanding
+            // chips at 375 px is a layout that breaks the day the table grows.
+            Wrap(
+              runSpacing: 8,
+              children: core.Money.symbols.entries.map((
+                MapEntry<String, String> row,
+              ) {
+                final String code = row.key;
+                final String sym = row.value;
+                final bool sel = settings.currencyCode == code;
+                return SizedBox(
+                  width: 76,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    // ⚠️ FOUR CHIPS OF WHICH EXACTLY ONE IS ON, AND THE ONLY
+                    // ⚠️ A SET OF CHIPS OF WHICH EXACTLY ONE IS ON, AND THE ONLY
                     // THING THAT SAID SO WAS THE GRADIENT. `selected:` is the
                     // load-bearing half here — without it a reader hears four
                     // identical currency symbols and cannot tell which one the
@@ -397,7 +422,12 @@ class SettingsScreen extends ConsumerWidget {
                     child: FocusableTap(
                       selected: sel,
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => controller.setCurrency(sym),
+                      // The CODE is the chip's name for a screen reader: `$` is
+                      // three currencies, `USD` is one. The painted glyph and
+                      // code are excluded below so the merged label is exactly
+                      // this, not "USD, $, USD".
+                      label: code,
+                      onTap: () => controller.setCurrency(code),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         alignment: Alignment.center,
@@ -458,13 +488,33 @@ class SettingsScreen extends ConsumerWidget {
                         // supply both arms anyway; `ink → onSurface` is
                         // exactly the mapping `AppText.of` already applies to
                         // `fig`, so the two cannot disagree.
-                        child: Text(
-                          sym,
-                          style: AppText.of(context).fig.copyWith(
-                            fontSize: 16,
-                            color: sel
-                                ? Colors.white
-                                : (isLight ? AppColors.ink : scheme.onSurface),
+                        child: ExcludeSemantics(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                sym,
+                                style: AppText.of(context).fig.copyWith(
+                                  fontSize: 16,
+                                  color: sel
+                                      ? Colors.white
+                                      : (isLight
+                                            ? AppColors.ink
+                                            : scheme.onSurface),
+                                ),
+                              ),
+                              Text(
+                                code,
+                                style: AppText.of(context).fig.copyWith(
+                                  fontSize: 11,
+                                  color: sel
+                                      ? Colors.white
+                                      : (isLight
+                                            ? AppColors.ink
+                                            : scheme.onSurface),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -510,13 +560,38 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      child: _prefRow(
-                        context,
-                        toggles[i][1],
-                        toggles[i][2],
-                        settings.prefs[toggles[i][0]] ?? false,
-                        () => controller.toggle(toggles[i][0]),
-                      ),
+                      // 🔴 THE APP'S OWN REMINDER SWITCHES ARE GATED ON THE
+                      // SAME MATRIX AS THE CHASSIS TILE BELOW. "Renewal
+                      // alerts" and "Weekly digest" schedule through
+                      // `NotificationService`, which on Linux cannot
+                      // schedule and on Windows (pinned 17.x) has no plugin
+                      // at all. Until now these two rows were switches on
+                      // every target: a user on Windows could turn on a
+                      // reminder that nothing would ever deliver. Parity is
+                      // the feature everywhere or an honest sentence — the
+                      // row keeps its name so the user can see WHAT is
+                      // unavailable, and the subtitle says it is.
+                      child:
+                          _isReminderPref(toggles[i][0]) &&
+                              !remindersDeliverable
+                          ? ListTile(
+                              key: Key(
+                                'settings.pref.${toggles[i][0]}.unavailable',
+                              ),
+                              leading: const Icon(
+                                Icons.notifications_off_outlined,
+                              ),
+                              title: Text(toggles[i][1]),
+                              subtitle: Text(l10n.remindersUnavailable),
+                              enabled: false,
+                            )
+                          : _prefRow(
+                              context,
+                              toggles[i][1],
+                              toggles[i][2],
+                              settings.prefs[toggles[i][0]] ?? false,
+                              () => controller.toggle(toggles[i][0]),
+                            ),
                     ),
                 ],
               ),

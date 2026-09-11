@@ -58,6 +58,45 @@ const WRAPPER_TYPE = 'ObservedFeatureFlags';
 const RAW_TYPE = 'FeatureFlags';
 const BUCKET_FN = 'flagBucket';
 
+/** A Dart type-argument list, nested one level deep: `<T>`, `<Map<String, int>>`. */
+const TYPE_ARGS = String.raw`(?:<(?:[^<>]|<[^<>]*>)*>)?`;
+
+/**
+ * 🔴 EVERY SPELLING OF A RAW CONSTRUCTION, NOT ONLY THE UNNAMED ONE.
+ * ⏱ 2026-09-11. Limb 2 matched `FeatureFlags(` alone, so a named constructor, a
+ * `const` one or a generic spelling was a raw reader the prohibition never saw.
+ * Measured (REVIEW-guards-vacuous-2026-09-10 #1): an unwrapped `FeatureFlags(`
+ * went rc=1; `const FeatureFlags.raw(…)` added to the class and called unwrapped
+ * went rc=0 with "2/2 raw FeatureFlags construction(s) wrapped".
+ *
+ * Now: the type name, optional type arguments, then EITHER a call `(` OR any
+ * member of the type — `.raw(`, `.fromJson(`, `.new` (a constructor tear-off,
+ * called later under another name) or a static instance such as `.empty`. A
+ * member of this type is how a second raw reader is spelled, so every member
+ * counts as a construction. `const` needs no case of its own: it precedes the
+ * type name, which is what is matched. A type ARGUMENT
+ * (`FutureProvider<core.FeatureFlags>`) is followed by `>` and never matches.
+ */
+const RAW_USE = new RegExp(String.raw`(?<![A-Za-z0-9_$])${RAW_TYPE}\s*${TYPE_ARGS}\s*(?:\(|\.\s*[A-Za-z_$][\w$]*)`, 'g');
+
+/** The wrapper, in the same spellings, so a wrapped named constructor is not read as unwrapped. */
+const WRAPPER_CALL = new RegExp(
+  String.raw`(?<![A-Za-z0-9_$])${WRAPPER_TYPE}\s*${TYPE_ARGS}\s*(?:\.\s*[A-Za-z_$][\w$]*\s*${TYPE_ARGS}\s*)?\(`,
+  'g',
+);
+
+/** Everything between a class head and its body that is not itself inside `<…>`:
+ *  `FeatureFlags` as a type ARGUMENT of a supertype is not a subtype of it. */
+const HEAD_GAP = String.raw`(?:[^{;<>]|<(?:[^<>]|<[^<>]*>)*>)*?`;
+
+/** `class X extends|implements|with FeatureFlags`, `mixin M on FeatureFlags`. A
+ *  type parameter's bound (`class X<T extends FeatureFlags>`) is consumed as the
+ *  class's own type arguments and is not a subtype. */
+const SUBTYPE = new RegExp(
+  String.raw`\b(?:class|mixin)\s+[A-Za-z_$][\w$]*\s*${TYPE_ARGS}${HEAD_GAP}\b(?:extends|implements|with|on)\s+${HEAD_GAP}(?<![A-Za-z0-9_$])${RAW_TYPE}(?![A-Za-z0-9_$])`,
+  'g',
+);
+
 /** Non-test consumer code. `test/` is excluded for the same reason
  *  assert-seams-wired.mjs excludes it: a reader whose only caller is a test is
  *  precisely the state being rejected. apps/probe is a gitignored local stamp —
@@ -198,28 +237,42 @@ let wrapped = 0;
 for (const file of files) {
   const code = stripSourceComments(readIf(file), '.dart');
   // Every `ObservedFeatureFlags(` argument span — a raw construction inside one
-  // of these is the intended shape.
+  // of these is the intended shape. The wrapper is matched in every spelling the
+  // raw type is (below), so a wrapped named constructor is not a false gap.
   const wrapperSpans = [];
-  for (const m of code.matchAll(new RegExp(`\\b(?:core\\.)?${WRAPPER_TYPE}\\s*\\(`, 'g'))) {
+  for (const m of code.matchAll(WRAPPER_CALL)) {
     const span = balanced(code, m.index + m[0].length - 1);
     if (span) wrapperSpans.push([m.index, span.end]);
   }
-  // Raw `FeatureFlags(` constructions — the negative lookbehind keeps
-  // `ObservedFeatureFlags(` from matching as a raw one.
-  for (const m of code.matchAll(new RegExp(`(?<![A-Za-z0-9_])${RAW_TYPE}\\s*\\(`, 'g'))) {
+  // Raw constructions in EVERY spelling — see RAW_USE. The negative lookbehind
+  // keeps `ObservedFeatureFlags(` from matching as a raw one.
+  for (const m of code.matchAll(RAW_USE)) {
     constructions++;
     const inside = wrapperSpans.some(([start, end]) => m.index > start && m.index < end);
     if (inside) {
       wrapped++;
     } else {
       const line = code.slice(0, m.index).split('\n').length;
+      const spelling = m[0].replace(/\s+/g, '');
       fail(
-        `${file}:${line} constructs a raw \`${RAW_TYPE}(\` outside any \`${WRAPPER_TYPE}(\`. That reader decides ` +
-          'on/off locally and emits nothing, so the rollout it serves is unmeasurable — and rollout percents are ' +
-          'not versioned, so once the percent is ramped the treatment group cannot be reconstructed. Wrap it: ' +
-          `\`core.${WRAPPER_TYPE}(flags: core.${RAW_TYPE}(…), analytics: …)\`.`,
+        `${file}:${line} constructs a raw \`${RAW_TYPE}(\` outside any \`${WRAPPER_TYPE}(\` (spelled \`${spelling}\`). ` +
+          'That reader decides on/off locally and emits nothing, so the rollout it serves is unmeasurable — and ' +
+          'rollout percents are not versioned, so once the percent is ramped the treatment group cannot be ' +
+          `reconstructed. Wrap it: \`core.${WRAPPER_TYPE}(flags: core.${RAW_TYPE}(…), analytics: …)\`.`,
       );
     }
+  }
+  // A SUBTYPE is a raw reader under another name: `class Quiet extends
+  // FeatureFlags` is then constructed as `Quiet(`, which no spelling of the base
+  // type matches. packages/core — where the wrapper itself implements the type —
+  // is not a scan root, so any subtype found here is the evasion.
+  for (const m of code.matchAll(SUBTYPE)) {
+    const line = code.slice(0, m.index).split('\n').length;
+    fail(
+      `${file}:${line} declares a subtype of \`${RAW_TYPE}\` (\`${m[0].replace(/\s+/g, ' ').trim()}\`). Constructing ` +
+        `it is a raw \`${RAW_TYPE}(\` that no construction check can see, and it emits nothing. Wrap the base type in ` +
+        `\`${WRAPPER_TYPE}(\` instead of subclassing it.`,
+    );
   }
 }
 if (constructions === 0) {

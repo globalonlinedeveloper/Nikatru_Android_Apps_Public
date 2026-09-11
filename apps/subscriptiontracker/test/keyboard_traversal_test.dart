@@ -152,6 +152,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nikatru_core/nikatru_core.dart' as core;
 import 'package:subscriptiontracker/core/e2e_keys.dart';
 import 'package:subscriptiontracker/l10n/app_localizations.dart';
 import 'package:subscriptiontracker/features/auth/login_screen.dart';
@@ -564,7 +565,7 @@ void main() {
       );
     });
 
-    testWidgets('settings · 25 of 27, and the 2 are a radio group', (
+    testWidgets('settings · all but 2 reachable, and the 2 are a radio group', (
       WidgetTester tester,
     ) async {
       // WAS 9 of 27 on 2026-08-21. The sixteen that moved are the four currency
@@ -583,8 +584,12 @@ void main() {
         tester,
         'settings',
         const SettingsScreen(),
-        controls: 27,
-        reachable: 25,
+        // 🔴 DERIVED FROM THE MONEY TABLE, NOT A LITERAL. The currency
+        // chooser is one chip per `core.Money.symbols` row (it was four
+        // literal glyphs), so the count moves with the table. 23 = every
+        // other control on the screen, measured when this was 27 with 4 chips.
+        controls: 23 + core.Money.symbols.length,
+        reachable: 21 + core.Money.symbols.length,
       );
       expect(
         s.dead.length,

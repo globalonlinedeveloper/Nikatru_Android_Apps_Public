@@ -200,12 +200,15 @@ class BudgetScreen extends ConsumerWidget {
     // table in this app that could make it. For a single-currency user, which
     // is essentially everybody, the two are the same number.
     final MoneyBag spent = SubMath.totalMonthly(subs);
-    final Money spentHere = spent.inCurrency(currencyCode);
+    // 🔴 MEASURED IN THE BUDGET'S OWN CURRENCY, BY THE MODEL. A recorded
+    // budget is no longer relabelled into the reader's currency
+    // (`BudgetInfo.inCurrency`), so it can differ from `currencyCode` — and
+    // comparing unlike Money throws.
+    final BudgetUsage usage = budget.usageOf(spent);
+    final Money spentHere = usage.spentHere;
     final Money budgetVal = budget.monthlyBudget;
-    final bool over = spentHere > budgetVal;
-    final double pct = budgetVal.minorUnits <= 0
-        ? 0
-        : (spentHere.minorUnits / budgetVal.minorUnits).clamp(0, 1);
+    final bool over = usage.over;
+    final double pct = usage.ratio;
     final Map<String, Money> capMap = <String, Money>{
       for (final BudgetCap c in budget.categories) c.name: c.cap,
     };
@@ -371,9 +374,10 @@ class BudgetScreen extends ConsumerWidget {
         _categoryBar(
           context,
           money,
-          currencyCode,
+          // The bars measure in the BUDGET's currency, as the ring does.
+          budget.currencyCode,
           cats[i],
-          capMap[cats[i].name] ?? _softCap(cats[i], currencyCode),
+          capMap[cats[i].name] ?? _softCap(cats[i], budget.currencyCode),
           i,
         ),
     ];
