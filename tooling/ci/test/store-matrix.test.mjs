@@ -174,7 +174,11 @@ describe('assert-store-matrix — positive controls', () => {
     // registry, which is what this case is for. Same repair as
     // github-matrix.test.mjs:283, guards-refuse-empty.test.mjs:236 and
     // release-durable.test.mjs:100.
-    writeFileSync(join(base, 'tree-walk.mjs'), readFileSync(join(CI_DIR, 'tree-walk.mjs'), 'utf8'));
+    // ⏱ 2026-09-12 — and ./bounded-spawn.mjs too, since the GitHub limb's spawn
+    // took a wall clock. Same resolution failure if it is missing, same clothes.
+    for (const sib of ['tree-walk.mjs', 'bounded-spawn.mjs']) {
+      writeFileSync(join(base, sib), readFileSync(join(CI_DIR, sib), 'utf8'));
+    }
     const r = spawnSync(
       process.execPath,
       [guardCopy, '--registry-only', '--registry', join(REPO, 'catalog', 'store-matrix.json')],
@@ -484,7 +488,11 @@ describe('assert-store-matrix — the two absences are answered by two different
     // module-resolution failure here would exit 1 with no `same GitHub repo name`
     // in it, i.e. this case would fail for a reason that has nothing to do with
     // whether --registry-only still runs the registry limb.
-    writeFileSync(join(base, 'tree-walk.mjs'), readFileSync(join(CI_DIR, 'tree-walk.mjs'), 'utf8'));
+    // ⏱ 2026-09-12 — and ./bounded-spawn.mjs too, since the GitHub limb's spawn
+    // took a wall clock. Same resolution failure if it is missing, same clothes.
+    for (const sib of ['tree-walk.mjs', 'bounded-spawn.mjs']) {
+      writeFileSync(join(base, sib), readFileSync(join(CI_DIR, sib), 'utf8'));
+    }
     const rows = ROWS();
     rows[1].target = 'Alpha';
     rows[1].publicDir = 'Nikatru_Alpha_Apps_Public';
