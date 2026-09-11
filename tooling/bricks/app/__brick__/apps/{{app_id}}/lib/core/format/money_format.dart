@@ -7,8 +7,13 @@
 // the copy is deliberate for now: packages/design_system (which owns `intl`)
 // must stay domain-free (assert-package-boundaries.mjs rule B) and `Money`
 // lives in nikatru_core, so there is no shared package this can move to
-// without a boundary decision. Until then, tooling/ci/assert-no-seam-forks.mjs
-// LANDED_PAIRS holds the stamp and the app to the same price rendering.
+// without a boundary decision. ⚠️ NOTHING HOLDS THE TWO COPIES EQUAL YET:
+// tooling/ci/assert-no-seam-forks.mjs LANDED_PAIRS row
+// `promo-price-through-money-formatter` proves only that both home screens
+// route the promo price through MoneyFormatter. This file's body is compared by
+// no guard and exercised by no stamped-app test (measured 2026-09-11: deleting
+// it leaves that guard at exit 0), so a change to one copy alone passes CI.
+// Change both copies together.
 // ─────────────────────────────────────────────────────────────────────────────
 import 'package:intl/intl.dart';
 import 'package:nikatru_core/nikatru_core.dart' show Money, MoneyBag;
