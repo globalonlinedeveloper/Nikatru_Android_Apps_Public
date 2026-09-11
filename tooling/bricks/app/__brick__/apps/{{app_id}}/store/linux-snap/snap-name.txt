@@ -1,1 +1,1 @@
-{{app_id.paramCase()}}
+{{snap_name}}
