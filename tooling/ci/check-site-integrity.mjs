@@ -45,10 +45,10 @@
 // claimed root is not actually among the deploy roots it scans, so the claim
 // cannot outlive the thing it claims.
 // ─────────────────────────────────────────────────────────────────────────────
-import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { join, relative, resolve, dirname, sep, extname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 // ONE reading of "what a person saw on this page", shared with the archive and
 // claims guards. See tooling/ci/text-reductions.mjs for why it is not four copies.
@@ -1346,6 +1346,246 @@ if (SCANNING_OWN_REPO) {
   }
 }
 
+// ── [ADR 075] THE APEX ROUTER NEVER ANSWERS A PUBLISHED DOCUMENT WITH THE APP ──
+// ⏱ 2026-09-11 — REVIEW-stores-2026-09-10 #4. sitemap.xml, llms.txt and support.html
+// all advertised https://nikatru.com/subscriptiontracker/privacy; the generated
+// per-app notice sat at sites/nikatru/subscriptiontracker/privacy.html; and the URL
+// answered 200 with the Flutter app shell, because functions/_middleware.js claimed
+// the whole /subscriptiontracker/ prefix. Every limb above was green: the link limb
+// resolves `/subscriptiontracker/privacy` to a file ON DISK and knows nothing about a
+// Function standing in front of that file.
+//
+// So this limb does not reason about the router; it RUNS it. For every deploy root
+// carrying functions/_middleware.js:
+//   · the router module is loaded with its table — the JSON import swapped for the
+//     parsed app-routes.json, the only edit, and a changed import line is a FAILURE;
+//   · `next()` is a model of the Pages asset stage over THIS root: the exact file,
+//     `<path>.html`, `<dir>/index.html`, `.html` → 308, and for an unknown path
+//     404.html with 404 when the root has one — else index.html with 200, Pages'
+//     single-page-app fallback, which is what makes 404.html load-bearing;
+//   · `fetch` records that the request was proxied and answers with a sentinel.
+// SUBJECTS are every URL under an app path, other than the app root, that the root
+// advertises (sitemap <loc>, llms.txt, any href in any page; absolute URLs only on a
+// host the root itself claims) PLUS every .html file on disk under an app path. Each
+// must come back as that file's exact bytes, without a proxy. Two CONTROLS per app
+// path must be proxied — the app root and a deep link — or the simulation could not
+// tell the two outcomes apart, and a router that served the static site for
+// everything would pass.
+let routerRoots = 0;
+let routerDocsChecked = 0;
+{
+  const ROUTER_IMPORT = /^import\s+table\s+from\s+['"]\.\.\/app-routes\.json['"];?[ \t]*$/m;
+  const SHELL = 'APP-SHELL-SENTINEL: this request was proxied to the app origin';
+  for (const root of siteRoots) {
+    const mwAbs = join(root, 'functions', '_middleware.js');
+    if (!existsSync(mwAbs)) continue;
+    const where = relative(repoRoot, root).split(sep).join('/');
+    const routesAbs = join(root, 'app-routes.json');
+    if (!existsSync(routesAbs)) {
+      problems.push(`${where}/functions/_middleware.js exists and ${where}/app-routes.json does not, so the router's claim on each app path cannot be simulated.`);
+      continue;
+    }
+    routerRoots++;
+
+    let table;
+    try {
+      table = JSON.parse(readFileSync(routesAbs, 'utf8'));
+    } catch (err) {
+      problems.push(`${where}/app-routes.json is not JSON (${err.message}), so the apex router's claim on each app path cannot be simulated.`);
+      continue;
+    }
+    const segments = [
+      ...new Set(
+        (Array.isArray(table) ? table : [])
+          .map((r) => r?.path)
+          .filter((p) => typeof p === 'string' && /^\/[a-z0-9][a-z0-9_-]*$/.test(p)),
+      ),
+    ];
+    if (segments.length === 0) continue; // a router with no app paths claims nothing
+
+    const src = readFileSync(mwAbs, 'utf8');
+    if (!ROUTER_IMPORT.test(src)) {
+      problems.push(
+        `${where}/functions/_middleware.js no longer imports its route table as \`import table from '../app-routes.json'\`, so this limb cannot load ` +
+          'the router with the table it serves. Update the loader here in the same change: a router this guard cannot run is a router whose effect on ' +
+          'every published document is unchecked.',
+      );
+      continue;
+    }
+    const scratch = mkdtempSync(join(tmpdir(), 'nikatru-apex-router-'));
+    let router;
+    try {
+      const modAbs = join(scratch, 'router.mjs');
+      writeFileSync(modAbs, src.replace(ROUTER_IMPORT, `const table = ${JSON.stringify(table)};`));
+      router = await import(pathToFileURL(modAbs).href);
+    } catch (err) {
+      problems.push(`${where}/functions/_middleware.js could not be loaded for simulation (${err.message}).`);
+      continue;
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    if (typeof router.onRequest !== 'function') {
+      problems.push(`${where}/functions/_middleware.js exports no \`onRequest\`, so this limb has no router to ask.`);
+      continue;
+    }
+
+    const has404 = existsSync(join(root, '404.html'));
+    const fileAt = (pathname) => {
+      let parts;
+      try {
+        parts = pathname.split('/').filter(Boolean).map((p) => decodeURIComponent(p));
+      } catch {
+        return null;
+      }
+      const abs = join(root, ...parts);
+      return existsSync(abs) && statSync(abs).isFile() ? abs : null;
+    };
+    /** The Pages asset stage, modelled over THIS root. */
+    const assetStage = (pathname) => {
+      const bytes = (abs, status = 200) => new Response(readFileSync(abs), { status, headers: { 'content-type': 'text/html' } });
+      if (pathname.toLowerCase().endsWith('.html') && fileAt(pathname)) {
+        return new Response(null, { status: 308, headers: { location: pathname.slice(0, -5) } });
+      }
+      if (!pathname.endsWith('/')) {
+        const exact = fileAt(pathname);
+        if (exact) return bytes(exact);
+        const html = fileAt(`${pathname}.html`);
+        if (html) return bytes(html);
+        if (fileAt(`${pathname}/index.html`)) return new Response(null, { status: 308, headers: { location: `${pathname}/` } });
+      } else {
+        const index = fileAt(`${pathname}index.html`);
+        if (index) return bytes(index);
+      }
+      if (has404) return bytes(join(root, '404.html'), 404);
+      const home = fileAt('/index.html');
+      return home ? bytes(home) : new Response('', { status: 404 });
+    };
+    const ask = async (pathname) => {
+      let proxied = false;
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        proxied = true;
+        return new Response(SHELL, { status: 200, headers: { 'content-type': 'text/html' } });
+      };
+      try {
+        const res = await router.onRequest({
+          request: new Request(`https://apex-router.invalid${pathname}`),
+          next: async () => assetStage(pathname),
+          env: {},
+        });
+        return { proxied, status: res.status, location: res.headers.get('location'), body: Buffer.from(await res.arrayBuffer()) };
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    };
+
+    // Controls first: both must reach the app, or nothing below is evidence.
+    for (const seg of segments) {
+      for (const control of [`${seg}/`, `${seg}/apex-router-control-deep-link`]) {
+        const c = await ask(control);
+        if (!c.proxied) {
+          problems.push(
+            `${where}: the apex router answered ${control} WITHOUT asking the app (status ${c.status}). ` +
+              (has404
+                ? 'An app path the static site answers is an app that does not load.'
+                : `This root has no 404.html, so Pages answers every unknown path 200 with index.html, and a router that asks the static site first serves the home page for every app deep link. Add ${where}/404.html.`),
+          );
+        }
+      }
+    }
+
+    // Subjects.
+    const claimedHosts = new Set();
+    const homeAbs = fileAt('/index.html');
+    const canon = homeAbs ? readFileSync(homeAbs, 'utf8').match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i) : null;
+    if (canon) {
+      try {
+        claimedHosts.add(new URL(canon[1]).host);
+      } catch {}
+    }
+    const sitemapAbs = fileAt('/sitemap.xml');
+    const sitemapText = sitemapAbs ? readFileSync(sitemapAbs, 'utf8') : '';
+    const locs = [...sitemapText.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1]);
+    for (const loc of locs) {
+      try {
+        claimedHosts.add(new URL(loc).host);
+      } catch {}
+    }
+
+    const subjects = new Map();
+    const note = (raw, source) => {
+      let pathname = null;
+      if (raw.startsWith('/') && !raw.startsWith('//')) pathname = raw.split(/[?#]/)[0];
+      else if (/^https?:\/\//i.test(raw)) {
+        try {
+          const u = new URL(raw);
+          if (claimedHosts.has(u.host)) pathname = u.pathname;
+        } catch {}
+      }
+      if (!pathname) return;
+      const seg = `/${pathname.split('/')[1] ?? ''}`;
+      if (!segments.includes(seg) || pathname === seg || pathname === `${seg}/`) return;
+      if (!subjects.has(pathname)) subjects.set(pathname, new Set());
+      subjects.get(pathname).add(source);
+    };
+    for (const loc of locs) note(loc, 'sitemap.xml');
+    const llmsAbs = fileAt('/llms.txt');
+    if (llmsAbs) {
+      for (const m of readFileSync(llmsAbs, 'utf8').matchAll(/https?:\/\/[^\s)<>"'`]+/g)) note(m[0].replace(/[.,;:]+$/, ''), 'llms.txt');
+    }
+    for (const page of htmlIn(root)) {
+      const pageRel = relative(root, page).split(sep).join('/');
+      for (const m of stripInert(readFileSync(page, 'utf8')).matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)) note(m[1], pageRel);
+    }
+    for (const seg of segments) {
+      const dir = join(root, seg.slice(1));
+      if (!existsSync(dir)) continue;
+      for (const f of htmlIn(dir)) {
+        const fileRel = relative(root, f).split(sep).join('/');
+        if (/(^|\/)index\.html$/i.test(fileRel)) {
+          problems.push(
+            `${where}/${fileRel} is a static index under the app path ${seg}. The router gives every directory form to the app, so this file can never ` +
+              'be served. Publish the document at a named path (privacy.html is served at /<id>/privacy) instead.',
+          );
+          continue;
+        }
+        note(`/${fileRel.replace(/\.html$/i, '')}`, 'on disk');
+      }
+    }
+
+    for (const [pathname, sources] of [...subjects.entries()].sort()) {
+      const from = [...sources].sort().join(', ');
+      const docAbs = fileAt(pathname.toLowerCase().endsWith('.html') ? pathname : `${pathname}.html`) ?? fileAt(pathname);
+      if (!docAbs) {
+        problems.push(
+          `${where}: ${pathname} is advertised (${from}) under the app path /${pathname.split('/')[1]}, and no static document exists there, so the router ` +
+            'proxies it and a visitor (or a store reviewer) gets the app shell. Publish the document, or stop advertising the URL.',
+        );
+        continue;
+      }
+      routerDocsChecked++;
+      let r = await ask(pathname);
+      if (!r.proxied && (r.status === 301 || r.status === 308) && r.location) r = await ask(r.location);
+      const want = readFileSync(docAbs);
+      if (r.proxied || r.status !== 200 || Buffer.compare(r.body, want) !== 0) {
+        const docRel = relative(root, docAbs).split(sep).join('/');
+        problems.push(
+          `${where}: ${pathname} (advertised by ${from}) answers ` +
+            (r.proxied ? 'WITH THE APP: the request was proxied to the app origin' : `status ${r.status} with bytes that are not the document`) +
+            ` instead of ${where}/${docRel}. The document exists and nothing serves it; this is the defect that published /subscriptiontracker/privacy as the Flutter shell.`,
+        );
+      }
+    }
+  }
+}
+if (SCANNING_OWN_REPO && routerRoots > 0 && routerDocsChecked === 0 && problems.length === 0) {
+  console.error(
+    `✗ COVERAGE LOST — the apex-router limb loaded ${routerRoots} router(s) and graded ZERO app-path documents. sites/nikatru carries ` +
+      'a per-app notice under an app path today; a limb that graded none would print ok over the exact defect it was written for.',
+  );
+  process.exit(1);
+}
+
 // ── [12]W-3a · THE RELATIONSHIP FLOOR, ON EVERY TREE AND NOT JUST THIS ONE ───
 // Runs outside the SCANNING_OWN_REPO block on purpose: the other floors defend
 // facts that are true of THIS repository (a policy version exists, an APPS-GRID block
@@ -1398,6 +1638,9 @@ console.log(
 );
 console.log(
   `    ${emailOffChecks} page(s) with a mailto: keep it inside <!--email_off-->, so the rule 4(2) contact address is in the served bytes without JavaScript`,
+);
+console.log(
+  `    ${routerDocsChecked} app-path document(s) served as their own bytes by the apex router, not the app shell, across ${routerRoots} router root(s)`,
 );
 // The secret is OWNER work — it lives in the Cloudflare dashboard, not the repo —
 // so its NAME is printed every run. A guard that silently requires a secret
