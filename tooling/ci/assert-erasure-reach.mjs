@@ -508,9 +508,20 @@ for (const rel of [...routeFiles].sort()) {
 
 // ── LIMB 3 · the erasure route is not reachable through a symmetric secret ──
 /**
- * Top-level declarations of a module, name → body text, with comments and string
- * literals already gone. Crude by design: these middleware files are flat, and a
+ * Top-level declarations of a module, name → body text, with comments gone and
+ * string literals KEPT. Crude by design: these middleware files are flat, and a
  * real parser here would be a second thing to be wrong.
+ *
+ * ⏱ 2026-09-11 · STRINGS ARE KEPT, AND THAT IS THE FIX FOR A VACUOUS LIMB. Until
+ * today this map was built from string-BLANKED code and the secret's name was
+ * searched for in it. Spelled `env['SUPABASE_JWT_SECRET']`, the name lives
+ * inside a string literal, was blanked with it, and the limb printed "never uses
+ * SUPABASE_JWT_SECRET" over a Worker that still used it — then skipped the
+ * boundary check. Measured (REVIEW-guards-vacuous-2026-09-10 #2): deleting the
+ * `.use('/v1/account', erasureAuth)` line went rc=1 with the dot spelling and
+ * rc=0 with the bracket spelling. `readsEnvName` now reads the text WITH its
+ * strings; the walk between declarations reads string-blanked text, so a name
+ * quoted in a log line is not a reference.
  *
  * 🔴 ANCHORED TO COLUMN ZERO (`^` with `m`), AND THAT ANCHOR IS THE WHOLE THING.
  * Without it, an INNER `const issuer = …` is read as a top-level declaration and
@@ -533,18 +544,144 @@ function declarations(code) {
   return out;
 }
 
-/** Does `name` reach `needle`, following calls to other declarations in the same
- *  module? The transitive step is the whole point: `supabaseAuth` never spells
- *  `SUPABASE_JWT_SECRET` itself — it calls the function that does. */
-function reaches(decls, name, needle, seen = new Set()) {
-  if (seen.has(name)) return false;
-  seen.add(name);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** A member chain ending at a name: `c.env`, `ctx?.env`, `env`. */
+const chainTo = (alt) => String.raw`(?:[A-Za-z_$][\w$]*\s*\??\.\s*)*(?:${alt})(?![\w$])(?!\s*(?:\?\.|\.|\[))`;
+
+/** The local names a body binds to the Worker's environment — the BINDING, not
+ *  the spelling `env`. Seeds: `env` itself, any parameter or local TYPED `Env`,
+ *  and `seeds` — the parameters a caller in this module passed the environment
+ *  to (see `envArgsTo`). Grown to a fixed point through every alias a body can
+ *  make: `const e = c.env`, `let e2 = e`, and the rest of a destructuring
+ *  (`const { A, ...rest } = env`), each of which is the environment under a new
+ *  name. A member READ (`const url = env.SUPABASE_URL`) is not an alias. */
+function envBindings(body, seeds = []) {
+  const names = new Set(['env', ...seeds]);
+  for (const m of body.matchAll(/([A-Za-z_$][\w$]*)\s*\??\s*:\s*(?:Readonly\s*<\s*)?Env\b/g)) names.add(m[1]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    const alt = [...names].map(escapeRe).join('|');
+    const alias = new RegExp(String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*${chainTo(alt)}`, 'g');
+    const rest = new RegExp(String.raw`\b(?:const|let|var)\s*\{[^}]*\.\.\.\s*([A-Za-z_$][\w$]*)\s*\}\s*(?::[^=;]+)?=\s*${chainTo(alt)}`, 'g');
+    for (const re of [alias, rest]) {
+      for (const m of body.matchAll(re)) {
+        if (!names.has(m[1])) { names.add(m[1]); grew = true; }
+      }
+    }
+  }
+  return names;
+}
+
+/** The top-level comma-separated items of the list opening at `open` (a `(`).
+ *  `angles`: count `<…>` as nesting — right for a parameter list, where they are
+ *  types, and wrong for call arguments, where `<` is a comparison. */
+function topLevelItems(text, open, angles) {
+  const out = [];
+  let depth = 0;
+  let start = open + 1;
+  for (let i = open; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '(' || ch === '[' || ch === '{' || (angles && ch === '<')) depth++;
+    else if (ch === ')' || ch === ']' || ch === '}' || (angles && ch === '>' && text[i - 1] !== '=')) {
+      depth--;
+      if (depth === 0) {
+        out.push(text.slice(start, i).trim());
+        return out.filter((s) => s !== '');
+      }
+    } else if (ch === ',' && depth === 1) {
+      out.push(text.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  return out.filter((s) => s !== '');
+}
+
+/** Parameter names of a top-level declaration, by position ('' where destructured). */
+function paramsOf(body) {
+  const head =
+    body.match(/^(?:export\s+)?(?:async\s+)?function\s*\*?\s*[A-Za-z_$][\w$]*\s*(?:<[^>]*>)?\s*\(/) ??
+    body.match(/^(?:export\s+)?(?:const|let)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\s*\*?\s*[\w$]*\s*)?(?:<[^>]*>)?\s*\(/);
+  if (!head) return [];
+  return topLevelItems(body, head[0].length - 1, true).map((p) => (p.match(/^(?:\.\.\.)?([A-Za-z_$][\w$]*)/) ?? [null, ''])[1]);
+}
+
+/** The parameters of `callee` that receive the environment from a call in `code`:
+ *  `pick(env, k)` binds `pick`'s first parameter to the environment inside `pick`. */
+function envArgsTo(code, callee, bindings, decls) {
+  const params = paramsOf(decls.get(callee) ?? '');
+  if (params.length === 0) return [];
+  const alt = [...bindings].map(escapeRe).join('|');
+  const isEnv = new RegExp(String.raw`^(?:[A-Za-z_$][\w$]*\s*\??\.\s*)*(?:${alt})$`);
+  const out = new Set();
+  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$])${escapeRe(callee)}\s*\(`, 'g'))) {
+    topLevelItems(code, m.index + m[0].length - 1, false).forEach((arg, k) => {
+      if (params[k] && isEnv.test(arg)) out.add(params[k]);
+    });
+  }
+  return [...out];
+}
+
+/** 🔴 EVERY WAY A BODY CAN READ THE ENVIRONMENT VARIABLE `needle`.
+ *  1 · THE NAME, AS A WORD, IN CODE OR IN A STRING: `env.X`, `env?.X`, `env['X']`,
+ *      `env["X"]`, env[`X`], `{ X } = env`, `{ X: alias } = env`,
+ *      `Reflect.get(env, 'X')`, and `const KEY = 'X'` — a module constant holding
+ *      the name is itself a declaration that reaches it, so whatever references
+ *      that constant reaches it too.
+ *  2 · THE NAME ASSEMBLED FROM LITERAL PIECES: any string literal of 4+
+ *      characters, containing `_`, that is a piece of the name
+ *      (`'SUPABASE_' + 'JWT_SECRET'`).
+ *  3 · A READ OF THE ENVIRONMENT WHOSE KEY THIS SCAN CANNOT NAME, through any of
+ *      its bindings (`envBindings`, including a parameter that a caller in this
+ *      module passed the environment to): a computed `e[k]`, `Reflect.get(e, …)`,
+ *      `Object.entries|values|assign(…e…)`, a spread `...e`, or `for (… in e)`.
+ *      "I could not tell which key" must not print as "it never reads the
+ *      secret"; it counts as reaching it, and the boundary check runs.
+ *  A read of a DIFFERENT, literally named key (`env['SUPABASE_URL']`), and a
+ *  computed read of something that is not the environment, are neither — the
+ *  constructed probe below holds that direction too.
+ *  ⚠️ LIMITS, STATED. The walk is one module deep: a helper IMPORTED from another
+ *  file that receives the environment is not followed (today no module outside
+ *  the Workers' own `src/middleware/auth.ts` names SUPABASE_JWT_SECRET). An
+ *  immediately-invoked function expression that receives the environment is not
+ *  a declaration and gets no binding; with a literal name it is still caught by
+ *  rule 1 or 2, with a computed one it is not. */
+function readsEnvName(body, needle, seeds = []) {
+  if (new RegExp(String.raw`(?<![\w$])${escapeRe(needle)}(?![\w$])`).test(body)) return true;
+  for (const m of body.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g)) {
+    if (m[2].length >= 4 && m[2].includes('_') && needle.includes(m[2])) return true;
+  }
+  const alt = [...envBindings(body, seeds)].map(escapeRe).join('|');
+  const on = String.raw`(?:[A-Za-z_$][\w$]*\s*\??\.\s*)*(?:${alt})(?![\w$])`;
+  const dynamic = [
+    String.raw`(?<![\w$])(?:${alt})\s*(?:\?\.\s*)?\[\s*(?!(['"\x60])[A-Za-z_$][\w$]*\1\s*\])`,
+    String.raw`\bReflect\s*\.\s*get\s*\(\s*${on}`,
+    String.raw`\bObject\s*\.\s*(?:entries|values|assign|getOwnPropertyDescriptors?)\s*\([^)]*?${on}`,
+    String.raw`\.\.\.\s*${on}(?!\s*(?:\?\.|\.|\[))`,
+    String.raw`\bin\s+${on}\s*\)`,
+  ];
+  return dynamic.some((re) => new RegExp(re).test(body));
+}
+
+/** Does `name` reach `needle`, following references to other declarations in the
+ *  same module? The transitive step is the whole point: `supabaseAuth` never
+ *  spells `SUPABASE_JWT_SECRET` itself — it calls the function that does. A
+ *  REFERENCE is followed, not only a call: `const verify = verifySupabaseToken`
+ *  and a later `verify(…)` is the same function under a name that is not a
+ *  declaration with a body of its own. `seeds` are the parameters of `name` that
+ *  a caller passed the environment to; a declaration is re-walked under new seeds. */
+function reaches(decls, name, needle, seen = new Set(), seeds = []) {
+  const key = `${name}|${[...seeds].sort().join(',')}`;
+  if (seen.has(key)) return false;
+  seen.add(key);
   const body = decls.get(name);
   if (body === undefined) return false;
-  if (body.includes(needle)) return true;
+  if (readsEnvName(body, needle, seeds)) return true;
+  const code = stripStringLiterals(body);
+  const bindings = envBindings(body, seeds);
   for (const other of decls.keys()) {
     if (other === name) continue;
-    if (new RegExp(`\\b${other}\\s*\\(`).test(body) && reaches(decls, other, needle, seen)) return true;
+    if (new RegExp(`(?<![\\w$])${escapeRe(other)}(?![\\w$])`).test(code) && reaches(decls, other, needle, seen, envArgsTo(code, other, bindings, decls))) return true;
   }
   return false;
 }
@@ -585,6 +722,47 @@ function reaches(decls, name, needle, seen = new Set()) {
       'and the fix somebody reaches for is deleting the limb.',
     ]);
   }
+  // ⏱ 2026-09-11 · ONE CONSTRUCTED INPUT PER ACCESS FORM. The bracket spelling
+  // is the one that was measured green over a Worker behind the shared secret;
+  // every other spelling here is the same evasion by a different keystroke. Each
+  // must reach the needle, or the limb is blind to it and passes.
+  const forms = [
+    ['a bracket read with single quotes', "function r(env) {\n  return env['NEEDLE_XYZ'];\n}\n"],
+    ['a bracket read with double quotes', 'function r(env) {\n  return env["NEEDLE_XYZ"];\n}\n'],
+    ['a bracket read with a template literal', 'function r(env) {\n  return env[`NEEDLE_XYZ`];\n}\n'],
+    ['a destructured read', 'function r(env) {\n  const { NEEDLE_XYZ: k } = env;\n  return k;\n}\n'],
+    ['a key held in a module constant', "const KEY = 'NEEDLE_XYZ';\nfunction r(env) {\n  return env[KEY];\n}\n"],
+    ['a name assembled from literal pieces', "function r(x) {\n  const name = 'NEEDLE_' + 'XYZ';\n  return lookup(name);\n}\n"],
+    ['a read through a local alias by a key the scan cannot name', 'function r(c) {\n  const e = c.env;\n  const k = pick();\n  return e[k];\n}\n'],
+    ['a rest-of-destructuring alias read by a computed key', 'function r(env) {\n  const { SUPABASE_URL, ...others } = env;\n  return others[key()];\n}\n'],
+    ['a helper that is passed the environment and reads it by a computed key', 'function pick(e, k) {\n  return e[k];\n}\nfunction r(env) {\n  return pick(env, key());\n}\n'],
+    ['a function reached by reference rather than by a call', 'function inner(env) {\n  return env.NEEDLE_XYZ;\n}\nconst alias = inner;\nconst r = (x) => alias(x);\n'],
+  ];
+  for (const [label, src] of forms) {
+    if (!reaches(declarations(src), 'r', 'NEEDLE_XYZ')) {
+      coverageLost([
+        `limb 3 no longer recognises ${label} as a use of the secret.`,
+        'A middleware that reads SUPABASE_JWT_SECRET that way is judged fallback-free, the boundary check is',
+        'skipped, and the guard prints ok over an erasure route behind the shared secret.',
+      ]);
+    }
+  }
+  const negatives = [
+    ['a read of a DIFFERENT, literally named key', "function r(c) {\n  return c.env['SUPABASE_URL'] ?? c.env.JWKS_CACHE;\n}\n"],
+    [
+      'a computed read of something that is NOT the environment',
+      "function first(a, i) {\n  return a[i];\n}\nfunction r(c) {\n  const parts = c.req.header('x').split('.');\n  return first(parts, 0) + c.env['SUPABASE_URL'];\n}\n",
+    ],
+  ];
+  for (const [label, src] of negatives) {
+    if (reaches(declarations(src), 'r', 'NEEDLE_XYZ')) {
+      coverageLost([
+        `limb 3 marks ${label} as a read of the secret.`,
+        'Every middleware reads SUPABASE_URL and indexes arrays; an access-form check that cannot tell those apart',
+        'fails correct code, and the fix somebody reaches for is deleting the limb.',
+      ]);
+    }
+  }
 }
 
 let strictBoundariesChecked = 0;
@@ -597,7 +775,9 @@ for (const [rel, svc] of routeService) {
     );
     continue;
   }
-  const authCode = stripStringLiterals(readCode(authPath));
+  // Comments stripped, strings KEPT — see `declarations` for why the blanked
+  // text was a vacuous search.
+  const authCode = readCode(authPath);
   const decls = declarations(authCode);
   if (decls.size === 0) {
     coverageLost([
@@ -610,16 +790,18 @@ for (const [rel, svc] of routeService) {
   // ⚠️ NO "every export was parsed" CHECK HERE, DELIBERATELY. It would use the
   // same regex as `declarations`, so no input could make one find a name the
   // other missed — an assertion that cannot fail, inflating apparent coverage.
-  // The parse is pinned instead by the constructed probe above (which has three
-  // recorded failing inputs, all of them mutations of this file's own regexes)
-  // and by the `decls.size === 0` refusal directly above.
+  // The parse is pinned instead by the constructed probe above (three recorded
+  // failing inputs that are mutations of this file's own regexes, plus one
+  // constructed input per access form) and by the `decls.size === 0` refusal
+  // directly above.
   const fallbackCapable = [...decls.keys()].filter((n) => reaches(decls, n, 'SUPABASE_JWT_SECRET'));
   if (fallbackCapable.length === 0) {
     // A Worker with no symmetric path at all owes nothing here. PRINTED, so a
     // service judged fallback-free is visible rather than silently skipped.
     notes.push(
-      `⬜ services/${svc.id} — src/middleware/auth.ts never uses SUPABASE_JWT_SECRET, so there is no symmetric ` +
-        'fallback for the erasure route to be exposed to.',
+      `⬜ services/${svc.id} — src/middleware/auth.ts never uses SUPABASE_JWT_SECRET (no declaration names it by ` +
+        'any access form, and none reads the environment by a key this scan cannot name), so there is no ' +
+        'symmetric fallback for the erasure route to be exposed to.',
     );
     continue;
   }
@@ -912,7 +1094,8 @@ for (const tpl of templateOwners) {
         'authenticates it in any app stamped from here. An unreadable auth boundary is not a passing one.',
     );
   } else {
-    const tplDecls = declarations(stripStringLiterals(readCode(tplAuthPath)));
+    // Strings KEPT, as in limb 3 — the bracket spelling hid in the blanked text.
+    const tplDecls = declarations(readCode(tplAuthPath));
     if (tplDecls.size === 0) {
       coverageLost([
         `no top-level declaration was parsed out of ${tpl.dirRel}/src/middleware/auth.ts.`,
@@ -926,8 +1109,9 @@ for (const tpl of templateOwners) {
       // PRINTED, never silently skipped — and NOT a coverage failure: a template
       // with no symmetric path at all is the end state this guard pushes towards.
       notes.push(
-        `⬜ ${tpl.dirRel} — src/middleware/auth.ts never uses SUPABASE_JWT_SECRET, so the stamped erasure route ` +
-          'has no symmetric fallback to be exposed to.',
+        `⬜ ${tpl.dirRel} — src/middleware/auth.ts never uses SUPABASE_JWT_SECRET (no declaration names it by any ` +
+          'access form, and none reads the environment by a key this scan cannot name), so the stamped erasure ' +
+          'route has no symmetric fallback to be exposed to.',
       );
     } else {
       const tplGuards = [...tplIndex.matchAll(/\.use\(\s*['"]([^'"]*account[^'"]*)['"]\s*,\s*([A-Za-z_$][\w$]*)/g)];

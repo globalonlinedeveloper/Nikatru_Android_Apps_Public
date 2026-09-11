@@ -125,7 +125,7 @@ void main() {
         store,
         _RecordingNotificationService(),
       );
-      await first.read(settingsControllerProvider.notifier).setCurrency('₹');
+      await first.read(settingsControllerProvider.notifier).setCurrency('INR');
       first.dispose();
 
       final ProviderContainer reborn = _container(
@@ -133,7 +133,7 @@ void main() {
         _RecordingNotificationService(),
       );
       await reborn.read(settingsControllerProvider.notifier).hydration;
-      expect(reborn.read(settingsControllerProvider).currencySymbol, '₹');
+      expect(reborn.read(settingsControllerProvider).currencyCode, 'INR');
     });
 
     test(
@@ -149,7 +149,7 @@ void main() {
         await c.read(settingsControllerProvider.notifier).hydration;
         expect(c.read(settingsControllerProvider).prefs['alerts'], isTrue);
         expect(c.read(settingsControllerProvider).prefs['weekly'], isFalse);
-        expect(c.read(settingsControllerProvider).currencySymbol, r'$');
+        expect(c.read(settingsControllerProvider).currencyCode, 'USD');
       },
     );
 

@@ -377,13 +377,26 @@ class SettingsScreen extends ConsumerWidget {
 
             // ── CURRENCY (live-only) ─────────────────────────────────────────
             _sectionLabel(context, l10n.currency),
-            Row(
-              children: <String>['\$', '€', '£', '₹'].map((String sym) {
-                final bool sel = settings.currencySymbol == sym;
-                return Expanded(
+            // 🔴 ONE CHIP PER ROW OF THE MONEY TABLE (`core.Money.symbols`), and
+            // the stored value is the CODE. This was a literal list of four
+            // glyphs stored as a glyph: nobody in yen, Australian or Canadian
+            // dollars could choose their currency, and `$` names three of them.
+            // A `Wrap` of fixed-width chips rather than a `Row` of `Expanded`
+            // ones, because the table's length is data — a row of N expanding
+            // chips at 375 px is a layout that breaks the day the table grows.
+            Wrap(
+              runSpacing: 8,
+              children: core.Money.symbols.entries.map((
+                MapEntry<String, String> row,
+              ) {
+                final String code = row.key;
+                final String sym = row.value;
+                final bool sel = settings.currencyCode == code;
+                return SizedBox(
+                  width: 76,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    // ⚠️ FOUR CHIPS OF WHICH EXACTLY ONE IS ON, AND THE ONLY
+                    // ⚠️ A SET OF CHIPS OF WHICH EXACTLY ONE IS ON, AND THE ONLY
                     // THING THAT SAID SO WAS THE GRADIENT. `selected:` is the
                     // load-bearing half here — without it a reader hears four
                     // identical currency symbols and cannot tell which one the
@@ -409,7 +422,12 @@ class SettingsScreen extends ConsumerWidget {
                     child: FocusableTap(
                       selected: sel,
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => controller.setCurrency(sym),
+                      // The CODE is the chip's name for a screen reader: `$` is
+                      // three currencies, `USD` is one. The painted glyph and
+                      // code are excluded below so the merged label is exactly
+                      // this, not "USD, $, USD".
+                      label: code,
+                      onTap: () => controller.setCurrency(code),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         alignment: Alignment.center,
@@ -470,13 +488,33 @@ class SettingsScreen extends ConsumerWidget {
                         // supply both arms anyway; `ink → onSurface` is
                         // exactly the mapping `AppText.of` already applies to
                         // `fig`, so the two cannot disagree.
-                        child: Text(
-                          sym,
-                          style: AppText.of(context).fig.copyWith(
-                            fontSize: 16,
-                            color: sel
-                                ? Colors.white
-                                : (isLight ? AppColors.ink : scheme.onSurface),
+                        child: ExcludeSemantics(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                sym,
+                                style: AppText.of(context).fig.copyWith(
+                                  fontSize: 16,
+                                  color: sel
+                                      ? Colors.white
+                                      : (isLight
+                                            ? AppColors.ink
+                                            : scheme.onSurface),
+                                ),
+                              ),
+                              Text(
+                                code,
+                                style: AppText.of(context).fig.copyWith(
+                                  fontSize: 11,
+                                  color: sel
+                                      ? Colors.white
+                                      : (isLight
+                                            ? AppColors.ink
+                                            : scheme.onSurface),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
