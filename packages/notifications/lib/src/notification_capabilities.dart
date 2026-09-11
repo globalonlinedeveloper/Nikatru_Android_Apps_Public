@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show TargetPlatform, immutable;
 
 /// Resolves the device's IANA timezone name (e.g. `Asia/Kolkata`) for
-/// timezone-correct daily scheduling.
+/// timezone-correct scheduling.
 ///
 /// Optional, and what happens WITHOUT one is the part that matters. This used to
 /// default to returning the literal `'UTC'`, which `init()` then installed as
@@ -11,12 +11,12 @@ import 'package:flutter/foundation.dart' show TargetPlatform, immutable;
 /// Americas. Nothing in the tree injected a resolver, and every test injected
 /// `'UTC'` — the one value where the bug and the correct behaviour agree.
 ///
-/// The default is now the DEVICE's own current UTC offset (see
-/// `deviceOffsetLocation`), which is exact for the reminder being scheduled and
-/// needs no plugin. Inject a real IANA resolver (e.g. backed by
-/// `flutter_timezone`) where full DST-rule correctness matters: a fixed offset
-/// cannot know that a zone shifts by an hour next month, so a schedule made
-/// before a DST transition fires an hour out until it is next re-armed.
+/// The default is now the DEVICE'S OWN IANA ZONE, read through
+/// `flutter_timezone` by `deviceIanaTimezone` (device_timezone.dart), which
+/// carries the DST rules a fixed offset cannot. When that read fails the
+/// resolution degrades to the device's current UTC offset — exact today, one
+/// hour out across the next DST change — and SAYS SO through
+/// `LocalTimezoneResolution.fallbackReason`. Inject a resolver only from a test.
 typedef LocalTimezoneResolver = Future<String> Function();
 
 /// Reads the running device's current UTC offset. Injectable ONLY so the
