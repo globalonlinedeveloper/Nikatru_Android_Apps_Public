@@ -838,6 +838,19 @@
   },
   {
     "claims": [
+      "ADR 079",
+      "ADR 080"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-store"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-hostname-depth.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 006",
       "S-1",
       "S-12",
