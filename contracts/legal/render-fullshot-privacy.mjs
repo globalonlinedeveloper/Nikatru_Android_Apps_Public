@@ -87,6 +87,13 @@ const TARGETS = [
   {
     rel: 'sites/nikatru/fullshot/privacy.html',
     what: 'served at nikatru.com/fullshot/privacy — the URL every store listing points at',
+    // 🔴 THE SERVED COPY WRAPS ITS MAILTO ANCHORS IN <!--email_off-->. Cloudflare
+    // Email Address Obfuscation rewrites an unwrapped address to "[email protected]"
+    // in the served bytes (#575), and check-site-integrity.mjs refuses a mailto
+    // outside the markers. Until 2026-09-11 this renderer did not emit them, so a
+    // regeneration stripped them and `--check` exited 1 on the correct page. The
+    // store copy is a file inside a zip that Cloudflare never serves: no markers.
+    emailOff: true,
     head: [
       '<link rel="canonical" href="https://nikatru.com/fullshot/privacy">',
       '<meta name="description" content="How FullShot handles your data: everything is processed locally on your device and nothing is transmitted.">',
@@ -334,6 +341,37 @@ if (blocks.length < 20 || headingCount < 5) {
   process.exit(1);
 }
 
+/**
+ * Wrap every mailto anchor THIS renderer emitted, whole, in <!--email_off-->.
+ * The wrapper must enclose the entire anchor: Cloudflare rewrites the href as
+ * well as the text, so wrapping only the text leaves a decode-link behind
+ * (check-site-integrity.mjs records the same rule). The source cannot smuggle in
+ * an anchor of its own — `assertNoUnknownInline` refuses raw HTML — so every
+ * `<a href="mailto:` here is one `inline` wrote, and an unterminated one is a
+ * renderer bug that is thrown rather than published.
+ */
+const EMAIL_OFF_OPEN = '<!--email_off-->';
+const EMAIL_OFF_CLOSE = '<!--/email_off-->';
+function protectMailto(line) {
+  const anchor = '<a href="mailto:';
+  const lower = line.toLowerCase();
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const s = lower.indexOf(anchor, i);
+    if (s === -1) break;
+    const e = lower.indexOf('</a>', s);
+    if (e === -1) throw new Error(`unterminated mailto anchor: ${line.slice(s, s + 60)}`);
+    out += line.slice(i, s) + EMAIL_OFF_OPEN + line.slice(s, e + 4) + EMAIL_OFF_CLOSE;
+    i = e + 4;
+  }
+  out += line.slice(i);
+  const left = out.split(EMAIL_OFF_OPEN).join('').toLowerCase().split('mailto:').length - 1;
+  const wrapped = out.split(EMAIL_OFF_OPEN).length - 1;
+  if (left !== wrapped) throw new Error(`a mailto: this renderer did not emit as an anchor would be served unprotected: ${line.slice(0, 80)}`);
+  return out;
+}
+
 function render(target) {
   const out = [
     '<!DOCTYPE html>',
@@ -350,7 +388,7 @@ function render(target) {
     '</head>',
     '<body>',
     '',
-    ...body(),
+    ...(target.emailOff ? body().map(protectMailto) : body()),
     '',
     '</body>',
     '</html>',
