@@ -142,14 +142,23 @@ class RemindersEnabledController extends Notifier<bool> {
 
   /// The one place anything is cancelled. Never throws: it is reached from a
   /// settings write and from the boot path, and neither may take the app down.
+  ///
+  /// 🔴 `cancel(kDailyReminderId)`, NOT `cancelAll()`. This used to say the
+  /// opposite — "reminders off is a promise about all of them, including any
+  /// an app schedules on top" — and that sentence was the defect: the chassis
+  /// service and the app's own `NotificationService` share ONE
+  /// `FlutterLocalNotificationsPlugin` singleton, so this `cancelAll()` took
+  /// every renewal reminder with it. And it ran at EVERY launch: the stored
+  /// intent defaults to false, so [resyncOnStart] reached here on a fresh
+  /// install and wiped the renewal set the controller had just scheduled.
+  /// The app's renewal reminders have their own switch ("Renewal alerts")
+  /// and their own owner; this one cancels the one id it schedules.
   Future<void> _cancelSchedules() async {
     final core.NotificationService svc = ref.read(notificationServiceProvider);
     try {
       // `init()` first: cancel is undefined before the plugin is initialised.
       await svc.init();
-      // cancelAll, not cancel(kDailyReminderId): "reminders off" is a promise
-      // about all of them, including any an app schedules on top of the chassis.
-      await svc.cancelAll();
+      await svc.cancel(kDailyReminderId);
     } catch (_) {
       // A platform channel that is not there must not become a crash.
     }
