@@ -45,7 +45,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -471,5 +471,38 @@ jobs:
     }));
     assert.equal(code, 1, 'apps.json\'s function still prints "already lists"');
     assert.match(out, /not idempotent/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-11 — THE STAMPED APP'S DART SDK FLOOR IS THE APP'S.
+// The brick's pubspec said `sdk: ">=3.5.0 <4.0.0"` while apps/subscriptiontracker
+// and the workspace root say `^3.9.0`. The floor is the LANGUAGE VERSION dart
+// format applies once packages resolve, so a stamped app that resolved formatted
+// under 3.5 rules while every template file is written to the latest ones:
+// MEASURED on a probe stamped from main, resolved with `flutter pub get`, 23 files
+// changed against 6 unresolved (the local-formatter control); at `^3.9.0`, the
+// same 6 plus the gitignored generated l10n file. This case reads the REAL tree.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the stamped app\'s Dart SDK floor equals the app\'s and the workspace root\'s', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  /** The top-level `environment:` block's `sdk:` value, comments stripped and quotes dropped. */
+  const sdkFloor = (rel) => {
+    const lines = readFileSync(join(REPO, rel), 'utf8').split('\n').map((l) => l.replace(/#.*$/, '').trimEnd());
+    const start = lines.findIndex((l) => l === 'environment:');
+    assert.notEqual(start, -1, `${rel} has no top-level environment: block`);
+    for (let i = start + 1; i < lines.length && (lines[i] === '' || lines[i].startsWith(' ')); i++) {
+      const m = lines[i].match(/^  sdk:[ \t]*(.+)$/);
+      if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    }
+    assert.fail(`${rel} declares no environment.sdk`);
+  };
+
+  test('brick template, shipping app and workspace root declare ONE sdk constraint', () => {
+    const brick = sdkFloor('tooling/bricks/app/__brick__/apps/{{app_id}}/pubspec.yaml');
+    const app = sdkFloor('apps/subscriptiontracker/pubspec.yaml');
+    const root = sdkFloor('pubspec.yaml');
+    assert.equal(app, root, 'the shipping app and the workspace root disagree');
+    assert.equal(brick, app, `the brick stamps sdk ${brick}; the app it was ported from resolves under ${app}`);
   });
 });
