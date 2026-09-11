@@ -137,8 +137,10 @@
 //
 // Usage:  node tooling/ci/assert-launcher-icons.mjs [repoRoot]
 // ─────────────────────────────────────────────────────────────────────────────
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 // NOT `readdirSync` — a raw listing descends into a nested checkout (a git
 // worktree, a submodule, a stray clone) and reads another repository's files as
 // this tree's. Green in CI, which creates no worktrees; red on the one machine
@@ -178,6 +180,40 @@ import {
   deriveSplash,
   readStoryboardImageSize,
 } from '../store/render-splash.mjs';
+
+// ── the process that does the work runs with V8 background tasks OFF ────────
+// 🔴 THIS GUARD HUNG CI THREE TIMES AFTER PRINTING ITS VERDICT: runs 34442894882
+// and 34553250403 (job cancelled at 25 min) and 34556943131 (test bound, 120 s,
+// complete output captured, `status: null` — alive, not merely holding a pipe).
+// It was stuck INSIDE `process.exit`: Node's shutdown joins the V8 worker
+// threads while a concurrent Maglev/Sparkplug compile on one of them waits for a
+// main-thread GC that can no longer run — nodejs/node#54918, open, reported on
+// 24.18.1 4-vCPU CI runners. This guard is the likeliest victim in the suite:
+// its pixel loops are exactly the hot code those background compiles are for.
+// A natural exit (`exitCode`) deadlocks too — measured, 3 of 12 amplified runs.
+//
+// So the work runs in a child started with --single-threaded: V8 then posts no
+// background compile or GC task at all, and the wait cycle has no second party.
+// Measured on Linux with the test fixture, 8 runs each: worker threads burned
+// 32-52 CPU ticks per run by default and 0 on every --single-threaded run, with
+// no slower wall time. The relaunching parent imports but computes nothing, so
+// it gives V8 nothing to compile in the background. It carries no timeout of
+// its own: the child's one unbounded wait (`flutter create`) is bounded in
+// flutter-stock-assets.mjs, and a second bound would have to be kept in step.
+const SINGLE_THREADED = '--single-threaded';
+if (!process.execArgv.includes(SINGLE_THREADED)) {
+  const child = spawnSync(
+    process.execPath,
+    [SINGLE_THREADED, ...process.execArgv, fileURLToPath(import.meta.url), ...process.argv.slice(2)],
+    { stdio: 'inherit' },
+  );
+  if (child.error) {
+    console.error(`assert-launcher-icons: FAIL — could not relaunch with ${SINGLE_THREADED}: ${child.error.message}`);
+    process.exit(1);
+  }
+  if (child.signal) console.error(`assert-launcher-icons: FAIL — the working process was killed by ${child.signal}`);
+  process.exit(child.status ?? 1);
+}
 
 const repoRoot = resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? process.cwd());
 const APPS = join(repoRoot, 'apps');
@@ -1519,6 +1555,12 @@ prints.push(
     'a parse, not a comment-stripping regex: the regex is satisfied by the `--` inside a comment that aapt refuses',
 );
 for (const s of icoSizes) prints.push(`ico entries — ${s}`);
+// Read from this process's own start-up flags, not asserted: if the relaunch
+// above is ever removed, this line says ON and launcher-icons.test.mjs fails.
+prints.push(
+  `V8 background tasks: ${process.execArgv.includes(SINGLE_THREADED) ? 'OFF (--single-threaded)' : 'ON'} — ` +
+    'with them on, a background compile can deadlock this process at exit (nodejs/node#54918)',
+);
 
 if (problems.length) {
   console.error('assert-launcher-icons: FAIL');

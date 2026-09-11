@@ -207,8 +207,14 @@ const APP_DIR = {
  * spawn, its exit status, the staging-and-rename, and the on-disk cache.
  *
  * `emptyIcons` makes it emit zero-byte icons; `failing` makes it exit 1.
+ *
+ * `leaves` (POSIX only — a process group is the thing under test) starts a
+ * `sleep 600` in the background holding the fake's stdout/stderr and writes its
+ * pid to `pidFile`: 'straggler' then exits 0 with the app created, 'stuck'
+ * waits on it and never finishes. The first is a child that ends while its
+ * descendant still holds the pipes; the second is a child that does not end.
  */
-function fakeFlutter(sdkRoot, referenceDir, { failing = false } = {}) {
+function fakeFlutter(sdkRoot, referenceDir, { failing = false, leaves = null, pidFile = null } = {}) {
   const bin = join(sdkRoot, 'bin');
   mkdirSync(bin, { recursive: true });
   if (process.platform === 'win32') {
@@ -220,11 +226,16 @@ function fakeFlutter(sdkRoot, referenceDir, { failing = false } = {}) {
     );
   } else {
     const p = join(bin, 'flutter');
+    const background = `sleep 600 &\necho $! > "${pidFile}"\n`;
     writeFileSync(
       p,
       failing
         ? '#!/bin/sh\necho "fake flutter refuses" >&2\nexit 1\n'
-        : `#!/bin/sh\ncp -R "${referenceDir}" "./stockref"\nexit 0\n`,
+        : leaves === 'straggler'
+          ? `#!/bin/sh\ncp -R "${referenceDir}" "./stockref"\n${background}exit 0\n`
+          : leaves === 'stuck'
+            ? `#!/bin/sh\ncp -R "${referenceDir}" "./stockref"\n${background}wait\n`
+            : `#!/bin/sh\ncp -R "${referenceDir}" "./stockref"\nexit 0\n`,
     );
     chmodSync(p, 0o755);
   }
@@ -242,6 +253,7 @@ function world({
   brickArt = true,
   emptyStockIcons = false,
   flutterFails = false,
+  flutterLeaves = null,
   linux = true,
   linuxOmit = [],
   linuxCorrupt = null,
@@ -273,7 +285,7 @@ function world({
     mkdirSync(dirname(f), { recursive: true });
     writeFileSync(f, stockBytes(rel));
   }
-  fakeFlutter(sdkRoot, reference, { failing: flutterFails });
+  fakeFlutter(sdkRoot, reference, { failing: flutterFails, leaves: flutterLeaves, pidFile: join(root, 'straggler.pid') });
 
   // The app.
   const appDir = join(root, 'apps', 'demo');
@@ -494,28 +506,74 @@ function world({
   return { root, sdkRoot };
 }
 
-// 🔴 BOUNDED — THIS FILE HUNG CI TWICE AND SAID NOTHING. "Guards — the guards can
-// still fail" hit its 25-minute timeout in runs 34442894882 (2026-09-10) and
-// 34553250403 (2026-09-11). Both logs stop at the same byte: the last suite
-// printed is assert-launch-smoke.mjs, and this file is the next one the spec
-// reporter was waiting on. Every case here spawns the guard, which spawns a
-// fake `flutter create`, and neither spawn had a timeout — so a single stuck
-// child took the whole job with it and left no name behind. A bounded spawn
-// turns that into ONE red case carrying its own output and the kill reason.
-// The bound is generous: a case takes well under a second, cold.
+// 🔴 BOUNDED — THIS FILE HUNG CI THREE TIMES. "Guards — the guards can still
+// fail" hit its 25-minute timeout in runs 34442894882 (2026-09-10) and
+// 34553250403 (2026-09-11), both logs stopping just before this file; the bound
+// then caught run 34556943131: the byte-identical android case, 120318 ms,
+// ETIMEDOUT, `status: null`, WITH THE GUARD'S COMPLETE OUTPUT CAPTURED.
+//
+// 🔬 THE CAUSE, MEASURED — NOT A CHILD HOLDING A PIPE. `status: null` beside
+// ETIMEDOUT means the guard ITSELF was alive when the bound fired: had it exited
+// and a descendant kept the pipe open, spawnSync records status 1 and sends no
+// signal (node src/spawn_sync.cc, SyncProcessRunner::Kill). And the runner's
+// orphan cleanup in both cancelled runs lists three processes, all `MainThread`
+// (node's main thread) — no `sh`, `cp` or `flutter`. The guard had printed its
+// last line and was stuck INSIDE `process.exit(1)`: Node's shutdown joins the V8
+// worker threads while a concurrent Maglev/Sparkplug compile on one of them waits
+// for a main-thread GC that can no longer run (nodejs/node#54918, open, reported
+// on 24.18.1 CI runners). Reproduced 2026-09-11 on Linux: the real guard on this
+// file's fixture, amplified with --stress-concurrent-allocation, printed its
+// complete output and then hung in 3 of 12 runs (every thread in futex_do_wait,
+// no descendants). The fix is in the guard — it does its work with V8 background
+// tasks off; see the case that pins it.
+//
+// The bound stays as a backstop, and when it fires it now says WHAT was left:
+// the guard runs in its own process group and the survivors are listed by name.
 const RUN_TIMEOUT_MS = 120_000;
+const POSIX = process.platform !== 'win32';
+// Deliberately independent of the reader's own process-group handling: a test
+// that asked the code under test what it left running would certify its answer.
+function groupMembers(pgid) {
+  const r = spawnSync('pgrep', ['-l', '-g', String(pgid)], { encoding: 'utf8', timeout: 5_000 });
+  if (r.error) return [`(pgrep unavailable: ${r.error.code})`];
+  return r.stdout.trim().split('\n').filter(Boolean);
+}
+function goneWithin(pid, ms) {
+  const end = Date.now() + ms;
+  for (;;) {
+    try {
+      process.kill(pid, 0);
+    } catch (e) {
+      if (e.code === 'ESRCH') return true;
+    }
+    if (Date.now() > end) return false;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+}
 const run = ({ root, sdkRoot }, env = {}) => {
   const r = spawnSync(process.execPath, [GUARD, root], {
     encoding: 'utf8',
     env: { ...process.env, FLUTTER_ROOT: sdkRoot, ...env },
     timeout: RUN_TIMEOUT_MS,
     killSignal: 'SIGKILL',
+    detached: POSIX,
   });
-  const died = r.error
-    ? `\n[launcher-icons.test] guard spawn failed: ${r.error.message}`
-    : r.signal
-      ? `\n[launcher-icons.test] guard killed by ${r.signal} after ${RUN_TIMEOUT_MS} ms`
-      : '';
+  let died = '';
+  if (r.error || r.signal) {
+    const left = POSIX && r.pid ? groupMembers(r.pid) : ['(not enumerable on Windows)'];
+    if (POSIX && r.pid) {
+      try {
+        process.kill(-r.pid, 'SIGKILL');
+      } catch {
+        // ESRCH: nothing was left.
+      }
+    }
+    died =
+      `\n[launcher-icons.test] guard did not finish cleanly — ${r.error ? r.error.message : 'no spawn error'} · ` +
+      `status ${r.status} · signal ${r.signal} · bound ${RUN_TIMEOUT_MS} ms` +
+      `\n[launcher-icons.test] left in its process group once it was killed: ${left.length ? left.join(', ') : 'nothing'}` +
+      '\n[launcher-icons.test] complete output above + status null = the guard hung at exit (nodejs/node#54918).';
+  }
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}${died}` };
 };
 
@@ -528,6 +586,19 @@ describe('assert-launcher-icons', () => {
     // adding a file to SET must not require editing a number here, and a run
     // that compared nothing must not be able to print this line.
     assert.match(out, new RegExp(`${SET.length} icon\\(s\\) compared against ${SET.length} stock asset\\(s\\)`));
+  });
+
+  // 🔴 THE HANG'S FIX, PINNED. Spawned exactly as CI runs it — plain `node
+  // <guard>`, no flags — the process that does the work must have started with
+  // --single-threaded, so no V8 worker thread runs a background compile or GC
+  // that Node's exit can deadlock on (nodejs/node#54918). Measured on Linux,
+  // 8 runs each: default flags, the worker threads burned 32-52 CPU ticks per
+  // run; --single-threaded, 0 on every run. Deterministic, unlike the hang:
+  // delete the relaunch and this line says ON.
+  test('the working guard runs with V8 background tasks OFF, so its exit cannot deadlock', () => {
+    const { code, out } = run(world());
+    assert.equal(code, 0, out);
+    assert.match(out, /V8 background tasks: OFF \(--single-threaded\)/);
   });
 
   // 🔴 M0 — the defect this guard exists for, on every platform in turn. Android
@@ -827,6 +898,33 @@ describe('assert-launcher-icons', () => {
     assert.equal(code, 1, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /`flutter create` failed/);
+  });
+
+  // ── a `flutter create` that will not let go ───────────────────────────────
+  // Not the cause of the CI hang (that was the guard's own exit, above), but the
+  // same outcome waiting to happen: the reader's spawn had no timeout and read
+  // the child through pipes, so a descendant holding them — or a child that never
+  // ends — stalled the guard for as long as it lived. POSIX only: the process
+  // group is the mechanism under test.
+  const POSIX_ONLY = POSIX ? false : 'a process group is the mechanism under test, and Windows has none';
+
+  test('a `flutter create` that exits leaving a process behind neither stalls the guard nor outlives it', { skip: POSIX_ONLY }, () => {
+    const w = world({ flutterLeaves: 'straggler' });
+    const { code, out } = run(w);
+    assert.equal(code, 0, out);
+    const pid = Number(readFileSync(join(w.root, 'straggler.pid'), 'utf8'));
+    assert.ok(goneWithin(pid, 5_000), `the straggler (pid ${pid}, sleep 600) is still running after the guard returned\n${out}`);
+  });
+
+  test('COVERAGE LOST, naming what was still running, when `flutter create` does not finish in time', { skip: POSIX_ONLY }, () => {
+    const w = world({ flutterLeaves: 'stuck' });
+    const { code, out } = run(w, { FLUTTER_CREATE_TIMEOUT_MS: '2000' });
+    assert.equal(code, 1, out);
+    assert.match(out, /COVERAGE LOST/);
+    assert.match(out, /`flutter create` did not finish within 2 s/);
+    assert.match(out, /still running in its process group: .*sleep/);
+    const pid = Number(readFileSync(join(w.root, 'straggler.pid'), 'utf8'));
+    assert.ok(goneWithin(pid, 5_000), `the stuck process (pid ${pid}, sleep 600) outlived the guard\n${out}`);
   });
 
   // The same shape one level up: an app that ships a platform the guard has no
