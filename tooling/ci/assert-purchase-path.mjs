@@ -37,7 +37,7 @@
 //
 // Usage:  node tooling/ci/assert-purchase-path.mjs [repoRoot]
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listDir } from './tree-walk.mjs';
@@ -508,12 +508,13 @@ let registerChannels = []; // the register's channel rows, whole
       fileOfRoute.set(m[1], m[2]);
     }
 
-    const { statSync } = await import('node:fs');
     const files = [];
     const walk = (d) => {
-      for (const e of listDir(d)) {
+      for (const de of listDir(d, { withFileTypes: true })) {
+        const e = de.name;
         const f = join(d, e);
-        if (statSync(f).isDirectory()) walk(f);
+        // The listing's own dirent, not a second look at the path (the #81 class).
+        if (de.isDirectory()) walk(f);
         else if (e.endsWith('.dart')) files.push(f);
       }
     };
@@ -955,9 +956,11 @@ const flat = (v) =>
   {
     const impls = [];
     const walkLib = (d) => {
-      for (const e of listDir(d)) {
+      for (const de of listDir(d, { withFileTypes: true })) {
+        const e = de.name;
         const f = join(d, e);
-        if (statSync(f).isDirectory()) walkLib(f);
+        // The listing's own dirent, not a second look at the path (CodeQL #81).
+        if (de.isDirectory()) walkLib(f);
         else if (e.endsWith('.dart')) {
           const src = code(readFileSync(f, 'utf8'));
           for (const m of src.matchAll(/class\s+(\w+)\s+implements\s+PurchaseRail\b/g)) impls.push(m[1]);

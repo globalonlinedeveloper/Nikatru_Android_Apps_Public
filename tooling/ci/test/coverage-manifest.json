@@ -73,6 +73,7 @@
   "extensions-build-free.test.mjs": 14,
   "flag-exposure.test.mjs": 30,
   "free-api-scope-transient.test.mjs": 8,
+  "fs-read-once.test.mjs": 9,
   "generate-apps-data.test.mjs": 7,
   "github-matrix.test.mjs": 34,
   "github-rate-limit.test.mjs": 31,
