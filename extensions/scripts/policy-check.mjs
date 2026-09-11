@@ -79,7 +79,7 @@ import path from 'node:path';
 import { Report, parseArgs, die } from './lib/report.mjs';
 import {
   repoRoot, resolveTool, packagedFiles, readText, readJson, walk,
-  localeMessageFiles, resolveMessages, versionProblem
+  resolveMessages, versionProblem
 } from './lib/toolinfo.mjs';
 
 const args = parseArgs(process.argv.slice(2));
@@ -630,7 +630,6 @@ if (typeof cspDeclared === 'string') {
 }
 
 {
-  const csp = cspDeclared;
   const directives = cspDirectives;
   const fromConnect = directives.has('connect-src');
   const effective = fromConnect ? directives.get('connect-src')

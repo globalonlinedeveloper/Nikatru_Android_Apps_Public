@@ -46,7 +46,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Report, parseArgs, die, EXIT_FAIL } from './lib/report.mjs';
 import {
-  repoRoot, loadAllTools, readJson, readText, walk,
+  repoRoot, loadAllTools, readJson, walk,
   RE_TOOL_ID, RE_CATEGORY_DIR, RE_TOOL_DIR
 } from './lib/toolinfo.mjs';
 
