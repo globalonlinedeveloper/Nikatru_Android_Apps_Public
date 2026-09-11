@@ -334,7 +334,6 @@ const S = r => { const l = L(r); return l && l.scan; };
 const B = r => { const l = L(r); return l && l.bake; };
 const stateOf = r => { const l = L(r); return l && l.state; };
 const pixelsOf = r => { const l = L(r); return l && l.pixels; };
-const lineOf = s => (s.lineText || '') + ' ' + (s.toastText || '');
 const anySurface = s => ((s.lineText || '') + ' ' + (s.toastText || '') + ' ' + (s.bodyText || ''));
 
 /* ================= universals — every fixture, every shape ================= */
