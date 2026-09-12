@@ -782,7 +782,9 @@ void main() {
     // whose action is a GoTrue call and not a Worker call), so this path works on
     // both targets. Confirmed after a pump for the same reason the shell is: a
     // redirect in flight can paint either screen for a frame.
-    final Finder strandedSignOut = find.byKey(ReacceptTermsScreen.signOutButton);
+    final Finder strandedSignOut = find.byKey(
+      ReacceptTermsScreen.signOutButton,
+    );
     if (strandedSignOut.evaluate().isNotEmpty) {
       await pumpFor(tester, const Duration(seconds: 2));
       if (strandedSignOut.evaluate().isNotEmpty) {
