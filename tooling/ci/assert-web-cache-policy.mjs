@@ -631,8 +631,42 @@ if (kinds['static-site'] > 0 && classProbes === 0) {
 // `href="javascript:"` need `'unsafe-hashes'`, which re-opens what the hash list
 // closes, so their presence is a finding rather than something the header quietly
 // accommodates.
+/** The four directives every bundle policy must carry, and why each one.
+ *  Kept as data so the failure message can name the reason rather than repeat
+ *  the directive back at the reader. */
+const CSP_FLOOR = [
+  ["default-src 'self'", /default-src[^;]*'self'/i],
+  ["object-src 'none'", /object-src[^;]*'none'/i],
+  ["base-uri 'self'", /base-uri[^;]*'self'/i],
+  ["frame-ancestors 'none'", /frame-ancestors[^;]*'none'/i],
+];
+const CSP_FLOOR_WHY = {
+  "default-src 'self'":
+    'Without it every fetch directive this policy does not name is UNRESTRICTED, so the policy only ' +
+    'covers what somebody remembered to list.',
+  "object-src 'none'":
+    "<embed> and <object> are not covered by default-src in CSP3, so a policy without this line still " +
+    'permits a plugin document to run in the page.',
+  "base-uri 'self'":
+    'An injected <base href> silently re-points every RELATIVE url in the document, including the ' +
+    'script the loader fetches, and no other directive constrains it.',
+  "frame-ancestors 'none'":
+    'Same-origin framing between paths on one apex is otherwise unrestricted, so another app on ' +
+    'nikatru.com could frame this one and drive it ([ADR 075]).',
+};
+
+/** Transport headers a bundle must set beside the policy. `_headers` is the only
+ *  place they can be set for an app the apex router proxies to. */
+const BUNDLE_SECURITY_HEADERS = [
+  { name: 'X-Content-Type-Options', why: 'Without nosniff a response the edge types as text can still be executed as script.' },
+  { name: 'X-Frame-Options', why: 'The pre-CSP framing control, still honoured by browsers that ignore frame-ancestors.' },
+  { name: 'Referrer-Policy', why: 'The default leaks the full in-app URL, path and all, to every host the app calls.' },
+  { name: 'Strict-Transport-Security', why: 'Without it the first request of a session can still be made over http and stripped.' },
+];
+
 let cspBundlesChecked = 0;
 let cspHashesChecked = 0;
+let cspBundlesWithInline = 0;
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 const INLINE_HANDLER = /(\son[a-z]+\s*=\s*["'])|(["']javascript:)/i;
 for (const b of bundles.filter((x) => x.kind === 'flutter-web')) {
@@ -649,18 +683,54 @@ for (const b of bundles.filter((x) => x.kind === 'flutter-web')) {
   const cspMatch = declared.match(/Content-Security-Policy:\s*(.+)/i);
   const html = readFileSync(indexAbs, 'utf8');
   const bodies = [...html.matchAll(INLINE_SCRIPT)].map((m) => m[1]).filter((x) => x.trim() !== '');
+  // ⏱ 2026-09-12 · A MISSING POLICY IS THE FINDING, INLINE SCRIPT OR NOT. This
+  // limb used to fire only when index.html carried an inline <script>, so a bundle
+  // with no inline script and NO CSP passed in silence — which is exactly what
+  // `tooling/bricks/app/__brick__/apps/{{app_id}}/web/_headers` was: the template
+  // shipped no security headers at all, so every app stamped from it was born with
+  // none, while `apps/subscriptiontracker` had carried a real policy since
+  // 2026-09-09 ([ADR 075]). Found by the factory-vs-app drift audit
+  // (research/factory-drift-2026-09-12/), not by this guard, and the near-miss is
+  // the lesson: a guard that scans the brick and still cannot see the brick's gap
+  // reads as coverage without being it.
   if (!cspMatch) {
-    if (bodies.length > 0) {
-      problems.push(
-        `${b.dir}/_headers declares no Content-Security-Policy while ${b.dir}/index.html carries ` +
-          `${bodies.length} inline <script> block(s). On the shared apex origin ([ADR 075]) an app with no ` +
-          `policy inherits nothing — the router's fallback is deliberately strict and will block them.`,
-      );
-    }
+    problems.push(
+      `${b.dir}/_headers declares no Content-Security-Policy` +
+        (bodies.length > 0 ? ` while ${b.dir}/index.html carries ${bodies.length} inline <script> block(s)` : '') +
+        `. Since [ADR 075] an app is published at nikatru.com/<id> — the SAME ORIGIN as the marketing ` +
+        `site, the pricing page and every other app, with the session token in that origin's web storage, ` +
+        `so an XSS in one reaches all of it. A bundle with no policy inherits nothing: _headers is applied ` +
+        `by the asset-serving stage, so sites/nikatru/_headers never reaches a response the apex router ` +
+        `returns from a proxy fetch. Copy the block from the app template's web/_headers.`,
+    );
     continue;
   }
   cspBundlesChecked++;
+  if (bodies.length > 0) cspBundlesWithInline++;
   const csp = cspMatch[1];
+
+  // 🔴 THE FLOOR, NOT THE WHOLE POLICY. Each directive below closes a hole that
+  // costs nothing to close and that a hand-written policy forgets in a
+  // recognisable order: an absent `default-src` makes every unlisted fetch
+  // directive unrestricted; `object-src` still governs <embed>/<object>, which
+  // `default-src` does NOT cover in CSP3; `base-uri` is how an injected <base>
+  // re-points every relative URL in the document; and `frame-ancestors` is the
+  // only one of the four that same-origin framing between app paths on one apex
+  // makes load-bearing. This limb does not grade the rest of the policy · the
+  // hash limb below and the transport-header limb do their own parts.
+  for (const [want, re] of CSP_FLOOR) {
+    if (!re.test(csp)) {
+      problems.push(
+        `${b.dir}/_headers has a Content-Security-Policy that does not declare ${want}. ` +
+          `${CSP_FLOOR_WHY[want]}`,
+      );
+    }
+  }
+  for (const h of BUNDLE_SECURITY_HEADERS) {
+    if (!new RegExp(`^\\s*${h.name}\\s*:`, 'im').test(declared)) {
+      problems.push(`${b.dir}/_headers declares no ${h.name}. ${h.why}`);
+    }
+  }
   if (/script-src[^;]*'unsafe-inline'/i.test(csp)) {
     problems.push(
       `${b.dir}/_headers declares script-src 'unsafe-inline'. On one shared origin that lets an injected ` +
@@ -686,11 +756,19 @@ for (const b of bundles.filter((x) => x.kind === 'flutter-web')) {
     }
   }
 }
-if (cspBundlesChecked > 0 && cspHashesChecked === 0) {
+// ⏱ 2026-09-12 · THE FLOOR IS BUNDLES WITH AN INLINE SCRIPT, NOT BUNDLES WITH A
+// POLICY. It read `cspBundlesChecked > 0 && cspHashesChecked === 0`, which was right
+// only while a CSP implied an inline script to hash. Every bundle owes a policy now,
+// and the app template legitimately has NO inline script (its index.html loads
+// `flutter_bootstrap.js` by src alone), so the old condition made a correct tree
+// exit 2. The claim worth defending is unchanged: if a bundle HAS inline blocks and
+// none were hashed, the matcher has stopped matching and this limb is printing ok
+// about a policy it did not check.
+if (cspBundlesWithInline > 0 && cspHashesChecked === 0) {
   console.error(
-    'assert-web-cache-policy: COVERAGE LOST — a flutter-web bundle declares a CSP but this run hashed ZERO\n' +
-      '    inline scripts. Either the inline-script matcher has stopped matching or index.html moved; both\n' +
-      '    leave this limb printing ok about a policy it did not check.',
+    'assert-web-cache-policy: COVERAGE LOST — a flutter-web bundle carries inline <script> block(s) and a\n' +
+      '    CSP, but this run hashed ZERO of them. Either the inline-script matcher has stopped matching or\n' +
+      '    index.html moved; both leave this limb printing ok about a policy it did not check.',
   );
   process.exit(2);
 }
