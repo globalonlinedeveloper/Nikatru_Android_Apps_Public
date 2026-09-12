@@ -2651,6 +2651,19 @@
   },
   {
     "claims": [
+      "ADR 075",
+      "ADR 079"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#glitchtip"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-turnstile-hosts.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 080"
     ],
     "invokedBy": [

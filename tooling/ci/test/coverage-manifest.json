@@ -185,6 +185,7 @@
   "sworn-store-files.test.mjs": 57,
   "text-reductions.test.mjs": 46,
   "triage-failed-runs.test.mjs": 56,
+  "turnstile-hosts.test.mjs": 14,
   "update-coverage.test.mjs": 35,
   "vacuity-a.test.mjs": 4,
   "vacuity-b.test.mjs": 22,
