@@ -187,8 +187,21 @@ after(() => { rmSync(TMP, { recursive: true, force: true }); });
 
 let seq = 0;
 
+/** The security block every flutter-web bundle owes since 2026-09-12. Kept apart
+ *  from GOOD so a test can drop exactly one line of it and nothing else. */
+const SEC_LINES = {
+  'X-Content-Type-Options': '  X-Content-Type-Options: nosniff',
+  'X-Frame-Options': '  X-Frame-Options: DENY',
+  'Referrer-Policy': '  Referrer-Policy: strict-origin-when-cross-origin',
+  'Strict-Transport-Security': '  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload',
+};
+const CSP_OK =
+  "  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; " +
+  "frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval'";
+const SEC = `/*\n${Object.values(SEC_LINES).join('\n')}\n${CSP_OK}\n`;
+
 const GOOD = `# a real policy
-/
+${SEC}/
   Cache-Control: public, max-age=0, must-revalidate
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
@@ -221,12 +234,20 @@ const GOOD_SITE = `# security headers carry no Cache-Control, so nothing overlap
  * @param {Record<string,string>} o.appFiles  extra files shipped under web/
  * @param {Record<string,string>} o.siteFiles extra files shipped on every site
  */
-function fixture({ app = GOOD, brick = GOOD, sites = null, appFiles = {}, siteFiles = {} } = {}) {
+// Every flutter-web bundle owes a security block since 2026-09-12, and most cases
+// here are about CACHE rules and say nothing about it. `sec` supplies the block to
+// any bundle headers that do not already carry a policy, so a cache case stays
+// about caching; the cases that test the policy itself pass `sec: false` and hand
+// in exactly the bytes they mean.
+function fixture({ app = GOOD, brick = GOOD, brickIndex = '<html></html>', sec = true, sites = null, appFiles = {}, siteFiles = {} } = {}) {
+  const withSec = (h) => (h === null || !sec || h.includes('Content-Security-Policy') ? h : SEC + h);
+  app = withSec(app);
+  brick = withSec(brick);
   const root = join(TMP, `f${seq++}`);
   mkdirSync(join(root, 'apps', 'subscriptiontracker', 'web'), { recursive: true });
   mkdirSync(join(root, BRICK_WEB), { recursive: true });
   writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', 'index.html'), '<html></html>');
-  writeFileSync(join(root, BRICK_WEB, 'index.html'), '<html></html>');
+  writeFileSync(join(root, BRICK_WEB, 'index.html'), brickIndex);
   if (app !== null) writeFileSync(join(root, 'apps', 'subscriptiontracker', 'web', '_headers'), app);
   if (brick !== null) writeFileSync(join(root, BRICK_WEB, '_headers'), brick);
   for (const [rel, body] of Object.entries(appFiles)) {
@@ -281,13 +302,13 @@ describe('assert-web-cache-policy', () => {
   });
 
   test('FAILS when _headers is empty', () => {
-    const { code, out } = run(fixture({ app: '   \n' }));
+    const { code, out } = run(fixture({ sec: false, app: '   \n' }));
     assert.equal(code, 1);
     assert.match(out, /is empty/);
   });
 
   test('FAILS when the file is only comments — prose about caching is not a policy', () => {
-    const { code, out } = run(fixture({ app: '# we cache the entry points for zero seconds\n# /index.html max-age=0\n' }));
+    const { code, out } = run(fixture({ sec: false, app: '# we cache the entry points for zero seconds\n# /index.html max-age=0\n' }));
     assert.equal(code, 1);
     assert.match(out, /declares no rule at all outside comments/);
   });
@@ -301,13 +322,13 @@ describe('assert-web-cache-policy', () => {
   });
 
   test('FAILS when an entry point has no rule covering it', () => {
-    const { code, out } = run(fixture({ app: GOOD.replace('/index.html\n  Cache-Control: public, max-age=0, must-revalidate\n', '') }));
+    const { code, out } = run(fixture({ sec: false, app: GOOD.replace(SEC, '').replace('/index.html\n  Cache-Control: public, max-age=0, must-revalidate\n', '') }));
     assert.equal(code, 1);
     assert.match(out, /no rule covering "\/index\.html"/);
   });
 
   test('FAILS when a rule exists but sets no Cache-Control at all', () => {
-    const { code, out } = run(fixture({ app: '/\n  X-Frame-Options: DENY\n/index.html\n  X-Frame-Options: DENY\n/flutter_bootstrap.js\n  X-Frame-Options: DENY\n' }));
+    const { code, out } = run(fixture({ sec: false, app: '/\n  X-Frame-Options: DENY\n/index.html\n  X-Frame-Options: DENY\n/flutter_bootstrap.js\n  X-Frame-Options: DENY\n' }));
     assert.equal(code, 1);
     assert.match(out, /sets no Cache-Control/);
   });
@@ -336,7 +357,7 @@ describe('assert-web-cache-policy', () => {
   });
 
   test('FAILS when a file the repo ships under web/ has no rule at all', () => {
-    const { code, out } = run(fixture({ app: GOOD, appFiles: { 'favicon.png': 'png-bytes' } }));
+    const { code, out } = run(fixture({ sec: false, app: GOOD.replace(SEC, ''), appFiles: { 'favicon.png': 'png-bytes' } }));
     assert.equal(code, 1);
     assert.match(out, /no rule covering "\/favicon\.png"/);
   });
@@ -851,6 +872,58 @@ describe('assert-web-cache-policy', () => {
 // The Pages-Function limb. `_headers` structurally cannot reach a Function, so
 // nothing above this line has ever had an opinion about the one route on the
 // origin that accepts a POST body.
+describe('assert-web-cache-policy · a bundle policy is owed whether or not a script is inline', () => {
+  // 🔴 THE DEFECT THIS SHAPE EXISTS FOR. Until 2026-09-12 the CSP limb fired ONLY
+  // when index.html carried an inline <script>, so a bundle with neither an inline
+  // script nor a policy passed in silence - which is exactly what the app template
+  // was: no security headers at all, inherited by every app stamped from it, while
+  // the shipping app had carried a real policy since 2026-09-09 ([ADR 075]).
+  test('FAILS when a flutter-web bundle declares no Content-Security-Policy at all', () => {
+    const { code, out } = run(fixture({ sec: false, brick: GOOD.replace(SEC, '') }));
+    assert.equal(code, 1, out);
+    assert.match(out, /__brick__.*declares no Content-Security-Policy/);
+    assert.match(out, /SAME ORIGIN/);
+    assert.match(out, /inherits nothing/);
+  });
+
+  test('the message does NOT claim an inline script when there is none, and DOES when there is', () => {
+    const bare = run(fixture({ sec: false, brick: GOOD.replace(SEC, '') }));
+    assert.equal(/inline <script> block/.test(bare.out), false, bare.out);
+    const inline = run(fixture({ sec: false, brick: GOOD.replace(SEC, ''), brickIndex: '<html><body><script>window.x=1;</script></body></html>' }));
+    assert.equal(inline.code, 1, inline.out);
+    assert.match(inline.out, /carries 1 inline <script> block/);
+  });
+
+  for (const [want, drop] of [
+    ["default-src 'self'", "default-src 'self'; "],
+    ["object-src 'none'", "object-src 'none'; "],
+    ["base-uri 'self'", "base-uri 'self'; "],
+    ["frame-ancestors 'none'", "frame-ancestors 'none'; "],
+  ]) {
+    test(`FAILS when the policy omits ${want}, and says why that directive`, () => {
+      const { code, out } = run(fixture({ sec: false, brick: GOOD.replace(drop, '') }));
+      assert.equal(code, 1, out);
+      assert.match(out, new RegExp(`does not declare ${want.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')}`));
+      // the reason travels with the finding, so the reader is not sent to the spec
+      assert.match(out, /UNRESTRICTED|CSP3|re-points every RELATIVE url|Same-origin framing/);
+    });
+  }
+
+  for (const name of ['X-Content-Type-Options', 'X-Frame-Options', 'Referrer-Policy', 'Strict-Transport-Security']) {
+    test(`FAILS when the bundle drops ${name}`, () => {
+      const { code, out } = run(fixture({ brick: GOOD.replace(`${SEC_LINES[name]}\n`, '') }));
+      assert.equal(code, 1, out);
+      assert.match(out, new RegExp(`declares no ${name}`));
+    });
+  }
+
+  test('a compliant bundle passes, and the run still reports both flutter-web bundles', () => {
+    const { code, out } = run(fixture());
+    assert.equal(code, 0, out);
+    assert.match(out, /2 flutter-web/);
+  });
+});
+
 describe('assert-web-cache-policy · Pages Function security headers', () => {
   const FN_HEADERS =
     '      "x-content-type-options": "nosniff",\n' +
