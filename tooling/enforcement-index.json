@@ -1865,6 +1865,7 @@
       "ADR 065",
       "ADR 066",
       "ADR 067",
+      "ADR 078",
       "B-2",
       "C-11",
       "C-13",
@@ -2627,6 +2628,18 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/check-prod-provenance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 080"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#glitchtip"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-wildcard-dns.mjs",
     "references": [],
     "state": "WIRED"
   },
