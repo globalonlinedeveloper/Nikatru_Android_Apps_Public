@@ -365,6 +365,45 @@ jobs:
           fi
           exit "$code"
 
+      # why: THE SECOND PLACE THE APP'S ADDRESS IS WRITTEN DOWN, AND THE ONE THAT
+      # TOOK SIGN-IN OFFLINE. Measured 2026-09-12: the `nikatru-auth` Turnstile
+      # widget allowed `localhost` and `subly.nikatru.com` while the app is served
+      # from `nikatru.com`. Turnstile answers a page on a host it does not allow
+      # with "Domain not allowed.", so the challenge never rendered and SIGN-IN AND
+      # SIGN-UP WERE DEAD for every user - silently, because the page still loads
+      # and the form still draws. Nobody had tried to sign in since the address
+      # moved, so it surfaced days later, by accident, while somebody was doing
+      # something else entirely.
+      #
+      # 🔴 IT WAS ALREADY WRITTEN DOWN AS AN OWNER ITEM and that changed nothing.
+      # The address move recorded "the widget's own configured domain list is a
+      # SEPARATE console setting and still names the old subdomain". A note is not a
+      # check. This step is the check: it reads the widget the BUILD actually ships
+      # (by sitekey, not by name - a widget can be renamed) and the hosts the
+      # CATALOGUE says we serve, so neither side can go stale, and add an app on a
+      # new host and it is asked about with no edit here.
+      #
+      # why: IN THIS JOB, for the same reason the wildcard check is - every job in
+      # this workflow must be the unit of a duty row, and account state a console
+      # holds is exactly this job's live-ops half.
+      - name: Turnstile still allows every host the apps are served from
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          set +e
+          node tooling/ops/check-turnstile-hosts.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=The Turnstile hostname list is UNKNOWN - the widget was not read::No token, no sitekey, or the API refused. An unreadable console is not a passing one: the list could say anything, including the retired subdomain that took sign-in offline on 2026-09-12."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=Turnstile does not allow a host the apps are served from - SIGN-IN IS DEAD THERE::The challenge cannot render on a host the widget does not allow, and the failure is silent: the page loads, the form draws, and only the challenge refuses. Add the host on the widget carrying this sitekey, under Turnstile in the Cloudflare dashboard."
+          fi
+          exit "$code"
+
   alert:
     name: Open or refresh the ops-watch issue
     needs:
