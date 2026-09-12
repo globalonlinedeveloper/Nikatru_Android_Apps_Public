@@ -667,6 +667,9 @@ jobs:
 
       - name: web-ext lint (Firefox only)
         if: matrix.target == 'firefox' && matrix.os == 'ubuntu-24.04'
+        # NOTE the path differs from the release job on purpose. THIS job never hands
+        # its dist to release-manifest.mjs, so the flat-release-directory rule does not
+        # apply and pack.mjs's own <out>/unpacked-<target>/ is read where it lands.
         run: npx --yes web-ext@8 lint --source-dir dist/unpacked-firefox --warnings-as-errors
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -1987,6 +1990,49 @@ jobs:
           node scripts/pack.mjs ${{ steps.tag.outputs.id }} --target chromium --out dist --release
           node scripts/pack.mjs ${{ steps.tag.outputs.id }} --target firefox  --out dist --release
 
+      # why: THE RELEASE DIRECTORY IS FLAT AND THIS TREE IS NOT A RELEASE ARTEFACT.
+      # release-manifest.mjs refuses any directory under the release dir - "output
+      # nobody staged, so it would be published unhashed or not published at all,
+      # and nothing would say which" - and pack.mjs leaves <out>/unpacked-<target>/
+      # beside the archives by design. Until 2026-09-12 the release job packed into
+      # dist and then handed dist to --write, so the lane DIED on its own build
+      # output: extensions.yml:2054 fails if the tree is ABSENT and the integrity
+      # record fails because it is PRESENT (O-EXT-DIST-NOT-FLAT).
+      #
+      # The tree is still required - web-ext lints it and the AMO submission uploads
+      # it as its source-dir - so it is MOVED rather than deleted, and it is moved
+      # HERE rather than later because the integrity record is written BEFORE
+      # publication and AMO needs the tree AT publication. There is no moment in
+      # between; the only fix is for it never to be in the release directory.
+      #
+      # ⚠️ NOT solved by teaching release-manifest.mjs to ignore this name. The
+      # flatness rule is the reason an unhashed artefact cannot reach a store, and
+      # an exception list is how that protection is lost one name at a time.
+      - name: The unpacked tree leaves the release directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          moved=0
+          for d in dist/unpacked-*; do
+            [ -d "$d" ] || continue
+            rm -rf "build/$(basename "$d")"
+            mv "$d" build/
+            moved=$((moved + 1))
+          done
+          if [ "$moved" -eq 0 ]; then
+            echo "::error::pack.mjs left no dist/unpacked-* tree. The Firefox lint and the AMO submission both read one, so a release without it cannot reach addons.mozilla.org."
+            exit 1
+          fi
+          echo "moved $moved unpacked tree(s) into build/"
+          # The release directory must now be flat, and this says so on the spot
+          # rather than letting the integrity record discover it forty minutes on.
+          strays=$(find dist -mindepth 1 -maxdepth 1 -type d | head -5)
+          if [ -n "$strays" ]; then
+            echo "::error::dist still holds directories after the move:"; printf '%s\n' "$strays"
+            exit 1
+          fi
+
       - name: The built packages are uploadable
         shell: bash
         run: |
@@ -2051,8 +2097,8 @@ jobs:
       - name: web-ext lint
         run: |
           set -euo pipefail
-          if [ ! -d dist/unpacked-firefox ]; then
-            echo "::error::dist/unpacked-firefox does not exist — pack.mjs did not leave an unpacked Firefox tree for web-ext to lint, so the AMO package is going out ungraded."
+          if [ ! -d build/unpacked-firefox ]; then
+            echo "::error::build/unpacked-firefox does not exist — pack.mjs did not leave an unpacked Firefox tree for web-ext to lint, so the AMO package is going out ungraded."
             exit 1
           fi
           # ⚠️ EXACT, NOT `web-ext@8`. A range resolves at run time, so the
@@ -2061,7 +2107,7 @@ jobs:
           # tool the publish never ran. 8.10.0 is what `web-ext@8` resolved to
           # on 2026-08-26 (`npm view web-ext@8 version` → 8.7.0 8.7.1 8.8.0
           # 8.9.0 8.10.0), so this pin changes no behaviour today.
-          npx --yes web-ext@8.10.0 lint --source-dir dist/unpacked-firefox --warnings-as-errors
+          npx --yes web-ext@8.10.0 lint --source-dir build/unpacked-firefox --warnings-as-errors
 
       - name: Checksums
         shell: bash
@@ -2185,7 +2231,7 @@ jobs:
             exit 1
           fi
           code=0
-          out=$(node scripts/publish-amo.mjs --tool "$TOOL" --source-dir dist/unpacked-firefox 2>&1) || code=$?
+          out=$(node scripts/publish-amo.mjs --tool "$TOOL" --source-dir build/unpacked-firefox 2>&1) || code=$?
           printf '%s\n' "$out"
           if [ "$code" -ne 0 ]; then
             echo "::error::NOT PUBLISHED to Firefox Add-ons: the AMO publisher exited ${code}."
