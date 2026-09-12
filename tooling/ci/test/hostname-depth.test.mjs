@@ -149,6 +149,44 @@ describe('assert-hostname-depth — every subject can go red', () => {
   }
 });
 
+describe('assert-hostname-depth — the retired api-<app> prefix form ([ADR 080] §3)', () => {
+  // 🔴 EVERY MUTATION HERE IS ONE LABEL DEEP. If limb 2 is removed, limb 1 passes
+  // all of them — which is exactly what happened to the app template between
+  // 2026-09-11 and 2026-09-12.
+  const RED = [
+    ['a custom-domain route', withText('services/x-api/wrangler.jsonc', '"pattern": "x-api.nikatru.com"', '"pattern": "api-x.nikatru.com"'), /routes\[0\]\.pattern = .*"api-x\.nikatru\.com" uses the RETIRED PREFIX form/],
+    ['an app.yaml host', withText('apps/x/app.yaml', '  api: x-api.nikatru.com', '  api: api-x.nikatru.com'), /app\.yaml → hosts\.api = .*uses the RETIRED PREFIX form/],
+    ['the catalogue api', withJson('catalog/apps.json', (c) => { c[0].api = 'https://api-x.nikatru.com'; return c; }), /catalog\/apps\.json\[0\] → api/],
+    ['a monitored hostname', withJson('tooling/monitor-register.json', (m) => { m.hosts[0].hostname = 'api-auth.nikatru.com'; return m; }), /"api-auth\.nikatru\.com" uses the RETIRED PREFIX form/],
+    ['a host under the second zone', withJson('tooling/monitor-register.json', (m) => { m.hosts.push({ hostname: 'api-x.rajasekarselvam.com' }); return m; }), /api-<app>\.rajasekarselvam\.com/],
+  ];
+  for (const [what, mutate, names] of RED) {
+    test(`${what} in the api-<app> form exits 1 and names the file and field`, () => {
+      const { code, out } = run(tree(mutate));
+      assert.equal(code, 1, out);
+      assert.match(out, names);
+      assert.match(out, /\[ADR 080\] §3/);
+    });
+  }
+
+  // The SUFFIX form is the whole point of the rule — a limb that reddened
+  // `auth-api` too would be unusable, since that is the live sign-in host.
+  test('the suffix form passes, including a host that is nothing but the word api', () => {
+    for (const host of ['auth-api.nikatru.com', 'x-api.nikatru.com']) {
+      const { code, out } = run(tree(withJson('tooling/monitor-register.json', (m) => { m.hosts.push({ hostname: host }); return m; })));
+      assert.equal(code, 0, `${host}: ${out}`);
+    }
+  });
+
+  // `api.nikatru.com` was the pre-079 shared host. It is retired, but it is not
+  // the PREFIX form and this limb must not claim it is — a finding that names the
+  // wrong rule sends the reader to the wrong ADR.
+  test('a bare api host is not reported as the prefix form', () => {
+    const { code, out } = run(tree(withJson('tooling/monitor-register.json', (m) => { m.hosts.push({ hostname: 'api.nikatru.com' }); return m; })));
+    assert.equal(code, 0, out);
+  });
+});
+
 describe('assert-hostname-depth — COVERAGE LOST, never a pass', () => {
   const EMPTY = [
     ['no Worker config', (f) => { delete f['services/x-api/wrangler.jsonc']; return f; }, /no services\/\*\/wrangler\.json\(c\) was found/],

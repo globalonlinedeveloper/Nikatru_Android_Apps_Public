@@ -107,7 +107,7 @@ function tree(app, { backend = false, mutate = null, platform = platformConfig()
     writeFileSync(join(root, 'services', 'platform', 'src', 'index.ts'), workerEntry);
   }
 
-  const host = backend ? `https://api-${app}.nikatru.com` : 'https://platform.nikatru.com';
+  const host = backend ? `https://${app}-api.nikatru.com` : 'https://platform.nikatru.com';
   const files = {
     [join(coreDir, 'app_config.dart')]: `const String _phApiBase = '${host}';\n`,
     // Enough real source files to clear the coverage floor, as a stamped app has.

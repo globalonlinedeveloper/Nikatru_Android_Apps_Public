@@ -371,7 +371,10 @@ describe('assert-input-contract', () => {
     }));
     assert.equal(code, 1, out);
     assert.match(out, /prints a retired instruction — telling the owner to add a DNS record/);
-    assert.match(out, /\[ADR 006\] locked a proxied wildcard/);
+    // The rationale moved on 2026-09-12: [ADR 080] deleted the wildcard, and what
+    // makes the step redundant now is `custom_domain` writing the record on deploy.
+    assert.match(out, /custom_domain.*writes the record and the certificate on deploy/);
+    assert.match(out, /\[ADR 080\]/);
   });
 
   // 🔴 THE PROSE TRAP. The fixture's header comment quotes "Add DNS for <host>"

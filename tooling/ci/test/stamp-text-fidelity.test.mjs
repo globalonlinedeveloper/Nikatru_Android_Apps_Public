@@ -111,7 +111,7 @@ function tree({
     writeFileSync(p, body);
   };
 
-  const base = backend ? `https://api-${app}.nikatru.com` : 'https://platform.nikatru.com/v1';
+  const base = backend ? `https://${app}-api.nikatru.com` : 'https://platform.nikatru.com/v1';
   const j = (s) => JSON.stringify(s).slice(1, -1);
 
   const varsFile = `${app}_vars.json`;
@@ -350,7 +350,7 @@ describe('assert-stamp-text-fidelity', () => {
     const r = run(
       tree({
         mutate: ({ write, app }) =>
-          write(`apps/${app}/config/defaults.json`, `{\n  "api_base_url": "https://api-${app}.nikatru.com"\n}\n`),
+          write(`apps/${app}/config/defaults.json`, `{\n  "api_base_url": "https://${app}-api.nikatru.com"\n}\n`),
       }),
     );
     assert.equal(r.code, 1, r.out);
@@ -538,7 +538,7 @@ describe('assert-stamp-text-fidelity', () => {
       tree({
         app: 'probeapi',
         backend: true,
-        vars: { subdomain: 'probeapi.nikatru.com', api_domain: 'api-probeapi.nikatru.com' },
+        vars: { subdomain: 'probeapi.nikatru.com', api_domain: 'probeapi-api.nikatru.com' },
       }),
     );
     assert.equal(r.code, 1, r.out);
