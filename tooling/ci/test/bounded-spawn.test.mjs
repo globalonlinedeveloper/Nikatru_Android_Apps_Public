@@ -126,6 +126,34 @@ describe('bounded-spawn — the call sites', () => {
     );
   });
 
+  // ⏱ 2026-09-12 — THE SIGNING SEAMS. Eight spawns across three files ran with
+  // no wall clock: two probes (`signtool /?`, `openssl version`), the Windows
+  // verify that reaches a timestamp authority and a revocation list, the two
+  // openssl passes over a whole AppImage, and three `security` calls that can
+  // block on a keychain prompt no runner will ever answer. Each one unbounded is
+  // a cancelled job with the log stopping mid-guard and nothing naming the
+  // command — the shape that read as five separate mysteries in #616, #617,
+  // #618, #619 and on main before `flutter create` was bounded.
+  test('B7c no signing seam spawns an external tool without a wall clock', () => {
+    const SEAMS = ['windows-signing.mjs', 'apple-signing.mjs', 'appimage-signing.mjs'];
+    const offenders = [];
+    for (const f of SEAMS) {
+      const src = stripSourceComments(readFileSync(join(CI_DIR, f), 'utf8'), '.mjs');
+      src.split('\n').forEach((line, i) => {
+        if (/\bspawnSync\s*\(/.test(line)) offenders.push(`${f}:${i + 1} ${line.trim()}`);
+      });
+      assert.ok(
+        /boundedSpawn\(/.test(src),
+        `${f} no longer calls boundedSpawn — either it stopped spawning anything (re-aim this check) or the bound was removed`,
+      );
+    }
+    assert.deepEqual(
+      offenders,
+      [],
+      `these signing spawns have no bound, so a hung tool is a cancelled job with no name on it:\n${offenders.join('\n')}`,
+    );
+  });
+
   test('B7b both call sites name GH_LIST_TIMEOUT_MS, so the bound is tunable without being removable', () => {
     const named = files.filter((f) => f !== 'bounded-spawn.mjs' && readFileSync(join(CI_DIR, f), 'utf8').includes('GH_LIST_TIMEOUT_MS'));
     assert.deepEqual(named.sort(), ['assert-github-matrix.mjs', 'assert-store-matrix.mjs']);
