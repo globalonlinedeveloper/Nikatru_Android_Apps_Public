@@ -33,6 +33,7 @@
 //
 // Usage:
 //   node tooling/web/self-host-fallback-fonts.mjs <build/web dir> [--lock <file>] [--source <dir>]
+//   node tooling/web/self-host-fallback-fonts.mjs --check <build/web dir>   (grade only, no network)
 //   node tooling/web/self-host-fallback-fonts.mjs --write-lock <build/web dir> [--source <dir>] > tooling/web/fallback-fonts.lock.json
 // `--source <dir>` reads the files from a local directory laid out like the
 // upstream `/s/` tree instead of fetching them (tests; an offline mirror).
@@ -192,10 +193,11 @@ function readLock(lockPath) {
 }
 
 function parseArgs(argv) {
-  const args = { writeLock: false, dir: null, lock: DEFAULT_LOCK, source: null };
+  const args = { writeLock: false, check: false, dir: null, lock: DEFAULT_LOCK, source: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--write-lock') args.writeLock = true;
+    else if (a === '--check') args.check = true;
     else if (a === '--lock') args.lock = resolve(argv[++i]);
     else if (a === '--source') args.source = resolve(argv[++i]);
     else if (!args.dir) args.dir = resolve(a);
@@ -206,7 +208,7 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.dir) {
-    console.error('usage: self-host-fallback-fonts.mjs [--write-lock] <build/web dir> [--lock <file>] [--source <dir>]');
+    console.error('usage: self-host-fallback-fonts.mjs [--write-lock|--check] <build/web dir> [--lock <file>] [--source <dir>]');
     process.exit(2);
   }
   const lostExit = (msgs) => {
@@ -252,6 +254,25 @@ async function main() {
     console.error(`✗ self-host-fallback-fonts — ${problems.length} problem(s):`);
     for (const p of problems) console.error(`    ${p}`);
     process.exit(1);
+  }
+
+  // ── --check: THE SAME GRADING, WITHOUT THE NETWORK ─────────────────────────
+  // Everything above this line is pure: it reads the built bundle and the
+  // committed lock and decides whether the fonts step COULD do its work. Only
+  // the loop below reaches fonts.gstatic.com. A pull-request lane must be able
+  // to ask the first question without asking the second — a CI check that fails
+  // when a font CDN has a bad minute is a check that blocks the build on
+  // somebody else's uptime. So `--check` stops here, and ci.yml's app-brick job
+  // runs it against the FRESHLY STAMPED probe's own `flutter build web` output:
+  // whatever deploy-web.yml requires of a bundle, a new stamp is required to
+  // satisfy before it is ever deployed. The template's web/flutter_bootstrap.js
+  // is what makes it pass; without that file Flutter generates a default
+  // bootstrap and this exits 1.
+  if (args.check) {
+    console.log(`ok  --check: this bundle passes every grading limb of the fonts step; ${paths.length} fallback font path(s) are all in the lock`);
+    console.log(`ok  flutter_bootstrap.js passes fontFallbackBaseUrl "${FONT_FALLBACK_BASE_URL}" and useLocalCanvasKit: true; main.dart.js has no CanvasKit CDN default`);
+    console.log('--  nothing was fetched or written: --check is the deploy-time step minus its network half');
+    return;
   }
 
   const failures = [];

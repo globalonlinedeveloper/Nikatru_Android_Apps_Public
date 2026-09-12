@@ -772,7 +772,20 @@ jobs:
           flutter test
       - name: A fresh stamp really builds for web
         working-directory: apps/probe
-        run: flutter build web --pwa-strategy=none
+        run: flutter build web --pwa-strategy=none --no-web-resources-cdn
+      # 🔴 A STAMPED APP MUST SATISFY THE DEPLOY'S FONTS STEP ON THE DAY IT IS
+      # STAMPED. deploy-web.yml builds every app with --no-web-resources-cdn and
+      # then runs tooling/web/self-host-fallback-fonts.mjs, which REFUSES a bundle
+      # whose flutter_bootstrap.js does not pass fontFallbackBaseUrl. The template
+      # carried no web/flutter_bootstrap.js until 2026-09-12, so Flutter generated
+      # a default one and the next stamped app's FIRST deploy would have stopped
+      # there — after the app existed, was published in the catalogue and was
+      # expected to be live. Nothing in the tree noticed, because the node test
+      # that checks apps/*/web runs on an unstamped checkout.
+      # `--check` is the same grading with the network half removed, so this lane
+      # cannot be turned red by a font CDN having a bad minute.
+      - name: A fresh stamp satisfies the deploy's self-hosted fallback fonts step
+        run: node tooling/web/self-host-fallback-fonts.mjs --check apps/probe/build/web
       - name: Every asset the build actually shipped has a licence row
         run: node tooling/ci/assert-licence-register.mjs . --bundle apps/probe/build/web/assets
 

@@ -19,8 +19,8 @@
   ],
   "_rootsNote": "TWO roots since 2026-09-07 ([ADR 067] phase 2, unit app-shell). The Worker half of the template - 13 files, 917 lines every stamped backend app inherits - was outside this ledger entirely while `root` was one string, and `git ls-files -- <that one root>` could not see it to complain. assert-chassis-ledger.mjs is the authority on this list and cross-checks it; a row's `root` is optional and defaults to roots[0], which is why the 96 rows written against the single root are unchanged. ⏱ THE FIGURES IN THIS NOTE MOVED ON 2026-09-08 AND ARE CORRECTED RATHER THAN REWRITTEN: the Worker half is now 14 files and 1,021 lines, because the template gained src/lib/error-sink.ts — a stamped backend had NO crash sink at all and failed tooling/ci/assert-worker-error-sink.mjs on limbs 2, 3 and 5 at its first CI run. The guard PRINTS both figures per root on every run, which is the number to read; this sentence is prose and prose rots.",
   "totals": {
-    "files": 119,
-    "lines": 16909,
+    "files": 120,
+    "lines": 16949,
     "unclassified": 0,
     "unclassifiedLines": 0
   },
@@ -88,7 +88,8 @@
       "why": "⏱ 2026-09-11 — was a 94-line COPY of apps/subscriptiontracker/lib/core/format/money_format.dart held equal by nothing (deleting it left assert-no-seam-forks at exit 0). MoneyFormatter now has ONE implementation in nikatru_core, beside Money; this file and the app's are the same 7-line re-export, kept so the call sites' import path does not move. Measured: 94 -> 7 brick lines. tooling/ci/test/no-seam-forks.test.mjs refuses a second implementation anywhere under apps/ or the brick.",
       "target": "packages/core/lib/src/money/money_format.dart",
       "callSiteDelta": -87
-    },    {
+    },
+    {
       "path": "lib/core/router.dart",
       "lines": 552,
       "verdict": "STAYS",
@@ -631,6 +632,12 @@
       "lines": 103,
       "verdict": "STAYS",
       "why": "Per-app web shell: headers, manifest and entry point are app-specific by construction."
+    },
+    {
+      "path": "web/flutter_bootstrap.js",
+      "lines": 40,
+      "verdict": "STAYS",
+      "why": "Per-app web shell: Flutter's bootstrap template, and the one file that points the engine's fallback fonts at the app's own origin — deploy-web refuses a bundle without it."
     },
     {
       "path": "web/index.html",

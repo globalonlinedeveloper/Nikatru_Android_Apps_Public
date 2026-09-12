@@ -191,6 +191,36 @@ describe('self-host-fallback-fonts — the script', () => {
     assert.equal(carriesCanvasKitCdnDefault('x="https://www.gstatic.com.evil.example/flutter-canvaskit/"'), false);
   });
 
+  test('--check grades a well-formed bundle WITHOUT fetching or writing a single font', () => {
+    const fx = fixture({ sourceBytes: {} }); // the source mirror is EMPTY: any fetch attempt would fail
+    try {
+      const r = run(fx, ['--check']);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /--check: this bundle passes every grading limb/);
+      assert.match(r.out, /nothing was fetched or written/);
+      assert.equal(existsSync(join(fx.build, 'fallback-fonts')), false, '--check wrote a font directory');
+      // The control: the SAME bundle and the same empty mirror, without --check,
+      // is a failure — which is what proves --check skipped the network half
+      // rather than the mirror happening to satisfy it.
+      const full = run(fx);
+      assert.equal(full.code, 1, full.out);
+      assert.match(full.out, /not in --source/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  test('--check still REFUSES a bundle whose bootstrap does not pass fontFallbackBaseUrl', () => {
+    const fx = fixture({ boot: '_flutter.buildConfig = {"useLocalCanvasKit":true};\n_flutter.loader.load();\n' });
+    try {
+      const r = run(fx, ['--check']);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /passes fontFallbackBaseUrl null, not "fallback-fonts\/"/);
+    } finally {
+      rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
   test('path shape: a lock or bundle path can never climb out of fallback-fonts/', () => {
     assert.ok(FONT_PATH.test(ROBOTO));
     for (const bad of ['../x/v1/a.woff2', 'roboto/v32/../../etc.woff2', 'roboto/v32/.hidden.woff2', 'Roboto/v32/a.woff2', 'roboto/v32/a.js']) {
@@ -257,5 +287,54 @@ describe('the tree — the Google CDN is off the web app\'s runtime path', () =>
       total += lock.files[k].bytes;
     }
     assert.equal(lock.bytes, total);
+  });
+});
+
+describe('the APP BRICK stamps a bootstrap that satisfies the deploy', () => {
+  // ⏱ 2026-09-12. #676 made deploy-web refuse a bundle whose flutter_bootstrap.js
+  // does not pass fontFallbackBaseUrl — and the brick stamped no such file, so
+  // Flutter generated a default one and the NEXT stamped app's first deploy would
+  // have stopped at that step, after the app was published in the catalogue. The
+  // tests above scan apps/*/web on an unstamped checkout, so not one of them
+  // could see the template. These do, and ci.yml's app-brick job runs the real
+  // grading against a real stamp.
+  const BRICK_BOOT = join(REPO, 'tooling', 'bricks', 'app', '__brick__', 'apps', '{{app_id}}', 'web', 'flutter_bootstrap.js');
+  const APP_BOOT = join(REPO, 'apps', 'subscriptiontracker', 'web', 'flutter_bootstrap.js');
+  /** mason's delimiter change plus the brick-only comment it enables, exactly as
+   *  mason removes them: `{{=<% %>=}}` then one comment in the CHANGED delimiters. */
+  const BRICK_PREAMBLE = /^\{\{=<% %>=\}\}<%!(?:(?!%>)[\s\S])*%>/;
+
+  test('the template ships web/flutter_bootstrap.js at all', () => {
+    assert.ok(
+      existsSync(BRICK_BOOT),
+      'tooling/bricks/app/__brick__/apps/{{app_id}}/web/flutter_bootstrap.js is missing — Flutter would generate a default bootstrap for every stamped app and deploy-web would refuse the bundle',
+    );
+  });
+
+  test("mason leaves Flutter's two build tokens alone (a plain {{token}} would stamp as an EMPTY STRING)", () => {
+    const text = readFileSync(BRICK_BOOT, 'utf8');
+    assert.match(text, BRICK_PREAMBLE, 'the template does not open with a mustache delimiter change, so mason would render {{flutter_js}} as an undeclared variable');
+    const stamped = text.replace(BRICK_PREAMBLE, '');
+    assert.ok(stamped.includes('{{flutter_js}}'), 'the stamped bootstrap would carry no {{flutter_js}} token');
+    assert.ok(stamped.includes('{{flutter_build_config}}'), 'the stamped bootstrap would carry no {{flutter_build_config}} token');
+  });
+
+  test('what a stamp produces passes the fonts step\'s own bootstrap grading', () => {
+    const stamped = readFileSync(BRICK_BOOT, 'utf8').replace(BRICK_PREAMBLE, '');
+    assert.equal(inspectBootstrap(stamped).fontFallbackBaseUrl, FONT_FALLBACK_BASE_URL);
+  });
+
+  test('template and app do not fork: the stamped bytes are IDENTICAL to apps/subscriptiontracker/web/flutter_bootstrap.js', () => {
+    const stamped = readFileSync(BRICK_BOOT, 'utf8').replace(BRICK_PREAMBLE, '');
+    assert.equal(stamped, readFileSync(APP_BOOT, 'utf8'), 'the brick template and the app it was derived from have drifted apart');
+  });
+
+  test('ci.yml grades the STAMPED probe with the deploy step itself, on a bundle built the deploy way', () => {
+    const wf = readFileSync(join(REPO, '.github', 'workflows', 'ci.yml'), 'utf8');
+    const lines = wf.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join('\n');
+    const build = lines.indexOf('flutter build web --pwa-strategy=none --no-web-resources-cdn');
+    const check = lines.indexOf('node tooling/web/self-host-fallback-fonts.mjs --check apps/probe/build/web');
+    assert.ok(build >= 0, 'the app-brick job no longer builds the stamped probe for web the way deploy-web builds it (--no-web-resources-cdn)');
+    assert.ok(check > build, 'the app-brick job must grade the stamped probe with the fonts step AFTER building it');
   });
 });

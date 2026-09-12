@@ -98,7 +98,6 @@
     "Enforced by tooling/ci/assert-licence-register.mjs. See tooling/legal/README.md for the public/private",
     "split — nothing here is private: a licence claim with no public source is not a licence claim."
   ],
-
   "derivation": {
     "_why": [
       "Floors measured on the tree the day this file landed: 12 pubspec.yaml files, 3 declared asset files",
@@ -120,14 +119,19 @@
       "checking while still printing ok. Negative-tested on the real tree the day it moved: deleting a",
       "second brand PNG dropped the walk to 1 and assert-licence-register.mjs exited 1 on this floor."
     ],
-    "workspaceRoots": ["apps", "packages", "tooling/bricks"],
+    "workspaceRoots": [
+      "apps",
+      "packages",
+      "tooling/bricks"
+    ],
     "minPubspecs": 10,
     "minDeclaredAssets": 2,
-    "appRoots": ["apps"],
+    "appRoots": [
+      "apps"
+    ],
     "brickAppRoot": "tooling/bricks/app/__brick__/apps/{{app_id}}",
     "minApps": 2
   },
-
   "generatedBundleFiles": {
     "_why": [
       "🔴 FILES THE BUILD ITSELF EMITS INTO THE BUNDLE, WHICH ARE NOT MATERIAL WE SHIPPED FROM ANYWHERE.",
@@ -149,7 +153,6 @@
       "NOTICES": "🔴 THE ATTRIBUTION SURFACE ITSELF, not an asset needing one. Flutter concatenates the licence texts of everything linked into the build and ships them here; the framework's LicensePage reads it. It is what an `attributionRequired` row would POINT AT, so requiring it to carry its own licence row would be circular."
     }
   },
-
   "incompatibleLicences": {
     "_why": [
       "Refused outright rather than flagged. Both prefixes below are incompatible with how this factory",
@@ -165,9 +168,11 @@
       "the retraction it replaces are in this file's _readme; keep the two in step if either changes.",
       "Matched by PREFIX so version suffixes (…-4.0, …-3.0) are covered without listing them."
     ],
-    "prefixes": ["CC-BY-NC", "CC-BY-SA"]
+    "prefixes": [
+      "CC-BY-NC",
+      "CC-BY-SA"
+    ]
   },
-
   "licenceSurfaceCalls": {
     "_why": [
       "🔴 RESOLVED AS A CALL SITE, NEVER AS A GREP FOR A STRING. [3]S-2 already proved in this repository",
@@ -182,11 +187,13 @@
       "a widget test that pumps the screen and taps the tile — that is [8]INC-5, and it lives in files",
       "this change deliberately does not touch."
     ],
-    "patterns": ["AboutListTile\\s*\\(", "showLicensePage\\s*\\(", "LicenseRegistry\\.addLicense\\s*\\("]
+    "patterns": [
+      "AboutListTile\\s*\\(",
+      "showLicensePage\\s*\\(",
+      "LicenseRegistry\\.addLicense\\s*\\("
+    ]
   },
-
   "licenceSurfaceGaps": [],
-
   "assets": [
     {
       "id": "flutter-material-icons",
@@ -215,6 +222,26 @@
         "whyAttributedInIsNull": "✅ RESOLVED 2026-08-13 — IT IS NO LONGER NULL, AND IT WAS NOT RESOLVED BY RENAMING THE PROBLEM. It stayed null while nothing in the tree discharged the duty, because every candidate value then available would have been a false citation: the bundle NOTICES does not contain the text AND is a gitignored build artefact (apps/subscriptiontracker/.gitignore:33 '/build/'), so it is absent from a fresh CI checkout; the vendored licence file lives in the Flutter SDK cache, outside repoRoot. The duty is now actually discharged: packages/design_system/lib/src/licences/vendored_asset_licences.dart registers the notice via LicenseRegistry.addLicense, carrying all five §3(a)(1)(A) retentions plus the §3(a)(1)(B) modification statement, with §3(a)(2)'s URI to the legalcode. apps/subscriptiontracker/lib/main.dart calls it before runApp, so it reaches the LicensePage that settings_screen.dart already offers. It is in the CHASSIS, not the app, because the mechanism made this every stamped app's gap. ⚠️ The guard checks the path EXISTS, not that the call is wired — the test that proves the entry actually reaches LicenseRegistry lives in packages/design_system/test/vendored_asset_licences_test.dart, and without it this row would be a citation to a file that could be emptied tomorrow."
       },
       "note": "🔴 THIS ROW WAS THE REGISTER'S OWN HEADLINE EXAMPLE OF AN HONEST UNVERIFIED, AND IT WAS ALSO HIDING A LIVE BREACH. Until 2026-08-13 it read licence UNVERIFIED with attributionRequired null. `null` there does not mean 'no duty' — it means nobody decided — but on a page of `false`s it reads as 'probably nothing owed', which is how a shipped, unattributed CC BY asset sat in plain sight in the file built to catch exactly that. The lesson is narrower than 'UNVERIFIED is bad', because UNVERIFIED was the right call at the time: it is that AN UNKNOWN LICENCE IMPLIES AN UNKNOWN DUTY, and the duty field must not be allowed to rest at `null` while the licence is unread — the two unknowns compound into a confident-looking blank."
+    },
+    {
+      "id": "flutter-roboto",
+      "contentFamily": null,
+      "contentFamilyWhy": "A text font the Flutter toolchain emits into a web bundle. The content pipeline neither generates with it nor ships it inside a pack, so it is a K-10 artefact only.",
+      "path": "Roboto-Regular.ttf",
+      "bundleOnly": true,
+      "name": "Roboto (the text font the Flutter SDK vendors beside the icon font)",
+      "origin": "third-party",
+      "licence": "Apache-2.0",
+      "attributionRequired": true,
+      "attributedIn": "packages/design_system/lib/src/licences/vendored_asset_licences.dart",
+      "source": {
+        "url": "https://storage.googleapis.com/flutter_infra_release/flutter/fonts/3012db47f3130e62f7cc0beabff968a33cbec8d8/fonts.zip",
+        "fetched": "2026-09-12",
+        "note": "READ FROM THE BYTES THAT SHIP, the same discipline as the flutter-material-icons row above and the same artifact: bin/internal/material_fonts.version pins the archive at the hash in the URL, it expands to bin/cache/artifacts/material_fonts/, and `roboto_license.txt` there opens 'Apache License / Version 2.0, January 2004' verbatim (measured 2026-09-12 in the SDK cache on the build box). 🔴 TWO FONTS, ONE ARCHIVE, TWO LICENCES: `materialicons_license.txt` beside it reads 'Attribution 4.0 International'. A single row covering 'the vendored fonts' would have attributed one of them wrongly, which is why they are separate rows with separate notices."
+      },
+      "shippedIn": "MEASURED 2026-09-12, and the trigger is narrower than 'Flutter ships Roboto'. It ships in a STAMPED app's web bundle: CI's app-brick job built apps/probe on Flutter 3.47.2 with `--no-web-resources-cdn` — the flag deploy-web.yml has carried since #676 — and assert-licence-register.mjs --bundle found `Roboto-Regular.ttf` in apps/probe/build/web/assets, which is how this row came to exist. ⚠️ IT IS NOT IN THE LIVE APP: the same SDK and the same flag deployed apps/subscriptiontracker on the same day and its served bundle carries no Roboto — probed at nikatru.com/subscriptiontracker/assets/, where fonts/MaterialIcons-Regular.otf answers font/otf 11,768 B while every Roboto path answers the SPA shell (the apex router's 200-HTML for an unknown path). A local build of the app on Flutter 3.44.9 likewise emitted none.",
+      "wouldNeed": "TWO measurements this row does not claim to have made, neither of which blocks the licence claim above. (a) WHY the stamped app's bundle carries it and the shipped app's does not — same SDK, same flag, same day. The next bundle walk should print the file list rather than only the offender. (b) Whether the emitted bytes are the vendored file byte-for-byte: if a build ever re-writes the font, Apache-2.0 §4(b) adds a change-notice duty on top of §4(a) and §4(c). The notice registered in the chassis states only what this application does (nothing), which is true either way.",
+      "note": "🔴 THIS ROW IS THE PREDICTION IN packages/design_system/lib/src/licences/vendored_asset_licences.dart COMING TRUE UNPROMPTED. That file said Roboto was not registered because no Roboto bytes were distributed, and that 'if a future build ever ships Roboto, this file is where its entry belongs — and the asset register's row is what should catch it'. The bundle walk caught it, in CI, on the first build that emitted it — before any stamped app was deployed. The notice was then added where that comment said it belonged, and packages/design_system/test/vendored_asset_licences_test.dart proves it reaches LicenseRegistry rather than merely existing on disk."
     },
     {
       "id": "flutter-ink-sparkle-shader",

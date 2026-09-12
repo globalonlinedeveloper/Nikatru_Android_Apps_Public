@@ -29,21 +29,35 @@ void main() {
     debugResetVendoredAssetLicences();
   });
 
-  Future<LicenseEntry> theEntry() async {
+  /// The entry filed under [package]. ⏱ 2026-09-12: this used to be
+  /// `found.single`, because the collector yielded ONE notice. It yields two
+  /// since `Roboto-Regular.ttf` started arriving in a stamped app's web bundle
+  /// (asset-register row `flutter-roboto`), and the count is asserted rather
+  /// than tolerated — a collector that silently stops yielding one of them is
+  /// exactly the regression this file exists to catch.
+  Future<LicenseEntry> entryFor(String package) async {
     registerVendoredAssetLicences();
     final List<LicenseEntry> found = await LicenseRegistry.licenses.toList();
     expect(
       found,
-      hasLength(1),
-      reason:
-          'Expected exactly one entry from the vendored-asset collector. Zero '
-          'means registerVendoredAssetLicences() no longer reaches '
-          'LicenseRegistry.addLicense — in which case the asset register row '
-          'points at a file that discharges nothing and the CC BY condition is '
-          'unmet again, silently.',
+      hasLength(2),
+      reason: 'Expected two entries from the vendored-asset collector, one per '
+          'vendored font. Zero means registerVendoredAssetLicences() no longer '
+          'reaches LicenseRegistry.addLicense — in which case the asset '
+          'register rows point at a file that discharges nothing and both '
+          'licence conditions are unmet again, silently.',
     );
-    return found.single;
+    return found.firstWhere(
+      (LicenseEntry e) => e.packages.contains(package),
+      orElse: () => throw StateError(
+        'No entry is filed under "$package". The notices present are: '
+        '${found.map((LicenseEntry e) => e.packages.join('+')).join(', ')}.',
+      ),
+    );
   }
+
+  Future<LicenseEntry> theEntry() => entryFor('flutter-material-icons');
+  Future<LicenseEntry> theRobotoEntry() => entryFor('flutter-roboto');
 
   String textOf(LicenseEntry e) =>
       e.paragraphs.map((LicenseParagraph p) => p.text).join('\n');
@@ -124,6 +138,59 @@ void main() {
     );
   });
 
+  group('Apache-2.0 — the Roboto the SDK vendors, a DIFFERENT licence', () {
+    // ⏱ 2026-09-12. `assert-licence-register.mjs --bundle` failed the app-brick
+    // job on `Roboto-Regular.ttf ships … and has NO row`: the stamped probe,
+    // built on Flutter 3.47.2 with --no-web-resources-cdn, emits the font. The
+    // licence is read from the bytes the SDK vendors (roboto_license.txt in
+    // material_fonts/, "Apache License / Version 2.0"), NOT from the icon font
+    // beside it in the same artifact, which is CC BY 4.0.
+
+    test('the entry is filed under the package name the register names',
+        () async {
+      expect((await theRobotoEntry()).packages, contains('flutter-roboto'));
+    });
+
+    test('§4(c) — the creator and the copyright notice are retained', () async {
+      final String t = textOf(await theRobotoEntry());
+      expect(t, contains('Google'));
+      expect(t, contains('Copyright'));
+    });
+
+    test('§4(a) — recipients are given the License, and where to obtain it',
+        () async {
+      final String t = textOf(await theRobotoEntry());
+      expect(t, contains('Apache License, Version 2.0'));
+      expect(t, contains('apache.org/licenses/LICENSE-2.0'));
+    });
+
+    test('§7/§8 — the warranty disclaimer is carried', () async {
+      final String t = textOf(await theRobotoEntry());
+      expect(t, contains('AS IS'));
+      expect(t, contains('WITHOUT'));
+    });
+
+    test('§4(b) — the change notice says what we did, which is nothing',
+        () async {
+      expect(textOf(await theRobotoEntry()), contains('MODIFICATIONS'));
+    });
+
+    test('the two notices are NOT the same licence, and cannot be merged',
+        () async {
+      final String roboto = textOf(await theRobotoEntry());
+      final String icons = textOf(await theEntry());
+      expect(
+        roboto.contains('Creative Commons'),
+        isFalse,
+        reason:
+            'Roboto is Apache-2.0. A CC BY notice on it would attribute the '
+            'wrong licence to shipped bytes, which is worse than no notice '
+            'because it reads as a discharged duty.',
+      );
+      expect(icons.contains('Apache License, Version 2.0'), isFalse);
+    });
+  });
+
   test('registration is IDEMPOTENT — a second call adds no duplicate',
       () async {
     registerVendoredAssetLicences();
@@ -132,11 +199,12 @@ void main() {
     final List<LicenseEntry> found = await LicenseRegistry.licenses.toList();
     expect(
       found,
-      hasLength(1),
+      hasLength(2),
       reason:
-          'Three calls produced ${found.length} entries. The stamped chassis and '
-          'the app can both call this; without the latch the LicensePage shows '
-          'the same notice once per caller, which reads as a bug in the app.',
+          'Three calls produced ${found.length} entries against the two the '
+          'collector yields. The stamped chassis and the app can both call '
+          'this; without the latch the LicensePage shows the same notices once '
+          'per caller, which reads as a bug in the app.',
     );
     expect(vendoredAssetLicencesRegistered, isTrue);
   });
