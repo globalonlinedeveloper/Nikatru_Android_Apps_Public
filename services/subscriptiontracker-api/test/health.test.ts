@@ -9,14 +9,15 @@
 // is this Worker's own and is asserted separately, which is the half a shared
 // module cannot cover.
 //
-// 🔴 THE FINDING THIS FILE RECORDS RATHER THAN FIXES. GlitchTip monitor id 2
-// (`Subscription Tracker API health`, tooling/monitor-register.json) asserts `expectedStatus:
-// 200` and NO `expectedBody`. So an honest `ok:false` from this Worker still
-// leaves that monitor GREEN — the deploy smoke catches it, the 60-second monitor
-// does not. That is asserted below as a live property of the register, so the
-// day somebody adds the body assertion this test tells them the gap closed.
-// Fixing it means editing tooling/monitor-register.json and the live GlitchTip
-// monitor, neither of which is this Worker's source.
+// ⏱ 2026-09-12 — THE FINDING THIS FILE USED TO RECORD IS CLOSED, and the
+// assertion at the bottom turned over with it rather than being deleted.
+// GlitchTip monitor id 2 (`Subscription Tracker API health`,
+// tooling/monitor-register.json) asserted `expectedStatus: 200` and NO
+// `expectedBody`, so an honest `ok:false` from this Worker — which is what the
+// cases above prove it now emits, under an unchanged HTTP 200 — left that
+// monitor GREEN: the deploy smoke caught it, the 60-second monitor did not.
+// The monitor now asserts the body `"ok":true`, live and in the register, so
+// the bottom `describe` asserts THAT and goes red if either half is withdrawn.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { judge, judgeOk } from '../../../tooling/ops/post-deploy-smoke.mjs';
@@ -297,8 +298,8 @@ describe('the cache carries its AGE', () => {
   });
 });
 
-describe('🔴 THE MONITOR GAP THIS CHANGE CANNOT CLOSE FROM HERE', () => {
-  it('monitor id 2 asserts STATUS ONLY, so an honest ok:false leaves it green', async () => {
+describe('THE MONITOR READS THE BODY, so an honest ok:false turns it red', () => {
+  it('monitor id 2 asserts the body "ok":true, not the status alone', async () => {
     const register = JSON.parse(monitorRegisterRaw) as {
       hosts?: Array<{ hostname?: string; monitor?: Record<string, unknown> }>;
     };
@@ -312,14 +313,18 @@ describe('🔴 THE MONITOR GAP THIS CHANGE CANNOT CLOSE FROM HERE', () => {
     expect(monitor.path).toBe('/v1/health');
     expect(monitor.expectedStatus).toBe(200);
 
-    // THE GAP, ASSERTED AS A FACT. This Worker now answers 200 + ok:false when a
-    // dependency is down (proved above), and this monitor never reads the body —
-    // so it cannot see that. The day an `expectedBody` is added, this line goes
-    // red and the comment at the top of this file should be deleted with it.
-    expect(monitor.expectedBody).toBeUndefined();
+    // THE CLOSED GAP, ASSERTED AS A FACT. This Worker answers 200 + ok:false when
+    // a dependency is down (proved above), so a status-only monitor could not see
+    // a single one of those cases. The matcher is nine characters with NO space
+    // after the colon — a near-miss such as `"ok": true` matches nothing this
+    // Worker emits and would be silently permissive, which is the whole subject.
+    // Withdrawing it from the register (or from the live monitor, which
+    // tooling/ops/verify-monitors.mjs compares this value against on every
+    // scheduled run) turns this line red.
+    expect(monitor.expectedBody).toBe('"ok":true');
 
-    // And the contrast that shows the fix is only a register change away:
-    // platform's monitor DOES assert the body, over the same response shape.
+    // And the twin that has asserted the same body over the same response shape
+    // since 2026-08-05: platform's monitor, id 11.
     const platform = hosts.find((h) => h.hostname === 'platform.nikatru.com');
     expect(platform?.monitor?.expectedBody).toBe('"ok":true');
   });

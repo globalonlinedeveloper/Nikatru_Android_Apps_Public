@@ -355,9 +355,10 @@
             "the PUT. Merging the first without the second is the state this red is warning about, not a",
             "false alarm to be waited out.",
             "",
-            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. subscriptiontracker-api.nikatru.com's `🔴 openBodyGap` block below",
-            "shows the other move: WITHDRAW the assertion into a gap block so the declared-body limb has",
-            "nothing to compare and the scheduled job stays green. That is right when the register would",
+            "⚠️ THE ALTERNATIVE WAS CONSIDERED AND REFUSED. subscriptiontracker-api.nikatru.com carried a",
+            "`🔴 openBodyGap` block until 2026-09-12, when its matcher landed live (git history holds the",
+            "block). It showed the other move: WITHDRAW the assertion into a gap block so the declared-body",
+            "limb has nothing to compare and the scheduled job stays green. That is right when the register would",
             "otherwise claim MORE coverage than exists. Here it would claim LESS than the truth in the",
             "direction that hides a fault: the old body `<base href=\"/\">` is what a build published at the",
             "OLD address serves, so a withdrawn assertion plus a shipped migration is a monitor that stays",
@@ -447,30 +448,7 @@
       "hostname": "subscriptiontracker-api.nikatru.com",
       "what": "the subscriptiontracker-api Worker",
       "derivedFrom": "appCatalogue",
-      "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "intervalSeconds": 60, "verifiedOn": "2026-09-11" },
-      "🔴 openBodyGap": {
-        "why": "MONITOR 2 STAYS GREEN THROUGH EVERY FAULT PR #384 MADE DETECTABLE — it asserts `expectedStatus` 200 and NO body, while `/v1/health` deliberately answers 200 even when `ok` is false — so the matcher this row will carry, \"ok\":true, is knowingly NOT declared in `monitor` above until the live GlitchTip PUT lands, because tooling/ops/verify-monitors.mjs compares DECLARED bodies only and a register-only assertion makes it exit 1 inside the SCHEDULED `glitchtip` job at .github/workflows/ops-watch.yml:235, which opens the portfolio's never-auto-closed durable alert issue.",
-        "openedOn": "2026-08-26",
-        "measuredNotAssumed": "Reconciled 2026-08-26 against a local stand-in serving monitor 2 with an empty live `expectedBody` and every other monitor as recorded: verify-monitors.mjs printed six `ok` rows, then `✗ api.nikatru.com — monitor id 2 declares expectedBody ... and the live monitor carries (none)`, and exited 1. That exit 1 is what reaches the `alert` job. No live instance was contacted and nothing was authenticated to produce this.",
-        "soThisRowIsNotAWaiver": "The row declares no `expectedBody`, so it claims no coverage it does not have; this block states the missing coverage rather than dropping it. Same discipline as `monitor: null` elsewhere in this file — written down and printed, not silenced, and not failing a build over work that is not a change to this repository.",
-        "⚠️ theReconcileIsNotSILENCED": "Nothing was added to an ignore list and no check was weakened. The declared-body limb is DECLARED-ONLY by design (tooling/ops/verify-monitors.mjs:179-190) precisely so a row may decline to assert; withdrawing the claim USES that design rather than blunting it, and the limb still guards monitors 3, 4, 5, 11 and 12 on every scheduled run. The moment the PUT lands and `expectedBody` returns to `monitor` above, it guards this row too.",
-        "theLiveChangeThatClosesThis": {
-          "ownerAction": true,
-          "whyOwner": "A write to a live third-party instance, not a repository change. ⚠️ AND NOTE THIS FILE'S OWN WARNING at `🔴 whyItStayedOpen` under platform.nikatru.com: 'owner action' here is a claim needing evidence, not a category — the GlitchTip API demonstrably takes GLITCHTIP_TOKEN and mutates monitors. What gates THIS one is blast radius, not capability: tooling/channel-register.json:813 records that on 2026-08-11 echoing a monitor's own representation back through this full-replace PUT detached all nine monitors from their projects — from every alert recipient — under nine consecutive HTTP 200s ([ADR 043], amended).",
-          "method": "PUT",
-          "endpoint": "https://glitchtip.nikatru.com/api/0/organizations/nikatru/monitors/2/",
-          "field": "expectedBody",
-          "value": "\"ok\":true",
-          "🔴 fullReplace": "PUT IS A FULL REPLACE. Re-send every existing field unchanged alongside this one — name, url, monitorType, expectedStatus, interval, timeout, confirmationThreshold AND project — exactly as monitors 3, 4 and 5 were converted on 2026-08-11, then diff the read-back. Omitting `project` is what silently disarms the alert chain under a 200.",
-          "readBackWith": "GLITCHTIP_TOKEN=… node tooling/ops/verify-monitors.mjs — exit 0 is the proof. Then, in ONE commit, delete this whole `🔴 openBodyGap` block and restore the `expectedBody` field to the `monitor` object above with the value recorded here.",
-          "matcherProvenance": "The value above is byte-for-byte identical to monitor 11's live, verified string on the same `/v1/health` shape — codepoints [34,111,107,34,58,116,114,117,101] for both, nine characters, NO space after the colon. A near-miss such as a space after the colon would be silently permissive, which is this wave's entire subject."
-        },
-        "📌 mustLandWithTheLiveChange": [
-          "services/subscriptiontracker-api/test/health.test.ts (branch fix/health-that-can-fail, PR #384) — asserts monitor 2's BODY-LESS state as a LIVE FACT, and goes stale the moment the PUT lands.",
-          "services/subscriptiontracker-api/src/index.ts — restates the same claim in the `/v1/health` header comment, and goes stale with it.",
-          "Both going stale is BY DESIGN — the note deletes itself when the gap closes — but they must land together with the PUT, or the tree asserts two contradictory things about one live monitor. Neither file belongs to the writer of this register."
-        ]
-      }
+      "monitor": { "id": 2, "name": "Subscription Tracker API health", "type": "GET", "path": "/v1/health", "expectedStatus": 200, "expectedBody": "\"ok\":true", "intervalSeconds": 60, "verifiedOn": "2026-09-12" }
     },
     {
       "hostname": "glitchtip.nikatru.com",
@@ -657,8 +635,9 @@
         "",
         "⚠️ SO NOTHING WAS DECLARED IN ITS PLACE, and that is the point of writing this down instead. No",
         "row above carries an `sslMonitor` field, because a row claiming a check nobody is running is the",
-        "same defect as a check that cannot see a fault, pointed the other way — the rule the",
-        "`🔴 openBodyGap` block on subscriptiontracker-api.nikatru.com already applies to a body matcher."
+        "same defect as a check that cannot see a fault, pointed the other way — the rule",
+        "subscriptiontracker-api.nikatru.com's `🔴 openBodyGap` block applied to a body matcher until that",
+        "matcher landed live on 2026-09-12 and the block was deleted with it."
       ],
       "ownerChecklist": {
         "whyOwner": "NOT capability — creating monitors through the API is proven agent work (2026-08-05, and again for monitor 17 on 2026-09-03), and this file's own `🔴 whyItStayedOpen` warns that 'owner action' is a claim needing evidence rather than a category. What is owner work is the step that has to come FIRST: finding out why the SSL check path returns down in 0 ms with a null reason. That is a container log on a host this repository cannot reach.",

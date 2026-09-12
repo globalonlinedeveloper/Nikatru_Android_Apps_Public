@@ -75,14 +75,15 @@ app.use('*', corsMiddleware);
 // "deployed and unwell" indistinguishable from "not deployed yet", which is the
 // one distinction `--require-ok` exists to draw.
 //
-// 🔴 A FINDING THIS CHANGE CANNOT FIX FROM HERE. GlitchTip monitor 11 asserts
-// platform's body (`expectedBody: "\"ok\":true\"`), so platform's honest `ok`
-// reaches a monitor. THIS Worker's monitor — id 2, `Subscription Tracker API health` in
-// tooling/monitor-register.json — asserts `expectedStatus: 200` and NO body. So
-// an `ok:false` here still leaves that monitor green. The deploy smoke catches
-// it; the 60-second monitor does not. Closing that needs an `expectedBody` on
-// monitor 2, which is a change to tooling/monitor-register.json and to the live
-// GlitchTip monitor — neither of them this Worker's source.
+// ⏱ 2026-09-12 — AND A MONITOR NOW READS THAT `ok`. GlitchTip monitor 11 has
+// asserted platform's body (`expectedBody: "\"ok\":true\"`) since 2026-08-05;
+// THIS Worker's monitor — id 2, `Subscription Tracker API health` in
+// tooling/monitor-register.json — asserted `expectedStatus: 200` and NO body
+// until today, so every fault the three-state health check made honest still
+// left it green: the deploy smoke caught them, the 60-second monitor did not.
+// Monitor 2 now carries the same nine-character matcher, live and in the
+// register, and tooling/ops/verify-monitors.mjs compares the two on every
+// scheduled run. `services/subscriptiontracker-api/test/health.test.ts` asserts it.
 //
 // ── WHY THESE THREE DEPENDENCIES ─────────────────────────────────────────────
 //   APP_DB         Subly's own data. Every /v1/subscriptions and /v1/budget
