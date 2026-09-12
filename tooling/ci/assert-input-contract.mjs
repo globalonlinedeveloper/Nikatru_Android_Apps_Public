@@ -380,8 +380,16 @@ if (scanned === 0) {
 // "Add DNS for <host>", which [ADR 006] had already made unnecessary by locking
 // a proxied wildcard `*.nikatru.com`. Following it meant creating a record that
 // already resolved — and, worse, it NAMED THE WRONG CAUSE. A stamped host that
-// nothing is attached to answers 522, never NXDOMAIN, so an owner debugging a
+// nothing is attached to answered 522, never NXDOMAIN, so an owner debugging a
 // dark app was pointed at DNS, the one layer that was already working.
+//
+// ⏱ 2026-09-12: [ADR 080] §4 deleted that wildcard. THE RULE SURVIVES ITS
+// ORIGINAL REASON, on a better one: a stamped Worker route carries
+// `custom_domain: true`, which writes the record and the certificate on deploy,
+// and a web deployment binds its own host — so there is still nothing for the
+// owner to create. What changed is the symptom: an unattached host is now
+// NXDOMAIN. A step that says "add DNS" would now be followed by a record that
+// the next deploy fights over, which is worse than redundant.
 //
 // Re-measured 2026-08-01 over DNS-over-HTTPS, because the system resolver has no
 // egress from this environment (`ECONNREFUSED` for every name including a
@@ -398,9 +406,11 @@ const RETIRED_INSTRUCTIONS = [
   {
     pattern: /\badd\s+dns\b/i,
     what: 'telling the owner to add a DNS record',
-    why: '[ADR 006] locked a proxied wildcard `*.nikatru.com`, so a stamped app needs ZERO new DNS. '
-      + 'The step is not merely redundant — it points at the wrong layer: an unattached host resolves '
-      + 'fine and answers 522. Say what is actually missing (attachment), not what already works.',
+    why: 'A stamped app needs ZERO hand-made DNS: the Worker route carries `custom_domain: true`, which '
+      + 'writes the record and the certificate on deploy, and the web deployment binds its own host. '
+      + '(Until [ADR 080] the reason was [ADR 006] proxied wildcard `*.nikatru.com`; that record is gone, '
+      + 'so an unattached host is NXDOMAIN rather than 522.) Say what is actually missing (attachment), '
+      + 'not what the deploy already does.',
   },
 ];
 

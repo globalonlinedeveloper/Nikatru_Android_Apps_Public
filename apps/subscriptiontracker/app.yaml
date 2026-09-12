@@ -97,8 +97,11 @@ category: Productivity
 # sites/nikatru, and the pull request for the sequencing.
 status: live
 
-# No DNS record is needed for either host: [ADR 006] locked a proxied wildcard
-# *.nikatru.com. What a new host needs is ATTACHMENT, not a record.
+# No DNS record is created BY HAND for either host: the API host is bound by the
+# Worker deploy (`custom_domain: true` writes the record and the certificate) and
+# the web origin by its own project. What a host needs is ATTACHMENT, not a
+# record. [ADR 006]'s proxied wildcard *.nikatru.com was the old reason; [ADR 080]
+# section 4 deleted it on 2026-09-12, so an unattached host is now NXDOMAIN.
 hosts:
   # [ADR 079] `subly.nikatru.com` was DELETED on 2026-09-11 (owner: "Rename all,
   # remove redirects too"), so it is no longer this app's origin host. The app's

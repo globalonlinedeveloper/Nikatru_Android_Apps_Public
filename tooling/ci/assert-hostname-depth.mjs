@@ -126,6 +126,24 @@ function check(subject, where, field, value) {
           `the zone's Universal certificate covers nothing deeper.`,
       );
     }
+    // ── limb 2 · THE RETIRED PREFIX FORM ───────────────────────────────
+    // 🔴 DEPTH CANNOT SEE THIS ONE, AND THAT COST A DAY. `api-myapp.nikatru.com`
+    // ([ADR 006]) and `myapp-api.nikatru.com` ([ADR 080] §3) are BOTH exactly one
+    // label deep, so the limb above grades them identically. [ADR 080] landed on
+    // 2026-09-11 and the app template went on stamping the retired form — pre_gen
+    // validated it, post_gen printed it, the stamped Worker routed on it and
+    // assert-stamp-text-fidelity.mjs expected it — with every check in this tree
+    // green, because the only thing wrong is the order of two words. Measured
+    // 2026-09-12 and fixed in the change that added this limb. The app id comes
+    // FIRST so that every host an app owns sorts together under its own name.
+    if (g.depth === 1 && /^api-[a-z0-9]/.test(host)) {
+      findings.push(
+        `${where} → ${field} = ${JSON.stringify(value)}: "${host}" uses the RETIRED PREFIX form. ` +
+          `[ADR 080] §3: an app's API host is <app>-api.${g.zone} (the app id first), never ` +
+          `api-<app>.${g.zone} — [ADR 006]'s prefix form was retired on 2026-09-11, and ` +
+          `api-auth.${g.zone} went with it.`,
+      );
+    }
   }
 }
 const floor = (subject, why) => {
@@ -241,9 +259,12 @@ floor('csp', 'no Content-Security-Policy line names a NIKATRU hostname, so no CS
 // ── verdict ──────────────────────────────────────────────────────────────────
 const summary = [...read.entries()].map(([k, v]) => `${k} ${v}`).join(' · ');
 if (findings.length > 0) {
-  console.error(`✗ ${findings.length} declared hostname(s) are deeper than one label under a NIKATRU zone:`);
+  console.error(`✗ ${findings.length} declared hostname(s) break [ADR 080]:`);
   for (const f of findings) console.error(`    ${f}`);
   console.error(`  graded: ${summary}; zones: ${ZONES.join(', ')}`);
   process.exit(1);
 }
-console.log(`✓ every declared NIKATRU hostname is the apex or one label deep (${ZONES.join(', ')}). graded: ${summary}`);
+console.log(
+  `✓ every declared NIKATRU hostname is the apex or one label deep, and none uses the retired api-<app> form ` +
+    `(${ZONES.join(', ')}). graded: ${summary}`,
+);

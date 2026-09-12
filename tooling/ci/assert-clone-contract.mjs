@@ -303,7 +303,7 @@ if (clientApp) {
       fail(`apps/${clientApp}/lib/core/app_config.dart missing or has no _phApiBase`);
     } else if (apiBaseHost(line) !== 'platform.nikatru.com') {
       fail(`_phApiBase is not the shared platform Worker: ${line.trim()}`);
-    } else if (line.includes(`api-${clientApp}`)) {
+    } else if (line.includes(`${clientApp}-api`)) {
       fail(`_phApiBase still carries a per-app API host: ${line.trim()}`);
     } else {
       ok('_phApiBase points at the shared platform Worker');
@@ -358,7 +358,7 @@ if (backendApp) {
   const line = apiBaseLine(backendApp);
   if (line === null) {
     fail(`apps/${backendApp}/lib/core/app_config.dart missing or has no _phApiBase`);
-  } else if (!line.includes(`api-${backendApp}`)) {
+  } else if (!line.includes(`${backendApp}-api`)) {
     fail(`_phApiBase is not this app's own API host: ${line.trim()}`);
   } else if (line.includes('platform.nikatru.com')) {
     fail(`_phApiBase rendered the client-only branch: ${line.trim()}`);

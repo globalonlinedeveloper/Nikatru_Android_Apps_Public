@@ -361,7 +361,7 @@ if (escaped.length) {
 
 // ── 2 · a blank optional var was DERIVED, not interpolated as nothing ────────
 const expectedSub = `${appId}.nikatru.com`;
-const expectedApiHost = `api-${appId}.nikatru.com`;
+const expectedApiHost = `${appId}-api.nikatru.com`;
 const expectedBase = needsBackend ? `https://${expectedApiHost}` : 'https://platform.nikatru.com/v1';
 /** The shape the defect produced: a scheme with no authority. */
 const EMPTY_URL = /^https?:\/\/\s*$/;

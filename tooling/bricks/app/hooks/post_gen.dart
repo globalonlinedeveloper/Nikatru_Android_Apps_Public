@@ -133,7 +133,7 @@ void run(HookContext context) {
     displayName: (v['short_name'] ?? displayName).toString(),
   );
 
-  final apiHost = apiDomain.isEmpty ? 'api-$id.nikatru.com' : apiDomain;
+  final apiHost = apiDomain.isEmpty ? '$id-api.nikatru.com' : apiDomain;
 
   context.logger.info('');
   if (needsBackend) {
@@ -215,20 +215,24 @@ void run(HookContext context) {
         'exposure — and strip the surrounding quotes. [pipeline S-12])',
       )
       // [pipeline S-1r] (absent from the frozen pipeline origin lock by construction — S-1r is a residual of S-1, raised by Private/pre-minimal-2026-09-08:plans/03-stamper-plan.md after that lock was taken; the lock file is not named here because this file's own phantom-filename limb requires every `*.json` it mentions to exist in the tree) NOT "add DNS". [ADR 006] locked a proxied wildcard
-      // `*.nikatru.com`, so a stamped app needs ZERO new DNS — and the old step
-      // sent the owner to create a record that already resolves, while the thing
-      // actually keeping the app dark went unnamed. Re-measured 2026-08-01 over
-      // DNS-over-HTTPS (the system resolver has no egress here): four random
-      // labels under nikatru.com all returned the same Cloudflare addresses,
-      // while the same labels under two control domains returned no A record at
-      // all — so the wildcard is answering, not the resolver being permissive.
-      // An unattached host then answers 522, never NXDOMAIN, which is why "it
-      // resolves" is not the question worth asking.
+      // `*.nikatru.com`, so a stamped app needed ZERO new DNS, and the old step
+      // sent the owner to create a record that already resolved while the thing
+      // actually keeping the app dark went unnamed.
+      //
+      // ⏱ 2026-09-12 — THE STEP IS STILL WRONG, THE REASON IS NOT. [ADR 080] §4
+      // DELETED that wildcard, so unregistered names no longer resolve at all.
+      // What binds the API host now is this Worker's own `custom_domain: true`
+      // route, which writes the DNS record AND the certificate on the first
+      // deploy; the web host is bound by its deployment the same way. So there is
+      // still nothing to create by hand — but the debugging consequence INVERTED:
+      // an unattached host is now NXDOMAIN, and the old reasoning "it resolves, so
+      // DNS is not the problem" no longer holds for anything.
       ..info(
-        '  3. NO DNS RECORD IS NEEDED — the wildcard *.nikatru.com already '
-        'resolves $webHost and $apiHost ([ADR 006]). ATTACHMENT is what is '
-        'missing: bind $webHost to the app\'s deployment and $apiHost to this '
-        'Worker\'s routes, or both answer 522 while resolving perfectly.',
+        '  3. NO DNS RECORD TO CREATE BY HAND — ATTACHMENT is the step. '
+        'Deploying this Worker binds $apiHost itself (custom_domain writes the '
+        'record and the certificate); the web deployment binds $webHost. Until '
+        'each is attached the name is NXDOMAIN — [ADR 080] deleted the wildcard '
+        '*.nikatru.com that used to make every name answer 522.',
       )
       ..info(
         '  4. REQUIRED for the web build: add "https://$webHost" to '
@@ -338,13 +342,15 @@ void run(HookContext context) {
         'build-platforms.yml ever finds out.',
       )
       // [pipeline S-1r] (absent from the frozen pipeline origin lock by construction — S-1r is a residual id, never a pipeline heading) Same correction as the backend branch above — see the
-      // note there for the measurement. The wildcard makes this a NON-step; the
-      // real one is attachment, and saying "add DNS" hid it.
+      // note there for the measurement and for the 2026-09-12 correction. DNS is
+      // a NON-step either way; the real one is attachment, and saying "add DNS"
+      // hid it.
       ..info(
-        '  2. NO DNS RECORD IS NEEDED — the wildcard *.nikatru.com already '
-        'resolves $webHost ([ADR 006]); ATTACH it to the deployment or it '
-        'answers 522 while resolving perfectly. No API host and no D1 '
-        'database are needed — this app uses the shared platform Worker.',
+        '  2. NO DNS RECORD TO CREATE BY HAND — ATTACH $webHost to the '
+        'deployment and the attachment writes the record. Until then the name is '
+        'NXDOMAIN ([ADR 080] deleted the wildcard *.nikatru.com that used to make '
+        'every name answer 522). No API host and no D1 database are needed — '
+        'this app uses the shared platform Worker.',
       )
       ..info(
         '  3. REQUIRED for the web build: add "https://$webHost" to '

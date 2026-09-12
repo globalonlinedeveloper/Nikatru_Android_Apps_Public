@@ -85,7 +85,7 @@
   "guards-refuse-empty.test.mjs": 17,
   "guards.test.mjs": 392,
   "heartbeats.test.mjs": 69,
-  "hostname-depth.test.mjs": 4,
+  "hostname-depth.test.mjs": 7,
   "indexnow-ping.test.mjs": 11,
   "input-contract.test.mjs": 29,
   "install-pinned-tool.test.mjs": 11,

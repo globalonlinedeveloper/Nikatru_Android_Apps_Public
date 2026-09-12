@@ -150,9 +150,9 @@ void run(HookContext context) {
   final String apiDomain = v('api_domain');
   if (appIdValid &&
       apiDomain.isNotEmpty &&
-      apiDomain != 'api-$appId.nikatru.com') {
+      apiDomain != '$appId-api.nikatru.com') {
     problems.add(
-      'api_domain must be "api-$appId.nikatru.com" or empty to derive — got '
+      'api_domain must be "$appId-api.nikatru.com" or empty to derive — got '
       '"$apiDomain".',
     );
   }
@@ -459,11 +459,17 @@ void run(HookContext context) {
   // here reaches every consumer.
   vars['subdomain'] = subdomain.isEmpty ? '$appId.nikatru.com' : subdomain;
   // A client-only app has NO API host of its own, so this stays empty on
-  // purpose — deriving `api-<id>.nikatru.com` would stamp a hostname that will
+  // purpose — deriving `<id>-api.nikatru.com` would stamp a hostname that will
   // never resolve. `api_base_url` below is what such an app actually calls.
+  // 🔴 THE SHAPE IS `<id>-api`, NOT `api-<id>`. [ADR 080] §3 retired [ADR 006]'s
+  // prefix form on 2026-09-11 so that every host an app owns sorts together;
+  // the live one is `subscriptiontracker-api.nikatru.com`. Both forms are one
+  // label deep, so assert-hostname-depth.mjs could not tell them apart until
+  // its second limb was added — this template stamped the retired form for a
+  // day and nothing went red.
   final String resolvedApiDomain = !needsBackend
       ? ''
-      : (apiDomain.isEmpty ? 'api-$appId.nikatru.com' : apiDomain);
+      : (apiDomain.isEmpty ? '$appId-api.nikatru.com' : apiDomain);
   vars['api_domain'] = resolvedApiDomain;
   vars['api_base_url'] = needsBackend
       ? 'https://$resolvedApiDomain'

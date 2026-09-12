@@ -44,13 +44,13 @@
       "enum": ["preview", "live"]
     },
     "hosts": {
-      "description": "The app's own hosts, WITHOUT a scheme — the scheme is added by the renderer so that a catalogue row cannot carry http:// by a typo. [ADR 006] locked a proxied wildcard *.nikatru.com, so a host here needs no DNS record.",
+      "description": "The app's own hosts, WITHOUT a scheme — the scheme is added by the renderer so that a catalogue row cannot carry http:// by a typo. A host here needs no HAND-MADE DNS record: a Worker route with custom_domain, or the web deployment, writes it. [ADR 006]'s proxied wildcard *.nikatru.com was the old reason and [ADR 080] section 4 deleted it on 2026-09-12.",
       "type": "object",
       "additionalProperties": false,
       "required": ["web"],
       "properties": {
         "web": {
-          "description": "The app's OWN ORIGIN host, e.g. subscriptiontracker-7qg.pages.dev. This is NOT the address the app is published at. Since [ADR 075] the published address is a PATH on the apex (https://nikatru.com/<id>), because a subdomain costs a payment-provider submission per app and a path costs nothing on either provider; this host survives as the origin the apex router proxies to, and as the source of the permanent 301. It is still covered by [ADR 006]'s proxied wildcard, so it still needs no DNS record.",
+          "description": "The app's OWN ORIGIN host, e.g. subscriptiontracker-7qg.pages.dev. This is NOT the address the app is published at. Since [ADR 075] the published address is a PATH on the apex (https://nikatru.com/<id>), because a subdomain costs a payment-provider submission per app and a path costs nothing on either provider; this host survives as the origin the apex router proxies to, and as the source of the permanent 301. It needs no hand-made DNS record \u2014 the deployment binds it. ([ADR 006]'s proxied wildcard, which used to cover it, was deleted by [ADR 080] section 4 on 2026-09-12.)",
           "type": "string",
           "format": "hostname"
         },

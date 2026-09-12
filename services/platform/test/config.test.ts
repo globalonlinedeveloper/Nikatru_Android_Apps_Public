@@ -247,12 +247,12 @@ describe('the served app set comes from the catalogue, not from this Worker', ()
   });
 
   it('an app WITH its own api host is served that host, versioned', () => {
-    const reg = buildRegistry([{ slug: 'withapi', api: 'https://api-withapi.nikatru.com' }], configData);
-    expect(reg.withapi.api_base_url).toBe('https://api-withapi.nikatru.com/v1');
+    const reg = buildRegistry([{ slug: 'withapi', api: 'https://withapi-api.nikatru.com' }], configData);
+    expect(reg.withapi.api_base_url).toBe('https://withapi-api.nikatru.com/v1');
     // A trailing slash in the catalogue must not produce a double slash — the
     // catalogue is a public document edited by hand as well as by the stamp.
-    const reg2 = buildRegistry([{ slug: 'withapi', api: 'https://api-withapi.nikatru.com/' }], configData);
-    expect(reg2.withapi.api_base_url).toBe('https://api-withapi.nikatru.com/v1');
+    const reg2 = buildRegistry([{ slug: 'withapi', api: 'https://withapi-api.nikatru.com/' }], configData);
+    expect(reg2.withapi.api_base_url).toBe('https://withapi-api.nikatru.com/v1');
   });
 
   it('subscriptiontracker is served BYTE-IDENTICALLY to the literal this replaced', () => {
