@@ -24,31 +24,48 @@
 // the one no third party provides.
 //
 // ── WHAT THIS SCRIPT WILL AND WILL NOT DO ────────────────────────────────────
+//
+// 🔴 CORRECTED 2026-09-12. Everything in this block said `--submit` REFUSES with
+// `UNVERIFIED: <what>`, and that "NOTHING HERE IS LIVE AND NOTHING HERE CAN BE".
+// Both were true when they were written and both had been FALSE since #627
+// (7a102b78), which fetched the Partner Center endpoints from primary sources,
+// cited each one, and built the real submit path at `submitPath()` below. A
+// header that says a script cannot ship is the most expensive kind of stale
+// comment: it is the sentence a reader checks BEFORE deciding how carefully to
+// read the rest, and this repository's own doctrine is that a wrong claim about
+// a file's subject is that subject one level up. The paragraphs are corrected
+// rather than deleted, and the history is left visible.
+//
 // `--dry-run`  validates the metadata tree, the packaged .msix and the
 //              configured package identity, and exits 0 WITHOUT one byte
 //              leaving the machine. This is the mode CI runs.
-// `--submit`   REFUSES, loudly, with `UNVERIFIED: <what>`. See the block above
-//              the submit path for the full reasoning. In short: the Partner
-//              Center submission endpoints were not fetched from a primary
-//              source in this increment, and this repo's standing rule is that
-//              an unsourced fact is marked UNVERIFIED rather than guessed —
-//              because an invented endpoint fails at the worst possible moment,
-//              against a live store account, with a half-created submission.
+// `--submit`   REALLY SUBMITS, and is gated. Every one of these must hold, each
+//              refusing separately and by name:
+//                PG-1   `--confirm <phrase>`, TYPED, never a default
+//                PG-1b  GITHUB_ACTIONS=true and GITHUB_REPOSITORY set — the lane
+//                PG-2   every remote fact still carries its primary-source URL
+//                PG-3   all five MS_STORE_* secrets non-empty, fail CLOSED
+//                PG-6   the publish environment EXISTS and carries a REQUIRED
+//                       REVIEWER, read back from the GitHub API at run time
 //
-// 🔴 NOTHING HERE IS LIVE AND NOTHING HERE CAN BE. The register's windows-store
-// row is `served: false` and its `packageIdentity` is the sentinel
-// PARTNER-CENTER-PENDING, because OWNER_QUEUE A-2 (the publisher account) is an
-// owner action an agent must never take. A dry run over a package that cannot
-// be submitted is still worth having: it is what makes registration day minutes
-// rather than archaeology, which is the whole of D-10.
+// ⚠️ WHAT IS STILL NOT LIVE, AND WHY THAT IS NOT THIS FILE'S DOING. The
+// register's windows-store row is `served: false` and its `packageIdentity` is
+// still the sentinel PARTNER-CENTER-PENDING, because OWNER_QUEUE A-2 (the
+// publisher account) is an owner action an agent must never take. So today
+// `--submit` stops at the placeholder-identity refusal, and nothing has been
+// submitted to any store. That is a fact about the ACCOUNT, not about this
+// script: the moment the three identity values are copied out of Partner Center,
+// this path publishes. Read it as live code.
 //
 // Usage:
 //   node tooling/release/submit-windows-store.mjs --dry-run [--app <id>]
 //   node tooling/release/submit-windows-store.mjs --dry-run --allow-missing-artifact
-//   node tooling/release/submit-windows-store.mjs --submit --app <id>     (refuses)
+//   node tooling/release/submit-windows-store.mjs --submit --app <id> --confirm <phrase>
+//                                                 (inside GitHub Actions only)
 //   [--repo-root <path>]   point every path below at a different tree (tests)
 //
-// Exit 0 = the submission path is walkable. 1 = it is not, or --submit.
+// Exit 0 = the submission path is walkable, or the submission succeeded.
+//       1 = it is not, or a gate refused.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -599,6 +616,28 @@ async function submitPath() {
       `FAIL --submit requires --confirm ${CONFIRM_TOKEN}; got ${JSON.stringify(confirm ?? '')}.`,
       '     A store submission is [ADR 031] class A. The phrase is TYPED rather than checked so that',
       '     nothing on this path can be reached by a default.',
+    ]);
+  }
+
+  // ── PG-1b · THE LANE ────────────────────────────────────────────────────────
+  // ⏱ 2026-09-12 — 🔴 --submit REFUSES OUTSIDE GITHUB ACTIONS, and that is the
+  // gate, not a limitation. submit-play.mjs:321 and submit-snap.mjs:359 have
+  // carried this check since their submit paths existed; this file's submit path
+  // landed in #627 WITHOUT it, so every gate below could be satisfied on a
+  // laptop — PG-3's five secrets by `export`, and PG-6's required-reviewer read
+  // by a personal token with `repo` scope, which answers the environments API
+  // exactly as the runner's does. The approval [ADR 031] requires exists in one
+  // place only, a GitHub environment on a JOB, and it is recorded in a run's
+  // history; a submission that ran anywhere else has by construction not passed
+  // it. PG-6 asks whether the gate EXISTS, which is a different question from
+  // whether this process went through it, and only this check asks the second.
+  if ((process.env.GITHUB_ACTIONS ?? '') !== 'true' || (process.env.GITHUB_REPOSITORY ?? '').trim() === '') {
+    return fail([
+      'FAIL --submit runs only inside GitHub Actions (GITHUB_ACTIONS=true and GITHUB_REPOSITORY set).',
+      `     [ADR 031:117-124] the publish gate is a GitHub environment ("${PUBLISH_ENVIRONMENT}") carrying a`,
+      '     REQUIRED REVIEWER. That approval is recorded in a run\'s history and exists nowhere else, so a',
+      '     submission from a laptop is not "the same thing without the paperwork" — it is the control',
+      '     removed. Dispatch .github/workflows/submit-windows-store.yml instead.',
     ]);
   }
 

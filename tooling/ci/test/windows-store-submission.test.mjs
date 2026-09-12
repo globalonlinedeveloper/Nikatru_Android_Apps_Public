@@ -152,10 +152,22 @@ function tree({
   return root;
 }
 
+/** ⏱ 2026-09-12 — THE LANE IS NOW PART OF THE BASELINE, so the cases below
+ *  reach the gate each of them is about. PG-1b refuses `--submit` outside GitHub
+ *  Actions, and it sits right after the typed confirm phrase, so a run without
+ *  GITHUB_ACTIONS stops there and never reaches PG-2, PG-3 or PG-6. A test that
+ *  blanked GITHUB_REPOSITORY to reach PG-6 would now be graded by PG-1b instead
+ *  and would pass for the wrong reason — which is why the default is set here,
+ *  once, and the cases that are ABOUT the lane clear it explicitly. */
 function run(root, args, env = {}) {
   const r = spawnSync(process.execPath, [SCRIPT, ...args, '--repo-root', root], {
     encoding: 'utf8',
-    env: { ...process.env, MS_STORE_TENANT_ID: '', MS_STORE_CLIENT_ID: '', MS_STORE_CLIENT_SECRET: '', MS_STORE_PRODUCT_ID: '', MS_STORE_SELLER_ID: '', ...env },
+    env: {
+      ...process.env,
+      MS_STORE_TENANT_ID: '', MS_STORE_CLIENT_ID: '', MS_STORE_CLIENT_SECRET: '', MS_STORE_PRODUCT_ID: '', MS_STORE_SELLER_ID: '',
+      GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'globalonlinedeveloper/Nikatru_Platform_Public',
+      ...env,
+    },
   });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
@@ -228,7 +240,6 @@ describe('submit-windows-store — the submission path is walkable, and --submit
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
-      GITHUB_REPOSITORY: '',
     });
     assert.equal(code, 1, out);
     assert.match(out, /needs GITHUB_REPOSITORY and GITHUB_TOKEN to read the publish environment/);
@@ -240,7 +251,6 @@ describe('submit-windows-store — the submission path is walkable, and --submit
       ...CREDS,
       GITHUB_TOKEN: '',
       GH_TOKEN: '',
-      GITHUB_REPOSITORY: '',
     });
     assert.match(out, /primary sources — \d+ citation\(s\) present/);
   });
@@ -276,7 +286,7 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     const control = spawnSync(
       process.execPath,
       [controlPath, '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
-      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
+      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'o/r', GITHUB_TOKEN: '', GH_TOKEN: '' } },
     );
     const controlOut = `${control.stdout ?? ''}${control.stderr ?? ''}`;
     assert.match(controlOut, /primary sources — \d+ citation\(s\) present/, controlOut);
@@ -284,12 +294,92 @@ describe('submit-windows-store — the submission path is walkable, and --submit
     const r = spawnSync(
       process.execPath,
       [mutated, '--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE', '--repo-root', root],
-      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_TOKEN: '', GH_TOKEN: '', GITHUB_REPOSITORY: '' } },
+      { encoding: 'utf8', env: { ...process.env, ...CREDS, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'o/r', GITHUB_TOKEN: '', GH_TOKEN: '' } },
     );
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
     assert.equal(r.status, 1, out);
     assert.match(out, /the primary source for "msstoreCli" is ""/);
     assert.doesNotMatch(out, /primary sources — \d+ citation\(s\) present/);
+  });
+
+  // ── ⏱ 2026-09-12 · PG-1b · THE LANE ───────────────────────────────────────
+  // The approval [ADR 031] requires exists in exactly one place — a GitHub
+  // environment on a JOB — and it is recorded in a run's history. PG-6 asks
+  // whether that gate EXISTS; only this asks whether THIS process went through
+  // it. submit-play.mjs:321 and submit-snap.mjs:359 have had the check since
+  // their submit paths existed; this file's landed in #627 without it, so every
+  // other gate was satisfiable on a laptop (five `export`s for PG-3, a personal
+  // token with `repo` scope for PG-6, which answers the environments API exactly
+  // as a runner's does).
+  test('PG-1b --submit REFUSES outside GitHub Actions, naming the lane', () => {
+    const { code, out } = run(
+      tree({ withArtifact: true, ...CONFIGURED }),
+      ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'],
+      { ...CREDS, GITHUB_ACTIONS: '', GITHUB_REPOSITORY: 'o/r', GITHUB_TOKEN: 'ghs-x' },
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /--submit runs only inside GitHub Actions \(GITHUB_ACTIONS=true and GITHUB_REPOSITORY set\)/);
+    assert.match(out, /submission from a laptop is not "the same thing without the paperwork" — it is the control/);
+    assert.doesNotMatch(out, /primary sources — \d+ citation\(s\) present/, 'it must stop BEFORE the later gates, not after them');
+  });
+
+  test('PG-1b REFUSES inside Actions with no GITHUB_REPOSITORY — half a lane is not a lane', () => {
+    const { code, out } = run(
+      tree({ withArtifact: true, ...CONFIGURED }),
+      ['--submit', '--app', 'subscriptiontracker', '--confirm', 'SUBMIT-TO-MICROSOFT-STORE'],
+      { ...CREDS, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: '', GITHUB_TOKEN: 'ghs-x' },
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /--submit runs only inside GitHub Actions/);
+  });
+
+  test('PG-1b comes AFTER the typed confirm phrase — a run with no phrase is refused for the phrase', () => {
+    // Order is the message a person reads first. "You did not type the phrase"
+    // is actionable; "you are not in Actions" sent to somebody who never
+    // intended to submit is not.
+    const { code, out } = run(
+      tree({ withArtifact: true, ...CONFIGURED }),
+      ['--submit', '--app', 'subscriptiontracker'],
+      { ...CREDS, GITHUB_ACTIONS: '', GITHUB_REPOSITORY: '' },
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /--submit requires --confirm SUBMIT-TO-MICROSOFT-STORE/);
+    assert.doesNotMatch(out, /runs only inside GitHub Actions/);
+  });
+
+  test('the three submit lanes all carry the same lane gate — none of them is the easy way round', () => {
+    // A gate two of three scripts carry is a gate with a door beside it.
+    for (const rel of ['submit-play.mjs', 'submit-snap.mjs', 'submit-windows-store.mjs']) {
+      const src = readFileSync(join(REPO, 'tooling', 'release', rel), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      assert.match(
+        src,
+        /process\.env\.GITHUB_ACTIONS \?\? ''\) !== 'true'/,
+        `${rel} does not refuse --submit outside GitHub Actions, so its approval gate can be walked around`,
+      );
+    }
+  });
+
+  // ── ⏱ 2026-09-12 · THE HEADER MUST NOT SAY THE SCRIPT CANNOT SHIP ─────────
+  // It did, for five days after #627 gave it a real submit path: "`--submit`
+  // REFUSES, loudly, with `UNVERIFIED: <what>`" and "NOTHING HERE IS LIVE AND
+  // NOTHING HERE CAN BE". That is the sentence a reader checks BEFORE deciding
+  // how carefully to read the rest.
+  test('the header describes the submit path that exists, not the refusal that was replaced', () => {
+    const header = readFileSync(SCRIPT, 'utf8').split('\nimport ')[0];
+    // The two retracted sentences survive only INSIDE the dated correction that
+    // retracts them — this corpus appends rather than rewrites — so the check is
+    // that neither is a LIVE claim any more, not that the words are gone.
+    assert.match(header, /🔴 CORRECTED 2026-09-12/);
+    assert.doesNotMatch(header, /^\/\/ 🔴 NOTHING HERE IS LIVE AND NOTHING HERE CAN BE/m);
+    assert.doesNotMatch(header, /^\/\/ `--submit`\s+REFUSES, loudly/m);
+    assert.doesNotMatch(header, /--submit --app <id>\s+\(refuses\)/);
+    assert.match(header, /`--submit`\s+REALLY SUBMITS, and is gated/);
+    for (const gate of ['PG-1', 'PG-1b', 'PG-2', 'PG-3', 'PG-6']) {
+      assert.ok(header.includes(gate), `the header must name ${gate}, the gate a reader has to satisfy`);
+    }
+    // What IS still true, and must stay said: the account does not exist yet.
+    assert.match(header, /PARTNER-CENTER-PENDING/);
+    assert.match(header, /OWNER_QUEUE A-2/);
   });
 
   test('the seven UNVERIFIED lines are gone and what survives is named in UNSOURCED', () => {
