@@ -132,13 +132,13 @@
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, mkdtempSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { armedFatalLines, releaseGapVerdict, unarmedGapLines } from './channel-arming.mjs';
+import { boundedSpawn, timeoutFromEnv } from './bounded-spawn.mjs';
 
 export const APPS = 'catalog/apps.json';
 export const REGISTER = 'tooling/channel-register.json';
@@ -1627,7 +1627,24 @@ function main() {
     const shown = sealArgv(step.argv);
     console.log(`   $ ${shown.join(' ')}`);
     const real = unseal(shown);
-    const r = spawnSync(real[0], real.slice(1), { encoding: 'utf8' });
+    // ⏱ 2026-09-12 — BOUNDED, and the LABEL is the sealed argv, never the real
+    // one. `security import` and `security set-key-partition-list` can block on
+    // a keychain prompt that no runner will ever answer; unbounded, that is the
+    // job cancelled at its own timeout-minutes with the log stopping mid-guard.
+    // The module prints `label` and nothing else from the command, which is what
+    // keeps the redaction this whole block exists for intact.
+    const r = boundedSpawn(real[0], real.slice(1), {
+      timeoutMs: timeoutFromEnv('SECURITY_CMD_TIMEOUT_MS', 120_000),
+      label: `security ${step.argv[1]}`,
+    });
+    if (r.timedOut) {
+      die([
+        `FAIL \`security ${step.argv[1]}\` did not return — ${step.why}.`,
+        `     ${r.detail}`,
+        '     A keychain command that blocks is waiting for a prompt no runner will answer. The keychain is in',
+        '     $RUNNER_TEMP and the runner destroys it with the job; nothing needs unpicking by hand.',
+      ]);
+    }
     if (r.error || r.status !== 0) {
       // ⚠️ STDERR STILL GOES THROUGH `redactArgv`, NOT THROUGH `sealArgv`, AND
       // THE DIFFERENCE MATTERS. Sealing swaps WHOLE arguments and is exact,
@@ -1654,7 +1671,22 @@ function main() {
   // cleanly and yields NO identity. `find-identity` is the first thing in this
   // script that can tell those two apart, and a build that gets past here with
   // no application identity fails ten minutes later inside codesign.
-  const found = spawnSync('security', ['find-identity', '-v', keychain], { encoding: 'utf8' });
+  // ⏱ 2026-09-12 — BOUNDED, and a time-out may NOT be read as "no identity".
+  // `pickIdentities('')` answers zero identities, which is the same shape as a
+  // .p12 that carried no private key — the exact distinction this measurement
+  // exists to make. So the bound is reported as itself, before the parse.
+  const found = boundedSpawn('security', ['find-identity', '-v', keychain], {
+    timeoutMs: timeoutFromEnv('SECURITY_CMD_TIMEOUT_MS', 120_000),
+    label: 'security find-identity -v',
+  });
+  if (found.timedOut) {
+    die([
+      'FAIL `security find-identity -v` did not return, so the keychain was never read back.',
+      `     ${found.detail}`,
+      '     Empty output from this command is indistinguishable from a keychain holding no identity, which is',
+      '     the one thing this step exists to tell apart. It is reported as unread rather than as empty.',
+    ]);
+  }
   const { names, application, installer } = pickIdentities(found.stdout);
   if (application === null) {
     die([
@@ -1739,9 +1771,16 @@ function decodeB64(raw, name) {
  *  only our keychain works right up until something else in the job needs the
  *  login keychain, and then fails somewhere unrelated. */
 function existingUserKeychains() {
-  const r = spawnSync('security', ['list-keychains', '-d', 'user'], { encoding: 'utf8' });
-  if (r.error || r.status !== 0) return [];
-  return [...String(r.stdout ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  // ⏱ 2026-09-12 — BOUNDED. This one already degrades to `[]` on any failure by
+  // design (the caller then adds only our keychain), so a time-out joins the
+  // failures it already tolerates rather than becoming a new refusal — but it
+  // must not be able to hang the job while doing so.
+  const r = boundedSpawn('security', ['list-keychains', '-d', 'user'], {
+    timeoutMs: timeoutFromEnv('SECURITY_CMD_TIMEOUT_MS', 120_000),
+    label: 'security list-keychains -d user',
+  });
+  if (!r.ok) return [];
+  return [...r.stdout.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
 /**

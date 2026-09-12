@@ -117,11 +117,11 @@
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, statSync, mkdtempSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { armedFatalLines, releaseGapVerdict, unarmedGapLines } from './channel-arming.mjs';
+import { boundedSpawn, timeoutFromEnv } from './bounded-spawn.mjs';
 
 export const APPS = 'catalog/apps.json';
 export const REGISTER = 'tooling/channel-register.json';
@@ -558,8 +558,16 @@ function resolveSigntool() {
   const explicit = opt('signtool');
   const candidates = explicit ? [explicit] : ['signtool', 'signtool.exe'];
   for (const c of candidates) {
-    const r = spawnSync(c, ['/?'], { encoding: 'utf8' });
-    if (!r.error) return c;
+    // ⏱ 2026-09-12 — BOUNDED. A probe is the likeliest of the three spawns in
+    // this file to hang: `signtool /?` on a machine where the tool is present
+    // but its dependencies are not can sit for ever, and an unbounded spawn
+    // there does not fail — the JOB is cancelled at its own timeout-minutes
+    // with the log stopping mid-guard and nothing naming the command. Ten
+    // seconds is generous for a usage banner; a candidate that cannot print one
+    // is not a signtool this script can use, so a time-out reads the same as
+    // "not found" and the caller PRINTS the gap rather than skipping quietly.
+    const r = boundedSpawn(c, ['/?'], { timeoutMs: timeoutFromEnv('SIGNTOOL_PROBE_TIMEOUT_MS', 10_000), label: `${c} /?` });
+    if (!r.startFailed && !r.timedOut) return c;
   }
   return null;
 }
@@ -850,7 +858,21 @@ function main() {
         continue;
       }
       const cmd = buildVerifyCommand({ artifact: abs, exe: SIGNTOOL });
-      const r = spawnSync(cmd.exe, cmd.args, { encoding: 'utf8' });
+      // ⏱ 2026-09-12 — BOUNDED, and a time-out is a PROBLEM rather than an empty
+      // parse. `signtool verify` reaches a timestamp authority and a revocation
+      // list over the network, so it is the spawn in this file most exposed to
+      // something outside the runner. Unbounded, a hung CRL fetch is a cancelled
+      // job with no name on it; parsed as an empty answer, it would report the
+      // artifact as carrying no signer — a red for the wrong reason, about the
+      // one thing this guard exists to be believed on.
+      const r = boundedSpawn(cmd.exe, cmd.args, {
+        timeoutMs: timeoutFromEnv('SIGNTOOL_VERIFY_TIMEOUT_MS', 120_000),
+        label: `${cmd.exe} verify`,
+      });
+      if (r.timedOut) {
+        problems.push(`${a} — ${r.detail} The signature was NOT read back, which is not the same as a bad signature.`);
+        continue;
+      }
       const parsed = parseSigntoolVerify(`${r.stdout ?? ''}${r.stderr ?? ''}`);
       if (parsed.leaf)
         console.log(
