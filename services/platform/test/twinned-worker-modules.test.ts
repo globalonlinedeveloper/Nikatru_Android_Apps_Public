@@ -174,10 +174,26 @@ const MIN_TWINNED_MODULES = 2;
 /** …and each twin falls into exactly one of two groups, each with its own floor.
  *  Without both, a twin that moved from one group to the other would leave one
  *  limb ranging over nothing while the other still printed a healthy count —
- *  which is the shape this whole file exists to refuse. Today: `error-sink.ts`
- *  and `health.ts` have a shared home; `d1.ts` is still compared. */
-const MIN_SHARED_HOME_MODULES = 2;
-const MIN_COMPARED_MODULES = 1;
+ *  which is the shape this whole file exists to refuse.
+ *
+ *  ⏱ 2026-09-12 · THE COMPARED FLOOR IS NOW ZERO, AND THE SHARED-HOME FLOOR
+ *  WENT UP TO PAY FOR IT. `d1.ts` was the last COMPARED twin; it now has a home
+ *  under `services/_shared/src` and all three carriers — both Workers and the app
+ *  template's stamped Worker — re-export it. So the compared group is empty, and
+ *  that is the END STATE THIS FILE WANTS, not a regression: a module that is one
+ *  file cannot drift from itself, which is strictly stronger than holding copies
+ *  equal. Today: `d1.ts`, `error-sink.ts` and `health.ts` have a shared home; the
+ *  compared group is empty.
+ *
+ *  ⚠️ THE CONSTRAINT DID NOT MOVE, IT CHANGED HANDS. A floor of 0 on a group
+ *  cannot catch that group emptying by accident, so the shared-home floor rose
+ *  from 2 to 3 IN THE SAME CHANGE: every module that left the compared group had
+ *  to arrive in the other one, and the count proves it did. Deleting a shared home
+ *  still turns this red through that floor. If a future twin is legitimately a
+ *  compared copy again, raise this back to 1 with the reason, rather than leaving
+ *  a zero nobody can see the cost of. */
+const MIN_SHARED_HOME_MODULES = 3;
+const MIN_COMPARED_MODULES = 0;
 
 /** The repo root, found by walking up from the cwd. `npm test` runs with the cwd
  *  at `services/platform`, but a run from the repo root (or from an editor) must
@@ -291,80 +307,25 @@ interface SoleOwner {
  */
 const DECLARED_DIVERGENCES: Divergence[] = [];
 
-const DECLARED_SOLE_OWNERS: SoleOwner[] = [
-  {
-    module: 'd1.ts',
-    declaration: 'firstRow',
-    carriers: ['subscriptiontracker-api'],
-    why:
-      'subscriptiontracker-api reads single rows through this helper in routes/budget.ts and routes/subscriptions.ts. ' +
-      'platform calls `stmt.first<T>()` directly (scheduled.ts, lib/mor/store.ts) and has no caller for it, ' +
-      'so adding it there would ship an exported function with zero callers — dead code that this repo finds ' +
-      'by mutation testing and deletes rather than keeps "for symmetry".',
-  },
-  {
-    module: 'd1.ts',
-    declaration: 'run',
-    carriers: ['subscriptiontracker-api'],
-    why:
-      'Same shape as `firstRow`: used by subscriptiontracker-api routes/subscriptions.ts, while platform calls ' +
-      '`stmt.run()` directly in ten places and never imports a wrapper for it.',
-  },
-
-  // ── the three rows below are about a Worker that does not exist yet ─────────
-  // What they buy is stamp day, not today: every carrier currently has all three,
-  // so the missing-declaration limb skips them. They are still CHECKED today —
-  // the anti-rot limb reads them on every run, so deleting `uuid` from either
-  // real copy turns this file red through the row for it. See the brick
-  // paragraph in the header for how the three names were measured.
-  {
-    module: 'd1.ts',
-    declaration: 'allRows',
-    carriers: ['platform', 'subscriptiontracker-api'],
-    why:
-      "The brick's backend template ships `src/lib/d1.ts` as a FOUR-LINE STARTER STUB carrying `nowIso` " +
-      'alone — that is the only helper a stamped Worker imports (`src/index.ts` for the health route; ' +
-      '`routes/account.ts` calls `.run()` on the D1 statement directly). So Worker #3 joins the derived ' +
-      'twin set without `allRows`, and that is the template being deliberately minimal, not a fix that ' +
-      'failed to reach a copy. Declared ahead of the stamp so app #2 does not open on a red build for a ' +
-      'difference nobody introduced. The day the stamped Worker grows its own `allRows`, this row stops ' +
-      'matching the tree and the anti-rot limb says so — at which point it belongs under the equality limb.',
-  },
-  {
-    module: 'd1.ts',
-    declaration: 'uuid',
-    carriers: ['platform', 'subscriptiontracker-api'],
-    why:
-      'Same brick stub, same reason as `allRows` directly above: the stamped Worker starts with `nowIso` ' +
-      'only, so `uuid` is absent on stamp day by design. A stamped app that later needs an id generator ' +
-      'copies this function, at which point the row goes stale and this test demands it be deleted so the ' +
-      'two (then three) copies are held equal instead of excused.',
-  },
-  {
-    module: 'd1.ts',
-    declaration: 'TRANSIENT_D1_MESSAGES',
-    carriers: ['platform', 'subscriptiontracker-api'],
-    why:
-      'Same brick stub, same reason as `allRows`, `uuid` and `todayYmd` below — and MEASURED, not assumed, on ' +
-      '2026-09-06: a probe was stamped with `mason make app -c tooling/bricks/app/_probe_backend_vars.json` ' +
-      'and this file run against the three carriers. It reported exactly this one name as an undeclared sole ' +
-      'owner, which is a row the 2026-08-17 measurement could not have produced because the D1 transient-retry ' +
-      'set landed after it. The stamped Worker calls `.run()` on the D1 statement directly and imports no ' +
-      'retry helper, so the constant is absent on stamp day by design. Recorded now so app #2 does not open on ' +
-      'a red build for a difference nobody introduced; the day a stamped Worker grows its own retry set, the ' +
-      'anti-rot limb says so and the row belongs under the equality limb instead.',
-  },
-  {
-    module: 'd1.ts',
-    declaration: 'todayYmd',
-    carriers: ['platform', 'subscriptiontracker-api'],
-    why:
-      'Same brick stub, same reason as `allRows` and `uuid` above. Measured, not assumed: copying the ' +
-      'brick stub to a scratch `services/probe2-api/` on 2026-08-17 and running this file reported exactly ' +
-      'these three names as undeclared sole owners and nothing else, which is how the list was derived ' +
-      'rather than guessed.',
-  },
-];
+// ⏱ 2026-09-12 - THE TABLE IS EMPTY, AND THAT IS THE POINT OF THE CHANGE THAT
+// EMPTIED IT. Every row here named `d1.ts`: `firstRow` and `run` as belonging to one
+// Worker, and `allRows`, `uuid`, `TRANSIENT_D1_MESSAGES` and `todayYmd` as absent from
+// the app template's four-line starter stub on stamp day. All six described the same
+// underlying fact - d1.ts was TWO copies plus a stub - and the stub is exactly why the
+// transient-retry fix reached both live Workers and never the template every future app
+// is stamped from.
+//
+// 🔴 d1.ts now has a SHARED HOME (services/_shared/src/d1.ts) and all three carriers
+// re-export it, so it left the COMPARED group for the SHARED-HOME group and is held to
+// the stricter limb instead. A sole-owner row would now be excusing a difference that
+// has become unrepresentable - one file cannot differ from itself - which this test's
+// own anti-rot limb refuses, correctly.
+//
+// An empty table is NOT a weaker test. The floors above still demand a minimum number
+// of workers, twinned modules, shared-home modules and compared modules, so a tree that
+// stopped having twins at all cannot pass by declaring nothing. The next real sole owner
+// goes here with its own measurement.
+const DECLARED_SOLE_OWNERS: SoleOwner[] = [];
 
 // ── the reader ───────────────────────────────────────────────────────────────
 

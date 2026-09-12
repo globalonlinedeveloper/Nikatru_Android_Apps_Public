@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
+import { run } from '../lib/d1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G2 — in-app account deletion (server side). DELETE /v1/account purges every
@@ -66,22 +67,30 @@ account.delete('/', async (c) => {
   // App-owned data (APP_DB). One entry per user-owned table.
   const appTables = ['records'];
   for (const table of appTables) {
-    const res = await c.env.APP_DB.prepare(
-      `DELETE FROM ${table} WHERE user_id = ?`,
-    )
-      .bind(userId)
-      .run();
+    // ⏱ 2026-09-12 · THROUGH THE RETRY, NOT `.run()` DIRECTLY. D1 lives in a
+    // Durable Object that is occasionally reset, and every statement in flight
+    // fails at once with a message Cloudflare documents as transient. The live
+    // app measured what that costs: `E2E (live)` red on roughly half its nights
+    // through late August, each one a real 500, because nothing retried. The
+    // helper reached both live Workers on 2026-09-02 and NOT this template, so a
+    // stamped app was still being born with the defect — until the helper got one
+    // home under services/_shared and this call started using it.
+    //
+    // A DELETE is idempotent by its own shape: the second attempt deletes the rows
+    // the first one already removed, or none. It does not need the
+    // request-generated-primary-key contract `run` documents for inserts.
+    const res = await run(
+      c.env.APP_DB.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId),
+    );
     deleted[table] = res.meta.changes ?? 0;
   }
 
   // Shared entitlements (PLATFORM_DB). Best-effort: the table may not exist in a
   // fresh platform database, so a failure here must not block the deletion.
   try {
-    const res = await c.env.PLATFORM_DB.prepare(
-      'DELETE FROM entitlements WHERE user_id = ?',
-    )
-      .bind(userId)
-      .run();
+    const res = await run(
+      c.env.PLATFORM_DB.prepare('DELETE FROM entitlements WHERE user_id = ?').bind(userId),
+    );
     deleted['entitlements'] = res.meta.changes ?? 0;
   } catch {
     deleted['entitlements'] = 0;
