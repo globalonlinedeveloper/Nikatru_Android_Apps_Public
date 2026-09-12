@@ -188,17 +188,59 @@ if (!FAST) {
       // was green — including on `main`, with no local edits at all. Hard-failing
       // on that is a preflight that cries wolf, which is the failure this script
       // exists to prevent (same calibration as leg 3).
-      const ciPin = (readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-        .match(/flutter-version:\s*([0-9.]+)/) || [])[1] ?? null;
+      // 🔴 THE PIN IS IN tooling/versions.json, AND READING IT FROM ci.yml MADE
+      // THIS WHOLE PROTECTION DEAD. Until 2026-09-12 this parsed
+      // `flutter-version:\s*([0-9.]+)` out of ci.yml. That key is not in ci.yml
+      // any more — it moved into .github/actions/setup-flutter/action.yml, where
+      // it is not even a literal (`flutter-version: ${{ steps.pin.outputs.flutter }}`,
+      // resolved by a step that reads tooling/versions.json). So `ciPin` was
+      // null, `skewed` was ALWAYS false, and the downgrade below could never
+      // fire: every format disagreement hard-failed, which is the cry-wolf this
+      // leg's own comment says it exists to avoid. MEASURED on merged main
+      // (81e43918): pin 3.47.2, local 3.44.9 — skewed, and reported as a hard
+      // failure anyway while CI's brick job was green on the same commit.
+      //
+      // ⚠️ AND A NULL PIN IS NOW LOUD RATHER THAN SILENT. That is the actual
+      // repair: "I cannot tell whether this machine agrees with CI" must not
+      // look like "this machine disagrees with CI". The same shape took
+      // guard-sweep.mjs's invocation matcher out of service on 2026-09-11 when
+      // `--single-threaded` was added to the lines it parses — a local script
+      // reading a moved workflow detail, failing closed into nonsense.
+      const PIN_FILE = 'tooling/versions.json';
+      let ciPin = null;
+      let pinError = null;
+      try {
+        const pinned = JSON.parse(readFileSync(resolve(ROOT, PIN_FILE), 'utf8')).flutter;
+        if (typeof pinned === 'string' && pinned.trim()) ciPin = pinned.trim();
+        else pinError = `${PIN_FILE} carries no usable \`flutter\` version`;
+      } catch (e) {
+        pinError = `${PIN_FILE} could not be read (${e?.code ?? e?.message ?? e})`;
+      }
       const localVer = (run('flutter', ['--version']).out.match(/Flutter\s+([0-9.]+)/) || [])[1] ?? null;
       const skewed = ciPin && localVer && ciPin !== localVer;
       const fmt = run('dart', ['format', '--output=none', '--set-exit-if-changed', 'apps/probe']);
       const dod = run('node', ['tooling/ci/assert-app-dod.mjs']);
+      // The pin could not be resolved, so the skew question was never answered.
+      // Say THAT, instead of presenting a formatting diff as the finding — a leg
+      // that blames the tree for its own blindness is how this one spent a month
+      // hard-failing on a green commit.
+      if (fmt.code !== 0 && pinError) {
+        fmt.out =
+          `🔴 COVERAGE LOST on the skew check — ${pinError}, so this leg cannot tell whether ` +
+          `local Flutter ${localVer ?? '(unknown)'} is CI's. The formatting diff below is NOT the finding; ` +
+          `the unresolvable pin is. Fix the pin lookup (CI reads it via .github/actions/setup-flutter) ` +
+          `before reading anything into these files.\n${fmt.out.split(/\r?\n/).slice(-3).join('\n')}`;
+        return { code: 1, out: fmt.out };
+      }
       if (fmt.code !== 0 && skewed) {
         // Report it, do not fail on it — and say WHY, so nobody "fixes" the
         // formatting to satisfy a toolchain CI does not use.
         fmt.code = 0;
-        fmt.out = `⬜ dart format disagrees on the stamped app, but local Flutter ${localVer} != the ci.yml pin ${ciPin}, so this machine's dart_style is not CI's. NOT failed. To make this leg trustworthy, match the pin: flutter version ${ciPin}.\n${fmt.out.split(/\r?\n/).slice(-3).join('\n')}`;
+        // The FILE is named, not just the version. This line said "the ci.yml
+        // pin" while the pin had moved to tooling/versions.json — the same stale
+        // pointer that killed the check above, left in the message that explains
+        // it, which would send the next reader to a file with no pin in it.
+        fmt.out = `⬜ dart format disagrees on the stamped app, but local Flutter ${localVer} != the ${PIN_FILE} pin ${ciPin} (CI reads it via .github/actions/setup-flutter), so this machine's dart_style is not CI's. NOT failed. To make this leg trustworthy, match the pin: flutter version ${ciPin}.\n${fmt.out.split(/\r?\n/).slice(-3).join('\n')}`;
       }
       // 🔴 THE STAMP MUTATES TRACKED FILES — pubspec.yaml gains apps/probe as a
       // workspace member, and the stamp writes apps/probe/app.yaml and RENDERS
