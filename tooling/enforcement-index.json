@@ -457,6 +457,18 @@
   },
   {
     "claims": [
+      "ADR 067"
+    ],
+    "invokedBy": [
+      ".github/workflows/ci.yml#guards-chassis"
+    ],
+    "kind": "guard",
+    "ref": "tooling/ci/assert-chassis-parity.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
       "ADR 020",
       "ADR 057",
       "ADR 067",
