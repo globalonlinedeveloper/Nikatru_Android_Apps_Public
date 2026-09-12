@@ -341,18 +341,37 @@ const ACCOUNT_ROUTE =
 const SITE_INTEGRITY = 'tooling/ci/check-site-integrity.mjs';
 const APP_CONFIG = 'lib/core/app_config.dart';
 
-// The ONE named exclusion, with its reason attached — not a silent filter.
-// `delete-account.html` is reached from a real in-app CONTROL rather than from
-// a link (the erasure path performs the deletion; the page explains it), and
-// that control is already asserted by the `account-deletion-works` key
-// including its `ACCOUNT_ROUTE` identity-delete anchor. Linking it as a third
-// document as well would put two different affordances for the same
-// irreversible action next to each other, which [pipeline C-13] deliberately
-// avoided when it ordered sign-out above delete.
+// The named exclusions, each with its reason attached — not a silent filter.
+// Two pages, and the two reasons are DIFFERENT, which is why the summary line at
+// the foot of this limb names neither of them.
+//
+//   · `delete-account.html` is reached from a real in-app CONTROL rather than
+//     from a link (the erasure path performs the deletion; the page explains
+//     it), and that control is already asserted by the `account-deletion-works`
+//     key including its `ACCOUNT_ROUTE` identity-delete anchor. Linking it as a
+//     third document as well would put two different affordances for the same
+//     irreversible action next to each other, which [pipeline C-13] deliberately
+//     avoided when it ordered sign-out above delete.
+//
+//   · ⏱ 2026-09-12 · `pricing.html` is reached from NOWHERE in the app, ON
+//     PURPOSE, and that is the only correct answer for it. It is a price LIST,
+//     not a legal document a user must be able to read, and [ADR 078] locks the
+//     app out of mentioning the website or web prices anywhere: a store build
+//     that linked web pricing would be steering users off the store's payment
+//     rail, which Apple 3.1.3 and Play's anti-steering rules both prohibit and
+//     which the owner ruled against in words on 2026-09-11 ("the app never
+//     mentions the website or web prices anywhere"). So the remedy this limb
+//     offers a newly published page — "add the constant and link it from the
+//     settings LEGAL section" — is the one thing that must NOT happen here. The
+//     exemption is that decision, written where the guard can see it.
 const LINK_EXEMPT_LEGAL_PAGES = new Map([
   [
     'delete-account.html',
     'reached by the in-app delete control, asserted by the account-deletion-works key, not by a link',
+  ],
+  [
+    'pricing.html',
+    'a site-only price list: [ADR 078] forbids a store build from pointing a user at web pricing, so it is linked from nowhere in the app by decision',
   ],
 ]);
 
@@ -486,9 +505,16 @@ function checkLegalLinkSet() {
       );
     }
   }
+  // ⏱ 2026-09-12 — THE EXEMPT COUNT IS THE PAGES THIS RUN ACTUALLY SAW, not the
+  // size of the map. Those differ the moment a fixture publishes a subset, and a
+  // summary that reports two exemptions over a tree publishing one of them is a
+  // number nobody can reconcile with the tree in front of them. Each page's OWN
+  // reason is printed, because the two reasons are genuinely different and one
+  // sentence asserted for both would be false of one.
+  const exemptHere = published.filter((p) => LINK_EXEMPT_LEGAL_PAGES.has(p));
   ok(
     `[8]K-6 legal set: ${mustLink.length} published page(s) linked in the chassis` +
-      `${LINK_EXEMPT_LEGAL_PAGES.size ? `, ${LINK_EXEMPT_LEGAL_PAGES.size} reached by an in-app control instead` : ''}`,
+      `${exemptHere.length ? `, ${exemptHere.length} not linked from the chassis — ${exemptHere.map((p) => `${p} (${LINK_EXEMPT_LEGAL_PAGES.get(p)})`).join('; ')}` : ''}`,
   );
 }
 
