@@ -7388,7 +7388,16 @@ onTap: () => _openUrl(AppConfig.refundUrl),
       const { code, out } = run('assert-stamp-properties.mjs', { cwd: build('legal-ok') });
       assert.equal(code, 0, out);
       assert.match(out, /\[8\]K-6 legal set: 3 published page\(s\) linked in the chassis/);
-      assert.match(out, /1 reached by an in-app control instead/);
+      // ⏱ 2026-09-12 — the summary names each exempt page's OWN reason now:
+      // pricing.html joined delete-account.html on the list with a different
+      // one (site-only price list, ADR 078 anti-steering), and one sentence
+      // asserted for both would have been false of one of them. The fixture
+      // publishes only the four this guard's own LEGAL_PAGES fixture carries,
+      // so exactly one of the two exemptions is in scope here.
+      assert.ok(
+        out.includes('1 not linked from the chassis — delete-account.html (reached by the in-app delete control'),
+        out,
+      );
     });
 
     // DIRECTION 1 — the site publishes a page the chassis does not link. This
