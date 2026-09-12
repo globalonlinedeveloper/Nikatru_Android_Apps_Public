@@ -366,6 +366,64 @@ if (backendApp) {
     ok('_phApiBase points at its own API host');
   }
 
+  // ⏱ 2026-09-12 · A STAMPED WORKER MUST BE ABLE TO RUN A TEST. Until today
+  // the template shipped no vitest, no `test` script, no vitest.config.ts and no
+  // test directory, so the first thing an owner could not do with a fresh backend
+  // was run its suite - and the modules that carry its whole security and
+  // correctness argument (the auth core, the retry, the erasure derivation) went
+  // untested in its own resolution. The chassis suite under services/_shared/test
+  // is what it inherits; this limb is what makes "it can run it" a fact rather
+  // than an intention. Found by the factory-vs-app drift audit,
+  // research/factory-drift-2026-09-12/.
+  //
+  // 🔴 THE CONFIG IS PART OF IT, NOT DECORATION. Without
+  // `resolve.conditions: ['workerd', ...]` the suite resolves the NODE build of
+  // jose, whose JWKS fetch uses node:https while the edge uses `fetch` - a green
+  // suite over a transport production never runs. And without `../_shared/test`
+  // in `include`, the Worker runs none of the chassis's tests, which is most of
+  // what there is to run on day one.
+  const pkgRel = `services/${backendApp}-api/package.json`;
+  const pkgAbs = join(...pkgRel.split('/'));
+  if (!existsSync(pkgAbs)) {
+    fail(`${pkgRel} is missing, so nothing says how this Worker is built or tested`);
+  } else {
+    let pkg;
+    try {
+      pkg = JSON.parse(readFileSync(pkgAbs, 'utf8'));
+    } catch (err) {
+      fail(`${pkgRel} is not valid JSON (${err.message}), so its scripts could not be read`);
+      pkg = null;
+    }
+    if (pkg) {
+      if (typeof pkg.scripts?.test !== 'string' || pkg.scripts.test.trim() === '') {
+        fail(`${pkgRel} declares no \`test\` script — a stamped Worker that cannot be tested ships untested`);
+      } else {
+        ok('the stamped Worker declares a `test` script');
+      }
+      const dev = pkg.devDependencies ?? {};
+      if (typeof dev.vitest !== 'string') {
+        fail(`${pkgRel} declares no \`vitest\` devDependency, so its \`test\` script has nothing to run`);
+      } else {
+        ok(`the stamped Worker depends on vitest (${dev.vitest})`);
+      }
+    }
+  }
+
+  const cfgRel = `services/${backendApp}-api/vitest.config.ts`;
+  const cfgAbs = join(...cfgRel.split('/'));
+  if (!existsSync(cfgAbs)) {
+    fail(`${cfgRel} is missing — without it the suite resolves the node build of jose, not the workerd build the edge runs`);
+  } else {
+    const cfg = readFileSync(cfgAbs, 'utf8');
+    if (!/conditions:\s*\[[^\]]*'workerd'/.test(cfg)) {
+      fail(`${cfgRel} does not put 'workerd' in resolve.conditions, so the suite would test a transport production never uses`);
+    } else if (!cfg.includes('_shared/test')) {
+      fail(`${cfgRel} does not include ../_shared/test, so this Worker runs none of the chassis suite it re-exports`);
+    } else {
+      ok('vitest.config.ts resolves workerd and inherits the chassis suite');
+    }
+  }
+
   assertNoPushDependency(backendApp);
 }
 
