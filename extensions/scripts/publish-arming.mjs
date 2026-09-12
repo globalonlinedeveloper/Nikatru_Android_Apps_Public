@@ -33,7 +33,7 @@
 // ⚠️ NOTHING HERE READS OR PRINTS A SECRET VALUE. It reads `process.env[name]`
 // only to ask whether it is a non-empty string, and reports NAMES.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { armingOf, armingOfTool } from '../../tooling/ci/channel-arming.mjs';
@@ -47,7 +47,46 @@ export const REGISTER = 'tooling/channel-register.json';
 
 /** Where a TOOL declares its own per-store listing identity. `<tool>` is the id
  *  the release tag carries. */
-export const TOOL_JSON_REL = 'extensions/Extension/<tool>/tool.json';
+export const TOOL_JSON_REL = 'extensions/Extension/<dir>/tool.json';
+
+/**
+ * Every tool.json under extensions/Extension/ that DECLARES `id`, as
+ * { where } rows. Returns a LIST because zero and two are different failures and
+ * the caller must be able to say which.
+ *
+ * The only thing it asks of a manifest is its `id`. A tool.json that declares
+ * the id and nothing else resolves — which is what the gate self-test's minimal
+ * fixtures are, and what a new tool looks like on its first day.
+ */
+function declaringToolJson(root, id) {
+  const base = join(root, 'extensions', 'Extension');
+  if (!existsSync(base)) return [];
+  const out = [];
+  for (const dir of readdirSync(base)) {
+    const rel = `extensions/Extension/${dir}/tool.json`;
+    const abs = join(root, rel);
+    if (!existsSync(abs)) continue;
+    let tool;
+    try { tool = JSON.parse(readFileSync(abs, 'utf8')); } catch { continue; }
+    if (tool?.id === id) out.push({ where: rel });
+  }
+  return out;
+}
+
+/**
+ * 🔴 `<dir>` IS NOT THE TOOL ID, AND ASSUMING IT WAS KILLED THE RELEASE LANE.
+ * Measured 2026-09-12 by rehearsal run 34693076340: this file resolved
+ * `extensions/Extension/fullshot/tool.json` and refused COVERAGE LOST, because the
+ * directory is `Full_Screen_Shot` and the id `fullshot` is DECLARED INSIDE the file.
+ * The lane died one gate after the two this session had already cleared.
+ *
+ * release-manifest.mjs had already settled this and says so at productSurfaces():
+ * "a directory position is not a declaration — the day a non-extension product lives
+ * under that root, a path rule would still call it one." That resolver SCANS
+ * every tool.json under extensions/Extension/ and matches the declared id, and it is IMPORTED
+ * here rather than reimplemented: two resolvers for one question is how they drift
+ * apart, and this one drifted from the tree instead.
+ */
 
 /** The scan cannot continue and reporting "nothing to do" would be a lie about
  *  nothing. Callers exit 1 on this; a publish path that cannot find its own
@@ -120,19 +159,38 @@ export function toolListingId({ toolId, storeKey, root = REPO_ROOT }) {
   if (typeof storeKey !== 'string' || storeKey.trim() === '') {
     throw new ArmingCoverageLost([
       `COVERAGE LOST — the channel row for tool "${toolId}" declares no \`extensionStoreKey\`.`,
-      `That key is the store's name in ${TOOL_JSON_REL.replace('<tool>', toolId)}'s \`storeMetadata.stores\`, and`,
+      `That key is the store's name in ${TOOL_JSON_REL}'s \`storeMetadata.stores\`, and`,
       'without it there is no row to read the listing id from.',
     ]);
   }
-  const rel = TOOL_JSON_REL.replace('<tool>', toolId);
-  const abs = join(root, rel);
-  if (!existsSync(abs)) {
+  /* Resolved by DECLARATION, never by directory name — see TOOL_JSON_REL above.
+   *
+   * ⚠️ IT DOES NOT REUSE release-manifest.mjs's productSurfaces(), AND THE FIRST
+   * VERSION OF THIS FIX DID. That helper answers a DIFFERENT question — "which
+   * products answer to this id and what SURFACE are they on" — and to answer it
+   * it skips any tool.json whose `surface` field is missing or empty. Arming
+   * never reads `surface`, so borrowing that resolver silently imported a
+   * requirement this file does not have: every minimal tool.json became invisible
+   * and SEVEN gate self-test cases went red, measured 2026-09-12 before merge.
+   * Reusing a helper is right when the question is the same. It was not. */
+  const surfaces = declaringToolJson(root, toolId);
+  if (surfaces.length === 0) {
     throw new ArmingCoverageLost([
-      `COVERAGE LOST — ${rel} does not exist under ${root}.`,
-      'The listing id lives on the tool, so a tool with no manifest has no declared destination — and treating',
+      `COVERAGE LOST — no extensions/Extension/*/tool.json under ${root} declares id "${toolId}".`,
+      'The listing id lives on the tool, so a tool no manifest claims has no declared destination — and treating',
       'that as "not armed" would let a release with a mistyped tool id report a clean pending instead of stopping.',
+      'NOTE the directory need not be named after the id: fullshot is declared inside Full_Screen_Shot/tool.json.',
     ]);
   }
+  if (surfaces.length > 1) {
+    throw new ArmingCoverageLost([
+      `COVERAGE LOST — ${surfaces.length} manifests declare id "${toolId}": ${surfaces.map((x) => x.where).join(', ')}.`,
+      'Two declarations of one id is ambiguous, and picking the first would make the destination depend on',
+      'directory order. Zero and two are different failures and neither is "not armed".',
+    ]);
+  }
+  const rel = surfaces[0].where;
+  const abs = join(root, rel);
   let tool;
   try {
     tool = JSON.parse(readFileSync(abs, 'utf8'));
