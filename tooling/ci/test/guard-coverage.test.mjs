@@ -1352,3 +1352,66 @@ describe('assert-guard-coverage', () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-12 · THE RATCHET IS READ BACK IN CI, OR IT IS NOT A RATCHET.
+//
+// assert-guard-coverage.mjs WRITES tooling/ci/test/coverage-manifest.json on
+// every run: that is how the floor rises, and every rise is printed. In CI that
+// write went to a runner's disk and was thrown away with it, and the guard exits
+// 0 either way because rewriting the ratchet is its job, not a finding. So a
+// branch could ship a manifest LOWER than its own tree, the merge would lower
+// the floor, and the next branch would ratchet up from the lower number with
+// nothing anywhere recording the step down.
+//
+//   D1 the ci.yml step exists, AFTER the guard that writes the file
+//   D2 it compares THAT file, and fails the run rather than printing
+//   D3 the write is deterministic, so a red there means stale, not unlucky
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the coverage manifest is diffed by CI', () => {
+  const REPO = resolve(CI_DIR, '..', '..');
+  const MANIFEST = join(CI_DIR, 'test', 'coverage-manifest.json');
+  const ciYml = readFileSync(join(REPO, '.github', 'workflows', 'ci.yml'), 'utf8');
+
+  test('D1 ci.yml diffs the manifest AFTER the guard that rewrites it', () => {
+    const wrote = ciYml.indexOf('run: node tooling/ci/assert-guard-coverage.mjs');
+    const diffed = ciYml.indexOf('git diff --quiet -- tooling/ci/test/coverage-manifest.json');
+    assert.ok(wrote !== -1, 'ci.yml no longer runs assert-guard-coverage.mjs — this check is vacuous');
+    assert.ok(diffed !== -1, 'ci.yml does not read the ratchet back, so a stale manifest can be merged');
+    assert.ok(diffed > wrote, 'the read-back must come AFTER the write, or it compares the file to itself unchanged');
+  });
+
+  test('D2 the step FAILS the run rather than printing', () => {
+    const step = ciYml.slice(ciYml.indexOf('The ratchet the guard just wrote'), ciYml.indexOf('The recorded floor must not exceed'));
+    assert.match(step, /exit 1/, 'a read-back that cannot fail is a comment');
+    assert.match(step, /::error title=coverage-manifest.json was not regenerated::/);
+    assert.ok(
+      step.includes('git --no-pager diff -- tooling/ci/test/coverage-manifest.json'),
+      'it must PRINT the diff, or the red says nothing about what moved',
+    );
+  });
+
+  test('D3 the write is deterministic — the same tree derives the same manifest twice', () => {
+    // The claim the red rests on. If the guard wrote a different manifest on
+    // each run, the step would go red at random and be switched off within a
+    // week, which is how a real gate becomes a disabled one.
+    // ⚠️ THE FIRST RUN IS THE NORMALISER, NOT THE MEASUREMENT. The claim is
+    // "the same tree derives the same manifest twice", and the tree this file
+    // is part of changes whenever a case is added here — including by this very
+    // block, which raised the ratchet by three when it landed. Snapshotting the
+    // COMMITTED file and comparing to it would therefore be a check on whether
+    // somebody remembered to regenerate, which is the CI step's job, not this
+    // test's. So: run once to settle, then assert the next run does not move it.
+    const run = () => {
+      const r = spawnSync(process.execPath, [GUARD], { encoding: 'utf8', timeout: 300_000, cwd: REPO });
+      assert.equal(r.status, 0, `${r.stdout ?? ''}${r.stderr ?? ''}`);
+      return readFileSync(MANIFEST, 'utf8');
+    };
+    const settled = run();
+    assert.equal(
+      run(),
+      settled,
+      'the guard rewrote the ratchet on an UNCHANGED tree — the CI read-back would be a random red, and a random red is a disabled gate',
+    );
+  });
+});
