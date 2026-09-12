@@ -193,6 +193,7 @@
   "web-cache-policy.test.mjs": 41,
   "web-sourcemaps.test.mjs": 18,
   "well-known-shape.test.mjs": 29,
+  "wildcard-dns.test.mjs": 13,
   "windows-signing.test.mjs": 75,
   "windows-store-submission.test.mjs": 28,
   "worker-error-sink.test.mjs": 18,
