@@ -21,10 +21,10 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   STATES,
   MAX_DESCRIPTION,
@@ -45,6 +45,7 @@ const ROOT = resolve(CI_DIR, '../..');
 const RECORDER = join(CI_DIR, 'record-deployment.mjs');
 
 let TMP;
+let seq = 0;
 before(() => { TMP = mkdtempSync(join(tmpdir(), 'nikatru-deprec-')); });
 after(() => { rmSync(TMP, { recursive: true, force: true }); });
 
@@ -71,14 +72,90 @@ const REAL_REGISTER = JSON.parse(
   readFileSync(resolve(ROOT, 'tooling/channel-register.json'), 'utf8'),
 );
 
-/** Run the real recorder with no network reachable — every case here fails or
- *  succeeds BEFORE the first fetch, which is exactly the boundary under test. */
+// ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-12 · THE REPLAY. This file used to say "no network reachable" and
+// "every case here fails or succeeds BEFORE the first fetch". Both sentences
+// were FALSE, and measuring was the only way to find that out: under a logging
+// `fetch` preload, one run of this file made FIVE real POSTs to
+// https://api.github.com/repos/x/y/deployments. Three tests deliberately walk
+// PAST the shape gate and assert `could not record the deployment` — a message
+// that was being produced by the live API answering 401 Bad credentials to the
+// token `t`. A test whose red depends on a third party is a test that goes red
+// when that third party is slow, and CI ran these on every push.
+//
+// The replay is a module loaded into the RECORDER's own process with `--import`,
+// exactly as tooling/ci/test/ops-register.test.mjs replays GitHub for the ops
+// guard. The seam is the CHILD's `fetch`: record-deployment.mjs gains no fixture
+// flag, no replay mode and no environment switch of its own, and what it runs
+// against is the same `fetch` a runner gives it. An URL the replay does not know
+// THROWS — so a future call that escapes to the network cannot pass quietly.
+//
+// It buys coverage as well as quiet: the live 401s could only ever produce one
+// message. The replay can answer 201, so the two POST BODIES this ledger writes
+// are now asserted end to end — the thing the "ONE SHAPE, NOT TWO" block below
+// could previously only check by reading the source.
+//
+// (`GITHUB_API_URL` is a real loopback seam in record-deployment.mjs, used by
+// github-rate-limit.test.mjs with an http server. It is not usable here: this
+// file drives the recorder with spawnSync, which blocks the event loop, so a
+// server in this process could never answer.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Serialised into a file and loaded with `--import`. It runs in the recorder's
+ *  process, before the recorder does. */
+function githubReplay(appendFileSync) {
+  const log = process.env.RECORD_REPLAY_LOG;
+  const status = Number(process.env.RECORD_REPLAY_STATUS || 401);
+  const json = (body, code) => new Response(JSON.stringify(body), { status: code, headers: { 'content-type': 'application/json' } });
+  globalThis.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const { pathname } = new URL(url);
+    let body = null;
+    try {
+      body = JSON.parse(init.body ?? 'null');
+    } catch {
+      body = { unparseable: String(init.body) };
+    }
+    if (log) appendFileSync(log, `${JSON.stringify({ method: init.method ?? 'GET', pathname, body })}\n`);
+    if (/^\/repos\/[^/]+\/[^/]+\/deployments$/.test(pathname)) {
+      return status === 201 ? json({ id: 42 }, 201) : json({ message: 'Bad credentials' }, status);
+    }
+    if (/^\/repos\/[^/]+\/[^/]+\/deployments\/42\/statuses$/.test(pathname)) {
+      return status === 201 ? json({ id: 7, state: 'success' }, 201) : json({ message: 'Bad credentials' }, status);
+    }
+    throw new Error(`[replay] unreplayed request ${init.method ?? 'GET'} ${url} — this test file must reach no network`);
+  };
+}
+
+let REPLAY;
+before(() => {
+  REPLAY = join(TMP, 'github-replay.mjs');
+  writeFileSync(
+    REPLAY,
+    `import { appendFileSync } from 'node:fs';\n(${githubReplay.toString()})(appendFileSync);\n`,
+  );
+});
+
+/** Run the real recorder against the replay. Every request it makes is written
+ *  to a per-call log, so "what did it send" is measured rather than described. */
 function record(args, env = {}) {
-  const r = spawnSync(process.execPath, [RECORDER, ...args], {
+  const log = join(TMP, `replay-${seq++}.log`);
+  const r = spawnSync(process.execPath, ['--import', pathToFileURL(REPLAY).href, RECORDER, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, GITHUB_REPOSITORY: 'x/y', GITHUB_SHA: 'abc12345deadbeef', GH_TOKEN: 't', ...env },
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: 'x/y',
+      GITHUB_SHA: 'abc12345deadbeef',
+      GH_TOKEN: 't',
+      GITHUB_API_URL: '',
+      RECORD_REPLAY_LOG: log,
+      ...env,
+    },
   });
-  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  const requests = existsSync(log)
+    ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+    : [];
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, requests };
 }
 
 describe('deployment-record — the encoding round-trips', () => {
@@ -553,6 +630,65 @@ describe('record-deployment — the DEPLOYMENT and its STATUS carry the same sha
       'expected the deployment body AND the status body to send the same encoded `description`; ' +
         `found ${bodies.length}. Two shapes in one ledger is what this test exists to prevent.`,
     );
+  });
+
+  // ⏱ 2026-09-12 — AND NOW END TO END, THROUGH THE RECORDER ITSELF. The two
+  // tests above read the SOURCE for the shape, which is what was possible while
+  // the only answer this file could get from GitHub was 401. The replay can
+  // answer 201, so what the recorder actually SENDS is measured.
+  test('the recorder POSTs the deployment and its status, both carrying the SAME encoded description', () => {
+    const { code, out, requests } = record(['subscriptiontracker-web', 'https://nikatru.com/subscriptiontracker/'], {
+      RECORD_REPLAY_STATUS: '201',
+    });
+    assert.equal(code, 0, out);
+    assert.deepEqual(
+      requests.map((r) => `${r.method} ${r.pathname}`),
+      ['POST /repos/x/y/deployments', 'POST /repos/x/y/deployments/42/statuses'],
+      'exactly two writes, in this order, and nothing else reached the network',
+    );
+    const [deployment, status] = requests;
+    assert.equal(
+      deployment.body.description,
+      status.body.description,
+      'ONE SHAPE, NOT TWO — the 2026-08-06 defect was these two fields disagreeing',
+    );
+    const decoded = decodeDescription(deployment.body.description);
+    assert.equal(decoded.ok, true, deployment.body.description);
+    assert.equal(decoded.state, 'live');
+    assert.equal(decoded.sha, 'abc12345');
+    assert.equal(deployment.body.environment, 'subscriptiontracker-web');
+    assert.equal(deployment.body.ref, 'abc12345deadbeef');
+    assert.equal(deployment.body.required_contexts.length, 0, 'the gate was already enforced by assert-gate-passed.mjs');
+    assert.equal(status.body.state, 'success');
+    assert.equal(status.body.environment_url, 'https://nikatru.com/subscriptiontracker/');
+  });
+
+  test('a store record carries its review state and listing URL into BOTH bodies', () => {
+    const { code, requests } = record(
+      ['subscriptiontracker-android-play', '--state', 'in_review', '--listing-url', 'https://play.google.com/store/apps/details?id=x'],
+      { RECORD_REPLAY_STATUS: '201' },
+    );
+    assert.equal(code, 0);
+    assert.equal(requests.length, 2);
+    for (const r of requests) {
+      const d = decodeDescription(r.body.description);
+      assert.equal(d.ok, true, r.body.description);
+      assert.equal(d.state, 'in_review');
+      assert.equal(d.listingUrl, 'https://play.google.com/store/apps/details?id=x');
+    }
+  });
+
+  test('🔴 a refusal is the REPLAY refusing — no test in this file reaches GitHub', () => {
+    // Measured 2026-09-12: before the replay, one run of this file made five real
+    // POSTs to https://api.github.com/repos/x/y/deployments, and the message the
+    // three "got past the shape gate" tests assert on was produced by the live
+    // API answering 401 to the token `t`. The replay throws on any URL it does
+    // not know, so a call that escaped would fail loudly rather than quietly
+    // spending somebody's quota.
+    const { code, out, requests } = record(['subscriptiontracker-web']);
+    assert.equal(code, 1);
+    assert.match(out, /could not record the deployment/);
+    assert.deepEqual(requests.map((r) => r.pathname), ['/repos/x/y/deployments'], 'one write, refused, and no retry — 401 is not retryable');
   });
 
   test('a ledger built from the DEPLOYMENT field decodes — the shape the fix makes true', () => {

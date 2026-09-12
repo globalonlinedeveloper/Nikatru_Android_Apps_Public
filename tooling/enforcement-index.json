@@ -2631,6 +2631,18 @@
     "state": "WIRED"
   },
   {
+    "claims": [
+      "ADR 080"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#glitchtip"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-wildcard-dns.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
     "claims": [],
     "invokedBy": [
       ".github/workflows/ci.yml#guards-legal"
