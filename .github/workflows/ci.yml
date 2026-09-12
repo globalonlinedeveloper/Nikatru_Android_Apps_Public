@@ -424,6 +424,8 @@ jobs:
         run: node tooling/ci/assert-stamp-wiring.mjs
       - name: No capability exists twice, in an app or the template
         run: node tooling/ci/assert-no-seam-forks.mjs
+      - name: Every shared package the template delegates to is adopted by every app
+        run: node tooling/ci/assert-chassis-parity.mjs
       - name: Shared code carries no app-specific vocabulary
         run: node tooling/ci/assert-no-clone-tells.mjs
       - name: Core stays pure, the design system stays domain-free, apps use the seams
