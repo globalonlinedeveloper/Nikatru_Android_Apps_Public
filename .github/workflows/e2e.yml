@@ -98,6 +98,42 @@ jobs:
           fi
           echo "auth_target=${TARGET} is one of the two declared options."
 
+      # why: A REHEARSAL IS NOT PRODUCTION HEALTH, AND ON main NOTHING CAN TELL
+      # THE DIFFERENCE. `tooling/ops/register.json`'s `duty.workflow.e2e.yml` grades
+      # the NEWEST run of this workflow on main, and its own text says what that
+      # means: "Treat as production until proven otherwise." An `auth_target=boxa`
+      # run is the opposite of that claim — it drives a stack the deployed Workers
+      # DELIBERATELY refuse (one issuer, and it is not Box A until the Phase 5
+      # cutover), so its failure says nothing about whether production works.
+      #
+      # 🔴 MEASURED 2026-09-12, AND IT COST TWO DEPLOYS. Run 34668296014
+      # (auth_target=boxa, on main) failed at 02:43:21Z. assert-ops-register.mjs on the
+      # next push read `duty.workflow.e2e.yml — RED SINCE 2026-09-12T02:43:21Z`, that
+      # verdict is ENFORCING on push (INV1), so `ci-gate` went red on 0d3e61a8 — and
+      # `Deploy web` and `Deploy workers` both refused at their
+      # "Require ci-gate to have passed for this commit" step. Nothing was wrong with
+      # the deployed system; a rehearsal had been mistaken for it. The hosted control
+      # run on the same commit (34668924212) passed 11 minutes later.
+      #
+      # ⏱ THE FIX IS THE REF, NOT A WEAKER GUARD. The duty query already narrows
+      # by `headBranch: main`, so a rehearsal dispatched on ANY other branch is invisible
+      # to it while staying fully visible to the person who asked for it. Nothing here
+      # is excluded, ignored, or graded more kindly: a HOSTED failure on main still
+      # blocks every deploy, exactly as before. Refusing at the ref is also the only
+      # shape that cannot drift — there is no list of exempt runs to maintain, and no
+      # way to mark a production failure as a rehearsal after the fact.
+      - name: Preflight — a rehearsal target may not run on the default branch
+        env:
+          TARGET: ${{ inputs.auth_target || 'hosted' }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -uo pipefail
+          if [ "$TARGET" != 'hosted' ] && [ "$REF_NAME" = 'main' ]; then
+            echo "::error title=E2E cannot run::auth_target=${TARGET} is a REHEARSAL against a stack the deployed Workers deliberately refuse, and this dispatch is on main. duty.workflow.e2e.yml grades the newest e2e run on main as PRODUCTION health, so a rehearsal failure here turns ci-gate red and every deploy refuses to ship (measured 2026-09-12: run 34668296014 blocked Deploy web and Deploy workers on 0d3e61a8). Dispatch it on a branch at the same commit instead:  git push origin main:rehearse-${TARGET}  &&  gh workflow run e2e.yml --ref rehearse-${TARGET} -f auth_target=${TARGET}"
+            exit 1
+          fi
+          echo "auth_target=${TARGET} on ref ${REF_NAME}: allowed."
+
       # why: THE TARGET IS NAMED HERE, AND EVERY INPUT THE RUN NEEDS IS CHECKED
       # HERE, AND IT FAILS CLOSED. Each of the three secrets for the chosen set
       # is checked for emptiness BY NAME, and a missing one ENDS the job naming
