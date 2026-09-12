@@ -161,7 +161,7 @@
   "signup-retention.test.mjs": 11,
   "single-threaded-relaunch.test.mjs": 8,
   "sink-disclosure.test.mjs": 34,
-  "site-integrity.test.mjs": 93,
+  "site-integrity.test.mjs": 94,
   "smoke-web-artifact.test.mjs": 15,
   "snap-submission.test.mjs": 41,
   "snapcraft-generable.test.mjs": 66,

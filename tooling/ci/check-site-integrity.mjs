@@ -91,7 +91,13 @@ const REQUIRED_FILES = ['index.html', '404.html', 'robots.txt', '_headers', 'sit
  *  visible-text floor, the <h1> check, the canonical form, the sitemap relation
  *  and the navigation walker all apply to it — the same treatment the other
  *  three get, with no second code path. */
-const LEGAL_PAGES = ['privacy.html', 'terms.html', 'refund.html', 'delete-account.html'];
+// ⏱ 2026-09-12 — `pricing.html` joined the set. It sat in PRINTED_LEGAL_GAPS
+// below until the page landed, printing `PROMOTE ME` on every run since; the
+// promotion is the one-line change that print asked for, and the visible-text
+// floor, the <h1> check and the navigation walker now apply to it unchanged.
+// The real page is 18,927 bytes with a canonical of https://nikatru.com/pricing
+// and is in sitemap.xml.
+const LEGAL_PAGES = ['privacy.html', 'terms.html', 'refund.html', 'delete-account.html', 'pricing.html'];
 
 /** "Still a real page" without matching prose the owner alone may edit:
  *  a size floor measured on VISIBLE TEXT (so a fat <script> or a base64 image
@@ -144,14 +150,17 @@ const LASTMOD_FLOOR = 'every sitemap-compared root contributes a git-checked las
  *
  *  When the page lands, this prints the promotion instead, and the flip into
  *  LEGAL_PAGES is a one-line change after which the 1000-character floor, the
- *  <h1> check and the navigation walker all apply unchanged. */
-const PRINTED_LEGAL_GAPS = new Map([
-  [
-    'pricing.html',
-    'a published price list. A store reviewer and a payment processor\'s seller verification both look for one, ' +
-      'and the prices are already decided — only the copy and the go-live are outstanding (OWNER_QUEUE O-3).',
-  ],
-]);
+ *  <h1> check and the navigation walker all apply unchanged.
+ *
+ *  ⏱ 2026-09-12 — IT IS EMPTY, AND THAT IS THE MECHANISM WORKING. Its one entry
+ *  was `pricing.html`; the page landed, the run printed `PROMOTE ME` instead of
+ *  `MISSING`, and the promotion above is the one-line change that print asked
+ *  for. Leave the map empty rather than deleting it: the split it encodes —
+ *  "owed, but not by anyone who can be failed for it" — is the thing that keeps
+ *  a real gap visible on every run instead of becoming a build failure somebody
+ *  switches off. The promotion test below is what stops an entry outliving its
+ *  reason again. */
+const PRINTED_LEGAL_GAPS = new Map([]);
 
 /** Deploy roots that MUST be treated as app-facing, named rather than sniffed.
  *  The heuristics below (an apps/ directory, a relative link to a legal page)
