@@ -21,6 +21,8 @@
 //   W8 a zone name resolving to zero or two zones is exit 2
 //   W9 a record list longer than the page budget is exit 2, never "no wildcard"
 //   W10 the apex is IMPORTED, not retyped — one literal, one home
+//   W11 ops-watch runs it in a job a duty row already claims, so a wildcard that
+//       came back is watched by somebody
 //
 // Mutations run against check-wildcard-dns.mjs (predictions written first):
 //   · `records.length === 0` branch deleted                 → W4 RED
@@ -28,12 +30,16 @@
 //                                                           → W3 RED
 //   · the MAX_PAGES throw replaced by `return records`      → W9 RED
 //   · the missing-token branch made `process.exitCode = 0`  → W6 RED
+//   · the step moved into a job of its own (the first shape)  → W11 RED, and
+//     assert-ops-register exit 1 on the real tree: "job(s) dns are the unit of
+//     none of them"
 //
 // Run:  node --test tooling/ci/test/wildcard-dns.test.mjs
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -186,21 +192,45 @@ describe('check-wildcard-dns — the process', () => {
     assert.match(src, /import \{ WILDCARD_APEX \} from '\.\.\/ci\/assert-catalog-reachable\.mjs';/);
   });
 
-  test('W11 ops-watch runs it in a job NO duty row claims, so a DNS fact can never block a deploy', () => {
+  test('W11 ops-watch runs it in a job that a duty row ALREADY claims', () => {
+    // 🔴 THIS WAS THE OTHER WAY ROUND FOR ONE PUSH, AND THE TREE REFUSED IT.
+    // The first shape gave the check its own `dns` job, claimed by no duty row,
+    // so that a live DNS verdict could never redden a duty and refuse a deploy.
+    // assert-ops-register REFUSED it, and it is right: "a failure there would be
+    // watched by nobody in this register". A job outside every unit is not a
+    // safe job, it is an unwatched one. So the step lives in the live-ops job,
+    // which duty.workflow.ops-watch.yml already covers — and a red there is the
+    // ordinary consequence of a live reader failing, exactly as it already is
+    // for the GlitchTip, Supabase and GCP readers standing beside it.
     const repo = resolve(HERE, '..', '..', '..');
-    const wf = spawnSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(join(repo, '.github', 'workflows', 'ops-watch.yml'))}, 'utf8'))`], { encoding: 'utf8' }).stdout;
-    assert.match(wf, /node tooling\/ops\/check-wildcard-dns\.mjs/, 'ops-watch must run it');
-    assert.match(wf, /^ {2}dns:$/m, 'it must have its own job');
-    assert.match(wf, /needs:\s*\n\s*\[[^\]]*\bdns\b[^\]]*\]/, 'the alert job must wait on it, or a red wildcard files nothing');
-    // 🔴 THE POINT OF THE WHOLE PLACEMENT. Every other ops-watch job is the unit
-    // of some duty in tooling/ops/register.json, and a red duty makes main's
-    // register step red, which refuses deploys. On 2026-09-11 a live DNS fact
-    // blocked shipping for an afternoon; this is what stops it happening one
-    // layer down.
-    const register = JSON.parse(spawnSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(join(repo, 'tooling', 'ops', 'register.json'))}, 'utf8'))`], { encoding: 'utf8' }).stdout);
+    const wf = readFileSync(join(repo, '.github', 'workflows', 'ops-watch.yml'), 'utf8');
+    const CALL = 'node tooling/ops/check-wildcard-dns.mjs';
+    assert.ok(wf.includes(CALL), 'ops-watch must run the check, or nothing enforces [ADR 080] §4');
+    assert.doesNotMatch(wf, /^ {2}dns:$/m, 'it must not have a job of its own — an unclaimed job is an unwatched one');
+
+    // WHICH job runs it is DERIVED from the workflow, never typed here: the job
+    // a step belongs to is the nearest `  <id>:` header above it.
+    const lines = wf.split('\n');
+    const at = lines.findIndex((l) => l.includes(CALL));
+    let job = null;
+    for (let i = at; i >= 0; i -= 1) {
+      const m = lines[i].match(/^ {2}([a-z][a-z0-9-]*):$/);
+      if (m) {
+        job = m[1];
+        break;
+      }
+    }
+    assert.ok(job, 'could not derive which job runs the check');
+
+    const register = JSON.parse(readFileSync(join(repo, 'tooling', 'ops', 'register.json'), 'utf8'));
     const rows = register.rows ?? register.duties ?? [];
     assert.ok(rows.length > 0, 'the register must have rows, or this check is vacuous');
-    const claimed = rows.filter((r) => JSON.stringify(r.mechanism?.recordQuery?.unit ?? null).includes('"dns"'));
-    assert.deepEqual(claimed.map((r) => r.id), [], 'no duty row may be judged by the dns job');
+    const claiming = rows
+      .filter((r) => (r.mechanism?.recordQuery?.unit?.jobs ?? []).includes(job))
+      .map((r) => r.id);
+    assert.ok(
+      claiming.length > 0,
+      `the \`${job}\` job is the unit of no duty row, so a wildcard that came back would be watched by nobody`,
+    );
   });
 });

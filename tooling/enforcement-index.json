@@ -2635,7 +2635,7 @@
       "ADR 080"
     ],
     "invokedBy": [
-      ".github/workflows/ops-watch.yml#dns"
+      ".github/workflows/ops-watch.yml#glitchtip"
     ],
     "kind": "script",
     "ref": "tooling/ops/check-wildcard-dns.mjs",
