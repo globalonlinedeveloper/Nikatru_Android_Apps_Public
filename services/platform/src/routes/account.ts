@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { allRows } from '../lib/d1';
+import { userOwnedTables, userReferencingColumns } from '../../../_shared/src/erasure';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE /v1/account — the shared server's erasure route.
@@ -120,159 +121,13 @@ import { allRows } from '../lib/d1';
 
 const account = new Hono<AppEnv>();
 
-/** Tables SQLite/D1 own, which must never be a delete target even if some
- *  future column there were named `user_id`. */
-const RESERVED = /^(sqlite_|d1_|_cf_)/;
-
-/**
- * Every table in the bound database that carries a `user_id` column.
- *
- * Derived from `sqlite_master` joined to `pragma_table_info`, so it is the
- * SCHEMA THAT ANSWERS, not a list in this file. D1 speaks SQLite, so this is the
- * same query locally, in the test harness and in production.
- */
-async function userOwnedTables(db: D1Database): Promise<string[]> {
-  const hits = await columnsMatching(db, (col) => col === 'user_id');
-  return hits.map((h) => h.table);
-}
-
-/**
- * 🔴 THE TWO-STEP WALK EXISTS BECAUSE D1 REFUSES THE ONE-STEP FORM, AND THIS
- * ROUTE IS WHERE THE REFUSAL WAS FOUND.
- *
- * Both derivations here used to be a single correlated join:
- *
- *     FROM sqlite_master m JOIN pragma_table_info(m.name) p
- *
- * D1 rejects that with `not authorized: SQLITE_AUTH` (error 7500), and the rule
- * is both narrower and wider than the shape of that one query:
- * any single statement that names sqlite_master/sqlite_schema AND calls a
- * pragma_* table-valued function is rejected — join, subquery, CTE and
- * correlated scalar subquery alike (measured 2026-08-09 against both production
- * databases). The same pragma fed a literal, a bound parameter or a VALUES list
- * is accepted, and so is a plain sqlite_master read.
- *
- * ⚠️ THE FIRST VERSION OF THIS PARAGRAPH WAS WRONG, IN THREE FILES AT ONCE. It
- * read "a table-valued function whose argument is a COLUMN of another table is
- * not allowed" — which the accepted VALUES and bound-parameter forms falsify,
- * and which would have licensed rewriting the join as a CTE, a shape D1 refuses
- * too. Three copies of one wrong sentence read like three sources agreeing, so
- * the sentence now lives once, as `MEASURED_CAUSE` in
- * tooling/ci/d1-sql-inventory.mjs, and assert-d1-sql-inventory.mjs pins this
- * paragraph against the constant the live check sends.
- *
- * The schema is therefore asked in two steps, and the property the header
- * argues for is untouched: the DATABASE still says which tables are user-owned,
- * so a migration that adds one is covered by that migration alone.
- *
- * 🔬 MEASURED 2026-08-09, IN PRODUCTION. A real ES256 user token against the
- * deployed Worker returned `503 {"error":"account_deletion_failed"}` — the catch
- * around this derivation, three lines of which is the whole story: the throw
- * happened before a single row was read, so the 501/502 limbs below never ran
- * and `SUPABASE_SERVICE_ROLE_KEY` and `APP_ERASURE_ENDPOINTS` were never at
- * fault. Running the old query against both live databases through the D1 HTTP
- * API returned SQLITE_AUTH for the join and rows for the literal-argument
- * pragma. **Every in-app account deletion in production had been failing this
- * way since these routes shipped** — the user told "not deleted", correctly but
- * for a reason nobody could see, with nothing wrong with their request. The
- * routes failed CLOSED, so nothing was ever half-erased.
- *
- * ⚠️ THE LOCAL SUITE CANNOT REPRODUCE THE REJECTION, AND SAYING SO IS PART OF
- * THE FIX. This harness runs real SQL through `node:sqlite`, which has no D1
- * authorizer and ACCEPTS the correlated join — verified directly rather than
- * assumed. No test here can go red on the old form, so the accompanying tests
- * pin the DERIVED SET against the real migrations instead. Only a query executed
- * against a live D1 can catch this class, and nothing in CI does that today:
- * `assert-erasure-reach.mjs` proves reachability by parsing MIGRATION FILES, so
- * a query D1 rejects at runtime looks perfectly reachable to it.
- *
- * 🔴 BOTH READS GO THROUGH `allRows`, WHICH IS THE TRANSIENT-D1 RETRY. They used
- * to be bare `db.prepare(...).all()`, and that was the whole of a second defect:
- * `src/lib/d1.ts` has listed `storage operation exceeded timeout which caused
- * object to be reset` as retryable since 2026-09-02, but nothing on this path
- * called it — `src/index.ts` imports `nowIso` from that module and nothing else,
- * so the helper was not even in scope at the route. A D1 Durable Object reset
- * lasting milliseconds therefore came out of THIS preflight as
- * `503 account_deletion_failed`. A read is idempotent, so the retry is safe here
- * by construction rather than by argument.
- *
- * ⚠️ THE BLAST RADIUS IS WHY IT MATTERS MOST HERE. This preflight runs BEFORE the
- * service-role limb, BEFORE the relay to every app's own route and BEFORE the
- * identity delete, so one reset refused the entire four-limb erasure — the same
- * position from which the SQLITE_AUTH rejection broke every in-app deletion in
- * production.
- *
- * ⚠️ IT IS STILL THE NARROW RETRY, AND THAT MATTERS MORE THAN THE RETRY. The
- * SQLITE_AUTH rejection above is DETERMINISTIC: `isTransientD1Error` refuses it,
- * so the second attempt this change adds is never spent re-asking a question D1
- * has already answered. `test/d1-transient-preflight.test.ts` asserts both sides
- * — one reset survives, and a deterministic failure is sent exactly once.
- */
-async function columnsMatching(
-  db: D1Database,
-  match: (column: string) => boolean,
-): Promise<Array<{ table: string; column: string }>> {
-  const listed = await allRows<{ name: string }>(
-    db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`),
-  );
-
-  const tables = listed
-    .map((r) => r.name)
-    .filter(
-      (n) =>
-        typeof n === 'string' &&
-        !RESERVED.test(n) &&
-        // The name is interpolated into the pragma below — D1 cannot bind an
-        // identifier — so anything that is not a plain identifier is refused
-        // rather than quoted. It comes from sqlite_master, never from a request.
-        /^[A-Za-z_][A-Za-z0-9_$]*$/.test(n),
-    );
-
-  const hits: Array<{ table: string; column: string }> = [];
-  for (const table of tables) {
-    // eslint-disable-next-line no-await-in-loop
-    const cols = await allRows<{ name: string }>(
-      db.prepare(`SELECT name FROM pragma_table_info('${table}')`),
-    );
-    for (const row of cols) {
-      if (typeof row.name === 'string' && match(row.name)) {
-        hits.push({ table, column: row.name });
-      }
-    }
-  }
-  return hits;
-}
-
-/**
- * Every (table, column) in the bound database where the column NAMES a user but
- * does not make the row theirs — the `*_user_id` form.
- *
- * `LIKE '%\_user\_id' ESCAPE '\'` rather than a client-side filter, for the same
- * reason [userOwnedTables] pushes its predicate into SQL: the schema answers.
- * `user_id` itself cannot match (there is nothing before the first `_`), so the
- * two sets are disjoint by construction rather than by a subtraction somebody
- * could forget.
- */
-async function userReferencingColumns(
-  db: D1Database,
-): Promise<Array<{ table: string; column: string }>> {
-  // `%_user_id` in SQL became this predicate when the correlated join went (see
-  // [columnsMatching]). `user_id` itself cannot match — something must precede
-  // the `_user_id` suffix — so the two sets stay disjoint BY CONSTRUCTION rather
-  // than by a subtraction somebody could forget, exactly as the SQL did.
-  const hits = await columnsMatching(
-    db,
-    (col) => col.endsWith('_user_id') && col.length > '_user_id'.length,
-  );
-  return hits.filter(
-    // Identifier hygiene: the column name is interpolated into the UPDATE below
-    // (D1 cannot bind an identifier), so anything that is not a plain identifier
-    // is refused rather than quoted. Nothing user-controlled can reach here — it
-    // comes from the schema — but the string still gets built, and a schema is
-    // not a trust boundary anyone audits.
-    (h) => /^[A-Za-z_][A-Za-z0-9_$]*$/.test(h.column),
-  );
-}
+// ⏱ 2026-09-12 · THE FOUR DECLARATIONS THAT USED TO SIT HERE NOW LIVE IN
+// services/_shared/src/erasure.ts, imported above. They were byte-identical in both
+// Workers and ABSENT FROM THE APP TEMPLATE, whose erasure route carried a hand-kept
+// `const appTables = ['records'];` instead - so the derivation that makes this route
+// correct reached both live Workers and never the factory. Their header holds the
+// SQLITE_AUTH measurement behind the two-step walk, the identifier hygiene and the
+// disjointness argument, unchanged.
 
 /**
  * `"subscriptiontracker=https://subscriptiontracker-api.nikatru.com,other=https://…"` → `[{ appId, origin }]`.

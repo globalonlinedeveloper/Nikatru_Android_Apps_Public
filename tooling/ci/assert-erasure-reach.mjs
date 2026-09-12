@@ -1072,7 +1072,28 @@ for (const tpl of templateOwners) {
   //     case a new table is covered by its migration alone; or
   //   · the route carries a list, in which case every user-owned table in the
   //     template's migrations must be IN it.
-  const derivesFromSchema = /\bsqlite_master\b|\bsqlite_schema\b/.test(tplRoute);
+  // ⏱ 2026-09-12 · THE DERIVATION MAY LIVE ONE HOP AWAY. This asked whether
+  // the ROUTE FILE names sqlite_master, which was the only place it could live while
+  // each Worker carried its own copy. The copies became one home
+  // (services/_shared/src/erasure.ts) that every carrier re-exports, so the template's
+  // route derives its set without the word appearing in it. Refusing to follow the
+  // import would have forced a THIRD copy of a correctness-critical derivation into
+  // the template - the drift this guard exists to prevent, created by the guard.
+  //
+  // 🔴 THE HOP IS VERIFIED, NOT ASSUMED. The imported file must exist and must
+  // itself name sqlite_master; an import of a module that does not derive is not a
+  // derivation, and an unreadable one is not either.
+  const NAMES_SCHEMA = /\bsqlite_master\b|\bsqlite_schema\b/;
+  const sharedErasureAbs = join(ROOT, 'services', '_shared', 'src', 'erasure.ts');
+  const delegatesToSharedErasure =
+    /_shared\/src\/erasure['"]/.test(tplRoute) &&
+    existsSync(sharedErasureAbs) &&
+    // COMMENT-STRIPPED, and the first draft of this line was not. That file's header
+    // explains the SQLITE_AUTH rejection and names sqlite_master four times in prose,
+    // so reading the raw source made the check pass over a module whose derivation had
+    // been renamed away - measured here, by mutation, before this line was trusted.
+    NAMES_SCHEMA.test(readCode(sharedErasureAbs));
+  const derivesFromSchema = NAMES_SCHEMA.test(tplRoute) || delegatesToSharedErasure;
   for (const table of [...tplUserOwned].sort()) {
     templateTablesChecked++;
     if (derivesFromSchema) continue;
