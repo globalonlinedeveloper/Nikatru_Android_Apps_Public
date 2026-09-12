@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // chassis-wiring.test.ts — THE FIRST TEST A STAMPED WORKER OWNS, and it is about
@@ -23,23 +21,37 @@ import { join } from 'node:path';
 // So this file asks the one question the rest of the suite cannot: are these
 // files still POINTERS?
 //
-// ⚬ WHAT IT DELIBERATELY DOES NOT DO: read the shared modules' behaviour. That is
-// the chassis suite's job, it already runs here, and asserting it twice would
-// make this file the second opinion nobody updates.
+// ⚬ WHAT IT DELIBERATELY DOES NOT DO: assert the shared modules' behaviour. That
+// is the chassis suite's job, it already runs here, and a second opinion is one
+// nobody updates.
+//
+// ⚠️ `process.getBuiltinModule` RATHER THAN `import 'node:fs'`, and that is not a
+// style choice. This Worker's tsconfig declares `types: ["@cloudflare/workers-types"]`
+// on purpose, so that production code cannot reach for an API the Workers runtime
+// does not have. A bare `node:fs` import would not typecheck — the same reason
+// the platform Worker's twinned-modules test reads files this way.
 // ─────────────────────────────────────────────────────────────────────────────
+const nodeProcess = (
+  globalThis as unknown as {
+    process: {
+      cwd(): string;
+      getBuiltinModule(id: 'node:fs'): { readFileSync(p: string, enc: 'utf8'): string };
+    };
+  }
+).process;
+const fs = nodeProcess.getBuiltinModule('node:fs');
 
 /** Each file under `src/lib/` that must be a pointer, and the home it points at. */
-const RE_EXPORTS = [
+const RE_EXPORTS: ReadonlyArray<readonly [string, string]> = [
   ['src/lib/d1.ts', '_shared/src/d1'],
   ['src/lib/health.ts', '_shared/src/health'],
   ['src/lib/error-sink.ts', '_shared/src/error-sink'],
-] as const;
+];
 
-const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
+const read = (rel: string) => fs.readFileSync(`${nodeProcess.cwd()}/${rel}`, 'utf8');
 
-/** Comments out. A header that MENTIONS the home is not an export of it, and the
- *  headers here all name the module they re-export — so a raw match would pass
- *  over a file whose `export *` had been replaced by a pasted copy. */
+/** Comments out. Every header here NAMES the module it re-exports, so a raw match
+ *  would pass over a file whose `export *` had been replaced by a pasted copy. */
 const code = (src: string) =>
   src
     .replace(/\/\*[\s\S]*?\*\//g, '')
