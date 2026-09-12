@@ -1916,7 +1916,9 @@
     "state": "WIRED"
   },
   {
-    "claims": [],
+    "claims": [
+      "ADR 037"
+    ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
     ],

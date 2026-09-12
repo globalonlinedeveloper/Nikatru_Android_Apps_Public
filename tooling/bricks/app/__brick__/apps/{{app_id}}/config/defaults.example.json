@@ -1,6 +1,7 @@
 {
-  "app_id": "{{app_id.snakeCase()}}",
-  "api_base_url": "{{{api_base_url}}}",
-  "content_pack": "",
-  "environment": "dev"
+  "//": "Copy this to config/defaults.json and fill the two Supabase values, then: flutter run --dart-define-from-file=config/defaults.json",
+  "//keys": "KEY STYLE IS THE --dart-define NAME, NOT a wire name. --dart-define-from-file maps each JSON key to a define of EXACTLY that name, and AppConfig reads API_BASE_URL / SUPABASE_URL / SUPABASE_ANON_KEY. A file of snake keys (app_id, api_base_url) therefore supplies defines nothing reads and the app boots in DEMO MODE LOOKING CONFIGURED - measured 2026-08-08 with a real flutter test --dart-define-from-file: snake file => API_BASE_URL=<UNSET>. This file shipped snake keys until 2026-09-12; assert-stamp-text-fidelity.mjs now fails any key here that AppConfig does not read.",
+  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+  "SUPABASE_ANON_KEY": "sb_publishable_xxx  (modern publishable key; a legacy anon JWT also works)",
+  "API_BASE_URL": "{{{api_base_url}}}"
 }
