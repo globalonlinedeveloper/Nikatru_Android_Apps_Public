@@ -505,9 +505,16 @@ function checkLegalLinkSet() {
       );
     }
   }
+  // ⏱ 2026-09-12 — THE EXEMPT COUNT IS THE PAGES THIS RUN ACTUALLY SAW, not the
+  // size of the map. Those differ the moment a fixture publishes a subset, and a
+  // summary that reports two exemptions over a tree publishing one of them is a
+  // number nobody can reconcile with the tree in front of them. Each page's OWN
+  // reason is printed, because the two reasons are genuinely different and one
+  // sentence asserted for both would be false of one.
+  const exemptHere = published.filter((p) => LINK_EXEMPT_LEGAL_PAGES.has(p));
   ok(
     `[8]K-6 legal set: ${mustLink.length} published page(s) linked in the chassis` +
-      `${LINK_EXEMPT_LEGAL_PAGES.size ? `, ${LINK_EXEMPT_LEGAL_PAGES.size} not linked from the chassis — ${[...LINK_EXEMPT_LEGAL_PAGES].map(([p, why]) => `${p} (${why})`).join('; ')}` : ''}`,
+      `${exemptHere.length ? `, ${exemptHere.length} not linked from the chassis — ${exemptHere.map((p) => `${p} (${LINK_EXEMPT_LEGAL_PAGES.get(p)})`).join('; ')}` : ''}`,
   );
 }
 
