@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { MoRWebhookVerifier } from './contract';
 import { paddleVerifier } from './paddle';
+import { razorpayVerifier } from './razorpay';
 
 /**
  * Every rail that can verify a notification today.
@@ -26,7 +27,15 @@ import { paddleVerifier } from './paddle';
  * count-based guard while doing so. When the facts are sourced, the adapter is
  * one file and one line here.
  */
-export const MOR_VERIFIERS: readonly MoRWebhookVerifier[] = [paddleVerifier];
+// ⏱ 2026-09-12: RAZORPAY JOINS ON A SOURCED SIGNATURE SCHEME, AND ONLY THAT.
+// [ADR 076] makes it the India rail. Its `verify` rests on razorpay.com's own
+// documentation, quoted in the adapter; its `parse` REFUSES, because the event
+// payload shapes are not sourced and no account exists to sample. That is the
+// distinction this comment block draws above and it is worth drawing again: the
+// objection to registering a rail was that it 'CANNOT verify anything'. This one
+// verifies - a forged body is refused today - and declines to claim it understands
+// what a genuine one says. The second half is one function, with a real sample.
+export const MOR_VERIFIERS: readonly MoRWebhookVerifier[] = [paddleVerifier, razorpayVerifier];
 
 const BY_PROVIDER = new Map(MOR_VERIFIERS.map((v) => [v.provider, v]));
 
