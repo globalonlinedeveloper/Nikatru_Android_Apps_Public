@@ -404,6 +404,36 @@ jobs:
           fi
           exit "$code"
 
+      # why: THE ONLY PLACE A RETIRED NAME STILL COSTS ANYTHING, and the one
+      # place tooling/ci/assert-retired-names.mjs structurally cannot look. That
+      # guard reads CONFIGS; a resource nothing references any more is invisible
+      # to it and goes on existing, serving and billing.
+      #
+      # 🔴 MEASURED 2026-09-12: `subly` was gone from every config in the tree
+      # and that guard was GREEN, while the account still held a `subly` Pages
+      # project with 271 deployments and a `subly_db` D1 database. Both were
+      # removed by hand that day, after somebody happened to look. Nothing in CI
+      # could have said so, and nothing would have said so next month either.
+      #
+      # why: IN THIS JOB, like the wildcard and Turnstile checks above - account
+      # state no config mentions is exactly this job's live-ops half.
+      - name: No retired name is still a live resource in the account
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          node tooling/ops/check-retired-names-live.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error title=The live inventory is UNKNOWN - the account was not read::No token, or a resource kind the token cannot list. An unread account is not a clean one: reading four kinds of five and printing ok would make this check's coverage depend on which scopes the token holds that day."
+          elif [ "$code" -eq 1 ]; then
+            echo "::error title=A retired name is still a live resource - ADR 079::The tree stopped naming it, so the source guard is green and will stay green. The resource still exists, still serves and still appears in the dashboard. Delete or rename it in the Cloudflare dashboard."
+          fi
+          exit "$code"
+
   alert:
     name: Open or refresh the ops-watch issue
     needs:

@@ -2389,6 +2389,16 @@
   },
   {
     "claims": [
+      "ADR 079"
+    ],
+    "invokedBy": [],
+    "kind": "guard",
+    "ref": "tooling/ci/retired-identity.mjs",
+    "references": [],
+    "state": "LIBRARY"
+  },
+  {
+    "claims": [
       "ADR 004",
       "F-10",
       "F-6",
@@ -2646,6 +2656,18 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/check-prod-provenance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 079"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#glitchtip"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-retired-names-live.mjs",
     "references": [],
     "state": "WIRED"
   },
