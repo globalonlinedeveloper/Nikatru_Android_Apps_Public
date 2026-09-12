@@ -43,9 +43,21 @@ import type { MoRWebhookVerifier, ParseOutcome, VerifyOutcome } from './contract
 // anything, and it would satisfy every count-based guard while doing so." The
 // signature scheme IS sourced, above — the EVENT PAYLOAD SHAPES ARE NOT. The page
 // that documents the signature does not document the body of
-// `subscription.charged`, and no live sample exists to read: there is no Razorpay
-// account yet (no credential in the vault, no repository secret, no register
-// row), which is owner work — KYC, bank details and GST registration.
+// `subscription.charged`, and no live sample exists to read.
+//
+// ⚠️ AND THE ACCOUNT IS NOT THE MISSING PIECE - AN EARLIER DRAFT OF THIS
+// PARAGRAPH SAID IT WAS, AND WAS WRONG. Private/platform-state/identity.json records
+// the Razorpay account as `plan: live, KYC complete` as of 2026-09-05, registered
+// deliberately (owner, 2026-08-28) as the domestic INR gateway. The mistake was
+// reading an ABSENCE OF CREDENTIALS IN THIS REPOSITORY as an absence of the account:
+// no RAZORPAY_WEBHOOK_SECRET in the vault and none in the repository secrets says the
+// WEBHOOK has never been configured and its secret never captured - a much smaller
+// thing, and the actual gate.
+//
+// So what this half waits on is a webhook endpoint configured on the live account,
+// its secret captured, and ONE event delivered and kept. Note also that the register
+// still calls Razorpay the domestic BACKUP rather than the live rail; [ADR 076]
+// changed that and the row has not caught up.
 //
 // The contract is explicit about which way to fail: "An adapter that guesses at a
 // shape it cannot source will mis-parse silently and write a wrong row that looks
@@ -148,7 +160,8 @@ export const razorpayVerifier: MoRWebhookVerifier = {
         '(razorpay.com/docs/webhooks/validate-test/, read 2026-09-12) and is enforced by `verify`, so a forged ' +
         'body is already refused. What is missing is a real event sample and a decision about where the event ' +
         "id comes from: Razorpay's unique id is the `x-razorpay-event-id` HEADER, and this function is also run " +
-        'over STORED payloads (scheduled.ts) where no header survives. Both need an account, which is owner work.',
+        'over STORED payloads (scheduled.ts) where no header survives. The ACCOUNT is live and KYC-complete ' +
+        '(2026-09-05); what is missing is a configured webhook, its captured secret, and one delivered event.',
     };
   },
 };
