@@ -191,7 +191,7 @@
   "vacuity-c.test.mjs": 6,
   "vendor-portability.test.mjs": 29,
   "walks-bounded.test.mjs": 42,
-  "web-cache-policy.test.mjs": 41,
+  "web-cache-policy.test.mjs": 46,
   "web-sourcemaps.test.mjs": 18,
   "well-known-shape.test.mjs": 29,
   "wildcard-dns.test.mjs": 13,

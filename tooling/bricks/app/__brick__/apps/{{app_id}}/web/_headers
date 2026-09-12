@@ -1,6 +1,62 @@
 # Cloudflare Pages headers for the Flutter web build.
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
+# ===========================================================================
+# 🔴 THE STAMPED APP'S CONTENT-SECURITY-POLICY — ADDED 2026-09-12.
+#
+# The template shipped NO security headers at all until today, so every app
+# stamped from it was born with none. `apps/subscriptiontracker` got its own on
+# 2026-09-09 ([ADR 075]) and the template was not followed up — found by the
+# factory-vs-app drift audit, research/factory-drift-2026-09-12/.
+#
+# 🔴 WHY IT IS NOT OPTIONAL HERE. Since [ADR 075] an app is published at
+# `nikatru.com/<id>`, the SAME ORIGIN as the marketing site, the pricing page,
+# `/checkout-return` and every other app — and the Supabase bearer token lives in
+# that origin's web storage. An XSS in ANY app on the apex reaches all of it. A
+# bundle with no policy does not inherit one: `_headers` is applied by the
+# ASSET-serving stage (measured 2026-09-09 on a throwaway Pages project), so
+# `sites/nikatru/_headers` never reaches a response the apex router returns from a
+# proxy fetch, while THIS file's rules travel with the app's bytes and do.
+#
+# ⏱ THIS POLICY IS STRICTER THAN THE ONE `apps/subscriptiontracker` CARRIES, AND
+# DELIBERATELY SO. That app's `script-src` lists a `'sha256-…'` for the one inline
+# <script> in its index.html; the template's index.html has NO inline script (only
+# `<script src="flutter_bootstrap.js" async>`), so a stamped app needs no hash and
+# gets none. ⚠️ IF YOU ADD AN INLINE <script> TO index.html you MUST add its
+# sha256 here in the same commit — assert-web-cache-policy.mjs recomputes every
+# inline block's hash and fails when the header does not carry it. Without that,
+# the block is blocked at runtime SILENTLY: no error page, no 404, just a script
+# that never runs.
+#
+# Each unobvious entry, and why it is there:
+#   · `'wasm-unsafe-eval'` — CanvasKit/skwasm. NOT `'unsafe-eval'`: the narrow
+#     keyword permits WebAssembly compilation and nothing else.
+#   · `worker-src`/`child-src blob:` — the engine spawns its wasm workers from
+#     blob URLs.
+#   · `challenges.cloudflare.com` — Turnstile, in script-src AND frame-src. It is
+#     declared BEFORE `TURNSTILE_SITE_KEY` is ever set, so the gate cannot fail
+#     closed on the day it is switched on.
+#   · `connect-src` names the first-party hosts a stamped app calls, and the app's
+#     OWN API host only when it has a backend. It does NOT name the apex, because
+#     `'self'` IS the apex once the app is served there.
+#   · the Supabase project is the ONE this portfolio shares (see `SUPABASE_URL` in
+#     services/platform/wrangler.jsonc, shared across every NIKATRU app). ⚠️ WHEN
+#     THE BOX A CUTOVER LANDS ([ADR 080] Phase 5) this line gains
+#     `https://auth-api.nikatru.com` and loses the hosted project — in the same
+#     change that moves `SUPABASE_URL` on both Workers, or every stamped app's
+#     sign-in is blocked by its own policy.
+#
+# ⚠️ `frame-ancestors 'none'` and `X-Frame-Options: DENY` are both set: the app must
+# not be framed, including by another path on its own origin, because same-origin
+# framing is otherwise unrestricted between app paths on one apex.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://lcrkiurkvzhkonjwhpiv.supabase.co{{#needs_backend}} https://{{{api_domain}}}{{/needs_backend}} https://config.nikatru.com https://platform.nikatru.com https://glitchtip.nikatru.com; upgrade-insecure-requests
+# ===========================================================================
+#
 # 🔴 WHY THIS FILE EXISTS — [pipeline 9]R-9, the cache limb.
 #
 # deploy-web.yml builds with `--pwa-strategy=none` ([ADR 023], LOCKED
@@ -100,4 +156,12 @@
 /assets/*
   Cache-Control: public, max-age=0, must-revalidate
 /canvaskit/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# The engine's text fallback fonts, copied into build/web/fallback-fonts/ by
+# tooling/web/self-host-fallback-fonts.mjs (see web/flutter_bootstrap.js, which
+# passes `fontFallbackBaseUrl`). Not shipped from web/, and the SAME rule as the
+# bundle's other build output: a fixed name per engine version, so revalidate
+# rather than assume immutability.
+/fallback-fonts/*
   Cache-Control: public, max-age=0, must-revalidate
