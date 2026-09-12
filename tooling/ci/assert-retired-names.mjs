@@ -49,10 +49,14 @@ import { join, resolve } from 'node:path';
 import { listDir } from './tree-walk.mjs';
 import { parseJsonc } from './d1-sql-inventory.mjs';
 import { parseYaml } from '../app-yaml/yaml.mjs';
+// The tokens AND the matching rule come from one home, so the tree check and the
+// live account check (tooling/ops/check-retired-names-live.mjs) can never disagree
+// about what the retired name is.
+import { RETIRED_REGISTER_REL, retiredIn, tokensFrom } from './retired-identity.mjs';
 
 const ROOT = resolve(process.argv[2] ?? process.cwd());
 const abs = (p) => join(ROOT, p);
-const REGISTER_REL = 'tooling/channel-register.json';
+const REGISTER_REL = RETIRED_REGISTER_REL;
 
 function coverageLost(lines) {
   console.error('✗ COVERAGE LOST — assert-retired-names read too little of the tree to be evidence.');
@@ -75,8 +79,7 @@ const listing = (relDir) => (existsSync(abs(relDir)) ? listDir(abs(relDir), { wi
 
 // ── the tokens ───────────────────────────────────────────────────────────────
 const register = readJson(REGISTER_REL);
-const tokens = (Array.isArray(register?.retiredIdentityTokens?.tokens) ? register.retiredIdentityTokens.tokens : [])
-  .filter((t) => typeof t === 'string' && t.trim() !== '');
+const tokens = tokensFrom(register);
 if (tokens.length === 0) {
   coverageLost([
     `${REGISTER_REL} declares no \`retiredIdentityTokens.tokens\`.`,
@@ -84,15 +87,14 @@ if (tokens.length === 0) {
     'like a clean tree.',
   ]);
 }
-const squash = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, '');
-const retiredIn = (value) => tokens.find((t) => squash(value).includes(squash(t))) ?? null;
+const carriesRetired = (value) => retiredIn(tokens, value);
 
 const findings = [];
 const read = new Map(); // subject → number of names read
 function check(subject, where, field, value) {
   if (typeof value !== 'string' || value.trim() === '') return;
   read.set(subject, (read.get(subject) ?? 0) + 1);
-  const hit = retiredIn(value);
+  const hit = carriesRetired(value);
   if (hit) {
     findings.push(
       `${where} → ${field} = ${JSON.stringify(value)} carries the retired name "${hit}" ` +
