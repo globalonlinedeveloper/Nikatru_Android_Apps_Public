@@ -1917,7 +1917,9 @@
   },
   {
     "claims": [
-      "ADR 037"
+      "ADR 037",
+      "ADR 075",
+      "ADR 080"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
@@ -2644,6 +2646,19 @@
     ],
     "kind": "script",
     "ref": "tooling/ops/check-prod-provenance.mjs",
+    "references": [],
+    "state": "WIRED"
+  },
+  {
+    "claims": [
+      "ADR 075",
+      "ADR 079"
+    ],
+    "invokedBy": [
+      ".github/workflows/ops-watch.yml#glitchtip"
+    ],
+    "kind": "script",
+    "ref": "tooling/ops/check-turnstile-hosts.mjs",
     "references": [],
     "state": "WIRED"
   },

@@ -183,7 +183,7 @@ function tree({
   if (backend) {
     write(
       `services/${app}-api/wrangler.jsonc`,
-      `{\n  // the allowlist is EXACT\n  "name": "${app}-api",\n  "vars": {\n    "ALLOWED_ORIGINS": "https://${app}.nikatru.com"\n  }\n}\n`,
+      `{\n  // the allowlist is EXACT\n  "name": "${app}-api",\n  "vars": {\n    "ALLOWED_ORIGINS": "https://nikatru.com"\n  }\n}\n`,
     );
     write(`services/${app}-api/README.md`, `# ${app}-api\n\nPer-app backend for **${name}**.\n`);
   }
@@ -231,7 +231,7 @@ describe('assert-stamp-text-fidelity', () => {
   test('a faithful backend stamp passes, including its derived ALLOWED_ORIGINS', () => {
     const r = run(tree({ app: 'probeapi', backend: true }));
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /ALLOWED_ORIGINS derived to https:\/\/probeapi\.nikatru\.com/);
+    assert.match(r.out, /ALLOWED_ORIGINS derived to https:\/\/nikatru\.com/);
   });
 
   // ── 1 · the escaping defect, one destination at a time ────────────────────
@@ -372,6 +372,30 @@ describe('assert-stamp-text-fidelity', () => {
     );
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /_phApiBase is "https:\/\/"/);
+  });
+
+  // 🔴 THE DEFECT THIS PINS, AND IT WOULD HAVE BROKEN APP #2 ON DAY ONE. The
+  // template stamped `https://<app>.nikatru.com` into its own Worker's allowlist:
+  // an address [ADR 075] retired and [ADR 080] section 4 stopped resolving, so the
+  // Worker allowed exactly one origin THAT CANNOT EXIST and refused the apex the
+  // app is actually served from. Every API call from its web build would have been
+  // blocked by the browser, with no server-side error to find. The guard agreed
+  // with the template, which is why nothing caught it.
+  test('the retired per-app subdomain in ALLOWED_ORIGINS fails, naming the apex', () => {
+    const r = run(
+      tree({
+        app: 'probeapi',
+        backend: true,
+        mutate: ({ write, app }) =>
+          write(
+            `services/${app}-api/wrangler.jsonc`,
+            `{\n  "name": "${app}-api",\n  "vars": { "ALLOWED_ORIGINS": "https://${app}.nikatru.com" }\n}\n`,
+          ),
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /ALLOWED_ORIGINS is "https:\/\/probeapi\.nikatru\.com"/);
+    assert.match(r.out, /https:\/\/nikatru\.com/);
   });
 
   test('a bare "https://" in the stamped Worker ALLOWED_ORIGINS fails', () => {
