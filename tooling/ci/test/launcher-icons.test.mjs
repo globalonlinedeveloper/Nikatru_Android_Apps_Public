@@ -59,6 +59,10 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spiedRun } from './fixtures/fs-spy-run.mjs';
+// Both helpers moved to a shared home 2026-09-12: mutation-proofs.test.mjs needs
+// the same pair, and the copy that stayed here was where the name-vs-death
+// lesson was learned. See the module header.
+import { POSIX, groupMembers, goneWithin } from './fixtures/process-group.mjs';
 import { deflateSync } from 'node:zlib';
 // The one bounded directory listing — used to prove where the reader's cache lands.
 import { listDir } from '../tree-walk.mjs';
@@ -533,26 +537,6 @@ function world({
 // The bound stays as a backstop, and when it fires it now says WHAT was left:
 // the guard runs in its own process group and the survivors are listed by name.
 const RUN_TIMEOUT_MS = 120_000;
-const POSIX = process.platform !== 'win32';
-// Deliberately independent of the reader's own process-group handling: a test
-// that asked the code under test what it left running would certify its answer.
-function groupMembers(pgid) {
-  const r = spawnSync('pgrep', ['-l', '-g', String(pgid)], { encoding: 'utf8', timeout: 5_000 });
-  if (r.error) return [`(pgrep unavailable: ${r.error.code})`];
-  return r.stdout.trim().split('\n').filter(Boolean);
-}
-function goneWithin(pid, ms) {
-  const end = Date.now() + ms;
-  for (;;) {
-    try {
-      process.kill(pid, 0);
-    } catch (e) {
-      if (e.code === 'ESRCH') return true;
-    }
-    if (Date.now() > end) return false;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
-  }
-}
 // 🔴 THE READER'S CACHE GOES INTO THIS FILE'S OWN TEMP ROOT. flutter-stock-assets
 // caches one `flutter create` per SDK under os.tmpdir(), keyed by the SDK's path
 // — and every fixture here is a NEW SDK path, so each run used to leave one
@@ -945,7 +929,11 @@ describe('assert-launcher-icons', () => {
     assert.equal(code, 2, out);
     assert.match(out, /COVERAGE LOST/);
     assert.match(out, /`flutter create` did not finish within 2 s/);
-    assert.match(out, /still running in its process group: .*sleep/);
+    // A pid and a name, not THE name: see the fork→exec note in
+    // fixtures/process-group.mjs. This case gives the sleeper 2 s to exec, so
+    // `sleep` would in fact be there — but the property worth pinning is that
+    // the guard SAYS what it left, and the line below is what proves it died.
+    assert.match(out, /still running in its process group: \d+ \S+/);
     const pid = Number(readFileSync(join(w.root, 'straggler.pid'), 'utf8'));
     assert.ok(goneWithin(pid, 5_000), `the stuck process (pid ${pid}, sleep 600) outlived the guard\n${out}`);
   });
