@@ -44,9 +44,14 @@ import 'package:{{app_id.snakeCase()}}/core/app_config.dart';
 /// `chassis_properties_test.dart` uses to derive the screen set from the router.
 const String kConfigRel = 'lib/core/app_config.dart';
 
-/// The runtime-config defaults the app ships with. Its `api_base_url` is
+/// The runtime-config defaults the app ships with. Its `API_BASE_URL` is
 /// stamped from the same derived value as `_phApiBase`, which is the whole
 /// point: one of them is not a placeholder for the other.
+///
+/// The key is the `--dart-define` NAME, not a wire name. It was
+/// `api_base_url` until 2026-09-12, and `--dart-define-from-file` maps each
+/// JSON key to a define of exactly that name, so the file supplied defines
+/// nothing read and the app booted in demo mode looking configured.
 const String kDefaultsRel = 'config/defaults.json';
 
 /// String-aware comment stripper, so a doc comment that NAMES an identifier
@@ -194,7 +199,7 @@ void main() {
       final Map<String, dynamic> json =
           jsonDecode(defaults.readAsStringSync()) as Map<String, dynamic>;
       expect(
-        json['api_base_url'],
+        json['API_BASE_URL'],
         stamped,
         reason:
             'config/defaults.json and _phApiBase are stamped from one derived '
