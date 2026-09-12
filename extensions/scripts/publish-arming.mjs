@@ -33,12 +33,8 @@
 // ⚠️ NOTHING HERE READS OR PRINTS A SECRET VALUE. It reads `process.env[name]`
 // only to ask whether it is a non-empty string, and reports NAMES.
 // ─────────────────────────────────────────────────────────────────────────────
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-/* The ONE resolver for "which tool.json declares this id". Imported rather than
-   reimplemented — release-manifest.mjs guards its CLI behind an import.meta check,
-   so importing it runs nothing. */
-import { productSurfaces } from '../../tooling/ci/release-manifest.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { armingOf, armingOfTool } from '../../tooling/ci/channel-arming.mjs';
 
@@ -52,6 +48,30 @@ export const REGISTER = 'tooling/channel-register.json';
 /** Where a TOOL declares its own per-store listing identity. `<tool>` is the id
  *  the release tag carries. */
 export const TOOL_JSON_REL = 'extensions/Extension/<dir>/tool.json';
+
+/**
+ * Every tool.json under extensions/Extension/ that DECLARES `id`, as
+ * { where } rows. Returns a LIST because zero and two are different failures and
+ * the caller must be able to say which.
+ *
+ * The only thing it asks of a manifest is its `id`. A tool.json that declares
+ * the id and nothing else resolves — which is what the gate self-test's minimal
+ * fixtures are, and what a new tool looks like on its first day.
+ */
+function declaringToolJson(root, id) {
+  const base = join(root, 'extensions', 'Extension');
+  if (!existsSync(base)) return [];
+  const out = [];
+  for (const dir of readdirSync(base)) {
+    const rel = `extensions/Extension/${dir}/tool.json`;
+    const abs = join(root, rel);
+    if (!existsSync(abs)) continue;
+    let tool;
+    try { tool = JSON.parse(readFileSync(abs, 'utf8')); } catch { continue; }
+    if (tool?.id === id) out.push({ where: rel });
+  }
+  return out;
+}
 
 /**
  * 🔴 `<dir>` IS NOT THE TOOL ID, AND ASSUMING IT WAS KILLED THE RELEASE LANE.
@@ -143,8 +163,17 @@ export function toolListingId({ toolId, storeKey, root = REPO_ROOT }) {
       'without it there is no row to read the listing id from.',
     ]);
   }
-  /* Resolved by DECLARATION, never by directory name — see TOOL_JSON_REL above. */
-  const surfaces = productSurfaces(root, toolId);
+  /* Resolved by DECLARATION, never by directory name — see TOOL_JSON_REL above.
+   *
+   * ⚠️ IT DOES NOT REUSE release-manifest.mjs's productSurfaces(), AND THE FIRST
+   * VERSION OF THIS FIX DID. That helper answers a DIFFERENT question — "which
+   * products answer to this id and what SURFACE are they on" — and to answer it
+   * it skips any tool.json whose `surface` field is missing or empty. Arming
+   * never reads `surface`, so borrowing that resolver silently imported a
+   * requirement this file does not have: every minimal tool.json became invisible
+   * and SEVEN gate self-test cases went red, measured 2026-09-12 before merge.
+   * Reusing a helper is right when the question is the same. It was not. */
+  const surfaces = declaringToolJson(root, toolId);
   if (surfaces.length === 0) {
     throw new ArmingCoverageLost([
       `COVERAGE LOST — no extensions/Extension/*/tool.json under ${root} declares id "${toolId}".`,
