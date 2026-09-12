@@ -94,6 +94,18 @@ class _TurnstileGateState extends State<TurnstileGate> {
       child: CloudflareTurnstile(
         siteKey: TurnstileGate.siteKey,
         options: TurnstileOptions(
+          // ⏱ 2026-09-12 · THE BOX AND THE FRAME DISAGREED ABOUT ITS WIDTH, and the
+          // owner saw the result: a challenge sitting in the left third of a wide
+          // bordered box with dead space beside the Cloudflare logo. The package
+          // renders the iframe with `style.width = '100%'` so it fills whatever
+          // column it is given, while sizing the Flutter box from
+          // `options.size.width` - and with no `size` set that default is
+          // `normal`, a fixed 300px. Two numbers for one widget.
+          //
+          // `flexible` is the size Cloudflare documents for this: width fills the
+          // container (minimum 300px), height stays 65. Now the frame and the box
+          // agree, and the challenge spans the same width as the form above it.
+          size: TurnstileSize.flexible,
           // `auto` follows the host page, which is what keeps the challenge from
           // being a bright white block in the app's dark theme.
           theme: TurnstileTheme.auto,
