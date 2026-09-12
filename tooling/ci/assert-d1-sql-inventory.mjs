@@ -145,6 +145,25 @@ if (owners.length < 2) {
 /** Repo-relative source files that can send SQL to these databases. */
 const TOOLING_DIRS = ['tooling/e2e', 'tooling/ops', 'tooling/ci', 'tooling/scripts'];
 const toolingFiles = TOOLING_DIRS.flatMap((d) => sourceFilesUnder(ROOT, d));
+
+// ⏱ 2026-09-12 · services/_shared IS IN THE DOMAIN NOW, BECAUSE IT SENDS SQL.
+// `inventoryServices` only sees a directory with a wrangler.jsonc, and _shared has
+// none - it is not a Worker, it is the ONE HOME the Workers re-export from. When the
+// erasure derivation moved there, the two `sqlite_master` reads and the two
+// `pragma_table_info` calls left the domain with it, and the fingerprint floor below
+// said so rather than letting four statements slip out of the scan. A file that
+// builds a statement for a production database belongs here whether or not it is
+// deployed on its own.
+const SHARED_DIRS = ['services/_shared/src'];
+const sharedFiles = SHARED_DIRS.flatMap((d) => sourceFilesUnder(ROOT, d));
+if (sharedFiles.length === 0) {
+  coverageLost([
+    `not one source file was found under ${SHARED_DIRS.join(', ')}.`,
+    'That directory holds the erasure derivation both Workers re-export - the sqlite_master read and the',
+    'pragma walk that the SQLITE_AUTH rejection is about. A walk that finds none of it is reading a domain',
+    'with the shared half missing, and every limb below would quantify over the routes alone.',
+  ]);
+}
 if (toolingFiles.length === 0) {
   coverageLost([
     `not one source file was found under ${TOOLING_DIRS.join(', ')}.`,
@@ -189,6 +208,7 @@ const readInto = (rel) => {
 };
 for (const svc of services) for (const rel of svc.files) readInto(rel);
 for (const rel of toolingFiles) readInto(rel);
+for (const rel of sharedFiles) readInto(rel);
 
 if (skipped.length === 0) {
   coverageLost([
@@ -263,12 +283,16 @@ for (const svc of owners) {
 // row here even though the service still has a statement, which a count cannot
 // see.
 const FINGERPRINTS = [
-  ['services/platform/src/routes/account.ts', 'introspective', /FROM sqlite_master/i, 'the shared erasure route lists the tables'],
-  ['services/platform/src/routes/account.ts', 'introspective', /pragma_table_info\(/i, 'the shared erasure route asks each table for its columns'],
+  // ⏱ 2026-09-12 · THE TWO INTROSPECTIVE ROWS ARE NOW ONE PAIR, NOT TWO.
+  // They were per route file while each Worker carried its own copy of the
+  // derivation; the copies became one home (services/_shared/src/erasure.ts) that both
+  // re-export, so there is one sqlite_master read and one pragma walk in the tree.
+  // Deleting either still removes a row here - which is the whole point of naming
+  // WHICH statements rather than counting them.
+  ['services/_shared/src/erasure.ts', 'introspective', /FROM sqlite_master/i, 'the one erasure derivation lists the tables'],
+  ['services/_shared/src/erasure.ts', 'introspective', /pragma_table_info\(/i, 'the one erasure derivation asks each table for its columns'],
   ['services/platform/src/routes/account.ts', 'dynamic-identifier', /^DELETE FROM /i, 'the shared erasure route empties a user-owned table'],
   ['services/platform/src/routes/account.ts', 'dynamic-identifier', /^UPDATE .* SET /i, 'the shared erasure route unlinks a *_user_id reference'],
-  ['services/subscriptiontracker-api/src/routes/account.ts', 'introspective', /FROM sqlite_master/i, "Subly's erasure route lists the tables"],
-  ['services/subscriptiontracker-api/src/routes/account.ts', 'introspective', /pragma_table_info\(/i, "Subly's erasure route asks each table for its columns"],
   ['services/subscriptiontracker-api/src/routes/account.ts', 'dynamic-identifier', /^DELETE FROM /i, "Subly's erasure route empties a user-owned table"],
   ['services/subscriptiontracker-api/src/routes/account.ts', 'dynamic-identifier', /^UPDATE .* SET /i, "Subly's erasure route unlinks a *_user_id reference"],
   ['services/subscriptiontracker-api/src/routes/subscriptions.ts', 'dynamic-identifier', /^UPDATE subscriptions SET /i, 'the allowlisted-column subscription PATCH'],
@@ -319,6 +343,24 @@ const literalArrayFor = (sym) =>
     `\\b(?:for\\s*\\(\\s*(?:const|let|var)\\s+${sym}\\s+of|(?:const|let|var)\\s+${sym}\\s*=)\\s*\\[\\s*'[^'\\n]*'(?:\\s*,\\s*'[^'\\n]*')+`,
   );
 const rootSymbol = (expr) => /^([A-Za-z_$][\w$]*)/.exec(String(expr))?.[1] ?? null;
+/** The repo-relative paths a file imports by RELATIVE specifier, resolved and suffixed
+ *  the way TypeScript resolves them here. Bare specifiers are not followed: a package
+ *  is not part of this scan's domain and cannot be evidence about it. */
+const relativeImportsOf = (rel, code) => {
+  const dir = rel.split('/').slice(0, -1);
+  const out = [];
+  for (const m of String(code).matchAll(/from\s+'(\.[^']+)'/g)) {
+    const parts = [...dir];
+    for (const seg of m[1].split('/')) {
+      if (seg === '.' || seg === '') continue;
+      if (seg === '..') parts.pop();
+      else parts.push(seg);
+    }
+    const p = parts.join('/');
+    out.push(p.endsWith('.ts') || p.endsWith('.mjs') ? p : `${p}.ts`);
+  }
+  return out;
+};
 const quotedHole = (sql, i) => {
   const at = sql.indexOf(holePlaceholder(i));
   if (at <= 0) return false;
@@ -334,6 +376,19 @@ for (const [rel, inv] of scanned) {
     if (st.kind !== 'dynamic-identifier') continue;
     const evidence = [];
     if (inv.code.includes(IDENTIFIER_REGEX_TEXT)) evidence.push('the identifier regex is applied in this file');
+    // (e) 🔴 THE CONSTRAINT MAY LIVE ONE HOP AWAY, AND REFUSING TO FOLLOW IT WOULD
+    // PUNISH THE RIGHT ARCHITECTURE. Both erasure routes get their table and column
+    // names from services/_shared/src/erasure.ts, which applies the identifier regex
+    // before returning them. Requiring the regex in the CALLING file would force each
+    // route to re-filter what the shared module already filtered - a second copy of a
+    // correctness rule, which is what moving it to one home removed. ONE hop only, and
+    // only to a file this scan has itself read: an unread import is no evidence.
+    for (const imported of relativeImportsOf(rel, inv.code)) {
+      const dep = scanned.get(imported);
+      if (dep?.code.includes(IDENTIFIER_REGEX_TEXT)) {
+        evidence.push(`the identifier regex is applied in ${imported}, which this file imports`);
+      }
+    }
     if (CLOSED_UNION.test(inv.code)) evidence.push('the file declares a closed string-literal union');
     st.holes.forEach((expr, i) => {
       const sym = rootSymbol(expr);
@@ -375,9 +430,14 @@ if (constrained === 0 && problems.length === 0) {
 // refused. Three copies of one wrong sentence look like three sources agreeing.
 // Compared on a normalised reduction, so each file may wrap it to its own width.
 // ─────────────────────────────────────────────────────────────────────────────
+// ⏱ 2026-09-12 · TWO SITES, NOT THREE, AND THAT IS THIS RULE GETTING ITS WISH.
+// The paragraph above is about three copies of one WRONG sentence looking like three
+// sources agreeing. The two route copies became one when the derivation moved to its
+// one home, so the sentence now lives beside the code it explains and in the e2e
+// verifier that sends the same shape of statement. Fewer copies is the direction this
+// rule wants; what it still refuses is a copy that drifts from the others.
 const CAUSE_SITES = [
-  'services/platform/src/routes/account.ts',
-  'services/subscriptiontracker-api/src/routes/account.ts',
+  'services/_shared/src/erasure.ts',
   'tooling/e2e/verify_purged.mjs',
 ];
 const wanted = normaliseProse(MEASURED_CAUSE);

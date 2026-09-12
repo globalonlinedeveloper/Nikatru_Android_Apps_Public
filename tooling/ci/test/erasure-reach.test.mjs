@@ -52,6 +52,12 @@ function realTree() {
   const root = mkdtempSync(join(tmpdir(), 'nikatru-erasure-reach-'));
   mkdirSync(join(root, 'tooling', 'legal'), { recursive: true });
   cpSync(join(REPO, REGISTER), join(root, REGISTER));
+  // The one home the routes re-export from. Since 2026-09-12 the derivation lives
+  // there, and the template limb follows the import ONE HOP to check it really
+  // derives - a fixture without it would make that limb unanswerable and the
+  // template would read as a hand-kept list.
+  mkdirSync(join(root, 'services', '_shared', 'src'), { recursive: true });
+  cpSync(join(REPO, 'services', '_shared', 'src'), join(root, 'services', '_shared', 'src'), { recursive: true });
   for (const svc of [PLATFORM, SUBLY]) {
     mkdirSync(join(root, svc), { recursive: true });
     cpSync(join(REPO, svc, 'src'), join(root, svc, 'src'), { recursive: true });
@@ -520,43 +526,61 @@ describe('the template root', () => {
     );
   });
 
-  test('T1 FAILS when the starter schema grows a user-owned table the route does not reach', () => {
-    // 🔴 THE DRIFT BOTH SHIPPED ROUTES DOCUMENT AND NOTHING ENFORCED. The brick's
-    // route carries `const appTables = ['records'];` where platform and subscriptiontracker-api
-    // derive the set from `sqlite_master`. A table added to the starter migration
-    // without the same diff editing that list is orphaned PII in every stamped
-    // app, and the route still answers `{ ok: true }`.
+  // ⏱ 2026-09-12 - THE TEMPLATE DERIVES NOW, so the pair below is inverted from
+  // what it was. It used to assert that the template's hand-kept
+  // `const appTables = ['records'];` failed when the starter schema grew a table, and
+  // that deriving was a clean pass. The template stopped carrying a list: its route
+  // imports the one home both Workers re-export. So the FAILING case is the
+  // regression - a template that goes BACK to a list - and the PASSING case needs no
+  // mutation at all.
+  test('T1 FAILS if the template goes BACK to a hand-kept list and the schema grows past it', () => {
+    // 🔴 THE DRIFT BOTH SHIPPED ROUTES DOCUMENT AND NOTHING ENFORCED UNTIL NOW. A
+    // table added to the starter migration without the same diff editing that list is
+    // orphaned personal data in every stamped app, and the route still answers ok.
     withTemplateTree(
-      (root) =>
-        edit(root, BRICK_MIGRATION, (s) => `${s}\nCREATE TABLE notes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL);\n`),
+      (root) => {
+        edit(root, BRICK_MIGRATION, (s) => `${s}\nCREATE TABLE notes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL);\n`);
+        edit(root, BRICK_ROUTE, (s) =>
+          s
+            .replace(/import \{ userOwnedTables[^;]*;/, '')
+            .replace('const tables = await userOwnedTables', "const tables = ['records']; //")
+            .replace('tables = await userOwnedTables(c.env.APP_DB);', "tables = ['records'];"),
+        );
+      },
       (r) => {
-        assert.equal(r.status, 1);
+        assert.equal(r.status, 1, r.stderr);
         assert.match(r.stderr, /does not reach `notes`, which the template's own migrations give a `user_id`/);
       },
     );
   });
 
-  test('T1 PASSES when the route derives its table set from the schema — the cure is not punished', () => {
-    // The recommended fix is to stop carrying a list at all. A check that failed
-    // on the cure is a check somebody deletes, so deriving must be a clean pass
-    // even for a table the route never names.
+  test('T1 PASSES as the template stands - deriving through the one home is the cure, not a finding', () => {
+    // A check that failed on the cure is a check somebody deletes. The template names
+    // no table at all, so a new one in the starter schema must be a clean pass.
     withTemplateTree(
-      (root) => {
-        edit(root, BRICK_MIGRATION, (s) => `${s}\nCREATE TABLE notes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL);\n`);
-        edit(root, BRICK_ROUTE, (s) =>
-          s.replace(
-            "const appTables = ['records'];",
-            "const appTables = await tablesFrom(c.env.APP_DB, 'sqlite_master');",
-          ),
-        );
-      },
+      (root) =>
+        edit(root, BRICK_MIGRATION, (s) => `${s}\nCREATE TABLE notes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL);\n`),
       (r) => {
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /2 user-owned table\(s\) proven reachable/);
       },
     );
   });
 
+  // 🔴 THE HOP IS VERIFIED, NOT ASSUMED, and this is what says so. An import of a
+  // module that does NOT derive is not a derivation - otherwise the limb could be
+  // satisfied by importing anything at all.
+  test('T1 FAILS when the imported module stops deriving, even though the import is still there', () => {
+    withTemplateTree(
+      (root) => {
+        edit(root, BRICK_MIGRATION, (s) => `${s}\nCREATE TABLE notes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL);\n`);
+        edit(root, 'services/_shared/src/erasure.ts', (s) => s.replace(/FROM sqlite_master/g, 'FROM not_the_schema'));
+      },
+      (r) => {
+        assert.equal(r.status, 1, r.stderr);
+        assert.match(r.stderr, /does not reach `notes`/);
+      },
+    );
+  });
   test('T2 FAILS when the template stops mounting its erasure route', () => {
     withTemplateTree(
       (root) => edit(root, BRICK_INDEX, (s) => s.replace("app.route('/v1/account', account);", '')),
