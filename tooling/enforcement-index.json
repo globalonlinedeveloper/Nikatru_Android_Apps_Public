@@ -3006,6 +3006,7 @@
   {
     "claims": [],
     "invokedBy": [
+      ".github/workflows/ci.yml#app-brick",
       ".github/workflows/deploy-web.yml#deploy-web"
     ],
     "kind": "script",
