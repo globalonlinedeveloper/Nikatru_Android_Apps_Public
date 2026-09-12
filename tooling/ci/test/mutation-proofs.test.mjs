@@ -35,6 +35,7 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { stripDartComments } from '../dart-source.mjs';
+import { POSIX, goneWithin } from './fixtures/process-group.mjs';
 
 const CI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD = join(CI_DIR, 'assert-mutation-proofs.mjs');
@@ -303,7 +304,7 @@ describe('assert-mutation-proofs', () => {
   // The fake stands in for the two ways `flutter test` stalled a pipe-reading spawn:
   // exiting while a child it started still holds the output, and never finishing.
   // Each case bounds its own wall clock well below what the old spawn would take.
-  const POSIX_ONLY = process.platform === 'win32' ? 'a process group is the mechanism under test, and Windows has none' : false;
+  const POSIX_ONLY = POSIX ? false : 'a process group is the mechanism under test, and Windows has none';
   const withFakeFlutter = (script, extraEnv = {}) => {
     const bin = join(TMP, `bin${seq++}`);
     mkdirSync(bin, { recursive: true });
@@ -323,9 +324,23 @@ describe('assert-mutation-proofs', () => {
   test('--execute: a `flutter test` that exits leaving a child behind neither stalls the limb nor outlives it', { skip: POSIX_ONLY }, () => {
     // The child holds stdout for 40 s. A pipe-reading spawn waits for it — twice,
     // once for the green control and once for the mutant.
-    const r = withFakeFlutter('#!/bin/sh\nsleep 40 &\necho "00:01 +1: All tests passed!"\nexit 0\n');
+    //
+    // 🔴 THE SLEEPER IS IDENTIFIED BY THE PID IT WRITES DOWN, NOT BY ITS NAME.
+    // This case used to assert `killed: .*sleep`, and on 2026-09-12 it turned
+    // main red — and blocked the web deploy behind it — because the guard had
+    // caught the child between `fork` and `execve("sleep")`, while it still
+    // carried this script's own name: `killed: 36721 flutter`. The name is a
+    // scheduling outcome. See fixtures/process-group.mjs for the full note.
+    const pidFile = join(TMP, `straggler${seq}.pid`);
+    const r = withFakeFlutter(`#!/bin/sh\nsleep 40 &\necho $! > ${JSON.stringify(pidFile)}\necho "00:01 +1: All tests passed!"\nexit 0\n`);
     assert.ok(r.secs < 30, `the limb waited ${r.secs.toFixed(1)}s for a process \`flutter test\` left behind:\n${r.out}`);
-    assert.match(r.out, /still running in its process group, killed: .*sleep/);
+    // The guard SAYS what it left — a pid and whatever the kernel was calling it.
+    assert.match(r.out, /still running in its process group, killed: \d+ \S+/);
+    // …and the sleeper it left is DEAD, which is what the name was standing in
+    // for and what no race can flip.
+    const straggler = Number(readFileSync(pidFile, 'utf8').trim());
+    assert.ok(Number.isInteger(straggler) && straggler > 0, `the fake wrote no usable pid to ${pidFile}\n${r.out}`);
+    assert.ok(goneWithin(straggler, 5_000), `the straggler (pid ${straggler}, sleep 40) outlived the guard\n${r.out}`);
     // Both runs exit 0, so the mutant did not redden: the verdict is the guard's own.
     assert.match(r.out, /THE MUTANT DID NOT REDDEN THE TEST/);
   });
