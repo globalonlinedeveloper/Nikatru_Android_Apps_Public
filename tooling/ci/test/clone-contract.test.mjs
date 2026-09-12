@@ -142,6 +142,23 @@ function tree(app, { backend = false, mutate = null, platform = platformConfig()
   };
 
   if (backend) {
+    // A stamped Worker is testable: a `test` script, vitest, and a config that
+    // resolves the workerd build and inherits the chassis suite. The real stamp
+    // carries all four, so a fixture without them would make the limb that checks
+    // it unanswerable - and every case here would be asserting about a tree the
+    // template never produces.
+    api.write(
+      `services/${app}-api/package.json`,
+      JSON.stringify(
+        { name: `${app}-api`, scripts: { test: 'vitest run' }, devDependencies: { vitest: '^4.1.11' } },
+        null,
+        2,
+      ),
+    );
+    api.write(
+      `services/${app}-api/vitest.config.ts`,
+      "export default { test: { include: ['test/**/*.test.ts', '../_shared/test/**/*.test.ts'] }, resolve: { conditions: ['workerd', 'import'] } };\n",
+    );
     api.write(
       `services/${app}-api/wrangler.jsonc`,
       JSON.stringify(
@@ -328,6 +345,78 @@ describe('the OPT-IN backend stamp [ADR 020]', () => {
     const r = run(root, '--backend', 'svc');
     assert.equal(r.status, 1);
     assert.match(r.stderr, /rendered the client-only branch|not this app's own API host/);
+  });
+});
+
+describe('a stamped Worker must be able to run a test', () => {
+  // 🔴 THE STATE THIS LIMB WAS WRITTEN AGAINST. Until 2026-09-12 the template
+  // shipped no vitest, no `test` script, no vitest.config.ts and no test
+  // directory - so the first thing an owner could not do with a fresh backend was
+  // run its suite, and the modules carrying its security and correctness argument
+  // went untested in its own resolution. Each case below removes exactly one of
+  // the four pieces; the control above passes with all four.
+  const backendTree = (mutate) => tree('demo', { backend: true, mutate });
+
+  test('no `test` script is red', () => {
+    const r = run(
+      backendTree((api) =>
+        api.write(
+          'services/demo-api/package.json',
+          JSON.stringify({ name: 'demo-api', devDependencies: { vitest: '^4.1.11' } }, null, 2),
+        ),
+      ),
+      '--backend',
+      'demo',
+    );
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr + r.stdout, /declares no `test` script/);
+    assert.match(r.stderr + r.stdout, /ships untested/);
+  });
+
+  test('no vitest devDependency is red — a `test` script with nothing to run', () => {
+    const r = run(
+      backendTree((api) =>
+        api.write(
+          'services/demo-api/package.json',
+          JSON.stringify({ name: 'demo-api', scripts: { test: 'vitest run' } }, null, 2),
+        ),
+      ),
+      '--backend',
+      'demo',
+    );
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr + r.stdout, /declares no `vitest` devDependency/);
+  });
+
+  test('a config that resolves the NODE build of jose is red, not merely noted', () => {
+    const r = run(
+      backendTree((api) =>
+        api.write(
+          'services/demo-api/vitest.config.ts',
+          "export default { test: { include: ['test/**/*.test.ts', '../_shared/test/**/*.test.ts'] } };\n",
+        ),
+      ),
+      '--backend',
+      'demo',
+    );
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr + r.stdout, /resolve\.conditions/);
+    assert.match(r.stderr + r.stdout, /transport production never uses/);
+  });
+
+  test('a config that does not inherit the chassis suite is red', () => {
+    const r = run(
+      backendTree((api) =>
+        api.write(
+          'services/demo-api/vitest.config.ts',
+          "export default { test: { include: ['test/**/*.test.ts'] }, resolve: { conditions: ['workerd', 'import'] } };\n",
+        ),
+      ),
+      '--backend',
+      'demo',
+    );
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr + r.stdout, /none of the chassis suite/);
   });
 });
 

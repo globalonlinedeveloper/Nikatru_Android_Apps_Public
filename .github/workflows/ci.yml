@@ -758,6 +758,19 @@ jobs:
           mason make app -c tooling/bricks/app/_probe_backend_vars.json -o . --on-conflict overwrite
       - name: Stamped backend app is dart format-clean
         run: dart format --output=none --set-exit-if-changed apps/probeapi
+      # why: A STAMPED WORKER MUST BE TESTABLE ON DAY ONE, and until 2026-09-12 it
+      # was not: the template shipped no vitest, no `test` script and no test
+      # directory, so the first thing an owner could not do with a fresh backend was
+      # run its tests. This step is what makes that claim checkable rather than
+      # declared - it installs the stamped Worker and runs the suite it inherits,
+      # which is the chassis's own (services/_shared/test/**) plus the wiring test
+      # the template owns. A failure here means a fresh stamp is born broken.
+      - name: A stamped Worker typechecks and passes the suite it inherits
+        working-directory: services/probeapi-api
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc --noEmit
+          npm test
       - name: The app spec is one validated input contract
         run: node tooling/ci/assert-input-contract.mjs
       - name: A stamped app claims only platforms it is built for
