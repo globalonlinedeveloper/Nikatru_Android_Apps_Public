@@ -64,6 +64,12 @@ const ROOT = resolve(HERE, '..', '..');
 const CI_DIR = join(ROOT, 'tooling', 'ci');
 const WF_DIR = join(ROOT, '.github', 'workflows');
 const VERBOSE = process.argv.includes('--verbose');
+/** Classify from the workflow scan and STOP — no guard is executed. The scan is
+ *  what decides UNREACHED (the only thing this sweep exits non-zero on), so the
+ *  verdict it exists for is fully determined without running anything. It is here
+ *  so test/guard-sweep-invocations.test.mjs can assert that classification against
+ *  the REAL workflows in about a second instead of executing 148 guards. */
+const SCAN_ONLY = process.argv.includes('--scan-only');
 
 /** Lanes that write outside the repository. Membership is a property of the
  *  workflow, so a new publishing lane inherits this without an edit here. */
@@ -81,7 +87,11 @@ if (files.length === 0) {
 }
 
 // ── every workflow invocation, with its real arguments ───────────────────────
-const invocations = new Map(); // basename -> [{ wf, argv, raw }]
+// basename -> [{ wf, raw, flags }] · `raw` is the SCRIPT arguments and `flags`
+// the node flags that precede the path. Two producers build this shape and both
+// must carry all three: the scan below, and the synthetic fallback call further
+// down — which did not, and crashed the spawn on a clean tree.
+const invocations = new Map();
 const workflows = existsSync(WF_DIR)
   ? readdirSync(WF_DIR).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
   : [];
@@ -94,9 +104,27 @@ for (const wf of workflows) {
   for (const line of text.split(/\r?\n/)) {
     // Skip YAML comments: a guard named only in a comment is discussed, not run.
     const code = line.replace(/^\s*#.*$/, '');
-    const m = code.match(/node\s+tooling\/ci\/([a-z0-9._-]+\.mjs)([^|&;#\n]*)/i);
+    // 🔴 NODE FLAGS SIT BETWEEN `node` AND THE PATH, AND IGNORING THEM MADE FOUR
+    // INVOKED GUARDS LOOK ORPHANED. This pattern required `node` then WHITESPACE
+    // then the path until 2026-09-12, so `node --single-threaded tooling/ci/x.mjs`
+    // matched nothing. That is how CI really invokes four of them — ci.yml:361 and
+    // :723, store-screenshots.yml:91 — because a guard that prints its verdict and
+    // then deadlocks at exit needs V8 background tasks off (nodejs/node#54918),
+    // which arrived on those lines on 2026-09-11. The scanner that parses those
+    // lines was not re-read, so preflight exited 1 on a clean main with five false
+    // "invoked by no workflow" findings, and a local gate that cries wolf on every
+    // run is a local gate nobody reads. THE INVERSE of `moved-code-silences-guards`:
+    // a refactor did not silence a guard here, it made a scanner shout.
+    //
+    // The flags are captured rather than skipped because this sweep EXECUTES what
+    // it finds: dropping `--single-threaded` would run those four guards in the one
+    // configuration the flag exists to avoid. They are kept OUT of the argv below —
+    // a node flag is not a script argument, and `blocker()` reads argv to decide
+    // whether this machine can satisfy a call.
+    const m = code.match(/node\s+((?:-[^\s]+\s+)*)tooling\/ci\/([a-z0-9._-]+\.mjs)([^|&;#\n]*)/i);
     if (!m) continue;
-    const [, name, tail] = m;
+    const [, flagText, name, tail] = m;
+    const flags = flagText.trim() ? flagText.trim().split(/\s+/) : [];
     // Cut the shell furniture, not just some of it. The first version of this
     // stripped `2>` only when it was preceded by whitespace and left `)"` behind
     // on an invocation nested in `$( … )`, so two guards were "run" with garbage
@@ -110,7 +138,11 @@ for (const wf of workflows) {
       .trim();
     if (!invocations.has(name)) invocations.set(name, []);
     const list = invocations.get(name);
-    if (!list.some((x) => x.raw === raw && x.wf === wf)) list.push({ wf, raw });
+    // `flags` joins the dedupe key: two calls that differ only in how node is
+    // started are two different invocations, and collapsing them would hide the
+    // one this machine cannot reproduce.
+    const key = flags.join(' ');
+    if (!list.some((x) => x.raw === raw && x.wf === wf && x.flags.join(' ') === key)) list.push({ wf, raw, flags });
   }
 }
 
@@ -233,6 +265,19 @@ for (const name of files) {
     continue;
   }
 
+  // Everything below this line EXECUTES something. `--scan-only` stops here: the
+  // UNREACHED count is already settled by the scan above, so the exit code this
+  // sweep is read for is unchanged, and nothing is spawned.
+  if (SCAN_ONLY) {
+    rows.push({
+      name,
+      verdict: 'SCAN',
+      note: `invoked by ${calls.length} call(s) in ${[...new Set(calls.map((c) => c.wf))].join(', ')}` +
+        `${calls.some((c) => c.flags.length) ? ` · node flag(s) ${[...new Set(calls.flatMap((c) => c.flags))].join(' ')}` : ''}`,
+    });
+    continue;
+  }
+
   // ── WHICH INVOCATION TO RUN ────────────────────────────────────────────────
   // Not "the richest". Several guards have both a bare call and one whose
   // SUBJECT is CI-ephemeral — `apps/probe`, `services/probeapi-api`, a built web
@@ -272,7 +317,14 @@ for (const name of files) {
   // runnable form exists is the same silent gap in a politer voice.
   let usedFallback = false;
   if (runnable.length === 0 && !calls.some((c) => /\$\{\{/.test(c.raw))) {
-    runnable = [{ wf: calls[0].wf, raw: '' }];
+    // 🔴 CARRY THE NODE FLAGS ONTO THE SYNTHETIC CALL. This record stands in for
+    // a real invocation, so it needs the real invocation's SHAPE — and it is the
+    // one place a call object is built rather than scanned. Omitting `flags` here
+    // crashed the sweep at the spawn below with "call.flags is not iterable" on a
+    // clean tree (2026-09-12), because `--scan-only` returns before the spawn and
+    // so never exercises it: the fix looked proven by a path that could not see
+    // the line it changed.
+    runnable = [{ wf: calls[0].wf, raw: '', flags: calls[0].flags ?? [] }];
     usedFallback = true;
   }
 
@@ -339,7 +391,11 @@ for (const name of files) {
   for (const call of runnable.slice().sort((a, b) => a.raw.length - b.raw.length)) {
     const argv = call.raw.length ? call.raw.split(/\s+/) : [];
     if (scanRoot) argv.unshift(scanRoot);
-    const r = spawnSync(process.execPath, [join(CI_DIR, name), ...argv], {
+    // The node flags CI starts this guard with go BEFORE the script path, exactly
+    // where CI puts them. Four guards are invoked `--single-threaded` because they
+    // deadlock at exit without it (nodejs/node#54918); running them here without
+    // the flag would reproduce the hang this sweep is supposed to pre-empt.
+    const r = spawnSync(process.execPath, [...call.flags, join(CI_DIR, name), ...argv], {
       cwd: ROOT,
       encoding: 'utf8',
       timeout: 300_000,
