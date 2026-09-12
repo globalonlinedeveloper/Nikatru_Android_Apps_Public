@@ -760,6 +760,46 @@ void main() {
   /// assuming the previous test succeeded. A test that depends on ANOTHER test's
   /// happy path cannot report its own result honestly.
   Future<bool> signOutIfSignedIn(WidgetTester tester) async {
+    // ⏱ 2026-09-12 · THE SECOND PLACE A SESSION CAN BE STRANDED, AND THE
+    // `boxa` RUN IS WHAT FOUND IT. `AppShell` is not the only screen a SIGNED-IN
+    // user can be sitting on. The re-acceptance gate holds them on
+    // `/reaccept-terms`, which is not the shell — so the check below read a live
+    // session as "nobody is signed in", returned false, and `expectLandedOnLogin`
+    // then failed on the interstitial. Verbatim, e2e run 34668296014 (#103,
+    // auth_target=boxa): "The app did not reach the login screen after the boot
+    // for the delete-leg walk. On screen: We have updated our Terms of Service
+    // and Privacy Policy … | Sign out | Our terms have changed".
+    //
+    // 🔴 WHY ONLY `boxa` SAW IT, which is the part worth keeping. Against
+    // `hosted` the previous leg ends INSIDE the shell, so the shell check was
+    // always true and this branch was unreachable. Against `boxa` the Workers
+    // refuse a Box A-minted session by design (see `expectOneIssuerRefusal`), so
+    // the acceptance POST cannot complete and the interstitial is exactly where
+    // the previous leg ends. The bug was never in Box A's auth — the session was
+    // real, which is why the delete leg found a signed-in app at all.
+    //
+    // The interstitial carries its OWN sign-out (`ReacceptTermsScreen.signOutButton`,
+    // whose action is a GoTrue call and not a Worker call), so this path works on
+    // both targets. Confirmed after a pump for the same reason the shell is: a
+    // redirect in flight can paint either screen for a frame.
+    final Finder strandedSignOut = find.byKey(ReacceptTermsScreen.signOutButton);
+    if (strandedSignOut.evaluate().isNotEmpty) {
+      await pumpFor(tester, const Duration(seconds: 2));
+      if (strandedSignOut.evaluate().isNotEmpty) {
+        await shot('00-stranded-on-reacceptance');
+        await tester.tap(strandedSignOut);
+        await pumpFor(tester, const Duration(seconds: 2));
+        expect(
+          await waitFor(tester, find.text('Welcome back')),
+          isTrue,
+          reason:
+              'A session survived into this test on the re-acceptance '
+              'interstitial, and its own sign-out did not return to the login '
+              'screen. On screen: ${onScreen(tester)}',
+        );
+        return true;
+      }
+    }
     final Finder shell = find.byType(AppShell);
     if (shell.evaluate().isEmpty) return false;
     // …and CONFIRM it, because a redirect in flight can paint the shell for a
