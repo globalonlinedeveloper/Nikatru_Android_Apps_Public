@@ -10,13 +10,20 @@
 // write that failed but reports success is data loss reported as health. So the
 // cases below are weighted toward what must STILL throw.
 //
+// ⏱ 2026-09-12: MOVED HERE FROM ONE WORKER'S test/ DIRECTORY. The retry it
+// exercises lives in services/_shared/src/d1.ts, which every Worker re-exports, so a
+// suite that ran in only one of them was proving the contract for one carrier and
+// leaving the others - including every app stamped from the template - untested
+// against a rule they all depend on. Both live Workers already include
+// ../_shared/test/**, so this file runs in both from the day it moved.
+//
 // The subject is driven with fake statements, so every branch is reachable
 // without a live D1 and without waiting for a Durable Object to be reset — the
 // exact problem that made this defect so hard to reproduce in the first place.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect, vi } from 'vitest';
-import { allRows, firstRow, isTransientD1Error, isUniqueViolation, run, withD1Retry } from '../src/lib/d1';
+import { allRows, firstRow, isTransientD1Error, isUniqueViolation, run, withD1Retry } from '../src/d1';
 
 /** The real message, verbatim from the production stack trace. */
 const RESET = new Error(
