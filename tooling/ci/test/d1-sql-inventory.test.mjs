@@ -51,6 +51,11 @@ const LIVE_GUARD = join(REPO, 'tooling', 'ops', 'check-d1-accepts-live-sql.mjs')
 
 const PLATFORM_ROUTE = 'services/platform/src/routes/account.ts';
 const SUBLY_ROUTE = 'services/subscriptiontracker-api/src/routes/account.ts';
+// ⏱ 2026-09-12: the introspective half of both routes moved to ONE home the
+// carriers re-export, so a mutation about the sqlite_master read or the pragma walk
+// belongs here. The routes keep their DELETE and UPDATE, and their mutations still
+// target them.
+const SHARED_ERASURE = 'services/_shared/src/erasure.ts';
 const SUBS_ROUTE = 'services/subscriptiontracker-api/src/routes/subscriptions.ts';
 
 /** The tooling/ci modules the mechanism reads. The rest of that directory is
@@ -164,7 +169,7 @@ const edit = (root, rel, fn) => {
  * Re-derive this from the routes when it expires; never re-date it. */
 const TWO_STEP =
   "    db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)";
-const replaceListing = (sql) => (root, rel = PLATFORM_ROUTE) =>
+const replaceListing = (sql) => (root, rel = SHARED_ERASURE) =>
   edit(root, rel, (s) => s.replace(TWO_STEP, `    db.prepare(\`${sql}\`)`));
 
 /** services/platform/src/backup/dump.ts's catalogue read — THE SECOND STATEMENT
@@ -192,7 +197,7 @@ const replaceBackupCatalogue = (sql) => (root) =>
  *  shape for asking "does R1 false-positive on this?", because replacing the
  *  listing also removes a fingerprint and answers a different question. */
 const addStatement = (sql) => (root) =>
-  edit(root, PLATFORM_ROUTE, (s) =>
+  edit(root, SHARED_ERASURE, (s) =>
     s.replace(TWO_STEP, `${TWO_STEP}\n    .prepare(\`${sql}\`)`),
   );
 
@@ -202,8 +207,8 @@ describe('the real repository', () => {
     const r = spawnSync(process.execPath, [STATIC_GUARD], { cwd: REPO, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /none names sqlite_master and calls a pragma_\* function in one/);
-    assert.match(r.stdout, /2 database-owning service\(s\) each introspect their own schema, all 9 named/);
-    assert.match(r.stdout, /cause sentence is pinned in all 3 places/);
+    assert.match(r.stdout, /2 database-owning service\(s\) each introspect their own schema, all 7 named/);
+    assert.match(r.stdout, /cause sentence is pinned in all 2 places/);
     // The skip set is DERIVED and printed. An empty one is a COVERAGE LOST, and
     // a growing one is visible rather than quiet.
     assert.match(r.stdout, /file\(s\) carry the negative-control fixture and are outside R1 by derivation/);
@@ -236,7 +241,7 @@ describe('R1 — the shapes production D1 REFUSES', () => {
       ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R1\] services\/platform\/src\/routes\/account\.ts/);
+        assert.match(r.stderr, /\[R1\] services\/_shared\/src\/erasure\.ts/);
         assert.match(r.stderr, /sends a statement D1 REFUSES TO RUN/);
       },
     );
@@ -302,22 +307,22 @@ describe('R1 — the shapes production D1 ACCEPTS stay green', () => {
     );
   });
 
-  test('the rejected join in a COMMENT is green — both routes really carry one', () => {
+  test('the rejected join in a COMMENT is green — the one home really carries one', () => {
     // The fixed files explain what was removed, verbatim. A raw grep for the
     // outage finds it in the file that no longer has it; comments come off first.
     withTree(
       (root) =>
-        edit(root, SUBLY_ROUTE, (s) =>
+        edit(root, SHARED_ERASURE, (s) =>
           s.replace(
-            'const account = new Hono<AppEnv>();',
-            "// once: FROM sqlite_master m JOIN pragma_table_info(m.name) p\nconst account = new Hono<AppEnv>();",
+            'const RESERVED =',
+            "// once: FROM sqlite_master m JOIN pragma_table_info(m.name) p\nconst RESERVED =",
           ),
         ),
       (r) => assert.equal(r.status, 0, r.stderr),
     );
     // …and the real tree's own headers are the standing case: both route files
     // contain the join in prose today and the guard passes.
-    for (const rel of [PLATFORM_ROUTE, SUBLY_ROUTE]) {
+    for (const rel of [SHARED_ERASURE]) {
       assert.match(
         readFileSync(join(REPO, rel), 'utf8'),
         /sqlite_master m JOIN pragma_table_info\(m\.name\) p/,
@@ -332,7 +337,7 @@ describe('R2 — required coverage, both directions', () => {
   test('deleting subscriptiontracker-api\'s pragma step loses a NAMED statement, not just a count', () => {
     withTree(
       (root) =>
-        edit(root, SUBLY_ROUTE, (s) =>
+        edit(root, SHARED_ERASURE, (s) =>
           s.replace(
             ".prepare(`SELECT name FROM pragma_table_info('${table}')`)",
             ".prepare(`SELECT name FROM columns_cache WHERE tbl = '${table}'`)",
@@ -348,7 +353,7 @@ describe('R2 — required coverage, both directions', () => {
   test('a service that owns a database and introspects nothing is red', () => {
     withTree(
       (root) =>
-        edit(root, SUBLY_ROUTE, (s) =>
+        edit(root, SHARED_ERASURE, (s) =>
           s
             .replace(
               ".prepare(`SELECT name FROM pragma_table_info('${table}')`)",
@@ -366,7 +371,7 @@ describe('R2 — required coverage, both directions', () => {
   test('a `.prepare` moved behind a helper is reported, never dropped', () => {
     withTree(
       (root) =>
-        edit(root, PLATFORM_ROUTE, (s) =>
+        edit(root, SHARED_ERASURE, (s) =>
           s.replace(
             // Re-derived 2026-09-05. The `from` side was the bare
             // `await db` / `.prepare(` / `.all<...>()` chain. The erasure preflight
@@ -433,8 +438,11 @@ describe('R3 — interpolated identifiers are constrained', () => {
   test('dropping the identifier regex from the shared erasure route is red', () => {
     withTree(
       (root) =>
-        edit(root, PLATFORM_ROUTE, (s) =>
-          s.replace(/\/\^\[A-Za-z_\]\[A-Za-z0-9_\$\]\*\$\/\.test\(/g, 'Boolean('),
+        edit(root, SHARED_ERASURE, (s) =>
+          s.replace(/\/\^\[A-Za-z_\]\[A-Za-z0-9_\$\]\*\$\/\.test\(/g, 'Boolean(').replace(
+            "const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/;",
+            'const PLAIN_IDENTIFIER = /x/;',
+          ),
         ),
       (r) => {
         assert.equal(r.status, 1);
@@ -471,12 +479,12 @@ describe('R4 — the cause sentence cannot drift from the constant', () => {
   test('changing the claim in one file is red', () => {
     withTree(
       (root) =>
-        edit(root, SUBLY_ROUTE, (s) =>
+        edit(root, SHARED_ERASURE, (s) =>
           s.replace('pragma_* table-valued function is rejected', 'pragma_* table-valued function is fine'),
         ),
       (r) => {
         assert.equal(r.status, 1);
-        assert.match(r.stderr, /\[R4\] services\/subscriptiontracker-api\/src\/routes\/account\.ts/);
+        assert.match(r.stderr, /\[R4\] services\/_shared\/src\/erasure\.ts/);
       },
     );
   });
@@ -497,7 +505,7 @@ describe('R4 — the cause sentence cannot drift from the constant', () => {
   test('re-wrapping it to another column width still passes — the pin is not about line breaks', () => {
     withTree(
       (root) =>
-        edit(root, PLATFORM_ROUTE, (s) => {
+        edit(root, SHARED_ERASURE, (s) => {
           const one = normaliseProse(MEASURED_CAUSE);
           // Same sentence, wrapped at 40 columns instead of ~78.
           const rewrapped = one
