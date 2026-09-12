@@ -6,6 +6,9 @@ import {
   KEEPALIVE_JOB,
   ANALYTICS_LIVENESS_JOB,
   RENEWALS_JOB,
+  boxbTargets,
+  boxbReachability,
+  BOXB_REACH_JOB,
 } from '../src/scheduled';
 import type { Env } from '../src/types';
 import { realPlatformDb } from './harness';
@@ -377,5 +380,80 @@ describe('[4]B-11 · the renewals fan-out writes a heartbeat per target', () => 
     expect(String(row.detail)).toContain('advanced 1 subscription(s)');
     // …and the work really happened, not just the row about it.
     expect(app.count('payment_history')).toBeGreaterThan(0);
+  });
+});
+
+
+/**
+ * [O-BOXB-OUTAGE-INVISIBLE-TO-GLITCHTIP] The monitors that watch Box B run ON Box
+ * B, so the 2026-09-10 03:02Z outage produced a GAP in the check history and not a
+ * single isUp=false row. A gap is not an alarm. This probe runs Cloudflare-side and
+ * writes a POSITIVE record of failure that survives the outage, because neither the
+ * Worker nor D1 is on Box B.
+ *
+ * The case that matters is the LAST one: 530 must be recorded as ok=0. That is the
+ * exact status the measured outage returned, and the whole reason this job exists.
+ */
+describe('boxbReachability — an outage is a ROW, not a gap', () => {
+  it('probes the three Box B hostnames by default', () => {
+    expect(boxbTargets(env())).toEqual([
+      'https://vault.nikatru.com/',
+      'https://ntfy.nikatru.com/',
+      'https://glitchtip.nikatru.com/',
+    ]);
+  });
+
+  it('uses the configured list when set, trimming and de-duplicating', () => {
+    const e = env({ BOXB_REACH_URLS: ' https://a.test/ , https://b.test/ , https://a.test/ ' } as Partial<Env>);
+    expect(boxbTargets(e)).toEqual(['https://a.test/', 'https://b.test/']);
+  });
+
+  it('records ok=1 for ANY answer, including a 401 — it asserts REACHABILITY, not health', async () => {
+    const { db, bound } = fakeDb();
+    const e = env({ BOXB_REACH_URLS: 'https://vault.test/', PLATFORM_DB: db } as unknown as Partial<Env>);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })));
+    await boxbReachability(e);
+    expect(bound).toHaveLength(1);
+    const [job, target, ok, detail] = bound[0];
+    expect(job).toBe(BOXB_REACH_JOB);
+    expect(target).toBe('https://vault.test/');
+    expect(ok).toBe(1);
+    expect(String(detail)).toContain('401');
+  });
+
+  it('records ok=0 on HTTP 530 — the status the measured outage actually returned', async () => {
+    const { db, bound } = fakeDb();
+    const e = env({ BOXB_REACH_URLS: 'https://glitchtip.test/', PLATFORM_DB: db } as unknown as Partial<Env>);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('error code: 1033', { status: 530 })));
+    await boxbReachability(e);
+    expect(bound).toHaveLength(1);
+    const [job, , ok, detail] = bound[0];
+    expect(job).toBe(BOXB_REACH_JOB);
+    expect(ok).toBe(0);
+    expect(String(detail)).toContain('530');
+  });
+
+  it('records ok=0 when the request throws outright', async () => {
+    const { db, bound } = fakeDb();
+    const e = env({ BOXB_REACH_URLS: 'https://dead.test/', PLATFORM_DB: db } as unknown as Partial<Env>);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('connect ETIMEDOUT'); }));
+    await boxbReachability(e);
+    expect(bound[0][2]).toBe(0);
+    expect(String(bound[0][3])).toContain('no answer');
+  });
+
+  it('one dead host does not stop the others being recorded', async () => {
+    const { db, bound } = fakeDb();
+    const e = env({ BOXB_REACH_URLS: 'https://a.test/,https://b.test/', PLATFORM_DB: db } as unknown as Partial<Env>);
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      n += 1;
+      if (n === 1) throw new Error('down');
+      return new Response('', { status: 200 });
+    }));
+    await boxbReachability(e);
+    expect(bound).toHaveLength(2);
+    expect(bound[0][2]).toBe(0);
+    expect(bound[1][2]).toBe(1);
   });
 });

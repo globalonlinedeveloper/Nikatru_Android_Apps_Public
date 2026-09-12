@@ -126,6 +126,74 @@ async function recordHeartbeat(
 }
 
 /**
+ * [O-BOXB-OUTAGE-INVISIBLE-TO-GLITCHTIP] BOX B, WATCHED FROM SOMEWHERE THAT IS NOT BOX B.
+ *
+ * 🔴 THE MONITORS THAT WATCH BOX B RUN ON BOX B. GlitchTip is itself a Box B
+ * service, so monitor 1 watches GlitchTip from GlitchTip and monitors 31/32 watch
+ * ntfy and Vaultwarden from the same host. MEASURED 2026-09-10 between 03:02Z and
+ * 03:04Z: all three hostnames returned HTTP 530 (Cloudflare 1033, a tunnel error)
+ * while nikatru.com, the Worker and Box A all answered 200 in the same seconds.
+ * GlitchTip recorded NOT ONE isUp=false row for the window - monitor 32 has checks
+ * at 02:59:18Z and 03:01:10Z and nothing between.
+ *
+ * AN OUTAGE THAT TAKES THE PROBER WITH IT PRODUCES A GAP, AND A GAP IS NOT AN
+ * ALARM. isUp stays true, no alert rule fires, and nothing in any digest would
+ * ever have named it. That is why this cannot be fixed by changing a GlitchTip
+ * monitor: a monitor hosted on the subject cannot watch the subject.
+ *
+ * SO IT RUNS HERE. This Worker is Cloudflare-side, has no dependency on Box B, and
+ * already fires four times a day. A Box B outage now writes ok=0 ROWS into
+ * cron_heartbeat - a positive record of failure that survives the outage, because
+ * D1 is not on Box B either. The alert sink matters as much as the prober: ntfy
+ * and GlitchTip are both ON Box B, so neither can carry news of Box B being down.
+ *
+ * ⚠️ IT ASSERTS REACHABILITY, NOT HEALTH, and the distinction is deliberate. Any
+ * HTTP answer at all - including a 401 from Vaultwarden, which is the correct
+ * response to an unauthenticated GET - proves the tunnel and the host are up. Only
+ * a transport failure or a Cloudflare 52x/53x counts as down. Grading application
+ * health from here would re-import the thing this fixes: a check that fails for
+ * reasons unrelated to its subject teaches people to ignore it.
+ */
+export const BOXB_REACH_JOB = 'boxb_reachability';
+
+/** Box B's public hostnames. Overridable so a test can point it anywhere. */
+export function boxbTargets(env: Env): string[] {
+  const configured = (env.BOXB_REACH_URLS ?? '').trim();
+  const raw = configured.length > 0
+    ? configured.split(',')
+    : ['https://vault.nikatru.com/', 'https://ntfy.nikatru.com/', 'https://glitchtip.nikatru.com/'];
+  return [...new Set(raw.map((x) => x.trim()).filter((x) => x.length > 0))];
+}
+
+export async function boxbReachability(env: Env): Promise<void> {
+  const targets = boxbTargets(env);
+  const rows: { target: string; ok: boolean; detail: string }[] = [];
+  for (const url of targets) {
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10_000),
+      });
+      /* 52x/53x are Cloudflare-side "the origin did not answer" codes - 530 with
+         body 1033 is exactly what the measured outage returned. Everything else,
+         401 included, means something answered. */
+      const edgeDown = res.status >= 520 && res.status <= 530;
+      rows.push({
+        target: url,
+        ok: !edgeDown,
+        detail: edgeDown
+          ? `HTTP ${res.status} - Cloudflare edge could not reach the origin`
+          : `HTTP ${res.status}`,
+      });
+    } catch (err) {
+      rows.push({ target: url, ok: false, detail: `no answer: ${String(err).slice(0, 120)}` });
+    }
+  }
+  await recordHeartbeat(env, rows, BOXB_REACH_JOB);
+}
+
+/**
  * WHY: Supabase pauses a free-tier project after ~7 days idle, breaking sign-in
  * for a low-traffic portfolio. A cheap daily request keeps each project active.
  * The response body is irrelevant — only that a request happened.
@@ -1967,10 +2035,15 @@ export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env
       // — see NIGHTLY_CRON for why that is the safe direction.
       if (typeof event?.cron === 'string' && event.cron !== NIGHTLY_CRON) {
         await dispatchGithubWorkflows(env);
+        // Box B is probed on the MARGIN firings too, not just nightly: the window
+        // an outage can hide in is the gap between probes, and 6 h is the whole
+        // point of running this off Box B at all.
+        await boxbReachability(env);
         return;
       }
       await keepAliveSupabase(env);
       await analyticsLiveness(env);
+      await boxbReachability(env);
       // [research/76 §C] Phase 1 of the GitHub-scheduler replacement. Placed
       // here rather than last because it is bounded (10s per target) and writes
       // nothing destructive; the sweep stays last for its own stated reason. It

@@ -176,6 +176,9 @@ export interface Env {
    * Supabase's ~7-day auto-pause.
    */
   SUPABASE_KEEPALIVE_URLS?: string;
+  /** Comma-separated Box B hostnames probed by boxbReachability. Absent, the
+   *  three live ones are used - see BOXB_REACH_JOB for why this runs here. */
+  BOXB_REACH_URLS?: string;
 
   /**
    * Supabase publishable ("anon") key, used ONLY to make the keep-alive a real
