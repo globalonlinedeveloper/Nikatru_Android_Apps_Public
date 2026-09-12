@@ -235,10 +235,12 @@ void run(HookContext context) {
         '*.nikatru.com that used to make every name answer 522.',
       )
       ..info(
-        '  4. REQUIRED for the web build: add "https://$webHost" to '
-        'ALLOWED_ORIGINS in services/platform/wrangler.jsonc and redeploy. '
-        'The allowlist is EXACT — omit this and the app silently loses '
-        'config + analytics in the browser, with no server-side error.',
+        '  4. THE APEX IS ALREADY ALLOWED, so there is usually NOTHING to do here. '
+        'Since [ADR 075] this app is served at nikatru.com/$id, so its browser '
+        'origin is https://nikatru.com — already in ALLOWED_ORIGINS on the shared '
+        'platform Worker and in this app\'s own. ONLY if you will open the app '
+        'directly at its *.pages.dev production URL, add that exact origin to '
+        'BOTH allowlists and redeploy. The list is EXACT and matches no pattern.',
       )
       ..info('  5. cd apps/$id && flutter pub get && flutter analyze.')
       // [pipeline 11]E-8. The stamped Worker now calls `reportWorkerError` in its
@@ -353,10 +355,12 @@ void run(HookContext context) {
         'this app uses the shared platform Worker.',
       )
       ..info(
-        '  3. REQUIRED for the web build: add "https://$webHost" to '
-        'ALLOWED_ORIGINS in services/platform/wrangler.jsonc and redeploy. '
-        'The allowlist is EXACT — omit this and the app silently loses '
-        'config + analytics in the browser, with no server-side error.',
+        '  3. THE APEX IS ALREADY ALLOWED, so there is usually NOTHING to do here. '
+        'Since [ADR 075] this app is served at nikatru.com/$id, so its browser '
+        'origin is https://nikatru.com — already in ALLOWED_ORIGINS on the shared '
+        'platform Worker and in this app\'s own. ONLY if you will open the app '
+        'directly at its *.pages.dev production URL, add that exact origin to '
+        'BOTH allowlists and redeploy. The list is EXACT and matches no pattern.',
       )
       ..info('  4. cd apps/$id && flutter pub get && flutter analyze.')
       ..info(
