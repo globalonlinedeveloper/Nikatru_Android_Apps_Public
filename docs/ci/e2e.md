@@ -109,11 +109,33 @@ demand, from the same code, before the window.
 a scheduled run and the `|| 'hosted'` fallback takes it. The unattended proof
 keeps grading production; nothing about the nightly's meaning changed.
 
-⚠️ **THE `BOXA_*` SECRETS DO NOT EXIST YET** — the 21 repository secrets measured
-2026-09-07 hold no `BOXA_` name. A `boxa` dispatch therefore FAILS AT THE
-PREFLIGHT naming the three it wants, which is the designed behaviour and the
-acceptance test for the fail-closed limb. Adding them is an owner step; nothing
-here can invent a key.
+✅ **THE `BOXA_*` SECRETS EXIST SINCE 2026-09-12 02:39Z.** All three were read off
+Box A's own `/opt/supabase/.env` (`API_EXTERNAL_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`)
+and piped straight into the repository, so no value passed through a transcript. Read
+back before use: the URL is `auth-api.nikatru.com`, the anon key's `role` claim is
+`anon` with `iss=supabase`, and `GET $URL/auth/v1/settings` carrying that key answered
+**200**. The preflight's fail-closed limb is unchanged and still ends the job on an
+empty one; what changed is that it now passes.
+
+🔴 **A `boxa` DISPATCH MUST NOT BE MADE ON `main`, AND THE WORKFLOW NOW REFUSES ONE.**
+`tooling/ops/register.json`'s `duty.workflow.e2e.yml` grades the newest run of this
+workflow **on main** as production health — its own words are "Treat as production
+until proven otherwise". A `boxa` run is the opposite of that claim: it drives a stack
+the deployed Workers deliberately refuse. Measured 2026-09-12: run `34668296014`
+(boxa, on main) failed at 02:43:21Z, the next push read `duty.workflow.e2e.yml — RED
+SINCE`, `ci-gate` went red on `0d3e61a8`, and **`Deploy web` and `Deploy workers` both
+refused** at their "Require ci-gate to have passed for this commit" step — while the
+hosted control run on the same commit (`34668924212`) passed 11 minutes later. Nothing
+was wrong with the deployed system; a rehearsal had been mistaken for it.
+
+Dispatch a rehearsal on a BRANCH at the same commit instead. The duty query already
+narrows by `headBranch: main`, so a branch run is invisible to it while staying fully
+visible to whoever asked for it — and a HOSTED failure on main still blocks every
+deploy, exactly as before:
+
+```bash
+git push origin main:rehearse-boxa && gh workflow run e2e.yml --ref rehearse-boxa -f auth_target=boxa
+```
 
 ⚫ **THIS IS NOT THE CUTOVER.** No Worker `SUPABASE_URL` moves, no KV key is
 purged and no web deploy is aimed at Box A. Phase 5 stays the owner's, at
