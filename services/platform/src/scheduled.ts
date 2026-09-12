@@ -2035,10 +2035,6 @@ export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env
       // — see NIGHTLY_CRON for why that is the safe direction.
       if (typeof event?.cron === 'string' && event.cron !== NIGHTLY_CRON) {
         await dispatchGithubWorkflows(env);
-        // Box B is probed on the MARGIN firings too, not just nightly: the window
-        // an outage can hide in is the gap between probes, and 6 h is the whole
-        // point of running this off Box B at all.
-        await boxbReachability(env);
         return;
       }
       await keepAliveSupabase(env);

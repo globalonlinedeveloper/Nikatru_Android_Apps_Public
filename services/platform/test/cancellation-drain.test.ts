@@ -408,6 +408,11 @@ describe('the census is actually wired into the nightly cron', () => {
     const jobs = db.rows('SELECT DISTINCT job FROM cron_heartbeat ORDER BY job').map((r) => r.job);
     expect(jobs).toEqual([
       'analytics_liveness',
+      // Added 2026-09-12 (O-BOXB-OUTAGE-INVISIBLE-TO-GLITCHTIP): Box B probed from
+      // Cloudflare, because the GlitchTip monitors that watch Box B RUN ON BOX B and
+      // an outage that takes the prober with it leaves a GAP, not an alarm. Same
+      // reason as the lines below - this is the only place a newly wired job shows up.
+      'boxb_reachability',
       'cancellation_drain',
       'events_rollup',
       // Added 2026-09-03 with the [research/76 §C] Phase 1 dispatcher. This
