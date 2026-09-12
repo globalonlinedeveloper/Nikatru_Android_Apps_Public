@@ -305,12 +305,14 @@ function build(name, { sites = ['a', 'b'], legal = {}, appDirs = [], extra = {} 
 
 /** Every page in LEGAL_PAGES, as a real page. Named for the count it used to
  *  be; `delete-account.html` joined the set on 2026-08-03 ([pipeline K-7]) and
- *  the helper grew with it rather than the tests each gaining a fourth line. */
+ *  `pricing.html` on 2026-09-12, and the helper grew with them rather than the
+ *  tests each gaining another line. */
 const allThree = (site) => ({
   [`${site}/privacy.html`]: realPage('Privacy Policy'),
   [`${site}/terms.html`]: realPage('Terms of Service'),
   [`${site}/refund.html`]: realPage('Refund Policy'),
   [`${site}/delete-account.html`]: realPage('Delete your account'),
+  [`${site}/pricing.html`]: realPage('Pricing'),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,7 +330,7 @@ describe('check-site-integrity · legal pages', () => {
     const dir = build('lp-ok', { appDirs: ['a'], legal: allThree('a') });
     const { code, out } = run(dir);
     assert.equal(code, 0, out);
-    assert.match(out, /sites\/a — 4 page\(s\)/);
+    assert.match(out, /sites\/a — 5 page\(s\)/);
   });
 
   test('FAILS when an app-facing site publishes no deletion page — [pipeline K-7]', () => {
@@ -446,7 +448,7 @@ describe('check-site-integrity · legal pages', () => {
       const dir2 = build('lp-cov-ok', { sites: ['nikatru', 'b'], legal: allThree('nikatru') });
       const ok = run(dir2, { from: selfHosted(dir2, { root: 'nikatru' }) });
       assert.equal(ok.code, 0, ok.out);
-      assert.match(ok.out, /sites\/nikatru — 4 page\(s\)/);
+      assert.match(ok.out, /sites\/nikatru — 5 page\(s\)/);
     });
   });
 
@@ -1196,6 +1198,7 @@ describe('check-site-integrity · llms.txt vs the app registry', () => {
       'sites/nikatru/terms.html': legalPage,
       'sites/nikatru/refund.html': legalPage,
       'sites/nikatru/delete-account.html': legalPage,
+      'sites/nikatru/pricing.html': legalPage,
       'catalog/apps.json': LIVE,
       'sites/nikatru/llms.txt': honest,
       ...over,
@@ -1340,25 +1343,56 @@ describe('check-site-integrity · the new limbs cannot go vacuously quiet', () =
     assert.match(r.out, /NO app-facing page was in scope for the seller's legal name/);
   });
 
-  // ── the owner-gated half: printed, never failed ───────────────────────────
-  test('the missing pricing page is PRINTED on an otherwise green run, keyed to the owner item', () => {
-    // Failing on it would block every CI run on copy only the owner can write —
-    // the rule this repo already applies to the unannounced-app case.
-    const r = afterEdit('cf-pricing-gap', () => {});
-    assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /MISSING \(owner-gated\): sites\/nikatru\/pricing\.html/);
-    assert.match(r.out, /OWNER_QUEUE O-3/);
+  // ── the owner-gated half ──────────────────────────────────────────────────
+  //
+  // ⏱ 2026-09-12 · PRINTED_LEGAL_GAPS IS EMPTY NOW, AND THAT IS THE MECHANISM
+  // HAVING WORKED END TO END. Its one entry was `pricing.html`: while the page
+  // did not exist the run printed `MISSING (owner-gated)` and exited 0, because
+  // failing would have blocked every CI run on copy only the owner could write;
+  // when the page landed the same limb printed `PROMOTE ME` on every run until
+  // somebody made the one-line move it asked for. These two tests replace the
+  // two that watched that journey — the page is a REQUIRED one now, so the
+  // enforcement is asserted, and the machinery that carried it is asserted
+  // separately so it does not rot while the map is empty.
+  test('pricing.html is ENFORCED now, not printed — deleting it FAILS the run', () => {
+    const r = afterEdit('cf-pricing-required', (d) => rmSync(join(d, 'sites', 'nikatru', 'pricing.html')));
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /missing sites[\\/]nikatru[\\/]pricing\.html/);
+    assert.doesNotMatch(r.out, /owner-gated/, 'it is no longer owner-gated: the page exists and the copy is published');
   });
 
-  test('once pricing.html exists the print flips to PROMOTE ME, so the exemption cannot outlive its reason', () => {
-    const r = afterEdit('cf-pricing-landed', (d) =>
-      writeFileSync(
-        join(d, 'sites', 'nikatru', 'pricing.html'),
-        '<html><head><meta name="robots" content="noindex"></head><body><h1>Pricing</h1></body></html>\n',
+  test('the owner-gated machinery still works while the map is empty — a declared gap PRINTS and does not fail', () => {
+    // Without this, PRINTED_LEGAL_GAPS could be deleted, or quietly stop
+    // printing, and nothing would notice until the next page that genuinely
+    // cannot be a build failure had to be added back under time pressure.
+    const r = afterEdit('cf-gap-machinery', (d) =>
+      patch(
+        d,
+        join('tooling', 'ci', GUARD),
+        'const PRINTED_LEGAL_GAPS = new Map([]);',
+        "const PRINTED_LEGAL_GAPS = new Map([['imprint.html', 'a worked example, not a real gap']]);",
       ),
     );
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /PROMOTE ME: sites\/nikatru\/pricing\.html now exists/);
+    assert.match(r.out, /MISSING \(owner-gated\): sites\/nikatru\/imprint\.html/);
+    assert.match(r.out, /PRINTED, NOT FAILED/);
+  });
+
+  test('a declared gap whose page EXISTS flips to PROMOTE ME, so an exemption cannot outlive its reason', () => {
+    const r = afterEdit('cf-gap-landed', (d) => {
+      patch(
+        d,
+        join('tooling', 'ci', GUARD),
+        'const PRINTED_LEGAL_GAPS = new Map([]);',
+        "const PRINTED_LEGAL_GAPS = new Map([['imprint.html', 'a worked example, not a real gap']]);",
+      );
+      writeFileSync(
+        join(d, 'sites', 'nikatru', 'imprint.html'),
+        '<html><head><meta name="robots" content="noindex"></head><body><h1>Imprint</h1></body></html>\n',
+      );
+    });
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /PROMOTE ME: sites\/nikatru\/imprint\.html now exists/);
     assert.match(r.out, /into LEGAL_PAGES/);
   });
 
