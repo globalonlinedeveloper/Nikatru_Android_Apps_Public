@@ -91,6 +91,29 @@ jobs:
         run: node --test --test-reporter=spec  --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination="${{ runner.temp }}/guard-tests.junit.xml" "tooling/ci/test/*.test.mjs"
       - name: Every guard is tested and self-checking
         run: node tooling/ci/assert-guard-coverage.mjs
+      # 🔴 THE RATCHET IS STATE, AND UNTIL TODAY NOTHING IN CI READ IT BACK.
+      # assert-guard-coverage.mjs WRITES tooling/ci/test/coverage-manifest.json on
+      # every run — that is how the floor rises, and every rise is printed. In CI
+      # that write went to a runner's disk and was thrown away with it, so a
+      # branch could ship a manifest LOWER than its own tree and the floor would
+      # be quietly lowered by the merge; the next branch would then ratchet up
+      # from the lower number and nobody would ever see the step down. The guard
+      # exits 0 either way, because rewriting the ratchet is its job, not a
+      # finding. This step is the read-back: the file the guard just wrote must
+      # be the file that was committed. It is deterministic — measured by running
+      # the guard twice on a clean tree, no diff either time — so a red here means
+      # the manifest was not regenerated, never that the run was unlucky.
+      # tooling/enforcement-index.json is deliberately NOT included: it already
+      # has its own comparison two steps down.
+      - name: The ratchet the guard just wrote is the ratchet that was committed
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- tooling/ci/test/coverage-manifest.json; then
+            echo "::error title=coverage-manifest.json was not regenerated::assert-guard-coverage.mjs rewrote the ratchet during this run, so the committed file is stale. Run \`node tooling/ci/assert-guard-coverage.mjs\` locally and commit the result. A manifest lower than the tree LOWERS the floor at merge, and nothing after that can see the step down."
+            git --no-pager diff -- tooling/ci/test/coverage-manifest.json
+            exit 1
+          fi
+          echo "ok  coverage-manifest.json is byte-identical to what this run derived"
       - name: The recorded floor must not exceed what actually ran
         run: node tooling/ci/assert-case-count-honest.mjs --junit "${{ runner.temp }}/guard-tests.junit.xml"
       - name: Guard tree walks cannot leave the tree
