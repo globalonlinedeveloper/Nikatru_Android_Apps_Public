@@ -90,6 +90,44 @@ function corpusOf(docs) {
 const fixtureFiles = () => (existsSync(CORPUS) ? readdirSync(CORPUS).filter((f) => f.endsWith('.json')).sort() : []);
 const fixtureDoc = (name) => JSON.parse(readFileSync(join(CORPUS, name), 'utf8'));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// A provider label NO adapter is registered for — checked against the registry,
+// not assumed.
+//
+// 🔴 IT USED TO BE THE LITERAL 'razorpay', AND ON 2026-09-12 THAT NAME BECAME
+// REAL. Registering the Razorpay adapter silently changed what this case is
+// about: the foreign row stopped falling down the "nothing is registered for
+// this provider" branch and started falling down "the real razorpay adapter
+// refused it" instead. The script still exited 2, so the case went on LOOKING
+// like it held — `assert.equal(r.code, 2)` passed. Only the message assertion
+// noticed, and it noticed as a red CI run on the pull request that registered
+// the rail, which is a confusing place to learn it.
+//
+// The lesson is not "pick a name nobody will ever register". It is that a case
+// about the ABSENCE of something has to READ the presence set rather than
+// assume it, or the set moves underneath it. So: every `provider: '…'` label
+// the MoR modules declare, and a refusal to run if the label handed out below
+// is among them. The day a rail takes this name, this test says which line to
+// change instead of drifting into a different case.
+//
+// ⚠️ The scan is deliberately crude — a plain literal match over raw source, so
+// a `provider: '…'` written in PROSE counts too. That error runs one way only:
+// a mention it should have ignored makes this test FAIL, loudly, naming the
+// label. It can never make an absent rail look present-enough to pass.
+// ─────────────────────────────────────────────────────────────────────────────
+const MOR_DIR = join(ROOT, 'services/platform/src/lib/mor');
+const UNREGISTERED_PROVIDER = 'no-such-rail';
+
+function registeredProviderLabels() {
+  if (!existsSync(MOR_DIR)) return new Set();
+  const labels = new Set();
+  for (const f of readdirSync(MOR_DIR).filter((n) => n.endsWith('.ts'))) {
+    const src = readFileSync(join(MOR_DIR, f), 'utf8');
+    for (const m of src.matchAll(/provider:\s*'([^']+)'/g)) labels.add(m[1]);
+  }
+  return labels;
+}
+
 describe('the checked-in corpus is a real subject', () => {
   test('the fixture directory exists and holds at least two payloads', () => {
     const files = fixtureFiles();
@@ -192,8 +230,17 @@ describe('money-dry-run.mjs refuses every way of proving nothing', () => {
   });
 
   test('a provider with no registered adapter is COVERAGE LOST, not an ignored row', () => {
+    const registered = registeredProviderLabels();
+    assert.ok(
+      registered.size > 0,
+      `${MOR_DIR} declares no provider labels at all — this case cannot tell a genuine absence from a directory it failed to read`,
+    );
+    assert.ok(
+      !registered.has(UNREGISTERED_PROVIDER),
+      `'${UNREGISTERED_PROVIDER}' is now a REGISTERED rail, so this case has quietly become a different one. Give it a label no adapter declares.`,
+    );
     const doc = fixtureDoc(fixtureFiles()[0]);
-    const foreign = { ...JSON.parse(JSON.stringify(doc)), provider: 'razorpay' };
+    const foreign = { ...JSON.parse(JSON.stringify(doc)), provider: UNREGISTERED_PROVIDER };
     const dir = corpusOf([doc, foreign]);
     try {
       const r = run(`--corpus=${dir}`);
