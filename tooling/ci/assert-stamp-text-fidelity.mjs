@@ -366,16 +366,53 @@ const expectedBase = needsBackend ? `https://${expectedApiHost}` : 'https://plat
 /** The shape the defect produced: a scheme with no authority. */
 const EMPTY_URL = /^https?:\/\/\s*$/;
 
+// ⏱ 2026-09-12 · THE KEY IS `API_BASE_URL`, AND THE OLD NAME IS WHY THIS
+// LIMB GREW A SECOND HALF. `--dart-define-from-file` maps each JSON key to a
+// define of EXACTLY that name, and `AppConfig` reads `API_BASE_URL`. These two
+// files shipped WIRE-STYLE SNAKE KEYS (`app_id`, `api_base_url`) from the day the
+// brick was written until 2026-09-12, so a stamped app run the documented way got
+// defines nothing reads and booted in DEMO MODE LOOKING CONFIGU🔴 — no error, no
+// empty screen, just the wrong data. Measured 2026-08-08 with a real
+// `flutter test --dart-define-from-file`: a snake file leaves `API_BASE_URL=<UNSET>`.
+// `apps/subscriptiontracker` fixed its OWN copy then ([ADR 037] P2.5) and wrote the
+// measurement into its README; the template kept the snake keys, and no check could
+// see it because the guard and the template agreed on the same wrong name.
+const DEFINE_RE = /fromEnvironment\(\s*'([A-Z][A-Z0-9_]*)'/g;
+const definesRead = new Set(config === null ? [] : [...config.matchAll(DEFINE_RE)].map((m) => m[1]));
+
 for (const rel of [join('config', 'defaults.json'), join('config', 'defaults.example.json')]) {
   const r = jsonAt(rel);
   const name = rel.split(sep).join('/');
   if (r.missing) fail(`apps/${appId}/${name} is missing.`);
   else if (r.error) fail(`apps/${appId}/${name} is not valid JSON: ${r.error}`);
-  else if (EMPTY_URL.test(String(r.value.api_base_url ?? ''))) {
-    fail(`${name} api_base_url is "${r.value.api_base_url}" — a scheme with no host. The blank var was interpolated, not derived.`);
-  } else if (r.value.api_base_url !== expectedBase) {
-    fail(`${name} api_base_url is "${r.value.api_base_url}", expected the derived "${expectedBase}".`);
-  } else ok(`${name} api_base_url derived to ${expectedBase}`);
+  else if (EMPTY_URL.test(String(r.value.API_BASE_URL ?? ''))) {
+    fail(`${name} API_BASE_URL is "${r.value.API_BASE_URL}" — a scheme with no host. The blank var was interpolated, not derived.`);
+  } else if (r.value.API_BASE_URL !== expectedBase) {
+    fail(`${name} API_BASE_URL is "${r.value.API_BASE_URL}", expected the derived "${expectedBase}".`);
+  } else ok(`${name} API_BASE_URL derived to ${expectedBase}`);
+
+  // 🔴 THE SECOND HALF, AND THE ONE THAT WOULD HAVE CAUGHT THIS. Every key here
+  // must be a define the stamped app actually reads. Keys beginning `//` are the
+  // JSON-comment convention both files already use to carry this explanation, and
+  // are skipped by name rather than by guesswork.
+  if (!r.missing && !r.error) {
+    if (config === null) {
+      fail(`${name} could not be graded for define names: apps/${appId}/lib/core/app_config.dart was not readable, so what the app reads is unknown.`);
+    } else if (definesRead.size === 0) {
+      fail(`${name} could not be graded for define names: apps/${appId}/lib/core/app_config.dart declares no String.fromEnvironment('NAME') this guard can read.`);
+    } else {
+      const unread = Object.keys(r.value).filter((k) => !k.startsWith('//') && !definesRead.has(k));
+      if (unread.length > 0) {
+        fail(
+          `${name} carries ${unread.length} key(s) apps/${appId}/lib/core/app_config.dart never reads: ${unread.join(', ')}. ` +
+            `--dart-define-from-file makes each key a define of exactly that name, so these supply nothing and the app boots in ` +
+            `demo mode looking configured. Use the define names (${[...definesRead].sort().join(', ')}) or a "//" comment key.`,
+        );
+      } else {
+        ok(`${name} keys are all defines the app reads (${Object.keys(r.value).filter((k) => !k.startsWith('//')).length} of ${definesRead.size})`);
+      }
+    }
+  }
 }
 
 if (config !== null) {
