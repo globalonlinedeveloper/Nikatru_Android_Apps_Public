@@ -47,13 +47,39 @@ import 'package:flutter/foundation.dart';
 /// a modification, so *"indicate if You modified the Licensed Material"* applies
 /// **on top of** the five retentions. It is stated explicitly below.
 ///
-/// ── WHAT THIS DOES NOT COVER ────────────────────────────────────────────────
-/// **Roboto** comes from the same `material_fonts/` artifact and is likewise
-/// absent from NOTICES. It is NOT registered here because it is not a live
-/// obligation: `FontManifest.json` ships neither Roboto nor a reference to it,
-/// so no Roboto bytes are distributed. **If a future build ever ships Roboto,
-/// this file is where its entry belongs** — and the asset register's row is what
-/// should catch it.
+/// ── ⏱ 2026-09-12 · THAT FUTURE BUILD ARRIVED, AND THE REGISTER CAUGHT IT ────
+/// This section used to say Roboto was NOT registered here because no Roboto
+/// bytes were distributed, and that **"if a future build ever ships Roboto,
+/// this file is where its entry belongs — and the asset register's row is what
+/// should catch it."** Both halves came true, in that order, and nobody had to
+/// remember: `assert-licence-register.mjs --bundle` failed the app-brick job on
+/// `Roboto-Regular.ttf ships … and has NO row`.
+///
+/// MEASURED 2026-09-12, and the trigger is narrower than "Flutter ships Roboto":
+///   · the stamped probe, built by CI on Flutter 3.47.2 with
+///     `--no-web-resources-cdn`, emits `Roboto-Regular.ttf` into `build/web`;
+///   · the SAME SDK and the SAME flag deployed apps/subscriptiontracker on the
+///     same day and its live bundle carries no Roboto at all — probed at
+///     `nikatru.com/subscriptiontracker/assets/…`, where `MaterialIcons-Regular.otf`
+///     answers `font/otf` 11,768 B and every Roboto path answers the SPA shell.
+/// So WHICH bundles carry it is not established, and this notice deliberately
+/// does not depend on that: it is registered unconditionally, because a licence
+/// obligation that is only discharged in the builds somebody remembered to check
+/// is the shape of the breach this whole file exists to close.
+///
+/// The licence is **Apache-2.0**, read from the bytes that ship rather than from
+/// a repository: `roboto_license.txt` in the same `material_fonts/` artifact
+/// (pinned by `bin/internal/material_fonts.version` to the fonts archive the
+/// asset register already cites) opens *"Apache License / Version 2.0, January
+/// 2004"*. That is a DIFFERENT licence from the icon font beside it in the same
+/// archive (CC BY 4.0), which is why each font gets its own entry rather than
+/// one notice covering "the vendored fonts".
+///
+/// Apache-2.0 §4(a) asks that recipients get a copy of the License, and §4(c)
+/// that attribution notices are retained; §4(b)'s change-notice duty is stated
+/// as unknown rather than waved away — this application does not modify the
+/// font, and whether the toolchain re-writes it in the bundle is recorded as an
+/// open measurement on the asset-register row, not asserted here.
 ///
 /// ─────────────────────────────────────────────────────────────────────────────
 /// Call this ONCE, early, from the app's `main()` — before `runApp`. It is
@@ -114,5 +140,42 @@ Stream<LicenseEntry> _vendoredFontLicences() async* {
     'concerning the Licensed Material, whether express, implied, statutory or '
     'other. See Section 5 of the License for the full disclaimer of warranties '
     'and limitation of liability.\n',
+  );
+
+  yield const LicenseEntryWithLineBreaks(
+    // The key is the asset-register row id, so a reader holding the register can
+    // find this notice on the shipped LicensePage by the same name.
+    <String>['flutter-roboto'],
+    'Roboto (Roboto-Regular.ttf and the other Roboto faces the Flutter SDK '
+    'vendors)\n'
+    'Copyright (c) Google Inc.\n'
+    '\n'
+    // Apache-2.0 §4(a): recipients must receive a copy of the License. §3(a)(2)
+    // reasoning does not apply here — Apache-2.0 names no URI allowance — so the
+    // notice carries the canonical location of the full text.
+    'Licensed under the Apache License, Version 2.0 (the "License"); you may '
+    'not use this font except in compliance with the License.\n'
+    'You may obtain a copy of the License at:\n'
+    '    https://www.apache.org/licenses/LICENSE-2.0\n'
+    '\n'
+    'Licensed Material:\n'
+    '    https://github.com/googlefonts/roboto\n'
+    'The bytes distributed with this application are the Roboto faces vendored '
+    'by the Flutter SDK (bin/cache/artifacts/material_fonts/, pinned by '
+    'bin/internal/material_fonts.version), whose roboto_license.txt is the '
+    'Apache License 2.0. The icon font in that same artifact carries a '
+    'DIFFERENT licence (CC BY 4.0) and is notified separately above.\n'
+    '\n'
+    // Apache-2.0 §4(b) — a change notice is owed only for files we modified.
+    // This application modifies none; "we did not change it" is the honest
+    // statement, and it is not a claim about what the toolchain emits.
+    'MODIFICATIONS: this application does not modify the font. Unlike the icon '
+    'font above, Roboto is not subject to icon tree-shaking.\n'
+    '\n'
+    'DISCLAIMER: unless required by applicable law or agreed to in writing, the '
+    'Licensor provides the Licensed Material on an "AS IS" BASIS, WITHOUT '
+    'WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See '
+    'Section 7 of the License for the full disclaimer of warranty and Section 8 '
+    'for the limitation of liability.\n',
   );
 }
