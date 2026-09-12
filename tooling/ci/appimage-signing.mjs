@@ -113,12 +113,12 @@
 // Exit 0 = the posture is decided and legal for this lane. 1 = it is not.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, statSync, mkdtempSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { createPrivateKey, createPublicKey, sign as cryptoSign, verify as cryptoVerify, randomBytes } from 'node:crypto';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { armedFatalLines, releaseGapVerdict, unarmedGapLines } from './channel-arming.mjs';
+import { boundedSpawn, timeoutFromEnv } from './bounded-spawn.mjs';
 
 export const APPS = 'catalog/apps.json';
 export const REGISTER = 'tooling/channel-register.json';
@@ -485,8 +485,13 @@ function resolveOpenssl() {
   const explicit = opt('openssl');
   const candidates = explicit ? [explicit] : ['openssl'];
   for (const c of candidates) {
-    const r = spawnSync(c, ['version'], { encoding: 'utf8' });
-    if (!r.error && r.status === 0) return { exe: c, version: `${r.stdout ?? ''}`.trim() };
+    // ⏱ 2026-09-12 — BOUNDED. `openssl version` prints one line; ten seconds is
+    // generous, and a candidate that cannot print it is not an openssl this
+    // script can use. Unbounded, a hung probe is a cancelled job with the log
+    // stopping mid-guard and nothing naming the command — the shape that read
+    // as five different mysteries before `flutter create` was bounded.
+    const r = boundedSpawn(c, ['version'], { timeoutMs: timeoutFromEnv('OPENSSL_PROBE_TIMEOUT_MS', 10_000), label: `${c} version` });
+    if (r.ok) return { exe: c, version: r.stdout.trim() };
   }
   return null;
 }
@@ -775,14 +780,30 @@ function main() {
         problems.push(`${a} is ZERO bytes. A truncated AppImage signs perfectly well and fails on a user's machine.`);
         continue;
       }
+      // ⏱ 2026-09-12 — BOUNDED, both of them. These two read a whole AppImage
+      // (hundreds of MB) through openssl, so the bound is minutes rather than
+      // seconds; what it rules out is the case with no end at all. A time-out is
+      // reported as ITSELF and never parsed: `parseOpensslVerify` over empty
+      // output answers `recognised: false`, which is the COVERAGE LOST branch
+      // below, and that message would send a reader looking for a broken parser
+      // instead of a command that never returned.
       const s = buildSignCommand({ keyPath, artifact: abs, exe: OPENSSL.exe });
-      const sr = spawnSync(s.exe, s.args, { encoding: 'utf8' });
+      const signTimeout = timeoutFromEnv('OPENSSL_SIGN_TIMEOUT_MS', 300_000);
+      const sr = boundedSpawn(s.exe, s.args, { timeoutMs: signTimeout, label: `${s.exe} dgst -sign` });
+      if (sr.timedOut) {
+        problems.push(`${a} — ${sr.detail} Nothing was signed, which is not the same as a signature that failed.`);
+        continue;
+      }
       if (sr.status !== 0 || !existsSync(s.signaturePath)) {
         problems.push(`${a} — the detached signature was not produced (${`${sr.stderr ?? ''}`.trim().split('\n')[0] || 'no output'}).`);
         continue;
       }
       const v = buildVerifyCommand({ publicKeyPath: pubPath, artifact: abs, signaturePath: s.signaturePath, exe: OPENSSL.exe });
-      const vr = spawnSync(v.exe, v.args, { encoding: 'utf8' });
+      const vr = boundedSpawn(v.exe, v.args, { timeoutMs: signTimeout, label: `${v.exe} dgst -verify` });
+      if (vr.timedOut) {
+        problems.push(`${a} — ${vr.detail} The signature was NOT read back, which is not the same as one that does not verify.`);
+        continue;
+      }
       const parsed = parseOpensslVerify(`${vr.stdout ?? ''}${vr.stderr ?? ''}`);
       if (!parsed.recognised) {
         problems.push(
