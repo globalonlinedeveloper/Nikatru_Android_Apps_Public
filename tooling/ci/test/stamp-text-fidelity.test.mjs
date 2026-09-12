@@ -77,7 +77,14 @@ const configDart = ({ app, name, base, release = "'\$appId@\$appVersion'" }) => 
     `  static const String appName = '${dartName}';\n` +
     "  static const String appVersion = String.fromEnvironment(\n    'APP_VERSION',\n    defaultValue: 'dev',\n  );\n" +
     `  static const String telemetryRelease = ${release};\n` +
-    `  static const String _phApiBase = '${base}';\n}\n`
+    `  static const String _phApiBase = '${base}';\n` +
+    // The define READS, not only the fallback literal: the defaults-file limb
+    // grades every key in config/defaults*.json against the names this file
+    // passes to String.fromEnvironment, so a fixture without them would leave
+    // that limb ungradeable and the check vacuous.
+    "  static const String apiBaseUrl = String.fromEnvironment(\n    'API_BASE_URL',\n    defaultValue: _phApiBase,\n  );\n" +
+    "  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');\n" +
+    "  static const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');\n}\n"
   );
 };
 
@@ -167,7 +174,7 @@ function tree({
   write(`apps/${app}/pubspec.yaml`, `name: ${app}\ndescription: "${j(name)} — a NIKATRU Cross Platform App."\n`);
   write(`apps/${app}/README.md`, `# ${name}\n\nStamped from the brick.\n`);
   for (const f of ['defaults.json', 'defaults.example.json']) {
-    write(`apps/${app}/config/${f}`, `{\n  "app_id": "${app}",\n  "api_base_url": "${base}"\n}\n`);
+    write(`apps/${app}/config/${f}`, `{\n  "//": "a comment key, skipped by name",\n  "API_BASE_URL": "${base}"\n}\n`);
   }
   // Filler, so the MIN_SCANNED floor reflects a real stamped tree rather than
   // being satisfied by the handful of files each assertion names.
@@ -308,11 +315,48 @@ describe('assert-stamp-text-fidelity', () => {
   });
 
   // ── 2 · the derivation defect ─────────────────────────────────────────────
+  // 🔴 THE DEFECT THIS LIMB EXISTS FOR, AND IT SHIPPED IN THE TEMPLATE FROM THE DAY
+  // THE BRICK WAS WRITTEN UNTIL 2026-09-12. `--dart-define-from-file` maps each JSON
+  // key to a define of EXACTLY that name, so a file of wire-style snake keys supplies
+  // defines nothing reads and the app boots in DEMO MODE LOOKING CONFIGURED - no
+  // error, no empty screen, just the wrong data. Measured 2026-08-08 with a real
+  // `flutter test --dart-define-from-file`: a snake file leaves API_BASE_URL unset.
+  // Nothing could see it, because the guard and the template agreed on the wrong name.
+  test('a defaults file of snake keys fails, naming every key the app never reads', () => {
+    const r = run(
+      tree({
+        mutate: ({ write, app }) =>
+          write(
+            `apps/${app}/config/defaults.json`,
+            `{\n  "app_id": "${app}",\n  "api_base_url": "https://platform.nikatru.com/v1",\n  "environment": "dev"\n}\n`,
+          ),
+      }),
+    );
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /never reads: app_id, api_base_url, environment/);
+    assert.match(r.out, /demo mode looking configured/);
+    // and it still says what the right names ARE, so the reader is not left guessing
+    assert.match(r.out, /API_BASE_URL/);
+  });
+
+  test('a "//" comment key is skipped by name, not by guesswork', () => {
+    const r = run(
+      tree({
+        mutate: ({ write, app }) =>
+          write(
+            `apps/${app}/config/defaults.json`,
+            `{\n  "//": "how to run this",\n  "//keys": "why the keys look like this",\n  "API_BASE_URL": "https://platform.nikatru.com/v1"\n}\n`,
+          ),
+      }),
+    );
+    assert.equal(r.code, 0, r.out);
+  });
+
   test('a bare "https://" in defaults.json fails — the blank var was interpolated', () => {
     const r = run(
       tree({
         mutate: ({ write, app }) =>
-          write(`apps/${app}/config/defaults.json`, `{\n  "api_base_url": "https://"\n}\n`),
+          write(`apps/${app}/config/defaults.json`, `{\n  "API_BASE_URL": "https://"\n}\n`),
       }),
     );
     assert.equal(r.code, 1, r.out);
@@ -350,7 +394,7 @@ describe('assert-stamp-text-fidelity', () => {
     const r = run(
       tree({
         mutate: ({ write, app }) =>
-          write(`apps/${app}/config/defaults.json`, `{\n  "api_base_url": "https://${app}-api.nikatru.com"\n}\n`),
+          write(`apps/${app}/config/defaults.json`, `{\n  "API_BASE_URL": "https://${app}-api.nikatru.com"\n}\n`),
       }),
     );
     assert.equal(r.code, 1, r.out);

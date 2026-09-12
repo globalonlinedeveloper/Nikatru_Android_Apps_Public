@@ -1,6 +1,7 @@
 {
-  "app_id": "{{app_id.snakeCase()}}",
-  "api_base_url": "{{{api_base_url}}}",
-  "content_pack": "",
-  "environment": "dev"
+  "//": "The runnable copy. Fill the two Supabase values, then: flutter run --dart-define-from-file=config/defaults.json",
+  "//keys": "KEYS ARE --dart-define NAMES. See config/defaults.example.json for why, and for the measurement behind it: a snake-keyed file supplies defines nothing reads and the app boots in DEMO MODE LOOKING CONFIGURED.",
+  "SUPABASE_URL": "",
+  "SUPABASE_ANON_KEY": "",
+  "API_BASE_URL": "{{{api_base_url}}}"
 }
