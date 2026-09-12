@@ -94,7 +94,11 @@ const opt = (name, fallback = null) => {
 };
 
 const TOOL = opt('tool');
-const SOURCE_DIR = opt('source-dir', 'dist/unpacked-firefox');
+/* DEFAULT MOVED 2026-09-12 (O-EXT-DIST-NOT-FLAT): the unpacked tree is no longer
+   left in the RELEASE directory, which release-manifest.mjs requires to be flat.
+   The workflow passes --source-dir explicitly; this default follows it so a hand
+   run reads the same tree the lane does. */
+const SOURCE_DIR = opt('source-dir', 'build/unpacked-firefox');
 const ARTIFACTS_DIR = opt('artifacts-dir', 'dist/amo');
 
 function die(lines) {
