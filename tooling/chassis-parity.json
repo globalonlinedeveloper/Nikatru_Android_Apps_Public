@@ -1,0 +1,49 @@
+{
+  "_what": "Which shared packages the APP TEMPLATE delegates to, and which of them a shipping app has not adopted yet. Read and enforced by tooling/ci/assert-chassis-parity.mjs.",
+  "_why": [
+    "THE FACTORY IS THE BASE, AND NOTHING CHECKED THAT THE APPS FOLLOWED IT. [ADR 067] moved the generic",
+    "screens and services out of the app and into packages/, and the template was rewritten to delegate to",
+    "them. `apps/subscriptiontracker` predates that move and was never migrated — so the NEXT app stamped is",
+    "more modern than the app we actually ship, and every fix made in a shared package reaches the template",
+    "and not the app.",
+    "",
+    "Measured 2026-09-12: the app imports nikatru_core (44 files), nikatru_design_system (27),",
+    "nikatru_api_client (7), nikatru_notifications (5), nikatru_platform_storage (4) and",
+    "nikatru_auth_supabase (3) — and nikatru_chassis_screens in ZERO. Its pubspec does not even declare the",
+    "dependency. Exactly one package is unadopted, and that is the whole of this file.",
+    "",
+    "THIS IS A RATCHET, NOT A PERMISSION SLIP. A row here is a debt that is written down, not a rule that it",
+    "is fine. The guard fails when a NEW package goes unadopted, when the declared file list stops matching",
+    "the template, and — the direction that matters — when a declared package IS adopted and the row was left",
+    "behind. The list can only shrink."
+  ],
+  "measuredOn": "2026-09-12",
+  "measuredBy": "node tooling/ci/assert-chassis-parity.mjs (its own scan; re-run it to re-derive every number here)",
+  "rule": "Every shared `nikatru_*` package the app template imports must be imported somewhere by every shipping app, unless a row below says why not.",
+  "notAdopted": [
+    {
+      "app": "subscriptiontracker",
+      "package": "nikatru_chassis_screens",
+      "since": "2026-09-12",
+      "why": "The app predates [ADR 067] and carries its own copy of every screen the chassis now owns. Migrating is a real change to live UI, not a rename: the app's settings screen is 1969 lines against the template's 616-line adapter, because it holds app-specific rows the chassis screen takes as parameters. The per-file sizes are recorded in `plan` so the size of the job is visible rather than guessed at.",
+      "cost": "The app also does not DECLARE the dependency: apps/subscriptiontracker/pubspec.yaml has no nikatru_chassis_screens entry, so the migration starts there.",
+      "plan": "Screen by screen, smallest first, each with its own PR and its own before/after screenshot: check_inbox (88 -> 23), verify_email (182 -> 47), reaccept_terms (179 -> 57), reset_password (314 -> 77), legal_consent_fields (272 -> 74), sign_up (211 -> 94), manage_plan (238 -> 183), paywall (302 -> 212), app.dart (661 -> 347), main.dart (208 -> 88), settings (1969 -> 616). Delete this row on the last one.",
+      "files": [
+        "app.dart",
+        "features/auth/check_inbox_screen.dart",
+        "features/auth/legal_consent_fields.dart",
+        "features/auth/reaccept_terms_screen.dart",
+        "features/auth/reset_password_screen.dart",
+        "features/auth/sign_in_screen.dart",
+        "features/auth/sign_up_screen.dart",
+        "features/auth/verify_email_screen.dart",
+        "features/firstrun/onboarding_screen.dart",
+        "features/monetization/manage_plan_screen.dart",
+        "features/monetization/paywall_screen.dart",
+        "features/settings/settings_screen.dart",
+        "main.dart"
+      ],
+      "_filesNote": "The TEMPLATE files that import this package, as the guard re-derives them. Two of them have no counterpart in the app at all (features/auth/sign_in_screen.dart, features/firstrun/onboarding_screen.dart) — the app's sign-in and onboarding live under different names — which is why this list is the template's and not the app's."
+    }
+  ]
+}
