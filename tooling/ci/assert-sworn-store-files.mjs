@@ -6,11 +6,19 @@
 // [pipeline K-8 / G-32, ADR 037 P2.7] (absent from origins.lock.json by construction — G-32 is a MASTER_PLAN §3 chassis-gap id, a different register from the pipeline ids; see Private/pre-minimal-2026-09-08:MASTER_PLAN.md) Two files under a channel's store
 // directory are not metadata — they are declarations a human swears to. There were
 // TWO when this guard was written; the set is DERIVED from the channel register
-// (see REQUIRED_COVERAGE below) and there are FOUR today:
+// (see REQUIRED_COVERAGE below) and there are FIVE today:
 //   · store/android-play/data-safety.json   (898 lines answered · 59 stamped)
 //   · store/android-play/content-rating.json (186 lines answered · 53 stamped)
 //   · store/android-play/ads-declaration.json (207 answered · 64 stamped, 2026-08-09)
 //   · store/ios-appstore/privacy-manifest.json (433 answered · 113 stamped, 2026-08-31)
+//   · store/ios-appstore/age-rating.json (188 answered · 62 stamped, 2026-09-12)
+// 🔴 THE FIFTH IS THE ONE THAT PROVES THE DERIVATION MATTERS. It landed ANSWERED
+// on 2026-09-12 and for one commit had no floor anywhere: it was not in the
+// register's `additionalFiles`, so this guard never saw it, and the only thing
+// reaching it was a `human-entry-point` waiver in assert-no-dead-files.mjs. A
+// sworn file can therefore arrive fully answered and completely unguarded, and
+// nothing before this line would have said so — which is why the register entry,
+// the spec and the brick template are one change and not three.
 // The brick stamps them all UNANSWERED, on purpose: a template cannot know what an
 // app does, and a confidently wrong sworn declaration is worse than an obviously
 // incomplete one. Which means every app carries, in the same path, a file that
@@ -470,6 +478,108 @@ const SWORN_SPECS = new Map([
        *  and 11× above the gutted total. It is a floor no per-row check can
        *  express on a document whose rows are legitimately one sentence long. */
       minBasisTotalChars: 2000,
+    },
+  ],
+  [
+    // The FIFTH sworn declaration (2026-09-12) — Apple's age-rating answers,
+    // required on every submission from September 2026. It is the one sworn
+    // file that shipped with NO floor at all: it arrived answered on 2026-09-12
+    // (PR #723) and was reachable for one commit only by a `human-entry-point`
+    // waiver in tooling/scripts/assert-no-dead-files.mjs, which said so in its
+    // own text. That waiver is deleted in the same change as this spec — the
+    // guard is now a real consumer, and a waiver beside a reader is a claim
+    // about nothing.
+    //
+    // 🔴 THE TEMPLATE DELIBERATELY HAS NO `assignedRating` KEY, AND ADDING ONE
+    // TURNS MAIN RED FOR A CONFUSING REASON. Limb 2 reads the template's null
+    // keys as "fields an answered copy must FILL", and the answered copy carries
+    // `assignedRating: null` on purpose and indefinitely — Apple COMPUTES the
+    // rating from the answers, so a value here would be one nobody computed.
+    // Null it in the brick and limb 2 reports the answered file as regressed for
+    // the one field that is correct. The omission is semantic, not a dodge: the
+    // template lists the questions the author owes, and the rating is not one
+    // they may answer. The template's `_readme` says this where a future author
+    // will be standing when they are tempted.
+    'ios-appstore/age-rating.json',
+    {
+      // `_readme` measured 23 live / 26 in the brick template — the one sworn
+      // file whose template prose is LONGER than the answered copy's, because
+      // the instructions for filling a questionnaire outlast the answers. The
+      // floor is therefore set under the LIVE count, not between the two.
+      minReadme: 18,
+      /** 🔴 ZERO, AND IT IS THE ONE FLOOR HERE THAT IS DELIBERATELY NOT A CHECK.
+       *  Limb 3b counts members of `sources` that are OBJECTS carrying a `url`
+       *  string. In this file `sources` is a list of five plain STRINGS — one
+       *  Apple documentation URL and four references to [ADR 068], [ADR 078],
+       *  [ADR 037] and android-play/content-rating.json. Only the first could
+       *  become a citation object at all; the other four would need a `fetched`
+       *  date that does not exist, and inventing one is worse than a shape
+       *  mismatch. So the citation limb cannot range over this document and the
+       *  floor says so instead of pretending. WHAT COVERS IT INSTEAD, and it is
+       *  a limb that really bites: `sources` is in `nonEmptyArrays` below —
+       *  emptying or deleting the provenance list is a hard failure. */
+      minCitations: 0,
+      /** `claims` (13 live) is the record itself. `sources` is the provenance,
+       *  standing in for the citation limb this document's shape disables. */
+      nonEmptyArrays: ['claims', 'sources'],
+      /** `audienceFloor` measured 3 keys (value, source, consequence) and
+       *  `questionnaireWording` 4 (verified, why, measuredOn, measuredBy).
+       *  The second is the block that records the answers were taken from
+       *  Apple's PUBLISHED reference and not from this account — delete it and
+       *  the file reads as verified against the live questionnaire, which is
+       *  the one thing it must never be mistaken for. */
+      minKeys: [{ at: 'audienceFloor', min: 3 }, { at: 'questionnaireWording', min: 4 }],
+      /** `humanOwned` is a BOOLEAN here, not the key-bearing object the two
+       *  android declarations use: nothing in this repository submits the
+       *  questionnaire, so the whole claim is "a person will retype these". A
+       *  null is that claim quietly withdrawn. */
+      booleans: ['humanOwned'],
+      /** `answer` is NOT in this list and that is measured, not an oversight:
+       *  the `kids-age-band` row answers null BY DECISION ([ADR 068] forbids a
+       *  Families/Kids declaration), so requiring a string would red the file
+       *  over its most deliberate answer. `attributes` is not here either —
+       *  entryKeys requires non-empty STRINGS and it is an array.
+       *  ⚠️ THE COST, STATED RATHER THAN COVERED: nulling ANY other claim's
+       *  `answer` is exit 0 here. Recorded as case AR13 in
+       *  tooling/ci/test/sworn-store-files.test.mjs, which asserts the exit 0 so
+       *  the hole is a measured fact and not a surprise. WHAT WOULD CLOSE IT: a
+       *  per-row rule — `answer` must be a string UNLESS `derivation` is
+       *  `decision` — which is a new spec field, and adding vocabulary to serve
+       *  one document is how this map stops being readable. */
+      entryKeys: [{ at: 'claims', keys: ['id', 'claim', 'derivation'] }],
+      /** The three rows no other guard ranges over, pinned by id. Every other
+       *  claim is `same-subject-as-play` and would be missed by
+       *  content-rating.json's own guards going green over the same behaviour;
+       *  these three are answered from somewhere else entirely, so deleting one
+       *  leaves nothing anywhere that notices. */
+      requiredRows: [
+        {
+          at: 'claims',
+          key: 'id',
+          is: 'unrestricted-web-access',
+          what:
+            'the only claim on this form derived from the CALL SITES rather than carried from Play — every ' +
+            'launchUrl passes LaunchMode.externalApplication and there is no WebView in the app, which is why ' +
+            'the answer is NO. Apple treats an embedded browser as unrestricted access, so this row flips the ' +
+            'moment a WebView lands and nothing else on this form would say so',
+        },
+        {
+          at: 'claims',
+          key: 'id',
+          is: 'in-app-purchases',
+          what:
+            'the one claim answered YES, and it tracks the BUSINESS MODEL rather than the code — there is no ' +
+            'dependency tell that changes when in-app selling is turned off, so no scan can re-derive it',
+        },
+        {
+          at: 'claims',
+          key: 'id',
+          is: 'kids-age-band',
+          what:
+            'null BY DECISION under [ADR 068], which is a different fact from unanswered. Drop the row and the ' +
+            'questionnaire reads as never having reached the Kids Age Band question at all',
+        },
+      ],
     },
   ],
 ]);
