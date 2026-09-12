@@ -1,0 +1,112 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// guard-sweep-invocations.test.mjs — the sweep must SEE an invocation that
+// starts node with a flag.
+//
+// 🔴 THE DEFECT THIS PINS, MEASURED 2026-09-12 ON A CLEAN main (327f63ab).
+// tooling/scripts/guard-sweep.mjs matched `node` then WHITESPACE then the path,
+// so `node --single-threaded tooling/ci/assert-listing-assets.mjs` — which is
+// how CI really starts four guards — matched nothing. preflight.mjs therefore
+// exited 1 on a clean tree with five false "invoked by no workflow" findings.
+// Nothing was wrong with the tree and nothing was wrong with CI: the CI-wired
+// assert-guard-coverage.mjs reported the same 180 files fully accounted for. The
+// damage was to the LOCAL gate, which cried wolf on every run.
+//
+// ⚠️ THE FLAG ARRIVED IN A FIX, WHICH IS WHY NOBODY LOOKED. `--single-threaded`
+// went onto those invocations on 2026-09-11 so that a guard which prints its
+// verdict and then deadlocks at exit (nodejs/node#54918) could finish. The
+// scanner that parses those very lines was not re-read. `moved-code-silences-
+// guards` records the mirror image of this — a refactor leaving a guard green
+// over nothing; here a refactor made a scanner shout.
+//
+// THE FIXTURE IS DERIVED FROM THE REAL WORKFLOWS, never hand-typed. A
+// hand-typed invocation line is one the author of a matcher gets right by
+// construction, which is the whole reason this defect survived: the pattern was
+// correct about every example its author had in mind.
+// ─────────────────────────────────────────────────────────────────────────────
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const SWEEP = join(REPO, 'tooling', 'scripts', 'guard-sweep.mjs');
+const WF_DIR = join(REPO, '.github', 'workflows');
+
+/** The pattern as it stood BEFORE 2026-09-12, kept as a NEGATIVE CONTROL. It is
+ *  not a restatement of the live matcher — it is the historical one, and the
+ *  case below is only meaningful because this misses what the real lines say. */
+const OLD_PATTERN = /node\s+tooling\/ci\/([a-z0-9._-]+\.mjs)([^|&;#\n]*)/i;
+
+/** Every real workflow line that starts a tooling/ci guard with a node FLAG.
+ *  Returns [{ wf, line, guard }]. */
+function flaggedInvocations() {
+  const out = [];
+  for (const wf of readdirSync(WF_DIR).filter((f) => /\.ya?ml$/.test(f))) {
+    for (const raw of readFileSync(join(WF_DIR, wf), 'utf8').split(/\r?\n/)) {
+      const code = raw.replace(/^\s*#.*$/, '');
+      const m = code.match(/node\s+(-[^\s]+(?:\s+-[^\s]+)*)\s+tooling\/ci\/([a-z0-9._-]+\.mjs)/i);
+      if (m) out.push({ wf, line: code.trim(), guard: m[2], flags: m[1] });
+    }
+  }
+  return out;
+}
+
+describe('guard-sweep sees a flagged node invocation', () => {
+  test('the real workflows DO start guards with a node flag — the fixture, derived not typed', () => {
+    const found = flaggedInvocations();
+    // The floor is the point: if this derivation ever returns nothing, every case
+    // below passes over an empty set and this file becomes decoration. That is
+    // the shape TRAPS "Guards that pass vacuously" is about.
+    assert.ok(
+      found.length >= 3,
+      `expected the real workflows to carry at least 3 flag-started guard invocations, found ${found.length}. ` +
+        'If the --single-threaded fix was reverted or rewritten, this file is asserting nothing and must be ' +
+        're-aimed rather than deleted.',
+    );
+    for (const f of found) assert.match(f.flags, /^-/);
+  });
+
+  test('🔴 THE OLD PATTERN MISSES EVERY ONE — the case that fails before the fix', () => {
+    const found = flaggedInvocations();
+    const missed = found.filter((f) => {
+      const m = f.line.match(OLD_PATTERN);
+      return !m || m[1] !== f.guard;
+    });
+    assert.equal(
+      missed.length,
+      found.length,
+      'the pre-2026-09-12 pattern is supposed to miss every flag-started invocation; if it now matches some, ' +
+        'this negative control has stopped controlling anything and the case above proves nothing.',
+    );
+  });
+
+  test('and the sweep now classifies NONE of them UNREACHED, exiting 0', () => {
+    const r = spawnSync(process.execPath, [SWEEP, '--scan-only'], { cwd: REPO, encoding: 'utf8' });
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    assert.doesNotMatch(
+      out,
+      /UNREACHED/,
+      `the sweep still reports an UNREACHED file:\n${out.split('\n').filter((l) => /UNREACHED/.test(l)).join('\n')}`,
+    );
+    assert.doesNotMatch(out, /invoked by no workflow/);
+    assert.equal(r.status, 0, out.slice(-600));
+  });
+
+  test('the node flags are CARRIED, not merely tolerated', () => {
+    // If the flags were matched and then thrown away, the sweep would execute
+    // those four guards in exactly the configuration the flag exists to avoid.
+    // `--scan-only` prints what it captured, so this reads the capture rather
+    // than trusting the comment beside it.
+    const r = spawnSync(process.execPath, [SWEEP, '--scan-only'], { cwd: REPO, encoding: 'utf8' });
+    const flags = [...new Set(flaggedInvocations().map((f) => f.flags.split(/\s+/)[0]))];
+    for (const flag of flags) {
+      assert.match(
+        r.stdout,
+        new RegExp(`node flag\\(s\\)[^\\n]*${flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+        `the sweep never reports carrying ${flag}, so it is dropping the flag CI starts these guards with`,
+      );
+    }
+  });
+});
