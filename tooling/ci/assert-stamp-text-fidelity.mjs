@@ -436,7 +436,14 @@ if (servicePath) {
     }
     if (cfg) {
       const origins = String(cfg.vars?.ALLOWED_ORIGINS ?? '');
-      const want = `https://${vars.subdomain || expectedSub}`;
+      // CLOCK 2026-09-12 DOT THE APEX, AND THE GUARD WAS WRONG THE SAME WAY THE
+      // TEMPLATE WAS. This expected `https://<subdomain>` - the per-app address
+      // [ADR 075] retired and [ADR 080] section 4 stopped resolving - so a stamped
+      // Worker allowed one origin that cannot exist and refused the one the app is
+      // served from, and this check agreed with it. Guard and template agreeing on
+      // the same wrong value is the exact shape that hid the snake-keyed defaults
+      // file for a month; it is worth saying twice.
+      const want = 'https://nikatru.com';
       if (EMPTY_URL.test(origins)) {
         fail(
           `ALLOWED_ORIGINS is "${origins}" — a scheme with no host. The app's own Worker would reject its ` +

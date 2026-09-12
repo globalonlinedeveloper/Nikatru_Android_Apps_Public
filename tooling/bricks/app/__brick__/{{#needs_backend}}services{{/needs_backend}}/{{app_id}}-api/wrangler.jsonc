@@ -86,7 +86,21 @@
     "APP_ID": "{{app_id}}",
     "SUPABASE_URL": "https://lcrkiurkvzhkonjwhpiv.supabase.co",
     "API_VERSION": "v1",
-    "ALLOWED_ORIGINS": "https://{{{subdomain}}}"
+    // CLOCK 2026-09-12 DOT THE APEX, NOT A PER-APP SUBDOMAIN. This stamped
+    // `https://{{app_id}}.nikatru.com`, which [ADR 075] retired as an app address
+    // and [ADR 080] section 4 finished off by deleting the wildcard that made such
+    // names resolve at all. So a freshly stamped Worker allowed exactly one origin
+    // THAT CANNOT EXIST, and refused the one the app is actually served from:
+    // every API call from its own web build would have been blocked by the browser,
+    // with no server-side error to find. Since [ADR 075] every app is published at
+    // `nikatru.com/<id>`, so the browser origin is the APEX and it is the same for
+    // every app.
+    //
+    // WARN ADD THE PAGES ALIAS TOO IF THE APP IS OPENED DIRECTLY at its
+    // `*.pages.dev` production URL. It is NOT derivable - Cloudflare appends a
+    // suffix when the project name is taken - so it is a printed checklist step
+    // rather than a guess stamped here. `cors.ts` matches exact origins only.
+    "ALLOWED_ORIGINS": "https://nikatru.com"
   },
   "d1_databases": [
     {

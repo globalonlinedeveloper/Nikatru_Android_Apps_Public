@@ -1905,7 +1905,9 @@
   },
   {
     "claims": [
-      "ADR 037"
+      "ADR 037",
+      "ADR 075",
+      "ADR 080"
     ],
     "invokedBy": [
       ".github/workflows/ci.yml#app-brick"
