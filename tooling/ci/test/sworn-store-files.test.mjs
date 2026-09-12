@@ -38,6 +38,11 @@ const BRICK_IOS = 'tooling/bricks/app/__brick__/apps/{{app_id}}/store/ios-appsto
 const SUBLY_IOS = 'apps/subscriptiontracker/store/ios-appstore';
 const PM = `${SUBLY_IOS}/privacy-manifest.json`;
 const PM_TMPL = `${BRICK_IOS}/privacy-manifest.json`;
+/** The FIFTH sworn declaration (2026-09-12) — Apple's age-rating answers. It
+ *  needs no new seeding: `put(SUBLY_IOS)` and `put(BRICK_IOS)` already copy
+ *  both whole directories, which is why the FOURTH was written that way. */
+const AR = `${SUBLY_IOS}/age-rating.json`;
+const AR_TMPL = `${BRICK_IOS}/age-rating.json`;
 const DS = `${SUBLY_STORE}/data-safety.json`;
 const CR = `${SUBLY_STORE}/content-rating.json`;
 /** The third sworn declaration (2026-08-09) — Play "App content → Ads". It is
@@ -79,7 +84,14 @@ function citedPaths() {
   // assert-ads-declarations, submit-play, render-play-graphics,
   // capture-play-screenshots) — and hand-listing them is the mistake this
   // function's own header records making.
-  for (const rel of [DS, CR, ADS, README, PM, `${SUBLY_IOS}/README.md`]) {
+  // 🔬 `AR` JOINED THIS LIST 2026-09-12 AND ITS ABSENCE WAS MEASURED, not
+  // predicted. Adding the fifth declaration to the register without seeding its
+  // citations turned the BASELINE red with "age-rating.json `_readme[20]` cites
+  // tooling/app-yaml/render.mjs, which does not exist" — the guard correctly
+  // reporting that the harness had starved it, in exactly the shape this
+  // function's header already records. A new sworn file belongs here in the same
+  // change that declares it.
+  for (const rel of [DS, CR, ADS, README, PM, AR, `${SUBLY_IOS}/README.md`]) {
     for (const m of readFileSync(join(REPO, rel), 'utf8').matchAll(CITED_RE)) set.add(m[0]);
   }
   return [...set];
@@ -460,6 +472,199 @@ describe('the FOURTH declaration — the Apple privacy manifest audit [G-49]', (
     assert.ok(j._readme.length >= 20, 'the template must still instruct the person stamping app #2');
     assert.ok(j.unresolved.length >= 5, 'and still name the work they owe');
     assert.ok(j._structuralFacts.facts.length >= 4, 'and still carry the facts true of every app in the factory');
+  });
+});
+
+describe('the FIFTH declaration — Apple age-rating answers', () => {
+  test('🔴 THE REAL REGISTER DECLARES IT SWORN — without this the spec guards nothing', () => {
+    // The twin of the FOURTH's reality case, and it earns its place: this
+    // declaration's floors are asserted ONLY because the register lists it. Drop
+    // the entry and assert-sworn-store-files exits COVERAGE LOST ("this guard
+    // specs ios-appstore/age-rating.json, which … no longer declares as sworn"),
+    // which is not a pass — but this case is the one that says so BY NAME.
+    const reg = JSON.parse(readFileSync(join(REPO, REGISTER), 'utf8'));
+    const ios = reg.storeMetadataContract?.perChannel?.['ios-appstore']?.additionalFiles ?? [];
+    assert.ok(
+      ios.includes('age-rating.json'),
+      'tooling/channel-register.json -> storeMetadataContract.perChannel["ios-appstore"].additionalFiles ' +
+        'does not list age-rating.json. The sworn set is DERIVED from that contract, so the spec in ' +
+        'assert-sworn-store-files.mjs would be an orphan and the declaration would be back to having no ' +
+        'floor at all — the state it shipped in for one commit on 2026-09-12.',
+    );
+  });
+
+  test('the copy the cases mutate really is the answered declaration', () => {
+    const ar = JSON.parse(readFileSync(join(REPO, AR), 'utf8'));
+    assert.ok(ar.claims.length >= 13, 'the declaration must really carry its claims');
+    assert.equal(typeof ar.humanOwned, 'boolean');
+    assert.equal(ar.audienceFloor.value, 18);
+    assert.equal(ar.assignedRating, null, 'Apple computes the rating; a value here would be one nobody computed');
+  });
+
+  test('🔴 AR1 — REPLACING THE ANSWERS WITH THE BRICK TEMPLATE FAILS', () => {
+    withTree(
+      (root) => cpSync(join(root, AR_TMPL), join(root, AR)),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json is \d+ lines; the floor is/);
+        assert.match(r.stderr, /answers `null` for \d+ field\(s\)/);
+      },
+    );
+  });
+
+  test('🔴 AR2 — `claims` emptied, the record itself', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.claims = []; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json `claims` is EMPTY/);
+      },
+    );
+  });
+
+  test('🔴 AR3 — `sources` emptied, the limb standing in for the disabled citation count', () => {
+    // This is the case that makes `minCitations: 0` honest. Limb 3b cannot range
+    // over this document — its provenance is five plain STRINGS, only one of
+    // which is a URL — so the substance limb is what defends the list. If this
+    // case ever goes green the provenance is unguarded and the zero floor really
+    // is the vacuum it looks like.
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.sources = []; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json `sources` is EMPTY/);
+      },
+    );
+  });
+
+  test('🔴 AR4 — `humanOwned` nulled, the claim that a person will retype these', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.humanOwned = null; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json `humanOwned` is null and must be a boolean/);
+      },
+    );
+  });
+
+  test('🔴 AR5 — `questionnaireWording` deleted, so the file reads as verified against the live account', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { delete j.questionnaireWording; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json `questionnaireWording` carries 0 key\(s\)/);
+      },
+    );
+  });
+
+  test('🔴 AR6 — the `unrestricted-web-access` row deleted, the only call-site-derived claim', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.claims = j.claims.filter((c) => c.id !== 'unrestricted-web-access'); }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /NOT ONE with `id` === "unrestricted-web-access"/);
+      },
+    );
+  });
+
+  test('🔴 AR7 — the `kids-age-band` row deleted, which is not the same fact as answering it', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.claims = j.claims.filter((c) => c.id !== 'kids-age-band'); }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /NOT ONE with `id` === "kids-age-band"/);
+      },
+    );
+  });
+
+  test('🔴 AR8 — the `in-app-purchases` row deleted, the one answer no scan can re-derive', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j.claims = j.claims.filter((c) => c.id !== 'in-app-purchases'); }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /NOT ONE with `id` === "in-app-purchases"/);
+      },
+    );
+  });
+
+  test('🔴 AR9 — every claim loses `derivation`, so no row says how it was known', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { for (const c of j.claims) delete c.derivation; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json `claims\[0\]` has no `derivation`/);
+      },
+    );
+  });
+
+  test('🔴 AR10 — `_readme` collapsed, the only record of WHY each answer is what it is', () => {
+    withTree(
+      (root) => editDoc(root, AR, (j) => { j._readme = j._readme.slice(0, 4); }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json has a 4-line `_readme`/);
+      },
+    );
+  });
+
+  test('🔴 AR11/AR12 — the age-rating template must STAY a template', () => {
+    withTree(
+      (root) => editDoc(root, AR_TMPL, (j) => {
+        // Both halves of limb 7 at once: answers copied in, and the list of
+        // questions the next author owes emptied.
+        const answered = JSON.parse(readFileSync(join(REPO, AR), 'utf8'));
+        for (const k of ['status', 'statusReason', 'audienceFloor', 'questionnaireWording', 'claims', 'sources', 'humanOwned']) {
+          j[k] = answered[k];
+        }
+        j.unresolved = [];
+      }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /brick template .*age-rating\.json carries NO null answers/);
+        assert.match(r.stderr, /brick template .*age-rating\.json has an empty `unresolved` list/);
+      },
+    );
+  });
+
+  test('AR13 — nulling a claim ANSWER is EXIT 0, and it is a STATED HOLE rather than a decision', () => {
+    // `answer` is deliberately absent from this spec's `entryKeys`, because the
+    // `kids-age-band` row answers null BY DECISION ([ADR 068] forbids a
+    // Families/Kids declaration) and entryKeys demands a non-empty string. The
+    // cost is this: nulling ANY other claim's answer is exit 0 here.
+    //
+    // Written as a passing case rather than left unmentioned, the same way PM2
+    // records that emptying `unresolved` is exit 0. WHAT WOULD CLOSE IT: a
+    // per-row rule — `answer` must be a string UNLESS `derivation` is
+    // `decision` — which is a new spec field and deliberately not this change.
+    withTree(
+      (root) => editDoc(root, AR, (j) => {
+        const violence = j.claims.find((c) => c.id === 'violence');
+        violence.answer = null;
+      }),
+      (r) => {
+        assert.equal(r.status, 0, r.stderr);
+      },
+    );
+  });
+
+  test('🔴 AR14 — THE TRAP: nulling `assignedRating` in the TEMPLATE reds the CORRECT answered file', () => {
+    // The template has no `assignedRating` key on purpose, and this case is why.
+    // Limb 2 reads the template's null keys as "fields an answered copy must
+    // FILL", and the answered copy carries `assignedRating: null` indefinitely
+    // and correctly — Apple COMPUTES the rating. Null it in the brick and the
+    // guard reports the one field that is right as a regression.
+    //
+    // ⚠️ THIS CASE ASSERTS A FALSE POSITIVE, ON PURPOSE, so that a future author
+    // "completing" the template finds a test that explains itself instead of a
+    // confusing red on an untouched file. If limb 2 is ever taught to skip keys
+    // that are absent-by-design, this case SHOULD be deleted in that change.
+    withTree(
+      (root) => editDoc(root, AR_TMPL, (j) => { j.assignedRating = null; }),
+      (r) => {
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /age-rating\.json answers `null` for 1 field\(s\).*assignedRating/s);
+      },
+    );
   });
 });
 

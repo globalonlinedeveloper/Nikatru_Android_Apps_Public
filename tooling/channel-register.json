@@ -306,7 +306,8 @@
           "subtitle.txt",
           "keywords.txt",
           "promotional-text.txt",
-          "privacy-manifest.json"
+          "privacy-manifest.json",
+          "age-rating.json"
         ],
         "maxChars": {
           "_why": [

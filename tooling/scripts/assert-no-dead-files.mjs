@@ -341,28 +341,25 @@ const EXEMPTIONS = [
       "service's README happens to name it — an asymmetry between two READMEs, not a difference in how the " +
       'two files are used, so waiving this one is the honest treatment rather than a hint that it is dead.',
   },
-  {
-    path: 'apps/subscriptiontracker/store/ios-appstore/age-rating.json',
-    kind: 'human-entry-point',
-    since: '2026-09-12',
-    why:
-      'the Apple age-rating answers (O-APPLE-AGE-RATINGS). 🔴 WHO OPENS IT AND WHEN, which is the part a ' +
-      'waiver owes: the submitter, ONCE PER APP AT FIRST SUBMISSION and again whenever an answer stops ' +
-      'being true — they read the thirteen claims here and retype them into App Store Connect. Nothing in ' +
-      'this tree opens it, and nothing should: [ADR 037] holds that a sworn declaration regenerated from a ' +
-      'template is a statement nobody made, so tooling/app-yaml/render.mjs must never write this file. ' +
-      '⚠️ IT IS NOT SYMMETRICAL WITH ITS ANDROID SIBLING, and that asymmetry is the reason this row exists ' +
-      'rather than being a smell: store/android-play/content-rating.json is reached by REAL consumers ' +
-      '(assert-play-declarations.mjs and assert-ads-declarations.mjs both read its answers), and no ' +
-      'equivalent reader exists on the Apple side yet. It is also absent from ' +
-      'tooling/chassis-ledger.json on purpose — that ledger indexes the BRICK TEMPLATE, whose ' +
-      'ios-appstore/ carries no age-rating.json, and assert-chassis-ledger.mjs fails on a row naming a ' +
-      'path git cannot see under its roots. 🔴 WHAT RETIRES THIS ROW, and it is the stronger protection: a ' +
-      'fifth entry in assert-sworn-store-files.mjs SWORN_SPECS plus the blank counterpart in the brick ' +
-      'template that guard measures against. That is a change to what EVERY future app is stamped with, so ' +
-      'it is filed as its own increment rather than smuggled in beside the answers. Until then the file is ' +
-      'unguarded against regressing toward a blank, which this row states rather than hides.',
-  },
+  // 🔴 AND THE `human-entry-point` ROW FOR THE APPLE AGE-RATING DECLARATION IS
+  // GONE, REMOVED 2026-09-12 — THE SAME DAY IT WAS ADDED, BY ITS OWN TERMS.
+  // It waived apps/subscriptiontracker/store/ios-appstore/age-rating.json on the
+  // reasoning that a person retypes those answers into App Store Connect and
+  // nothing in the tree opens the file. The first half is still true. The second
+  // half stopped being true in the change that deleted this row: the declaration
+  // is now a sworn spec in tooling/ci/assert-sworn-store-files.mjs, keyed
+  // `ios-appstore/age-rating.json`, and tooling/channel-register.json lists
+  // age-rating.json in the ios-appstore `additionalFiles` the sworn set is
+  // DERIVED from — so `path-reference` reaches it from two real consumers and a
+  // waiver standing beside a reader is a claim about nothing.
+  //
+  // ⚠️ AND IT IS STRICTLY STRONGER THAN THE WAIVER WAS, which is the test the
+  // preflight.mjs tombstone above sets for removing one of these: not "something
+  // mentions it" but a BUILD-FAILING binding. Measured both directions on the
+  // real tree — delete the file and assert-sworn-store-files.mjs goes red on its
+  // own derivation (the register still declares it), and the guard now refuses a
+  // declaration that regresses toward the blank brick template, which no waiver
+  // could ever have done.
   // 🔴 AND SO IS THE `removal-candidate` ROW FOR tooling/preflight_check.py —
   // together with the file. That row was the one kind expected to be deleted
   // rather than to persist, and its own last clause said how: "delete this row
