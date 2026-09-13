@@ -550,7 +550,15 @@ for (const root of roots) {
   //
   // 🔴 AND IT FOLLOWS THE DELEGATION, FOR THE SAME REASON LIMBS 1-3 DO.
   // [ADR 067] decision 2 (unit app-shell) moved the prompt's BODY into
-  // `package:nikatru_chassis_screens/shell/consent_prompt_card.dart` and left
+  // `packages/chassis_screens/lib/shell/app_shell.dart` (`ConsentPromptCard`,
+  // the class at :195) and left
+  // ⏱ 2026-09-13 — this line named
+  // `package:nikatru_chassis_screens/shell/consent_prompt_card.dart`, A FILE THAT
+  // HAS NEVER EXISTED (O-CONSENT-GUARD-PHANTOM-CITATION). The unit landed the card
+  // INSIDE app_shell.dart alongside OfflineBannerHost and AppLifecycleFlush — that
+  // file's own header says so at :28 — rather than in a file of its own. A comment
+  // is not graded by any guard, so a plausible-looking import path survived here
+  // while resolving to nothing; re-measured with `grep -n ConsentPromptCard`.
   // `_ConsentPrompt` in the brick as an adapter that supplies the one Riverpod
   // writer. The adapter renders no sentence, so read at the adapter alone this
   // derivation finds ZERO prompt classes — which this limb correctly reports as
