@@ -1383,7 +1383,13 @@ void main() {
     expect(
       find.text('Cancelled'),
       findsWidgets,
-      reason: 'Cancel confirmation never appeared — DELETE likely failed',
+      // Says what was LOOKED FOR and what was THERE INSTEAD, and asserts nothing
+      // about DELETE: a missing widget cannot tell a failed round-trip from a
+      // renamed string, a slow rebuild or a screen that never opened, and naming
+      // the wrong cause sends the next reader to the wrong system.
+      reason:
+          'expected a "Cancelled" text widget after confirming the cancel; '
+          'find.text("Cancelled") matched nothing 8s after tapping "Confirm cancel"',
     );
     await tester.tap(find.text('Done'));
     await pumpFor(
